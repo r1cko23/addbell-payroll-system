@@ -116,15 +116,23 @@ export default function PayslipsPage() {
     if (!selectedEmployeeId) return;
 
     try {
+      console.log('Loading data for employee:', selectedEmployeeId);
+      console.log('Week start date:', format(weekStart, 'yyyy-MM-dd'));
+      
       // Load attendance
       const { data: attData, error: attError } = await supabase
         .from('weekly_attendance')
         .select('*')
         .eq('employee_id', selectedEmployeeId)
         .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
-        .single();
+        .maybeSingle();
 
-      if (attError && attError.code !== 'PGRST116') throw attError;
+      console.log('Attendance query result:', { attData, attError });
+      
+      if (attError) {
+        console.error('Attendance error:', attError);
+        throw attError;
+      }
       setAttendance(attData);
 
       // Load deductions
@@ -133,9 +141,14 @@ export default function PayslipsPage() {
         .select('*')
         .eq('employee_id', selectedEmployeeId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (dedError && dedError.code !== 'PGRST116') throw dedError;
+      console.log('Deductions query result:', { dedData, dedError });
+      
+      if (dedError) {
+        console.error('Deductions error:', dedError);
+        throw dedError;
+      }
       setDeductions(dedData);
     } catch (error) {
       console.error('Error loading data:', error);

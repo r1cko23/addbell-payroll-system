@@ -518,12 +518,14 @@ export default function AdminDashboardPage() {
                   </div>
                 </Button>
               </Link>
-              <Button variant="outline" className="w-full h-20" disabled>
-                <div className="flex flex-col items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  <span className="text-sm">Reports</span>
-                </div>
-              </Button>
+              <Link href="/timesheet">
+                <Button variant="outline" className="w-full h-20">
+                  <div className="flex flex-col items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    <span className="text-sm">Timesheet</span>
+                  </div>
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>

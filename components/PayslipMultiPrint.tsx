@@ -52,23 +52,23 @@ interface PayslipMultiPrintProps {
 
 export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Element {
   // Styles for compact payslip (fits 4 on legal paper)
-  const compactTableStyle: React.CSSProperties = {
+  const compactTableStyle = {
     width: '100%',
-    borderCollapse: 'collapse',
+    borderCollapse: 'collapse' as const,
     fontSize: '7pt',
     color: '#000',
   };
 
-  const compactCellStyle: React.CSSProperties = {
+  const compactCellStyle = {
     border: '1px solid #000',
     padding: '2px 4px',
-    textAlign: 'left',
+    textAlign: 'left' as const,
   };
 
-  const compactHeaderStyle: React.CSSProperties = {
+  const compactHeaderStyle = {
     ...compactCellStyle,
     backgroundColor: '#e5e7eb',
-    fontWeight: 'bold',
+    fontWeight: 'bold' as const,
     fontSize: '7.5pt',
   };
 

@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/utils/format';
 
@@ -47,43 +46,18 @@ interface PayslipPrintProps {
   preparedBy: string;
 }
 
-export function PayslipPrint({
-  employee,
-  weekStart,
-  weekEnd,
-  attendance,
-  earnings,
-  deductions,
-  adjustment,
-  netPay,
-  workingDays,
-  absentDays,
-  preparedBy
-}: PayslipPrintProps): JSX.Element {
-  const tableStyle: React.CSSProperties = {
-    width: '100%',
-    borderCollapse: 'collapse',
-    marginTop: '5px',
-    fontSize: '11pt',
-    color: '#000',
-  };
-
-  const cellStyle: React.CSSProperties = {
-    border: '2px solid #000',
-    padding: '6px 8px',
-    textAlign: 'left',
-  };
-
-  const sectionHeaderStyle: React.CSSProperties = {
-    ...cellStyle,
-    backgroundColor: '#e5e7eb',
-    fontWeight: 'bold',
-    fontSize: '12pt',
-  };
-
+export function PayslipPrint(props: PayslipPrintProps) {
+  const { employee, weekStart, weekEnd, earnings, deductions, netPay, workingDays, preparedBy } = props;
+  
   return (
-    <div className="payslip-container" style={{ width: '210mm', minHeight: '297mm', padding: '10mm', margin: '0 auto', backgroundColor: '#fff', color: '#000' }}>
-
+    <div className="payslip-container" style={{ 
+      width: '210mm', 
+      minHeight: '297mm', 
+      padding: '10mm', 
+      margin: '0 auto', 
+      backgroundColor: '#fff', 
+      color: '#000' 
+    }}>
       {/* Company Header */}
       <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
         <img 
@@ -101,194 +75,262 @@ export function PayslipPrint({
         </div>
       </div>
 
-      <table style={tableStyle}>
+      <table style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        marginTop: '5px',
+        fontSize: '11pt',
+        color: '#000',
+      }}>
         <tbody>
         {/* Payroll Period */}
         <tr>
-          <td colSpan={4} style={sectionHeaderStyle}>
+          <td colSpan={4} style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+          }}>
             PAYROLL PERIOD OF: {format(weekStart, 'MMM. d')}-{format(weekEnd, 'd, yyyy')}
           </td>
         </tr>
 
         {/* Employee Name */}
         <tr>
-          <td colSpan={4} style={sectionHeaderStyle}>
+          <td colSpan={4} style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+          }}>
             NAME: {employee.full_name.toUpperCase()}
           </td>
         </tr>
 
         {/* Basic Salary & Working Days */}
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>BASIC SALARY:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(employee.rate_per_day)}</td>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>RATE/HOUR:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{employee.rate_per_hour.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>BASIC SALARY:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(employee.rate_per_day)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>RATE/HOUR:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{employee.rate_per_hour.toFixed(2)}</td>
         </tr>
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>WORKING DAYS:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{workingDays}</td>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>ABSENT:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{absentDays}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>WORKING DAYS:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{workingDays}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>ABSENT:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>0</td>
         </tr>
 
         {/* EARNINGS Section */}
         <tr>
-          <td colSpan={4} style={sectionHeaderStyle}>EARNINGS:</td>
+          <td colSpan={4} style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+          }}>EARNINGS:</td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>REGULAR PAY:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.regularPay)}</td>
-          <td style={cellStyle}></td>
-          <td style={cellStyle}></td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>REGULAR PAY:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(earnings.regularPay)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px'}}></td>
+          <td style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>REGULAR O. T:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.regularOT)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.regularOTHours.toFixed(2)}</td>
-          <td style={cellStyle}>HRS</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>REGULAR O. T:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(earnings.regularOT)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{earnings.regularOTHours.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px'}}>HRS</td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>NIGHT DIFF.:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.nightDiff)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.nightDiffHours.toFixed(2)}</td>
-          <td style={cellStyle}>HRS</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>NIGHT DIFF.:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(earnings.nightDiff)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{earnings.nightDiffHours.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px'}}>HRS</td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>SUNDAY/ R.D OT:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.sundayRestDay)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.sundayRestDayHours.toFixed(2)}</td>
-          <td style={cellStyle}>HRS</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>SUNDAY/ R.D OT:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(earnings.sundayRestDay)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{earnings.sundayRestDayHours.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px'}}>HRS</td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>SPECIAL HOLIDAY:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.specialHoliday)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.specialHolidayHours.toFixed(2)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{0.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>SPECIAL HOLIDAY:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(earnings.specialHoliday)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{earnings.specialHolidayHours.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{(0).toFixed(2)}</td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>REGULAR HOLIDAY:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.regularHoliday)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.regularHolidayHours.toFixed(2)}</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{0.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>REGULAR HOLIDAY:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(earnings.regularHoliday)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{earnings.regularHolidayHours.toFixed(2)}</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{(0).toFixed(2)}</td>
         </tr>
 
         <tr>
-          <td style={sectionHeaderStyle}>GROSS INCOME:</td>
-          <td style={{...sectionHeaderStyle, textAlign: 'right'}}>{formatCurrency(earnings.grossIncome)}</td>
-          <td colSpan={2} style={cellStyle}></td>
+          <td style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+          }}>GROSS INCOME:</td>
+          <td style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+            textAlign: 'right'
+          }}>{formatCurrency(earnings.grossIncome)}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         {/* DEDUCTIONS Section */}
         <tr>
-          <td colSpan={4} style={sectionHeaderStyle}>DEDUCTIONS:</td>
+          <td colSpan={4} style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+          }}>DEDUCTIONS:</td>
         </tr>
 
         {deductions.vale > 0 && (
           <tr>
-            <td style={{...cellStyle, fontWeight: 'bold'}}>vale</td>
-            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.vale)}</td>
-            <td colSpan={2} style={cellStyle}></td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>vale</td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.vale)}</td>
+            <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
           </tr>
         )}
 
         {deductions.uniformPPE > 0 && (
           <tr>
-            <td style={{...cellStyle, fontWeight: 'bold'}}>UNIFORM/PPE</td>
-            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.uniformPPE)}</td>
-            <td colSpan={2} style={cellStyle}></td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>UNIFORM/PPE</td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.uniformPPE)}</td>
+            <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
           </tr>
         )}
 
         {deductions.pagibigLoan > 0 && (
           <tr>
-            <td style={{...cellStyle, fontWeight: 'bold'}}>PAG-IBIG LOAN</td>
-            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.pagibigLoan)}</td>
-            <td colSpan={2} style={cellStyle}></td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>PAG-IBIG LOAN</td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.pagibigLoan)}</td>
+            <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
           </tr>
         )}
 
         {deductions.sssLoan > 0 && (
           <tr>
-            <td style={{...cellStyle, fontWeight: 'bold'}}>SSS LOAN</td>
-            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.sssLoan)}</td>
-            <td colSpan={2} style={cellStyle}></td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>SSS LOAN</td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.sssLoan)}</td>
+            <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
           </tr>
         )}
 
         {deductions.sssCalamityLoan > 0 && (
           <tr>
-            <td style={{...cellStyle, fontWeight: 'bold'}}>SSS CALAMITY LOAN</td>
-            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.sssCalamityLoan)}</td>
-            <td colSpan={2} style={cellStyle}></td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>SSS CALAMITY LOAN</td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.sssCalamityLoan)}</td>
+            <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
           </tr>
         )}
 
         {deductions.pagibigCalamityLoan > 0 && (
           <tr>
-            <td style={{...cellStyle, fontWeight: 'bold'}}>PAG-IBIG CALAMITY LOAN</td>
-            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.pagibigCalamityLoan)}</td>
-            <td colSpan={2} style={cellStyle}></td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>PAG-IBIG CALAMITY LOAN</td>
+            <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.pagibigCalamityLoan)}</td>
+            <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
           </tr>
         )}
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>SSS CONTRI.</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.sssContribution)}</td>
-          <td colSpan={2} style={cellStyle}></td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>SSS CONTRI.</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.sssContribution)}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>PHILHEALTH contri</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.philhealthContribution)}</td>
-          <td colSpan={2} style={cellStyle}></td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>PHILHEALTH contri</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.philhealthContribution)}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>PAG-IBIG contri</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.pagibigContribution)}</td>
-          <td colSpan={2} style={cellStyle}></td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>PAG-IBIG contri</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(deductions.pagibigContribution)}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         <tr>
-          <td style={sectionHeaderStyle}>TOTAL DEDUCTION:</td>
-          <td style={{...sectionHeaderStyle, textAlign: 'right'}}>{formatCurrency(deductions.totalDeductions)}</td>
-          <td colSpan={2} style={cellStyle}></td>
+          <td style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+          }}>TOTAL DEDUCTION:</td>
+          <td style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '12pt',
+            textAlign: 'right'
+          }}>{formatCurrency(deductions.totalDeductions)}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         {/* ADJUSTMENT Section */}
         <tr>
-          <td style={{...cellStyle, fontWeight: 'bold'}}>ADJUSTMENT:</td>
-          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(Math.abs(adjustment))}</td>
-          <td colSpan={2} style={cellStyle}></td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>ADJUSTMENT:</td>
+          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(Math.abs(props.adjustment))}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
         </tr>
 
         {/* NET PAY Section */}
         <tr>
-          <td style={{...sectionHeaderStyle, fontSize: '14pt'}}>NET PAY:</td>
-          <td style={{...sectionHeaderStyle, textAlign: 'right', fontSize: '14pt'}} colSpan={3}>
+          <td style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '14pt',
+          }}>NET PAY:</td>
+          <td style={{
+            border: '2px solid #000',
+            padding: '6px 8px',
+            backgroundColor: '#e5e7eb',
+            fontWeight: 'bold',
+            fontSize: '14pt',
+            textAlign: 'right'
+          }} colSpan={3}>
             {formatCurrency(netPay)}
           </td>
         </tr>
 
         {/* Signature Section */}
         <tr>
-          <td colSpan={2} style={{...cellStyle, fontWeight: 'bold'}}>RECEIVED BY/DATE:</td>
-          <td colSpan={2} style={{...cellStyle, height: '40px'}}></td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>RECEIVED BY/DATE:</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', height: '40px'}}></td>
         </tr>
 
         <tr>
-          <td colSpan={2} style={{...cellStyle, fontWeight: 'bold'}}>PREPARED BY:</td>
-          <td colSpan={2} style={{...cellStyle, textAlign: 'center'}}>{preparedBy.toUpperCase()}</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>PREPARED BY:</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'center'}}>{preparedBy.toUpperCase()}</td>
         </tr>
         </tbody>
       </table>
     </div>
   );
 }
-

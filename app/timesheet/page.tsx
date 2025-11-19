@@ -55,11 +55,7 @@ export default function TimesheetPage() {
     }
   }, [weekStart, holidays]);
 
-  useEffect(() => {
-    if (selectedEmployee && weekDays.length > 0) {
-      calculateWeekTotals();
-    }
-  }, [weekDays, selectedEmployee]);
+  // Calculate totals on demand when needed (removed auto-calculation to prevent infinite loop)
 
   async function loadInitialData() {
     try {
@@ -143,12 +139,31 @@ export default function TimesheetPage() {
   }
 
   function updateDayHours(index: number, field: string, value: string) {
-    // Store string as-is to allow smooth typing, will convert to number during calculation
+    if (!selectedEmployee) return;
+    
+    // Store string as-is to allow smooth typing
     const updatedDays = [...weekDays];
     updatedDays[index] = {
       ...updatedDays[index],
       [field]: value,
     };
+    
+    // Calculate amount for this specific day
+    const day = updatedDays[index];
+    const regHours = typeof day.regularHours === 'string' ? parseFloat(day.regularHours) || 0 : day.regularHours;
+    const otHours = typeof day.overtimeHours === 'string' ? parseFloat(day.overtimeHours) || 0 : day.overtimeHours;
+    const ndHours = typeof day.nightDiffHours === 'string' ? parseFloat(day.nightDiffHours) || 0 : day.nightDiffHours;
+    
+    const calculation = calculateDailyPay(
+      day.dayType as any,
+      regHours,
+      otHours,
+      ndHours,
+      selectedEmployee.rate_per_hour
+    );
+    
+    updatedDays[index].amount = calculation.total;
+    
     setWeekDays(updatedDays);
   }
 
@@ -263,11 +278,25 @@ export default function TimesheetPage() {
         const updatedDays = weekDays.map((day, index) => {
           const savedDay = loadedData[index];
           if (savedDay) {
+            const regularHours = savedDay.regularHours || 0;
+            const overtimeHours = savedDay.overtimeHours || 0;
+            const nightDiffHours = savedDay.nightDiffHours || 0;
+            
+            // Calculate amount for loaded data
+            const calculation = calculateDailyPay(
+              day.dayType as any,
+              regularHours,
+              overtimeHours,
+              nightDiffHours,
+              selectedEmployee.rate_per_hour
+            );
+            
             return {
               ...day,
-              regularHours: savedDay.regularHours || 0,
-              overtimeHours: savedDay.overtimeHours || 0,
-              nightDiffHours: savedDay.nightDiffHours || 0,
+              regularHours,
+              overtimeHours,
+              nightDiffHours,
+              amount: calculation.total,
             };
           }
           return day;

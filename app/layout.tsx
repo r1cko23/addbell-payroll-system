@@ -5,7 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Addbell Payroll System',
+  title: 'Add-bell Tech Payroll',
   description: 'Complete payroll management system with weekly timesheet tracking',
 };
 

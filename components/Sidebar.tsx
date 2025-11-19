@@ -58,8 +58,15 @@ export function Sidebar() {
   return (
     <div className="flex flex-col w-64 border-r bg-muted/10">
       {/* Logo */}
-      <div className="flex items-center h-16 px-6 border-b">
-        <h1 className="text-lg font-semibold text-foreground">Payroll Management</h1>
+      <div className="flex items-center justify-center h-16 px-4 border-b">
+        <img 
+          src="/Payslip_logo.png" 
+          alt="Add-bell Tech" 
+          className="h-12 w-auto"
+          onError={(e) => {
+            e.currentTarget.style.display = 'none';
+          }}
+        />
       </div>
       
       {/* Navigation */}
@@ -89,7 +96,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          © 2025 Addbell
+          © 2025 Add-bell Tech
           <br />
           All rights reserved
         </p>

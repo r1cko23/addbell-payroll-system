@@ -39,8 +39,18 @@ export default function LoginPage() {
       <div className="max-w-md w-full">
         <div className="bg-card rounded-2xl shadow-lg border p-8">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-primary mb-2">
-              Addbell Payroll
+            <div className="flex justify-center mb-4">
+              <img 
+                src="/Payslip_logo.png" 
+                alt="Add-bell Technical Services" 
+                className="h-24 w-auto"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+            <h1 className="text-2xl font-bold text-primary mb-2">
+              Add-bell Tech Payroll
             </h1>
             <p className="text-muted-foreground">Sign in to your account</p>
           </div>
@@ -97,7 +107,7 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
-          <p>© 2025 Addbell. All rights reserved.</p>
+          <p>© 2025 Add-bell Technical Services, Inc. All rights reserved.</p>
         </div>
       </div>
     </div>

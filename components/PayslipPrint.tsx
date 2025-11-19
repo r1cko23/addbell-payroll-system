@@ -59,11 +59,11 @@ export function PayslipPrint(props: PayslipPrintProps) {
       color: '#000' 
     }}>
       {/* Company Header */}
-      <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell Technical Services" 
-          style={{ height: '80px' }}
+          style={{ height: '80px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
@@ -198,7 +198,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
             fontSize: '12pt',
-          }}>DEDUCTIONS:</td>
+          }}>DEDUCTIONS: (Week of {format(weekStart, 'MMM. d')} - {format(weekEnd, 'MMM. d, yyyy')})</td>
         </tr>
 
         {deductions.vale > 0 && (

@@ -86,11 +86,11 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       }}
     >
       {/* Company Header - Compact */}
-      <div style={{ textAlign: 'center', marginBottom: '3px', borderBottom: '1px solid #000', paddingBottom: '2px' }}>
+      <div style={{ textAlign: 'center', marginBottom: '3px', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell" 
-          style={{ height: '30px' }}
+          style={{ height: '30px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
@@ -176,7 +176,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
 
           {/* Deductions */}
           <tr>
-            <td colSpan={4} style={compactHeaderStyle}>DEDUCTIONS:</td>
+            <td colSpan={4} style={compactHeaderStyle}>DEDUCTIONS: ({format(data.weekStart, 'MMM d')}-{format(data.weekEnd, 'd')})</td>
           </tr>
           {data.deductions.vale > 0 && (
             <tr>

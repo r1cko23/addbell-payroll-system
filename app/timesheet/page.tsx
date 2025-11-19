@@ -26,9 +26,9 @@ interface DayData {
   date: string;
   dayName: string;
   dayType: string;
-  regularHours: number;
-  overtimeHours: number;
-  nightDiffHours: number;
+  regularHours: number | string;
+  overtimeHours: number | string;
+  nightDiffHours: number | string;
   amount: number;
 }
 
@@ -123,11 +123,16 @@ export default function TimesheetPage() {
     if (!selectedEmployee) return;
     
     const updatedDays = weekDays.map((day) => {
+      // Convert string values to numbers for calculation
+      const regHours = typeof day.regularHours === 'string' ? parseFloat(day.regularHours) || 0 : day.regularHours;
+      const otHours = typeof day.overtimeHours === 'string' ? parseFloat(day.overtimeHours) || 0 : day.overtimeHours;
+      const ndHours = typeof day.nightDiffHours === 'string' ? parseFloat(day.nightDiffHours) || 0 : day.nightDiffHours;
+      
       const calculation = calculateDailyPay(
         day.dayType as any,
-        day.regularHours,
-        day.overtimeHours,
-        day.nightDiffHours,
+        regHours,
+        otHours,
+        ndHours,
         selectedEmployee.rate_per_hour
       );
       
@@ -138,12 +143,11 @@ export default function TimesheetPage() {
   }
 
   function updateDayHours(index: number, field: string, value: string) {
-    // Allow empty string for better typing experience
-    const numValue = value === '' ? 0 : parseFloat(value);
+    // Store string as-is to allow smooth typing, will convert to number during calculation
     const updatedDays = [...weekDays];
     updatedDays[index] = {
       ...updatedDays[index],
-      [field]: isNaN(numValue) ? 0 : numValue,
+      [field]: value,
     };
     setWeekDays(updatedDays);
   }
@@ -159,8 +163,11 @@ export default function TimesheetPage() {
       return;
     }
 
+    // Convert string values to numbers for validation and saving
+    const toNumber = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
+
     const hasAnyHours = weekDays.some(
-      (day) => day.regularHours > 0 || day.overtimeHours > 0 || day.nightDiffHours > 0
+      (day) => toNumber(day.regularHours) > 0 || toNumber(day.overtimeHours) > 0 || toNumber(day.nightDiffHours) > 0
     );
 
     if (!hasAnyHours) {
@@ -174,14 +181,14 @@ export default function TimesheetPage() {
       const attendanceData: DailyAttendance[] = weekDays.map((day) => ({
         date: day.date,
         dayType: day.dayType as any,
-        regularHours: day.regularHours,
-        overtimeHours: day.overtimeHours,
-        nightDiffHours: day.nightDiffHours,
+        regularHours: toNumber(day.regularHours),
+        overtimeHours: toNumber(day.overtimeHours),
+        nightDiffHours: toNumber(day.nightDiffHours),
       }));
 
-      const totalRegularHours = weekDays.reduce((sum, d) => sum + d.regularHours, 0);
-      const totalOvertimeHours = weekDays.reduce((sum, d) => sum + d.overtimeHours, 0);
-      const totalNightDiffHours = weekDays.reduce((sum, d) => sum + d.nightDiffHours, 0);
+      const totalRegularHours = weekDays.reduce((sum, d) => sum + toNumber(d.regularHours), 0);
+      const totalOvertimeHours = weekDays.reduce((sum, d) => sum + toNumber(d.overtimeHours), 0);
+      const totalNightDiffHours = weekDays.reduce((sum, d) => sum + toNumber(d.nightDiffHours), 0);
       const grossPay = weekDays.reduce((sum, d) => sum + d.amount, 0);
 
       const weekEndDate = addDays(weekStart, 6);
@@ -402,45 +409,48 @@ export default function TimesheetPage() {
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={day.regularHours === 0 ? '' : day.regularHours}
+                          value={day.regularHours || ''}
                           onChange={(e) => {
                             const val = e.target.value;
+                            // Allow empty, numbers, and decimals
                             if (val === '' || /^\d*\.?\d*$/.test(val)) {
                               updateDayHours(index, 'regularHours', val);
                             }
                           }}
                           placeholder="0"
-                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent text-center"
                         />
                       </td>
                       <td className="px-4 py-3">
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={day.overtimeHours === 0 ? '' : day.overtimeHours}
+                          value={day.overtimeHours || ''}
                           onChange={(e) => {
                             const val = e.target.value;
+                            // Allow empty, numbers, and decimals
                             if (val === '' || /^\d*\.?\d*$/.test(val)) {
                               updateDayHours(index, 'overtimeHours', val);
                             }
                           }}
                           placeholder="0"
-                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent text-center"
                         />
                       </td>
                       <td className="px-4 py-3">
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={day.nightDiffHours === 0 ? '' : day.nightDiffHours}
+                          value={day.nightDiffHours || ''}
                           onChange={(e) => {
                             const val = e.target.value;
+                            // Allow empty, numbers, and decimals
                             if (val === '' || /^\d*\.?\d*$/.test(val)) {
                               updateDayHours(index, 'nightDiffHours', val);
                             }
                           }}
                           placeholder="0"
-                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent text-center"
                         />
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">

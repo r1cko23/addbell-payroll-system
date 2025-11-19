@@ -162,8 +162,8 @@ export default function PayslipsPage() {
   }
 
   async function generatePayslip() {
-    if (!selectedEmployee || !attendance || !deductions) {
-      toast.error('Missing required data');
+    if (!selectedEmployee || !attendance) {
+      toast.error('Missing timesheet data');
       return;
     }
 
@@ -173,21 +173,21 @@ export default function PayslipsPage() {
       // Calculate totals
       const grossPay = attendance.gross_pay;
 
-      // Weekly deductions (always applied)
+      // Weekly deductions (always applied) - default to 0 if no deduction record
       let totalDeductions =
-        deductions.vale_amount +
-        deductions.uniform_ppe_amount +
-        deductions.sss_salary_loan +
-        deductions.sss_calamity_loan +
-        deductions.pagibig_salary_loan +
-        deductions.pagibig_calamity_loan;
+        (deductions?.vale_amount || 0) +
+        (deductions?.uniform_ppe_amount || 0) +
+        (deductions?.sss_salary_loan || 0) +
+        (deductions?.sss_calamity_loan || 0) +
+        (deductions?.pagibig_salary_loan || 0) +
+        (deductions?.pagibig_calamity_loan || 0);
 
       // Government contributions (checkbox controlled)
-      const sssAmount = applySss ? deductions.sss_contribution : 0;
-      const philhealthAmount = applyPhilhealth ? deductions.philhealth_contribution : 0;
-      const pagibigAmount = applyPagibig ? deductions.pagibig_contribution : 0;
+      const sssAmount = applySss ? (deductions?.sss_contribution || 0) : 0;
+      const philhealthAmount = applyPhilhealth ? (deductions?.philhealth_contribution || 0) : 0;
+      const pagibigAmount = applyPagibig ? (deductions?.pagibig_contribution || 0) : 0;
 
-      totalDeductions += sssAmount + philhealthAmount + pagibigAmount + deductions.withholding_tax;
+      totalDeductions += sssAmount + philhealthAmount + pagibigAmount + (deductions?.withholding_tax || 0);
 
       // Adjustment
       const adjustment = parseFloat(adjustmentAmount) || 0;
@@ -199,17 +199,17 @@ export default function PayslipsPage() {
       // Net pay
       const netPay = grossPay - totalDeductions + allowance;
 
-      // Create deductions breakdown
+      // Create deductions breakdown - default all to 0 if no deduction record
       const deductionsBreakdown: any = {
         weekly: {
-          vale: deductions.vale_amount,
-          uniform_ppe: deductions.uniform_ppe_amount,
-          sss_loan: deductions.sss_salary_loan,
-          sss_calamity: deductions.sss_calamity_loan,
-          pagibig_loan: deductions.pagibig_salary_loan,
-          pagibig_calamity: deductions.pagibig_calamity_loan,
+          vale: deductions?.vale_amount || 0,
+          uniform_ppe: deductions?.uniform_ppe_amount || 0,
+          sss_loan: deductions?.sss_salary_loan || 0,
+          sss_calamity: deductions?.sss_calamity_loan || 0,
+          pagibig_loan: deductions?.pagibig_salary_loan || 0,
+          pagibig_calamity: deductions?.pagibig_calamity_loan || 0,
         },
-        tax: deductions.withholding_tax,
+        tax: deductions?.withholding_tax || 0,
       };
 
       if (applySss) deductionsBreakdown.sss = sssAmount;
@@ -461,15 +461,13 @@ export default function PayslipsPage() {
 
       if (!attData) continue;
 
-      // Load deductions
+      // Load deductions (optional - will default to 0 if not found)
       const { data: dedData } = await supabase
         .from('employee_deductions')
         .select('*')
         .eq('employee_id', empId)
         .eq('is_active', true)
         .maybeSingle();
-
-      if (!dedData) continue;
 
       // Calculate earnings breakdown
       const days = attData.attendance_data as any[];
@@ -531,16 +529,16 @@ export default function PayslipsPage() {
       const workingDays = days.filter((day: any) => (day.regularHours || 0) > 0).length;
       const grossPay = attData.gross_pay;
       const weeklyDed =
-        (dedData.vale_amount || 0) +
-        (dedData.uniform_ppe_amount || 0) +
-        (dedData.sss_salary_loan || 0) +
-        (dedData.sss_calamity_loan || 0) +
-        (dedData.pagibig_salary_loan || 0) +
-        (dedData.pagibig_calamity_loan || 0);
+        (dedData?.vale_amount || 0) +
+        (dedData?.uniform_ppe_amount || 0) +
+        (dedData?.sss_salary_loan || 0) +
+        (dedData?.sss_calamity_loan || 0) +
+        (dedData?.pagibig_salary_loan || 0) +
+        (dedData?.pagibig_calamity_loan || 0);
       const govDed =
-        (applySss ? dedData.sss_contribution || 0 : 0) +
-        (applyPhilhealth ? dedData.philhealth_contribution || 0 : 0) +
-        (applyPagibig ? dedData.pagibig_contribution || 0 : 0);
+        (applySss ? dedData?.sss_contribution || 0 : 0) +
+        (applyPhilhealth ? dedData?.philhealth_contribution || 0 : 0) +
+        (applyPagibig ? dedData?.pagibig_contribution || 0 : 0);
       const totalDed = weeklyDed + govDed;
       const netPay = grossPay - totalDed;
 
@@ -563,15 +561,15 @@ export default function PayslipsPage() {
           grossIncome: grossPay,
         },
         deductions: {
-          vale: dedData.vale_amount || 0,
-          uniformPPE: dedData.uniform_ppe_amount || 0,
-          sssLoan: dedData.sss_salary_loan || 0,
-          sssCalamityLoan: dedData.sss_calamity_loan || 0,
-          pagibigLoan: dedData.pagibig_salary_loan || 0,
-          pagibigCalamityLoan: dedData.pagibig_calamity_loan || 0,
-          sssContribution: applySss ? (dedData.sss_contribution || 0) : 0,
-          philhealthContribution: applyPhilhealth ? (dedData.philhealth_contribution || 0) : 0,
-          pagibigContribution: applyPagibig ? (dedData.pagibig_contribution || 0) : 0,
+          vale: dedData?.vale_amount || 0,
+          uniformPPE: dedData?.uniform_ppe_amount || 0,
+          sssLoan: dedData?.sss_salary_loan || 0,
+          sssCalamityLoan: dedData?.sss_calamity_loan || 0,
+          pagibigLoan: dedData?.pagibig_salary_loan || 0,
+          pagibigCalamityLoan: dedData?.pagibig_calamity_loan || 0,
+          sssContribution: applySss ? (dedData?.sss_contribution || 0) : 0,
+          philhealthContribution: applyPhilhealth ? (dedData?.philhealth_contribution || 0) : 0,
+          pagibigContribution: applyPagibig ? (dedData?.pagibig_contribution || 0) : 0,
           totalDeductions: totalDed,
         },
         adjustment: 0,
@@ -703,19 +701,19 @@ export default function PayslipsPage() {
         )}
 
         {selectedEmployee && attendance && !deductions && (
-          <Card title="⚠️ No Deduction Record">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800 font-medium">
+          <Card title="ℹ️ No Deduction Record">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-800 font-medium">
                 No deduction record found for {selectedEmployee.full_name}
               </p>
-              <p className="text-yellow-700 text-sm mt-2">
-                Please go to the <strong>Deductions</strong> page and set up deductions for this employee before generating a payslip.
+              <p className="text-blue-700 text-sm mt-2">
+                All deductions will be set to <strong>₱0.00</strong> for this payslip. You can optionally add deductions on the <strong>Deductions</strong> page.
               </p>
             </div>
           </Card>
         )}
 
-        {selectedEmployee && attendance && deductions && (
+        {selectedEmployee && attendance && (
           <>
             {/* Earnings Summary */}
             <Card title="Earnings Summary">
@@ -739,51 +737,51 @@ export default function PayslipsPage() {
                 <div>
                   <h4 className="font-semibold text-gray-700 mb-3">Weekly Deductions</h4>
                   <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
-                    {deductions.vale_amount > 0 && (
+                    {(deductions?.vale_amount || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Vale:</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.vale_amount)}
+                          {formatCurrency(deductions?.vale_amount || 0)}
                         </span>
                       </div>
                     )}
-                    {deductions.uniform_ppe_amount > 0 && (
+                    {(deductions?.uniform_ppe_amount || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Uniform/PPE:</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.uniform_ppe_amount)}
+                          {formatCurrency(deductions?.uniform_ppe_amount || 0)}
                         </span>
                       </div>
                     )}
-                    {deductions.sss_salary_loan > 0 && (
+                    {(deductions?.sss_salary_loan || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">SSS Salary Loan:</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.sss_salary_loan)}
+                          {formatCurrency(deductions?.sss_salary_loan || 0)}
                         </span>
                       </div>
                     )}
-                    {deductions.sss_calamity_loan > 0 && (
+                    {(deductions?.sss_calamity_loan || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">SSS Calamity Loan:</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.sss_calamity_loan)}
+                          {formatCurrency(deductions?.sss_calamity_loan || 0)}
                         </span>
                       </div>
                     )}
-                    {deductions.pagibig_salary_loan > 0 && (
+                    {(deductions?.pagibig_salary_loan || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Pag-IBIG Salary Loan:</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.pagibig_salary_loan)}
+                          {formatCurrency(deductions?.pagibig_salary_loan || 0)}
                         </span>
                       </div>
                     )}
-                    {deductions.pagibig_calamity_loan > 0 && (
+                    {(deductions?.pagibig_calamity_loan || 0) > 0 && (
                       <div className="flex justify-between">
                         <span className="text-gray-600">Pag-IBIG Calamity Loan:</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.pagibig_calamity_loan)}
+                          {formatCurrency(deductions?.pagibig_calamity_loan || 0)}
                         </span>
                       </div>
                     )}
@@ -813,7 +811,7 @@ export default function PayslipsPage() {
                         <span className="ml-3 font-medium">SSS Contribution</span>
                       </div>
                       <span className="font-semibold">
-                        {formatCurrency(deductions.sss_contribution)}
+                        {formatCurrency(deductions?.sss_contribution || 0)}
                       </span>
                     </label>
 
@@ -828,7 +826,7 @@ export default function PayslipsPage() {
                         <span className="ml-3 font-medium">PhilHealth Contribution</span>
                       </div>
                       <span className="font-semibold">
-                        {formatCurrency(deductions.philhealth_contribution)}
+                        {formatCurrency(deductions?.philhealth_contribution || 0)}
                       </span>
                     </label>
 
@@ -843,15 +841,15 @@ export default function PayslipsPage() {
                         <span className="ml-3 font-medium">Pag-IBIG Contribution</span>
                       </div>
                       <span className="font-semibold">
-                        {formatCurrency(deductions.pagibig_contribution)}
+                        {formatCurrency(deductions?.pagibig_contribution || 0)}
                       </span>
                     </label>
 
-                    {deductions.withholding_tax > 0 && (
+                    {(deductions?.withholding_tax || 0) > 0 && (
                       <div className="flex justify-between p-3 border rounded-lg bg-gray-50">
                         <span className="font-medium">Withholding Tax</span>
                         <span className="font-semibold">
-                          {formatCurrency(deductions.withholding_tax)}
+                          {formatCurrency(deductions?.withholding_tax || 0)}
                         </span>
                       </div>
                     )}

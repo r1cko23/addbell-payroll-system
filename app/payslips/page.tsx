@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { format, startOfWeek, addDays, getWeek } from 'date-fns';
 import { formatCurrency, generatePayslipNumber } from '@/utils/format';
 import { getWeekOfMonth } from '@/utils/holidays';
+import * as XLSX from 'xlsx';
 
 interface Employee {
   id: string;
@@ -69,6 +70,7 @@ export default function PayslipsPage() {
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [showMultiPrintModal, setShowMultiPrintModal] = useState(false);
   const [multiPrintData, setMultiPrintData] = useState<any[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   const supabase = createClient();
 
@@ -430,6 +432,216 @@ export default function PayslipsPage() {
     return days.filter((day: any) => (day.regularHours || 0) > 0).length;
   }
 
+  // Export all employees to Excel
+  async function exportToExcel() {
+    setExporting(true);
+    try {
+      const allPayrollData = [];
+
+      for (const emp of employees) {
+        // Load attendance
+        const { data: attData } = await supabase
+          .from('weekly_attendance')
+          .select('*')
+          .eq('employee_id', emp.id)
+          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .maybeSingle();
+
+        if (!attData) continue; // Skip employees without timesheet data
+
+        // Load deductions
+        const { data: dedData } = await supabase
+          .from('employee_deductions')
+          .select('*')
+          .eq('employee_id', emp.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        // Calculate earnings breakdown
+        const days = attData.attendance_data as any[];
+        let regularPay = 0;
+        let regularOT = 0;
+        let regularOTHours = 0;
+        let nightDiff = 0;
+        let nightDiffHours = 0;
+        let sundayRestDay = 0;
+        let sundayRestDayHours = 0;
+        let specialHoliday = 0;
+        let specialHolidayHours = 0;
+        let regularHoliday = 0;
+        let regularHolidayHours = 0;
+
+        days.forEach((day: any) => {
+          const dayType = day.dayType;
+          const regHours = day.regularHours || 0;
+          const otHours = day.overtimeHours || 0;
+          const ndHours = day.nightDiffHours || 0;
+
+          if (dayType === 'regular') {
+            regularPay += (regHours * emp.rate_per_hour);
+            regularOTHours += otHours;
+            regularOT += (otHours * emp.rate_per_hour * 1.25);
+          }
+
+          if (dayType === 'sunday') {
+            sundayRestDayHours += regHours + otHours;
+            sundayRestDay += (regHours * emp.rate_per_hour * 1.3);
+            if (otHours > 0) {
+              sundayRestDay += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
+            }
+          }
+
+          if (dayType === 'non-working-holiday') {
+            specialHolidayHours += regHours + otHours;
+            specialHoliday += (regHours * emp.rate_per_hour * 1.3);
+            if (otHours > 0) {
+              specialHoliday += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
+            }
+          }
+
+          if (dayType === 'regular-holiday') {
+            regularHolidayHours += regHours + otHours;
+            regularHoliday += (regHours * emp.rate_per_hour * 2);
+            if (otHours > 0) {
+              regularHoliday += ((otHours * emp.rate_per_hour * 2) * 1.3);
+            }
+          }
+
+          if (dayType === 'sunday-special-holiday') {
+            specialHolidayHours += regHours + otHours;
+            specialHoliday += (regHours * emp.rate_per_hour * 1.5);
+            if (otHours > 0) {
+              specialHoliday += ((otHours * emp.rate_per_hour * 1.5) * 1.3);
+            }
+          }
+
+          if (dayType === 'sunday-regular-holiday') {
+            regularHolidayHours += regHours + otHours;
+            regularHoliday += (regHours * emp.rate_per_hour * 2.6);
+            if (otHours > 0) {
+              regularHoliday += ((otHours * emp.rate_per_hour * 2.6) * 1.3);
+            }
+          }
+
+          if (ndHours > 0) {
+            nightDiffHours += ndHours;
+            nightDiff += (ndHours * emp.rate_per_hour * 0.1);
+          }
+        });
+
+        const workingDays = days.filter((day: any) => (day.regularHours || 0) > 0).length;
+        const grossPay = attData.gross_pay;
+
+        // Calculate deductions
+        const vale = dedData?.vale_amount || 0;
+        const uniformPPE = dedData?.uniform_ppe_amount || 0;
+        const sssLoan = dedData?.sss_salary_loan || 0;
+        const sssCalamityLoan = dedData?.sss_calamity_loan || 0;
+        const pagibigLoan = dedData?.pagibig_salary_loan || 0;
+        const pagibigCalamityLoan = dedData?.pagibig_calamity_loan || 0;
+        const sssContribution = dedData?.sss_contribution || 0;
+        const philhealthContribution = dedData?.philhealth_contribution || 0;
+        const pagibigContribution = dedData?.pagibig_contribution || 0;
+        const withholdingTax = dedData?.withholding_tax || 0;
+
+        const totalDeductions = vale + uniformPPE + sssLoan + sssCalamityLoan + 
+                                pagibigLoan + pagibigCalamityLoan + sssContribution + 
+                                philhealthContribution + pagibigContribution + withholdingTax;
+
+        const netPay = grossPay - totalDeductions;
+
+        allPayrollData.push({
+          'Employee ID': emp.employee_id,
+          'Employee Name': emp.full_name,
+          'Rate/Hour': emp.rate_per_hour,
+          'Working Days': workingDays,
+          'Regular Pay': regularPay,
+          'Regular OT Hours': regularOTHours,
+          'Regular OT Pay': regularOT,
+          'Night Diff Hours': nightDiffHours,
+          'Night Diff Pay': nightDiff,
+          'Sunday/RD Hours': sundayRestDayHours,
+          'Sunday/RD Pay': sundayRestDay,
+          'Special Holiday Hours': specialHolidayHours,
+          'Special Holiday Pay': specialHoliday,
+          'Regular Holiday Hours': regularHolidayHours,
+          'Regular Holiday Pay': regularHoliday,
+          'Gross Pay': grossPay,
+          'Vale': vale,
+          'Uniform/PPE': uniformPPE,
+          'SSS Loan': sssLoan,
+          'SSS Calamity Loan': sssCalamityLoan,
+          'Pag-IBIG Loan': pagibigLoan,
+          'Pag-IBIG Calamity Loan': pagibigCalamityLoan,
+          'SSS Contribution': sssContribution,
+          'PhilHealth Contribution': philhealthContribution,
+          'Pag-IBIG Contribution': pagibigContribution,
+          'Withholding Tax': withholdingTax,
+          'Total Deductions': totalDeductions,
+          'Net Pay': netPay,
+        });
+      }
+
+      if (allPayrollData.length === 0) {
+        toast.error('No payroll data found for this week');
+        return;
+      }
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(allPayrollData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 12 }, // Employee ID
+        { wch: 25 }, // Employee Name
+        { wch: 10 }, // Rate/Hour
+        { wch: 12 }, // Working Days
+        { wch: 12 }, // Regular Pay
+        { wch: 14 }, // Regular OT Hours
+        { wch: 14 }, // Regular OT Pay
+        { wch: 14 }, // Night Diff Hours
+        { wch: 14 }, // Night Diff Pay
+        { wch: 14 }, // Sunday/RD Hours
+        { wch: 14 }, // Sunday/RD Pay
+        { wch: 18 }, // Special Holiday Hours
+        { wch: 18 }, // Special Holiday Pay
+        { wch: 18 }, // Regular Holiday Hours
+        { wch: 18 }, // Regular Holiday Pay
+        { wch: 12 }, // Gross Pay
+        { wch: 10 }, // Vale
+        { wch: 12 }, // Uniform/PPE
+        { wch: 12 }, // SSS Loan
+        { wch: 18 }, // SSS Calamity Loan
+        { wch: 14 }, // Pag-IBIG Loan
+        { wch: 20 }, // Pag-IBIG Calamity Loan
+        { wch: 16 }, // SSS Contribution
+        { wch: 20 }, // PhilHealth Contribution
+        { wch: 18 }, // Pag-IBIG Contribution
+        { wch: 14 }, // Withholding Tax
+        { wch: 16 }, // Total Deductions
+        { wch: 12 }, // Net Pay
+      ];
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Payroll Summary');
+
+      // Generate filename
+      const fileName = `Payroll_${format(weekStart, 'yyyy-MM-dd')}_to_${format(addDays(weekStart, 6), 'yyyy-MM-dd')}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, fileName);
+
+      toast.success(`Excel file exported: ${allPayrollData.length} employees`);
+    } catch (error: any) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // Toggle employee selection for bulk print
   function toggleEmployeeSelection(employeeId: string) {
     setSelectedEmployeeIds(prev => {
@@ -628,25 +840,37 @@ export default function PayslipsPage() {
 
         {/* Controls */}
         <Card>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Week
-              </label>
-              <div className="flex gap-2">
-                <Button variant="secondary" size="sm" onClick={() => changeWeek('prev')}>
-                  ← Prev
-                </Button>
-                <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg px-4 py-2">
-                  <span className="font-semibold text-sm">
-                    {format(weekStart, 'MMM dd')} - {format(addDays(weekStart, 6), 'MMM dd, yyyy')}
-                  </span>
-                  <Badge variant={weekNumber === 4 ? 'success' : 'info'} className="ml-2">
-                    Week {weekNumber}
-                  </Badge>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Week
+                </label>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => changeWeek('prev')}>
+                    ← Prev
+                  </Button>
+                  <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg px-4 py-2">
+                    <span className="font-semibold text-sm">
+                      {format(weekStart, 'MMM dd')} - {format(addDays(weekStart, 6), 'MMM dd, yyyy')}
+                    </span>
+                    <Badge variant={weekNumber === 4 ? 'success' : 'info'} className="ml-2">
+                      Week {weekNumber}
+                    </Badge>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={() => changeWeek('next')}>
+                    Next →
+                  </Button>
                 </div>
-                <Button variant="secondary" size="sm" onClick={() => changeWeek('next')}>
-                  Next →
+              </div>
+              
+              <div className="ml-4">
+                <Button 
+                  onClick={exportToExcel} 
+                  isLoading={exporting}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  📊 Export to Excel
                 </Button>
               </div>
             </div>

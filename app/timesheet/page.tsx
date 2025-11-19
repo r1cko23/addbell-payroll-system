@@ -400,36 +400,45 @@ export default function TimesheetPage() {
                       </td>
                       <td className="px-4 py-3">
                         <input
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           value={day.regularHours === 0 ? '' : day.regularHours}
-                          onChange={(e) => updateDayHours(index, 'regularHours', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                              updateDayHours(index, 'regularHours', val);
+                            }
+                          }}
                           placeholder="0"
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-3">
                         <input
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           value={day.overtimeHours === 0 ? '' : day.overtimeHours}
-                          onChange={(e) => updateDayHours(index, 'overtimeHours', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                              updateDayHours(index, 'overtimeHours', val);
+                            }
+                          }}
                           placeholder="0"
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-3">
                         <input
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           value={day.nightDiffHours === 0 ? '' : day.nightDiffHours}
-                          onChange={(e) => updateDayHours(index, 'nightDiffHours', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                              updateDayHours(index, 'nightDiffHours', val);
+                            }
+                          }}
                           placeholder="0"
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                         />

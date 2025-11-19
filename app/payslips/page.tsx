@@ -916,8 +916,12 @@ export default function PayslipsPage() {
       });
     }
 
-    setMultiPrintData(payslipsData);
-    setShowMultiPrintModal(true);
+    // Ensure clean state before opening modal
+    setShowMultiPrintModal(false);
+    setTimeout(() => {
+      setMultiPrintData(payslipsData);
+      setShowMultiPrintModal(true);
+    }, 50);
   }
 
   return (
@@ -1428,7 +1432,10 @@ export default function PayslipsPage() {
           <Modal
             title={`Bulk Print Preview (${multiPrintData.length} Payslips - Legal Size)`}
             isOpen={showMultiPrintModal}
-            onClose={() => setShowMultiPrintModal(false)}
+            onClose={() => {
+              setShowMultiPrintModal(false);
+              setMultiPrintData([]);
+            }}
             size="xl"
           >
             <div className="space-y-4">
@@ -1445,10 +1452,20 @@ export default function PayslipsPage() {
               <PayslipMultiPrint payslips={multiPrintData} />
               
               <div className="flex justify-end gap-3 mt-4 print:hidden">
-                <Button variant="secondary" onClick={() => setShowMultiPrintModal(false)}>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setShowMultiPrintModal(false);
+                    setMultiPrintData([]);
+                  }}
+                >
                   Close
                 </Button>
-                <Button onClick={() => window.print()}>
+                <Button 
+                  onClick={() => {
+                    setTimeout(() => window.print(), 100);
+                  }}
+                >
                   Print {multiPrintData.length} Payslips
                 </Button>
               </div>

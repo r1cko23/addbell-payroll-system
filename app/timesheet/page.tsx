@@ -138,11 +138,12 @@ export default function TimesheetPage() {
   }
 
   function updateDayHours(index: number, field: string, value: string) {
-    const numValue = parseFloat(value) || 0;
+    // Allow empty string for better typing experience
+    const numValue = value === '' ? 0 : parseFloat(value);
     const updatedDays = [...weekDays];
     updatedDays[index] = {
       ...updatedDays[index],
-      [field]: numValue,
+      [field]: isNaN(numValue) ? 0 : numValue,
     };
     setWeekDays(updatedDays);
   }
@@ -403,7 +404,7 @@ export default function TimesheetPage() {
                           min="0"
                           max="24"
                           step="0.1"
-                          value={day.regularHours || ''}
+                          value={day.regularHours === 0 ? '' : day.regularHours}
                           onChange={(e) => updateDayHours(index, 'regularHours', e.target.value)}
                           placeholder="0"
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
@@ -415,7 +416,7 @@ export default function TimesheetPage() {
                           min="0"
                           max="24"
                           step="0.1"
-                          value={day.overtimeHours || ''}
+                          value={day.overtimeHours === 0 ? '' : day.overtimeHours}
                           onChange={(e) => updateDayHours(index, 'overtimeHours', e.target.value)}
                           placeholder="0"
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
@@ -427,7 +428,7 @@ export default function TimesheetPage() {
                           min="0"
                           max="24"
                           step="0.1"
-                          value={day.nightDiffHours || ''}
+                          value={day.nightDiffHours === 0 ? '' : day.nightDiffHours}
                           onChange={(e) => updateDayHours(index, 'nightDiffHours', e.target.value)}
                           placeholder="0"
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"

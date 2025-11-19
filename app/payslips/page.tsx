@@ -24,8 +24,6 @@ interface Employee {
   rate_per_day: number;
   rate_per_hour: number;
   bank_account_number?: string;
-  bank_name?: string;
-  account_holder_name?: string;
 }
 
 interface WeeklyAttendance {
@@ -103,7 +101,7 @@ export default function PayslipsPage() {
     try {
       const { data, error } = await supabase
         .from('employees')
-        .select('*')
+        .select('id, employee_id, full_name, rate_per_day, rate_per_hour, bank_account_number')
         .eq('is_active', true)
         .order('full_name');
 
@@ -690,8 +688,6 @@ export default function PayslipsPage() {
         bankTransferData.push({
           'Employee ID': emp.employee_id,
           'Employee Name': emp.full_name,
-          'Account Holder Name': emp.account_holder_name || emp.full_name,
-          'Bank Name': emp.bank_name || 'N/A',
           'Bank Account Number': emp.bank_account_number || 'NOT SET',
           'Net Pay': netPay,
         });
@@ -709,10 +705,8 @@ export default function PayslipsPage() {
       // Set column widths
       const colWidths = [
         { wch: 12 }, // Employee ID
-        { wch: 25 }, // Employee Name
-        { wch: 25 }, // Account Holder Name
-        { wch: 20 }, // Bank Name
-        { wch: 20 }, // Bank Account Number
+        { wch: 30 }, // Employee Name
+        { wch: 25 }, // Bank Account Number
         { wch: 15 }, // Net Pay
       ];
       ws['!cols'] = colWidths;

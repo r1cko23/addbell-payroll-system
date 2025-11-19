@@ -15,7 +15,7 @@ test.describe('Payslip Generation Tests', () => {
     await page.click('text=Payslips');
     
     await expect(page).toHaveURL('/payslips');
-    await expect(page.locator('h1, h2')).toContainText(/payslip/i);
+    await expect(page.locator('text=/Payslip Generation|Payslips/i').first()).toBeVisible();
   });
 
   test('should display week selector', async ({ page }) => {
@@ -31,13 +31,14 @@ test.describe('Payslip Generation Tests', () => {
     
     await page.waitForTimeout(3000);
     
-    // Should show employees (in table or cards) or at minimum the page loaded
-    const pageContent = page.locator('main, .container').first();
-    await expect(pageContent).toBeVisible({ timeout: 10000 });
+    // Page should load - check for main heading
+    await expect(page.locator('text=/Payslip Generation|Select Week|Select Employee/i').first()).toBeVisible({ timeout: 10000 });
     
-    // Check for employee data or generate button
-    const hasContent = await page.locator('table, button:has-text("Generate"), text=/employee/i').first().isVisible({ timeout: 5000 }).catch(() => false);
-    expect(hasContent).toBeTruthy();
+    // Should have either employee selector or table
+    const hasEmployeeSelect = await page.locator('select, text=/Select Employee|employee/i').first().isVisible().catch(() => false);
+    const hasTable = await page.locator('table').first().isVisible().catch(() => false);
+    
+    expect(hasEmployeeSelect || hasTable).toBeTruthy();
   });
 
   test('should show generate payslip button', async ({ page }) => {

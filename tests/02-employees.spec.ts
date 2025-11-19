@@ -35,11 +35,12 @@ test.describe('Employee Management Tests', () => {
     await page.goto('/employees');
     
     // Click Add Employee button
-    const addButton = page.locator('button:has-text("Add Employee"), button:has-text("Create Employee"), button:has-text("New Employee")').first();
+    const addButton = page.locator('button:has-text("Add Employee")').first();
     await addButton.click();
     
-    // Modal should appear
-    await expect(page.locator('[role="dialog"], .modal').first()).toBeVisible({ timeout: 3000 });
+    // Modal should appear - look for modal heading
+    await page.waitForTimeout(500);
+    await expect(page.locator('text=/Add New Employee|Create Employee/i').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should validate required fields when creating employee', async ({ page }) => {

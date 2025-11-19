@@ -70,7 +70,6 @@ export default function PayslipsPage() {
   const [preparedBy, setPreparedBy] = useState('Melanie R. Sapinoso');
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
-  const [showMultiPrintModal, setShowMultiPrintModal] = useState(false);
   const [multiPrintData, setMultiPrintData] = useState<any[]>([]);
   const [exporting, setExporting] = useState(false);
 
@@ -766,7 +765,7 @@ export default function PayslipsPage() {
       return;
     }
 
-    const payslipsData = [];
+    const payslipsData: any[] = [];
 
     for (const empId of selectedEmployeeIds) {
       const emp = employees.find(e => e.id === empId);
@@ -916,17 +915,32 @@ export default function PayslipsPage() {
       });
     }
 
-    // Ensure clean state before opening modal
-    setShowMultiPrintModal(false);
+    // Open print directly without modal
+    setMultiPrintData(payslipsData);
     setTimeout(() => {
-      setMultiPrintData(payslipsData);
-      setShowMultiPrintModal(true);
-    }, 50);
+      window.print();
+    }, 100);
   }
 
   return (
+    <>
+      <style>{`
+        @media print {
+          body > div:not([class*="print:"]) {
+            display: none !important;
+          }
+          .print\\:block {
+            display: block !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+          }
+        }
+      `}</style>
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 print:hidden">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Payslip Generation</h1>
           <p className="text-gray-600 mt-1">
@@ -1427,53 +1441,15 @@ export default function PayslipsPage() {
           </Modal>
         )}
 
-        {/* Multi-Print Modal */}
-        {showMultiPrintModal && multiPrintData.length > 0 && (
-          <Modal
-            title={`Bulk Print Preview (${multiPrintData.length} Payslips - Legal Size)`}
-            isOpen={showMultiPrintModal}
-            onClose={() => {
-              setShowMultiPrintModal(false);
-              setMultiPrintData([]);
-            }}
-            size="xl"
-          >
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                <p className="text-blue-800 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span><strong>{multiPrintData.length} payslips</strong> will be printed on <strong>one legal size paper</strong> (8.5" × 14")</span>
-                </p>
-                <p className="text-blue-700 text-xs mt-1">
-                  Make sure your printer is set to <strong>Legal</strong> paper size before printing.
-                </p>
-              </div>
-              
-              <PayslipMultiPrint payslips={multiPrintData} />
-              
-              <div className="flex justify-end gap-3 mt-4 print:hidden">
-                <Button 
-                  variant="secondary" 
-                  onClick={() => {
-                    setShowMultiPrintModal(false);
-                    setMultiPrintData([]);
-                  }}
-                >
-                  Close
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setTimeout(() => window.print(), 100);
-                  }}
-                >
-                  Print {multiPrintData.length} Payslips
-                </Button>
-              </div>
-            </div>
-          </Modal>
+        {/* Hidden Multi-Print Container - Only visible when printing */}
+        {multiPrintData.length > 0 && (
+          <div className="hidden print:block">
+            <PayslipMultiPrint payslips={multiPrintData} />
+          </div>
         )}
       </div>
     </DashboardLayout>
+    </>
   );
 }
 

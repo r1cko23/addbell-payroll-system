@@ -16,6 +16,9 @@ interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
+  last_name?: string;
+  first_name?: string;
+  middle_initial?: string;
   rate_per_day: number;
   rate_per_hour: number;
   bank_account_number?: string;
@@ -31,7 +34,9 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
     employee_id: '',
-    full_name: '',
+    last_name: '',
+    first_name: '',
+    middle_initial: '',
     rate_per_day: '',
     rate_per_hour: '',
     bank_account_number: '',
@@ -49,7 +54,8 @@ export default function EmployeesPage() {
       const { data, error } = await supabase
         .from('employees')
         .select('*')
-        .order('full_name');
+        .order('last_name', { nullsFirst: false })
+        .order('first_name', { nullsFirst: false });
 
       if (error) throw error;
       setEmployees(data || []);
@@ -65,7 +71,9 @@ export default function EmployeesPage() {
     setEditingEmployee(null);
     setFormData({
       employee_id: '',
-      full_name: '',
+      last_name: '',
+      first_name: '',
+      middle_initial: '',
       rate_per_day: '',
       rate_per_hour: '',
       bank_account_number: '',
@@ -77,7 +85,9 @@ export default function EmployeesPage() {
     setEditingEmployee(employee);
     setFormData({
       employee_id: employee.employee_id,
-      full_name: employee.full_name,
+      last_name: employee.last_name || '',
+      first_name: employee.first_name || '',
+      middle_initial: employee.middle_initial || '',
       rate_per_day: employee.rate_per_day.toString(),
       rate_per_hour: employee.rate_per_hour.toString(),
       bank_account_number: employee.bank_account_number || '',
@@ -90,9 +100,16 @@ export default function EmployeesPage() {
     setSubmitting(true);
 
     try {
+      // Build full_name from separate fields
+      const middleInitial = formData.middle_initial ? ` ${formData.middle_initial}.` : '';
+      const full_name = `${formData.first_name}${middleInitial} ${formData.last_name}`;
+
       const employeeData = {
         employee_id: formData.employee_id,
-        full_name: formData.full_name,
+        full_name: full_name.trim(),
+        last_name: formData.last_name,
+        first_name: formData.first_name,
+        middle_initial: formData.middle_initial || null,
         rate_per_day: parseFloat(formData.rate_per_day),
         rate_per_hour: parseFloat(formData.rate_per_hour),
         bank_account_number: formData.bank_account_number || null,
@@ -149,6 +166,8 @@ export default function EmployeesPage() {
   const filteredEmployees = employees.filter(
     (emp) =>
       emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.employee_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -301,12 +320,32 @@ export default function EmployeesPage() {
           />
 
           <Input
-            label="Full Name"
+            label="Last Name"
             required
-            value={formData.full_name}
+            value={formData.last_name}
             onChange={(e) =>
-              setFormData({ ...formData, full_name: e.target.value })
+              setFormData({ ...formData, last_name: e.target.value })
             }
+            helperText="Surname/Family name"
+          />
+
+          <Input
+            label="First Name"
+            required
+            value={formData.first_name}
+            onChange={(e) =>
+              setFormData({ ...formData, first_name: e.target.value })
+            }
+            helperText="Given name"
+          />
+
+          <Input
+            label="Middle Initial"
+            value={formData.middle_initial}
+            onChange={(e) =>
+              setFormData({ ...formData, middle_initial: e.target.value.toUpperCase().slice(0, 1) })
+            }
+            helperText="Optional - just the initial (e.g., M)"
           />
 
           <Input

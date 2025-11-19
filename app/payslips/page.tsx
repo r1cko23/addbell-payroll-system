@@ -674,6 +674,34 @@ export default function PayslipsPage() {
           </div>
         </Card>
 
+        {/* Missing Data Messages */}
+        {selectedEmployee && !attendance && (
+          <Card title="⚠️ No Timesheet Data">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-yellow-800 font-medium">
+                No timesheet data found for {selectedEmployee.full_name} for the week of{' '}
+                {format(weekStart, 'MMM dd')} - {format(addDays(weekStart, 6), 'MMM dd, yyyy')}
+              </p>
+              <p className="text-yellow-700 text-sm mt-2">
+                Please go to the <strong>Timesheet</strong> page and enter the hours worked for this employee before generating a payslip.
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {selectedEmployee && attendance && !deductions && (
+          <Card title="⚠️ No Deduction Record">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-yellow-800 font-medium">
+                No deduction record found for {selectedEmployee.full_name}
+              </p>
+              <p className="text-yellow-700 text-sm mt-2">
+                Please go to the <strong>Deductions</strong> page and set up deductions for this employee before generating a payslip.
+              </p>
+            </div>
+          </Card>
+        )}
+
         {selectedEmployee && attendance && deductions && (
           <>
             {/* Earnings Summary */}

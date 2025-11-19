@@ -59,7 +59,7 @@ export function PayslipPrint({
   workingDays,
   absentDays,
   preparedBy
-}: PayslipPrintProps) {
+}: PayslipPrintProps): JSX.Element {
   const tableStyle: React.CSSProperties = {
     width: '100%',
     borderCollapse: 'collapse',

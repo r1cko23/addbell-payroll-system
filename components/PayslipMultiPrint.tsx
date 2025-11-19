@@ -50,7 +50,7 @@ interface PayslipMultiPrintProps {
   payslips: PayslipData[];
 }
 
-export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps) {
+export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Element {
   // Styles for compact payslip (fits 4 on legal paper)
   const compactTableStyle: React.CSSProperties = {
     width: '100%',

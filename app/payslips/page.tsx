@@ -12,10 +12,11 @@ import { Modal } from '@/components/Modal';
 import { PayslipPrint } from '@/components/PayslipPrint';
 import { PayslipMultiPrint } from '@/components/PayslipMultiPrint';
 import toast from 'react-hot-toast';
-import { format, startOfWeek, addDays, getWeek } from 'date-fns';
+import { format, startOfWeek, addDays, getWeek, addWeeks, subWeeks } from 'date-fns';
 import { formatCurrency, generatePayslipNumber } from '@/utils/format';
 import { getWeekOfMonth } from '@/utils/holidays';
 import * as XLSX from 'xlsx';
+import { ChevronLeft, ChevronRight, FileSpreadsheet, Building2, FileText, Printer, Eye, AlertCircle, Info } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -929,50 +930,44 @@ export default function PayslipsPage() {
           </p>
         </div>
 
-        {/* Controls */}
         <Card>
           <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Week
-                </label>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => changeWeek('prev')}>
-                    ← Prev
-                  </Button>
-                  <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg px-4 py-2">
-                    <span className="font-semibold text-sm">
-                      {format(weekStart, 'MMM dd')} - {format(addDays(weekStart, 6), 'MMM dd, yyyy')}
-                    </span>
-                    <Badge variant={weekNumber === 4 ? 'success' : 'info'} className="ml-2">
+            {/* Week Navigation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Week (Wednesday - Tuesday)
+              </label>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => changeWeek('prev')}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <div className="flex-1 text-center">
+                  <div className="font-semibold text-gray-900">
+                    {format(weekStart, 'MMM d, yyyy')} -{' '}
+                    {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                  </div>
+                  <div className="text-sm text-gray-500 flex items-center justify-center gap-2">
+                    Week of {format(weekStart, 'MMMM d, yyyy')}
+                    <Badge variant={weekNumber === 4 ? 'success' : 'info'}>
                       Week {weekNumber}
                     </Badge>
                   </div>
-                  <Button variant="secondary" size="sm" onClick={() => changeWeek('next')}>
-                    Next →
-                  </Button>
                 </div>
-              </div>
-              
-              <div className="ml-4 flex gap-2">
-                <Button 
-                  onClick={exportToExcel} 
-                  isLoading={exporting}
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => changeWeek('next')}
                 >
-                  📊 Export to Excel
-                </Button>
-                <Button 
-                  onClick={exportBankTransfer} 
-                  isLoading={exporting}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  🏦 Bank Transfer
+                  <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>
 
+            {/* Employee Selection */}
             <Select
               label="Select Employee"
               options={[
@@ -985,11 +980,39 @@ export default function PayslipsPage() {
               value={selectedEmployeeId}
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
             />
+
+            {/* Export Buttons */}
+            <div className="flex gap-3 pt-2">
+              <Button 
+                onClick={exportToExcel} 
+                isLoading={exporting}
+                variant="secondary"
+                className="flex items-center gap-2"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                Export to Excel
+              </Button>
+              <Button 
+                onClick={exportBankTransfer} 
+                isLoading={exporting}
+                className="flex items-center gap-2"
+              >
+                <Building2 className="w-4 h-4" />
+                Bank Transfer
+              </Button>
+            </div>
           </div>
         </Card>
 
         {/* Bulk Print Section */}
-        <Card title="📄 Bulk Print (Legal Size)">
+        <Card 
+          title={
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <span>Bulk Print (Legal Size)</span>
+            </div>
+          }
+        >
           <p className="text-sm text-gray-600 mb-4">
             Select up to 4 employees to print multiple payslips on one legal size paper (8.5" × 14")
           </p>
@@ -1012,7 +1035,9 @@ export default function PayslipsPage() {
               <Button
                 onClick={prepareMultiPrint}
                 disabled={selectedEmployeeIds.length === 0 || selectedEmployeeIds.length > 4}
+                className="flex items-center gap-2"
               >
+                <Printer className="w-4 h-4" />
                 Print {selectedEmployeeIds.length > 0 ? `${selectedEmployeeIds.length}` : ''} Payslips
               </Button>
             </div>
@@ -1041,7 +1066,14 @@ export default function PayslipsPage() {
 
         {/* Missing Data Messages */}
         {selectedEmployee && !attendance && (
-          <Card title="⚠️ No Timesheet Data">
+          <Card 
+            title={
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-yellow-600" />
+                <span>No Timesheet Data</span>
+              </div>
+            }
+          >
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-yellow-800 font-medium">
                 No timesheet data found for {selectedEmployee.full_name} for the week of{' '}
@@ -1055,7 +1087,14 @@ export default function PayslipsPage() {
         )}
 
         {selectedEmployee && attendance && !deductions && (
-          <Card title="ℹ️ No Deduction Record">
+          <Card 
+            title={
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-blue-600" />
+                <span>No Deduction Record</span>
+              </div>
+            }
+          >
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-blue-800 font-medium">
                 No deduction record found for {selectedEmployee.full_name}
@@ -1291,10 +1330,20 @@ export default function PayslipsPage() {
                 >
                   Reset
                 </Button>
-                <Button onClick={() => setShowPrintModal(true)} variant="secondary">
+                <Button 
+                  onClick={() => setShowPrintModal(true)} 
+                  variant="secondary"
+                  className="flex items-center gap-2"
+                >
+                  <Eye className="w-4 h-4" />
                   Preview & Print Payslip
                 </Button>
-                <Button onClick={generatePayslip} isLoading={generating}>
+                <Button 
+                  onClick={generatePayslip} 
+                  isLoading={generating}
+                  className="flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
                   Save Payslip to Database
                 </Button>
               </div>
@@ -1384,8 +1433,9 @@ export default function PayslipsPage() {
           >
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                <p className="text-blue-800">
-                  📄 <strong>{multiPrintData.length} payslips</strong> will be printed on <strong>one legal size paper</strong> (8.5" × 14")
+                <p className="text-blue-800 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span><strong>{multiPrintData.length} payslips</strong> will be printed on <strong>one legal size paper</strong> (8.5" × 14")</span>
                 </p>
                 <p className="text-blue-700 text-xs mt-1">
                   Make sure your printer is set to <strong>Legal</strong> paper size before printing.

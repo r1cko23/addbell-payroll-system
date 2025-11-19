@@ -23,6 +23,9 @@ interface Employee {
   full_name: string;
   rate_per_day: number;
   rate_per_hour: number;
+  bank_account_number?: string;
+  bank_name?: string;
+  account_holder_name?: string;
 }
 
 interface WeeklyAttendance {
@@ -642,6 +645,99 @@ export default function PayslipsPage() {
     }
   }
 
+  // Export bank transfer format for CEO
+  async function exportBankTransfer() {
+    setExporting(true);
+    try {
+      const bankTransferData = [];
+
+      for (const emp of employees) {
+        // Load attendance
+        const { data: attData } = await supabase
+          .from('weekly_attendance')
+          .select('*')
+          .eq('employee_id', emp.id)
+          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .maybeSingle();
+
+        if (!attData) continue; // Skip employees without timesheet data
+
+        // Load deductions
+        const { data: dedData } = await supabase
+          .from('employee_deductions')
+          .select('*')
+          .eq('employee_id', emp.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        const grossPay = attData.gross_pay;
+
+        // Calculate deductions
+        const totalDeductions = 
+          (dedData?.vale_amount || 0) +
+          (dedData?.uniform_ppe_amount || 0) +
+          (dedData?.sss_salary_loan || 0) +
+          (dedData?.sss_calamity_loan || 0) +
+          (dedData?.pagibig_salary_loan || 0) +
+          (dedData?.pagibig_calamity_loan || 0) +
+          (dedData?.sss_contribution || 0) +
+          (dedData?.philhealth_contribution || 0) +
+          (dedData?.pagibig_contribution || 0) +
+          (dedData?.withholding_tax || 0);
+
+        const netPay = parseFloat((grossPay - totalDeductions).toFixed(2));
+
+        bankTransferData.push({
+          'Employee ID': emp.employee_id,
+          'Employee Name': emp.full_name,
+          'Account Holder Name': emp.account_holder_name || emp.full_name,
+          'Bank Name': emp.bank_name || 'N/A',
+          'Bank Account Number': emp.bank_account_number || 'NOT SET',
+          'Net Pay': netPay,
+        });
+      }
+
+      if (bankTransferData.length === 0) {
+        toast.error('No payroll data found for this week');
+        return;
+      }
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(bankTransferData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 12 }, // Employee ID
+        { wch: 25 }, // Employee Name
+        { wch: 25 }, // Account Holder Name
+        { wch: 20 }, // Bank Name
+        { wch: 20 }, // Bank Account Number
+        { wch: 15 }, // Net Pay
+      ];
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Bank Transfer');
+
+      // Add summary row
+      const totalNetPay = bankTransferData.reduce((sum, row) => sum + row['Net Pay'], 0);
+      
+      // Generate filename
+      const fileName = `Bank_Transfer_${format(weekStart, 'yyyy-MM-dd')}_to_${format(addDays(weekStart, 6), 'yyyy-MM-dd')}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, fileName);
+
+      toast.success(`Bank transfer file exported: ${bankTransferData.length} employees | Total: ${formatCurrency(totalNetPay)}`);
+    } catch (error: any) {
+      console.error('Error exporting bank transfer:', error);
+      toast.error('Failed to export bank transfer file');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   // Toggle employee selection for bulk print
   function toggleEmployeeSelection(employeeId: string) {
     setSelectedEmployeeIds(prev => {
@@ -864,13 +960,20 @@ export default function PayslipsPage() {
                 </div>
               </div>
               
-              <div className="ml-4">
+              <div className="ml-4 flex gap-2">
                 <Button 
                   onClick={exportToExcel} 
                   isLoading={exporting}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   📊 Export to Excel
+                </Button>
+                <Button 
+                  onClick={exportBankTransfer} 
+                  isLoading={exporting}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  🏦 Bank Transfer
                 </Button>
               </div>
             </div>

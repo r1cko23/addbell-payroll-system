@@ -77,10 +77,10 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '3.95in', 
-        height: '6.6in',
-        padding: '0.1in',
-        margin: '0.1in',
+        width: '3.85in', 
+        height: '6.5in',
+        padding: '0.08in',
+        margin: '0.08in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
       }}
@@ -261,7 +261,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
         @media print {
           @page {
             size: legal;
-            margin: 0.2in;
+            margin: 0.25in;
           }
           body {
             margin: 0;
@@ -269,11 +269,12 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
           }
           .legal-page {
             margin: 0 !important;
-            padding: 0.2in !important;
+            padding: 0.15in !important;
             display: flex !important;
             flex-wrap: wrap !important;
-            justify-content: center !important;
-            align-content: flex-start !important;
+            justify-content: space-evenly !important;
+            align-content: space-evenly !important;
+            gap: 0.1in !important;
           }
         }
       `}</style>
@@ -286,15 +287,16 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
               width: '8.5in',
               height: '14in',
               margin: '0 auto',
-              padding: '0.2in',
+              padding: '0.15in 0.2in',
               backgroundColor: '#fff',
               position: 'relative',
               pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
               boxSizing: 'border-box',
               display: 'flex',
               flexWrap: 'wrap',
-              justifyContent: 'center',
-              alignContent: 'flex-start',
+              justifyContent: 'space-evenly',
+              alignContent: 'space-evenly',
+              gap: '0.1in',
             }}
           >
             {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}

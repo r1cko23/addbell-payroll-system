@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, Users, UserCheck, Clock, DollarSign, Calendar, FileText, UserPlus, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 interface DashboardStats {
   totalEmployees: number;
@@ -23,7 +24,6 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        // Get employee counts
         const { count: totalEmployees } = await supabase
           .from('employees')
           .select('*', { count: 'exact', head: true });
@@ -33,18 +33,16 @@ export default function DashboardPage() {
           .select('*', { count: 'exact', head: true })
           .eq('is_active', true);
 
-        // Get pending payslips
         const { count: pendingPayslips } = await supabase
           .from('payslips')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'draft');
 
-        // Get current week's gross pay
         const today = new Date();
         const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay() + 1); // Monday
+        weekStart.setDate(today.getDate() - today.getDay() + 1);
         const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6); // Sunday
+        weekEnd.setDate(weekStart.getDate() + 6);
 
         const { data: weekPayslips } = await supabase
           .from('payslips')
@@ -73,267 +71,180 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <DashboardLayout>
-        <LoadingSpinner size="lg" className="mt-20" />
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Welcome Section */}
+      <div className="space-y-8">
+        {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-2">
             Welcome to Addbell Payroll System. Here's your overview for this week.
           </p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="hover:shadow-lg transition">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
-                <svg
-                  className="w-8 h-8 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Total Employees</p>
-                <p className="text-2xl font-bold text-gray-900">{stats?.totalEmployees}</p>
-              </div>
-            </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Employees
+              </CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{stats?.totalEmployees}</div>
+            </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
-                <svg
-                  className="w-8 h-8 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Active Employees</p>
-                <p className="text-2xl font-bold text-gray-900">{stats?.activeEmployees}</p>
-              </div>
-            </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Active Employees
+              </CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{stats?.activeEmployees}</div>
+            </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
-                <svg
-                  className="w-8 h-8 text-yellow-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">Pending Payslips</p>
-                <p className="text-2xl font-bold text-gray-900">{stats?.pendingPayslips}</p>
-              </div>
-            </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Pending Payslips
+              </CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">{stats?.pendingPayslips}</div>
+            </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
-                <svg
-                  className="w-8 h-8 text-blue-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                This Week Gross
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-foreground">
+                {formatCurrency(stats?.thisWeekGross || 0)}
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">This Week Gross</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(stats?.thisWeekGross || 0)}
-                </p>
-              </div>
-            </div>
+            </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <Card title="Quick Actions">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link
-              href="/timesheet"
-              className="flex items-center p-4 bg-primary-50 rounded-lg hover:bg-primary-100 transition group"
-            >
-              <div className="flex-shrink-0 bg-primary-600 rounded-lg p-3 text-white">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-primary-700">
-                  Enter Timesheet
-                </h3>
-                <p className="text-sm text-gray-600">Record weekly attendance</p>
-              </div>
-            </Link>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-foreground">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Link href="/timesheet">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4 px-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-lg bg-primary/10 p-2">
+                      <Calendar className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-foreground">Enter Timesheet</div>
+                      <div className="text-sm text-muted-foreground">Record weekly attendance</div>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
 
-            <Link
-              href="/payslips"
-              className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition group"
-            >
-              <div className="flex-shrink-0 bg-blue-600 rounded-lg p-3 text-white">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-700">
-                  Generate Payslips
-                </h3>
-                <p className="text-sm text-gray-600">Create weekly payslips</p>
-              </div>
-            </Link>
+              <Link href="/payslips">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4 px-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-lg bg-blue-500/10 p-2">
+                      <FileText className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-foreground">Generate Payslips</div>
+                      <div className="text-sm text-muted-foreground">Create weekly payslips</div>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
 
-            <Link
-              href="/employees"
-              className="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition group"
-            >
-              <div className="flex-shrink-0 bg-green-600 rounded-lg p-3 text-white">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-lg font-semibold text-gray-900 group-hover:text-green-700">
-                  Manage Employees
-                </h3>
-                <p className="text-sm text-gray-600">Add or update employee info</p>
-              </div>
-            </Link>
-          </div>
+              <Link href="/employees">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4 px-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-lg bg-green-500/10 p-2">
+                      <UserPlus className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-foreground">Manage Employees</div>
+                      <div className="text-sm text-muted-foreground">Add or update employee info</div>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
         </Card>
 
-        {/* Recent Activity */}
-        <Card title="System Information">
-          <div className="space-y-4">
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg
-                  className="w-6 h-6 text-blue-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-700">
-                  <strong>Weekly Workflow:</strong> Enter attendance on Monday, generate payslips, get admin approval, then print/export.
+        {/* System Information */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-foreground">System Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start gap-4">
+              <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="text-sm text-foreground">
+                  <span className="font-semibold">Weekly Workflow:</span>{' '}
+                  <span className="text-muted-foreground">
+                    Enter attendance on Monday, generate payslips, get admin approval, then print/export.
+                  </span>
                 </p>
               </div>
             </div>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg
-                  className="w-6 h-6 text-green-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-700">
-                  <strong>Auto-Detection:</strong> System automatically detects Sundays and Philippine holidays for correct rate calculation.
+            <div className="flex items-start gap-4">
+              <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+              <div>
+                <p className="text-sm text-foreground">
+                  <span className="font-semibold">Auto-Detection:</span>{' '}
+                  <span className="text-muted-foreground">
+                    System automatically detects Sundays and Philippine holidays for correct rate calculation.
+                  </span>
                 </p>
               </div>
             </div>
-            <div className="flex items-start">
-              <div className="flex-shrink-0">
-                <svg
-                  className="w-6 h-6 text-yellow-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-gray-700">
-                  <strong>Government Contributions:</strong> Remember to check SSS, PhilHealth, and Pag-IBIG boxes on 3rd/4th week payslips!
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+              <div>
+                <p className="text-sm text-foreground">
+                  <span className="font-semibold">Government Contributions:</span>{' '}
+                  <span className="text-muted-foreground">
+                    Remember to check SSS, PhilHealth, and Pag-IBIG boxes on 3rd/4th week payslips!
+                  </span>
                 </p>
               </div>
             </div>
-          </div>
+          </CardContent>
         </Card>
       </div>
     </DashboardLayout>
   );
 }
-

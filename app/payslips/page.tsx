@@ -138,12 +138,13 @@ export default function PayslipsPage() {
       }
       setAttendance(attData);
 
-      // Load deductions
+      // Load deductions for this week
+      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
       const { data: dedData, error: dedError } = await supabase
         .from('employee_deductions')
         .select('*')
         .eq('employee_id', selectedEmployeeId)
-        .eq('is_active', true)
+        .eq('week_start_date', weekStartStr)
         .maybeSingle();
 
       console.log('Deductions query result:', { dedData, dedError });
@@ -455,7 +456,7 @@ export default function PayslipsPage() {
           .from('employee_deductions')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('is_active', true)
+          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
           .maybeSingle();
 
         // Calculate earnings breakdown
@@ -665,7 +666,7 @@ export default function PayslipsPage() {
           .from('employee_deductions')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('is_active', true)
+          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
           .maybeSingle();
 
         const grossPay = attData.gross_pay;

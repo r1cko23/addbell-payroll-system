@@ -9,6 +9,7 @@ import { Input, Select } from '@/components/Input';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@/utils/format';
+import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -19,6 +20,7 @@ interface Employee {
 interface Deductions {
   id?: string;
   employee_id: string;
+  week_start_date: string;
   vale_amount: number;
   uniform_ppe_amount: number;
   sss_salary_loan: number;
@@ -34,6 +36,7 @@ interface Deductions {
 export default function DeductionsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 3 }));
   const [deductions, setDeductions] = useState<Deductions | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,7 +64,7 @@ export default function DeductionsPage() {
     if (selectedEmployeeId) {
       loadDeductions();
     }
-  }, [selectedEmployeeId]);
+  }, [selectedEmployeeId, weekStart]);
 
   async function loadEmployees() {
     try {
@@ -69,7 +72,8 @@ export default function DeductionsPage() {
         .from('employees')
         .select('id, employee_id, full_name')
         .eq('is_active', true)
-        .order('full_name');
+        .order('last_name', { nullsFirst: false })
+        .order('first_name', { nullsFirst: false });
 
       if (error) throw error;
       setEmployees(data || []);
@@ -83,14 +87,16 @@ export default function DeductionsPage() {
 
   async function loadDeductions() {
     try {
+      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      
       const { data, error } = await supabase
         .from('employee_deductions')
         .select('*')
         .eq('employee_id', selectedEmployeeId)
-        .eq('is_active', true)
-        .single();
+        .eq('week_start_date', weekStartStr)
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
       if (data) {
         setDeductions(data);
@@ -140,8 +146,11 @@ export default function DeductionsPage() {
     setSaving(true);
 
     try {
+      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      
       const deductionData = {
         employee_id: selectedEmployeeId,
+        week_start_date: weekStartStr,
         vale_amount: parseFloat(formData.vale_amount) || 0,
         uniform_ppe_amount: parseFloat(formData.uniform_ppe_amount) || 0,
         sss_salary_loan: parseFloat(formData.sss_salary_loan) || 0,
@@ -162,7 +171,7 @@ export default function DeductionsPage() {
           .eq('id', deductions.id);
 
         if (error) throw error;
-        toast.success('Deductions updated successfully');
+        toast.success(`Deductions updated for week of ${format(weekStart, 'MMM d, yyyy')}`);
       } else {
         // Create new
         const { error } = await supabase
@@ -170,7 +179,7 @@ export default function DeductionsPage() {
           .insert([deductionData]);
 
         if (error) throw error;
-        toast.success('Deductions created successfully');
+        toast.success(`Deductions saved for week of ${format(weekStart, 'MMM d, yyyy')}`);
       }
 
       loadDeductions();
@@ -214,23 +223,85 @@ export default function DeductionsPage() {
         </div>
 
         <Card>
-          <Select
-            label="Select Employee"
-            options={[
-              { value: '', label: '-- Select Employee --' },
-              ...employees.map((emp) => ({
-                value: emp.id,
-                label: `${emp.full_name} (${emp.employee_id})`,
-              })),
-            ]}
-            value={selectedEmployeeId}
-            onChange={(e) => setSelectedEmployeeId(e.target.value)}
-          />
+          <div className="space-y-4">
+            {/* Week Navigation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Week (Wednesday - Tuesday)
+              </label>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </Button>
+                <div className="flex-1 text-center">
+                  <div className="font-semibold text-gray-900">
+                    {format(weekStart, 'MMM d, yyyy')} -{' '}
+                    {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Week of {format(weekStart, 'MMMM d, yyyy')}
+                  </div>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </Button>
+              </div>
+            </div>
+
+            {/* Employee Selection */}
+            <Select
+              label="Select Employee"
+              options={[
+                { value: '', label: '-- Select Employee --' },
+                ...employees.map((emp) => ({
+                  value: emp.id,
+                  label: `${emp.full_name} (${emp.employee_id})`,
+                })),
+              ]}
+              value={selectedEmployeeId}
+              onChange={(e) => setSelectedEmployeeId(e.target.value)}
+            />
+          </div>
         </Card>
 
         {selectedEmployeeId && (
           <>
-            <Card title="Weekly Deductions" subtitle="Applied every week">
+            <Card 
+              title="Weekly Deductions" 
+              subtitle={`For week of ${format(weekStart, 'MMM d')} - ${format(addDays(weekStart, 6), 'MMM d, yyyy')}`}
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="Vale"

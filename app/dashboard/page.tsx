@@ -111,12 +111,12 @@ export default function DashboardPage() {
 
         if (!attData) continue; // Skip employees without timesheet
 
-        // Load deductions
+        // Load deductions for this week
         const { data: dedData } = await supabase
           .from('employee_deductions')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('is_active', true)
+          .eq('week_start_date', weekStartStr)
           .maybeSingle();
 
         const grossPay = attData.gross_pay || 0;

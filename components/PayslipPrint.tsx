@@ -321,7 +321,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
         </tr>
 
         <tr>
-          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>PREPARED BY:</td>
+          <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>CREATED BY:</td>
           <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'center'}}>{preparedBy.toUpperCase()}</td>
         </tr>
         </tbody>

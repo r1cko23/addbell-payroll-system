@@ -976,7 +976,7 @@ export default function PayslipsPage() {
         )}
 
         {/* Print Modal */}
-        {showPrintModal && selectedEmployee && attendance && deductions && (
+        {showPrintModal && selectedEmployee && attendance && (
           <Modal
             title="Payslip Preview"
             isOpen={showPrintModal}
@@ -991,15 +991,15 @@ export default function PayslipsPage() {
                 attendance={attendance}
                 earnings={calculateEarningsBreakdown()}
                 deductions={{
-                  vale: deductions.vale_amount || 0,
-                  uniformPPE: deductions.uniform_ppe_amount || 0,
-                  sssLoan: deductions.sss_salary_loan || 0,
-                  sssCalamityLoan: deductions.sss_calamity_loan || 0,
-                  pagibigLoan: deductions.pagibig_salary_loan || 0,
-                  pagibigCalamityLoan: deductions.pagibig_calamity_loan || 0,
-                  sssContribution: applySss ? (deductions.sss_contribution || 0) : 0,
-                  philhealthContribution: applyPhilhealth ? (deductions.philhealth_contribution || 0) : 0,
-                  pagibigContribution: applyPagibig ? (deductions.pagibig_contribution || 0) : 0,
+                  vale: deductions?.vale_amount || 0,
+                  uniformPPE: deductions?.uniform_ppe_amount || 0,
+                  sssLoan: deductions?.sss_salary_loan || 0,
+                  sssCalamityLoan: deductions?.sss_calamity_loan || 0,
+                  pagibigLoan: deductions?.pagibig_salary_loan || 0,
+                  pagibigCalamityLoan: deductions?.pagibig_calamity_loan || 0,
+                  sssContribution: applySss ? (deductions?.sss_contribution || 0) : 0,
+                  philhealthContribution: applyPhilhealth ? (deductions?.philhealth_contribution || 0) : 0,
+                  pagibigContribution: applyPagibig ? (deductions?.pagibig_contribution || 0) : 0,
                   totalDeductions: totalDed,
                 }}
                 adjustment={adjustment}

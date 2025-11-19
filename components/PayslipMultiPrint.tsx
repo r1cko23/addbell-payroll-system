@@ -237,11 +237,11 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
 
           {/* Signature */}
           <tr>
-            <td colSpan={2} style={{...compactCellStyle, fontWeight: 'bold', fontSize: '5pt'}}>RECEIVED:</td>
+            <td colSpan={2} style={{...compactCellStyle, fontWeight: 'bold', fontSize: '5pt'}}>RECEIVED BY/DATE:</td>
             <td colSpan={2} style={{...compactCellStyle, height: '15px', fontSize: '5pt'}}></td>
           </tr>
           <tr>
-            <td colSpan={2} style={{...compactCellStyle, fontWeight: 'bold', fontSize: '5pt'}}>BY:</td>
+            <td colSpan={2} style={{...compactCellStyle, fontWeight: 'bold', fontSize: '5pt'}}>CREATED BY:</td>
             <td colSpan={2} style={{...compactCellStyle, textAlign: 'center', fontSize: '5pt'}}>{data.preparedBy.toUpperCase()}</td>
           </tr>
         </tbody>

@@ -71,6 +71,7 @@ export default function PayslipsPage() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [multiPrintData, setMultiPrintData] = useState<any[]>([]);
+  const [showMultiPrintPreview, setShowMultiPrintPreview] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const supabase = createClient();
@@ -915,11 +916,19 @@ export default function PayslipsPage() {
       });
     }
 
-    // Open print directly without modal
+    // Show preview and auto-print
     setMultiPrintData(payslipsData);
+    setShowMultiPrintPreview(true);
+    
+    // Wait for component to render, then print
     setTimeout(() => {
       window.print();
-    }, 100);
+      // Close preview after print dialog closes
+      setTimeout(() => {
+        setShowMultiPrintPreview(false);
+        setMultiPrintData([]);
+      }, 500);
+    }, 500);
   }
 
   return (
@@ -1441,11 +1450,45 @@ export default function PayslipsPage() {
           </Modal>
         )}
 
-        {/* Hidden Multi-Print Container - Only visible when printing */}
-        {multiPrintData.length > 0 && (
-          <div className="hidden print:block">
-            <PayslipMultiPrint payslips={multiPrintData} />
-          </div>
+        {/* Multi-Print Preview Modal */}
+        {showMultiPrintPreview && multiPrintData.length > 0 && (
+          <Modal
+            title={`Print ${multiPrintData.length} Payslips`}
+            isOpen={showMultiPrintPreview}
+            onClose={() => {
+              setShowMultiPrintPreview(false);
+              setMultiPrintData([]);
+            }}
+            size="xl"
+          >
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                <p className="text-blue-800 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span>Print dialog will open automatically. Set paper to <strong>Legal (8.5" × 14")</strong></span>
+                </p>
+              </div>
+              
+              <div className="print:block">
+                <PayslipMultiPrint payslips={multiPrintData} />
+              </div>
+              
+              <div className="flex justify-end gap-3 print:hidden">
+                <Button 
+                  variant="secondary" 
+                  onClick={() => {
+                    setShowMultiPrintPreview(false);
+                    setMultiPrintData([]);
+                  }}
+                >
+                  Close
+                </Button>
+                <Button onClick={() => window.print()}>
+                  Print Again
+                </Button>
+              </div>
+            </div>
+          </Modal>
         )}
       </div>
     </DashboardLayout>

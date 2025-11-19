@@ -335,7 +335,7 @@ export default function TimesheetPage() {
                 ]}
                 value={selectedEmployee?.id || ''}
                 onChange={(e) => {
-                  const emp = employees.find((e) => e.id === e.target.value);
+                  const emp = employees.find((emp) => emp.id === e.target.value);
                   setSelectedEmployee(emp || null);
                 }}
               />

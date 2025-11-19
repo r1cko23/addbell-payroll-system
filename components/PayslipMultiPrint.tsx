@@ -77,21 +77,21 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '3.9in', 
-        height: '6.5in',
+        width: '4.0in', 
+        height: '6.7in',
         padding: '0.1in',
-        margin: '0.08in 0.05in',
+        margin: '0.05in 0.05in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
         float: 'left'
       }}
     >
       {/* Company Header - Compact */}
-      <div style={{ textAlign: 'center', marginBottom: '2px', borderBottom: '1px solid #000', paddingBottom: '1px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ textAlign: 'center', marginBottom: '3px', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell" 
-          style={{ height: '18px', display: 'block', margin: '0 auto' }}
+          style={{ height: '28px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
@@ -262,7 +262,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
         @media print {
           @page {
             size: legal;
-            margin: 0.3in 0.25in;
+            margin: 0.15in 0.2in;
           }
           body {
             margin: 0;
@@ -270,7 +270,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
           }
           .legal-page {
             margin: 0 !important;
-            padding: 0.2in 0.1in !important;
+            padding: 0.15in 0.1in !important;
           }
         }
       `}</style>
@@ -283,7 +283,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
               width: '8.5in',
               height: '14in',
               margin: '0 auto',
-              padding: '0.2in 0.1in',
+              padding: '0.15in 0.1in',
               backgroundColor: '#fff',
               position: 'relative',
               pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',

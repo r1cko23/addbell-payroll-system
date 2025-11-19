@@ -59,59 +59,47 @@ export function PayslipPrint({
   absentDays,
   preparedBy
 }: PayslipPrintProps) {
+  const tableStyle: React.CSSProperties = {
+    width: '100%',
+    borderCollapse: 'collapse',
+    marginTop: '5px',
+    fontSize: '11pt',
+    color: '#000',
+  };
+
+  const cellStyle: React.CSSProperties = {
+    border: '2px solid #000',
+    padding: '6px 8px',
+    textAlign: 'left',
+  };
+
+  const sectionHeaderStyle: React.CSSProperties = {
+    ...cellStyle,
+    backgroundColor: '#e5e7eb',
+    fontWeight: 'bold',
+    fontSize: '12pt',
+  };
+
   return (
-    <div className="payslip-container bg-white text-black" style={{ width: '210mm', minHeight: '297mm', padding: '10mm', margin: '0 auto' }}>
-      <style jsx>{`
+    <>
+      <style dangerouslySetInnerHTML={{__html: `
         @media print {
           .payslip-container {
-            width: 100%;
-            padding: 0;
-            margin: 0;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
             page-break-after: always;
           }
           @page {
             size: A4;
             margin: 10mm;
           }
+          .print\\:hidden {
+            display: none !important;
+          }
         }
-        
-        .payslip-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-top: 5px;
-          font-size: 11pt;
-        }
-        
-        .payslip-table td,
-        .payslip-table th {
-          border: 2px solid #000;
-          padding: 6px 8px;
-          text-align: left;
-        }
-        
-        .payslip-table th {
-          background-color: #e5e7eb;
-          font-weight: bold;
-        }
-        
-        .text-right {
-          text-align: right;
-        }
-        
-        .text-center {
-          text-align: center;
-        }
-        
-        .font-bold {
-          font-weight: bold;
-        }
-        
-        .section-header {
-          background-color: #e5e7eb;
-          font-weight: bold;
-          font-size: 12pt;
-        }
-      `}</style>
+      `}} />
+      <div className="payslip-container bg-white text-black" style={{ width: '210mm', minHeight: '297mm', padding: '10mm', margin: '0 auto', color: '#000' }}>
 
       {/* Company Header */}
       <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
@@ -130,192 +118,195 @@ export function PayslipPrint({
         </div>
       </div>
 
-      <table className="payslip-table">
+      <table style={tableStyle}>
+        <tbody>
         {/* Payroll Period */}
         <tr>
-          <td colSpan={4} className="section-header">
+          <td colSpan={4} style={sectionHeaderStyle}>
             PAYROLL PERIOD OF: {format(weekStart, 'MMM. d')}-{format(weekEnd, 'd, yyyy')}
           </td>
         </tr>
 
         {/* Employee Name */}
         <tr>
-          <td colSpan={4} className="section-header">
+          <td colSpan={4} style={sectionHeaderStyle}>
             NAME: {employee.full_name.toUpperCase()}
           </td>
         </tr>
 
         {/* Basic Salary & Working Days */}
         <tr>
-          <td className="font-bold">BASIC SALARY:</td>
-          <td className="text-right">{formatCurrency(employee.rate_per_day)}</td>
-          <td className="font-bold">RATE/HOUR:</td>
-          <td className="text-right">{employee.rate_per_hour.toFixed(2)}</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>BASIC SALARY:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(employee.rate_per_day)}</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>RATE/HOUR:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{employee.rate_per_hour.toFixed(2)}</td>
         </tr>
         <tr>
-          <td className="font-bold">WORKING DAYS:</td>
-          <td className="text-right">{workingDays}</td>
-          <td className="font-bold">ABSENT:</td>
-          <td className="text-right">{absentDays}</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>WORKING DAYS:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{workingDays}</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>ABSENT:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{absentDays}</td>
         </tr>
 
         {/* EARNINGS Section */}
         <tr>
-          <td colSpan={4} className="section-header">EARNINGS:</td>
+          <td colSpan={4} style={sectionHeaderStyle}>EARNINGS:</td>
         </tr>
 
         <tr>
-          <td className="font-bold">REGULAR PAY:</td>
-          <td className="text-right">{formatCurrency(earnings.regularPay)}</td>
-          <td></td>
-          <td></td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>REGULAR PAY:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.regularPay)}</td>
+          <td style={cellStyle}></td>
+          <td style={cellStyle}></td>
         </tr>
 
         <tr>
-          <td className="font-bold">REGULAR O. T:</td>
-          <td className="text-right">{formatCurrency(earnings.regularOT)}</td>
-          <td className="text-right">{earnings.regularOTHours.toFixed(2)}</td>
-          <td>HRS</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>REGULAR O. T:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.regularOT)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.regularOTHours.toFixed(2)}</td>
+          <td style={cellStyle}>HRS</td>
         </tr>
 
         <tr>
-          <td className="font-bold">NIGHT DIFF.:</td>
-          <td className="text-right">{formatCurrency(earnings.nightDiff)}</td>
-          <td className="text-right">{earnings.nightDiffHours.toFixed(2)}</td>
-          <td>HRS</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>NIGHT DIFF.:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.nightDiff)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.nightDiffHours.toFixed(2)}</td>
+          <td style={cellStyle}>HRS</td>
         </tr>
 
         <tr>
-          <td className="font-bold">SUNDAY/ R.D OT:</td>
-          <td className="text-right">{formatCurrency(earnings.sundayRestDay)}</td>
-          <td className="text-right">{earnings.sundayRestDayHours.toFixed(2)}</td>
-          <td>HRS</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>SUNDAY/ R.D OT:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.sundayRestDay)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.sundayRestDayHours.toFixed(2)}</td>
+          <td style={cellStyle}>HRS</td>
         </tr>
 
         <tr>
-          <td className="font-bold">SPECIAL HOLIDAY:</td>
-          <td className="text-right">{formatCurrency(earnings.specialHoliday)}</td>
-          <td className="text-right">{earnings.specialHolidayHours.toFixed(2)}</td>
-          <td className="text-right">{0.toFixed(2)}</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>SPECIAL HOLIDAY:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.specialHoliday)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.specialHolidayHours.toFixed(2)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{0.toFixed(2)}</td>
         </tr>
 
         <tr>
-          <td className="font-bold">REGULAR HOLIDAY:</td>
-          <td className="text-right">{formatCurrency(earnings.regularHoliday)}</td>
-          <td className="text-right">{earnings.regularHolidayHours.toFixed(2)}</td>
-          <td className="text-right">{0.toFixed(2)}</td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>REGULAR HOLIDAY:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(earnings.regularHoliday)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{earnings.regularHolidayHours.toFixed(2)}</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{0.toFixed(2)}</td>
         </tr>
 
         <tr>
-          <td className="font-bold section-header">GROSS INCOME:</td>
-          <td className="text-right font-bold">{formatCurrency(earnings.grossIncome)}</td>
-          <td colSpan={2}></td>
+          <td style={sectionHeaderStyle}>GROSS INCOME:</td>
+          <td style={{...sectionHeaderStyle, textAlign: 'right'}}>{formatCurrency(earnings.grossIncome)}</td>
+          <td colSpan={2} style={cellStyle}></td>
         </tr>
 
         {/* DEDUCTIONS Section */}
         <tr>
-          <td colSpan={4} className="section-header">DEDUCTIONS:</td>
+          <td colSpan={4} style={sectionHeaderStyle}>DEDUCTIONS:</td>
         </tr>
 
         {deductions.vale > 0 && (
           <tr>
-            <td className="font-bold">vale</td>
-            <td className="text-right">{formatCurrency(deductions.vale)}</td>
-            <td colSpan={2}></td>
+            <td style={{...cellStyle, fontWeight: 'bold'}}>vale</td>
+            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.vale)}</td>
+            <td colSpan={2} style={cellStyle}></td>
           </tr>
         )}
 
         {deductions.uniformPPE > 0 && (
           <tr>
-            <td className="font-bold">UNIFORM/PPE</td>
-            <td className="text-right">{formatCurrency(deductions.uniformPPE)}</td>
-            <td colSpan={2}></td>
+            <td style={{...cellStyle, fontWeight: 'bold'}}>UNIFORM/PPE</td>
+            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.uniformPPE)}</td>
+            <td colSpan={2} style={cellStyle}></td>
           </tr>
         )}
 
         {deductions.pagibigLoan > 0 && (
           <tr>
-            <td className="font-bold">PAG-IBIG LOAN</td>
-            <td className="text-right">{formatCurrency(deductions.pagibigLoan)}</td>
-            <td colSpan={2}></td>
+            <td style={{...cellStyle, fontWeight: 'bold'}}>PAG-IBIG LOAN</td>
+            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.pagibigLoan)}</td>
+            <td colSpan={2} style={cellStyle}></td>
           </tr>
         )}
 
         {deductions.sssLoan > 0 && (
           <tr>
-            <td className="font-bold">SSS LOAN</td>
-            <td className="text-right">{formatCurrency(deductions.sssLoan)}</td>
-            <td colSpan={2}></td>
+            <td style={{...cellStyle, fontWeight: 'bold'}}>SSS LOAN</td>
+            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.sssLoan)}</td>
+            <td colSpan={2} style={cellStyle}></td>
           </tr>
         )}
 
         {deductions.sssCalamityLoan > 0 && (
           <tr>
-            <td className="font-bold">SSS CALAMITY LOAN</td>
-            <td className="text-right">{formatCurrency(deductions.sssCalamityLoan)}</td>
-            <td colSpan={2}></td>
+            <td style={{...cellStyle, fontWeight: 'bold'}}>SSS CALAMITY LOAN</td>
+            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.sssCalamityLoan)}</td>
+            <td colSpan={2} style={cellStyle}></td>
           </tr>
         )}
 
         {deductions.pagibigCalamityLoan > 0 && (
           <tr>
-            <td className="font-bold">PAG-IBIG CALAMITY LOAN</td>
-            <td className="text-right">{formatCurrency(deductions.pagibigCalamityLoan)}</td>
-            <td colSpan={2}></td>
+            <td style={{...cellStyle, fontWeight: 'bold'}}>PAG-IBIG CALAMITY LOAN</td>
+            <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.pagibigCalamityLoan)}</td>
+            <td colSpan={2} style={cellStyle}></td>
           </tr>
         )}
 
         <tr>
-          <td className="font-bold">SSS CONTRI.</td>
-          <td className="text-right">{formatCurrency(deductions.sssContribution)}</td>
-          <td colSpan={2}></td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>SSS CONTRI.</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.sssContribution)}</td>
+          <td colSpan={2} style={cellStyle}></td>
         </tr>
 
         <tr>
-          <td className="font-bold">PHILHEALTH contri</td>
-          <td className="text-right">{formatCurrency(deductions.philhealthContribution)}</td>
-          <td colSpan={2}></td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>PHILHEALTH contri</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.philhealthContribution)}</td>
+          <td colSpan={2} style={cellStyle}></td>
         </tr>
 
         <tr>
-          <td className="font-bold">PAG-IBIG contri</td>
-          <td className="text-right">{formatCurrency(deductions.pagibigContribution)}</td>
-          <td colSpan={2}></td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>PAG-IBIG contri</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(deductions.pagibigContribution)}</td>
+          <td colSpan={2} style={cellStyle}></td>
         </tr>
 
         <tr>
-          <td className="font-bold section-header">TOTAL DEDUCTION:</td>
-          <td className="text-right font-bold">{formatCurrency(deductions.totalDeductions)}</td>
-          <td colSpan={2}></td>
+          <td style={sectionHeaderStyle}>TOTAL DEDUCTION:</td>
+          <td style={{...sectionHeaderStyle, textAlign: 'right'}}>{formatCurrency(deductions.totalDeductions)}</td>
+          <td colSpan={2} style={cellStyle}></td>
         </tr>
 
         {/* ADJUSTMENT Section */}
         <tr>
-          <td className="font-bold">ADJUSTMENT:</td>
-          <td className="text-right">{formatCurrency(Math.abs(adjustment))}</td>
-          <td colSpan={2}></td>
+          <td style={{...cellStyle, fontWeight: 'bold'}}>ADJUSTMENT:</td>
+          <td style={{...cellStyle, textAlign: 'right'}}>{formatCurrency(Math.abs(adjustment))}</td>
+          <td colSpan={2} style={cellStyle}></td>
         </tr>
 
         {/* NET PAY Section */}
         <tr>
-          <td className="font-bold section-header" style={{ fontSize: '14pt' }}>NET PAY:</td>
-          <td className="text-right font-bold" style={{ fontSize: '14pt' }} colSpan={3}>
+          <td style={{...sectionHeaderStyle, fontSize: '14pt'}}>NET PAY:</td>
+          <td style={{...sectionHeaderStyle, textAlign: 'right', fontSize: '14pt'}} colSpan={3}>
             {formatCurrency(netPay)}
           </td>
         </tr>
 
         {/* Signature Section */}
         <tr>
-          <td colSpan={2} className="font-bold">RECEIVED BY/DATE:</td>
-          <td colSpan={2} style={{ height: '40px' }}></td>
+          <td colSpan={2} style={{...cellStyle, fontWeight: 'bold'}}>RECEIVED BY/DATE:</td>
+          <td colSpan={2} style={{...cellStyle, height: '40px'}}></td>
         </tr>
 
         <tr>
-          <td colSpan={2} className="font-bold">PREPARED BY:</td>
-          <td colSpan={2} className="text-center">{preparedBy.toUpperCase()}</td>
+          <td colSpan={2} style={{...cellStyle, fontWeight: 'bold'}}>PREPARED BY:</td>
+          <td colSpan={2} style={{...cellStyle, textAlign: 'center'}}>{preparedBy.toUpperCase()}</td>
         </tr>
+        </tbody>
       </table>
     </div>
+    </>
   );
 }
 

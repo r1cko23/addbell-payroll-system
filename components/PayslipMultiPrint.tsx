@@ -88,7 +88,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       {/* Company Header - Compact */}
       <div style={{ textAlign: 'center', marginBottom: '3px', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
-          src="/Official Logo Cropped.jpg" 
+          src="/Payslip_logo.png" 
           alt="Addbell" 
           style={{ height: '30px', display: 'block', margin: '0 auto' }}
           onError={(e) => {

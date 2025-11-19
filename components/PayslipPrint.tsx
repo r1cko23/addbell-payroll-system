@@ -51,21 +51,21 @@ export function PayslipPrint(props: PayslipPrintProps) {
   
   return (
     <div className="payslip-container" style={{ 
-      width: '100%',
-      maxWidth: '215mm',
-      minHeight: '330mm',
-      padding: '10mm', 
+      width: '4.25in',
+      height: '7in',
+      padding: '0.25in', 
       margin: '0 auto', 
       backgroundColor: '#fff', 
       color: '#000',
-      boxSizing: 'border-box'
+      boxSizing: 'border-box',
+      pageBreakInside: 'avoid'
     }}>
       {/* Company Header */}
-      <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '1.5px solid #000', paddingBottom: '5px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
-          src="/Official Logo Cropped.jpg" 
+          src="/Payslip_logo.png" 
           alt="Addbell Technical Services" 
-          style={{ height: '80px', display: 'block', margin: '0 auto' }}
+          style={{ height: '40px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
@@ -75,19 +75,19 @@ export function PayslipPrint(props: PayslipPrintProps) {
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
-        marginTop: '5px',
-        fontSize: '11pt',
+        marginTop: '3px',
+        fontSize: '7pt',
         color: '#000',
       }}>
         <tbody>
         {/* Payroll Period */}
         <tr>
           <td colSpan={4} style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
           }}>
             PAYROLL PERIOD OF: {format(weekStart, 'MMM. d')}-{format(weekEnd, 'd, yyyy')}
           </td>
@@ -96,11 +96,11 @@ export function PayslipPrint(props: PayslipPrintProps) {
         {/* Employee Name */}
         <tr>
           <td colSpan={4} style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
           }}>
             NAME: {employee.full_name.toUpperCase()}
           </td>
@@ -123,11 +123,11 @@ export function PayslipPrint(props: PayslipPrintProps) {
         {/* EARNINGS Section */}
         <tr>
           <td colSpan={4} style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
           }}>EARNINGS:</td>
         </tr>
 
@@ -175,18 +175,18 @@ export function PayslipPrint(props: PayslipPrintProps) {
 
         <tr>
           <td style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
           }}>GROSS INCOME:</td>
           <td style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
             textAlign: 'right'
           }}>{formatCurrency(earnings.grossIncome)}</td>
           <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
@@ -195,11 +195,11 @@ export function PayslipPrint(props: PayslipPrintProps) {
         {/* DEDUCTIONS Section */}
         <tr>
           <td colSpan={4} style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
           }}>DEDUCTIONS: (Week of {format(weekStart, 'MMM. d')} - {format(weekEnd, 'MMM. d, yyyy')})</td>
         </tr>
 
@@ -271,18 +271,18 @@ export function PayslipPrint(props: PayslipPrintProps) {
 
         <tr>
           <td style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
           }}>TOTAL DEDUCTION:</td>
           <td style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '12pt',
+            fontSize: '8pt',
             textAlign: 'right'
           }}>{formatCurrency(deductions.totalDeductions)}</td>
           <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
@@ -298,18 +298,18 @@ export function PayslipPrint(props: PayslipPrintProps) {
         {/* NET PAY Section */}
         <tr>
           <td style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '14pt',
+            fontSize: '9pt',
           }}>NET PAY:</td>
           <td style={{
-            border: '2px solid #000',
-            padding: '6px 8px',
+            border: '1px solid #000',
+            padding: '2px 4px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '14pt',
+            fontSize: '9pt',
             textAlign: 'right'
           }} colSpan={3}>
             {formatCurrency(netPay)}

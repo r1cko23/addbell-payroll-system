@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Users, UserCheck, Clock, DollarSign, Calendar, FileText, UserPlus, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Loader2, Users, UserCheck, Clock, DollarSign, Calendar, FileText, UserPlus, Info, CheckCircle2, AlertTriangle, Copy, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns';
+import toast from 'react-hot-toast';
 
 interface DashboardStats {
   totalEmployees: number;
@@ -16,9 +18,19 @@ interface DashboardStats {
   thisWeekGross: number;
 }
 
+interface BankTransferRecord {
+  accountNumber: string;
+  amount: number;
+  name: string;
+  employeeId: string;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [bankTransferData, setBankTransferData] = useState<BankTransferRecord[]>([]);
+  const [loadingBankData, setLoadingBankData] = useState(false);
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 3 }));
   const supabase = createClient();
 
   useEffect(() => {
@@ -67,6 +79,102 @@ export default function DashboardPage() {
 
     fetchStats();
   }, [supabase]);
+
+  useEffect(() => {
+    loadBankTransferData();
+  }, [weekStart]);
+
+  async function loadBankTransferData() {
+    setLoadingBankData(true);
+    try {
+      // Get all active employees with bank account numbers
+      const { data: employees, error: empError } = await supabase
+        .from('employees')
+        .select('id, employee_id, full_name, bank_account_number')
+        .eq('is_active', true)
+        .order('full_name');
+
+      if (empError) throw empError;
+      if (!employees) return;
+
+      const bankRecords: BankTransferRecord[] = [];
+      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+
+      for (const emp of employees) {
+        // Load attendance for this week
+        const { data: attData } = await supabase
+          .from('weekly_attendance')
+          .select('*')
+          .eq('employee_id', emp.id)
+          .eq('week_start_date', weekStartStr)
+          .maybeSingle();
+
+        if (!attData) continue; // Skip employees without timesheet
+
+        // Load deductions
+        const { data: dedData } = await supabase
+          .from('employee_deductions')
+          .select('*')
+          .eq('employee_id', emp.id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        const grossPay = attData.gross_pay || 0;
+
+        // Calculate total deductions
+        const totalDeductions = 
+          (dedData?.vale_amount || 0) +
+          (dedData?.uniform_ppe_amount || 0) +
+          (dedData?.sss_salary_loan || 0) +
+          (dedData?.sss_calamity_loan || 0) +
+          (dedData?.pagibig_salary_loan || 0) +
+          (dedData?.pagibig_calamity_loan || 0) +
+          (dedData?.sss_contribution || 0) +
+          (dedData?.philhealth_contribution || 0) +
+          (dedData?.pagibig_contribution || 0) +
+          (dedData?.withholding_tax || 0);
+
+        const netPay = parseFloat((grossPay - totalDeductions).toFixed(2));
+
+        bankRecords.push({
+          accountNumber: emp.bank_account_number || 'NOT SET',
+          amount: netPay,
+          name: emp.full_name,
+          employeeId: emp.employee_id,
+        });
+      }
+
+      setBankTransferData(bankRecords);
+    } catch (error) {
+      console.error('Error loading bank transfer data:', error);
+      toast.error('Failed to load bank transfer data');
+    } finally {
+      setLoadingBankData(false);
+    }
+  }
+
+  function copyToClipboard() {
+    if (bankTransferData.length === 0) {
+      toast.error('No data to copy');
+      return;
+    }
+
+    // Format as tab-separated values for easy paste into Excel/Sheets
+    const header = 'ACCOUNT #\tAMOUNT\tNAME\tREMARKS\n';
+    const rows = bankTransferData.map(record => 
+      `${record.accountNumber}\t${record.amount.toFixed(2)}\t${record.name}\t`
+    ).join('\n');
+    const total = bankTransferData.reduce((sum, r) => sum + r.amount, 0);
+    const footer = `\t${total.toFixed(2)}\t\t`;
+    
+    const text = header + rows + '\n' + footer;
+    
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Copied to clipboard! Ready to paste into Excel/Sheets');
+    }).catch(() => {
+      toast.error('Failed to copy to clipboard');
+    });
+  }
 
   if (loading) {
     return (
@@ -141,6 +249,109 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Bank Transfer Summary */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-foreground">🏦 Bank Transfer Summary</CardTitle>
+                <CardDescription>
+                  Week of {format(weekStart, 'MMM d')} - {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={copyToClipboard}
+                  disabled={bankTransferData.length === 0}
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy to Clipboard
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingBankData ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : bankTransferData.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No timesheet data found for this week.</p>
+                <p className="text-sm mt-2">Enter attendance in the Timesheet page first.</p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-md border">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="p-3 text-left font-semibold text-foreground">ACCOUNT #</th>
+                        <th className="p-3 text-right font-semibold text-foreground">AMOUNT</th>
+                        <th className="p-3 text-left font-semibold text-foreground">NAME</th>
+                        <th className="p-3 text-left font-semibold text-foreground">REMARKS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bankTransferData.map((record, index) => (
+                        <tr key={record.employeeId} className="border-b hover:bg-muted/30">
+                          <td className="p-3 font-mono text-sm text-foreground">
+                            {record.accountNumber}
+                          </td>
+                          <td className="p-3 text-right font-semibold text-foreground">
+                            {record.amount.toFixed(2)}
+                          </td>
+                          <td className="p-3 text-foreground">{record.name}</td>
+                          <td className="p-3 text-muted-foreground"></td>
+                        </tr>
+                      ))}
+                      <tr className="bg-muted/50 font-bold">
+                        <td className="p-3 text-foreground"></td>
+                        <td className="p-3 text-right text-lg text-foreground">
+                          {bankTransferData.reduce((sum, r) => sum + r.amount, 0).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-foreground"></td>
+                        <td className="p-3"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                  <div className="flex items-center gap-4">
+                    <span>
+                      <strong className="text-foreground">{bankTransferData.length}</strong> employees
+                    </span>
+                    <span>
+                      Total: <strong className="text-foreground">
+                        {formatCurrency(bankTransferData.reduce((sum, r) => sum + r.amount, 0))}
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="text-xs">
+                    💡 Click "Copy to Clipboard" to paste directly into your bank's Excel sheet
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Quick Actions */}
         <Card>

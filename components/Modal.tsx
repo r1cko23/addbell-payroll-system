@@ -56,15 +56,15 @@ export function Modal({
       {/* Modal */}
       <div className="flex min-h-full items-center justify-center p-4">
         <div
-          className={`relative bg-white rounded-lg shadow-xl ${sizes[size]} w-full`}
+          className={`relative bg-card text-card-foreground rounded-lg shadow-xl border ${sizes[size]} w-full`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <h2 className="text-xl font-semibold text-foreground">{title}</h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition"
+              className="text-muted-foreground hover:text-foreground transition"
             >
               <svg
                 className="w-6 h-6"
@@ -85,7 +85,7 @@ export function Modal({
           
           {/* Footer */}
           {footer && (
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-border flex justify-end gap-3">
               {footer}
             </div>
           )}

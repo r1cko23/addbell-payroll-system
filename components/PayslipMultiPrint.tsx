@@ -77,12 +77,12 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '3.85in', 
-        height: '6.5in',
-        padding: '0.08in',
-        margin: '0.08in',
+        width: '100%',
+        height: '100%',
+        padding: '0.1in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
+        overflow: 'hidden',
       }}
     >
       {/* Company Header - Compact */}
@@ -261,7 +261,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
         @media print {
           @page {
             size: legal;
-            margin: 0.25in;
+            margin: 0.2in;
           }
           body {
             margin: 0;
@@ -269,12 +269,17 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
           }
           .legal-page {
             margin: 0 !important;
-            padding: 0.15in !important;
-            display: flex !important;
-            flex-wrap: wrap !important;
-            justify-content: space-evenly !important;
-            align-content: space-evenly !important;
-            gap: 0.1in !important;
+            padding: 0.2in !important;
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-rows: repeat(2, 1fr) !important;
+            gap: 0.15in !important;
+            width: 8.5in !important;
+            height: 14in !important;
+          }
+          .compact-payslip {
+            width: 100% !important;
+            height: 100% !important;
           }
         }
       `}</style>
@@ -287,16 +292,15 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
               width: '8.5in',
               height: '14in',
               margin: '0 auto',
-              padding: '0.15in 0.2in',
+              padding: '0.2in',
               backgroundColor: '#fff',
               position: 'relative',
               pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
               boxSizing: 'border-box',
-              display: 'flex',
-              flexWrap: 'wrap',
-              justifyContent: 'space-evenly',
-              alignContent: 'space-evenly',
-              gap: '0.1in',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridTemplateRows: 'repeat(2, 1fr)',
+              gap: '0.15in',
             }}
           >
             {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}

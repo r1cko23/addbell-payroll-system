@@ -26,6 +26,11 @@ const navItems: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
+    name: 'Weekly Workflow',
+    href: '/workflow',
+    icon: Calendar,
+  },
+  {
     name: 'Employees',
     href: '/employees',
     icon: Users,

@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { Select } from '@/components/Input';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
-import { format, startOfWeek, addDays, parseISO } from 'date-fns';
+import { format, startOfWeek, addDays, parseISO, subWeeks } from 'date-fns';
 import { determineDayType, getDayName, formatDateShort } from '@/utils/holidays';
 import { calculateDailyPay, getDayTypeLabel } from '@/utils/payroll-calculator';
 import { formatCurrency } from '@/utils/format';
@@ -260,6 +260,93 @@ export default function TimesheetPage() {
     }
   }
 
+  async function copyLastWeek() {
+    if (!selectedEmployee) {
+      toast.error('Please select an employee first');
+      return;
+    }
+
+    const lastWeekStart = subWeeks(weekStart, 1);
+
+    try {
+      const { data, error } = await supabase
+        .from('weekly_attendance')
+        .select('*')
+        .eq('employee_id', selectedEmployee.id)
+        .eq('week_start_date', format(lastWeekStart, 'yyyy-MM-dd'))
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data || !data.attendance_data) {
+        toast.error(`No timesheet found for week of ${format(lastWeekStart, 'MMM d, yyyy')}`);
+        return;
+      }
+
+      // Map last week's data to current week
+      const lastWeekData = data.attendance_data as DailyAttendance[];
+      const updatedDays = weekDays.map((currentDay, index) => {
+        const lastWeekDay = lastWeekData[index];
+        if (lastWeekDay) {
+          const calculation = calculateDailyPay(
+            currentDay.dayType as any,
+            lastWeekDay.regularHours,
+            lastWeekDay.overtimeHours,
+            lastWeekDay.nightDiffHours,
+            selectedEmployee.rate_per_hour
+          );
+
+          return {
+            ...currentDay,
+            regularHours: lastWeekDay.regularHours,
+            overtimeHours: lastWeekDay.overtimeHours,
+            nightDiffHours: lastWeekDay.nightDiffHours,
+            amount: calculation.total,
+          };
+        }
+        return currentDay;
+      });
+
+      setWeekDays(updatedDays);
+      toast.success('✅ Copied last week\'s hours! Review and save when ready.');
+    } catch (error) {
+      console.error('Error copying last week:', error);
+      toast.error('Failed to copy last week\'s data');
+    }
+  }
+
+  function applyStandardWeek() {
+    if (!selectedEmployee) {
+      toast.error('Please select an employee first');
+      return;
+    }
+
+    // Apply 8 hours to Wed-Sun (first 5 days), 0 for Mon-Tue (weekend/rest days)
+    const updatedDays = weekDays.map((day, index) => {
+      const isWorkDay = index < 5; // Wed, Thu, Fri, Sat, Sun
+      const regularHours = isWorkDay ? 8 : 0;
+
+      const calculation = calculateDailyPay(
+        day.dayType as any,
+        regularHours,
+        0,
+        0,
+        selectedEmployee.rate_per_hour
+      );
+
+      return {
+        ...day,
+        regularHours,
+        overtimeHours: 0,
+        nightDiffHours: 0,
+        amount: calculation.total,
+      };
+    });
+
+    setWeekDays(updatedDays);
+    toast.success('✅ Applied standard 5-day week (8hrs Wed-Sun)');
+  }
+
   async function loadExistingTimesheet() {
     if (!selectedEmployee) return;
 
@@ -323,6 +410,21 @@ export default function TimesheetPage() {
   const totalOT = weekDays.reduce((sum, day) => sum + toNum(day.overtimeHours), 0);
   const totalNightDiff = weekDays.reduce((sum, day) => sum + toNum(day.nightDiffHours), 0);
 
+  // Validation warnings
+  const warnings: string[] = [];
+  weekDays.forEach((day) => {
+    const reg = toNum(day.regularHours);
+    const ot = toNum(day.overtimeHours);
+    const nd = toNum(day.nightDiffHours);
+    const total = reg + ot + nd;
+
+    if (total > 16) {
+      warnings.push(`⚠️ ${day.dayName} (${formatDateShort(day.date)}): ${total} total hours exceeds 16 (possible duplicate entry?)`);
+    } else if (ot > 8) {
+      warnings.push(`⚠️ ${day.dayName} (${formatDateShort(day.date)}): ${ot} OT hours is unusually high`);
+    }
+  });
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -385,6 +487,34 @@ export default function TimesheetPage() {
 
         {selectedEmployee && (
           <Card title="Weekly Hours Entry">
+            {/* Validation Warnings */}
+            {warnings.length > 0 && (
+              <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">
+                      Validation Warnings ({warnings.length})
+                    </h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <ul className="list-disc pl-5 space-y-1">
+                        {warnings.map((warning, idx) => (
+                          <li key={idx}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <p className="mt-2 text-xs text-yellow-600">
+                      💡 These are just warnings. Review the data and save if correct.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -505,12 +635,41 @@ export default function TimesheetPage() {
               </table>
             </div>
 
+            {/* Quick Fill Templates */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="text-sm font-semibold text-blue-900 mb-3">⚡ Quick Fill Templates</h4>
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={applyStandardWeek}
+                >
+                  📅 Standard Week (8hrs Wed-Sun)
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={copyLastWeek}
+                >
+                  📋 Copy Last Week
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={initializeWeekDays}
+                >
+                  🗑️ Clear All
+                </Button>
+              </div>
+              <p className="text-xs text-blue-700 mt-2">
+                💡 Tip: Use templates to speed up entry, then adjust individual days as needed
+              </p>
+            </div>
+
+            {/* Save Actions */}
             <div className="mt-6 flex justify-end gap-3">
-              <Button variant="secondary" onClick={initializeWeekDays}>
-                Clear All
-              </Button>
               <Button onClick={handleSave} isLoading={saving}>
-                Save Timesheet
+                💾 Save Timesheet
               </Button>
             </div>
           </Card>

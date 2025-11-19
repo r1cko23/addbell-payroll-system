@@ -349,15 +349,15 @@ export default function PayslipsPage() {
       const otHours = day.overtimeHours || 0;
       const ndHours = day.nightDiffHours || 0;
 
-      // Regular pay
-      if (dayType === 'regular_day') {
+      // Regular day pay
+      if (dayType === 'regular') {
         regularPay += (regHours * (selectedEmployee?.rate_per_hour || 0));
         regularOTHours += otHours;
         regularOT += (otHours * (selectedEmployee?.rate_per_hour || 0) * 1.25);
       }
 
       // Sunday/Rest day
-      if (dayType === 'sunday_rest_day') {
+      if (dayType === 'sunday') {
         sundayRestDayHours += regHours + otHours;
         sundayRestDay += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.3);
         if (otHours > 0) {
@@ -365,8 +365,8 @@ export default function PayslipsPage() {
         }
       }
 
-      // Special holiday
-      if (dayType === 'special_holiday' || dayType === 'special_holiday_rest_day') {
+      // Non-working holiday (Special holiday)
+      if (dayType === 'non-working-holiday') {
         specialHolidayHours += regHours + otHours;
         specialHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.3);
         if (otHours > 0) {
@@ -375,12 +375,29 @@ export default function PayslipsPage() {
       }
 
       // Regular holiday
-      if (dayType === 'regular_holiday' || dayType === 'regular_holiday_rest_day') {
+      if (dayType === 'regular-holiday') {
         regularHolidayHours += regHours + otHours;
-        const multiplier = dayType === 'regular_holiday' ? 2 : 2.6;
-        regularHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * multiplier);
+        regularHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 2);
         if (otHours > 0) {
-          regularHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * multiplier) * 1.3);
+          regularHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 2) * 1.3);
+        }
+      }
+
+      // Sunday + Special Holiday
+      if (dayType === 'sunday-special-holiday') {
+        specialHolidayHours += regHours + otHours;
+        specialHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.5);
+        if (otHours > 0) {
+          specialHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 1.5) * 1.3);
+        }
+      }
+
+      // Sunday + Regular Holiday
+      if (dayType === 'sunday-regular-holiday') {
+        regularHolidayHours += regHours + otHours;
+        regularHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 2.6);
+        if (otHours > 0) {
+          regularHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 2.6) * 1.3);
         }
       }
 
@@ -489,13 +506,13 @@ export default function PayslipsPage() {
         const otHours = day.overtimeHours || 0;
         const ndHours = day.nightDiffHours || 0;
 
-        if (dayType === 'regular_day') {
+        if (dayType === 'regular') {
           regularPay += (regHours * emp.rate_per_hour);
           regularOTHours += otHours;
           regularOT += (otHours * emp.rate_per_hour * 1.25);
         }
 
-        if (dayType === 'sunday_rest_day') {
+        if (dayType === 'sunday') {
           sundayRestDayHours += regHours + otHours;
           sundayRestDay += (regHours * emp.rate_per_hour * 1.3);
           if (otHours > 0) {
@@ -503,7 +520,7 @@ export default function PayslipsPage() {
           }
         }
 
-        if (dayType === 'special_holiday' || dayType === 'special_holiday_rest_day') {
+        if (dayType === 'non-working-holiday') {
           specialHolidayHours += regHours + otHours;
           specialHoliday += (regHours * emp.rate_per_hour * 1.3);
           if (otHours > 0) {
@@ -511,12 +528,27 @@ export default function PayslipsPage() {
           }
         }
 
-        if (dayType === 'regular_holiday' || dayType === 'regular_holiday_rest_day') {
+        if (dayType === 'regular-holiday') {
           regularHolidayHours += regHours + otHours;
-          const multiplier = dayType === 'regular_holiday' ? 2 : 2.6;
-          regularHoliday += (regHours * emp.rate_per_hour * multiplier);
+          regularHoliday += (regHours * emp.rate_per_hour * 2);
           if (otHours > 0) {
-            regularHoliday += ((otHours * emp.rate_per_hour * multiplier) * 1.3);
+            regularHoliday += ((otHours * emp.rate_per_hour * 2) * 1.3);
+          }
+        }
+
+        if (dayType === 'sunday-special-holiday') {
+          specialHolidayHours += regHours + otHours;
+          specialHoliday += (regHours * emp.rate_per_hour * 1.5);
+          if (otHours > 0) {
+            specialHoliday += ((otHours * emp.rate_per_hour * 1.5) * 1.3);
+          }
+        }
+
+        if (dayType === 'sunday-regular-holiday') {
+          regularHolidayHours += regHours + otHours;
+          regularHoliday += (regHours * emp.rate_per_hour * 2.6);
+          if (otHours > 0) {
+            regularHoliday += ((otHours * emp.rate_per_hour * 2.6) * 1.3);
           }
         }
 

@@ -416,11 +416,11 @@ export default function AdminDashboardPage() {
                 </div>
                 <span className="text-xl font-bold text-blue-600">{stats?.pendingApprovals}</span>
               </div>
-              <Button variant="outline" className="w-full mt-4" asChild>
-                <Link href="/payslips">
+              <Link href="/payslips">
+                <Button variant="outline" className="w-full mt-4">
                   View Pending Payslips <ArrowUpRight className="h-4 w-4 ml-2" />
-                </Link>
-              </Button>
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 

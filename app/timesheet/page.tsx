@@ -37,7 +37,7 @@ export default function TimesheetPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [weekStart, setWeekStart] = useState<Date>(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+    startOfWeek(new Date(), { weekStartsOn: 3 }) // Week starts on Wednesday
   );
   const [weekDays, setWeekDays] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -297,7 +297,7 @@ export default function TimesheetPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Weekly Timesheet Entry</h1>
           <p className="text-gray-600 mt-1">
-            Enter hours for the entire week - system auto-calculates everything!
+            Enter hours for the week (Wednesday to Tuesday) - system auto-calculates everything!
           </p>
         </div>
 

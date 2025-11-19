@@ -47,7 +47,7 @@ export default function PayslipsPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [weekStart, setWeekStart] = useState<Date>(
-    startOfWeek(new Date(), { weekStartsOn: 1 })
+    startOfWeek(new Date(), { weekStartsOn: 3 }) // Week starts on Wednesday
   );
   const [attendance, setAttendance] = useState<WeeklyAttendance | null>(null);
   const [deductions, setDeductions] = useState<EmployeeDeductions | null>(null);
@@ -296,7 +296,7 @@ export default function PayslipsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Payslip Generation</h1>
           <p className="text-gray-600 mt-1">
-            Generate weekly payslips with automatic calculations
+            Generate weekly payslips (Wednesday to Tuesday) with automatic calculations
           </p>
         </div>
 

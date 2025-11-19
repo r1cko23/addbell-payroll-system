@@ -8,6 +8,8 @@ import { Button } from '@/components/Button';
 import { Input, Select, Textarea } from '@/components/Input';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Badge } from '@/components/Badge';
+import { Modal } from '@/components/Modal';
+import { PayslipPrint } from '@/components/PayslipPrint';
 import toast from 'react-hot-toast';
 import { format, startOfWeek, addDays, getWeek } from 'date-fns';
 import { formatCurrency, generatePayslipNumber } from '@/utils/format';
@@ -61,6 +63,8 @@ export default function PayslipsPage() {
   const [adjustmentAmount, setAdjustmentAmount] = useState('0');
   const [adjustmentReason, setAdjustmentReason] = useState('');
   const [allowanceAmount, setAllowanceAmount] = useState('0');
+  const [preparedBy, setPreparedBy] = useState('Melanie R. Sapinoso');
+  const [showPrintModal, setShowPrintModal] = useState(false);
 
   const supabase = createClient();
 
@@ -289,6 +293,108 @@ export default function PayslipsPage() {
   const netPay = grossPay - totalDed + allowance;
 
   const weekNumber = getWeekOfMonth(weekStart);
+
+  // Helper function to calculate earnings breakdown from attendance data
+  function calculateEarningsBreakdown() {
+    if (!attendance || !attendance.attendance_data) {
+      return {
+        regularPay: 0,
+        regularOT: 0,
+        regularOTHours: 0,
+        nightDiff: 0,
+        nightDiffHours: 0,
+        sundayRestDay: 0,
+        sundayRestDayHours: 0,
+        specialHoliday: 0,
+        specialHolidayHours: 0,
+        regularHoliday: 0,
+        regularHolidayHours: 0,
+        grossIncome: 0,
+      };
+    }
+
+    const days = attendance.attendance_data as any[];
+    let regularPay = 0;
+    let regularOT = 0;
+    let regularOTHours = 0;
+    let nightDiff = 0;
+    let nightDiffHours = 0;
+    let sundayRestDay = 0;
+    let sundayRestDayHours = 0;
+    let specialHoliday = 0;
+    let specialHolidayHours = 0;
+    let regularHoliday = 0;
+    let regularHolidayHours = 0;
+
+    days.forEach((day: any) => {
+      const dayType = day.dayType;
+      const regHours = day.regularHours || 0;
+      const otHours = day.overtimeHours || 0;
+      const ndHours = day.nightDiffHours || 0;
+
+      // Regular pay
+      if (dayType === 'regular_day') {
+        regularPay += (regHours * (selectedEmployee?.rate_per_hour || 0));
+        regularOTHours += otHours;
+        regularOT += (otHours * (selectedEmployee?.rate_per_hour || 0) * 1.25);
+      }
+
+      // Sunday/Rest day
+      if (dayType === 'sunday_rest_day') {
+        sundayRestDayHours += regHours + otHours;
+        sundayRestDay += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.3);
+        if (otHours > 0) {
+          sundayRestDay += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 1.3) * 1.3);
+        }
+      }
+
+      // Special holiday
+      if (dayType === 'special_holiday' || dayType === 'special_holiday_rest_day') {
+        specialHolidayHours += regHours + otHours;
+        specialHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.3);
+        if (otHours > 0) {
+          specialHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 1.3) * 1.3);
+        }
+      }
+
+      // Regular holiday
+      if (dayType === 'regular_holiday' || dayType === 'regular_holiday_rest_day') {
+        regularHolidayHours += regHours + otHours;
+        const multiplier = dayType === 'regular_holiday' ? 2 : 2.6;
+        regularHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * multiplier);
+        if (otHours > 0) {
+          regularHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * multiplier) * 1.3);
+        }
+      }
+
+      // Night differential
+      if (ndHours > 0) {
+        nightDiffHours += ndHours;
+        nightDiff += (ndHours * (selectedEmployee?.rate_per_hour || 0) * 0.1);
+      }
+    });
+
+    return {
+      regularPay,
+      regularOT,
+      regularOTHours,
+      nightDiff,
+      nightDiffHours,
+      sundayRestDay,
+      sundayRestDayHours,
+      specialHoliday,
+      specialHolidayHours,
+      regularHoliday,
+      regularHolidayHours,
+      grossIncome: attendance.gross_pay || 0,
+    };
+  }
+
+  function calculateWorkingDays() {
+    if (!attendance || !attendance.attendance_data) return 0;
+    const days = attendance.attendance_data as any[];
+    return days.filter((day: any) => (day.regularHours || 0) > 0).length;
+  }
 
   return (
     <DashboardLayout>
@@ -564,8 +670,11 @@ export default function PayslipsPage() {
                 >
                   Reset
                 </Button>
+                <Button onClick={() => setShowPrintModal(true)} variant="secondary">
+                  Preview & Print Payslip
+                </Button>
                 <Button onClick={generatePayslip} isLoading={generating}>
-                  Generate Payslip
+                  Save Payslip to Database
                 </Button>
               </div>
             </Card>
@@ -597,6 +706,51 @@ export default function PayslipsPage() {
               </Button>
             </div>
           </Card>
+        )}
+
+        {/* Print Modal */}
+        {showPrintModal && selectedEmployee && attendance && deductions && (
+          <Modal
+            title="Payslip Preview"
+            isOpen={showPrintModal}
+            onClose={() => setShowPrintModal(false)}
+            size="xl"
+          >
+            <div className="space-y-4">
+              <PayslipPrint
+                employee={selectedEmployee}
+                weekStart={weekStart}
+                weekEnd={addDays(weekStart, 6)}
+                attendance={attendance}
+                earnings={calculateEarningsBreakdown()}
+                deductions={{
+                  vale: deductions.vale_amount || 0,
+                  uniformPPE: deductions.uniform_ppe_amount || 0,
+                  sssLoan: deductions.sss_salary_loan || 0,
+                  sssCalamityLoan: deductions.sss_calamity_loan || 0,
+                  pagibigLoan: deductions.pagibig_salary_loan || 0,
+                  pagibigCalamityLoan: deductions.pagibig_calamity_loan || 0,
+                  sssContribution: applySss ? (deductions.sss_contribution || 0) : 0,
+                  philhealthContribution: applyPhilhealth ? (deductions.philhealth_contribution || 0) : 0,
+                  pagibigContribution: applyPagibig ? (deductions.pagibig_contribution || 0) : 0,
+                  totalDeductions: totalDed,
+                }}
+                adjustment={adjustment}
+                netPay={netPay}
+                workingDays={calculateWorkingDays()}
+                absentDays={0}
+                preparedBy={preparedBy}
+              />
+              <div className="flex justify-end gap-3 mt-4 print:hidden">
+                <Button variant="secondary" onClick={() => setShowPrintModal(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => window.print()}>
+                  Print Payslip
+                </Button>
+              </div>
+            </div>
+          </Modal>
         )}
       </div>
     </DashboardLayout>

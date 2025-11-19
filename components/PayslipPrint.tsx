@@ -81,25 +81,7 @@ export function PayslipPrint({
   };
 
   return (
-    <>
-      <style dangerouslySetInnerHTML={{__html: `
-        @media print {
-          .payslip-container {
-            width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            page-break-after: always;
-          }
-          @page {
-            size: A4;
-            margin: 10mm;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-        }
-      `}} />
-      <div className="payslip-container bg-white text-black" style={{ width: '210mm', minHeight: '297mm', padding: '10mm', margin: '0 auto', color: '#000' }}>
+    <div className="payslip-container" style={{ width: '210mm', minHeight: '297mm', padding: '10mm', margin: '0 auto', backgroundColor: '#fff', color: '#000' }}>
 
       {/* Company Header */}
       <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
@@ -306,7 +288,6 @@ export function PayslipPrint({
         </tbody>
       </table>
     </div>
-    </>
   );
 }
 

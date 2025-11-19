@@ -61,7 +61,7 @@
   /* Default to legal paper size (8.5" x 14") with minimal margins */
   @page {
     size: legal portrait;
-    margin: 5mm;
+    margin: 0.2in;
   }
 
   body {
@@ -80,10 +80,10 @@
 
   /* Single payslip print styles - 1/4 legal size (4 fit on one page) */
   .payslip-container {
-    width: 3.75in !important;
-    height: 6.5in !important;
-    padding: 0.1in !important;
-    margin: 0.1in !important;
+    width: 3.6in !important;
+    height: 6.3in !important;
+    padding: 0.08in !important;
+    margin: 0.05in !important;
     float: left !important;
     page-break-inside: avoid;
     box-sizing: border-box !important;

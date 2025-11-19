@@ -77,10 +77,10 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '3.75in', 
-        height: '6.5in',
-        padding: '0.1in',
-        margin: '0.1in',
+        width: '3.6in', 
+        height: '6.3in',
+        padding: '0.08in',
+        margin: '0.05in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
         float: 'left'
@@ -91,7 +91,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell" 
-          style={{ height: '20px', display: 'block', margin: '0 auto' }}
+          style={{ height: '18px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}

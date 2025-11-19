@@ -277,7 +277,7 @@ export default function SettingsPage() {
             <Button variant="secondary" onClick={() => setShowUserModal(false)}>
               Cancel
             </Button>
-            <Button onClick={() => toast.info('Feature coming soon!')}>Create User</Button>
+            <Button onClick={() => toast('Feature coming soon!')}>Create User</Button>
           </>
         }
       >

@@ -77,10 +77,10 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '3.6in', 
-        height: '6.3in',
-        padding: '0.08in',
-        margin: '0.05in',
+        width: '3.9in', 
+        height: '6.5in',
+        padding: '0.1in',
+        margin: '0.08in 0.05in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
         float: 'left'
@@ -257,25 +257,45 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
   }
 
   return (
-    <div className="multi-payslip-print">
-      {pages.map((pagePayslips, pageIndex) => (
-        <div 
-          key={pageIndex}
-          className="legal-page"
-          style={{
-            width: '8.5in',
-            height: '14in',
-            margin: '0 auto',
-            backgroundColor: '#fff',
-            position: 'relative',
-            pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
-          }}
-        >
-          {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}
-          <div style={{ clear: 'both' }}></div>
-        </div>
-      ))}
-    </div>
+    <>
+      <style>{`
+        @media print {
+          @page {
+            size: legal;
+            margin: 0.3in 0.25in;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
+          .legal-page {
+            margin: 0 !important;
+            padding: 0.2in 0.1in !important;
+          }
+        }
+      `}</style>
+      <div className="multi-payslip-print">
+        {pages.map((pagePayslips, pageIndex) => (
+          <div 
+            key={pageIndex}
+            className="legal-page"
+            style={{
+              width: '8.5in',
+              height: '14in',
+              margin: '0 auto',
+              padding: '0.2in 0.1in',
+              backgroundColor: '#fff',
+              position: 'relative',
+              pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
+              boxSizing: 'border-box',
+            }}
+          >
+            {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}
+            <div style={{ clear: 'both' }}></div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

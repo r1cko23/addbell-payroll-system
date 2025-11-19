@@ -444,45 +444,80 @@ export default function TimesheetPage() {
           </p>
         </div>
 
-        {/* Controls */}
         <Card>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-4">
+            {/* Week Navigation */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Week
+                Select Week (Wednesday - Tuesday)
               </label>
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => changeWeek('prev')}>
-                  ← Prev
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => changeWeek('prev')}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
                 </Button>
-                <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-lg px-4 py-2">
-                  <span className="font-semibold">
-                    {format(weekStart, 'MMM dd')} - {format(addDays(weekStart, 6), 'MMM dd, yyyy')}
-                  </span>
+                <div className="flex-1 text-center">
+                  <div className="font-semibold text-gray-900">
+                    {format(weekStart, 'MMM d, yyyy')} -{' '}
+                    {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Week of {format(weekStart, 'MMMM d, yyyy')}
+                  </div>
                 </div>
-                <Button variant="secondary" onClick={() => changeWeek('next')}>
-                  Next →
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => changeWeek('next')}
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
                 </Button>
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <Select
-                label="Select Employee"
-                options={[
-                  { value: '', label: '-- Select Employee --' },
-                  ...employees.map((emp) => ({
-                    value: emp.id,
-                    label: `${emp.full_name} (${emp.employee_id})`,
-                  })),
-                ]}
-                value={selectedEmployee?.id || ''}
-                onChange={(e) => {
-                  const emp = employees.find((emp) => emp.id === e.target.value);
-                  setSelectedEmployee(emp || null);
-                }}
-              />
-            </div>
+            {/* Employee Selection */}
+            <Select
+              label="Select Employee"
+              options={[
+                { value: '', label: '-- Select Employee --' },
+                ...employees.map((emp) => ({
+                  value: emp.id,
+                  label: `${emp.full_name} (${emp.employee_id})`,
+                })),
+              ]}
+              value={selectedEmployee?.id || ''}
+              onChange={(e) => {
+                const emp = employees.find((emp) => emp.id === e.target.value);
+                setSelectedEmployee(emp || null);
+              }}
+            />
           </div>
         </Card>
 

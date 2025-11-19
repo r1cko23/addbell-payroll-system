@@ -205,9 +205,9 @@ export default function WorkflowPage() {
                     </div>
                   </div>
 
-                  {timesheetProgress < 100 && (
+                  {timesheetProgress < 100 && status && (
                     <p className="text-sm text-yellow-600 mt-2">
-                      ⏱️ {status?.totalEmployees! - status?.timesheetsCompleted!} employees still need timesheets
+                      ⏱️ {status.totalEmployees - status.timesheetsCompleted} employees still need timesheets
                     </p>
                   )}
 
@@ -311,7 +311,7 @@ export default function WorkflowPage() {
                     </p>
                   )}
 
-                  {status?.totalGrossPay! > 0 && (
+                  {status && status.totalGrossPay > 0 && (
                     <div className="text-sm text-gray-600 mt-2">
                       <strong>Total Gross Pay:</strong> {formatCurrency(status.totalGrossPay)}
                     </div>
@@ -344,7 +344,7 @@ export default function WorkflowPage() {
                 </div>
 
                 <div className="ml-13">
-                  {status?.totalNetPay! > 0 ? (
+                  {status && status.totalNetPay > 0 ? (
                     <>
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                         <div className="flex justify-between items-center mb-2">
@@ -354,7 +354,7 @@ export default function WorkflowPage() {
                           </span>
                         </div>
                         <div className="text-xs text-blue-700">
-                          For {status?.payslipsGenerated} employees • Week of {format(weekStart, 'MMM d, yyyy')}
+                          For {status.payslipsGenerated} employees • Week of {format(weekStart, 'MMM d, yyyy')}
                         </div>
                       </div>
 

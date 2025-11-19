@@ -51,21 +51,21 @@ export function PayslipPrint(props: PayslipPrintProps) {
   
   return (
     <div className="payslip-container" style={{ 
-      width: '3.9in',
-      height: '6.7in',
-      padding: '0.15in', 
-      margin: '0.05in', 
+      width: '3.75in',
+      height: '6.5in',
+      padding: '0.1in', 
+      margin: '0.1in', 
       backgroundColor: '#fff', 
       color: '#000',
       boxSizing: 'border-box',
       pageBreakInside: 'avoid'
     }}>
       {/* Company Header */}
-      <div style={{ textAlign: 'center', marginBottom: '4px', borderBottom: '1px solid #000', paddingBottom: '3px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ textAlign: 'center', marginBottom: '3px', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell Technical Services" 
-          style={{ height: '28px', display: 'block', margin: '0 auto' }}
+          style={{ height: '24px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
@@ -75,8 +75,8 @@ export function PayslipPrint(props: PayslipPrintProps) {
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
-        marginTop: '2px',
-        fontSize: '5.5pt',
+        marginTop: '1px',
+        fontSize: '5pt',
         color: '#000',
       }}>
         <tbody>
@@ -87,7 +87,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
           }}>
             PAYROLL PERIOD OF: {format(weekStart, 'MMM. d')}-{format(weekEnd, 'd, yyyy')}
           </td>
@@ -100,7 +100,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
           }}>
             NAME: {employee.full_name.toUpperCase()}
           </td>
@@ -127,7 +127,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
           }}>EARNINGS:</td>
         </tr>
 
@@ -179,14 +179,14 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
           }}>GROSS INCOME:</td>
           <td style={{
             border: '1px solid #000',
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
             textAlign: 'right'
           }}>{formatCurrency(earnings.grossIncome)}</td>
           <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
@@ -199,7 +199,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
           }}>DEDUCTIONS: (Week of {format(weekStart, 'MMM. d')} - {format(weekEnd, 'MMM. d, yyyy')})</td>
         </tr>
 
@@ -275,14 +275,14 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
           }}>TOTAL DEDUCTION:</td>
           <td style={{
             border: '1px solid #000',
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '6pt',
+            fontSize: '5.5pt',
             textAlign: 'right'
           }}>{formatCurrency(deductions.totalDeductions)}</td>
           <td colSpan={2} style={{border: '2px solid #000', padding: '6px 8px'}}></td>
@@ -302,14 +302,14 @@ export function PayslipPrint(props: PayslipPrintProps) {
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '7pt',
+            fontSize: '6pt',
           }}>NET PAY:</td>
           <td style={{
             border: '1px solid #000',
             padding: '1px 2px',
             backgroundColor: '#e5e7eb',
             fontWeight: 'bold',
-            fontSize: '7pt',
+            fontSize: '6pt',
             textAlign: 'right'
           }} colSpan={3}>
             {formatCurrency(netPay)}

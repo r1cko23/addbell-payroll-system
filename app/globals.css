@@ -80,15 +80,13 @@
 
   /* Single payslip print styles - 1/4 legal size (4 fit on one page) */
   .payslip-container {
-    width: 3.9in !important;
-    height: 6.7in !important;
-    padding: 0.15in !important;
-    margin: 0.05in !important;
+    width: 3.75in !important;
+    height: 6.5in !important;
+    padding: 0.1in !important;
+    margin: 0.1in !important;
     float: left !important;
     page-break-inside: avoid;
     box-sizing: border-box !important;
-    transform: scale(0.95);
-    transform-origin: top left;
   }
 
   .payslip-container table {

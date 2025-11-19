@@ -55,7 +55,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
   const compactTableStyle = {
     width: '100%',
     borderCollapse: 'collapse' as const,
-    fontSize: '5pt',
+    fontSize: '4.5pt',
     color: '#000',
   };
 
@@ -69,7 +69,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
     ...compactCellStyle,
     backgroundColor: '#e5e7eb',
     fontWeight: 'bold' as const,
-    fontSize: '5.5pt',
+    fontSize: '5pt',
   };
 
   const renderCompactPayslip = (data: PayslipData, index: number) => (
@@ -77,21 +77,21 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '3.9in', 
-        height: '6.7in',
-        padding: '0.15in',
-        margin: '0.05in',
+        width: '3.75in', 
+        height: '6.5in',
+        padding: '0.1in',
+        margin: '0.1in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
         float: 'left'
       }}
     >
       {/* Company Header - Compact */}
-      <div style={{ textAlign: 'center', marginBottom: '2px', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div style={{ textAlign: 'center', marginBottom: '2px', borderBottom: '1px solid #000', paddingBottom: '1px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell" 
-          style={{ height: '22px', display: 'block', margin: '0 auto' }}
+          style={{ height: '20px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}

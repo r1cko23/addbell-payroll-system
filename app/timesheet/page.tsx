@@ -247,9 +247,9 @@ export default function TimesheetPage() {
         .select('*')
         .eq('employee_id', selectedEmployee.id)
         .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
       if (data && data.attendance_data) {
         const loadedData = data.attendance_data as any[];

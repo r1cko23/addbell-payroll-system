@@ -286,10 +286,13 @@ export default function TimesheetPage() {
     }
   }, [selectedEmployee, weekStart]);
 
+  // Helper to convert string or number to number
+  const toNum = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
+  
   const weekTotal = weekDays.reduce((sum, day) => sum + day.amount, 0);
-  const totalRegular = weekDays.reduce((sum, day) => sum + day.regularHours, 0);
-  const totalOT = weekDays.reduce((sum, day) => sum + day.overtimeHours, 0);
-  const totalNightDiff = weekDays.reduce((sum, day) => sum + day.nightDiffHours, 0);
+  const totalRegular = weekDays.reduce((sum, day) => sum + toNum(day.regularHours), 0);
+  const totalOT = weekDays.reduce((sum, day) => sum + toNum(day.overtimeHours), 0);
+  const totalNightDiff = weekDays.reduce((sum, day) => sum + toNum(day.nightDiffHours), 0);
 
   if (loading) {
     return (

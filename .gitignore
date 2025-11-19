@@ -51,3 +51,7 @@ index.html
 styles/
 scripts/
 
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.auth/

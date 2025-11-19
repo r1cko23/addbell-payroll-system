@@ -41,7 +41,7 @@ export default function LoginPage() {
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <img 
-                src="/Payslip_logo.png" 
+                src="/Official Logo Cropped.jpg" 
                 alt="Add-bell Technical Services" 
                 className="h-24 w-auto"
                 onError={(e) => {

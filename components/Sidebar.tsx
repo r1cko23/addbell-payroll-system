@@ -60,7 +60,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center justify-center h-16 px-4 border-b">
         <img 
-          src="/Payslip_logo.png" 
+          src="/Official Logo Cropped.jpg" 
           alt="Add-bell Tech" 
           className="h-12 w-auto"
           onError={(e) => {

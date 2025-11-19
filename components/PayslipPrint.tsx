@@ -61,7 +61,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
       {/* Company Header */}
       <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
-          src="/Payslip_logo.png" 
+          src="/Official Logo Cropped.jpg" 
           alt="Addbell Technical Services" 
           style={{ height: '80px', display: 'block', margin: '0 auto' }}
           onError={(e) => {

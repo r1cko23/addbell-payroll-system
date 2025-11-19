@@ -18,6 +18,7 @@ interface Employee {
   full_name: string;
   rate_per_day: number;
   rate_per_hour: number;
+  bank_account_number?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -33,6 +34,7 @@ export default function EmployeesPage() {
     full_name: '',
     rate_per_day: '',
     rate_per_hour: '',
+    bank_account_number: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,6 +68,7 @@ export default function EmployeesPage() {
       full_name: '',
       rate_per_day: '',
       rate_per_hour: '',
+      bank_account_number: '',
     });
     setShowModal(true);
   }
@@ -77,6 +80,7 @@ export default function EmployeesPage() {
       full_name: employee.full_name,
       rate_per_day: employee.rate_per_day.toString(),
       rate_per_hour: employee.rate_per_hour.toString(),
+      bank_account_number: employee.bank_account_number || '',
     });
     setShowModal(true);
   }
@@ -91,6 +95,7 @@ export default function EmployeesPage() {
         full_name: formData.full_name,
         rate_per_day: parseFloat(formData.rate_per_day),
         rate_per_hour: parseFloat(formData.rate_per_hour),
+        bank_account_number: formData.bank_account_number || null,
       };
 
       if (editingEmployee) {
@@ -325,6 +330,16 @@ export default function EmployeesPage() {
               setFormData({ ...formData, rate_per_hour: e.target.value })
             }
             helperText="Usually Rate/Day ÷ 8"
+          />
+
+          <Input
+            label="Bank Account Number"
+            type="text"
+            value={formData.bank_account_number}
+            onChange={(e) =>
+              setFormData({ ...formData, bank_account_number: e.target.value })
+            }
+            helperText="Required for bank transfer (optional)"
           />
         </form>
       </Modal>

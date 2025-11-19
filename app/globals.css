@@ -86,5 +86,28 @@
   .print\:hidden {
     display: none !important;
   }
+
+  /* Multi-payslip legal size print */
+  .multi-payslip-print .legal-page {
+    width: 8.5in !important;
+    height: 14in !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .multi-payslip-print .compact-payslip {
+    page-break-inside: avoid;
+  }
+
+  /* Legal size page for multi-print */
+  body:has(.multi-payslip-print) {
+    margin: 0;
+    padding: 0;
+  }
+  
+  body:has(.multi-payslip-print) @page {
+    size: legal;
+    margin: 5mm;
+  }
 }
 

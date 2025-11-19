@@ -10,6 +10,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { Badge } from '@/components/Badge';
 import { Modal } from '@/components/Modal';
 import { PayslipPrint } from '@/components/PayslipPrint';
+import { PayslipMultiPrint } from '@/components/PayslipMultiPrint';
 import toast from 'react-hot-toast';
 import { format, startOfWeek, addDays, getWeek } from 'date-fns';
 import { formatCurrency, generatePayslipNumber } from '@/utils/format';
@@ -65,6 +66,9 @@ export default function PayslipsPage() {
   const [allowanceAmount, setAllowanceAmount] = useState('0');
   const [preparedBy, setPreparedBy] = useState('Melanie R. Sapinoso');
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [showMultiPrintModal, setShowMultiPrintModal] = useState(false);
+  const [multiPrintData, setMultiPrintData] = useState<any[]>([]);
 
   const supabase = createClient();
 
@@ -396,6 +400,179 @@ export default function PayslipsPage() {
     return days.filter((day: any) => (day.regularHours || 0) > 0).length;
   }
 
+  // Toggle employee selection for bulk print
+  function toggleEmployeeSelection(employeeId: string) {
+    setSelectedEmployeeIds(prev => {
+      if (prev.includes(employeeId)) {
+        return prev.filter(id => id !== employeeId);
+      } else {
+        return [...prev, employeeId];
+      }
+    });
+  }
+
+  // Select/Deselect all employees
+  function toggleSelectAll() {
+    if (selectedEmployeeIds.length === employees.length) {
+      setSelectedEmployeeIds([]);
+    } else {
+      setSelectedEmployeeIds(employees.map(e => e.id));
+    }
+  }
+
+  // Generate multi-payslip data
+  async function prepareMultiPrint() {
+    if (selectedEmployeeIds.length === 0) {
+      toast.error('Please select at least one employee');
+      return;
+    }
+
+    if (selectedEmployeeIds.length > 4) {
+      toast.error('Maximum 4 payslips per page');
+      return;
+    }
+
+    const payslipsData = [];
+
+    for (const empId of selectedEmployeeIds) {
+      const emp = employees.find(e => e.id === empId);
+      if (!emp) continue;
+
+      // Load attendance for this employee
+      const { data: attData } = await supabase
+        .from('weekly_attendance')
+        .select('*')
+        .eq('employee_id', empId)
+        .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+        .maybeSingle();
+
+      if (!attData) continue;
+
+      // Load deductions
+      const { data: dedData } = await supabase
+        .from('employee_deductions')
+        .select('*')
+        .eq('employee_id', empId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!dedData) continue;
+
+      // Calculate earnings breakdown
+      const days = attData.attendance_data as any[];
+      let regularPay = 0;
+      let regularOT = 0;
+      let regularOTHours = 0;
+      let nightDiff = 0;
+      let nightDiffHours = 0;
+      let sundayRestDay = 0;
+      let sundayRestDayHours = 0;
+      let specialHoliday = 0;
+      let specialHolidayHours = 0;
+      let regularHoliday = 0;
+      let regularHolidayHours = 0;
+
+      days.forEach((day: any) => {
+        const dayType = day.dayType;
+        const regHours = day.regularHours || 0;
+        const otHours = day.overtimeHours || 0;
+        const ndHours = day.nightDiffHours || 0;
+
+        if (dayType === 'regular_day') {
+          regularPay += (regHours * emp.rate_per_hour);
+          regularOTHours += otHours;
+          regularOT += (otHours * emp.rate_per_hour * 1.25);
+        }
+
+        if (dayType === 'sunday_rest_day') {
+          sundayRestDayHours += regHours + otHours;
+          sundayRestDay += (regHours * emp.rate_per_hour * 1.3);
+          if (otHours > 0) {
+            sundayRestDay += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
+          }
+        }
+
+        if (dayType === 'special_holiday' || dayType === 'special_holiday_rest_day') {
+          specialHolidayHours += regHours + otHours;
+          specialHoliday += (regHours * emp.rate_per_hour * 1.3);
+          if (otHours > 0) {
+            specialHoliday += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
+          }
+        }
+
+        if (dayType === 'regular_holiday' || dayType === 'regular_holiday_rest_day') {
+          regularHolidayHours += regHours + otHours;
+          const multiplier = dayType === 'regular_holiday' ? 2 : 2.6;
+          regularHoliday += (regHours * emp.rate_per_hour * multiplier);
+          if (otHours > 0) {
+            regularHoliday += ((otHours * emp.rate_per_hour * multiplier) * 1.3);
+          }
+        }
+
+        if (ndHours > 0) {
+          nightDiffHours += ndHours;
+          nightDiff += (ndHours * emp.rate_per_hour * 0.1);
+        }
+      });
+
+      const workingDays = days.filter((day: any) => (day.regularHours || 0) > 0).length;
+      const grossPay = attData.gross_pay;
+      const weeklyDed =
+        (dedData.vale_amount || 0) +
+        (dedData.uniform_ppe_amount || 0) +
+        (dedData.sss_salary_loan || 0) +
+        (dedData.sss_calamity_loan || 0) +
+        (dedData.pagibig_salary_loan || 0) +
+        (dedData.pagibig_calamity_loan || 0);
+      const govDed =
+        (applySss ? dedData.sss_contribution || 0 : 0) +
+        (applyPhilhealth ? dedData.philhealth_contribution || 0 : 0) +
+        (applyPagibig ? dedData.pagibig_contribution || 0 : 0);
+      const totalDed = weeklyDed + govDed;
+      const netPay = grossPay - totalDed;
+
+      payslipsData.push({
+        employee: emp,
+        weekStart,
+        weekEnd: addDays(weekStart, 6),
+        earnings: {
+          regularPay,
+          regularOT,
+          regularOTHours,
+          nightDiff,
+          nightDiffHours,
+          sundayRestDay,
+          sundayRestDayHours,
+          specialHoliday,
+          specialHolidayHours,
+          regularHoliday,
+          regularHolidayHours,
+          grossIncome: grossPay,
+        },
+        deductions: {
+          vale: dedData.vale_amount || 0,
+          uniformPPE: dedData.uniform_ppe_amount || 0,
+          sssLoan: dedData.sss_salary_loan || 0,
+          sssCalamityLoan: dedData.sss_calamity_loan || 0,
+          pagibigLoan: dedData.pagibig_salary_loan || 0,
+          pagibigCalamityLoan: dedData.pagibig_calamity_loan || 0,
+          sssContribution: applySss ? (dedData.sss_contribution || 0) : 0,
+          philhealthContribution: applyPhilhealth ? (dedData.philhealth_contribution || 0) : 0,
+          pagibigContribution: applyPagibig ? (dedData.pagibig_contribution || 0) : 0,
+          totalDeductions: totalDed,
+        },
+        adjustment: 0,
+        netPay,
+        workingDays,
+        absentDays: 0,
+        preparedBy,
+      });
+    }
+
+    setMultiPrintData(payslipsData);
+    setShowMultiPrintModal(true);
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -443,6 +620,57 @@ export default function PayslipsPage() {
               value={selectedEmployeeId}
               onChange={(e) => setSelectedEmployeeId(e.target.value)}
             />
+          </div>
+        </Card>
+
+        {/* Bulk Print Section */}
+        <Card title="📄 Bulk Print (Legal Size)">
+          <p className="text-sm text-gray-600 mb-4">
+            Select up to 4 employees to print multiple payslips on one legal size paper (8.5" × 14")
+          </p>
+          
+          <div className="mb-4 flex items-center justify-between">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedEmployeeIds.length === employees.length}
+                onChange={toggleSelectAll}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Select All</span>
+            </label>
+            
+            <div className="flex items-center gap-3">
+              <Badge variant={selectedEmployeeIds.length > 0 ? 'success' : 'default'}>
+                {selectedEmployeeIds.length} / 4 selected
+              </Badge>
+              <Button
+                onClick={prepareMultiPrint}
+                disabled={selectedEmployeeIds.length === 0 || selectedEmployeeIds.length > 4}
+              >
+                Print {selectedEmployeeIds.length > 0 ? `${selectedEmployeeIds.length}` : ''} Payslips
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+            {employees.map((emp) => (
+              <label
+                key={emp.id}
+                className="flex items-center space-x-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedEmployeeIds.includes(emp.id)}
+                  onChange={() => toggleEmployeeSelection(emp.id)}
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{emp.full_name}</div>
+                  <div className="text-xs text-gray-500">{emp.employee_id}</div>
+                </div>
+              </label>
+            ))}
           </div>
         </Card>
 
@@ -747,6 +975,38 @@ export default function PayslipsPage() {
                 </Button>
                 <Button onClick={() => window.print()}>
                   Print Payslip
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Multi-Print Modal */}
+        {showMultiPrintModal && multiPrintData.length > 0 && (
+          <Modal
+            title={`Bulk Print Preview (${multiPrintData.length} Payslips - Legal Size)`}
+            isOpen={showMultiPrintModal}
+            onClose={() => setShowMultiPrintModal(false)}
+            size="xl"
+          >
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+                <p className="text-blue-800">
+                  📄 <strong>{multiPrintData.length} payslips</strong> will be printed on <strong>one legal size paper</strong> (8.5" × 14")
+                </p>
+                <p className="text-blue-700 text-xs mt-1">
+                  Make sure your printer is set to <strong>Legal</strong> paper size before printing.
+                </p>
+              </div>
+              
+              <PayslipMultiPrint payslips={multiPrintData} />
+              
+              <div className="flex justify-end gap-3 mt-4 print:hidden">
+                <Button variant="secondary" onClick={() => setShowMultiPrintModal(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => window.print()}>
+                  Print {multiPrintData.length} Payslips
                 </Button>
               </div>
             </div>

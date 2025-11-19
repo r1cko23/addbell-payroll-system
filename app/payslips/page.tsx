@@ -916,19 +916,9 @@ export default function PayslipsPage() {
       });
     }
 
-    // Show preview and auto-print
+    // Show preview modal (user will click Print button)
     setMultiPrintData(payslipsData);
     setShowMultiPrintPreview(true);
-    
-    // Wait for component to render, then print
-    setTimeout(() => {
-      window.print();
-      // Close preview after print dialog closes
-      setTimeout(() => {
-        setShowMultiPrintPreview(false);
-        setMultiPrintData([]);
-      }, 500);
-    }, 500);
   }
 
   return (
@@ -1465,7 +1455,7 @@ export default function PayslipsPage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
                 <p className="text-blue-800 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Print dialog will open automatically. Set paper to <strong>Legal (8.5" × 14")</strong></span>
+                  <span><strong>{multiPrintData.length} payslips</strong> ready to print. Set paper to <strong>Legal (8.5" × 14")</strong> when printing.</span>
                 </p>
               </div>
               
@@ -1484,7 +1474,8 @@ export default function PayslipsPage() {
                   Close
                 </Button>
                 <Button onClick={() => window.print()}>
-                  Print Again
+                  <Printer className="w-4 h-4 mr-2" />
+                  Print {multiPrintData.length} Payslips
                 </Button>
               </div>
             </div>

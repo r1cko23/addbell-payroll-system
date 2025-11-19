@@ -77,13 +77,12 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       key={index}
       className="compact-payslip" 
       style={{ 
-        width: '4.0in', 
-        height: '6.7in',
+        width: '3.95in', 
+        height: '6.6in',
         padding: '0.1in',
-        margin: '0.05in 0.05in',
+        margin: '0.1in',
         boxSizing: 'border-box',
         pageBreakInside: 'avoid',
-        float: 'left'
       }}
     >
       {/* Company Header - Compact */}
@@ -262,7 +261,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
         @media print {
           @page {
             size: legal;
-            margin: 0.15in 0.2in;
+            margin: 0.2in;
           }
           body {
             margin: 0;
@@ -270,7 +269,11 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
           }
           .legal-page {
             margin: 0 !important;
-            padding: 0.15in 0.1in !important;
+            padding: 0.2in !important;
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: center !important;
+            align-content: flex-start !important;
           }
         }
       `}</style>
@@ -283,15 +286,18 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
               width: '8.5in',
               height: '14in',
               margin: '0 auto',
-              padding: '0.15in 0.1in',
+              padding: '0.2in',
               backgroundColor: '#fff',
               position: 'relative',
               pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
               boxSizing: 'border-box',
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              alignContent: 'flex-start',
             }}
           >
             {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}
-            <div style={{ clear: 'both' }}></div>
           </div>
         ))}
       </div>

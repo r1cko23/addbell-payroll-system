@@ -90,16 +90,11 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell" 
-          style={{ height: '25px', marginBottom: '2px' }}
+          style={{ height: '30px' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
         />
-        <div style={{ fontSize: '5pt', lineHeight: '1.2' }}>
-          Blk 6 Lot 26, London St., Villa Olympia Phase 1-A, Brgy. Maharlika, San Pedro, Laguna
-          <br />
-          Tel: (+632) 7117 6128 | admin@addbell.com
-        </div>
       </div>
 
       <table style={compactTableStyle}>

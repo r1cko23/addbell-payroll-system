@@ -63,16 +63,11 @@ export function PayslipPrint(props: PayslipPrintProps) {
         <img 
           src="/Payslip_logo.png" 
           alt="Addbell Technical Services" 
-          style={{ height: '60px', marginBottom: '5px' }}
+          style={{ height: '80px' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
           }}
         />
-        <div style={{ fontSize: '9pt', marginTop: '5px' }}>
-          Blk 6 Lot 26, London St., Villa Olympia Phase 1-A, Brgy. Maharlika, San Pedro, Laguna, Philippines
-          <br />
-          Tel No.: (+632) 7117 6128 | E-mail Address: admin@addbell.com
-        </div>
       </div>
 
       <table style={{

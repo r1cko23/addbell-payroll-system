@@ -10,6 +10,7 @@ import { format, startOfWeek, addDays, addWeeks, subWeeks } from 'date-fns';
 import { formatCurrency } from '@/utils/format';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface WorkflowStatus {
   totalEmployees: number;
@@ -130,9 +131,7 @@ export default function WorkflowPage() {
               size="sm"
               onClick={() => setWeekStart(subWeeks(weekStart, 1))}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <ChevronLeft className="w-4 h-4 mr-1" />
               Previous Week
             </Button>
             <div className="text-center">
@@ -149,9 +148,7 @@ export default function WorkflowPage() {
               onClick={() => setWeekStart(addWeeks(weekStart, 1))}
             >
               Next Week
-              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              <ChevronRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
         </Card>

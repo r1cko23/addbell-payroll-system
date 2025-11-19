@@ -10,6 +10,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@/utils/format';
 import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -235,19 +236,7 @@ export default function DeductionsPage() {
                   size="sm"
                   onClick={() => setWeekStart(subWeeks(weekStart, 1))}
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
+                  <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <div className="flex-1 text-center">
                   <div className="font-semibold text-gray-900">
@@ -263,19 +252,7 @@ export default function DeductionsPage() {
                   size="sm"
                   onClick={() => setWeekStart(addWeeks(weekStart, 1))}
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
+                  <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>
             </div>

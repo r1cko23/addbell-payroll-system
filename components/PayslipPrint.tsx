@@ -51,12 +51,14 @@ export function PayslipPrint(props: PayslipPrintProps) {
   
   return (
     <div className="payslip-container" style={{ 
-      width: '210mm', 
-      minHeight: '297mm', 
+      width: '100%',
+      maxWidth: '215mm',
+      minHeight: '330mm',
       padding: '10mm', 
       margin: '0 auto', 
       backgroundColor: '#fff', 
-      color: '#000' 
+      color: '#000',
+      boxSizing: 'border-box'
     }}>
       {/* Company Header */}
       <div style={{ textAlign: 'center', marginBottom: '15px', borderBottom: '2px solid #000', paddingBottom: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>

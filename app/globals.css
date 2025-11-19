@@ -58,13 +58,16 @@
 
 /* Print styles */
 @media print {
+  /* Default to legal paper size (8.5" x 14") */
   @page {
-    size: A4;
-    margin: 10mm;
+    size: legal portrait;
+    margin: 10mm 15mm;
   }
 
   body {
     background: white;
+    margin: 0;
+    padding: 0;
   }
 
   .no-print {
@@ -75,12 +78,18 @@
     page-break-after: always;
   }
 
-  /* Payslip print styles */
+  /* Single payslip print styles - fit to legal paper */
   .payslip-container {
     width: 100% !important;
+    max-width: 8in !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     page-break-after: always;
+    page-break-inside: avoid;
+  }
+
+  .payslip-container table {
+    page-break-inside: avoid;
   }
 
   .print\:hidden {
@@ -100,14 +109,14 @@
   }
 
   /* Legal size page for multi-print */
+  body:has(.multi-payslip-print) @page {
+    size: legal portrait;
+    margin: 5mm;
+  }
+  
   body:has(.multi-payslip-print) {
     margin: 0;
     padding: 0;
-  }
-  
-  body:has(.multi-payslip-print) @page {
-    size: legal;
-    margin: 5mm;
   }
 }
 

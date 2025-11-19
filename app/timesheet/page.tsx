@@ -321,9 +321,10 @@ export default function TimesheetPage() {
       return;
     }
 
-    // Apply 8 hours to Wed-Sun (first 5 days), 0 for Mon-Tue (weekend/rest days)
+    // Apply 8 hours to all days except Sunday (index 4)
+    // Week: Wed(0), Thu(1), Fri(2), Sat(3), Sun(4), Mon(5), Tue(6)
     const updatedDays = weekDays.map((day, index) => {
-      const isWorkDay = index < 5; // Wed, Thu, Fri, Sat, Sun
+      const isWorkDay = index !== 4; // All days except Sunday
       const regularHours = isWorkDay ? 8 : 0;
 
       const calculation = calculateDailyPay(
@@ -344,7 +345,7 @@ export default function TimesheetPage() {
     });
 
     setWeekDays(updatedDays);
-    toast.success('✅ Applied standard 5-day week (8hrs Wed-Sun)');
+    toast.success('✅ Applied standard 6-day week (8hrs Wed-Sat, Mon-Tue)');
   }
 
   async function loadExistingTimesheet() {
@@ -644,7 +645,7 @@ export default function TimesheetPage() {
                   size="sm"
                   onClick={applyStandardWeek}
                 >
-                  📅 Standard Week (8hrs Wed-Sun)
+                  📅 Standard Week (8hrs, Sunday off)
                 </Button>
                 <Button 
                   variant="secondary" 

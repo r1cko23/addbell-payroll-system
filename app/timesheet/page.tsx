@@ -402,10 +402,11 @@ export default function TimesheetPage() {
                           type="number"
                           min="0"
                           max="24"
-                          step="0.5"
+                          step="0.1"
                           value={day.regularHours || ''}
                           onChange={(e) => updateDayHours(index, 'regularHours', e.target.value)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="0"
+                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -413,10 +414,11 @@ export default function TimesheetPage() {
                           type="number"
                           min="0"
                           max="24"
-                          step="0.5"
+                          step="0.1"
                           value={day.overtimeHours || ''}
                           onChange={(e) => updateDayHours(index, 'overtimeHours', e.target.value)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="0"
+                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -424,10 +426,11 @@ export default function TimesheetPage() {
                           type="number"
                           min="0"
                           max="24"
-                          step="0.5"
+                          step="0.1"
                           value={day.nightDiffHours || ''}
                           onChange={(e) => updateDayHours(index, 'nightDiffHours', e.target.value)}
-                          className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder="0"
+                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
                         />
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">

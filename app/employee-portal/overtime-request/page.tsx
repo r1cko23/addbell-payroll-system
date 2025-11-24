@@ -126,7 +126,7 @@ export default function OvertimeRequestPage() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => router.push('/employee-portal')}
             >
               <ArrowLeft className="h-4 w-4 mr-2" />

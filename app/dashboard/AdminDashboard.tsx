@@ -417,7 +417,7 @@ export default function AdminDashboardPage() {
                 <span className="text-xl font-bold text-blue-600">{stats?.pendingApprovals}</span>
               </div>
                 <Link href="/payslips">
-                <Button variant="outline" className="w-full mt-4">
+                <Button variant="secondary" className="w-full mt-4">
                   View Pending Payslips <ArrowUpRight className="h-4 w-4 ml-2" />
                 </Button>
                 </Link>
@@ -495,7 +495,7 @@ export default function AdminDashboardPage() {
           <CardContent>
             <div className="grid gap-4 md:grid-cols-4">
               <Link href="/payslips">
-                <Button variant="outline" className="w-full h-20">
+                <Button variant="secondary" className="w-full h-20">
                   <div className="flex flex-col items-center gap-2">
                     <FileText className="h-5 w-5" />
                     <span className="text-sm">Review Payslips</span>
@@ -503,7 +503,7 @@ export default function AdminDashboardPage() {
                 </Button>
               </Link>
               <Link href="/employees">
-                <Button variant="outline" className="w-full h-20">
+                <Button variant="secondary" className="w-full h-20">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-5 w-5" />
                     <span className="text-sm">Manage Staff</span>
@@ -511,7 +511,7 @@ export default function AdminDashboardPage() {
                 </Button>
               </Link>
               <Link href="/time-entries">
-                <Button variant="outline" className="w-full h-20">
+                <Button variant="secondary" className="w-full h-20">
                   <div className="flex flex-col items-center gap-2">
                     <Clock className="h-5 w-5" />
                     <span className="text-sm">Time Entries</span>
@@ -519,7 +519,7 @@ export default function AdminDashboardPage() {
                 </Button>
               </Link>
               <Link href="/timesheet">
-                <Button variant="outline" className="w-full h-20">
+                <Button variant="secondary" className="w-full h-20">
                 <div className="flex flex-col items-center gap-2">
                     <Calendar className="h-5 w-5" />
                     <span className="text-sm">Timesheet</span>

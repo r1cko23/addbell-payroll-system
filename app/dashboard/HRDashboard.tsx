@@ -262,14 +262,14 @@ export default function HRDashboard() {
               </div>
               <div className="flex items-center gap-2">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setWeekStart(subWeeks(weekStart, 1))}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   onClick={() => setWeekStart(addWeeks(weekStart, 1))}
                 >
@@ -362,7 +362,7 @@ export default function HRDashboard() {
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
               <Link href="/overtime-approval">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="w-full justify-start h-auto py-4 px-4"
                 >
                   <div className="flex items-start gap-4">
@@ -379,7 +379,7 @@ export default function HRDashboard() {
 
               <Link href="/time-entries">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="w-full justify-start h-auto py-4 px-4"
                 >
                   <div className="flex items-start gap-4">
@@ -396,7 +396,7 @@ export default function HRDashboard() {
 
               <Link href="/timesheet">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="w-full justify-start h-auto py-4 px-4"
                 >
                   <div className="flex items-start gap-4">
@@ -413,7 +413,7 @@ export default function HRDashboard() {
 
               <Link href="/payslips">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="w-full justify-start h-auto py-4 px-4"
                 >
                   <div className="flex items-start gap-4">
@@ -430,7 +430,7 @@ export default function HRDashboard() {
 
               <Link href="/employees">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   className="w-full justify-start h-auto py-4 px-4"
                 >
                   <div className="flex items-start gap-4">

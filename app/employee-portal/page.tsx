@@ -224,7 +224,7 @@ export default function EmployeePortalPage() {
                 <p className="text-sm text-gray-600">ID: {employee.employee_id}</p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
+            <Button variant="secondary" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>

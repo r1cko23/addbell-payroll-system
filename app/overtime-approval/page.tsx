@@ -177,7 +177,7 @@ export default function OvertimeApprovalPage() {
             {/* Week Navigation */}
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
               >
@@ -187,14 +187,14 @@ export default function OvertimeApprovalPage() {
                 {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
               </div>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setSelectedWeek(new Date())}
               >

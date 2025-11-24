@@ -206,7 +206,7 @@ export default function TimeEntriesPage() {
               Review and approve employee time clock entries
             </p>
           </div>
-          <Button onClick={exportToCSV} variant="outline">
+          <Button onClick={exportToCSV} variant="secondary">
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -262,7 +262,7 @@ export default function TimeEntriesPage() {
             {/* Week Navigation */}
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
               >
@@ -272,14 +272,14 @@ export default function TimeEntriesPage() {
                 {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
               </div>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 onClick={() => setSelectedWeek(new Date())}
               >

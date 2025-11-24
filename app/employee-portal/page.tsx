@@ -360,15 +360,15 @@ export default function EmployeePortalPage() {
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push('/employee-portal/overtime-request')}>
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-purple-600" />
+              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                <FileText className="h-6 w-6 text-orange-600" />
               </div>
               <div>
-                <div className="text-sm text-gray-600">Avg Hours/Day</div>
-                <div className="text-2xl font-bold text-gray-800">
-                  {daysWorked > 0 ? (totalHoursThisWeek / daysWorked).toFixed(1) : '0.0'}h
+                <div className="text-sm text-gray-600">File OT</div>
+                <div className="text-lg font-bold text-orange-600">
+                  Request →
                 </div>
               </div>
             </div>

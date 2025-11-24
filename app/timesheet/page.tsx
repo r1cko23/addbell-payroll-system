@@ -750,7 +750,10 @@ export default function TimesheetPage() {
                     <Button 
                       variant="primary" 
                       size="sm"
-                      onClick={() => autoImportFromClockEntries(true)}
+                      onClick={() => {
+                        initializeWeekDays();
+                        setTimeout(() => autoImportFromClockEntries(true), 100);
+                      }}
                       className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
                     >
                       <Clock className="h-4 w-4 mr-1" />

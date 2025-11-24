@@ -66,38 +66,26 @@ ALTER TABLE public.time_clock_entries
   ADD CONSTRAINT time_clock_entries_status_check 
   CHECK (status IN ('clocked_in', 'clocked_out', 'approved', 'rejected', 'auto_approved'));
 
--- Function to auto-approve regular hours and create OT request for overtime
+-- Function to auto-approve regular hours (cap at 8 hours, no auto-OT)
 CREATE OR REPLACE FUNCTION auto_approve_regular_hours()
 RETURNS TRIGGER AS $$
-DECLARE
-  ot_hours_worked DECIMAL(10, 2);
-  work_date DATE;
 BEGIN
   -- When clocking out, auto-approve regular hours
   IF NEW.clock_out_time IS NOT NULL AND OLD.clock_out_time IS NULL THEN
     -- Auto-approve the entry
     NEW.status := 'auto_approved';
     
-    -- Check if there are overtime hours
-    IF NEW.overtime_hours IS NOT NULL AND NEW.overtime_hours > 0 THEN
-      -- Get the date of work
-      work_date := NEW.clock_in_time::DATE;
-      
-      -- Create an automatic OT request that needs HR approval
-      INSERT INTO public.overtime_requests (
-        employee_id,
-        ot_date,
-        ot_hours,
-        work_description,
-        status
-      ) VALUES (
-        NEW.employee_id,
-        work_date,
-        NEW.overtime_hours,
-        'Auto-detected: Clocked out after scheduled hours. Clock out time: ' || 
-        TO_CHAR(NEW.clock_out_time, 'HH24:MI'),
-        'pending'
-      );
+    -- Cap regular hours at 8 hours per day
+    -- Even if they work longer, only 8 hours counted as regular
+    -- Employee must file OT request separately for overtime
+    IF NEW.total_hours IS NOT NULL AND NEW.total_hours > 8 THEN
+      NEW.regular_hours := 8;
+      -- Set overtime to 0 in clock entry
+      -- Overtime only comes from approved OT requests
+      NEW.overtime_hours := 0;
+    ELSE
+      NEW.regular_hours := NEW.total_hours;
+      NEW.overtime_hours := 0;
     END IF;
   END IF;
   

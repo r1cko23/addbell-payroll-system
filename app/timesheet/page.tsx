@@ -16,6 +16,7 @@ import type { Holiday } from '@/utils/holidays';
 import type { DailyAttendance } from '@/utils/payroll-calculator';
 import { ChevronLeft, ChevronRight, AlertTriangle, Clock } from 'lucide-react';
 import { generateWeeklySummary } from '@/lib/timekeeper';
+import { getApprovedOT } from '@/lib/overtimeHelper';
 
 interface Employee {
   id: string;
@@ -351,38 +352,47 @@ export default function TimesheetPage() {
       if (showToast) toast.loading('Importing clock entries...');
       
       const summary = await generateWeeklySummary(selectedEmployee.id, weekStart);
+      
+      // Get approved OT requests for this week
+      const weekEnd = addDays(weekStart, 6);
+      const approvedOT = await getApprovedOT(selectedEmployee.id, weekStart, weekEnd);
 
-      if (summary.totalHours === 0) {
+      if (summary.totalHours === 0 && approvedOT.size === 0) {
         if (showToast) {
           toast.dismiss();
-          toast.error('No approved clock entries found for this week');
+          toast.error('No clock entries or approved OT found for this week');
         }
         return;
       }
 
-      // Map clock entries to timesheet days
+      // Map clock entries + approved OT to timesheet days
       const updatedDays = weekDays.map((day) => {
         const dailySummary = summary.dailySummaries.get(day.date);
+        const otHours = approvedOT.get(day.date) || 0;
         
-        if (!dailySummary) {
-          // No entries for this day
-          return day;
-        }
+        // Regular hours from clock entries (already capped at 8h in database)
+        const regularHours = dailySummary?.regularHours || 0;
+        
+        // OT only from approved OT requests
+        const overtimeHours = otHours;
+        
+        // Night diff from clock entries
+        const nightDiffHours = dailySummary?.nightDiffHours || 0;
 
         // Calculate the amount with the employee's rate
         const calculation = calculateDailyPay(
           day.dayType as any,
-          dailySummary.regularHours,
-          dailySummary.overtimeHours,
-          dailySummary.nightDiffHours,
+          regularHours,
+          overtimeHours,
+          nightDiffHours,
           selectedEmployee.rate_per_hour
         );
 
         return {
           ...day,
-          regularHours: dailySummary.regularHours,
-          overtimeHours: dailySummary.overtimeHours,
-          nightDiffHours: dailySummary.nightDiffHours,
+          regularHours: regularHours,
+          overtimeHours: overtimeHours,
+          nightDiffHours: nightDiffHours,
           amount: calculation.total,
         };
       });
@@ -390,7 +400,9 @@ export default function TimesheetPage() {
       setWeekDays(updatedDays);
       if (showToast) {
         toast.dismiss();
-        toast.success(`✅ Imported ${summary.totalHours.toFixed(1)} hours from clock entries`);
+        const totalReg = updatedDays.reduce((sum, d) => sum + (typeof d.regularHours === 'number' ? d.regularHours : 0), 0);
+        const totalOT = updatedDays.reduce((sum, d) => sum + (typeof d.overtimeHours === 'number' ? d.overtimeHours : 0), 0);
+        toast.success(`✅ Imported ${totalReg.toFixed(1)}h regular + ${totalOT.toFixed(1)}h OT`);
       }
     } catch (error) {
       console.error('Error importing clock entries:', error);

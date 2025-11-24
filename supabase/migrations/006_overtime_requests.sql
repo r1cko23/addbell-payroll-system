@@ -66,21 +66,46 @@ ALTER TABLE public.time_clock_entries
   ADD CONSTRAINT time_clock_entries_status_check 
   CHECK (status IN ('clocked_in', 'clocked_out', 'approved', 'rejected', 'auto_approved'));
 
--- Function to auto-approve regular hours
+-- Function to auto-approve regular hours and create OT request for overtime
 CREATE OR REPLACE FUNCTION auto_approve_regular_hours()
 RETURNS TRIGGER AS $$
+DECLARE
+  ot_hours_worked DECIMAL(10, 2);
+  work_date DATE;
 BEGIN
   -- When clocking out, auto-approve regular hours
   IF NEW.clock_out_time IS NOT NULL AND OLD.clock_out_time IS NULL THEN
     -- Auto-approve the entry
     NEW.status := 'auto_approved';
+    
+    -- Check if there are overtime hours
+    IF NEW.overtime_hours IS NOT NULL AND NEW.overtime_hours > 0 THEN
+      -- Get the date of work
+      work_date := NEW.clock_in_time::DATE;
+      
+      -- Create an automatic OT request that needs HR approval
+      INSERT INTO public.overtime_requests (
+        employee_id,
+        ot_date,
+        ot_hours,
+        work_description,
+        status
+      ) VALUES (
+        NEW.employee_id,
+        work_date,
+        NEW.overtime_hours,
+        'Auto-detected: Clocked out after scheduled hours. Clock out time: ' || 
+        TO_CHAR(NEW.clock_out_time, 'HH24:MI'),
+        'pending'
+      );
+    END IF;
   END IF;
   
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger to auto-approve
+-- Trigger to auto-approve and create OT request
 CREATE TRIGGER trigger_auto_approve_regular_hours
   BEFORE UPDATE ON public.time_clock_entries
   FOR EACH ROW
@@ -108,4 +133,27 @@ SELECT
 FROM public.overtime_requests
 WHERE status = 'approved'
 GROUP BY employee_id, ot_date;
+
+-- =====================================================
+-- SET DEFAULT SCHEDULES FOR ALL EMPLOYEES
+-- =====================================================
+-- Set 8:00 AM - 5:00 PM schedule (with 1 hour lunch break)
+-- This will be used to auto-detect overtime
+
+-- Insert default schedule for all active employees
+INSERT INTO public.employee_schedules (employee_id, day_of_week, shift_start_time, shift_end_time, break_duration_minutes)
+SELECT 
+  id as employee_id,
+  day_of_week,
+  '08:00'::TIME as shift_start_time,
+  '17:00'::TIME as shift_end_time,
+  60 as break_duration_minutes
+FROM public.employees
+CROSS JOIN (
+  SELECT generate_series(1, 6) as day_of_week  -- Monday (1) to Saturday (6)
+) days
+WHERE is_active = true
+ON CONFLICT (employee_id, day_of_week) DO NOTHING;
+
+-- Sunday is typically off, so we don't add it to the schedule
 

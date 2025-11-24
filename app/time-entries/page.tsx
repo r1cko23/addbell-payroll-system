@@ -230,6 +230,24 @@ export default function TimeEntriesPage() {
           </Card>
         </div>
 
+        {/* Info Banner */}
+        {stats.pending > 0 && (
+          <Card className="p-4 bg-blue-50 border-blue-200">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-blue-900">
+                <p className="font-semibold mb-1">
+                  ℹ️ Auto-Sync to Timesheet
+                </p>
+                <p>
+                  Approved entries automatically populate the weekly timesheet. 
+                  Review and approve <strong>{stats.pending} pending {stats.pending === 1 ? 'entry' : 'entries'}</strong> to make them available for payroll processing.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Filters */}
         <Card className="p-4">
           <div className="flex flex-wrap gap-4 items-center">

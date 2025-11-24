@@ -317,20 +317,46 @@ export default function TimesheetPage() {
     }
   }
 
-  async function autoImportFromClockEntries() {
+  async function checkForClockEntries() {
+    if (!selectedEmployee) return;
+
+    try {
+      const summary = await generateWeeklySummary(selectedEmployee.id, weekStart);
+      
+      if (summary.totalHours > 0) {
+        // Check if timesheet is already populated
+        const hasData = weekDays.some(day => 
+          (typeof day.regularHours === 'number' && day.regularHours > 0) ||
+          (typeof day.overtimeHours === 'number' && day.overtimeHours > 0) ||
+          (typeof day.nightDiffHours === 'number' && day.nightDiffHours > 0)
+        );
+
+        if (!hasData) {
+          // Auto-import if timesheet is empty
+          await autoImportFromClockEntries(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking clock entries:', error);
+    }
+  }
+
+  async function autoImportFromClockEntries(showToast = true) {
     if (!selectedEmployee) {
-      toast.error('Please select an employee first');
+      if (showToast) toast.error('Please select an employee first');
       return;
     }
 
     try {
-      toast.loading('Importing clock entries...');
+      if (showToast) toast.loading('Importing clock entries...');
       
       const summary = await generateWeeklySummary(selectedEmployee.id, weekStart);
 
       if (summary.totalHours === 0) {
-        toast.dismiss();
-        toast.error('No approved clock entries found for this week');
+        if (showToast) {
+          toast.dismiss();
+          toast.error('No approved clock entries found for this week');
+        }
         return;
       }
 
@@ -362,12 +388,16 @@ export default function TimesheetPage() {
       });
 
       setWeekDays(updatedDays);
-      toast.dismiss();
-      toast.success(`✅ Imported ${summary.totalHours.toFixed(1)} hours from clock entries`);
+      if (showToast) {
+        toast.dismiss();
+        toast.success(`✅ Imported ${summary.totalHours.toFixed(1)} hours from clock entries`);
+      }
     } catch (error) {
       console.error('Error importing clock entries:', error);
-      toast.dismiss();
-      toast.error('Failed to import clock entries');
+      if (showToast) {
+        toast.dismiss();
+        toast.error('Failed to import clock entries');
+      }
     }
   }
 
@@ -456,6 +486,7 @@ export default function TimesheetPage() {
   useEffect(() => {
     if (selectedEmployee && weekDays.length > 0) {
       loadExistingTimesheet();
+      checkForClockEntries(); // Auto-check for clock entries
     }
   }, [selectedEmployee, weekStart]);
 
@@ -702,43 +733,53 @@ export default function TimesheetPage() {
             </div>
 
             {/* Quick Fill Templates */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-sm font-semibold text-blue-900 mb-3">⚡ Quick Fill Templates</h4>
-              <div className="flex flex-wrap gap-2">
-                <Button 
-                  variant="primary" 
-                  size="sm"
-                  onClick={autoImportFromClockEntries}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
-                >
-                  <Clock className="h-4 w-4 mr-1" />
-                  Import Clock Entries
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={applyStandardWeek}
-                >
-                  📅 Standard Week (8hrs, Sunday off)
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={copyLastWeek}
-                >
-                  📋 Copy Last Week
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={initializeWeekDays}
-                >
-                  🗑️ Clear All
-                </Button>
+            {/* Auto-Import Info Banner */}
+            <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <Clock className="h-6 w-6 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-bold text-purple-900 mb-1">
+                    🤖 Auto-Sync Enabled
+                  </h4>
+                  <p className="text-xs text-purple-800 mb-2">
+                    Hours automatically populate from approved employee clock entries. You can still manually adjust any values below.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button 
+                      variant="primary" 
+                      size="sm"
+                      onClick={() => autoImportFromClockEntries(true)}
+                      className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                    >
+                      <Clock className="h-4 w-4 mr-1" />
+                      Refresh from Clock
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={applyStandardWeek}
+                    >
+                      📅 Standard Week
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={copyLastWeek}
+                    >
+                      📋 Copy Last Week
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      onClick={initializeWeekDays}
+                    >
+                      🗑️ Clear All
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-blue-700 mt-2">
-                💡 Tip: Use "Import Clock Entries" to automatically fill hours from employee clock in/out records
-              </p>
             </div>
 
             {/* Save Actions */}

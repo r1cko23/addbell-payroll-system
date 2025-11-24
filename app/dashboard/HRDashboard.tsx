@@ -360,18 +360,18 @@ export default function HRDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
-              <Link href="/clock">
+              <Link href="/overtime-approval">
                 <Button
                   variant="outline"
                   className="w-full justify-start h-auto py-4 px-4"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="rounded-lg bg-purple-500/10 p-2">
-                      <Clock className="h-6 w-6 text-purple-600" />
+                    <div className="rounded-lg bg-yellow-500/10 p-2">
+                      <Clock className="h-6 w-6 text-yellow-600" />
                     </div>
                     <div className="text-left">
-                      <div className="font-semibold text-foreground">Time Clock</div>
-                      <div className="text-sm text-muted-foreground">Clock in/out employees</div>
+                      <div className="font-semibold text-foreground">OT Approval</div>
+                      <div className="text-sm text-muted-foreground">Approve overtime</div>
                     </div>
                   </div>
                 </Button>
@@ -388,7 +388,7 @@ export default function HRDashboard() {
                     </div>
                     <div className="text-left">
                       <div className="font-semibold text-foreground">Time Entries</div>
-                      <div className="text-sm text-muted-foreground">Review clock entries</div>
+                      <div className="text-sm text-muted-foreground">View clock history</div>
                     </div>
                   </div>
                 </Button>

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
 import { toast } from 'sonner';
 import { Clock, Check, X, User, Calendar, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';

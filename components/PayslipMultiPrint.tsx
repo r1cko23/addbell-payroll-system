@@ -283,30 +283,30 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
           }
         }
       `}</style>
-      <div className="multi-payslip-print">
-        {pages.map((pagePayslips, pageIndex) => (
-          <div 
-            key={pageIndex}
-            className="legal-page"
-            style={{
-              width: '8.5in',
-              height: '14in',
-              margin: '0 auto',
+    <div className="multi-payslip-print">
+      {pages.map((pagePayslips, pageIndex) => (
+        <div 
+          key={pageIndex}
+          className="legal-page"
+          style={{
+            width: '8.5in',
+            height: '14in',
+            margin: '0 auto',
               padding: '0.2in',
-              backgroundColor: '#fff',
-              position: 'relative',
-              pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
+            backgroundColor: '#fff',
+            position: 'relative',
+            pageBreakAfter: pageIndex < pages.length - 1 ? 'always' : 'auto',
               boxSizing: 'border-box',
               display: 'grid',
               gridTemplateColumns: 'repeat(2, 1fr)',
               gridTemplateRows: 'repeat(2, 1fr)',
               gap: '0.15in',
-            }}
-          >
-            {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}
-          </div>
-        ))}
-      </div>
+          }}
+        >
+          {pagePayslips.map((payslip, index) => renderCompactPayslip(payslip, index))}
+        </div>
+      ))}
+    </div>
     </>
   );
 }

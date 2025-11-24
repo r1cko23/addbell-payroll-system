@@ -416,11 +416,11 @@ export default function AdminDashboardPage() {
                 </div>
                 <span className="text-xl font-bold text-blue-600">{stats?.pendingApprovals}</span>
               </div>
-              <Link href="/payslips">
+                <Link href="/payslips">
                 <Button variant="outline" className="w-full mt-4">
                   View Pending Payslips <ArrowUpRight className="h-4 w-4 ml-2" />
                 </Button>
-              </Link>
+                </Link>
             </CardContent>
           </Card>
 
@@ -520,11 +520,11 @@ export default function AdminDashboardPage() {
               </Link>
               <Link href="/timesheet">
                 <Button variant="outline" className="w-full h-20">
-                  <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2">
                     <Calendar className="h-5 w-5" />
                     <span className="text-sm">Timesheet</span>
-                  </div>
-                </Button>
+                </div>
+              </Button>
               </Link>
             </div>
           </CardContent>

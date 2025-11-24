@@ -1460,7 +1460,7 @@ export default function PayslipsPage() {
               </div>
               
               <div className="print:block">
-                <PayslipMultiPrint payslips={multiPrintData} />
+              <PayslipMultiPrint payslips={multiPrintData} />
               </div>
               
               <div className="flex justify-end gap-3 print:hidden">

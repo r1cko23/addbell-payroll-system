@@ -5,9 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Clock, LogIn, LogOut, User, Calendar, MapPin, AlertCircle } from 'lucide-react';
+import { MapPin, User, Calendar, History } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 
 interface Employee {
   id: string;
@@ -36,7 +36,6 @@ export default function ClockPage() {
   const [todayEntries, setTodayEntries] = useState<ClockEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [notes, setNotes] = useState('');
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Update current time every second
@@ -61,21 +60,18 @@ export default function ClockPage() {
     }
   }, [selectedEmployeeId]);
 
-  // Get location on component mount and keep it updated
+  // Get location on component mount
   useEffect(() => {
     if (navigator.geolocation) {
-      // Get initial location
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
-          toast.success('📍 Location detected', { duration: 2000 });
         },
         (error) => {
           console.log('Location not available:', error);
-          toast.error('⚠️ Location access denied - clock in/out will work but without GPS', { duration: 3000 });
         },
         {
           enableHighAccuracy: true,
@@ -83,8 +79,6 @@ export default function ClockPage() {
           maximumAge: 0
         }
       );
-    } else {
-      toast.error('⚠️ Your browser doesn\'t support location tracking');
     }
   }, []);
 
@@ -171,9 +165,7 @@ export default function ClockPage() {
         employee_id: selectedEmployeeId,
         clock_in_time: new Date().toISOString(),
         clock_in_location: locationString,
-        clock_in_ip: null, // Could get from API
         clock_in_device: navigator.userAgent.substring(0, 255),
-        employee_notes: notes || null,
         status: 'clocked_in',
       })
       .select()
@@ -188,9 +180,8 @@ export default function ClockPage() {
     }
 
     setCurrentEntry(data);
-    setNotes('');
     toast.success('Clocked in successfully! ✅');
-    fetchTodayEntries(); // Refresh today's entries
+    fetchTodayEntries();
   }
 
   async function handleClockOut() {
@@ -211,7 +202,6 @@ export default function ClockPage() {
         clock_out_time: new Date().toISOString(),
         clock_out_location: locationString,
         clock_out_device: navigator.userAgent.substring(0, 255),
-        employee_notes: notes || currentEntry.employee_notes,
       })
       .eq('id', currentEntry.id);
 
@@ -225,354 +215,306 @@ export default function ClockPage() {
 
     toast.success('Clocked out successfully! 👋');
     setCurrentEntry(null);
-    setNotes('');
-    fetchTodayEntries(); // Refresh today's entries
+    fetchTodayEntries();
   }
 
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
+  // Flip clock digit component
+  const FlipDigit = ({ value }: { value: string }) => (
+    <div className="relative w-16 h-24 md:w-24 md:h-32 lg:w-32 lg:h-40">
+      <div className="absolute inset-0 bg-gradient-to-b from-gray-800 to-gray-900 rounded-lg shadow-2xl border-2 border-gray-700">
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-5xl md:text-7xl lg:text-8xl font-bold text-white">
+            {value}
+          </span>
+        </div>
+        {/* Top half shadow */}
+        <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-black/20 to-transparent rounded-t-lg" />
+        {/* Middle line */}
+        <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-gray-950 transform -translate-y-1/2" />
+        {/* Bottom half shadow */}
+        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/30 to-transparent rounded-b-lg" />
+      </div>
+    </div>
+  );
+
+  const Separator = () => (
+    <div className="flex flex-col gap-3 mx-2">
+      <div className="w-3 h-3 md:w-4 md:h-4 bg-gray-700 rounded-full" />
+      <div className="w-3 h-3 md:w-4 md:h-4 bg-gray-700 rounded-full" />
+    </div>
+  );
+
+  const time = currentTime.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    second: '2-digit',
+    hour12: false 
+  });
+  const [hours, minutes, seconds] = time.split(':');
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold">Time Clock</h1>
-          <p className="text-muted-foreground mt-2">
-            Clock in and out to track your working hours
-          </p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 -m-6 p-6">
+        <div className="max-w-5xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="text-center">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 tracking-wider">
+              BUNDY CLOCK
+            </h1>
+            <p className="text-gray-600 mt-2">
+              {currentTime.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Clock In/Out Card */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              {/* Current Time Display */}
-              <div className="text-center space-y-2">
-                <Clock className="h-16 w-16 mx-auto text-primary" />
-                <div className="text-4xl font-bold">
-                  {currentTime.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {currentTime.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </div>
-              </div>
-
-              {/* Employee Selection */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Select Employee</label>
-                <select
-                  value={selectedEmployeeId}
-                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                  className="w-full p-2 border rounded-md"
-                  disabled={loading}
-                >
-                  <option value="">-- Select Employee --</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.employee_id} - {emp.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Notes (Optional)</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Any notes about today's shift..."
-                  className="w-full p-2 border rounded-md resize-none"
-                  rows={2}
-                  disabled={loading || !selectedEmployeeId}
-                />
-              </div>
-
-              {/* Location Status */}
-              <div className="p-3 bg-muted rounded-lg border">
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className={`h-4 w-4 ${location ? 'text-green-600' : 'text-gray-400'}`} />
-                  <span className="font-medium">
-                    {location ? 'GPS Location Detected' : 'Location Not Available'}
-                  </span>
-                </div>
-                {location && (
-                  <div className="mt-2 space-y-1">
-                    <div className="text-xs text-muted-foreground">
-                      📍 Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)}
-                    </div>
-                    <a
-                      href={`https://www.google.com/maps?q=${location.lat},${location.lng}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      View on Google Maps →
-                    </a>
-                  </div>
-                )}
-                {!location && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Clock in/out will still work, but location won't be recorded
-                  </p>
-                )}
-              </div>
-
-              {/* Clock In/Out Buttons */}
-              <div className="space-y-3">
-                {!currentEntry ? (
-                  <Button
-                    onClick={handleClockIn}
-                    disabled={!selectedEmployeeId || loading}
-                    className="w-full h-14 text-lg"
-                  >
-                    <LogIn className="h-6 w-6 mr-2" />
-                    Clock In
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleClockOut}
-                    disabled={loading}
-                    variant="destructive"
-                    className="w-full h-14 text-lg"
-                  >
-                    <LogOut className="h-6 w-6 mr-2" />
-                    Clock Out
-                  </Button>
-                )}
-              </div>
+          {/* Main Clock Card */}
+          <Card className="p-8 bg-white shadow-xl">
+            {/* Flip Clock Display */}
+            <div className="flex items-center justify-center mb-8">
+              <FlipDigit value={hours[0]} />
+              <FlipDigit value={hours[1]} />
+              <Separator />
+              <FlipDigit value={minutes[0]} />
+              <FlipDigit value={minutes[1]} />
+              <Separator />
+              <FlipDigit value={seconds[0]} />
+              <FlipDigit value={seconds[1]} />
             </div>
-          </Card>
 
-          {/* Status Card */}
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Current Status
-            </h3>
+            {/* Employee Selection */}
+            <div className="max-w-md mx-auto mb-8">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Select Employee
+              </label>
+              <select
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                className="w-full p-4 border-2 border-gray-300 rounded-lg text-lg font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                disabled={loading}
+              >
+                <option value="">-- Select Your Name --</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name} ({emp.employee_id})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-            {!selectedEmployee ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>Select an employee to see status</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Employee Info */}
-                <div className="p-4 bg-muted rounded-lg">
-                  <div className="text-sm text-muted-foreground">Employee</div>
-                  <div className="font-semibold text-lg">
-                    {selectedEmployee.full_name}
+            {/* Current Status */}
+            {selectedEmployee && (
+              <div className="max-w-md mx-auto mb-6">
+                <div className={`p-4 rounded-lg text-center ${
+                  currentEntry 
+                    ? 'bg-green-50 border-2 border-green-500' 
+                    : 'bg-gray-50 border-2 border-gray-300'
+                }`}>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <User className="h-5 w-5" />
+                    <span className="font-semibold text-lg">{selectedEmployee.full_name}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    ID: {selectedEmployee.employee_id}
-                  </div>
-                </div>
-
-                {/* Clock Status */}
-                {currentEntry ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 text-green-600 font-semibold">
-                      <div className="h-3 w-3 bg-green-600 rounded-full animate-pulse" />
-                      Currently Clocked In
-                    </div>
-
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="h-4 w-4 text-green-600" />
-                        <span className="text-muted-foreground">Clocked in:</span>
+                  {currentEntry ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-center gap-2 text-green-700 font-bold">
+                        <div className="h-3 w-3 bg-green-600 rounded-full animate-pulse" />
+                        CLOCKED IN
                       </div>
-                      <div className="font-semibold">
-                        {new Date(currentEntry.clock_in_time).toLocaleTimeString()}
+                      <div className="text-sm text-gray-600">
+                        Since {new Date(currentEntry.clock_in_time).toLocaleTimeString()}
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {formatDistanceToNow(new Date(currentEntry.clock_in_time), {
-                          addSuffix: true,
-                        })}
+                      <div className="text-xs text-gray-500">
+                        {formatDistanceToNow(new Date(currentEntry.clock_in_time), { addSuffix: true })}
                       </div>
                     </div>
-
-                    {currentEntry.employee_notes && (
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="text-xs text-muted-foreground mb-1">
-                          Notes:
-                        </div>
-                        <div className="text-sm">{currentEntry.employee_notes}</div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="h-16 w-16 bg-gray-100 rounded-full mx-auto mb-3 flex items-center justify-center">
-                      <Clock className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <div className="font-semibold text-muted-foreground">
+                  ) : (
+                    <div className="text-gray-600 font-medium">
                       Not Clocked In
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Click "Clock In" to start tracking time
-                    </p>
-                  </div>
-                )}
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Time In/Out Buttons */}
+            <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
+              <button
+                onClick={handleClockIn}
+                disabled={!selectedEmployeeId || loading || !!currentEntry}
+                className={`
+                  py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
+                  transition-all duration-200 transform
+                  ${!selectedEmployeeId || loading || currentEntry
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 hover:scale-105 shadow-lg hover:shadow-xl active:scale-95'
+                  }
+                `}
+              >
+                TIME IN
+              </button>
+
+              <button
+                onClick={handleClockOut}
+                disabled={!currentEntry || loading}
+                className={`
+                  py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
+                  transition-all duration-200 transform
+                  ${!currentEntry || loading
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-105 shadow-lg hover:shadow-xl active:scale-95'
+                  }
+                `}
+              >
+                TIME OUT
+              </button>
+            </div>
+
+            {/* GPS Status */}
+            {location && (
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full">
+                  <MapPin className="h-4 w-4" />
+                  <span>GPS Location Detected</span>
+                </div>
               </div>
             )}
           </Card>
-        </div>
 
-        {/* Today's Entries */}
-        {selectedEmployee && todayEntries.length > 0 && (
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today's Clock Entries ({todayEntries.length})
-            </h3>
+          {/* Today's Entries */}
+          {selectedEmployee && todayEntries.length > 0 && (
+            <Card className="p-6 bg-white shadow-lg">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <History className="h-6 w-6" />
+                Today's Time Records ({todayEntries.length})
+              </h3>
 
-            <div className="space-y-3">
-              {todayEntries.map((entry, index) => (
-                <div
-                  key={entry.id}
-                  className={`p-4 rounded-lg border ${
-                    entry.status === 'clocked_in'
-                      ? 'bg-green-50 border-green-200'
-                      : 'bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-sm">Shift {todayEntries.length - index}</span>
-                        {entry.status === 'clocked_in' && (
-                          <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded-full flex items-center gap-1">
-                            <div className="h-2 w-2 bg-white rounded-full animate-pulse" />
-                            Active Now
+              <div className="space-y-3">
+                {todayEntries.map((entry, index) => (
+                  <div
+                    key={entry.id}
+                    className={`p-4 rounded-lg border-2 ${
+                      entry.status === 'clocked_in'
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-bold text-lg">
+                            Shift {todayEntries.length - index}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Clock In:</span>
-                          <div className="font-medium">
-                            {new Date(entry.clock_in_time).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </div>
-                          {entry.clock_in_location && (
-                            <a
-                              href={`https://www.google.com/maps?q=${entry.clock_in_location}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <MapPin className="h-3 w-3" />
-                              View location
-                            </a>
+                          {entry.status === 'clocked_in' && (
+                            <span className="px-3 py-1 bg-green-600 text-white text-xs rounded-full font-bold">
+                              ACTIVE
+                            </span>
                           )}
                         </div>
 
-                        <div>
-                          <span className="text-muted-foreground">Clock Out:</span>
-                          <div className="font-medium">
-                            {entry.clock_out_time ? (
-                              new Date(entry.clock_out_time).toLocaleTimeString('en-US', {
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="text-gray-600">Time In</div>
+                            <div className="font-semibold">
+                              {new Date(entry.clock_in_time).toLocaleTimeString('en-US', {
                                 hour: '2-digit',
                                 minute: '2-digit',
-                              })
-                            ) : (
-                              <span className="text-green-600">Still working...</span>
-                            )}
+                              })}
+                            </div>
                           </div>
-                          {entry.clock_out_location && (
-                            <a
-                              href={`https://www.google.com/maps?q=${entry.clock_out_location}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <MapPin className="h-3 w-3" />
-                              View location
-                            </a>
+
+                          <div>
+                            <div className="text-gray-600">Time Out</div>
+                            <div className="font-semibold">
+                              {entry.clock_out_time ? (
+                                new Date(entry.clock_out_time).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              ) : (
+                                <span className="text-green-600">Working...</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {entry.total_hours && (
+                            <>
+                              <div>
+                                <div className="text-gray-600">Total Hours</div>
+                                <div className="font-bold text-lg text-blue-600">
+                                  {entry.total_hours.toFixed(2)}h
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="text-gray-600">Breakdown</div>
+                                <div className="text-xs">
+                                  <div>Reg: {entry.regular_hours?.toFixed(2) || 0}h</div>
+                                  {entry.overtime_hours && entry.overtime_hours > 0 && (
+                                    <div className="text-orange-600 font-bold">
+                                      OT: {entry.overtime_hours.toFixed(2)}h
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </>
                           )}
                         </div>
-
-                        {entry.total_hours && (
-                          <>
-                            <div>
-                              <span className="text-muted-foreground">Total Hours:</span>
-                              <div className="font-bold text-lg">
-                                {entry.total_hours.toFixed(2)}h
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Breakdown:</span>
-                              <div className="text-xs space-y-0.5">
-                                <div>Regular: {entry.regular_hours?.toFixed(2) || 0}h</div>
-                                {entry.overtime_hours && entry.overtime_hours > 0 && (
-                                  <div className="text-orange-600 font-medium">
-                                    OT: {entry.overtime_hours.toFixed(2)}h
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
                       </div>
-
-                      {entry.employee_notes && (
-                        <div className="mt-2 p-2 bg-white rounded border text-sm">
-                          <span className="text-muted-foreground text-xs">Note:</span>
-                          <div className="mt-1">{entry.employee_notes}</div>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
 
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-blue-900">Total Hours Today:</span>
-                  <span className="text-xl font-bold text-blue-900">
-                    {todayEntries
-                      .reduce((sum, entry) => sum + (entry.total_hours || 0), 0)
-                      .toFixed(2)}h
-                  </span>
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-blue-900 text-lg">
+                      Total Hours Today:
+                    </span>
+                    <span className="text-3xl font-bold text-blue-900">
+                      {todayEntries
+                        .reduce((sum, entry) => sum + (entry.total_hours || 0), 0)
+                        .toFixed(2)}h
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        )}
+            </Card>
+          )}
 
-        {/* Help Text */}
-        <Card className="p-4 bg-blue-50 border-blue-200">
-          <div className="flex gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-900">
-              <p className="font-semibold mb-1">How it works:</p>
-              <ul className="list-disc list-inside space-y-1 text-blue-800">
-                <li>Select your name from the dropdown</li>
-                <li>Click "Clock In" when you start work</li>
-                <li>Click "Clock Out" when you finish work</li>
-                <li><strong>Multiple shifts per day?</strong> Just clock in/out again!</li>
-                <li>Your hours will be automatically calculated</li>
-                <li>GPS location is recorded for verification</li>
-                <li>HR can review and approve your time entries</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
+          {/* Instructions */}
+          {!selectedEmployee && (
+            <Card className="p-6 bg-blue-50 border-blue-200">
+              <div className="text-center space-y-4">
+                <h3 className="text-lg font-bold text-blue-900">
+                  📋 How to Use
+                </h3>
+                <ul className="text-left max-w-md mx-auto space-y-2 text-blue-800">
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">1.</span>
+                    <span>Select your name from the dropdown</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">2.</span>
+                    <span>Click <strong>"TIME IN"</strong> when you arrive</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">3.</span>
+                    <span>Click <strong>"TIME OUT"</strong> when you leave</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold">4.</span>
+                    <span>Multiple shifts? Just clock in/out again!</span>
+                  </li>
+                </ul>
+              </div>
+            </Card>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
 }
-

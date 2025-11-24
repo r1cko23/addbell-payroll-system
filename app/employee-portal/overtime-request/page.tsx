@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
 import { toast } from 'sonner';
 import { Clock, ArrowLeft, CheckCircle, XCircle, Hourglass } from 'lucide-react';
 import { format } from 'date-fns';

@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { Select } from '@/components/Input';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
-import { format, startOfWeek, addDays, parseISO, subWeeks } from 'date-fns';
+import { format, startOfWeek, addDays, parseISO, subWeeks, addDays as add } from 'date-fns';
 import { determineDayType, getDayName, formatDateShort } from '@/utils/holidays';
 import { calculateDailyPay, getDayTypeLabel } from '@/utils/payroll-calculator';
 import { formatCurrency } from '@/utils/format';

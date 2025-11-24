@@ -6,7 +6,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-import { startOfWeek, endOfWeek, format, parseISO } from 'date-fns';
+import { startOfWeek, endOfWeek, format, parseISO, addDays } from 'date-fns';
 
 export interface TimeClockEntry {
   id: string;
@@ -17,7 +17,7 @@ export interface TimeClockEntry {
   regular_hours: number | null;
   overtime_hours: number | null;
   night_diff_hours: number | null;
-  status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected';
+  status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected' | 'auto_approved' | 'pending';
   employee_notes: string | null;
   hr_notes: string | null;
 }
@@ -51,7 +51,10 @@ export async function fetchWeeklyTimeEntries(
 ): Promise<TimeClockEntry[]> {
   const supabase = createClient();
   
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 }); // Monday-Sunday
+  // Calculate week end as 6 days after week start (to support Wed-Tue cutoff)
+  const weekEnd = addDays(weekStart, 6);
+  // Set to end of day
+  weekEnd.setHours(23, 59, 59, 999);
 
   const { data, error } = await supabase
     .from('time_clock_entries')
@@ -108,7 +111,7 @@ export async function generateWeeklySummary(
   employeeId: string,
   weekStart: Date
 ): Promise<WeeklySummary> {
-  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+  const weekEnd = addDays(weekStart, 6); // 7-day week, regardless of day
   const entries = await fetchWeeklyTimeEntries(employeeId, weekStart);
   const dailySummaries = groupEntriesByDay(entries);
 

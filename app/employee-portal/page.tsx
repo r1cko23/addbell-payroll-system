@@ -126,9 +126,13 @@ export default function EmployeePortalPage() {
   async function handleClockIn() {
     if (!employee) return;
 
-    const locationString = location 
-      ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
-      : null;
+    // GPS is REQUIRED - block if not available
+    if (!location) {
+      toast.error('📍 Please enable location services to clock in');
+      return;
+    }
+
+    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 
     const { data, error } = await supabase
       .from('time_clock_entries')
@@ -154,9 +158,13 @@ export default function EmployeePortalPage() {
   async function handleClockOut() {
     if (!currentEntry) return;
 
-    const locationString = location 
-      ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
-      : null;
+    // GPS is REQUIRED - block if not available
+    if (!location) {
+      toast.error('📍 Please enable location services to clock out');
+      return;
+    }
+
+    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 
     const { error } = await supabase
       .from('time_clock_entries')
@@ -265,11 +273,11 @@ export default function EmployeePortalPage() {
             <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto mt-6">
               <button
                 onClick={handleClockIn}
-                disabled={!!currentEntry}
+                disabled={!!currentEntry || !location}
                 className={`
                   py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
                   transition-all duration-200 transform
-                  ${currentEntry
+                  ${currentEntry || !location
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 hover:scale-105 shadow-lg'
                   }
@@ -280,11 +288,11 @@ export default function EmployeePortalPage() {
 
               <button
                 onClick={handleClockOut}
-                disabled={!currentEntry}
+                disabled={!currentEntry || !location}
                 className={`
                   py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
                   transition-all duration-200 transform
-                  ${!currentEntry
+                  ${!currentEntry || !location
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-105 shadow-lg'
                   }
@@ -296,14 +304,28 @@ export default function EmployeePortalPage() {
 
             <div className="mt-4">
               {location ? (
-                <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full">
+                <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200">
                   <MapPin className="h-4 w-4" />
-                  <span>GPS Location Active</span>
+                  <span className="font-medium">GPS Location Active ✓</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 text-sm text-yellow-600 bg-yellow-50 px-4 py-2 rounded-full">
-                  <MapPin className="h-4 w-4" />
-                  <span>Location unavailable (Clock in/out still works)</span>
+                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 max-w-md mx-auto">
+                  <div className="flex items-start gap-3">
+                    <MapPin className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-left">
+                      <div className="font-bold text-red-900 mb-1">
+                        📍 Location Required
+                      </div>
+                      <div className="text-sm text-red-800 mb-2">
+                        Please enable location services to use the time clock.
+                      </div>
+                      <div className="text-xs text-red-700 space-y-1">
+                        <div><strong>Chrome:</strong> Click 🔒 in address bar → Site settings → Location → Allow</div>
+                        <div><strong>Safari:</strong> Safari → Settings → This Website → Location → Allow</div>
+                        <div>Then <strong>refresh this page</strong></div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

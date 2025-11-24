@@ -331,17 +331,35 @@ export default function TimeEntriesPage() {
                           {format(new Date(entry.clock_in_time), 'MMM d, h:mm a')}
                         </div>
                         {entry.clock_in_location && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                          <a
+                            href={`https://www.google.com/maps?q=${entry.clock_in_location}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                          >
                             <MapPin className="h-3 w-3" />
-                            GPS
-                          </div>
+                            View GPS
+                          </a>
                         )}
                       </td>
                       <td className="p-3">
                         {entry.clock_out_time ? (
-                          <div className="text-sm">
-                            {format(new Date(entry.clock_out_time), 'MMM d, h:mm a')}
-                          </div>
+                          <>
+                            <div className="text-sm">
+                              {format(new Date(entry.clock_out_time), 'MMM d, h:mm a')}
+                            </div>
+                            {entry.clock_out_location && (
+                              <a
+                                href={`https://www.google.com/maps?q=${entry.clock_out_location}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                              >
+                                <MapPin className="h-3 w-3" />
+                                View GPS
+                              </a>
+                            )}
+                          </>
                         ) : (
                           <span className="text-xs text-blue-600 font-medium">
                             Still clocked in
@@ -422,6 +440,17 @@ export default function TimeEntriesPage() {
                     <div className="font-medium">
                       {format(new Date(selectedEntry.clock_in_time), 'MMM d, yyyy h:mm a')}
                     </div>
+                    {selectedEntry.clock_in_location && (
+                      <a
+                        href={`https://www.google.com/maps?q=${selectedEntry.clock_in_location}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        View GPS Location
+                      </a>
+                    )}
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground mb-1">Clock Out</div>
@@ -430,6 +459,17 @@ export default function TimeEntriesPage() {
                         ? format(new Date(selectedEntry.clock_out_time), 'MMM d, yyyy h:mm a')
                         : 'Not clocked out'}
                     </div>
+                    {selectedEntry.clock_out_location && (
+                      <a
+                        href={`https://www.google.com/maps?q=${selectedEntry.clock_out_location}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        View GPS Location
+                      </a>
+                    )}
                   </div>
                 </div>
 

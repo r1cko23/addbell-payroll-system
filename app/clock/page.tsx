@@ -19,8 +19,12 @@ interface ClockEntry {
   id: string;
   clock_in_time: string;
   clock_out_time: string | null;
+  clock_in_location: string | null;
+  clock_out_location: string | null;
   status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected';
   total_hours: number | null;
+  regular_hours: number | null;
+  overtime_hours: number | null;
   employee_notes: string | null;
 }
 
@@ -29,6 +33,7 @@ export default function ClockPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [currentEntry, setCurrentEntry] = useState<ClockEntry | null>(null);
+  const [todayEntries, setTodayEntries] = useState<ClockEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [notes, setNotes] = useState('');
@@ -49,23 +54,37 @@ export default function ClockPage() {
   useEffect(() => {
     if (selectedEmployeeId) {
       checkClockStatus();
+      fetchTodayEntries();
+    } else {
+      setCurrentEntry(null);
+      setTodayEntries([]);
     }
   }, [selectedEmployeeId]);
 
-  // Get location (optional)
+  // Get location on component mount and keep it updated
   useEffect(() => {
     if (navigator.geolocation) {
+      // Get initial location
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
+          toast.success('📍 Location detected', { duration: 2000 });
         },
         (error) => {
           console.log('Location not available:', error);
+          toast.error('⚠️ Location access denied - clock in/out will work but without GPS', { duration: 3000 });
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
         }
       );
+    } else {
+      toast.error('⚠️ Your browser doesn\'t support location tracking');
     }
   }, []);
 
@@ -103,6 +122,30 @@ export default function ClockPage() {
     }
 
     setCurrentEntry(data || null);
+  }
+
+  async function fetchTodayEntries() {
+    if (!selectedEmployeeId) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const { data, error } = await supabase
+      .from('time_clock_entries')
+      .select('*')
+      .eq('employee_id', selectedEmployeeId)
+      .gte('clock_in_time', today.toISOString())
+      .lt('clock_in_time', tomorrow.toISOString())
+      .order('clock_in_time', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching today entries:', error);
+      return;
+    }
+
+    setTodayEntries(data || []);
   }
 
   async function handleClockIn() {
@@ -147,6 +190,7 @@ export default function ClockPage() {
     setCurrentEntry(data);
     setNotes('');
     toast.success('Clocked in successfully! ✅');
+    fetchTodayEntries(); // Refresh today's entries
   }
 
   async function handleClockOut() {
@@ -182,6 +226,7 @@ export default function ClockPage() {
     toast.success('Clocked out successfully! 👋');
     setCurrentEntry(null);
     setNotes('');
+    fetchTodayEntries(); // Refresh today's entries
   }
 
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
@@ -253,12 +298,34 @@ export default function ClockPage() {
               </div>
 
               {/* Location Status */}
-              {location && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3" />
-                  <span>Location tracking enabled</span>
+              <div className="p-3 bg-muted rounded-lg border">
+                <div className="flex items-center gap-2 text-sm">
+                  <MapPin className={`h-4 w-4 ${location ? 'text-green-600' : 'text-gray-400'}`} />
+                  <span className="font-medium">
+                    {location ? 'GPS Location Detected' : 'Location Not Available'}
+                  </span>
                 </div>
-              )}
+                {location && (
+                  <div className="mt-2 space-y-1">
+                    <div className="text-xs text-muted-foreground">
+                      📍 Lat: {location.lat.toFixed(6)}, Lng: {location.lng.toFixed(6)}
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${location.lat},${location.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      View on Google Maps →
+                    </a>
+                  </div>
+                )}
+                {!location && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Clock in/out will still work, but location won't be recorded
+                  </p>
+                )}
+              </div>
 
               {/* Clock In/Out Buttons */}
               <div className="space-y-3">
@@ -361,6 +428,131 @@ export default function ClockPage() {
           </Card>
         </div>
 
+        {/* Today's Entries */}
+        {selectedEmployee && todayEntries.length > 0 && (
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Today's Clock Entries ({todayEntries.length})
+            </h3>
+
+            <div className="space-y-3">
+              {todayEntries.map((entry, index) => (
+                <div
+                  key={entry.id}
+                  className={`p-4 rounded-lg border ${
+                    entry.status === 'clocked_in'
+                      ? 'bg-green-50 border-green-200'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-sm">Shift {todayEntries.length - index}</span>
+                        {entry.status === 'clocked_in' && (
+                          <span className="px-2 py-0.5 bg-green-600 text-white text-xs rounded-full flex items-center gap-1">
+                            <div className="h-2 w-2 bg-white rounded-full animate-pulse" />
+                            Active Now
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Clock In:</span>
+                          <div className="font-medium">
+                            {new Date(entry.clock_in_time).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </div>
+                          {entry.clock_in_location && (
+                            <a
+                              href={`https://www.google.com/maps?q=${entry.clock_in_location}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <MapPin className="h-3 w-3" />
+                              View location
+                            </a>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-muted-foreground">Clock Out:</span>
+                          <div className="font-medium">
+                            {entry.clock_out_time ? (
+                              new Date(entry.clock_out_time).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            ) : (
+                              <span className="text-green-600">Still working...</span>
+                            )}
+                          </div>
+                          {entry.clock_out_location && (
+                            <a
+                              href={`https://www.google.com/maps?q=${entry.clock_out_location}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <MapPin className="h-3 w-3" />
+                              View location
+                            </a>
+                          )}
+                        </div>
+
+                        {entry.total_hours && (
+                          <>
+                            <div>
+                              <span className="text-muted-foreground">Total Hours:</span>
+                              <div className="font-bold text-lg">
+                                {entry.total_hours.toFixed(2)}h
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Breakdown:</span>
+                              <div className="text-xs space-y-0.5">
+                                <div>Regular: {entry.regular_hours?.toFixed(2) || 0}h</div>
+                                {entry.overtime_hours && entry.overtime_hours > 0 && (
+                                  <div className="text-orange-600 font-medium">
+                                    OT: {entry.overtime_hours.toFixed(2)}h
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {entry.employee_notes && (
+                        <div className="mt-2 p-2 bg-white rounded border text-sm">
+                          <span className="text-muted-foreground text-xs">Note:</span>
+                          <div className="mt-1">{entry.employee_notes}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-blue-900">Total Hours Today:</span>
+                  <span className="text-xl font-bold text-blue-900">
+                    {todayEntries
+                      .reduce((sum, entry) => sum + (entry.total_hours || 0), 0)
+                      .toFixed(2)}h
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Help Text */}
         <Card className="p-4 bg-blue-50 border-blue-200">
           <div className="flex gap-3">
@@ -371,7 +563,9 @@ export default function ClockPage() {
                 <li>Select your name from the dropdown</li>
                 <li>Click "Clock In" when you start work</li>
                 <li>Click "Clock Out" when you finish work</li>
+                <li><strong>Multiple shifts per day?</strong> Just clock in/out again!</li>
                 <li>Your hours will be automatically calculated</li>
+                <li>GPS location is recorded for verification</li>
                 <li>HR can review and approve your time entries</li>
               </ul>
             </div>

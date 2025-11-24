@@ -294,12 +294,19 @@ export default function EmployeePortalPage() {
               </button>
             </div>
 
-            {location && (
-              <div className="text-sm text-green-600 flex items-center justify-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span>GPS Location Active</span>
-              </div>
-            )}
+            <div className="mt-4">
+              {location ? (
+                <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full">
+                  <MapPin className="h-4 w-4" />
+                  <span>GPS Location Active</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 text-sm text-yellow-600 bg-yellow-50 px-4 py-2 rounded-full">
+                  <MapPin className="h-4 w-4" />
+                  <span>Location unavailable (Clock in/out still works)</span>
+                </div>
+              )}
+            </div>
           </div>
         </Card>
 

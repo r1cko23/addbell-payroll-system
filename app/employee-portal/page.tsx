@@ -434,11 +434,11 @@ export default function EmployeePortalPage() {
                       <td className="p-3 text-center">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           entry.status === 'clocked_in' ? 'bg-green-100 text-green-800' :
-                          entry.status === 'approved' ? 'bg-blue-100 text-blue-800' :
+                          entry.status === 'approved' || entry.status === 'auto_approved' ? 'bg-blue-100 text-blue-800' :
                           'bg-yellow-100 text-yellow-800'
                         }`}>
                           {entry.status === 'clocked_in' ? 'ACTIVE' :
-                           entry.status === 'approved' ? 'APPROVED' : 'PENDING'}
+                           entry.status === 'approved' || entry.status === 'auto_approved' ? 'APPROVED' : 'PENDING'}
                         </span>
                       </td>
                     </tr>

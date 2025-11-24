@@ -171,11 +171,19 @@ export default function TimeEntriesPage() {
       clocked_in: 'bg-blue-100 text-blue-800',
       clocked_out: 'bg-yellow-100 text-yellow-800',
       approved: 'bg-green-100 text-green-800',
+      auto_approved: 'bg-green-100 text-green-800',
       rejected: 'bg-red-100 text-red-800',
+    };
+    const labels = {
+      clocked_in: 'CLOCKED IN',
+      clocked_out: 'CLOCKED OUT',
+      approved: 'APPROVED',
+      auto_approved: 'AUTO APPROVED',
+      rejected: 'REJECTED',
     };
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles]}`}>
-        {status.replace('_', ' ').toUpperCase()}
+        {labels[status as keyof typeof labels] || status.replace('_', ' ').toUpperCase()}
       </span>
     );
   };
@@ -183,7 +191,7 @@ export default function TimeEntriesPage() {
   const stats = {
     total: entries.length,
     pending: entries.filter(e => e.status === 'clocked_out').length,
-    approved: entries.filter(e => e.status === 'approved').length,
+    approved: entries.filter(e => e.status === 'approved' || e.status === 'auto_approved').length,
     totalHours: entries.reduce((sum, e) => sum + (e.total_hours || 0), 0),
   };
 
@@ -412,7 +420,7 @@ export default function TimeEntriesPage() {
                               </Button>
                             </>
                           )}
-                          {entry.status === 'approved' && (
+                          {(entry.status === 'approved' || entry.status === 'auto_approved') && (
                             <span className="text-xs text-green-600">✓ Approved</span>
                           )}
                           {entry.status === 'rejected' && (

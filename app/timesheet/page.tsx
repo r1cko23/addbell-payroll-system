@@ -14,7 +14,8 @@ import { calculateDailyPay, getDayTypeLabel } from '@/utils/payroll-calculator';
 import { formatCurrency } from '@/utils/format';
 import type { Holiday } from '@/utils/holidays';
 import type { DailyAttendance } from '@/utils/payroll-calculator';
-import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Clock } from 'lucide-react';
+import { generateWeeklySummary } from '@/lib/timekeeper';
 
 interface Employee {
   id: string;
@@ -313,6 +314,60 @@ export default function TimesheetPage() {
     } catch (error) {
       console.error('Error copying last week:', error);
       toast.error('Failed to copy last week\'s data');
+    }
+  }
+
+  async function autoImportFromClockEntries() {
+    if (!selectedEmployee) {
+      toast.error('Please select an employee first');
+      return;
+    }
+
+    try {
+      toast.loading('Importing clock entries...');
+      
+      const summary = await generateWeeklySummary(selectedEmployee.id, weekStart);
+
+      if (summary.totalHours === 0) {
+        toast.dismiss();
+        toast.error('No approved clock entries found for this week');
+        return;
+      }
+
+      // Map clock entries to timesheet days
+      const updatedDays = weekDays.map((day) => {
+        const dailySummary = summary.dailySummaries.get(day.date);
+        
+        if (!dailySummary) {
+          // No entries for this day
+          return day;
+        }
+
+        // Calculate the amount with the employee's rate
+        const calculation = calculateDailyPay(
+          day.dayType as any,
+          dailySummary.regularHours,
+          dailySummary.overtimeHours,
+          dailySummary.nightDiffHours,
+          selectedEmployee.rate_per_hour
+        );
+
+        return {
+          ...day,
+          regularHours: dailySummary.regularHours,
+          overtimeHours: dailySummary.overtimeHours,
+          nightDiffHours: dailySummary.nightDiffHours,
+          amount: calculation.total,
+        };
+      });
+
+      setWeekDays(updatedDays);
+      toast.dismiss();
+      toast.success(`✅ Imported ${summary.totalHours.toFixed(1)} hours from clock entries`);
+    } catch (error) {
+      console.error('Error importing clock entries:', error);
+      toast.dismiss();
+      toast.error('Failed to import clock entries');
     }
   }
 
@@ -651,6 +706,15 @@ export default function TimesheetPage() {
               <h4 className="text-sm font-semibold text-blue-900 mb-3">⚡ Quick Fill Templates</h4>
               <div className="flex flex-wrap gap-2">
                 <Button 
+                  variant="primary" 
+                  size="sm"
+                  onClick={autoImportFromClockEntries}
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                >
+                  <Clock className="h-4 w-4 mr-1" />
+                  Import Clock Entries
+                </Button>
+                <Button 
                   variant="secondary" 
                   size="sm"
                   onClick={applyStandardWeek}
@@ -673,7 +737,7 @@ export default function TimesheetPage() {
                 </Button>
               </div>
               <p className="text-xs text-blue-700 mt-2">
-                💡 Tip: Use templates to speed up entry, then adjust individual days as needed
+                💡 Tip: Use "Import Clock Entries" to automatically fill hours from employee clock in/out records
               </p>
             </div>
 

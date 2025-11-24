@@ -510,11 +510,11 @@ export default function AdminDashboardPage() {
                   </div>
                 </Button>
               </Link>
-              <Link href="/settings">
+              <Link href="/time-entries">
                 <Button variant="outline" className="w-full h-20">
                   <div className="flex flex-col items-center gap-2">
-                    <Building2 className="h-5 w-5" />
-                    <span className="text-sm">Settings</span>
+                    <Clock className="h-5 w-5" />
+                    <span className="text-sm">Time Entries</span>
                   </div>
                 </Button>
               </Link>

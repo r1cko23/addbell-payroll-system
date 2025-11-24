@@ -359,7 +359,41 @@ export default function HRDashboard() {
             <CardTitle className="text-foreground">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+              <Link href="/clock">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4 px-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-lg bg-purple-500/10 p-2">
+                      <Clock className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-foreground">Time Clock</div>
+                      <div className="text-sm text-muted-foreground">Clock in/out employees</div>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+
+              <Link href="/time-entries">
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-auto py-4 px-4"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-lg bg-orange-500/10 p-2">
+                      <Clock className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-semibold text-foreground">Time Entries</div>
+                      <div className="text-sm text-muted-foreground">Review clock entries</div>
+                    </div>
+                  </div>
+                </Button>
+              </Link>
+
               <Link href="/timesheet">
                 <Button
                   variant="outline"

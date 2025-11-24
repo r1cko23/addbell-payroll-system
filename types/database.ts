@@ -320,6 +320,130 @@ export interface Database {
           created_at?: string
         }
       }
+      time_clock_entries: {
+        Row: {
+          id: string
+          employee_id: string
+          clock_in_time: string
+          clock_in_location: string | null
+          clock_in_ip: string | null
+          clock_in_device: string | null
+          clock_in_photo: string | null
+          clock_out_time: string | null
+          clock_out_location: string | null
+          clock_out_ip: string | null
+          clock_out_device: string | null
+          clock_out_photo: string | null
+          total_hours: number | null
+          regular_hours: number | null
+          overtime_hours: number | null
+          night_diff_hours: number | null
+          status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected'
+          employee_notes: string | null
+          hr_notes: string | null
+          is_manual_entry: boolean
+          break_start_time: string | null
+          break_end_time: string | null
+          total_break_minutes: number
+          created_at: string
+          updated_at: string
+          approved_by: string | null
+          approved_at: string | null
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          clock_in_time: string
+          clock_in_location?: string | null
+          clock_in_ip?: string | null
+          clock_in_device?: string | null
+          clock_in_photo?: string | null
+          clock_out_time?: string | null
+          clock_out_location?: string | null
+          clock_out_ip?: string | null
+          clock_out_device?: string | null
+          clock_out_photo?: string | null
+          total_hours?: number | null
+          regular_hours?: number | null
+          overtime_hours?: number | null
+          night_diff_hours?: number | null
+          status?: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected'
+          employee_notes?: string | null
+          hr_notes?: string | null
+          is_manual_entry?: boolean
+          break_start_time?: string | null
+          break_end_time?: string | null
+          total_break_minutes?: number
+          created_at?: string
+          updated_at?: string
+          approved_by?: string | null
+          approved_at?: string | null
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          clock_in_time?: string
+          clock_in_location?: string | null
+          clock_in_ip?: string | null
+          clock_in_device?: string | null
+          clock_in_photo?: string | null
+          clock_out_time?: string | null
+          clock_out_location?: string | null
+          clock_out_ip?: string | null
+          clock_out_device?: string | null
+          clock_out_photo?: string | null
+          total_hours?: number | null
+          regular_hours?: number | null
+          overtime_hours?: number | null
+          night_diff_hours?: number | null
+          status?: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected'
+          employee_notes?: string | null
+          hr_notes?: string | null
+          is_manual_entry?: boolean
+          break_start_time?: string | null
+          break_end_time?: string | null
+          total_break_minutes?: number
+          created_at?: string
+          updated_at?: string
+          approved_by?: string | null
+          approved_at?: string | null
+        }
+      }
+      employee_schedules: {
+        Row: {
+          id: string
+          employee_id: string
+          day_of_week: number
+          shift_start_time: string
+          shift_end_time: string
+          break_duration_minutes: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          day_of_week: number
+          shift_start_time: string
+          shift_end_time: string
+          break_duration_minutes?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          day_of_week?: number
+          shift_start_time?: string
+          shift_end_time?: string
+          break_duration_minutes?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

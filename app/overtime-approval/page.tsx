@@ -275,8 +275,17 @@ export default function OvertimeApprovalPage() {
                         {request.ot_hours}h
                       </td>
                       <td className="p-3">
-                        <div className="text-sm max-w-xs truncate">
-                          {request.work_description}
+                        <div className="text-sm max-w-xs">
+                          {request.work_description.startsWith('Auto-detected:') ? (
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
+                                AUTO
+                              </span>
+                              <span className="truncate">{request.work_description}</span>
+                            </div>
+                          ) : (
+                            <div className="truncate">{request.work_description}</div>
+                          )}
                         </div>
                       </td>
                       <td className="p-3 text-center">
@@ -366,10 +375,27 @@ export default function OvertimeApprovalPage() {
 
                 {/* Work Description */}
                 <div>
-                  <div className="text-sm text-muted-foreground mb-1">Work Description</div>
-                  <div className="p-3 bg-muted rounded border">
+                  <div className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
+                    Work Description
+                    {selectedRequest.work_description.startsWith('Auto-detected:') && (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded font-semibold">
+                        AUTO-DETECTED
+                      </span>
+                    )}
+                  </div>
+                  <div className={`p-3 rounded border ${
+                    selectedRequest.work_description.startsWith('Auto-detected:')
+                      ? 'bg-blue-50 border-blue-200'
+                      : 'bg-muted'
+                  }`}>
                     {selectedRequest.work_description}
                   </div>
+                  {selectedRequest.work_description.startsWith('Auto-detected:') && (
+                    <p className="text-xs text-blue-600 mt-2">
+                      ℹ️ This OT was automatically detected when the employee clocked out after scheduled hours.
+                      Please verify and approve if the overtime was authorized.
+                    </p>
+                  )}
                 </div>
 
                 {/* Rejection Reason (if applicable) */}

@@ -360,19 +360,21 @@ export default function EmployeePortalPage() {
             </div>
           </Card>
 
-          <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => router.push('/employee-portal/overtime-request')}>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <FileText className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <div className="text-sm text-gray-600">File OT</div>
-                <div className="text-lg font-bold text-orange-600">
-                  Request →
+          <div onClick={() => router.push('/employee-portal/overtime-request')} className="cursor-pointer">
+            <Card className="p-6 hover:shadow-lg transition-shadow">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-orange-600" />
+                </div>
+                <div>
+                  <div className="text-sm text-gray-600">File OT</div>
+                  <div className="text-lg font-bold text-orange-600">
+                    Request →
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
 
         {/* Time Attendance */}

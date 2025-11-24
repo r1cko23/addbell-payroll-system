@@ -438,7 +438,7 @@ export default function OvertimeApprovalPage() {
                   {selectedRequest.status === 'pending' && (
                     <>
                       <Button
-                        variant="destructive"
+                        variant="danger"
                         onClick={() => handleReject(selectedRequest.id)}
                       >
                         <X className="h-4 w-4 mr-2" />

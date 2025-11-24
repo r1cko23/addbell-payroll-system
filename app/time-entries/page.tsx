@@ -31,7 +31,7 @@ interface TimeEntry {
   regular_hours: number | null;
   overtime_hours: number | null;
   night_diff_hours: number | null;
-  status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected';
+  status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected' | 'auto_approved' | 'pending';
   employee_notes: string | null;
   hr_notes: string | null;
   clock_in_location: string | null;
@@ -559,7 +559,7 @@ export default function TimeEntriesPage() {
                     Cancel
                   </Button>
                   <Button
-                    variant="destructive"
+                    variant="danger"
                     onClick={() => handleReject(selectedEntry.id)}
                   >
                     <X className="h-4 w-4 mr-2" />

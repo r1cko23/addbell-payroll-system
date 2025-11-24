@@ -341,7 +341,7 @@ export interface Database {
           regular_hours: number | null
           overtime_hours: number | null
           night_diff_hours: number | null
-          status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected'
+          status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected' | 'auto_approved' | 'pending'
           employee_notes: string | null
           hr_notes: string | null
           is_manual_entry: boolean
@@ -370,7 +370,7 @@ export interface Database {
           regular_hours?: number | null
           overtime_hours?: number | null
           night_diff_hours?: number | null
-          status?: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected'
+          status?: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected' | 'auto_approved' | 'pending'
           employee_notes?: string | null
           hr_notes?: string | null
           is_manual_entry?: boolean
@@ -399,7 +399,7 @@ export interface Database {
           regular_hours?: number | null
           overtime_hours?: number | null
           night_diff_hours?: number | null
-          status?: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected'
+          status?: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected' | 'auto_approved' | 'pending'
           employee_notes?: string | null
           hr_notes?: string | null
           is_manual_entry?: boolean

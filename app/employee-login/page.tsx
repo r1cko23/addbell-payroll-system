@@ -31,36 +31,39 @@ export default function EmployeeLoginPage() {
     setLoading(true);
 
     try {
-      // Check if employee exists with matching password
-      const { data: employee, error } = await supabase
-        .from('employees')
-        .select('id, employee_id, full_name, is_active, portal_password')
-        .eq('employee_id', employeeId.trim())
-        .eq('is_active', true)
-        .single();
+      // Call secure authentication function
+      const { data, error } = await supabase.rpc('authenticate_employee', {
+        p_employee_id: employeeId.trim(),
+        p_password: password.trim()
+      });
 
-      if (error || !employee) {
-        toast.error('Employee ID not found or inactive');
+      if (error) {
+        console.error('Authentication error:', error);
+        toast.error('Login failed. Please try again.');
         setLoading(false);
         return;
       }
 
-      // Check password (simple string comparison for now)
-      if (employee.portal_password !== password.trim()) {
-        toast.error('Incorrect password');
+      // Check if authentication was successful
+      if (!data || data.length === 0 || !data[0].success) {
+        const errorMessage = data && data[0] ? data[0].error_message : 'Invalid credentials';
+        toast.error(errorMessage);
         setLoading(false);
         return;
       }
+
+      // Parse employee data from response
+      const employeeData = data[0].employee_data;
 
       // Store employee session in localStorage
       localStorage.setItem('employee_session', JSON.stringify({
-        id: employee.id,
-        employee_id: employee.employee_id,
-        full_name: employee.full_name,
+        id: employeeData.id,
+        employee_id: employeeData.employee_id,
+        full_name: employeeData.full_name,
         loginTime: new Date().toISOString()
       }));
 
-      toast.success(`Welcome, ${employee.full_name}!`);
+      toast.success(`Welcome, ${employeeData.full_name}!`);
       router.push('/employee-portal');
     } catch (error) {
       console.error('Login error:', error);

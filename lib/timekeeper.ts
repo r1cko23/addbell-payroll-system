@@ -59,7 +59,7 @@ export async function fetchWeeklyTimeEntries(
     .eq('employee_id', employeeId)
     .gte('clock_in_time', weekStart.toISOString())
     .lte('clock_in_time', weekEnd.toISOString())
-    .in('status', ['clocked_out', 'approved']) // Only include completed entries
+    .in('status', ['clocked_out', 'approved', 'auto_approved']) // Include all completed entries
     .order('clock_in_time', { ascending: true });
 
   if (error) {

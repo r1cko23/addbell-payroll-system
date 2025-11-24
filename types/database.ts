@@ -46,6 +46,7 @@ export interface Database {
           rate_per_day: number
           rate_per_hour: number
           is_active: boolean
+          portal_password: string | null
           created_at: string
           updated_at: string
           created_by: string | null
@@ -57,6 +58,7 @@ export interface Database {
           rate_per_day: number
           rate_per_hour: number
           is_active?: boolean
+          portal_password?: string | null
           created_at?: string
           updated_at?: string
           created_by?: string | null
@@ -68,6 +70,7 @@ export interface Database {
           rate_per_day?: number
           rate_per_hour?: number
           is_active?: boolean
+          portal_password?: string | null
           created_at?: string
           updated_at?: string
           created_by?: string | null

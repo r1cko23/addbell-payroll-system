@@ -10,6 +10,7 @@ import { Clock, User, Lock } from 'lucide-react';
 
 export default function EmployeeLoginPage() {
   const [employeeId, setEmployeeId] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
@@ -22,19 +23,31 @@ export default function EmployeeLoginPage() {
       return;
     }
 
+    if (!password.trim()) {
+      toast.error('Please enter your password');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Check if employee exists
+      // Check if employee exists with matching password
       const { data: employee, error } = await supabase
         .from('employees')
-        .select('id, employee_id, full_name, is_active')
+        .select('id, employee_id, full_name, is_active, portal_password')
         .eq('employee_id', employeeId.trim())
         .eq('is_active', true)
         .single();
 
       if (error || !employee) {
         toast.error('Employee ID not found or inactive');
+        setLoading(false);
+        return;
+      }
+
+      // Check password (simple string comparison for now)
+      if (employee.portal_password !== password.trim()) {
+        toast.error('Incorrect password');
         setLoading(false);
         return;
       }
@@ -61,8 +74,15 @@ export default function EmployeeLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-600 rounded-full mb-4">
-            <Clock className="h-10 w-10 text-white" />
+          <div className="flex justify-center mb-4">
+            <img 
+              src="/Official Logo Cropped.jpg" 
+              alt="Add-bell Technical Services" 
+              className="h-24 w-auto"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           </div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             Employee Portal
@@ -91,10 +111,34 @@ export default function EmployeeLoginPage() {
                   className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-lg"
                   disabled={loading}
                   autoFocus
+                  required
                 />
               </div>
               <p className="mt-2 text-xs text-gray-500">
                 Example: 2014-027
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-lg"
+                  disabled={loading}
+                  required
+                />
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Default password is your Employee ID
               </p>
             </div>
 

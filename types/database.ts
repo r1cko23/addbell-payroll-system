@@ -447,12 +447,68 @@ export interface Database {
           updated_at?: string
         }
       }
+      office_locations: {
+        Row: {
+          id: string
+          name: string
+          address: string | null
+          latitude: number
+          longitude: number
+          radius_meters: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          address?: string | null
+          latitude: number
+          longitude: number
+          radius_meters?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          address?: string | null
+          latitude?: number
+          longitude?: number
+          radius_meters?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_location_allowed: {
+        Args: {
+          p_latitude: number
+          p_longitude: number
+        }
+        Returns: {
+          is_allowed: boolean
+          nearest_location_id: string | null
+          nearest_location_name: string | null
+          distance_meters: number | null
+          error_message: string | null
+        }[]
+      }
+      calculate_distance: {
+        Args: {
+          lat1: number
+          lon1: number
+          lat2: number
+          lon2: number
+        }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

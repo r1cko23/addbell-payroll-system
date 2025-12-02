@@ -38,6 +38,12 @@ export default function EmployeePortalPage() {
   const [weekEntries, setWeekEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<{
+    isAllowed: boolean;
+    nearestLocation: string | null;
+    distance: number | null;
+    error: string | null;
+  } | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -55,11 +61,14 @@ export default function EmployeePortalPage() {
     // Get location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
+        async (position) => {
+          const loc = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
+          };
+          setLocation(loc);
+          // Validate location
+          await validateLocation(loc.lat, loc.lng);
         },
         (error) => console.log('Location not available:', error),
         { enableHighAccuracy: true }
@@ -78,6 +87,34 @@ export default function EmployeePortalPage() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  async function validateLocation(lat: number, lng: number) {
+    const { data, error } = await supabase.rpc('is_location_allowed', {
+      p_latitude: lat,
+      p_longitude: lng,
+    });
+
+    if (error) {
+      console.error('Location validation error:', error);
+      setLocationStatus({
+        isAllowed: false,
+        nearestLocation: null,
+        distance: null,
+        error: 'Failed to validate location',
+      });
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      setLocationStatus({
+        isAllowed: result.is_allowed,
+        nearestLocation: result.nearest_location_name,
+        distance: result.distance_meters ? Math.round(result.distance_meters) : null,
+        error: result.error_message,
+      });
+    }
+  }
 
   async function checkClockStatus() {
     if (!employee) return;
@@ -132,6 +169,24 @@ export default function EmployeePortalPage() {
       return;
     }
 
+    // Validate location if status is available
+    if (locationStatus && !locationStatus.isAllowed) {
+      toast.error(`🚫 ${locationStatus.error || 'You are not at an allowed location'}`);
+      return;
+    }
+
+    // Re-validate location before clocking in
+    await validateLocation(location.lat, location.lng);
+    const { data: validationData } = await supabase.rpc('is_location_allowed', {
+      p_latitude: location.lat,
+      p_longitude: location.lng,
+    });
+
+    if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
+      toast.error(`🚫 ${validationData[0].error_message || 'You are not at an allowed location'}`);
+      return;
+    }
+
     const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 
     const { data, error } = await supabase
@@ -161,6 +216,24 @@ export default function EmployeePortalPage() {
     // GPS is REQUIRED - block if not available
     if (!location) {
       toast.error('📍 Please enable location services to clock out');
+      return;
+    }
+
+    // Validate location if status is available
+    if (locationStatus && !locationStatus.isAllowed) {
+      toast.error(`🚫 ${locationStatus.error || 'You are not at an allowed location'}`);
+      return;
+    }
+
+    // Re-validate location before clocking out
+    await validateLocation(location.lat, location.lng);
+    const { data: validationData } = await supabase.rpc('is_location_allowed', {
+      p_latitude: location.lat,
+      p_longitude: location.lng,
+    });
+
+    if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
+      toast.error(`🚫 ${validationData[0].error_message || 'You are not at an allowed location'}`);
       return;
     }
 
@@ -273,11 +346,11 @@ export default function EmployeePortalPage() {
             <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto mt-6">
               <button
                 onClick={handleClockIn}
-                disabled={!!currentEntry || !location}
+                disabled={!!currentEntry || !location || (locationStatus?.isAllowed === false)}
                 className={`
                   py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
                   transition-all duration-200 transform
-                  ${currentEntry || !location
+                  ${currentEntry || !location || (locationStatus?.isAllowed === false)
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 hover:scale-105 shadow-lg'
                   }
@@ -288,11 +361,11 @@ export default function EmployeePortalPage() {
 
               <button
                 onClick={handleClockOut}
-                disabled={!currentEntry || !location}
+                disabled={!currentEntry || !location || (locationStatus?.isAllowed === false)}
                 className={`
                   py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
                   transition-all duration-200 transform
-                  ${!currentEntry || !location
+                  ${!currentEntry || !location || (locationStatus?.isAllowed === false)
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-105 shadow-lg'
                   }
@@ -304,10 +377,41 @@ export default function EmployeePortalPage() {
 
             <div className="mt-4">
               {location ? (
-                <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200">
-                  <MapPin className="h-4 w-4" />
-                  <span className="font-medium">GPS Location Active ✓</span>
-                </div>
+                locationStatus ? (
+                  locationStatus.isAllowed ? (
+                    <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200">
+                      <MapPin className="h-4 w-4" />
+                      <span className="font-medium">
+                        ✓ At {locationStatus.nearestLocation || 'Office'}
+                        {locationStatus.distance !== null && ` (${locationStatus.distance}m away)`}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 max-w-md mx-auto">
+                      <div className="flex items-start gap-3">
+                        <MapPin className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-left">
+                          <div className="font-bold text-red-900 mb-1">
+                            🚫 Location Not Allowed
+                          </div>
+                          <div className="text-sm text-red-800 mb-2">
+                            {locationStatus.error || 'You must be at an allowed office location to clock in/out.'}
+                          </div>
+                          {locationStatus.nearestLocation && locationStatus.distance !== null && (
+                            <div className="text-xs text-red-700">
+                              Nearest: {locationStatus.nearestLocation} ({locationStatus.distance}m away)
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div className="inline-flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-4 py-2 rounded-full border border-blue-200">
+                    <MapPin className="h-4 w-4" />
+                    <span className="font-medium">GPS Location Active - Validating...</span>
+                  </div>
+                )
               ) : (
                 <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4 max-w-md mx-auto">
                   <div className="flex items-start gap-3">

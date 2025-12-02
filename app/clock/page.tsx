@@ -37,6 +37,12 @@ export default function ClockPage() {
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<{
+    isAllowed: boolean;
+    nearestLocation: string | null;
+    distance: number | null;
+    error: string | null;
+  } | null>(null);
 
   // Update current time every second
   useEffect(() => {
@@ -64,11 +70,14 @@ export default function ClockPage() {
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
+        async (position) => {
+          const loc = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-          });
+          };
+          setLocation(loc);
+          // Validate location
+          await validateLocation(loc.lat, loc.lng);
         },
         (error) => {
           console.log('Location not available:', error);
@@ -81,6 +90,34 @@ export default function ClockPage() {
       );
     }
   }, []);
+
+  async function validateLocation(lat: number, lng: number) {
+    const { data, error } = await supabase.rpc('is_location_allowed', {
+      p_latitude: lat,
+      p_longitude: lng,
+    });
+
+    if (error) {
+      console.error('Location validation error:', error);
+      setLocationStatus({
+        isAllowed: false,
+        nearestLocation: null,
+        distance: null,
+        error: 'Failed to validate location',
+      });
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const result = data[0];
+      setLocationStatus({
+        isAllowed: result.is_allowed,
+        nearestLocation: result.nearest_location_name,
+        distance: result.distance_meters ? Math.round(result.distance_meters) : null,
+        error: result.error_message,
+      });
+    }
+  }
 
   async function fetchEmployees() {
     const { data, error } = await supabase
@@ -155,6 +192,23 @@ export default function ClockPage() {
 
     setLoading(true);
 
+    // Validate location if available
+    if (location) {
+      await validateLocation(location.lat, location.lng);
+      const { data: validationData } = await supabase.rpc('is_location_allowed', {
+        p_latitude: location.lat,
+        p_longitude: location.lng,
+      });
+
+      if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
+        const proceed = confirm(`⚠️ Location Warning: ${validationData[0].error_message}\n\nDo you want to proceed anyway?`);
+        if (!proceed) {
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     const locationString = location 
       ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
       : null;
@@ -191,6 +245,23 @@ export default function ClockPage() {
     }
 
     setLoading(true);
+
+    // Validate location if available
+    if (location) {
+      await validateLocation(location.lat, location.lng);
+      const { data: validationData } = await supabase.rpc('is_location_allowed', {
+        p_latitude: location.lat,
+        p_longitude: location.lng,
+      });
+
+      if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
+        const proceed = confirm(`⚠️ Location Warning: ${validationData[0].error_message}\n\nDo you want to proceed anyway?`);
+        if (!proceed) {
+          setLoading(false);
+          return;
+        }
+      }
+    }
 
     const locationString = location 
       ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`

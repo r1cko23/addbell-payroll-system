@@ -131,7 +131,7 @@ export default function HRDashboard() {
               <p className="text-lg font-semibold text-foreground mt-2">
                 Review approvals and locations
               </p>
-            </div>
+              </div>
             <Link href="/time-entries">
               <Button variant="secondary">Open</Button>
             </Link>
@@ -169,18 +169,18 @@ export default function HRDashboard() {
                           <div>
                             <span className="text-foreground font-medium">{details.name}</span>
                             <div>{details.address}</div>
-                          </div>
-                        </div>
-                      </div>
+                    </div>
+                  </div>
+                    </div>
                       <div className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-full">
                         ACTIVE
-                      </div>
+                  </div>
                     </div>
                   );
                 })}
-              </div>
+                    </div>
             )}
-          </Card>
+        </Card>
 
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between">
@@ -206,7 +206,7 @@ export default function HRDashboard() {
                   return (
                     <div key={entry.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between">
-                        <div>
+              <div>
                           <p className="font-semibold text-foreground">{entry.employees.full_name}</p>
                           <p className="text-xs text-muted-foreground">
                             {statusLabel} · {format(new Date(entry.clock_in_time), 'MMM d, h:mm a')}
@@ -243,7 +243,7 @@ export default function HRDashboard() {
               </div>
             )}
           </Card>
-        </div>
+            </div>
       </div>
     </DashboardLayout>
   );

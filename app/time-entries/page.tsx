@@ -335,7 +335,7 @@ export default function TimeEntriesPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-                <thead className="bg-muted">
+              <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-3 text-sm font-medium">Employee</th>
                   <th className="text-left p-3 text-sm font-medium">Clock In</th>
@@ -510,15 +510,15 @@ export default function TimeEntriesPage() {
                           {selectedClockInDetails.address}
                         </div>
                         {selectedClockInDetails.coordinates && (
-                          <a
+                      <a
                             href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            View GPS Location
-                          </a>
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        View GPS Location
+                      </a>
                         )}
                       </>
                     )}
@@ -539,15 +539,15 @@ export default function TimeEntriesPage() {
                           {selectedClockOutDetails.address}
                         </div>
                         {selectedClockOutDetails.coordinates && (
-                          <a
+                      <a
                             href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            View GPS Location
-                          </a>
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                      >
+                        <MapPin className="h-3 w-3" />
+                        View GPS Location
+                      </a>
                         )}
                       </>
                     )}

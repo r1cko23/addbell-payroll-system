@@ -41,16 +41,14 @@ export default function EmployeeInfoPage() {
   useEffect(() => {
     const fetchInfo = async () => {
       try {
-        const { data, error } = await supabase
-          .from('employees')
-          .select('employee_id, full_name, first_name, last_name, middle_initial, assigned_hotel, is_active, created_at')
-          .eq('id', employee.id)
-          .single();
+        const { data, error } = await supabase.rpc('get_employee_profile', {
+          p_employee_uuid: employee.id,
+        });
 
         if (error) throw error;
 
-        if (data) {
-          setInfo(data as EmployeeInfo);
+        if (data && data.length > 0) {
+          setInfo(data[0] as EmployeeInfo);
         } else {
           setInfo(fallbackInfo);
           setErrorMessage('We could not find your HR profile, so we are showing the basic information from your session.');

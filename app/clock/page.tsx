@@ -202,8 +202,8 @@ export default function ClockPage() {
 
       if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
         toast.error(`📍 Location Error: ${validationData[0].error_message || 'You must be at an allowed location to clock in.'}`);
-        setLoading(false);
-        return;
+          setLoading(false);
+          return;
       }
     }
 
@@ -254,8 +254,8 @@ export default function ClockPage() {
 
       if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
         toast.error(`📍 Location Error: ${validationData[0].error_message || 'You must be at an allowed location to clock in.'}`);
-        setLoading(false);
-        return;
+          setLoading(false);
+          return;
       }
     }
 

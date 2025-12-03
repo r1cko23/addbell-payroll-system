@@ -1,90 +1,96 @@
 /**
- * Bi-Monthly Period Utilities
+ * Bi-Monthly (Semi-Monthly) Period Utilities
  * 
- * Handles bi-monthly payroll periods (every 2 weeks, Monday-Friday)
+ * Handles 2 payout windows each month:
+ *  - 1st period : 1 - 15
+ *  - 2nd period : 16 - end of month (28/30/31 depending on month)
  */
 
-import { startOfWeek, addDays, format, parseISO, isMonday } from 'date-fns';
+import { addDays, format, endOfDay } from 'date-fns';
+
+function getLastDayOfMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
 
 /**
- * Get the start date of the current bi-monthly period
- * Bi-monthly periods start on Monday and span 2 weeks (10 working days)
- * 
- * @param date Reference date (default: today)
- * @returns Start date of the bi-monthly period (Monday)
+ * Get the start date of the current bi-monthly period.
+ * Periods reset on the 1st and 16th day of each month.
  */
 export function getBiMonthlyPeriodStart(date: Date = new Date()): Date {
-  // Find the most recent Monday
-  const monday = startOfWeek(date, { weekStartsOn: 1 }); // 1 = Monday
-  
-  // Check if we're in the first or second week of the bi-monthly period
-  // Bi-monthly periods: Week 1 (Mon-Fri), Week 2 (Mon-Fri)
-  const daysSinceMonday = Math.floor((date.getTime() - monday.getTime()) / (1000 * 60 * 60 * 24));
-  
-  // If we're in the second week (days 5-9), go back to the previous Monday
-  if (daysSinceMonday >= 5) {
-    return monday;
-  } else {
-    // If we're in the first week, check if we need to go back 2 weeks
-    // to get the start of the current bi-monthly period
-    const weeksSinceMonday = Math.floor(daysSinceMonday / 7);
-    if (weeksSinceMonday >= 1) {
-      return addDays(monday, -7); // Go back one week
-    }
-    return monday;
-  }
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+
+  const startDay = day <= 15 ? 1 : 16;
+  return new Date(year, month, startDay);
 }
 
 /**
- * Get the end date of the bi-monthly period
- * @param periodStart Start date of the period
- * @returns End date (Friday, 13 days after start)
+ * Get the end date (calendar day) of the bi-monthly period.
+ *  - If the period started on the 1st, it ends on the 15th.
+ *  - If it started on the 16th, it ends on the last day of the month.
  */
 export function getBiMonthlyPeriodEnd(periodStart: Date): Date {
-  // Bi-monthly period: 2 weeks = 14 days
-  // But we want Friday of the second week, which is 13 days after Monday
-  return addDays(periodStart, 13);
+  const year = periodStart.getFullYear();
+  const month = periodStart.getMonth();
+  const startDay = periodStart.getDate();
+
+  const endDay = startDay === 1 ? 15 : getLastDayOfMonth(year, month);
+  return endOfDay(new Date(year, month, endDay));
 }
 
 /**
- * Get all working days (Monday-Friday) in a bi-monthly period
- * @param periodStart Start date of the period
- * @returns Array of dates for working days
+ * Get all calendar days included in the current bi-monthly period.
+ * This returns 15 days for the first period and 15/16 days for the second,
+ * covering weekends as well so payroll can classify them as rest/holiday.
  */
 export function getBiMonthlyWorkingDays(periodStart: Date): Date[] {
-  const workingDays: Date[] = [];
-  
-  // Bi-monthly period spans 2 weeks (14 days)
-  // Working days: Monday-Friday of week 1 and week 2
-  for (let i = 0; i < 14; i++) {
-    const date = addDays(periodStart, i);
-    const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    
-    // Only include Monday (1) through Friday (5)
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      workingDays.push(date);
-    }
+  const days: Date[] = [];
+  const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+
+  let cursor = new Date(periodStart);
+  while (cursor.getTime() <= periodEnd.getTime()) {
+    days.push(new Date(cursor));
+    cursor = addDays(cursor, 1);
   }
   
-  return workingDays;
+  return days;
 }
 
 /**
- * Get the next bi-monthly period
- * @param currentPeriodStart Current period start date
- * @returns Next period start date
+ * Get the next bi-monthly period start date.
+ *  - 1st period -> 16th of the same month
+ *  - 2nd period -> 1st of the next month
  */
 export function getNextBiMonthlyPeriod(currentPeriodStart: Date): Date {
-  return addDays(currentPeriodStart, 14); // 2 weeks later
+  const year = currentPeriodStart.getFullYear();
+  const month = currentPeriodStart.getMonth();
+  const day = currentPeriodStart.getDate();
+
+  if (day === 1) {
+    return new Date(year, month, 16);
+  }
+
+  return new Date(year, month + 1, 1);
 }
 
 /**
- * Get the previous bi-monthly period
- * @param currentPeriodStart Current period start date
- * @returns Previous period start date
+ * Get the previous bi-monthly period start date.
+ *  - 2nd period -> 1st of the same month
+ *  - 1st period -> 16th of the previous month
  */
 export function getPreviousBiMonthlyPeriod(currentPeriodStart: Date): Date {
-  return addDays(currentPeriodStart, -14); // 2 weeks earlier
+  const year = currentPeriodStart.getFullYear();
+  const month = currentPeriodStart.getMonth();
+  const day = currentPeriodStart.getDate();
+
+  if (day === 16) {
+    return new Date(year, month, 1);
+  }
+
+  // Go to previous month and pick the 16th
+  const prevMonthDate = new Date(year, month - 1, 16);
+  return prevMonthDate;
 }
 
 /**

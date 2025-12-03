@@ -320,18 +320,18 @@ export default function PayslipsPage() {
   // Helper function to calculate earnings breakdown from attendance data
   function calculateEarningsBreakdown() {
     // Return empty breakdown since rates are removed
-    return {
-      regularPay: 0,
-      regularOT: 0,
-      regularOTHours: 0,
-      nightDiff: 0,
-      nightDiffHours: 0,
-      sundayRestDay: 0,
-      sundayRestDayHours: 0,
-      specialHoliday: 0,
-      specialHolidayHours: 0,
-      regularHoliday: 0,
-      regularHolidayHours: 0,
+      return {
+        regularPay: 0,
+        regularOT: 0,
+        regularOTHours: 0,
+        nightDiff: 0,
+        nightDiffHours: 0,
+        sundayRestDay: 0,
+        sundayRestDayHours: 0,
+        specialHoliday: 0,
+        specialHolidayHours: 0,
+        regularHoliday: 0,
+        regularHolidayHours: 0,
       grossIncome: attendance?.gross_pay || 0,
     };
   }
@@ -370,7 +370,7 @@ export default function PayslipsPage() {
         // Calculate earnings breakdown
         // Simplified export since rates are gone
         const days = attData.attendance_data as any[];
-        
+
         const workingDays = days.filter((day: any) => (day.regularHours || 0) > 0).length;
         const grossPay = attData.gross_pay;
 

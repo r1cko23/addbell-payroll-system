@@ -91,8 +91,8 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
 
               <div className="flex items-center gap-2">
                 <Button
-                  variant="outline"
-                  className="md:hidden inline-flex items-center gap-2"
+                  variant="ghost"
+                  className="md:hidden inline-flex items-center gap-2 border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                   onClick={() => setIsNavOpen((prev) => !prev)}
                   aria-expanded={isNavOpen}
                   aria-controls="employee-portal-nav"

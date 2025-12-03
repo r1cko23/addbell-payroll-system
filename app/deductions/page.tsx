@@ -9,8 +9,16 @@ import { Input, Select } from '@/components/Input';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '@/utils/format';
-import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  getBiMonthlyPeriodStart, 
+  getBiMonthlyPeriodEnd,
+  getNextBiMonthlyPeriod,
+  getPreviousBiMonthlyPeriod,
+  formatBiMonthlyPeriod
+} from '@/utils/bimonthly';
+// import { calculateAllContributions } from '@/utils/ph-deductions';
 
 interface Employee {
   id: string;
@@ -21,7 +29,8 @@ interface Employee {
 interface Deductions {
   id?: string;
   employee_id: string;
-  week_start_date: string;
+  period_start: string;
+  period_end?: string;
   vale_amount: number;
   uniform_ppe_amount: number;
   sss_salary_loan: number;
@@ -37,7 +46,7 @@ interface Deductions {
 export default function DeductionsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 3 }));
+  const [periodStart, setPeriodStart] = useState<Date>(() => getBiMonthlyPeriodStart(new Date()));
   const [deductions, setDeductions] = useState<Deductions | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -64,8 +73,10 @@ export default function DeductionsPage() {
   useEffect(() => {
     if (selectedEmployeeId) {
       loadDeductions();
+      // Auto-calculation disabled as rate_per_day is removed
+      // autoCalculateContributions();
     }
-  }, [selectedEmployeeId, weekStart]);
+  }, [selectedEmployeeId, periodStart]);
 
   async function loadEmployees() {
     try {
@@ -86,15 +97,33 @@ export default function DeductionsPage() {
     }
   }
 
+  // function autoCalculateContributions() {
+  //   if (!selectedEmployeeId) return;
+  //   
+  //   const employee = employees.find(emp => emp.id === selectedEmployeeId);
+  //   if (!employee || !employee.rate_per_day) return;
+  //
+  //   // Calculate contributions based on daily rate
+  //   const contributions = calculateAllContributions(employee.rate_per_day, 22); // 22 working days per month
+  //   
+  //   // Update form data with calculated bi-monthly contributions
+  //   setFormData(prev => ({
+  //     ...prev,
+  //     sss_contribution: contributions.biMonthly.sss.toFixed(2),
+  //     philhealth_contribution: contributions.biMonthly.philhealth.toFixed(2),
+  //     pagibig_contribution: contributions.biMonthly.pagibig.toFixed(2),
+  //   }));
+  // }
+
   async function loadDeductions() {
     try {
-      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      const periodStartStr = format(periodStart, 'yyyy-MM-dd');
       
       const { data, error } = await supabase
         .from('employee_deductions')
         .select('*')
         .eq('employee_id', selectedEmployeeId)
-        .eq('week_start_date', weekStartStr)
+        .eq('period_start', periodStartStr)
         .maybeSingle();
 
       if (error) throw error;
@@ -116,6 +145,8 @@ export default function DeductionsPage() {
       } else {
         setDeductions(null);
         resetForm();
+        // Auto-calculate contributions for new record
+        // autoCalculateContributions();
       }
     } catch (error) {
       console.error('Error loading deductions:', error);
@@ -147,11 +178,15 @@ export default function DeductionsPage() {
     setSaving(true);
 
     try {
-      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      const periodStartStr = format(periodStart, 'yyyy-MM-dd');
+      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+      const periodEndStr = format(periodEnd, 'yyyy-MM-dd');
       
       const deductionData = {
         employee_id: selectedEmployeeId,
-        week_start_date: weekStartStr,
+        period_start: periodStartStr,
+        period_end: periodEndStr,
+        period_type: 'bimonthly',
         vale_amount: parseFloat(formData.vale_amount) || 0,
         uniform_ppe_amount: parseFloat(formData.uniform_ppe_amount) || 0,
         sss_salary_loan: parseFloat(formData.sss_salary_loan) || 0,
@@ -172,7 +207,7 @@ export default function DeductionsPage() {
           .eq('id', deductions.id);
 
         if (error) throw error;
-        toast.success(`Deductions updated for week of ${format(weekStart, 'MMM d, yyyy')}`);
+        toast.success(`Deductions updated for period ${formatBiMonthlyPeriod(periodStart, periodEnd)}`);
       } else {
         // Create new
         const { error } = await supabase
@@ -180,7 +215,7 @@ export default function DeductionsPage() {
           .insert([deductionData]);
 
         if (error) throw error;
-        toast.success(`Deductions saved for week of ${format(weekStart, 'MMM d, yyyy')}`);
+        toast.success(`Deductions saved for period ${formatBiMonthlyPeriod(periodStart, periodEnd)}`);
       }
 
       loadDeductions();
@@ -219,38 +254,37 @@ export default function DeductionsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Deductions Management</h1>
           <p className="text-gray-600 mt-1">
-            Configure weekly deductions and government contributions per employee
+            Configure bi-monthly deductions and government contributions per employee
           </p>
         </div>
 
         <Card>
           <div className="space-y-4">
-            {/* Week Navigation */}
+            {/* Period Navigation */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Week (Wednesday - Tuesday)
+                Select Bi-Monthly Period (Monday - Friday, 2 weeks)
               </label>
               <div className="flex items-center gap-3">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+                  onClick={() => setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <div className="flex-1 text-center">
                   <div className="font-semibold text-gray-900">
-                    {format(weekStart, 'MMM d, yyyy')} -{' '}
-                    {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                    {formatBiMonthlyPeriod(periodStart, getBiMonthlyPeriodEnd(periodStart))}
                   </div>
                   <div className="text-sm text-gray-500">
-                    Week of {format(weekStart, 'MMMM d, yyyy')}
+                    Period starting {format(periodStart, 'MMMM d, yyyy')}
                   </div>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+                  onClick={() => setPeriodStart(getNextBiMonthlyPeriod(periodStart))}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
@@ -276,8 +310,8 @@ export default function DeductionsPage() {
         {selectedEmployeeId && (
           <>
             <Card 
-              title="Weekly Deductions" 
-              subtitle={`For week of ${format(weekStart, 'MMM d')} - ${format(addDays(weekStart, 6), 'MMM d, yyyy')}`}
+              title="Bi-Monthly Deductions" 
+              subtitle={`For period ${formatBiMonthlyPeriod(periodStart, getBiMonthlyPeriodEnd(periodStart))}`}
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
@@ -346,7 +380,7 @@ export default function DeductionsPage() {
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-700">
-                    Total Weekly Deductions:
+                    Total Bi-Monthly Deductions:
                   </span>
                   <span className="text-xl font-bold text-gray-900">
                     {formatCurrency(weeklyTotal)}
@@ -357,8 +391,13 @@ export default function DeductionsPage() {
 
             <Card
               title="Government Contributions"
-              subtitle="Check these boxes on payslip for 3rd/4th week"
+              subtitle="Manual entry required (rates removed)."
             >
+              {/* <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800">
+                  💡 <strong>Auto-Calculated:</strong> Contributions are automatically calculated based on the employee's daily rate using Philippine salary brackets. You can manually adjust if needed.
+                </p>
+              </div> */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
                   label="SSS Contribution"
@@ -368,7 +407,7 @@ export default function DeductionsPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, sss_contribution: e.target.value })
                   }
-                  helperText="Employee + Employer share"
+                  helperText="Bi-monthly amount"
                 />
 
                 <Input
@@ -382,7 +421,7 @@ export default function DeductionsPage() {
                       philhealth_contribution: e.target.value,
                     })
                   }
-                  helperText="Employee + Employer share"
+                  helperText="Bi-monthly amount"
                 />
 
                 <Input
@@ -396,7 +435,7 @@ export default function DeductionsPage() {
                       pagibig_contribution: e.target.value,
                     })
                   }
-                  helperText="Employee + Employer share"
+                  helperText="Bi-monthly amount"
                 />
 
                 <Input
@@ -441,4 +480,3 @@ export default function DeductionsPage() {
     </DashboardLayout>
   );
 }
-

@@ -43,8 +43,7 @@ export interface Database {
           id: string
           employee_id: string
           full_name: string
-          rate_per_day: number
-          rate_per_hour: number
+          assigned_hotel: string | null
           is_active: boolean
           portal_password: string | null
           created_at: string
@@ -55,8 +54,7 @@ export interface Database {
           id?: string
           employee_id: string
           full_name: string
-          rate_per_day: number
-          rate_per_hour: number
+          assigned_hotel?: string | null
           is_active?: boolean
           portal_password?: string | null
           created_at?: string
@@ -67,8 +65,7 @@ export interface Database {
           id?: string
           employee_id?: string
           full_name?: string
-          rate_per_day?: number
-          rate_per_hour?: number
+          assigned_hotel?: string | null
           is_active?: boolean
           portal_password?: string | null
           created_at?: string

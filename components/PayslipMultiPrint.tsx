@@ -8,8 +8,6 @@ interface PayslipData {
   employee: {
     employee_id: string;
     full_name: string;
-    rate_per_day: number;
-    rate_per_hour: number;
   };
   weekStart: Date;
   weekEnd: Date;
@@ -88,8 +86,8 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
       {/* Company Header - Compact */}
       <div style={{ textAlign: 'center', marginBottom: '3px', borderBottom: '1px solid #000', paddingBottom: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
-          src="/Payslip_logo.png" 
-          alt="Addbell" 
+          src="/gp-logo.webp" 
+          alt="Green Pasture People Management Inc." 
           style={{ height: '28px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
@@ -111,13 +109,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
             </td>
           </tr>
 
-          {/* Basic Info */}
-          <tr>
-            <td style={{...compactCellStyle, fontWeight: 'bold', fontSize: '6pt'}}>SALARY:</td>
-            <td style={{...compactCellStyle, textAlign: 'right', fontSize: '6pt'}}>{formatCurrency(data.employee.rate_per_day)}</td>
-            <td style={{...compactCellStyle, fontWeight: 'bold', fontSize: '6pt'}}>RATE/HR:</td>
-            <td style={{...compactCellStyle, textAlign: 'right', fontSize: '6pt'}}>{data.employee.rate_per_hour.toFixed(2)}</td>
-          </tr>
+          {/* Basic Info - Rates Removed */}
           <tr>
             <td style={{...compactCellStyle, fontWeight: 'bold', fontSize: '6pt'}}>DAYS:</td>
             <td style={{...compactCellStyle, textAlign: 'right', fontSize: '6pt'}}>{data.workingDays}</td>
@@ -280,6 +272,7 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
           .compact-payslip {
             width: 100% !important;
             height: 100% !important;
+            box-sizing: border-box !important;
           }
         }
       `}</style>
@@ -310,4 +303,3 @@ export function PayslipMultiPrint({ payslips }: PayslipMultiPrintProps): JSX.Ele
     </>
   );
 }
-

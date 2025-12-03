@@ -1,7 +1,7 @@
 {
-  "name": "addbell-payroll-system",
+  "name": "green-pasture-payroll-system",
   "version": "2.0.0",
-  "description": "Complete payroll system with weekly timesheet and deductions",
+  "description": "Green Pasture People Management Inc. - Complete payroll system with weekly timesheet and deductions",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,7 +13,8 @@
     "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
-    "test:report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "test:clock": "node scripts/test-time-clock.js"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.0.4",
@@ -47,6 +48,7 @@
     "@types/react": "^18.2.48",
     "@types/react-dom": "^18.2.18",
     "autoprefixer": "^10.4.17",
+    "dotenv": "^17.2.3",
     "eslint": "^8.56.0",
     "eslint-config-next": "14.1.0",
     "postcss": "^8.4.33",

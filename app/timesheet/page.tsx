@@ -8,21 +8,29 @@ import { Button } from '@/components/Button';
 import { Select } from '@/components/Input';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
-import { format, startOfWeek, addDays, parseISO, subWeeks } from 'date-fns';
+import { format, addDays, parseISO } from 'date-fns';
 import { determineDayType, getDayName, formatDateShort } from '@/utils/holidays';
-import { calculateDailyPay, getDayTypeLabel } from '@/utils/payroll-calculator';
-import { formatCurrency } from '@/utils/format';
+// import { calculateDailyPay, getDayTypeLabel } from '@/utils/payroll-calculator';
+import { getDayTypeLabel } from '@/utils/payroll-calculator';
+// import { formatCurrency } from '@/utils/format';
 import type { Holiday } from '@/utils/holidays';
 import type { DailyAttendance } from '@/utils/payroll-calculator';
 import { ChevronLeft, ChevronRight, AlertTriangle, Clock } from 'lucide-react';
 import { generateWeeklySummary } from '@/lib/timekeeper';
 import { getApprovedOT } from '@/lib/overtimeHelper';
+import { 
+  getBiMonthlyPeriodStart, 
+  getBiMonthlyPeriodEnd, 
+  getBiMonthlyWorkingDays,
+  getNextBiMonthlyPeriod,
+  getPreviousBiMonthlyPeriod,
+  formatBiMonthlyPeriod
+} from '@/utils/bimonthly';
 
 interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
-  rate_per_hour: number;
 }
 
 interface DayData {
@@ -32,17 +40,16 @@ interface DayData {
   regularHours: number | string;
   overtimeHours: number | string;
   nightDiffHours: number | string;
-  amount: number;
 }
 
 export default function TimesheetPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [weekStart, setWeekStart] = useState<Date>(
-    startOfWeek(new Date(), { weekStartsOn: 3 }) // Week starts on Wednesday
+  const [periodStart, setPeriodStart] = useState<Date>(
+    getBiMonthlyPeriodStart(new Date()) // Bi-monthly period starts on Monday
   );
-  const [weekDays, setWeekDays] = useState<DayData[]>([]);
+  const [periodDays, setPeriodDays] = useState<DayData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -54,18 +61,16 @@ export default function TimesheetPage() {
 
   useEffect(() => {
     if (holidays.length > 0) {
-      initializeWeekDays();
+      initializePeriodDays();
     }
-  }, [weekStart, holidays]);
-
-  // Calculate totals on demand when needed (removed auto-calculation to prevent infinite loop)
+  }, [periodStart, holidays]);
 
   async function loadInitialData() {
     try {
       // Load employees
       const { data: empData, error: empError } = await supabase
         .from('employees')
-        .select('id, employee_id, full_name, rate_per_hour')
+        .select('id, employee_id, full_name')
         .eq('is_active', true)
         .order('full_name');
 
@@ -96,11 +101,11 @@ export default function TimesheetPage() {
     }
   }
 
-  function initializeWeekDays() {
+  function initializePeriodDays() {
+    const workingDays = getBiMonthlyWorkingDays(periodStart);
     const days: DayData[] = [];
     
-    for (let i = 0; i < 7; i++) {
-      const date = addDays(weekStart, i);
+    workingDays.forEach((date) => {
       const dateString = format(date, 'yyyy-MM-dd');
       const dayType = determineDayType(dateString, holidays);
       
@@ -111,68 +116,31 @@ export default function TimesheetPage() {
         regularHours: 0,
         overtimeHours: 0,
         nightDiffHours: 0,
-        amount: 0,
       });
-    }
-    
-    setWeekDays(days);
-  }
-
-  function calculateWeekTotals() {
-    if (!selectedEmployee) return;
-    
-    const updatedDays = weekDays.map((day) => {
-      // Convert string values to numbers for calculation
-      const regHours = typeof day.regularHours === 'string' ? parseFloat(day.regularHours) || 0 : day.regularHours;
-      const otHours = typeof day.overtimeHours === 'string' ? parseFloat(day.overtimeHours) || 0 : day.overtimeHours;
-      const ndHours = typeof day.nightDiffHours === 'string' ? parseFloat(day.nightDiffHours) || 0 : day.nightDiffHours;
-      
-      const calculation = calculateDailyPay(
-        day.dayType as any,
-        regHours,
-        otHours,
-        ndHours,
-        selectedEmployee.rate_per_hour
-      );
-      
-      return { ...day, amount: calculation.total };
     });
     
-    setWeekDays(updatedDays);
+    setPeriodDays(days);
   }
 
   function updateDayHours(index: number, field: string, value: string) {
     if (!selectedEmployee) return;
     
     // Store string as-is to allow smooth typing
-    const updatedDays = [...weekDays];
+    const updatedDays = [...periodDays];
     updatedDays[index] = {
       ...updatedDays[index],
       [field]: value,
     };
     
-    // Calculate amount for this specific day
-    const day = updatedDays[index];
-    const regHours = typeof day.regularHours === 'string' ? parseFloat(day.regularHours) || 0 : day.regularHours;
-    const otHours = typeof day.overtimeHours === 'string' ? parseFloat(day.overtimeHours) || 0 : day.overtimeHours;
-    const ndHours = typeof day.nightDiffHours === 'string' ? parseFloat(day.nightDiffHours) || 0 : day.nightDiffHours;
-    
-    const calculation = calculateDailyPay(
-      day.dayType as any,
-      regHours,
-      otHours,
-      ndHours,
-      selectedEmployee.rate_per_hour
-    );
-    
-    updatedDays[index].amount = calculation.total;
-    
-    setWeekDays(updatedDays);
+    setPeriodDays(updatedDays);
   }
 
-  function changeWeek(direction: 'prev' | 'next') {
-    const newWeekStart = addDays(weekStart, direction === 'next' ? 7 : -7);
-    setWeekStart(newWeekStart);
+  function changePeriod(direction: 'prev' | 'next') {
+    if (direction === 'prev') {
+      setPeriodStart(getPreviousBiMonthlyPeriod(periodStart));
+    } else {
+      setPeriodStart(getNextBiMonthlyPeriod(periodStart));
+    }
   }
 
   async function handleSave() {
@@ -184,7 +152,7 @@ export default function TimesheetPage() {
     // Convert string values to numbers for validation and saving
     const toNumber = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
 
-    const hasAnyHours = weekDays.some(
+    const hasAnyHours = periodDays.some(
       (day) => toNumber(day.regularHours) > 0 || toNumber(day.overtimeHours) > 0 || toNumber(day.nightDiffHours) > 0
     );
 
@@ -196,7 +164,7 @@ export default function TimesheetPage() {
     setSaving(true);
 
     try {
-      const attendanceData: DailyAttendance[] = weekDays.map((day) => ({
+      const attendanceData: DailyAttendance[] = periodDays.map((day) => ({
         date: day.date,
         dayType: day.dayType as any,
         regularHours: toNumber(day.regularHours),
@@ -204,19 +172,19 @@ export default function TimesheetPage() {
         nightDiffHours: toNumber(day.nightDiffHours),
       }));
 
-      const totalRegularHours = weekDays.reduce((sum, d) => sum + toNumber(d.regularHours), 0);
-      const totalOvertimeHours = weekDays.reduce((sum, d) => sum + toNumber(d.overtimeHours), 0);
-      const totalNightDiffHours = weekDays.reduce((sum, d) => sum + toNumber(d.nightDiffHours), 0);
-      const grossPay = weekDays.reduce((sum, d) => sum + d.amount, 0);
+      const totalRegularHours = periodDays.reduce((sum, d) => sum + toNumber(d.regularHours), 0);
+      const totalOvertimeHours = periodDays.reduce((sum, d) => sum + toNumber(d.overtimeHours), 0);
+      const totalNightDiffHours = periodDays.reduce((sum, d) => sum + toNumber(d.nightDiffHours), 0);
+      const grossPay = 0; // Removed rate calculation
 
-      const weekEndDate = addDays(weekStart, 6);
+      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
       // Check if attendance already exists
       const { data: existingData } = await supabase
         .from('weekly_attendance')
         .select('id')
         .eq('employee_id', selectedEmployee.id)
-        .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+        .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
         .single();
 
       if (existingData) {
@@ -239,8 +207,9 @@ export default function TimesheetPage() {
         const { error } = await supabase.from('weekly_attendance').insert([
           {
             employee_id: selectedEmployee.id,
-            week_start_date: format(weekStart, 'yyyy-MM-dd'),
-            week_end_date: format(weekEndDate, 'yyyy-MM-dd'),
+            period_start: format(periodStart, 'yyyy-MM-dd'),
+            period_end: format(periodEnd, 'yyyy-MM-dd'),
+            period_type: 'bimonthly',
             attendance_data: attendanceData,
             total_regular_hours: totalRegularHours,
             total_overtime_hours: totalOvertimeHours,
@@ -254,7 +223,7 @@ export default function TimesheetPage() {
       }
 
       // Clear form
-      initializeWeekDays();
+      initializePeriodDays();
     } catch (error: any) {
       console.error('Error saving timesheet:', error);
       toast.error(error.message || 'Failed to save timesheet');
@@ -263,58 +232,49 @@ export default function TimesheetPage() {
     }
   }
 
-  async function copyLastWeek() {
+  async function copyLastPeriod() {
     if (!selectedEmployee) {
       toast.error('Please select an employee first');
       return;
     }
 
-    const lastWeekStart = subWeeks(weekStart, 1);
+    const lastPeriodStart = getPreviousBiMonthlyPeriod(periodStart);
 
     try {
       const { data, error } = await supabase
         .from('weekly_attendance')
         .select('*')
         .eq('employee_id', selectedEmployee.id)
-        .eq('week_start_date', format(lastWeekStart, 'yyyy-MM-dd'))
+        .eq('period_start', format(lastPeriodStart, 'yyyy-MM-dd'))
         .maybeSingle();
 
       if (error) throw error;
 
       if (!data || !data.attendance_data) {
-        toast.error(`No timesheet found for week of ${format(lastWeekStart, 'MMM d, yyyy')}`);
+        toast.error(`No timesheet found for period starting ${format(lastPeriodStart, 'MMM d, yyyy')}`);
         return;
       }
 
-      // Map last week's data to current week
-      const lastWeekData = data.attendance_data as DailyAttendance[];
-      const updatedDays = weekDays.map((currentDay, index) => {
-        const lastWeekDay = lastWeekData[index];
-        if (lastWeekDay) {
-          const calculation = calculateDailyPay(
-            currentDay.dayType as any,
-            lastWeekDay.regularHours,
-            lastWeekDay.overtimeHours,
-            lastWeekDay.nightDiffHours,
-            selectedEmployee.rate_per_hour
-          );
-
+      // Map last period's data to current period
+      const lastPeriodData = data.attendance_data as DailyAttendance[];
+      const updatedDays = periodDays.map((currentDay, index) => {
+        const lastPeriodDay = lastPeriodData[index];
+        if (lastPeriodDay) {
           return {
             ...currentDay,
-            regularHours: lastWeekDay.regularHours,
-            overtimeHours: lastWeekDay.overtimeHours,
-            nightDiffHours: lastWeekDay.nightDiffHours,
-            amount: calculation.total,
+            regularHours: lastPeriodDay.regularHours,
+            overtimeHours: lastPeriodDay.overtimeHours,
+            nightDiffHours: lastPeriodDay.nightDiffHours,
           };
         }
         return currentDay;
       });
 
-      setWeekDays(updatedDays);
-      toast.success('✅ Copied last week\'s hours! Review and save when ready.');
+      setPeriodDays(updatedDays);
+      toast.success('✅ Copied last period\'s hours! Review and save when ready.');
     } catch (error) {
-      console.error('Error copying last week:', error);
-      toast.error('Failed to copy last week\'s data');
+      console.error('Error copying last period:', error);
+      toast.error('Failed to copy last period\'s data');
     }
   }
 
@@ -322,11 +282,12 @@ export default function TimesheetPage() {
     if (!selectedEmployee) return;
 
     try {
-      const summary = await generateWeeklySummary(selectedEmployee.id, weekStart);
+      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+      const summary = await generateWeeklySummary(selectedEmployee.id, periodStart);
       
       if (summary.totalHours > 0) {
         // Check if timesheet is already populated
-        const hasData = weekDays.some(day => 
+        const hasData = periodDays.some(day => 
           (typeof day.regularHours === 'number' && day.regularHours > 0) ||
           (typeof day.overtimeHours === 'number' && day.overtimeHours > 0) ||
           (typeof day.nightDiffHours === 'number' && day.nightDiffHours > 0)
@@ -351,22 +312,22 @@ export default function TimesheetPage() {
     try {
       if (showToast) toast.loading('Importing clock entries...');
       
-      const summary = await generateWeeklySummary(selectedEmployee.id, weekStart);
+      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+      const summary = await generateWeeklySummary(selectedEmployee.id, periodStart);
       
-      // Get approved OT requests for this week
-      const weekEnd = addDays(weekStart, 6);
-      const approvedOT = await getApprovedOT(selectedEmployee.id, weekStart, weekEnd);
+      // Get approved OT requests for this period
+      const approvedOT = await getApprovedOT(selectedEmployee.id, periodStart, periodEnd);
 
       if (summary.totalHours === 0 && approvedOT.size === 0) {
         if (showToast) {
           toast.dismiss();
-          toast.error('No clock entries or approved OT found for this week');
+          toast.error('No clock entries or approved OT found for this period');
         }
         return;
       }
 
       // Map clock entries + approved OT to timesheet days
-      const updatedDays = weekDays.map((day) => {
+      const updatedDays = periodDays.map((day) => {
         const dailySummary = summary.dailySummaries.get(day.date);
         const otHours = approvedOT.get(day.date) || 0;
         
@@ -379,25 +340,15 @@ export default function TimesheetPage() {
         // Night diff from clock entries
         const nightDiffHours = dailySummary?.nightDiffHours || 0;
 
-        // Calculate the amount with the employee's rate
-        const calculation = calculateDailyPay(
-          day.dayType as any,
-          regularHours,
-          overtimeHours,
-          nightDiffHours,
-          selectedEmployee.rate_per_hour
-        );
-
         return {
           ...day,
           regularHours: regularHours,
           overtimeHours: overtimeHours,
           nightDiffHours: nightDiffHours,
-          amount: calculation.total,
         };
       });
 
-      setWeekDays(updatedDays);
+      setPeriodDays(updatedDays);
       if (showToast) {
         toast.dismiss();
         const totalReg = updatedDays.reduce((sum, d) => sum + (typeof d.regularHours === 'number' ? d.regularHours : 0), 0);
@@ -413,37 +364,28 @@ export default function TimesheetPage() {
     }
   }
 
-  function applyStandardWeek() {
+  function applyStandardPeriod() {
     if (!selectedEmployee) {
       toast.error('Please select an employee first');
       return;
     }
 
-    // Apply 8 hours to all days except Sunday (index 4)
-    // Week: Wed(0), Thu(1), Fri(2), Sat(3), Sun(4), Mon(5), Tue(6)
-    const updatedDays = weekDays.map((day, index) => {
-      const isWorkDay = index !== 4; // All days except Sunday
+    // Apply 8 hours to all working days (Monday-Friday)
+    const updatedDays = periodDays.map((day) => {
+      const dayOfWeek = new Date(day.date).getDay();
+      const isWorkDay = dayOfWeek >= 1 && dayOfWeek <= 5; // Monday-Friday
       const regularHours = isWorkDay ? 8 : 0;
-
-      const calculation = calculateDailyPay(
-        day.dayType as any,
-        regularHours,
-        0,
-        0,
-        selectedEmployee.rate_per_hour
-      );
 
       return {
         ...day,
         regularHours,
         overtimeHours: 0,
         nightDiffHours: 0,
-        amount: calculation.total,
       };
     });
 
-    setWeekDays(updatedDays);
-    toast.success('✅ Applied standard 6-day week (8hrs Wed-Sat, Mon-Tue)');
+    setPeriodDays(updatedDays);
+    toast.success('✅ Applied standard bi-monthly period (8hrs Mon-Fri)');
   }
 
   async function loadExistingTimesheet() {
@@ -454,40 +396,30 @@ export default function TimesheetPage() {
         .from('weekly_attendance')
         .select('*')
         .eq('employee_id', selectedEmployee.id)
-        .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+        .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
         .maybeSingle();
 
       if (error) throw error;
 
       if (data && data.attendance_data) {
         const loadedData = data.attendance_data as any[];
-        const updatedDays = weekDays.map((day, index) => {
+        const updatedDays = periodDays.map((day, index) => {
           const savedDay = loadedData[index];
           if (savedDay) {
             const regularHours = savedDay.regularHours || 0;
             const overtimeHours = savedDay.overtimeHours || 0;
             const nightDiffHours = savedDay.nightDiffHours || 0;
             
-            // Calculate amount for loaded data
-            const calculation = calculateDailyPay(
-              day.dayType as any,
-              regularHours,
-              overtimeHours,
-              nightDiffHours,
-              selectedEmployee.rate_per_hour
-            );
-            
             return {
               ...day,
               regularHours,
               overtimeHours,
               nightDiffHours,
-              amount: calculation.total,
             };
           }
           return day;
         });
-        setWeekDays(updatedDays);
+        setPeriodDays(updatedDays);
         toast.success('Loaded existing timesheet');
       }
     } catch (error) {
@@ -496,23 +428,22 @@ export default function TimesheetPage() {
   }
 
   useEffect(() => {
-    if (selectedEmployee && weekDays.length > 0) {
+    if (selectedEmployee && periodDays.length > 0) {
       loadExistingTimesheet();
       checkForClockEntries(); // Auto-check for clock entries
     }
-  }, [selectedEmployee, weekStart]);
+  }, [selectedEmployee, periodStart]);
 
   // Helper to convert string or number to number
   const toNum = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
   
-  const weekTotal = weekDays.reduce((sum, day) => sum + day.amount, 0);
-  const totalRegular = weekDays.reduce((sum, day) => sum + toNum(day.regularHours), 0);
-  const totalOT = weekDays.reduce((sum, day) => sum + toNum(day.overtimeHours), 0);
-  const totalNightDiff = weekDays.reduce((sum, day) => sum + toNum(day.nightDiffHours), 0);
+  const totalRegular = periodDays.reduce((sum, day) => sum + toNum(day.regularHours), 0);
+  const totalOT = periodDays.reduce((sum, day) => sum + toNum(day.overtimeHours), 0);
+  const totalNightDiff = periodDays.reduce((sum, day) => sum + toNum(day.nightDiffHours), 0);
 
   // Validation warnings
   const warnings: string[] = [];
-  weekDays.forEach((day) => {
+  periodDays.forEach((day) => {
     const reg = toNum(day.regularHours);
     const ot = toNum(day.overtimeHours);
     const nd = toNum(day.nightDiffHours);
@@ -537,40 +468,39 @@ export default function TimesheetPage() {
     <DashboardLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Weekly Timesheet Entry</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Timesheet Entry</h1>
           <p className="text-gray-600 mt-1">
-            Enter hours for the week (Wednesday to Tuesday) - system auto-calculates everything!
+            Enter hours for the bi-monthly period (Monday-Friday, 2 weeks)
           </p>
         </div>
 
         <Card>
           <div className="space-y-4">
-            {/* Week Navigation */}
+            {/* Period Navigation */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Week (Wednesday - Tuesday)
+                Select Bi-Monthly Period (Monday - Friday, 2 weeks)
               </label>
               <div className="flex items-center gap-3">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => changeWeek('prev')}
+                  onClick={() => changePeriod('prev')}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <div className="flex-1 text-center">
                   <div className="font-semibold text-gray-900">
-                    {format(weekStart, 'MMM d, yyyy')} -{' '}
-                    {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                    {formatBiMonthlyPeriod(periodStart, getBiMonthlyPeriodEnd(periodStart))}
                   </div>
                   <div className="text-sm text-gray-500">
-                    Week of {format(weekStart, 'MMMM d, yyyy')}
+                    Period starting {format(periodStart, 'MMMM d, yyyy')}
                   </div>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => changeWeek('next')}
+                  onClick={() => changePeriod('next')}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
@@ -597,7 +527,7 @@ export default function TimesheetPage() {
         </Card>
 
         {selectedEmployee && (
-          <Card title="Weekly Hours Entry">
+          <Card title="Hours Entry">
             {/* Validation Warnings */}
             {warnings.length > 0 && (
               <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
@@ -646,13 +576,10 @@ export default function TimesheetPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Night Diff Hrs
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                      Amount
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {weekDays.map((day, index) => (
+                  {periodDays.map((day, index) => (
                     <tr key={day.date} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">
                         {day.dayName}
@@ -724,21 +651,15 @@ export default function TimesheetPage() {
                           className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent text-center"
                         />
                       </td>
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">
-                        {formatCurrency(day.amount)}
-                      </td>
                     </tr>
                   ))}
                   <tr className="bg-primary-50 font-bold">
                     <td colSpan={3} className="px-4 py-3 text-sm text-right">
-                      WEEKLY TOTALS →
+                      BI-MONTHLY TOTALS →
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{totalRegular.toFixed(1)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{totalOT.toFixed(1)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{totalNightDiff.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-right text-lg font-bold text-primary-700">
-                      {formatCurrency(weekTotal)}
-                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -763,7 +684,7 @@ export default function TimesheetPage() {
                       variant="primary" 
                       size="sm"
                       onClick={() => {
-                        initializeWeekDays();
+                        initializePeriodDays();
                         setTimeout(() => autoImportFromClockEntries(true), 100);
                       }}
                       className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
@@ -774,21 +695,21 @@ export default function TimesheetPage() {
                     <Button 
                       variant="secondary" 
                       size="sm"
-                      onClick={applyStandardWeek}
+                      onClick={applyStandardPeriod}
                     >
-                      📅 Standard Week
+                      📅 Standard Period
                     </Button>
                     <Button 
                       variant="secondary" 
                       size="sm"
-                      onClick={copyLastWeek}
+                      onClick={copyLastPeriod}
                     >
-                      📋 Copy Last Week
+                      📋 Copy Last Period
                     </Button>
                     <Button 
                       variant="secondary" 
                       size="sm"
-                      onClick={initializeWeekDays}
+                      onClick={initializePeriodDays}
                     >
                       🗑️ Clear All
                     </Button>
@@ -809,4 +730,3 @@ export default function TimesheetPage() {
     </DashboardLayout>
   );
 }
-

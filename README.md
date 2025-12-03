@@ -1,4 +1,4 @@
-# Addbell Payroll System
+# Green Pasture People Management Inc. - Payroll System
 
 A comprehensive web-based payroll system designed for tracking employee attendance and calculating payroll based on Philippine labor standards.
 
@@ -183,7 +183,7 @@ For issues or questions, please refer to the documentation or contact your syste
 
 ## License
 
-© 2025 Addbell Payroll System. All rights reserved.
+© 2025 Green Pasture People Management Inc. All rights reserved.
 
 ## Version
 

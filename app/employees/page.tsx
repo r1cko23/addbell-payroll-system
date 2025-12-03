@@ -5,12 +5,11 @@ import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
+import { Input, Select } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import toast from 'react-hot-toast';
-import { formatCurrency } from '@/utils/format';
 
 interface Employee {
   id: string;
@@ -19,15 +18,19 @@ interface Employee {
   last_name?: string;
   first_name?: string;
   middle_initial?: string;
-  rate_per_day: number;
-  rate_per_hour: number;
-  bank_account_number?: string;
+  assigned_hotel?: string;
   is_active: boolean;
   created_at: string;
 }
 
+interface Location {
+  id: string;
+  name: string;
+}
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -37,16 +40,20 @@ export default function EmployeesPage() {
     last_name: '',
     first_name: '',
     middle_initial: '',
-    rate_per_day: '',
-    rate_per_hour: '',
-    bank_account_number: '',
+    assigned_hotel: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordEmployee, setPasswordEmployee] = useState<Employee | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   const supabase = createClient();
 
   useEffect(() => {
     fetchEmployees();
+    fetchLocations();
   }, []);
 
   async function fetchEmployees() {
@@ -67,6 +74,21 @@ export default function EmployeesPage() {
     }
   }
 
+  async function fetchLocations() {
+    try {
+      const { data, error } = await supabase
+        .from('office_locations')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      setLocations(data || []);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+    }
+  }
+
   function openAddModal() {
     setEditingEmployee(null);
     setFormData({
@@ -74,9 +96,7 @@ export default function EmployeesPage() {
       last_name: '',
       first_name: '',
       middle_initial: '',
-      rate_per_day: '',
-      rate_per_hour: '',
-      bank_account_number: '',
+      assigned_hotel: '',
     });
     setShowModal(true);
   }
@@ -88,9 +108,7 @@ export default function EmployeesPage() {
       last_name: employee.last_name || '',
       first_name: employee.first_name || '',
       middle_initial: employee.middle_initial || '',
-      rate_per_day: employee.rate_per_day.toString(),
-      rate_per_hour: employee.rate_per_hour.toString(),
-      bank_account_number: employee.bank_account_number || '',
+      assigned_hotel: employee.assigned_hotel || '',
     });
     setShowModal(true);
   }
@@ -110,9 +128,7 @@ export default function EmployeesPage() {
         last_name: formData.last_name,
         first_name: formData.first_name,
         middle_initial: formData.middle_initial || null,
-        rate_per_day: parseFloat(formData.rate_per_day),
-        rate_per_hour: parseFloat(formData.rate_per_hour),
-        bank_account_number: formData.bank_account_number || null,
+        assigned_hotel: formData.assigned_hotel || null,
       };
 
       if (editingEmployee) {
@@ -125,13 +141,16 @@ export default function EmployeesPage() {
         if (error) throw error;
         toast.success('Employee updated successfully');
       } else {
-        // Create new employee
+        // Create new employee - set default portal password to employee_id
         const { error } = await supabase
           .from('employees')
-          .insert([employeeData]);
+          .insert([{
+            ...employeeData,
+            portal_password: formData.employee_id // Default password is employee_id
+          }]);
 
         if (error) throw error;
-        toast.success('Employee added successfully');
+        toast.success('Employee added successfully. Portal password set to Employee ID.');
       }
 
       setShowModal(false);
@@ -163,6 +182,80 @@ export default function EmployeesPage() {
     }
   }
 
+  function openPasswordModal(employee: Employee) {
+    setPasswordEmployee(employee);
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowPasswordModal(true);
+  }
+
+  async function handlePasswordUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    
+    if (!passwordEmployee) return;
+
+    if (!newPassword.trim()) {
+      toast.error('Password cannot be empty');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 4) {
+      toast.error('Password must be at least 4 characters long');
+      return;
+    }
+
+    setPasswordSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update({ portal_password: newPassword.trim() })
+        .eq('id', passwordEmployee.id);
+
+      if (error) throw error;
+
+      toast.success('Portal password updated successfully');
+      setShowPasswordModal(false);
+      fetchEmployees();
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      toast.error(error.message || 'Failed to update password');
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  }
+
+  async function resetPasswordToDefault(employee: Employee) {
+    if (!confirm('Reset password to Employee ID? This will set the password to: ' + employee.employee_id)) {
+      return;
+    }
+
+    setPasswordSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .update({ portal_password: employee.employee_id })
+        .eq('id', employee.id);
+
+      if (error) throw error;
+
+      toast.success('Password reset to Employee ID');
+      setShowPasswordModal(false);
+      fetchEmployees();
+    } catch (error: any) {
+      console.error('Error resetting password:', error);
+      toast.error(error.message || 'Failed to reset password');
+    } finally {
+      setPasswordSubmitting(false);
+    }
+  }
+
   const filteredEmployees = employees.filter(
     (emp) =>
       emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -178,7 +271,7 @@ export default function EmployeesPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Employee Management</h1>
             <p className="text-gray-600 mt-1">
-              Manage employee records and rates
+              Manage employee records
             </p>
           </div>
           <Button onClick={openAddModal}>
@@ -223,10 +316,7 @@ export default function EmployeesPage() {
                       Full Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Rate/Day
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Rate/Hour
+                      Assigned Hotel
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -239,7 +329,7 @@ export default function EmployeesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                         {searchTerm
                           ? 'No employees found matching your search'
                           : 'No employees yet. Add your first employee!'}
@@ -255,10 +345,7 @@ export default function EmployeesPage() {
                           {employee.full_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatCurrency(employee.rate_per_day)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatCurrency(employee.rate_per_hour)}
+                          {employee.assigned_hotel || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Badge variant={employee.is_active ? 'success' : 'default'}>
@@ -272,6 +359,27 @@ export default function EmployeesPage() {
                             onClick={() => openEditModal(employee)}
                           >
                             Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openPasswordModal(employee)}
+                            title="Manage Portal Account"
+                          >
+                            <svg
+                              className="w-4 h-4 mr-1"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                              />
+                            </svg>
+                            Portal
                           </Button>
                           <Button
                             size="sm"
@@ -348,41 +456,106 @@ export default function EmployeesPage() {
             helperText="Optional - just the initial (e.g., M)"
           />
 
-          <Input
-            label="Rate per Day (₱)"
-            type="number"
-            step="0.01"
-            required
-            value={formData.rate_per_day}
+          <Select
+            label="Assigned Hotel/Location"
+            value={formData.assigned_hotel}
             onChange={(e) =>
-              setFormData({ ...formData, rate_per_day: e.target.value })
+              setFormData({ ...formData, assigned_hotel: e.target.value })
             }
-          />
-
-          <Input
-            label="Rate per Hour (₱)"
-            type="number"
-            step="0.01"
-            required
-            value={formData.rate_per_hour}
-            onChange={(e) =>
-              setFormData({ ...formData, rate_per_hour: e.target.value })
-            }
-            helperText="Usually Rate/Day ÷ 8"
-          />
-
-          <Input
-            label="Bank Account Number"
-            type="text"
-            value={formData.bank_account_number}
-            onChange={(e) =>
-              setFormData({ ...formData, bank_account_number: e.target.value })
-            }
-            helperText="Required for bank transfer (optional)"
+            options={[
+              { value: '', label: '-- Select Location --' },
+              ...locations.map((loc) => ({
+                value: loc.name,
+                label: loc.name,
+              })),
+            ]}
+            helperText="Select the primary work location"
           />
         </form>
+      </Modal>
+
+      {/* Portal Password Management Modal */}
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title={`Manage Portal Account - ${passwordEmployee?.full_name}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowPasswordModal(false)}>
+              Cancel
+            </Button>
+            {passwordEmployee && (
+              <Button
+                variant="ghost"
+                onClick={() => resetPasswordToDefault(passwordEmployee)}
+                disabled={passwordSubmitting}
+              >
+                Reset to Default
+              </Button>
+            )}
+            <Button onClick={handlePasswordUpdate} isLoading={passwordSubmitting}>
+              Update Password
+            </Button>
+          </>
+        }
+      >
+        {passwordEmployee && (
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-900">
+                <strong>Employee ID:</strong> {passwordEmployee.employee_id}
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                Default password is the Employee ID. Employees can use this to login to the portal.
+              </p>
+            </div>
+
+            <form onSubmit={handlePasswordUpdate} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={passwordSubmitting}
+                  required
+                  minLength={4}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Minimum 4 characters
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={passwordSubmitting}
+                  required
+                  minLength={4}
+                />
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-xs text-yellow-800">
+                  <strong>Note:</strong> The employee will need to use this password to login at{' '}
+                  <code className="bg-yellow-100 px-1 rounded">/employee-login</code>
+                </p>
+              </div>
+            </form>
+          </div>
+        )}
       </Modal>
     </DashboardLayout>
   );
 }
-

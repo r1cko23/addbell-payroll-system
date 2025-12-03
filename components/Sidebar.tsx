@@ -3,14 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import {
-  LayoutDashboard,
-  Users,
-  Calendar,
-  CreditCard,
-  FileText,
-  Settings,
-} from 'lucide-react';
+import { LayoutDashboard, Users, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -26,34 +19,14 @@ const navItems: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    name: 'Weekly Workflow',
-    href: '/workflow',
-    icon: Calendar,
-  },
-  {
     name: 'Employees',
     href: '/employees',
     icon: Users,
   },
   {
-    name: 'Weekly Timesheet',
-    href: '/timesheet',
-    icon: Calendar,
-  },
-  {
-    name: 'Deductions',
-    href: '/deductions',
-    icon: CreditCard,
-  },
-  {
-    name: 'Payslips',
-    href: '/payslips',
-    icon: FileText,
-  },
-  {
-    name: 'Settings',
-    href: '/settings',
-    icon: Settings,
+    name: 'Time & Location',
+    href: '/time-entries',
+    icon: MapPin,
   },
 ];
 
@@ -65,8 +38,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex items-center justify-center h-16 px-4 border-b">
         <img 
-          src="/Official Logo Cropped.jpg" 
-          alt="Add-bell Tech" 
+          src="/gp-logo.webp" 
+          alt="Green Pasture People Management Inc." 
           className="h-12 w-auto"
           onError={(e) => {
             e.currentTarget.style.display = 'none';
@@ -101,7 +74,7 @@ export function Sidebar() {
       {/* Footer */}
       <div className="p-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          © 2025 Add-bell Tech
+          © 2025 Green Pasture People Management Inc.
           <br />
           All rights reserved
         </p>

@@ -12,25 +12,29 @@ import { Modal } from '@/components/Modal';
 import { PayslipPrint } from '@/components/PayslipPrint';
 import { PayslipMultiPrint } from '@/components/PayslipMultiPrint';
 import toast from 'react-hot-toast';
-import { format, startOfWeek, addDays, getWeek, addWeeks, subWeeks } from 'date-fns';
+import { format, addDays, getWeek } from 'date-fns';
 import { formatCurrency, generatePayslipNumber } from '@/utils/format';
 import { getWeekOfMonth } from '@/utils/holidays';
 import * as XLSX from 'xlsx';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, Building2, FileText, Printer, Eye, AlertCircle, Info } from 'lucide-react';
+import { 
+  getBiMonthlyPeriodStart, 
+  getBiMonthlyPeriodEnd,
+  getNextBiMonthlyPeriod,
+  getPreviousBiMonthlyPeriod,
+  formatBiMonthlyPeriod
+} from '@/utils/bimonthly';
 
 interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
-  rate_per_day: number;
-  rate_per_hour: number;
-  bank_account_number?: string;
 }
 
 interface WeeklyAttendance {
   id: string;
-  week_start_date: string;
-  week_end_date: string;
+  period_start: string;
+  period_end: string;
   attendance_data: any;
   gross_pay: number;
 }
@@ -52,8 +56,8 @@ export default function PayslipsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [weekStart, setWeekStart] = useState<Date>(
-    startOfWeek(new Date(), { weekStartsOn: 3 }) // Week starts on Wednesday
+  const [periodStart, setPeriodStart] = useState<Date>(
+    getBiMonthlyPeriodStart(new Date()) // Bi-monthly period starts on Monday
   );
   const [attendance, setAttendance] = useState<WeeklyAttendance | null>(null);
   const [deductions, setDeductions] = useState<EmployeeDeductions | null>(null);
@@ -86,23 +90,22 @@ export default function PayslipsPage() {
       setSelectedEmployee(emp || null);
       loadAttendanceAndDeductions();
     }
-  }, [selectedEmployeeId, weekStart]);
+  }, [selectedEmployeeId, periodStart]);
 
-  // Auto-set allowance for 4th week
+  // Auto-set allowance (can be adjusted per period)
   useEffect(() => {
-    const weekNumber = getWeekOfMonth(weekStart);
-    if (weekNumber === 4) {
-      setAllowanceAmount('500'); // Default allowance, user can change
-    } else {
-      setAllowanceAmount('0');
+    // Allowance can be set manually, default to 0
+    // You can add logic here if needed for specific periods
+    if (allowanceAmount === '0') {
+      // Keep at 0 unless manually set
     }
-  }, [weekStart]);
+  }, [periodStart]);
 
   async function loadEmployees() {
     try {
       const { data, error } = await supabase
         .from('employees')
-        .select('id, employee_id, full_name, rate_per_day, rate_per_hour, bank_account_number')
+        .select('id, employee_id, full_name')
         .eq('is_active', true)
         .order('full_name');
 
@@ -120,18 +123,15 @@ export default function PayslipsPage() {
     if (!selectedEmployeeId) return;
 
     try {
-      console.log('Loading data for employee:', selectedEmployeeId);
-      console.log('Week start date:', format(weekStart, 'yyyy-MM-dd'));
+      const periodStartStr = format(periodStart, 'yyyy-MM-dd');
       
       // Load attendance
       const { data: attData, error: attError } = await supabase
         .from('weekly_attendance')
         .select('*')
         .eq('employee_id', selectedEmployeeId)
-        .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+        .eq('period_start', periodStartStr)
         .maybeSingle();
-
-      console.log('Attendance query result:', { attData, attError });
       
       if (attError) {
         console.error('Attendance error:', attError);
@@ -139,16 +139,13 @@ export default function PayslipsPage() {
       }
       setAttendance(attData);
 
-      // Load deductions for this week
-      const weekStartStr = format(weekStart, 'yyyy-MM-dd');
+      // Load deductions for this period
       const { data: dedData, error: dedError } = await supabase
         .from('employee_deductions')
         .select('*')
         .eq('employee_id', selectedEmployeeId)
-        .eq('week_start_date', weekStartStr)
+        .eq('period_start', periodStartStr)
         .maybeSingle();
-
-      console.log('Deductions query result:', { dedData, dedError });
       
       if (dedError) {
         console.error('Deductions error:', dedError);
@@ -161,9 +158,12 @@ export default function PayslipsPage() {
     }
   }
 
-  function changeWeek(direction: 'prev' | 'next') {
-    const newWeekStart = addDays(weekStart, direction === 'next' ? 7 : -7);
-    setWeekStart(newWeekStart);
+  function changePeriod(direction: 'prev' | 'next') {
+    if (direction === 'prev') {
+      setPeriodStart(getPreviousBiMonthlyPeriod(periodStart));
+    } else {
+      setPeriodStart(getNextBiMonthlyPeriod(periodStart));
+    }
   }
 
   async function generatePayslip() {
@@ -223,22 +223,23 @@ export default function PayslipsPage() {
       if (adjustment !== 0) deductionsBreakdown.adjustment = adjustment;
 
       // Generate payslip number
-      const year = weekStart.getFullYear();
-      const weekNumber = getWeek(weekStart);
+      const year = periodStart.getFullYear();
+      const periodNumber = Math.ceil((periodStart.getDate() + (periodStart.getDay() === 0 ? 7 : periodStart.getDay() - 1)) / 14);
       const payslipNumber = generatePayslipNumber(
         selectedEmployee.employee_id,
-        weekNumber,
+        periodNumber,
         year
       );
 
-      const weekEnd = addDays(weekStart, 6);
+      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
       const payslipData = {
         employee_id: selectedEmployee.id,
         payslip_number: payslipNumber,
-        week_number: weekNumber,
-        week_start_date: format(weekStart, 'yyyy-MM-dd'),
-        week_end_date: format(weekEnd, 'yyyy-MM-dd'),
+        week_number: periodNumber,
+        period_start: format(periodStart, 'yyyy-MM-dd'),
+        period_end: format(periodEnd, 'yyyy-MM-dd'),
+        period_type: 'bimonthly',
         earnings_breakdown: attendance.attendance_data,
         gross_pay: grossPay,
         deductions_breakdown: deductionsBreakdown,
@@ -314,118 +315,24 @@ export default function PayslipsPage() {
   const totalDed = weeklyDed + govDed + tax + adjustment;
   const netPay = grossPay - totalDed + allowance;
 
-  const weekNumber = getWeekOfMonth(weekStart);
+  const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
   // Helper function to calculate earnings breakdown from attendance data
   function calculateEarningsBreakdown() {
-    if (!attendance || !attendance.attendance_data) {
-      return {
-        regularPay: 0,
-        regularOT: 0,
-        regularOTHours: 0,
-        nightDiff: 0,
-        nightDiffHours: 0,
-        sundayRestDay: 0,
-        sundayRestDayHours: 0,
-        specialHoliday: 0,
-        specialHolidayHours: 0,
-        regularHoliday: 0,
-        regularHolidayHours: 0,
-        grossIncome: 0,
-      };
-    }
-
-    const days = attendance.attendance_data as any[];
-    let regularPay = 0;
-    let regularOT = 0;
-    let regularOTHours = 0;
-    let nightDiff = 0;
-    let nightDiffHours = 0;
-    let sundayRestDay = 0;
-    let sundayRestDayHours = 0;
-    let specialHoliday = 0;
-    let specialHolidayHours = 0;
-    let regularHoliday = 0;
-    let regularHolidayHours = 0;
-
-    days.forEach((day: any) => {
-      const dayType = day.dayType;
-      const regHours = day.regularHours || 0;
-      const otHours = day.overtimeHours || 0;
-      const ndHours = day.nightDiffHours || 0;
-
-      // Regular day pay
-      if (dayType === 'regular') {
-        regularPay += (regHours * (selectedEmployee?.rate_per_hour || 0));
-        regularOTHours += otHours;
-        regularOT += (otHours * (selectedEmployee?.rate_per_hour || 0) * 1.25);
-      }
-
-      // Sunday/Rest day
-      if (dayType === 'sunday') {
-        sundayRestDayHours += regHours + otHours;
-        sundayRestDay += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.3);
-        if (otHours > 0) {
-          sundayRestDay += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 1.3) * 1.3);
-        }
-      }
-
-      // Non-working holiday (Special holiday)
-      if (dayType === 'non-working-holiday') {
-        specialHolidayHours += regHours + otHours;
-        specialHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.3);
-        if (otHours > 0) {
-          specialHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 1.3) * 1.3);
-        }
-      }
-
-      // Regular holiday
-      if (dayType === 'regular-holiday') {
-        regularHolidayHours += regHours + otHours;
-        regularHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 2);
-        if (otHours > 0) {
-          regularHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 2) * 1.3);
-        }
-      }
-
-      // Sunday + Special Holiday
-      if (dayType === 'sunday-special-holiday') {
-        specialHolidayHours += regHours + otHours;
-        specialHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 1.5);
-        if (otHours > 0) {
-          specialHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 1.5) * 1.3);
-        }
-      }
-
-      // Sunday + Regular Holiday
-      if (dayType === 'sunday-regular-holiday') {
-        regularHolidayHours += regHours + otHours;
-        regularHoliday += (regHours * (selectedEmployee?.rate_per_hour || 0) * 2.6);
-        if (otHours > 0) {
-          regularHoliday += ((otHours * (selectedEmployee?.rate_per_hour || 0) * 2.6) * 1.3);
-        }
-      }
-
-      // Night differential
-      if (ndHours > 0) {
-        nightDiffHours += ndHours;
-        nightDiff += (ndHours * (selectedEmployee?.rate_per_hour || 0) * 0.1);
-      }
-    });
-
+    // Return empty breakdown since rates are removed
     return {
-      regularPay,
-      regularOT,
-      regularOTHours,
-      nightDiff,
-      nightDiffHours,
-      sundayRestDay,
-      sundayRestDayHours,
-      specialHoliday,
-      specialHolidayHours,
-      regularHoliday,
-      regularHolidayHours,
-      grossIncome: attendance.gross_pay || 0,
+      regularPay: 0,
+      regularOT: 0,
+      regularOTHours: 0,
+      nightDiff: 0,
+      nightDiffHours: 0,
+      sundayRestDay: 0,
+      sundayRestDayHours: 0,
+      specialHoliday: 0,
+      specialHolidayHours: 0,
+      regularHoliday: 0,
+      regularHolidayHours: 0,
+      grossIncome: attendance?.gross_pay || 0,
     };
   }
 
@@ -447,7 +354,7 @@ export default function PayslipsPage() {
           .from('weekly_attendance')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
           .maybeSingle();
 
         if (!attData) continue; // Skip employees without timesheet data
@@ -457,81 +364,13 @@ export default function PayslipsPage() {
           .from('employee_deductions')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
           .maybeSingle();
 
         // Calculate earnings breakdown
+        // Simplified export since rates are gone
         const days = attData.attendance_data as any[];
-        let regularPay = 0;
-        let regularOT = 0;
-        let regularOTHours = 0;
-        let nightDiff = 0;
-        let nightDiffHours = 0;
-        let sundayRestDay = 0;
-        let sundayRestDayHours = 0;
-        let specialHoliday = 0;
-        let specialHolidayHours = 0;
-        let regularHoliday = 0;
-        let regularHolidayHours = 0;
-
-        days.forEach((day: any) => {
-          const dayType = day.dayType;
-          const regHours = day.regularHours || 0;
-          const otHours = day.overtimeHours || 0;
-          const ndHours = day.nightDiffHours || 0;
-
-          if (dayType === 'regular') {
-            regularPay += (regHours * emp.rate_per_hour);
-            regularOTHours += otHours;
-            regularOT += (otHours * emp.rate_per_hour * 1.25);
-          }
-
-          if (dayType === 'sunday') {
-            sundayRestDayHours += regHours + otHours;
-            sundayRestDay += (regHours * emp.rate_per_hour * 1.3);
-            if (otHours > 0) {
-              sundayRestDay += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
-            }
-          }
-
-          if (dayType === 'non-working-holiday') {
-            specialHolidayHours += regHours + otHours;
-            specialHoliday += (regHours * emp.rate_per_hour * 1.3);
-            if (otHours > 0) {
-              specialHoliday += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
-            }
-          }
-
-          if (dayType === 'regular-holiday') {
-            regularHolidayHours += regHours + otHours;
-            regularHoliday += (regHours * emp.rate_per_hour * 2);
-            if (otHours > 0) {
-              regularHoliday += ((otHours * emp.rate_per_hour * 2) * 1.3);
-            }
-          }
-
-          if (dayType === 'sunday-special-holiday') {
-            specialHolidayHours += regHours + otHours;
-            specialHoliday += (regHours * emp.rate_per_hour * 1.5);
-            if (otHours > 0) {
-              specialHoliday += ((otHours * emp.rate_per_hour * 1.5) * 1.3);
-            }
-          }
-
-          if (dayType === 'sunday-regular-holiday') {
-            regularHolidayHours += regHours + otHours;
-            regularHoliday += (regHours * emp.rate_per_hour * 2.6);
-            if (otHours > 0) {
-              regularHoliday += ((otHours * emp.rate_per_hour * 2.6) * 1.3);
-            }
-          }
-
-          if (ndHours > 0) {
-            nightDiffHours += ndHours;
-            nightDiff += (ndHours * emp.rate_per_hour * 0.1);
-          }
-        });
-
+        
         const workingDays = days.filter((day: any) => (day.regularHours || 0) > 0).length;
         const grossPay = attData.gross_pay;
 
@@ -556,19 +395,7 @@ export default function PayslipsPage() {
         allPayrollData.push({
           'Employee ID': emp.employee_id,
           'Employee Name': emp.full_name,
-          'Rate/Hour': emp.rate_per_hour,
           'Working Days': workingDays,
-          'Regular Pay': regularPay,
-          'Regular OT Hours': regularOTHours,
-          'Regular OT Pay': regularOT,
-          'Night Diff Hours': nightDiffHours,
-          'Night Diff Pay': nightDiff,
-          'Sunday/RD Hours': sundayRestDayHours,
-          'Sunday/RD Pay': sundayRestDay,
-          'Special Holiday Hours': specialHolidayHours,
-          'Special Holiday Pay': specialHoliday,
-          'Regular Holiday Hours': regularHolidayHours,
-          'Regular Holiday Pay': regularHoliday,
           'Gross Pay': grossPay,
           'Vale': vale,
           'Uniform/PPE': uniformPPE,
@@ -586,7 +413,7 @@ export default function PayslipsPage() {
       }
 
       if (allPayrollData.length === 0) {
-        toast.error('No payroll data found for this week');
+        toast.error('No payroll data found for this period');
         return;
       }
 
@@ -598,19 +425,7 @@ export default function PayslipsPage() {
       const colWidths = [
         { wch: 12 }, // Employee ID
         { wch: 25 }, // Employee Name
-        { wch: 10 }, // Rate/Hour
         { wch: 12 }, // Working Days
-        { wch: 12 }, // Regular Pay
-        { wch: 14 }, // Regular OT Hours
-        { wch: 14 }, // Regular OT Pay
-        { wch: 14 }, // Night Diff Hours
-        { wch: 14 }, // Night Diff Pay
-        { wch: 14 }, // Sunday/RD Hours
-        { wch: 14 }, // Sunday/RD Pay
-        { wch: 18 }, // Special Holiday Hours
-        { wch: 18 }, // Special Holiday Pay
-        { wch: 18 }, // Regular Holiday Hours
-        { wch: 18 }, // Regular Holiday Pay
         { wch: 12 }, // Gross Pay
         { wch: 10 }, // Vale
         { wch: 12 }, // Uniform/PPE
@@ -631,7 +446,7 @@ export default function PayslipsPage() {
       XLSX.utils.book_append_sheet(wb, ws, 'Payroll Summary');
 
       // Generate filename
-      const fileName = `Payroll_${format(weekStart, 'yyyy-MM-dd')}_to_${format(addDays(weekStart, 6), 'yyyy-MM-dd')}.xlsx`;
+      const fileName = `Payroll_${format(periodStart, 'yyyy-MM-dd')}_to_${format(periodEnd, 'yyyy-MM-dd')}.xlsx`;
 
       // Download file
       XLSX.writeFile(wb, fileName);
@@ -657,7 +472,7 @@ export default function PayslipsPage() {
           .from('weekly_attendance')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
           .maybeSingle();
 
         if (!attData) continue; // Skip employees without timesheet data
@@ -667,7 +482,7 @@ export default function PayslipsPage() {
           .from('employee_deductions')
           .select('*')
           .eq('employee_id', emp.id)
-          .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
           .maybeSingle();
 
         const grossPay = attData.gross_pay;
@@ -690,13 +505,12 @@ export default function PayslipsPage() {
         bankTransferData.push({
           'Employee ID': emp.employee_id,
           'Employee Name': emp.full_name,
-          'Bank Account Number': emp.bank_account_number || 'NOT SET',
           'Net Pay': netPay,
         });
       }
 
       if (bankTransferData.length === 0) {
-        toast.error('No payroll data found for this week');
+        toast.error('No payroll data found for this period');
         return;
       }
 
@@ -708,7 +522,6 @@ export default function PayslipsPage() {
       const colWidths = [
         { wch: 12 }, // Employee ID
         { wch: 30 }, // Employee Name
-        { wch: 25 }, // Bank Account Number
         { wch: 15 }, // Net Pay
       ];
       ws['!cols'] = colWidths;
@@ -720,7 +533,7 @@ export default function PayslipsPage() {
       const totalNetPay = bankTransferData.reduce((sum, row) => sum + row['Net Pay'], 0);
       
       // Generate filename
-      const fileName = `Bank_Transfer_${format(weekStart, 'yyyy-MM-dd')}_to_${format(addDays(weekStart, 6), 'yyyy-MM-dd')}.xlsx`;
+      const fileName = `Bank_Transfer_${format(periodStart, 'yyyy-MM-dd')}_to_${format(periodEnd, 'yyyy-MM-dd')}.xlsx`;
 
       // Download file
       XLSX.writeFile(wb, fileName);
@@ -777,7 +590,7 @@ export default function PayslipsPage() {
         .from('weekly_attendance')
         .select('*')
         .eq('employee_id', empId)
-        .eq('week_start_date', format(weekStart, 'yyyy-MM-dd'))
+          .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
         .maybeSingle();
 
       if (!attData) continue;
@@ -790,78 +603,7 @@ export default function PayslipsPage() {
         .eq('is_active', true)
         .maybeSingle();
 
-      // Calculate earnings breakdown
       const days = attData.attendance_data as any[];
-      let regularPay = 0;
-      let regularOT = 0;
-      let regularOTHours = 0;
-      let nightDiff = 0;
-      let nightDiffHours = 0;
-      let sundayRestDay = 0;
-      let sundayRestDayHours = 0;
-      let specialHoliday = 0;
-      let specialHolidayHours = 0;
-      let regularHoliday = 0;
-      let regularHolidayHours = 0;
-
-      days.forEach((day: any) => {
-        const dayType = day.dayType;
-        const regHours = day.regularHours || 0;
-        const otHours = day.overtimeHours || 0;
-        const ndHours = day.nightDiffHours || 0;
-
-        if (dayType === 'regular') {
-          regularPay += (regHours * emp.rate_per_hour);
-          regularOTHours += otHours;
-          regularOT += (otHours * emp.rate_per_hour * 1.25);
-        }
-
-        if (dayType === 'sunday') {
-          sundayRestDayHours += regHours + otHours;
-          sundayRestDay += (regHours * emp.rate_per_hour * 1.3);
-          if (otHours > 0) {
-            sundayRestDay += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
-          }
-        }
-
-        if (dayType === 'non-working-holiday') {
-          specialHolidayHours += regHours + otHours;
-          specialHoliday += (regHours * emp.rate_per_hour * 1.3);
-          if (otHours > 0) {
-            specialHoliday += ((otHours * emp.rate_per_hour * 1.3) * 1.3);
-          }
-        }
-
-        if (dayType === 'regular-holiday') {
-          regularHolidayHours += regHours + otHours;
-          regularHoliday += (regHours * emp.rate_per_hour * 2);
-          if (otHours > 0) {
-            regularHoliday += ((otHours * emp.rate_per_hour * 2) * 1.3);
-          }
-        }
-
-        if (dayType === 'sunday-special-holiday') {
-          specialHolidayHours += regHours + otHours;
-          specialHoliday += (regHours * emp.rate_per_hour * 1.5);
-          if (otHours > 0) {
-            specialHoliday += ((otHours * emp.rate_per_hour * 1.5) * 1.3);
-          }
-        }
-
-        if (dayType === 'sunday-regular-holiday') {
-          regularHolidayHours += regHours + otHours;
-          regularHoliday += (regHours * emp.rate_per_hour * 2.6);
-          if (otHours > 0) {
-            regularHoliday += ((otHours * emp.rate_per_hour * 2.6) * 1.3);
-          }
-        }
-
-        if (ndHours > 0) {
-          nightDiffHours += ndHours;
-          nightDiff += (ndHours * emp.rate_per_hour * 0.1);
-        }
-      });
-
       const workingDays = days.filter((day: any) => (day.regularHours || 0) > 0).length;
       const grossPay = attData.gross_pay;
       const weeklyDed =
@@ -880,20 +622,20 @@ export default function PayslipsPage() {
 
       payslipsData.push({
         employee: emp,
-        weekStart,
-        weekEnd: addDays(weekStart, 6),
+        periodStart,
+        periodEnd: getBiMonthlyPeriodEnd(periodStart),
         earnings: {
-          regularPay,
-          regularOT,
-          regularOTHours,
-          nightDiff,
-          nightDiffHours,
-          sundayRestDay,
-          sundayRestDayHours,
-          specialHoliday,
-          specialHolidayHours,
-          regularHoliday,
-          regularHolidayHours,
+          regularPay: 0,
+          regularOT: 0,
+          regularOTHours: 0,
+          nightDiff: 0,
+          nightDiffHours: 0,
+          sundayRestDay: 0,
+          sundayRestDayHours: 0,
+          specialHoliday: 0,
+          specialHolidayHours: 0,
+          regularHoliday: 0,
+          regularHolidayHours: 0,
           grossIncome: grossPay,
         },
         deductions: {
@@ -943,41 +685,37 @@ export default function PayslipsPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Payslip Generation</h1>
           <p className="text-gray-600 mt-1">
-            Generate weekly payslips (Wednesday to Tuesday) with automatic calculations
+            Generate bi-monthly payslips (2 weeks, Monday-Friday)
           </p>
         </div>
 
         <Card>
           <div className="space-y-4">
-            {/* Week Navigation */}
+            {/* Period Navigation */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Week (Wednesday - Tuesday)
+                Select Bi-Monthly Period (Monday - Friday, 2 weeks)
               </label>
               <div className="flex items-center gap-3">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => changeWeek('prev')}
+                  onClick={() => changePeriod('prev')}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
                 <div className="flex-1 text-center">
                   <div className="font-semibold text-gray-900">
-                    {format(weekStart, 'MMM d, yyyy')} -{' '}
-                    {format(addDays(weekStart, 6), 'MMM d, yyyy')}
+                    {formatBiMonthlyPeriod(periodStart, periodEnd)}
                   </div>
-                  <div className="text-sm text-gray-500 flex items-center justify-center gap-2">
-                    Week of {format(weekStart, 'MMMM d, yyyy')}
-                    <Badge variant={weekNumber === 4 ? 'success' : 'info'}>
-                      Week {weekNumber}
-                    </Badge>
+                  <div className="text-sm text-gray-500">
+                    Period starting {format(periodStart, 'MMMM d, yyyy')}
                   </div>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => changeWeek('next')}
+                  onClick={() => changePeriod('next')}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
@@ -1093,8 +831,8 @@ export default function PayslipsPage() {
           >
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
               <p className="text-yellow-800 font-medium">
-                No timesheet data found for {selectedEmployee.full_name} for the week of{' '}
-                {format(weekStart, 'MMM dd')} - {format(addDays(weekStart, 6), 'MMM dd, yyyy')}
+                No timesheet data found for {selectedEmployee.full_name} for the period{' '}
+                {formatBiMonthlyPeriod(periodStart, periodEnd)}
               </p>
               <p className="text-yellow-700 text-sm mt-2">
                 Please go to the <strong>Timesheet</strong> page and enter the hours worked for this employee before generating a payslip.
@@ -1135,7 +873,7 @@ export default function PayslipsPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 mt-2">
-                  Based on weekly attendance entered in Timesheet
+                  Based on bi-monthly attendance entered in Timesheet
                 </p>
               </div>
             </Card>
@@ -1145,7 +883,7 @@ export default function PayslipsPage() {
               <div className="space-y-6">
                 {/* Weekly Deductions */}
                 <div>
-                  <h4 className="font-semibold text-gray-700 mb-3">Weekly Deductions</h4>
+                  <h4 className="font-semibold text-gray-700 mb-3">Bi-Monthly Deductions</h4>
                   <div className="space-y-2 bg-gray-50 p-4 rounded-lg">
                     {(deductions?.vale_amount || 0) > 0 && (
                       <div className="flex justify-between">
@@ -1207,7 +945,7 @@ export default function PayslipsPage() {
                 {/* Government Contributions */}
                 <div>
                   <h4 className="font-semibold text-gray-700 mb-3">
-                    Government Contributions (Check for 3rd/4th week)
+                    Government Contributions
                   </h4>
                   <div className="space-y-3">
                     <label className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
@@ -1289,20 +1027,17 @@ export default function PayslipsPage() {
                 </div>
 
                 {/* Allowance */}
-                {weekNumber === 4 && (
-                  <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
-                    <h4 className="font-semibold text-green-800 mb-3">
-                      4th Week Allowance/Load 🎉
-                    </h4>
-                    <Input
-                      label="Allowance Amount"
-                      type="number"
-                      step="0.01"
-                      value={allowanceAmount}
-                      onChange={(e) => setAllowanceAmount(e.target.value)}
-                    />
-                  </div>
-                )}
+                <div>
+                  <h4 className="font-semibold text-gray-700 mb-3">Allowance</h4>
+                  <Input
+                    label="Allowance Amount"
+                    type="number"
+                    step="0.01"
+                    value={allowanceAmount}
+                    onChange={(e) => setAllowanceAmount(e.target.value)}
+                    helperText="Optional allowance for this period"
+                  />
+                </div>
               </div>
             </Card>
 
@@ -1342,7 +1077,7 @@ export default function PayslipsPage() {
                     setApplyPagibig(false);
                     setAdjustmentAmount('0');
                     setAdjustmentReason('');
-                    setAllowanceAmount(weekNumber === 4 ? '500' : '0');
+                    setAllowanceAmount('0');
                   }}
                 >
                   Reset
@@ -1386,7 +1121,7 @@ export default function PayslipsPage() {
               </svg>
               <h3 className="text-lg font-semibold mb-2">No Attendance Record Found</h3>
               <p className="mb-4">
-                Please enter attendance for this employee and week in the Timesheet page first.
+                Please enter attendance for this employee and period in the Timesheet page first.
               </p>
               <Button onClick={() => (window.location.href = '/timesheet')}>
                 Go to Timesheet
@@ -1405,9 +1140,9 @@ export default function PayslipsPage() {
           >
             <div className="space-y-4">
               <PayslipPrint
-                employee={selectedEmployee}
-                weekStart={weekStart}
-                weekEnd={addDays(weekStart, 6)}
+                employee={selectedEmployee as any}
+                weekStart={periodStart}
+                weekEnd={periodEnd}
                 attendance={attendance}
                 earnings={calculateEarningsBreakdown()}
                 deductions={{
@@ -1486,4 +1221,3 @@ export default function PayslipsPage() {
     </>
   );
 }
-

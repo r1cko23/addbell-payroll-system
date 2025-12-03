@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { OfficeLocation, resolveLocationDetails } from '@/lib/location';
 
 interface TimeEntry {
   id: string;
@@ -51,6 +52,7 @@ export default function TimeEntriesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [hrNotes, setHrNotes] = useState('');
+  const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
@@ -58,6 +60,23 @@ export default function TimeEntriesPage() {
   useEffect(() => {
     fetchTimeEntries();
   }, [selectedWeek, statusFilter]);
+
+  useEffect(() => {
+    const fetchLocations = async () => {
+      const { data, error } = await supabase
+        .from('office_locations')
+        .select('id, name, address, latitude, longitude, radius_meters');
+
+      if (error) {
+        console.error('Error loading locations:', error);
+        return;
+      }
+
+      setOfficeLocations((data || []) as OfficeLocation[]);
+    };
+
+    fetchLocations();
+  }, [supabase]);
 
   async function fetchTimeEntries() {
     setLoading(true);
@@ -195,6 +214,13 @@ export default function TimeEntriesPage() {
     totalHours: entries.reduce((sum, e) => sum + (e.total_hours || 0), 0),
   };
 
+  const selectedClockInDetails = selectedEntry
+    ? resolveLocationDetails(selectedEntry.clock_in_location, officeLocations)
+    : null;
+  const selectedClockOutDetails = selectedEntry
+    ? resolveLocationDetails(selectedEntry.clock_out_location, officeLocations)
+    : null;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -248,7 +274,7 @@ export default function TimeEntriesPage() {
                   ℹ️ Auto-Sync to Timesheet
                 </p>
                 <p>
-                  Approved entries automatically populate the weekly timesheet. 
+                  Approved entries automatically populate the timesheet. 
                   Review and approve <strong>{stats.pending} pending {stats.pending === 1 ? 'entry' : 'entries'}</strong> to make them available for payroll processing.
                 </p>
               </div>
@@ -309,14 +335,12 @@ export default function TimeEntriesPage() {
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-muted">
+                <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-3 text-sm font-medium">Employee</th>
                   <th className="text-left p-3 text-sm font-medium">Clock In</th>
                   <th className="text-left p-3 text-sm font-medium">Clock Out</th>
                   <th className="text-right p-3 text-sm font-medium">Hours</th>
-                  <th className="text-right p-3 text-sm font-medium">OT</th>
-                  <th className="text-right p-3 text-sm font-medium">Night</th>
                   <th className="text-center p-3 text-sm font-medium">Status</th>
                   <th className="text-center p-3 text-sm font-medium">Actions</th>
                 </tr>
@@ -337,7 +361,11 @@ export default function TimeEntriesPage() {
                     </td>
                   </tr>
                 ) : (
-                  entries.map((entry) => (
+                  entries.map((entry) => {
+                    const clockInDetails = resolveLocationDetails(entry.clock_in_location, officeLocations);
+                    const clockOutDetails = resolveLocationDetails(entry.clock_out_location, officeLocations);
+
+                    return (
                     <tr key={entry.id} className="hover:bg-muted/50">
                       <td className="p-3">
                         <div className="flex items-center gap-2">
@@ -353,36 +381,48 @@ export default function TimeEntriesPage() {
                         </div>
                       </td>
                       <td className="p-3">
-                        <div className="text-sm">
+                        <div className="text-sm font-medium">
                           {format(new Date(entry.clock_in_time), 'MMM d, h:mm a')}
                         </div>
-                        {entry.clock_in_location && (
+                        <div className="text-xs text-muted-foreground">
+                          {clockInDetails.name}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {clockInDetails.address}
+                        </div>
+                        {clockInDetails.coordinates && (
                           <a
-                            href={`https://www.google.com/maps?q=${entry.clock_in_location}`}
+                            href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                            className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
                           >
                             <MapPin className="h-3 w-3" />
-                            View GPS
+                            View map
                           </a>
                         )}
                       </td>
                       <td className="p-3">
                         {entry.clock_out_time ? (
                           <>
-                            <div className="text-sm">
+                            <div className="text-sm font-medium">
                               {format(new Date(entry.clock_out_time), 'MMM d, h:mm a')}
                             </div>
-                            {entry.clock_out_location && (
+                            <div className="text-xs text-muted-foreground">
+                              {clockOutDetails.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {clockOutDetails.address}
+                            </div>
+                            {clockOutDetails.coordinates && (
                               <a
-                                href={`https://www.google.com/maps?q=${entry.clock_out_location}`}
+                                href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                                className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
                               >
                                 <MapPin className="h-3 w-3" />
-                                View GPS
+                                View map
                               </a>
                             )}
                           </>
@@ -394,12 +434,6 @@ export default function TimeEntriesPage() {
                       </td>
                       <td className="p-3 text-right font-medium">
                         {entry.total_hours?.toFixed(2) || '-'}
-                      </td>
-                      <td className="p-3 text-right text-orange-600">
-                        {entry.overtime_hours?.toFixed(2) || '0.00'}
-                      </td>
-                      <td className="p-3 text-right text-purple-600">
-                        {entry.night_diff_hours?.toFixed(2) || '0.00'}
                       </td>
                       <td className="p-3 text-center">
                         {getStatusBadge(entry.status)}
@@ -429,7 +463,8 @@ export default function TimeEntriesPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                  );
+                })
                 )}
               </tbody>
             </table>
@@ -466,16 +501,26 @@ export default function TimeEntriesPage() {
                     <div className="font-medium">
                       {format(new Date(selectedEntry.clock_in_time), 'MMM d, yyyy h:mm a')}
                     </div>
-                    {selectedEntry.clock_in_location && (
-                      <a
-                        href={`https://www.google.com/maps?q=${selectedEntry.clock_in_location}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                      >
-                        <MapPin className="h-3 w-3" />
-                        View GPS Location
-                      </a>
+                    {selectedClockInDetails && (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedClockInDetails.name}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {selectedClockInDetails.address}
+                        </div>
+                        {selectedClockInDetails.coordinates && (
+                          <a
+                            href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            View GPS Location
+                          </a>
+                        )}
+                      </>
                     )}
                   </div>
                   <div>
@@ -485,16 +530,26 @@ export default function TimeEntriesPage() {
                         ? format(new Date(selectedEntry.clock_out_time), 'MMM d, yyyy h:mm a')
                         : 'Not clocked out'}
                     </div>
-                    {selectedEntry.clock_out_location && (
-                      <a
-                        href={`https://www.google.com/maps?q=${selectedEntry.clock_out_location}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                      >
-                        <MapPin className="h-3 w-3" />
-                        View GPS Location
-                      </a>
+                    {selectedClockOutDetails && (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedClockOutDetails.name}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {selectedClockOutDetails.address}
+                        </div>
+                        {selectedClockOutDetails.coordinates && (
+                          <a
+                            href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            View GPS Location
+                          </a>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

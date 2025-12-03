@@ -260,8 +260,7 @@ export default function SettingsPage() {
               🚀 <strong>Quick Start:</strong> See QUICKSTART.md for a 30-minute setup guide
             </p>
             <p>
-              💡 <strong>Weekly Workflow:</strong> Enter Timesheet → Generate Payslips → Admin
-              Approval → Print/Export
+              💡 <strong>Payroll Process:</strong> Enter Timesheet → Generate Payslips → Print/Export
             </p>
           </div>
         </Card>

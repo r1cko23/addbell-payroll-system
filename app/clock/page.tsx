@@ -201,11 +201,9 @@ export default function ClockPage() {
       });
 
       if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
-        const proceed = confirm(`⚠️ Location Warning: ${validationData[0].error_message}\n\nDo you want to proceed anyway?`);
-        if (!proceed) {
-          setLoading(false);
-          return;
-        }
+        toast.error(`📍 Location Error: ${validationData[0].error_message || 'You must be at an allowed location to clock in.'}`);
+        setLoading(false);
+        return;
       }
     }
 
@@ -255,11 +253,9 @@ export default function ClockPage() {
       });
 
       if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
-        const proceed = confirm(`⚠️ Location Warning: ${validationData[0].error_message}\n\nDo you want to proceed anyway?`);
-        if (!proceed) {
-          setLoading(false);
-          return;
-        }
+        toast.error(`📍 Location Error: ${validationData[0].error_message || 'You must be at an allowed location to clock in.'}`);
+        setLoading(false);
+        return;
       }
     }
 

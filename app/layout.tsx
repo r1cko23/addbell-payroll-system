@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Add-bell Tech Payroll',
-  description: 'Complete payroll management system with weekly timesheet tracking',
+  title: 'Green Pasture People Management Inc. - Payroll System',
+  description: 'Complete payroll management system with bi-monthly timesheet tracking',
 };
 
 export default function RootLayout({

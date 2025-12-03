@@ -7,8 +7,6 @@ interface PayslipPrintProps {
   employee: {
     employee_id: string;
     full_name: string;
-    rate_per_day: number;
-    rate_per_hour: number;
   };
   weekStart: Date;
   weekEnd: Date;
@@ -63,8 +61,8 @@ export function PayslipPrint(props: PayslipPrintProps) {
       {/* Company Header */}
       <div style={{ textAlign: 'center', marginBottom: '2px', borderBottom: '1px solid #000', paddingBottom: '1px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <img 
-          src="/Payslip_logo.png" 
-          alt="Addbell Technical Services" 
+          src="/gp-logo.webp" 
+          alt="Green Pasture People Management Inc." 
           style={{ height: '22px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             e.currentTarget.style.display = 'none';
@@ -106,13 +104,7 @@ export function PayslipPrint(props: PayslipPrintProps) {
           </td>
         </tr>
 
-        {/* Basic Salary & Working Days */}
-        <tr>
-          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>BASIC SALARY:</td>
-          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{formatCurrency(employee.rate_per_day)}</td>
-          <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>RATE/HOUR:</td>
-          <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{employee.rate_per_hour.toFixed(2)}</td>
-        </tr>
+        {/* Basic Salary & Working Days - Removed Rates */}
         <tr>
           <td style={{border: '2px solid #000', padding: '6px 8px', fontWeight: 'bold'}}>WORKING DAYS:</td>
           <td style={{border: '2px solid #000', padding: '6px 8px', textAlign: 'right'}}>{workingDays}</td>

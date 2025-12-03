@@ -13,6 +13,14 @@ interface EmployeeInfo {
   last_name: string | null;
   middle_initial: string | null;
   assigned_hotel: string | null;
+  assigned_locations: string[];
+  address: string | null;
+  birth_date: string | null;
+  tin_number: string | null;
+  sss_number: string | null;
+  philhealth_number: string | null;
+  pagibig_number: string | null;
+  hmo_provider: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -32,6 +40,14 @@ export default function EmployeeInfoPage() {
       last_name: null,
       middle_initial: null,
       assigned_hotel: null,
+      assigned_locations: [],
+      address: null,
+      birth_date: null,
+      tin_number: null,
+      sss_number: null,
+      philhealth_number: null,
+      pagibig_number: null,
+      hmo_provider: null,
       is_active: true,
       created_at: employee.loginTime,
     }),
@@ -79,7 +95,20 @@ export default function EmployeeInfoPage() {
     { label: 'First Name', value: info.first_name || '—' },
     { label: 'Last Name', value: info.last_name || '—' },
     { label: 'Middle Initial', value: info.middle_initial || '—' },
-    { label: 'Assigned Hotel / Location', value: info.assigned_hotel || '—' },
+    { label: 'Address', value: info.address || '—' },
+    {
+      label: 'Birth Date',
+      value: info.birth_date ? format(new Date(info.birth_date), 'MMMM d, yyyy') : '—',
+    },
+    { label: 'TIN #', value: info.tin_number || '—' },
+    { label: 'SSS #', value: info.sss_number || '—' },
+    { label: 'PhilHealth #', value: info.philhealth_number || '—' },
+    { label: 'Pag-IBIG #', value: info.pagibig_number || '—' },
+    { label: 'HMO', value: info.hmo_provider || '—' },
+    {
+      label: 'Assigned Locations',
+      value: info.assigned_locations.length ? info.assigned_locations.join(', ') : '—',
+    },
     { label: 'Status', value: info.is_active ? 'Active' : 'Inactive' },
     { label: 'Date Added', value: format(new Date(info.created_at), 'MMMM d, yyyy') },
   ];

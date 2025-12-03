@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
-import { Input, Select } from '@/components/Input';
+import { Input, Textarea } from '@/components/Input';
 import { Modal } from '@/components/Modal';
 import { Badge } from '@/components/Badge';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -19,8 +19,19 @@ interface Employee {
   first_name?: string;
   middle_initial?: string;
   assigned_hotel?: string;
+  address?: string | null;
+  birth_date?: string | null;
+  tin_number?: string | null;
+  sss_number?: string | null;
+  philhealth_number?: string | null;
+  pagibig_number?: string | null;
+  hmo_provider?: string | null;
   is_active: boolean;
   created_at: string;
+  employee_location_assignments?: {
+    location_id: string;
+    office_locations?: { id: string; name: string } | null;
+  }[];
 }
 
 interface Location {
@@ -41,6 +52,14 @@ export default function EmployeesPage() {
     first_name: '',
     middle_initial: '',
     assigned_hotel: '',
+    locations: [] as string[],
+    address: '',
+    birth_date: '',
+    tin_number: '',
+    sss_number: '',
+    philhealth_number: '',
+    pagibig_number: '',
+    hmo_provider: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -50,6 +69,11 @@ export default function EmployeesPage() {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   const supabase = createClient();
+  const locationMap = useMemo(() => {
+    const map = new Map<string, string>();
+    locations.forEach((loc) => map.set(loc.id, loc.name));
+    return map;
+  }, [locations]);
 
   useEffect(() => {
     fetchEmployees();
@@ -60,7 +84,16 @@ export default function EmployeesPage() {
     try {
       const { data, error } = await supabase
         .from('employees')
-        .select('*')
+        .select(
+          `*,
+          employee_location_assignments (
+            location_id,
+            office_locations (
+              id,
+              name
+            )
+          )`
+        )
         .order('last_name', { nullsFirst: false })
         .order('first_name', { nullsFirst: false });
 
@@ -97,6 +130,14 @@ export default function EmployeesPage() {
       first_name: '',
       middle_initial: '',
       assigned_hotel: '',
+      locations: [],
+      address: '',
+      birth_date: '',
+      tin_number: '',
+      sss_number: '',
+      philhealth_number: '',
+      pagibig_number: '',
+      hmo_provider: '',
     });
     setShowModal(true);
   }
@@ -109,12 +150,64 @@ export default function EmployeesPage() {
       first_name: employee.first_name || '',
       middle_initial: employee.middle_initial || '',
       assigned_hotel: employee.assigned_hotel || '',
+      locations: employee.employee_location_assignments?.map((a) => a.location_id) || [],
+      address: employee.address || '',
+      birth_date: employee.birth_date
+        ? new Date(employee.birth_date).toISOString().slice(0, 10)
+        : '',
+      tin_number: employee.tin_number || '',
+      sss_number: employee.sss_number || '',
+      philhealth_number: employee.philhealth_number || '',
+      pagibig_number: employee.pagibig_number || '',
+      hmo_provider: employee.hmo_provider || '',
     });
     setShowModal(true);
   }
 
+  const toggleLocationSelection = (locationId: string) => {
+    setFormData((prev) => {
+      const exists = prev.locations.includes(locationId);
+      return {
+        ...prev,
+        locations: exists
+          ? prev.locations.filter((id) => id !== locationId)
+          : [...prev.locations, locationId],
+      };
+    });
+  };
+
+  async function saveEmployeeLocations(employeeId: string, locationIds: string[]) {
+    const { error: deleteError } = await supabase
+      .from('employee_location_assignments')
+      .delete()
+      .eq('employee_id', employeeId);
+
+    if (deleteError) throw deleteError;
+
+    if (locationIds.length === 0) {
+      return;
+    }
+
+    const inserts = locationIds.map((location_id) => ({
+      employee_id: employeeId,
+      location_id,
+    }));
+
+    const { error: insertError } = await supabase
+      .from('employee_location_assignments')
+      .insert(inserts);
+
+    if (insertError) throw insertError;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (formData.locations.length === 0) {
+      toast.error('Please assign at least one location');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -122,14 +215,30 @@ export default function EmployeesPage() {
       const middleInitial = formData.middle_initial ? ` ${formData.middle_initial}.` : '';
       const full_name = `${formData.first_name}${middleInitial} ${formData.last_name}`;
 
+      const primaryLocationName =
+        formData.locations.length > 0
+          ? locationMap.get(formData.locations[0]) ||
+            locations.find((loc) => loc.id === formData.locations[0])?.name ||
+            null
+          : null;
+
       const employeeData = {
         employee_id: formData.employee_id,
         full_name: full_name.trim(),
         last_name: formData.last_name,
         first_name: formData.first_name,
         middle_initial: formData.middle_initial || null,
-        assigned_hotel: formData.assigned_hotel || null,
+        assigned_hotel: primaryLocationName,
+        address: formData.address || null,
+        birth_date: formData.birth_date || null,
+        tin_number: formData.tin_number || null,
+        sss_number: formData.sss_number || null,
+        philhealth_number: formData.philhealth_number || null,
+        pagibig_number: formData.pagibig_number || null,
+        hmo_provider: formData.hmo_provider || null,
       };
+
+      let employeeId = editingEmployee ? editingEmployee.id : '';
 
       if (editingEmployee) {
         // Update existing employee
@@ -139,17 +248,26 @@ export default function EmployeesPage() {
           .eq('id', editingEmployee.id);
 
         if (error) throw error;
+        await saveEmployeeLocations(editingEmployee.id, formData.locations);
         toast.success('Employee updated successfully');
       } else {
         // Create new employee - set default portal password to employee_id
-        const { error } = await supabase
+        const { data: inserted, error } = await supabase
           .from('employees')
-          .insert([{
-            ...employeeData,
-            portal_password: formData.employee_id // Default password is employee_id
-          }]);
+          .insert([
+            {
+              ...employeeData,
+              portal_password: formData.employee_id, // Default password is employee_id
+            },
+          ])
+          .select('id')
+          .single();
 
         if (error) throw error;
+        employeeId = inserted?.id || '';
+        if (employeeId) {
+          await saveEmployeeLocations(employeeId, formData.locations);
+        }
         toast.success('Employee added successfully. Portal password set to Employee ID.');
       }
 
@@ -316,7 +434,7 @@ export default function EmployeesPage() {
                       Full Name
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Assigned Hotel
+                      Assigned Locations
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
@@ -345,7 +463,18 @@ export default function EmployeesPage() {
                           {employee.full_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {employee.assigned_hotel || '-'}
+                          {(() => {
+                            const names =
+                              employee.employee_location_assignments
+                                ?.map(
+                                  (assignment) =>
+                                    assignment.office_locations?.name ||
+                                    locationMap.get(assignment.location_id) ||
+                                    null
+                                )
+                                .filter((name): name is string => Boolean(name)) || [];
+                            return names.length ? names.join(', ') : '—';
+                          })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <Badge variant={employee.is_active ? 'success' : 'default'}>
@@ -427,49 +556,136 @@ export default function EmployeesPage() {
             helperText="Unique identifier (e.g., EMP001)"
           />
 
-          <Input
-            label="Last Name"
-            required
-            value={formData.last_name}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Last Name"
+              required
+              value={formData.last_name}
+              onChange={(e) =>
+                setFormData({ ...formData, last_name: e.target.value })
+              }
+              helperText="Surname/Family name"
+            />
+
+            <Input
+              label="First Name"
+              required
+              value={formData.first_name}
+              onChange={(e) =>
+                setFormData({ ...formData, first_name: e.target.value })
+              }
+              helperText="Given name"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Middle Initial"
+              value={formData.middle_initial}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  middle_initial: e.target.value.toUpperCase().slice(0, 1),
+                })
+              }
+              helperText="Optional - just the initial (e.g., M)"
+            />
+
+            <Input
+              type="date"
+              label="Birth Date"
+              value={formData.birth_date}
+              onChange={(e) =>
+                setFormData({ ...formData, birth_date: e.target.value })
+              }
+            />
+          </div>
+
+          <Textarea
+            label="Address"
+            rows={3}
+            value={formData.address}
             onChange={(e) =>
-              setFormData({ ...formData, last_name: e.target.value })
+              setFormData({ ...formData, address: e.target.value })
             }
-            helperText="Surname/Family name"
+            helperText="Residential address"
           />
 
-          <Input
-            label="First Name"
-            required
-            value={formData.first_name}
-            onChange={(e) =>
-              setFormData({ ...formData, first_name: e.target.value })
-            }
-            helperText="Given name"
-          />
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-gray-700">Assigned Locations</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+              {locations.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No active locations configured yet. Add locations first.
+                </p>
+              ) : (
+                locations.map((loc) => {
+                  const checked = formData.locations.includes(loc.id);
+                  return (
+                    <label
+                      key={loc.id}
+                      className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm ${
+                        checked ? 'bg-emerald-50 border-emerald-200' : 'border-gray-200'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-emerald-600 rounded border-gray-300"
+                        checked={checked}
+                        onChange={() => toggleLocationSelection(loc.id)}
+                      />
+                      <span className="text-gray-800">{loc.name}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              Select at least one location. The first selected will be treated as the primary
+              location.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="TIN #"
+              value={formData.tin_number}
+              onChange={(e) =>
+                setFormData({ ...formData, tin_number: e.target.value })
+              }
+            />
+            <Input
+              label="SSS #"
+              value={formData.sss_number}
+              onChange={(e) =>
+                setFormData({ ...formData, sss_number: e.target.value })
+              }
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="PhilHealth #"
+              value={formData.philhealth_number}
+              onChange={(e) =>
+                setFormData({ ...formData, philhealth_number: e.target.value })
+              }
+            />
+            <Input
+              label="Pag-IBIG #"
+              value={formData.pagibig_number}
+              onChange={(e) =>
+                setFormData({ ...formData, pagibig_number: e.target.value })
+              }
+            />
+          </div>
 
           <Input
-            label="Middle Initial"
-            value={formData.middle_initial}
+            label="HMO"
+            value={formData.hmo_provider}
             onChange={(e) =>
-              setFormData({ ...formData, middle_initial: e.target.value.toUpperCase().slice(0, 1) })
+              setFormData({ ...formData, hmo_provider: e.target.value })
             }
-            helperText="Optional - just the initial (e.g., M)"
-          />
-
-          <Select
-            label="Assigned Hotel/Location"
-            value={formData.assigned_hotel}
-            onChange={(e) =>
-              setFormData({ ...formData, assigned_hotel: e.target.value })
-            }
-            options={[
-              { value: '', label: '-- Select Location --' },
-              ...locations.map((loc) => ({
-                value: loc.name,
-                label: loc.name,
-              })),
-            ]}
-            helperText="Select the primary work location"
           />
         </form>
       </Modal>

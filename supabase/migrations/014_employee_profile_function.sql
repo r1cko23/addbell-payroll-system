@@ -11,6 +11,14 @@ RETURNS TABLE (
   last_name TEXT,
   middle_initial TEXT,
   assigned_hotel TEXT,
+  assigned_locations TEXT[],
+  address TEXT,
+  birth_date DATE,
+  tin_number TEXT,
+  sss_number TEXT,
+  philhealth_number TEXT,
+  pagibig_number TEXT,
+  hmo_provider TEXT,
   is_active BOOLEAN,
   created_at TIMESTAMPTZ
 )
@@ -27,10 +35,26 @@ BEGIN
     e.last_name,
     e.middle_initial,
     e.assigned_hotel,
+    COALESCE(
+      array_remove(array_agg(ol.name ORDER BY ol.name), NULL),
+      ARRAY[]::TEXT[]
+    ) AS assigned_locations,
+    e.address,
+    e.birth_date,
+    e.tin_number,
+    e.sss_number,
+    e.philhealth_number,
+    e.pagibig_number,
+    e.hmo_provider,
     e.is_active,
     e.created_at
   FROM public.employees e
+  LEFT JOIN public.employee_location_assignments ela
+    ON ela.employee_id = e.id
+  LEFT JOIN public.office_locations ol
+    ON ol.id = ela.location_id
   WHERE e.id = p_employee_uuid
+  GROUP BY e.id
   LIMIT 1;
 END;
 $$;

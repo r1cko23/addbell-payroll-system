@@ -19,34 +19,54 @@ AS $$
 DECLARE
   v_location office_locations%ROWTYPE;
   v_distance DOUBLE PRECISION;
+  v_allowed_names TEXT := '';
+  v_has_locations BOOLEAN := FALSE;
 BEGIN
-  SELECT ol.*
-  INTO v_location
-  FROM employees e
-  JOIN office_locations ol
-    ON lower(ol.name) = lower(e.assigned_hotel)
-  WHERE e.id = p_employee_uuid
-  LIMIT 1;
+  FOR v_location IN
+    SELECT DISTINCT ol.*
+    FROM (
+      SELECT ela.location_id
+      FROM employee_location_assignments ela
+      WHERE ela.employee_id = p_employee_uuid
+    ) assigned
+    JOIN office_locations ol ON ol.id = assigned.location_id
+    WHERE ol.is_active = true
+    UNION
+    SELECT ol.*
+    FROM employees e
+    JOIN office_locations ol ON lower(ol.name) = lower(e.assigned_hotel)
+    WHERE e.id = p_employee_uuid
+      AND ol.is_active = true
+  LOOP
+    v_has_locations := TRUE;
+    v_allowed_names := CASE
+      WHEN v_allowed_names = '' THEN v_location.name
+      ELSE v_allowed_names || ', ' || v_location.name
+    END;
 
-  IF NOT FOUND THEN
+    v_distance := earth_distance(
+      ll_to_earth(p_latitude, p_longitude),
+      ll_to_earth(v_location.latitude, v_location.longitude)
+    );
+
+    IF v_distance <= v_location.radius_meters THEN
+      RETURN QUERY
+      SELECT TRUE, v_location.name, v_distance, NULL::TEXT;
+      RETURN;
+    END IF;
+  END LOOP;
+
+  IF NOT v_has_locations THEN
     RETURN QUERY SELECT FALSE, NULL, NULL, 'No assigned location on record';
     RETURN;
   END IF;
 
-  v_distance := earth_distance(
-    ll_to_earth(p_latitude, p_longitude),
-    ll_to_earth(v_location.latitude, v_location.longitude)
-  );
-
   RETURN QUERY
   SELECT
-    v_distance <= v_location.radius_meters AS is_allowed,
-    v_location.name,
-    v_distance,
-    CASE
-      WHEN v_distance <= v_location.radius_meters THEN NULL
-      ELSE format('You must be at %s to clock in/out.', v_location.name)
-    END AS error_message;
+    FALSE,
+    NULL::TEXT,
+    NULL::DOUBLE PRECISION,
+    format('You must be at one of your assigned locations: %s.', v_allowed_names);
 END;
 $$;
 

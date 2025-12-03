@@ -43,7 +43,17 @@ export interface Database {
           id: string
           employee_id: string
           full_name: string
+          first_name: string | null
+          last_name: string | null
+          middle_initial: string | null
           assigned_hotel: string | null
+          address: string | null
+          birth_date: string | null
+          tin_number: string | null
+          sss_number: string | null
+          philhealth_number: string | null
+          pagibig_number: string | null
+          hmo_provider: string | null
           is_active: boolean
           portal_password: string | null
           created_at: string
@@ -54,7 +64,17 @@ export interface Database {
           id?: string
           employee_id: string
           full_name: string
+          first_name?: string | null
+          last_name?: string | null
+          middle_initial?: string | null
           assigned_hotel?: string | null
+          address?: string | null
+          birth_date?: string | null
+          tin_number?: string | null
+          sss_number?: string | null
+          philhealth_number?: string | null
+          pagibig_number?: string | null
+          hmo_provider?: string | null
           is_active?: boolean
           portal_password?: string | null
           created_at?: string
@@ -65,12 +85,42 @@ export interface Database {
           id?: string
           employee_id?: string
           full_name?: string
+          first_name?: string | null
+          last_name?: string | null
+          middle_initial?: string | null
           assigned_hotel?: string | null
+          address?: string | null
+          birth_date?: string | null
+          tin_number?: string | null
+          sss_number?: string | null
+          philhealth_number?: string | null
+          pagibig_number?: string | null
+          hmo_provider?: string | null
           is_active?: boolean
           portal_password?: string | null
           created_at?: string
           updated_at?: string
           created_by?: string | null
+        }
+      }
+      employee_location_assignments: {
+        Row: {
+          id: string
+          employee_id: string
+          location_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          location_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          location_id?: string
+          created_at?: string
         }
       }
       weekly_attendance: {

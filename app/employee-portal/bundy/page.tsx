@@ -14,6 +14,18 @@ import {
   getPreviousBiMonthlyPeriod,
   formatBiMonthlyPeriod,
 } from '@/utils/bimonthly';
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format as formatDate,
+  isSameDay,
+  isSameMonth,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from 'date-fns';
 
 interface TimeEntry {
   id: string;
@@ -32,6 +44,19 @@ interface LocationStatus {
   error: string | null;
 }
 
+interface CalendarHoliday {
+  date: string;
+  name: string;
+  type: 'regular' | 'non-working';
+}
+
+interface CalendarEntry {
+  date: string;
+  clock_in_time: string;
+  clock_out_time: string | null;
+  status: string;
+}
+
 export default function BundyClockPage() {
   const { employee } = useEmployeeSession();
   const supabase = createClient();
@@ -45,6 +70,9 @@ export default function BundyClockPage() {
   const periodEnd = useMemo(() => getBiMonthlyPeriodEnd(periodStart), [periodStart]);
   const [loading, setLoading] = useState(true);
   const [initialFetchComplete, setInitialFetchComplete] = useState(false);
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>([]);
+  const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
 
   const validateLocation = useCallback(async (lat: number, lng: number) => {
     const { data, error } = await supabase.rpc('is_employee_location_allowed', {
@@ -99,6 +127,68 @@ export default function BundyClockPage() {
     setEntries(data || []);
   }, [employee.id, periodEnd, periodStart, supabase]);
 
+  const fetchCalendarHolidays = useCallback(
+    async (targetDate: Date) => {
+      const gridStart = startOfWeek(startOfMonth(targetDate), { weekStartsOn: 0 });
+      const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
+      const startISO = formatDate(gridStart, 'yyyy-MM-dd');
+      const endISO = formatDate(gridEnd, 'yyyy-MM-dd');
+
+      const { data, error } = await supabase
+        .from('holidays')
+        .select('holiday_date, holiday_name, holiday_type')
+        .eq('is_active', true)
+        .gte('holiday_date', startISO)
+        .lte('holiday_date', endISO);
+
+      if (error) {
+        console.error('Failed to load calendar holidays', error);
+        return;
+      }
+
+      setCalendarHolidays(
+        (data || []).map((holiday) => ({
+          date: holiday.holiday_date,
+          name: holiday.holiday_name,
+          type: holiday.holiday_type === 'regular' ? 'regular' : 'non-working',
+        }))
+      );
+    },
+    [supabase]
+  );
+
+  const fetchCalendarEntries = useCallback(
+    async (targetDate: Date) => {
+      const gridStart = startOfWeek(startOfMonth(targetDate), { weekStartsOn: 0 });
+      const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
+      const startRange = gridStart.toISOString();
+      const endRange = gridEnd.toISOString();
+
+      const { data, error } = await supabase
+        .from('time_clock_entries')
+        .select('clock_in_time, clock_out_time, status')
+        .eq('employee_id', employee.id)
+        .gte('clock_in_time', startRange)
+        .lte('clock_in_time', endRange)
+        .order('clock_in_time', { ascending: true });
+
+      if (error) {
+        console.error('Failed to load calendar entries', error);
+        return;
+      }
+
+      setCalendarEntries(
+        (data || []).map((entry) => ({
+          date: formatDate(new Date(entry.clock_in_time), 'yyyy-MM-dd'),
+          clock_in_time: entry.clock_in_time,
+          clock_out_time: entry.clock_out_time,
+          status: entry.status,
+        }))
+      );
+    },
+    [employee.id, supabase]
+  );
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -133,6 +223,11 @@ export default function BundyClockPage() {
       );
     }
   }, [initialFetchComplete, validateLocation]);
+
+  useEffect(() => {
+    fetchCalendarHolidays(calendarDate);
+    fetchCalendarEntries(calendarDate);
+  }, [calendarDate, fetchCalendarEntries, fetchCalendarHolidays]);
 
   async function handleClock(event: 'in' | 'out') {
     if (!location) {
@@ -317,6 +412,14 @@ export default function BundyClockPage() {
         </div>
       </Card>
 
+      <HolidayCalendar
+        date={calendarDate}
+        holidays={calendarHolidays}
+        entries={calendarEntries}
+        onPrev={() => setCalendarDate((prev) => subMonths(prev, 1))}
+        onNext={() => setCalendarDate((prev) => addMonths(prev, 1))}
+      />
+
       <Card className="p-0 overflow-hidden">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold text-gray-800">Time Records</h2>
@@ -388,6 +491,128 @@ export default function BundyClockPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+function HolidayCalendar({
+  date,
+  holidays,
+  entries,
+  onPrev,
+  onNext,
+}: {
+  date: Date;
+  holidays: CalendarHoliday[];
+  entries: CalendarEntry[];
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const start = startOfWeek(startOfMonth(date), { weekStartsOn: 0 });
+  const end = endOfWeek(endOfMonth(date), { weekStartsOn: 0 });
+  const days = eachDayOfInterval({ start, end });
+  const holidayMap = new Map(holidays.map((holiday) => [holiday.date, holiday]));
+  const entryMap = entries.reduce<Map<string, CalendarEntry[]>>((map, entry) => {
+    if (!map.has(entry.date)) {
+      map.set(entry.date, []);
+    }
+    map.get(entry.date)!.push(entry);
+    return map;
+  }, new Map());
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={onPrev}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="text-lg font-semibold">{formatDate(date, 'MMMM yyyy')}</div>
+            <Button variant="secondary" size="sm" onClick={onNext}>
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full bg-purple-600/60" />
+              Regular Holiday
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full bg-amber-400/80" />
+              Special Holiday
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 text-center text-xs font-semibold text-muted-foreground border-t pt-2">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <div key={day}>{day}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 border rounded-lg overflow-hidden text-sm">
+          {days.map((day) => {
+            const iso = formatDate(day, 'yyyy-MM-dd');
+            const holiday = holidayMap.get(iso);
+            const dailyEntries = entryMap.get(iso);
+            const isCurrentMonth = isSameMonth(day, date);
+            const isToday = isSameDay(day, new Date());
+
+            const badge =
+              holiday &&
+              (holiday.type === 'regular' ? (
+                <div className="mt-1 text-[11px] px-2 py-1 rounded-full bg-purple-600/15 text-purple-700 border border-purple-200 font-semibold">
+                  Regular Holiday
+                </div>
+              ) : (
+                <div className="mt-1 text-[11px] px-2 py-1 rounded-full bg-amber-400/30 text-amber-800 border border-amber-200 font-semibold">
+                  Special Holiday
+                </div>
+              ));
+
+            return (
+              <div
+                key={iso}
+                className={`min-h-[90px] border-r border-b p-2 ${
+                  isCurrentMonth ? 'bg-white' : 'bg-muted/60 text-gray-400'
+                }`}
+              >
+                <div
+                  className={`text-right font-semibold ${
+                    isToday ? 'text-emerald-600' : 'text-gray-600'
+                  }`}
+                >
+                  {formatDate(day, 'd')}
+                </div>
+                {holiday && (
+                  <div className="mt-1 text-[11px] font-semibold text-gray-900 leading-tight">
+                    {holiday.name}
+                  </div>
+                )}
+                {badge}
+                {dailyEntries && dailyEntries.length > 0 && (
+                  <div className="mt-1 space-y-1">
+                    {dailyEntries.map((entry, idx) => (
+                      <div
+                        key={`${entry.clock_in_time}-${idx}`}
+                        className="text-[11px] bg-emerald-50 border border-emerald-100 rounded px-2 py-1 text-emerald-800"
+                      >
+                        {formatDate(new Date(entry.clock_in_time), 'h:mm a')}
+                        {entry.clock_out_time && (
+                          <>
+                            {' '}– {formatDate(new Date(entry.clock_out_time), 'h:mm a')}
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
   );
 }
 

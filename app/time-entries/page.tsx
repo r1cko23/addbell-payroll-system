@@ -47,6 +47,8 @@ interface TimeEntry {
 export default function TimeEntriesPage() {
   const supabase = createClient();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [employees, setEmployees] = useState<{ id: string; employee_id: string; full_name: string }[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -59,7 +61,25 @@ export default function TimeEntriesPage() {
 
   useEffect(() => {
     fetchTimeEntries();
-  }, [selectedWeek, statusFilter]);
+  }, [selectedWeek, statusFilter, selectedEmployee]);
+
+  useEffect(() => {
+    async function loadEmployees() {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, employee_id, full_name')
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        console.error('Failed to load employees', error);
+        return;
+      }
+
+      setEmployees(data || []);
+    }
+
+    loadEmployees();
+  }, [supabase]);
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -96,6 +116,10 @@ export default function TimeEntriesPage() {
 
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter);
+    }
+
+    if (selectedEmployee !== 'all') {
+      query = query.eq('employee_id', selectedEmployee);
     }
 
     const { data, error } = await query;
@@ -313,20 +337,39 @@ export default function TimeEntriesPage() {
               </Button>
             </div>
 
-            {/* Status Filter */}
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="p-2 border rounded-md text-sm"
-              >
-                <option value="all">All Status</option>
-                <option value="clocked_in">Clocked In</option>
-                <option value="clocked_out">Pending Review</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Status Filter */}
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="p-2 border rounded-md text-sm"
+                >
+                  <option value="all">All Status</option>
+                  <option value="clocked_in">Clocked In</option>
+                  <option value="clocked_out">Pending Review</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+
+              {/* Employee Filter */}
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <select
+                  value={selectedEmployee}
+                  onChange={(e) => setSelectedEmployee(e.target.value)}
+                  className="p-2 border rounded-md text-sm"
+                >
+                  <option value="all">All Employees</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.full_name} ({employee.employee_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </Card>

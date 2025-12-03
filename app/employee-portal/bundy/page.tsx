@@ -47,7 +47,8 @@ export default function BundyClockPage() {
   const [initialFetchComplete, setInitialFetchComplete] = useState(false);
 
   const validateLocation = useCallback(async (lat: number, lng: number) => {
-    const { data, error } = await supabase.rpc('is_location_allowed', {
+    const { data, error } = await supabase.rpc('is_employee_location_allowed', {
+      p_employee_uuid: employee.id,
       p_latitude: lat,
       p_longitude: lng,
     });
@@ -71,7 +72,7 @@ export default function BundyClockPage() {
         error: result.error_message,
       });
     }
-  }, [supabase]);
+  }, [employee.id, supabase]);
 
   const checkClockStatus = useCallback(async () => {
     const { data } = await supabase
@@ -140,7 +141,8 @@ export default function BundyClockPage() {
     }
 
     await validateLocation(location.lat, location.lng);
-    const { data: validationData } = await supabase.rpc('is_location_allowed', {
+    const { data: validationData } = await supabase.rpc('is_employee_location_allowed', {
+      p_employee_uuid: employee.id,
       p_latitude: location.lat,
       p_longitude: location.lng,
     });

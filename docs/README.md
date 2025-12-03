@@ -3,7 +3,8 @@
 ## Quick Links
 
 ### Getting Started
-- **[README](../README.md)** - Main project overview
+- **[README](../README.md)** - Current project overview & quick start
+- **[Legacy README](legacy/CLASSIC_README.md)** - Original static-app documentation
 - **[Quickstart](setup/QUICKSTART.md)** - Get up and running fast
 - **[Setup Guide](setup/SETUP.md)** - Detailed setup instructions
 

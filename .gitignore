@@ -46,12 +46,6 @@ next-env.d.ts
 *.swo
 *~
 
-# Old static files (from v1)
-index.html
-styles/
-scripts/
-
-# Playwright
-/test-results/
-/playwright-report/
+# Generated artifacts / reports
+/reports/
 /playwright/.auth/

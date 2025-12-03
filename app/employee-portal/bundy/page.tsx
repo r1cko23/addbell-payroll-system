@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useEmployeeSession } from '@/contexts/EmployeeSessionContext';
-import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
-import { toast } from 'sonner';
-import { MapPin, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { toast } from "sonner";
+import { MapPin, ArrowLeft, ArrowRight } from "lucide-react";
 import {
   getBiMonthlyPeriodEnd,
   getBiMonthlyPeriodStart,
   getNextBiMonthlyPeriod,
   getPreviousBiMonthlyPeriod,
   formatBiMonthlyPeriod,
-} from '@/utils/bimonthly';
+} from "@/utils/bimonthly";
 import {
   addMonths,
   eachDayOfInterval,
@@ -25,7 +25,7 @@ import {
   startOfMonth,
   startOfWeek,
   subMonths,
-} from 'date-fns';
+} from "date-fns";
 
 interface TimeEntry {
   id: string;
@@ -47,8 +47,65 @@ interface LocationStatus {
 interface CalendarHoliday {
   date: string;
   name: string;
-  type: 'regular' | 'non-working';
+  type: "regular" | "non-working";
 }
+
+const PHILIPPINE_HOLIDAYS: Record<number, CalendarHoliday[]> = {
+  2025: [
+    { date: "2025-01-01", name: "New Year's Day", type: "regular" },
+    { date: "2025-03-29", name: "Maundy Thursday", type: "regular" },
+    { date: "2025-03-30", name: "Good Friday", type: "regular" },
+    { date: "2025-04-09", name: "Araw ng Kagitingan", type: "regular" },
+    { date: "2025-05-01", name: "Labor Day", type: "regular" },
+    { date: "2025-06-12", name: "Independence Day", type: "regular" },
+    { date: "2025-08-25", name: "National Heroes Day", type: "regular" },
+    { date: "2025-11-30", name: "Bonifacio Day", type: "regular" },
+    { date: "2025-12-25", name: "Christmas Day", type: "regular" },
+    { date: "2025-12-30", name: "Rizal Day", type: "regular" },
+    { date: "2025-02-09", name: "Chinese New Year", type: "non-working" },
+    {
+      date: "2025-02-25",
+      name: "EDSA People Power Revolution",
+      type: "non-working",
+    },
+    { date: "2025-03-31", name: "Black Saturday", type: "non-working" },
+    { date: "2025-08-21", name: "Ninoy Aquino Day", type: "non-working" },
+    { date: "2025-11-01", name: "All Saints' Day", type: "non-working" },
+    { date: "2025-11-02", name: "All Souls' Day", type: "non-working" },
+    {
+      date: "2025-12-08",
+      name: "Feast of the Immaculate Conception",
+      type: "non-working",
+    },
+    { date: "2025-12-24", name: "Christmas Eve", type: "non-working" },
+    { date: "2025-12-26", name: "Day after Christmas", type: "non-working" },
+    { date: "2025-12-31", name: "New Year's Eve", type: "non-working" },
+  ],
+  2026: [
+    { date: "2026-01-01", name: "New Year's Day", type: "regular" },
+    { date: "2026-04-02", name: "Maundy Thursday", type: "regular" },
+    { date: "2026-04-03", name: "Good Friday", type: "regular" },
+    { date: "2026-04-09", name: "Araw ng Kagitingan", type: "regular" },
+    { date: "2026-05-01", name: "Labor Day", type: "regular" },
+    { date: "2026-06-12", name: "Independence Day", type: "regular" },
+    { date: "2026-08-31", name: "National Heroes Day", type: "regular" },
+    { date: "2026-11-30", name: "Bonifacio Day", type: "regular" },
+    { date: "2026-12-25", name: "Christmas Day", type: "regular" },
+    { date: "2026-12-30", name: "Rizal Day", type: "regular" },
+    { date: "2026-02-17", name: "Chinese New Year", type: "non-working" },
+    { date: "2026-04-04", name: "Black Saturday", type: "non-working" },
+    { date: "2026-08-21", name: "Ninoy Aquino Day", type: "non-working" },
+    { date: "2026-11-01", name: "All Saints' Day", type: "non-working" },
+    { date: "2026-11-02", name: "All Souls' Day", type: "non-working" },
+    {
+      date: "2026-12-08",
+      name: "Feast of the Immaculate Conception",
+      type: "non-working",
+    },
+    { date: "2026-12-24", name: "Christmas Eve", type: "non-working" },
+    { date: "2026-12-31", name: "Last Day of the Year", type: "non-working" },
+  ],
+};
 
 interface CalendarEntry {
   date: string;
@@ -64,51 +121,70 @@ export default function BundyClockPage() {
   const [currentEntry, setCurrentEntry] = useState<TimeEntry | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locationStatus, setLocationStatus] = useState<LocationStatus | null>(null);
-  const [periodStart, setPeriodStart] = useState<Date>(() => getBiMonthlyPeriodStart(new Date()));
-  const periodEnd = useMemo(() => getBiMonthlyPeriodEnd(periodStart), [periodStart]);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
+  const [locationStatus, setLocationStatus] = useState<LocationStatus | null>(
+    null
+  );
+  const [periodStart, setPeriodStart] = useState<Date>(() =>
+    getBiMonthlyPeriodStart(new Date())
+  );
+  const periodEnd = useMemo(
+    () => getBiMonthlyPeriodEnd(periodStart),
+    [periodStart]
+  );
   const [loading, setLoading] = useState(true);
   const [initialFetchComplete, setInitialFetchComplete] = useState(false);
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
-  const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>([]);
+  const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>(
+    []
+  );
   const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
 
-  const validateLocation = useCallback(async (lat: number, lng: number) => {
-    const { data, error } = await supabase.rpc('is_employee_location_allowed', {
-      p_employee_uuid: employee.id,
-      p_latitude: lat,
-      p_longitude: lng,
-    });
+  const validateLocation = useCallback(
+    async (lat: number, lng: number) => {
+      const { data, error } = await supabase.rpc(
+        "is_employee_location_allowed",
+        {
+          p_employee_uuid: employee.id,
+          p_latitude: lat,
+          p_longitude: lng,
+        }
+      );
 
-    if (error) {
-      setLocationStatus({
-        isAllowed: false,
-        nearestLocation: null,
-        distance: null,
-        error: 'Failed to validate location',
-      });
-      return;
-    }
+      if (error) {
+        setLocationStatus({
+          isAllowed: false,
+          nearestLocation: null,
+          distance: null,
+          error: "Failed to validate location",
+        });
+        return;
+      }
 
-    if (data && data.length > 0) {
-      const result = data[0];
-      setLocationStatus({
-        isAllowed: result.is_allowed,
-        nearestLocation: result.nearest_location_name,
-        distance: result.distance_meters ? Math.round(result.distance_meters) : null,
-        error: result.error_message,
-      });
-    }
-  }, [employee.id, supabase]);
+      if (data && data.length > 0) {
+        const result = data[0];
+        setLocationStatus({
+          isAllowed: result.is_allowed,
+          nearestLocation: result.nearest_location_name,
+          distance: result.distance_meters
+            ? Math.round(result.distance_meters)
+            : null,
+          error: result.error_message,
+        });
+      }
+    },
+    [employee.id, supabase]
+  );
 
   const checkClockStatus = useCallback(async () => {
     const { data } = await supabase
-      .from('time_clock_entries')
-      .select('*')
-      .eq('employee_id', employee.id)
-      .eq('status', 'clocked_in')
-      .order('clock_in_time', { ascending: false })
+      .from("time_clock_entries")
+      .select("*")
+      .eq("employee_id", employee.id)
+      .eq("status", "clocked_in")
+      .order("clock_in_time", { ascending: false })
       .limit(1)
       .single();
 
@@ -117,69 +193,87 @@ export default function BundyClockPage() {
 
   const fetchEntries = useCallback(async () => {
     const { data } = await supabase
-      .from('time_clock_entries')
-      .select('*')
-      .eq('employee_id', employee.id)
-      .gte('clock_in_time', periodStart.toISOString())
-      .lte('clock_in_time', periodEnd.toISOString())
-      .order('clock_in_time', { ascending: false });
+      .from("time_clock_entries")
+      .select("*")
+      .eq("employee_id", employee.id)
+      .gte("clock_in_time", periodStart.toISOString())
+      .lte("clock_in_time", periodEnd.toISOString())
+      .order("clock_in_time", { ascending: false });
 
     setEntries(data || []);
   }, [employee.id, periodEnd, periodStart, supabase]);
 
   const fetchCalendarHolidays = useCallback(
     async (targetDate: Date) => {
-      const gridStart = startOfWeek(startOfMonth(targetDate), { weekStartsOn: 0 });
+      const gridStart = startOfWeek(startOfMonth(targetDate), {
+        weekStartsOn: 0,
+      });
       const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
-      const startISO = formatDate(gridStart, 'yyyy-MM-dd');
-      const endISO = formatDate(gridEnd, 'yyyy-MM-dd');
+      const startISO = formatDate(gridStart, "yyyy-MM-dd");
+      const endISO = formatDate(gridEnd, "yyyy-MM-dd");
 
       const { data, error } = await supabase
-        .from('holidays')
-        .select('holiday_date, holiday_name, holiday_type')
-        .eq('is_active', true)
-        .gte('holiday_date', startISO)
-        .lte('holiday_date', endISO);
+        .from("holidays")
+        .select("holiday_date, holiday_name, holiday_type")
+        .eq("is_active", true)
+        .gte("holiday_date", startISO)
+        .lte("holiday_date", endISO);
 
       if (error) {
-        console.error('Failed to load calendar holidays', error);
-        return;
+        console.error("Failed to load calendar holidays", error);
       }
 
-      setCalendarHolidays(
+      const targetYear = targetDate.getFullYear();
+      const dbHolidays =
         (data || []).map((holiday) => ({
           date: holiday.holiday_date,
           name: holiday.holiday_name,
-          type: holiday.holiday_type === 'regular' ? 'regular' : 'non-working',
-        }))
-      );
+          type:
+            holiday.holiday_type === "regular"
+              ? ("regular" as const)
+              : ("non-working" as const),
+        })) || [];
+
+      const fallbackHolidays =
+        PHILIPPINE_HOLIDAYS[targetYear]?.filter(
+          (holiday) => holiday.date >= startISO && holiday.date <= endISO
+        ) || [];
+
+      const merged = new Map<string, CalendarHoliday>();
+      [...dbHolidays, ...fallbackHolidays].forEach((holiday) => {
+        merged.set(holiday.date, holiday);
+      });
+
+      setCalendarHolidays(Array.from(merged.values()));
     },
     [supabase]
   );
 
   const fetchCalendarEntries = useCallback(
     async (targetDate: Date) => {
-      const gridStart = startOfWeek(startOfMonth(targetDate), { weekStartsOn: 0 });
+      const gridStart = startOfWeek(startOfMonth(targetDate), {
+        weekStartsOn: 0,
+      });
       const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
       const startRange = gridStart.toISOString();
       const endRange = gridEnd.toISOString();
 
       const { data, error } = await supabase
-        .from('time_clock_entries')
-        .select('clock_in_time, clock_out_time, status')
-        .eq('employee_id', employee.id)
-        .gte('clock_in_time', startRange)
-        .lte('clock_in_time', endRange)
-        .order('clock_in_time', { ascending: true });
+        .from("time_clock_entries")
+        .select("clock_in_time, clock_out_time, status")
+        .eq("employee_id", employee.id)
+        .gte("clock_in_time", startRange)
+        .lte("clock_in_time", endRange)
+        .order("clock_in_time", { ascending: true });
 
       if (error) {
-        console.error('Failed to load calendar entries', error);
+        console.error("Failed to load calendar entries", error);
         return;
       }
 
       setCalendarEntries(
         (data || []).map((entry) => ({
-          date: formatDate(new Date(entry.clock_in_time), 'yyyy-MM-dd'),
+          date: formatDate(new Date(entry.clock_in_time), "yyyy-MM-dd"),
           clock_in_time: entry.clock_in_time,
           clock_out_time: entry.clock_out_time,
           status: entry.status,
@@ -217,7 +311,7 @@ export default function BundyClockPage() {
           await validateLocation(loc.lat, loc.lng);
         },
         (error) => {
-          console.log('Location not available:', error);
+          console.log("Location not available:", error);
         },
         { enableHighAccuracy: true }
       );
@@ -229,45 +323,59 @@ export default function BundyClockPage() {
     fetchCalendarEntries(calendarDate);
   }, [calendarDate, fetchCalendarEntries, fetchCalendarHolidays]);
 
-  async function handleClock(event: 'in' | 'out') {
+  async function handleClock(event: "in" | "out") {
     if (!location) {
-      toast.error('📍 Please enable location services to use the time clock');
+      toast.error("📍 Please enable location services to use the time clock");
       return;
     }
 
     await validateLocation(location.lat, location.lng);
-    const { data: validationData } = await supabase.rpc('is_employee_location_allowed', {
-      p_employee_uuid: employee.id,
-      p_latitude: location.lat,
-      p_longitude: location.lng,
-    });
+    const { data: validationData } = await supabase.rpc(
+      "is_employee_location_allowed",
+      {
+        p_employee_uuid: employee.id,
+        p_latitude: location.lat,
+        p_longitude: location.lng,
+      }
+    );
 
-    if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
-      toast.error(`🚫 ${validationData[0].error_message || 'You are not at an allowed location'}`);
+    if (
+      validationData &&
+      validationData.length > 0 &&
+      !validationData[0].is_allowed
+    ) {
+      toast.error(
+        `🚫 ${
+          validationData[0].error_message ||
+          "You are not at an allowed location"
+        }`
+      );
       return;
     }
 
-    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(
+      6
+    )}`;
 
-    if (event === 'in') {
+    if (event === "in") {
       const { data, error } = await supabase
-        .from('time_clock_entries')
+        .from("time_clock_entries")
         .insert({
           employee_id: employee.id,
           clock_in_time: new Date().toISOString(),
           clock_in_location: locationString,
-          status: 'clocked_in',
+          status: "clocked_in",
         })
         .select()
         .single();
 
       if (error) {
-        toast.error('Failed to clock in');
+        toast.error("Failed to clock in");
         return;
       }
 
       setCurrentEntry(data);
-      toast.success('✅ Clocked in successfully!');
+      toast.success("✅ Clocked in successfully!");
       fetchEntries();
       return;
     }
@@ -275,24 +383,27 @@ export default function BundyClockPage() {
     if (!currentEntry) return;
 
     const { error } = await supabase
-      .from('time_clock_entries')
+      .from("time_clock_entries")
       .update({
         clock_out_time: new Date().toISOString(),
         clock_out_location: locationString,
       })
-      .eq('id', currentEntry.id);
+      .eq("id", currentEntry.id);
 
     if (error) {
-      toast.error('Failed to clock out');
+      toast.error("Failed to clock out");
       return;
     }
 
-    toast.success('✅ Clocked out successfully!');
+    toast.success("✅ Clocked out successfully!");
     setCurrentEntry(null);
     fetchEntries();
   }
 
-  const totalHours = entries.reduce((sum, entry) => sum + (entry.total_hours || 0), 0);
+  const totalHours = entries.reduce(
+    (sum, entry) => sum + (entry.total_hours || 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -308,18 +419,18 @@ export default function BundyClockPage() {
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
             <div className="text-6xl font-bold text-gray-800 font-mono">
-              {currentTime.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
+              {currentTime.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
               })}
             </div>
             <div className="text-gray-500">
-              {currentTime.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
+              {currentTime.toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
               })}
             </div>
           </div>
@@ -330,12 +441,16 @@ export default function BundyClockPage() {
                 variant="secondary"
                 size="sm"
                 className="px-3 py-3"
-                onClick={() => setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))}
+                onClick={() =>
+                  setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))
+                }
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div className="text-center">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">Bi-Monthly Period</p>
+                <p className="text-xs text-gray-500 uppercase tracking-widest">
+                  Bi-Monthly Period
+                </p>
                 <p className="text-lg font-semibold text-gray-800">
                   {formatBiMonthlyPeriod(periodStart, periodEnd)}
                 </p>
@@ -344,35 +459,40 @@ export default function BundyClockPage() {
                 variant="secondary"
                 size="sm"
                 className="px-3 py-3"
-                onClick={() => setPeriodStart(getNextBiMonthlyPeriod(periodStart))}
+                onClick={() =>
+                  setPeriodStart(getNextBiMonthlyPeriod(periodStart))
+                }
               >
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
             <div className="text-sm text-gray-500">
-              Total Hours: <span className="font-semibold text-gray-900">{totalHours.toFixed(2)}h</span>
+              Total Hours:{" "}
+              <span className="font-semibold text-gray-900">
+                {totalHours.toFixed(2)}h
+              </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
-              onClick={() => handleClock('in')}
+              onClick={() => handleClock("in")}
               disabled={!!currentEntry || !locationStatus?.isAllowed}
               className={`py-4 rounded-xl text-lg font-bold uppercase tracking-wider transition ${
                 currentEntry || !locationStatus?.isAllowed
-                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg'
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg"
               }`}
             >
               Time In
             </button>
             <button
-              onClick={() => handleClock('out')}
+              onClick={() => handleClock("out")}
               disabled={!currentEntry || !locationStatus?.isAllowed}
               className={`py-4 rounded-xl text-lg font-bold uppercase tracking-wider transition ${
                 !currentEntry || !locationStatus?.isAllowed
-                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-lg'
+                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-lg"
               }`}
             >
               Time Out
@@ -386,14 +506,18 @@ export default function BundyClockPage() {
                   <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200">
                     <MapPin className="h-4 w-4" />
                     <span>
-                      At {locationStatus.nearestLocation || 'an approved site'}
-                      {locationStatus.distance !== null && ` (${locationStatus.distance}m away)`}
+                      At {locationStatus.nearestLocation || "an approved site"}
+                      {locationStatus.distance !== null &&
+                        ` (${locationStatus.distance}m away)`}
                     </span>
                   </div>
                 ) : (
                   <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-sm text-red-700">
                     <p className="font-semibold mb-1">Location not allowed</p>
-                    <p>{locationStatus.error || 'You must be at an approved location to clock in/out.'}</p>
+                    <p>
+                      {locationStatus.error ||
+                        "You must be at an approved location to clock in/out."}
+                    </p>
                   </div>
                 )
               ) : (
@@ -405,7 +529,7 @@ export default function BundyClockPage() {
             ) : (
               <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-sm text-red-700">
                 <p className="font-semibold mb-1">Location required</p>
-               <p>Please enable GPS/location services and refresh the page.</p>
+                <p>Please enable GPS/location services and refresh the page.</p>
               </div>
             )}
           </div>
@@ -423,7 +547,9 @@ export default function BundyClockPage() {
       <Card className="p-0 overflow-hidden">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold text-gray-800">Time Records</h2>
-          <p className="text-sm text-gray-500">{formatBiMonthlyPeriod(periodStart, periodEnd)}</p>
+          <p className="text-sm text-gray-500">
+            {formatBiMonthlyPeriod(periodStart, periodEnd)}
+          </p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -447,40 +573,50 @@ export default function BundyClockPage() {
                 entries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50 text-gray-800">
                     <td className="px-4 py-3">
-                      {new Date(entry.clock_in_time).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        weekday: 'short',
-                      })}
+                      {new Date(entry.clock_in_time).toLocaleDateString(
+                        "en-US",
+                        {
+                          month: "short",
+                          day: "numeric",
+                          weekday: "short",
+                        }
+                      )}
                     </td>
                     <td className="px-4 py-3 font-medium">
-                      {new Date(entry.clock_in_time).toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {new Date(entry.clock_in_time).toLocaleTimeString(
+                        "en-US",
+                        {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }
+                      )}
                     </td>
                     <td className="px-4 py-3 font-medium">
                       {entry.clock_out_time
-                        ? new Date(entry.clock_out_time).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—'}
+                        ? new Date(entry.clock_out_time).toLocaleTimeString(
+                            "en-US",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }
+                          )
+                        : "—"}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">
-                      {entry.total_hours ? entry.total_hours.toFixed(2) : '-'}
+                      {entry.total_hours ? entry.total_hours.toFixed(2) : "-"}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          entry.status === 'clocked_in'
-                            ? 'bg-green-100 text-green-700'
-                            : entry.status === 'approved' || entry.status === 'auto_approved'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-gray-100 text-gray-600'
+                          entry.status === "clocked_in"
+                            ? "bg-green-100 text-green-700"
+                            : entry.status === "approved" ||
+                              entry.status === "auto_approved"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-gray-100 text-gray-600"
                         }`}
                       >
-                        {entry.status.replace('_', ' ').toUpperCase()}
+                        {entry.status.replace("_", " ").toUpperCase()}
                       </span>
                     </td>
                   </tr>
@@ -510,14 +646,19 @@ function HolidayCalendar({
   const start = startOfWeek(startOfMonth(date), { weekStartsOn: 0 });
   const end = endOfWeek(endOfMonth(date), { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start, end });
-  const holidayMap = new Map(holidays.map((holiday) => [holiday.date, holiday]));
-  const entryMap = entries.reduce<Map<string, CalendarEntry[]>>((map, entry) => {
-    if (!map.has(entry.date)) {
-      map.set(entry.date, []);
-    }
-    map.get(entry.date)!.push(entry);
-    return map;
-  }, new Map());
+  const holidayMap = new Map(
+    holidays.map((holiday) => [holiday.date, holiday])
+  );
+  const entryMap = entries.reduce<Map<string, CalendarEntry[]>>(
+    (map, entry) => {
+      if (!map.has(entry.date)) {
+        map.set(entry.date, []);
+      }
+      map.get(entry.date)!.push(entry);
+      return map;
+    },
+    new Map()
+  );
 
   return (
     <Card className="p-4">
@@ -527,7 +668,9 @@ function HolidayCalendar({
             <Button variant="secondary" size="sm" onClick={onPrev}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div className="text-lg font-semibold">{formatDate(date, 'MMMM yyyy')}</div>
+            <div className="text-lg font-semibold">
+              {formatDate(date, "MMMM yyyy")}
+            </div>
             <Button variant="secondary" size="sm" onClick={onNext}>
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -545,14 +688,14 @@ function HolidayCalendar({
         </div>
 
         <div className="grid grid-cols-7 text-center text-xs font-semibold text-muted-foreground border-t pt-2">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div key={day}>{day}</div>
           ))}
         </div>
 
         <div className="grid grid-cols-7 border rounded-lg overflow-hidden text-sm">
           {days.map((day) => {
-            const iso = formatDate(day, 'yyyy-MM-dd');
+            const iso = formatDate(day, "yyyy-MM-dd");
             const holiday = holidayMap.get(iso);
             const dailyEntries = entryMap.get(iso);
             const isCurrentMonth = isSameMonth(day, date);
@@ -560,7 +703,7 @@ function HolidayCalendar({
 
             const badge =
               holiday &&
-              (holiday.type === 'regular' ? (
+              (holiday.type === "regular" ? (
                 <div className="mt-1 text-[11px] px-2 py-1 rounded-full bg-purple-600/15 text-purple-700 border border-purple-200 font-semibold">
                   Regular Holiday
                 </div>
@@ -574,15 +717,15 @@ function HolidayCalendar({
               <div
                 key={iso}
                 className={`min-h-[90px] border-r border-b p-2 ${
-                  isCurrentMonth ? 'bg-white' : 'bg-muted/60 text-gray-400'
+                  isCurrentMonth ? "bg-white" : "bg-muted/60 text-gray-400"
                 }`}
               >
                 <div
                   className={`text-right font-semibold ${
-                    isToday ? 'text-emerald-600' : 'text-gray-600'
+                    isToday ? "text-emerald-600" : "text-gray-600"
                   }`}
                 >
-                  {formatDate(day, 'd')}
+                  {formatDate(day, "d")}
                 </div>
                 {holiday && (
                   <div className="mt-1 text-[11px] font-semibold text-gray-900 leading-tight">
@@ -597,10 +740,15 @@ function HolidayCalendar({
                         key={`${entry.clock_in_time}-${idx}`}
                         className="text-[11px] bg-emerald-50 border border-emerald-100 rounded px-2 py-1 text-emerald-800"
                       >
-                        {formatDate(new Date(entry.clock_in_time), 'h:mm a')}
+                        {formatDate(new Date(entry.clock_in_time), "h:mm a")}
                         {entry.clock_out_time && (
                           <>
-                            {' '}– {formatDate(new Date(entry.clock_out_time), 'h:mm a')}
+                            {" "}
+                            –{" "}
+                            {formatDate(
+                              new Date(entry.clock_out_time),
+                              "h:mm a"
+                            )}
                           </>
                         )}
                       </div>
@@ -615,4 +763,3 @@ function HolidayCalendar({
     </Card>
   );
 }
-

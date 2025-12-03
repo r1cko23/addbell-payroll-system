@@ -7,6 +7,11 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Green Pasture People Management Inc. - Payroll System',
   description: 'Complete payroll management system with bi-monthly timesheet tracking',
+  icons: {
+    icon: '/GP_favicon.webp',
+    shortcut: '/GP_favicon.webp',
+    apple: '/GP_favicon.webp',
+  },
 };
 
 export default function RootLayout({

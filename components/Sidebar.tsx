@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import { LayoutDashboard, Users, MapPin } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -30,21 +30,37 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  className?: string;
+  onClose?: () => void;
+}
+
+export function Sidebar({ className, onClose }: SidebarProps) {
   const pathname = usePathname();
   
   return (
-    <div className="flex flex-col w-64 border-r bg-muted/10">
-      {/* Logo */}
-      <div className="flex items-center justify-center h-16 px-4 border-b">
-        <img 
-          src="/gp-logo.webp" 
-          alt="Green Pasture People Management Inc." 
-          className="h-12 w-auto"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none';
-          }}
-        />
+    <div className={cn('flex h-full flex-col w-64 border-r bg-muted/10', className)}>
+      <div className="flex items-center justify-between h-16 px-4 border-b">
+        <div className="flex-1 flex items-center justify-center">
+          <img
+            src="/gp-logo.webp"
+            alt="Green Pasture People Management Inc."
+            className="h-12 w-auto"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-4 rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden"
+            aria-label="Close navigation"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
       
       {/* Navigation */}

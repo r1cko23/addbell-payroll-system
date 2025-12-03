@@ -11,7 +11,7 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
     success: 'bg-primary/10 text-primary border border-primary/20',
     warning: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
     danger: 'bg-destructive/10 text-destructive border border-destructive/20',
-    info: 'bg-blue-100 text-blue-800 border border-blue-200',
+    info: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
     default: 'bg-muted text-muted-foreground border border-border',
   };
   

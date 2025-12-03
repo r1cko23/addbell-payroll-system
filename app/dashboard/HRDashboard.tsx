@@ -109,8 +109,8 @@ export default function HRDashboard() {
                 <p className="text-sm text-muted-foreground">Employees Registered</p>
                 <p className="text-3xl font-bold text-foreground mt-2">{totalEmployees}</p>
               </div>
-              <div className="p-3 bg-blue-50 rounded-full">
-                <Users className="h-6 w-6 text-blue-600" />
+              <div className="p-3 bg-emerald-50 rounded-full">
+                <Users className="h-6 w-6 text-emerald-600" />
               </div>
             </div>
           </Card>
@@ -165,14 +165,14 @@ export default function HRDashboard() {
                           Since {format(new Date(entry.clock_in_time), 'MMM d, h:mm a')}
                         </p>
                         <div className="mt-2 text-xs text-muted-foreground flex items-start gap-1">
-                          <MapPin className="h-3 w-3 mt-0.5 text-blue-500" />
+                          <MapPin className="h-3 w-3 mt-0.5 text-emerald-500" />
                           <div>
                             <span className="text-foreground font-medium">{details.name}</span>
                             <div>{details.address}</div>
                     </div>
                   </div>
                     </div>
-                      <div className="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-full">
+                      <div className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded-full">
                         ACTIVE
                   </div>
                     </div>

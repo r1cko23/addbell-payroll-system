@@ -596,7 +596,7 @@ export default function TimesheetPage() {
                                 day.dayType === 'sunday-special-holiday'
                               ? 'bg-yellow-100 text-yellow-800'
                               : day.dayType === 'sunday'
-                              ? 'bg-blue-100 text-blue-800'
+                              ? 'bg-emerald-100 text-emerald-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
@@ -667,7 +667,7 @@ export default function TimesheetPage() {
 
             {/* Quick Fill Templates */}
             {/* Auto-Import Info Banner */}
-            <div className="mt-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200">
+            <div className="mt-4 p-4 bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-lg border-2 border-emerald-200">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
                   <Clock className="h-6 w-6 text-purple-600" />

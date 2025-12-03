@@ -763,7 +763,7 @@ export default function PayslipsPage() {
         <Card 
           title={
             <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-600" />
+              <FileText className="w-5 h-5 text-emerald-600" />
               <span>Bulk Print (Legal Size)</span>
             </div>
           }
@@ -845,16 +845,16 @@ export default function PayslipsPage() {
           <Card 
             title={
               <div className="flex items-center gap-2">
-                <Info className="w-5 h-5 text-blue-600" />
+                <Info className="w-5 h-5 text-emerald-600" />
                 <span>No Deduction Record</span>
               </div>
             }
           >
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-blue-800 font-medium">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <p className="text-emerald-800 font-medium">
                 No deduction record found for {selectedEmployee.full_name}
               </p>
-              <p className="text-blue-700 text-sm mt-2">
+              <p className="text-emerald-700 text-sm mt-2">
                 All deductions will be set to <strong>₱0.00</strong> for this payslip. You can optionally add deductions on the <strong>Deductions</strong> page.
               </p>
             </div>
@@ -1187,9 +1187,9 @@ export default function PayslipsPage() {
             size="xl"
           >
             <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
-                <p className="text-blue-800 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-blue-600" />
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
+                <p className="text-emerald-800 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-emerald-600" />
                   <span><strong>{multiPrintData.length} payslips</strong> ready to print. Set paper to <strong>Legal (8.5" × 14")</strong> when printing.</span>
                 </p>
               </div>

@@ -187,7 +187,7 @@ export default function TimeEntriesPage() {
 
   const getStatusBadge = (status: string) => {
     const styles = {
-      clocked_in: 'bg-blue-100 text-blue-800',
+      clocked_in: 'bg-emerald-100 text-emerald-800',
       clocked_out: 'bg-yellow-100 text-yellow-800',
       approved: 'bg-green-100 text-green-800',
       auto_approved: 'bg-green-100 text-green-800',
@@ -266,10 +266,10 @@ export default function TimeEntriesPage() {
 
         {/* Info Banner */}
         {stats.pending > 0 && (
-          <Card className="p-4 bg-blue-50 border-blue-200">
+          <Card className="p-4 bg-emerald-50 border-emerald-200">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-blue-900">
+              <AlertCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-emerald-900">
                 <p className="font-semibold mb-1">
                   ℹ️ Auto-Sync to Timesheet
                 </p>
@@ -395,7 +395,7 @@ export default function TimeEntriesPage() {
                             href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                            className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
                           >
                             <MapPin className="h-3 w-3" />
                             View map
@@ -419,7 +419,7 @@ export default function TimeEntriesPage() {
                                 href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
                               >
                                 <MapPin className="h-3 w-3" />
                                 View map
@@ -427,7 +427,7 @@ export default function TimeEntriesPage() {
                             )}
                           </>
                         ) : (
-                          <span className="text-xs text-blue-600 font-medium">
+                          <span className="text-xs text-emerald-600 font-medium">
                             Still clocked in
                           </span>
                         )}
@@ -514,7 +514,7 @@ export default function TimeEntriesPage() {
                             href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                            className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
                       >
                         <MapPin className="h-3 w-3" />
                         View GPS Location
@@ -543,7 +543,7 @@ export default function TimeEntriesPage() {
                             href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
+                            className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
                       >
                         <MapPin className="h-3 w-3" />
                         View GPS Location
@@ -555,7 +555,7 @@ export default function TimeEntriesPage() {
                 </div>
 
                 {/* Hours Breakdown */}
-                <div className="grid grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
+                <div className="grid grid-cols-4 gap-4 p-4 bg-emerald-50 rounded-lg">
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Total</div>
                     <div className="text-lg font-bold">{selectedEntry.total_hours?.toFixed(2)}h</div>

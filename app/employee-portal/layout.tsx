@@ -52,7 +52,7 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
   if (loading || !employee) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
       </div>
     );
   }
@@ -69,7 +69,7 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
         <header className="bg-white border-b shadow-sm">
           <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
+              <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
                 {employee.full_name
                   .split(' ')
                   .map((part) => part[0])
@@ -93,8 +93,8 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
                     href={item.href}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
                       isActive
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-white border text-gray-600 hover:bg-blue-50'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'bg-white border text-gray-600 hover:bg-emerald-50'
                     }`}
                   >
                     <Icon className="h-4 w-4" />

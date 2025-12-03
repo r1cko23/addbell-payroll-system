@@ -200,7 +200,7 @@ export default function BundyClockPage() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
       </div>
     );
   }
@@ -264,7 +264,7 @@ export default function BundyClockPage() {
               className={`py-4 rounded-xl text-lg font-bold uppercase tracking-wider transition ${
                 currentEntry || !locationStatus?.isAllowed
                   ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-lg'
+                  : 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg'
               }`}
             >
               Time In
@@ -300,7 +300,7 @@ export default function BundyClockPage() {
                   </div>
                 )
               ) : (
-                <div className="inline-flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-4 py-2 rounded-full border border-blue-200">
+                <div className="inline-flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200">
                   <MapPin className="h-4 w-4" />
                   <span>Validating location...</span>
                 </div>
@@ -371,7 +371,7 @@ export default function BundyClockPage() {
                           entry.status === 'clocked_in'
                             ? 'bg-green-100 text-green-700'
                             : entry.status === 'approved' || entry.status === 'auto_approved'
-                            ? 'bg-blue-100 text-blue-700'
+                            ? 'bg-emerald-100 text-emerald-700'
                             : 'bg-gray-100 text-gray-600'
                         }`}
                       >

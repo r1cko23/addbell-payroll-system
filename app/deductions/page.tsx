@@ -450,16 +450,16 @@ export default function DeductionsPage() {
                 />
               </div>
 
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <div className="mt-4 p-4 bg-emerald-50 rounded-lg">
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold text-blue-700">
+                  <span className="font-semibold text-emerald-700">
                     Total Government Contributions:
                   </span>
-                  <span className="text-xl font-bold text-blue-900">
+                  <span className="text-xl font-bold text-emerald-900">
                     {formatCurrency(govTotal)}
                   </span>
                 </div>
-                <p className="text-sm text-blue-600 mt-2">
+                <p className="text-sm text-emerald-600 mt-2">
                   💡 These will be applied when you check the boxes in the payslip
                   (usually 3rd or 4th week)
                 </p>

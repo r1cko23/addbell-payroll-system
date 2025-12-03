@@ -160,10 +160,10 @@ Your text colors now perfectly blend with the **white minimalistic shadcn design
 // ✅ CORRECT - Use muted colors
 <Users className="h-4 w-4 text-muted-foreground" />
 <Calendar className="h-5 w-5 text-primary" />
-<Info className="h-5 w-5 text-blue-600" />
+<Info className="h-5 w-5 text-emerald-600" />
 
 // ❌ WRONG - Too bright
-<Users className="h-4 w-4 text-blue-500" />
+<Users className="h-4 w-4 text-emerald-500" />
 <Calendar className="h-5 w-5 text-green-500" />
 ```
 
@@ -216,7 +216,7 @@ Level 3: text-muted-foreground (Light gray) - Helper text
 
 ### **3. Color Accents**
 - **Primary**: Your green (`text-primary`, `bg-primary`)
-- **Info**: Blue for informational (`text-blue-600`)
+- **Info**: Emerald for informational (`text-emerald-600`)
 - **Success**: Green for success (`text-green-600`)
 - **Warning**: Yellow for warnings (`text-yellow-600`)
 - **Error**: Red for errors (`text-destructive`)

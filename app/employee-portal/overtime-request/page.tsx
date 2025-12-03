@@ -111,7 +111,7 @@ export default function OvertimeRequestPage() {
   if (loading || !employee) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
       </div>
     );
   }
@@ -174,7 +174,7 @@ export default function OvertimeRequestPage() {
                 value={otDate}
                 onChange={(e) => setOtDate(e.target.value)}
                 max={new Date().toISOString().split('T')[0]}
-                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 required
               />
             </div>
@@ -191,7 +191,7 @@ export default function OvertimeRequestPage() {
                 step="0.5"
                 min="0.5"
                 max="12"
-                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">Maximum 12 hours</p>
@@ -206,7 +206,7 @@ export default function OvertimeRequestPage() {
                 onChange={(e) => setWorkDescription(e.target.value)}
                 placeholder="Describe the work you performed during overtime..."
                 rows={4}
-                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none"
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 resize-none"
                 required
               />
               <p className="text-xs text-gray-500 mt-1">
@@ -250,7 +250,7 @@ export default function OvertimeRequestPage() {
                         <span className="font-bold text-lg">
                           {format(new Date(request.ot_date), 'MMM dd, yyyy')}
                         </span>
-                        <span className="text-lg font-bold text-blue-600">
+                        <span className="text-lg font-bold text-emerald-600">
                           {request.ot_hours}h OT
                         </span>
                       </div>

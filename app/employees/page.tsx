@@ -501,11 +501,11 @@ export default function EmployeesPage() {
       >
         {passwordEmployee && (
           <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-900">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <p className="text-sm text-emerald-900">
                 <strong>Employee ID:</strong> {passwordEmployee.employee_id}
               </p>
-              <p className="text-xs text-blue-700 mt-1">
+              <p className="text-xs text-emerald-700 mt-1">
                 Default password is the Employee ID. Employees can use this to login to the portal.
               </p>
             </div>
@@ -520,7 +520,7 @@ export default function EmployeesPage() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   disabled={passwordSubmitting}
                   required
                   minLength={4}
@@ -539,7 +539,7 @@ export default function EmployeesPage() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm new password"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   disabled={passwordSubmitting}
                   required
                   minLength={4}

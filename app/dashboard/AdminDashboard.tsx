@@ -411,10 +411,10 @@ export default function AdminDashboardPage() {
               </div>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-600" />
+                  <Clock className="h-4 w-4 text-emerald-600" />
                   <span className="text-sm text-foreground">Pending Approvals</span>
                 </div>
-                <span className="text-xl font-bold text-blue-600">{stats?.pendingApprovals}</span>
+                <span className="text-xl font-bold text-emerald-600">{stats?.pendingApprovals}</span>
               </div>
                 <Link href="/payslips">
                 <Button variant="secondary" className="w-full mt-4">

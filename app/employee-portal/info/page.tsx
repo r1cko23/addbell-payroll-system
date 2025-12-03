@@ -68,7 +68,7 @@ export default function EmployeeInfoPage() {
   if (loading || !info) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function EmployeeInfoPage() {
         </dl>
       </Card>
 
-      <Card className="p-4 bg-blue-50 border border-blue-100 text-blue-900 text-sm">
+      <Card className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
         <p className="font-semibold mb-1">Need to update something?</p>
         <p>Contact your HR representative to request changes to your profile.</p>
       </Card>

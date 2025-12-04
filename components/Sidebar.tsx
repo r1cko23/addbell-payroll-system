@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import { LayoutDashboard, Users, MapPin, X } from 'lucide-react';
+import { LayoutDashboard, Users, MapPin, X, Calendar, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -27,6 +27,16 @@ const navItems: NavItem[] = [
     name: 'Time & Location',
     href: '/time-entries',
     icon: MapPin,
+  },
+  {
+    name: 'Failure to Log Approval',
+    href: '/failure-to-log-approval',
+    icon: AlertCircle,
+  },
+  {
+    name: 'Leave Approval',
+    href: '/leave-approval',
+    icon: Calendar,
   },
 ];
 

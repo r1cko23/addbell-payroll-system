@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { toast } from "sonner";
 import { MapPin, ArrowLeft, ArrowRight } from "lucide-react";
+import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
 import {
   getBiMonthlyPeriodEnd,
   getBiMonthlyPeriodStart,
@@ -141,6 +142,9 @@ export default function BundyClockPage() {
     []
   );
   const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [pendingClockAction, setPendingClockAction] = useState<"in" | "out" | null>(null);
+  const [pendingFailureToLog, setPendingFailureToLog] = useState<Set<string>>(new Set());
 
   const validateLocation = useCallback(
     async (lat: number, lng: number) => {
@@ -186,9 +190,39 @@ export default function BundyClockPage() {
       .eq("status", "clocked_in")
       .order("clock_in_time", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    setCurrentEntry(data || null);
+    if (data) {
+      // Check if the entry is from a previous day (before today at 12am)
+      const entryDate = new Date(data.clock_in_time);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // If entry is from a previous day, auto-close it
+      if (entryDate < today) {
+        // Auto-close the previous day's entry by setting clock_out_time to end of that day
+        const endOfPreviousDay = new Date(entryDate);
+        endOfPreviousDay.setHours(23, 59, 59, 999);
+        
+        await supabase
+          .from("time_clock_entries")
+          .update({
+            clock_out_time: endOfPreviousDay.toISOString(),
+            status: "clocked_out",
+            // Don't calculate hours yet - wait for failure to log approval
+            total_hours: null,
+            regular_hours: null,
+          })
+          .eq("id", data.id);
+        
+        setCurrentEntry(null);
+        return;
+      }
+      
+      setCurrentEntry(data);
+    } else {
+      setCurrentEntry(null);
+    }
   }, [employee.id, supabase]);
 
   const fetchEntries = useCallback(async () => {
@@ -365,50 +399,52 @@ export default function BundyClockPage() {
     fetchCalendarEntries(calendarDate);
   }, [calendarDate, fetchCalendarEntries, fetchCalendarHolidays]);
 
-  async function handleClock(event: "in" | "out") {
-    // Always get fresh location before clocking in/out
-    toast.info("📍 Getting your current location...");
+  // Show modal when time in/out is clicked
+  function handleClock(event: "in" | "out") {
+    setPendingClockAction(event);
+    setShowLocationModal(true);
+  }
 
-    const freshLocation = await getFreshLocation();
+  // Actual clock in/out logic (called from modal confirmation)
+  async function confirmClock(location: { lat: number; lng: number }) {
+    if (!pendingClockAction) return;
 
-    if (!freshLocation) {
-      toast.error("📍 Please enable location services to use the time clock");
-      return;
-    }
+    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 
-    // Update location state with fresh coordinates
-    setLocation(freshLocation);
+    if (pendingClockAction === "in") {
+      // First, check if there's an unclosed entry from previous day and auto-close it
+      const { data: previousEntry } = await supabase
+        .from("time_clock_entries")
+        .select("*")
+        .eq("employee_id", employee.id)
+        .eq("status", "clocked_in")
+        .order("clock_in_time", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    // Validate the fresh location
-    await validateLocation(freshLocation.lat, freshLocation.lng);
-    const { data: validationData } = await supabase.rpc(
-      "is_employee_location_allowed",
-      {
-        p_employee_uuid: employee.id,
-        p_latitude: freshLocation.lat,
-        p_longitude: freshLocation.lng,
+      if (previousEntry) {
+        const entryDate = new Date(previousEntry.clock_in_time);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // If entry is from a previous day, auto-close it
+        if (entryDate < today) {
+          const endOfPreviousDay = new Date(entryDate);
+          endOfPreviousDay.setHours(23, 59, 59, 999);
+          
+          await supabase
+            .from("time_clock_entries")
+            .update({
+              clock_out_time: endOfPreviousDay.toISOString(),
+              status: "clocked_out",
+              // Don't calculate hours yet - wait for failure to log approval
+              total_hours: null,
+              regular_hours: null,
+            })
+            .eq("id", previousEntry.id);
+        }
       }
-    );
 
-    if (
-      validationData &&
-      validationData.length > 0 &&
-      !validationData[0].is_allowed
-    ) {
-      toast.error(
-        `🚫 ${
-          validationData[0].error_message ||
-          "You are not at an allowed location"
-        }`
-      );
-      return;
-    }
-
-    const locationString = `${freshLocation.lat.toFixed(
-      6
-    )}, ${freshLocation.lng.toFixed(6)}`;
-
-    if (event === "in") {
       const { data, error } = await supabase
         .from("time_clock_entries")
         .insert({
@@ -454,10 +490,81 @@ export default function BundyClockPage() {
     fetchEntries();
   }
 
-  const totalHours = entries.reduce(
-    (sum, entry) => sum + (entry.total_hours || 0),
-    0
+  // Wrapper for validateLocation to match modal's expected signature
+  const validateLocationForModal = useCallback(
+    async (lat: number, lng: number) => {
+      const { data, error } = await supabase.rpc(
+        "is_employee_location_allowed",
+        {
+          p_employee_uuid: employee.id,
+          p_latitude: lat,
+          p_longitude: lng,
+        }
+      );
+
+      if (error) {
+        return {
+          isAllowed: false,
+          nearestLocation: null,
+          distance: null,
+          error: "Failed to validate location",
+        };
+      }
+
+      if (data && data.length > 0) {
+        const result = data[0];
+        return {
+          isAllowed: result.is_allowed,
+          nearestLocation: result.nearest_location_name,
+          distance: result.distance_meters
+            ? Math.round(result.distance_meters)
+            : null,
+          error: result.error_message,
+        };
+      }
+
+      return {
+        isAllowed: false,
+        nearestLocation: null,
+        distance: null,
+        error: "Unable to validate location",
+      };
+    },
+    [employee.id, supabase]
   );
+
+  // Calculate total hours, excluding entries with pending failure to log requests
+  const [totalHours, setTotalHours] = useState(0);
+  
+  useEffect(() => {
+    const calculateTotalHours = async () => {
+      if (entries.length === 0) {
+        setTotalHours(0);
+        setPendingFailureToLog(new Set());
+        return;
+      }
+
+      // Get all pending failure to log requests for these entries
+      const entryIds = entries.map(e => e.id);
+      const { data: pendingFailures } = await supabase
+        .from('failure_to_log')
+        .select('time_entry_id')
+        .in('time_entry_id', entryIds)
+        .eq('status', 'pending');
+
+      const pendingEntryIds = new Set(pendingFailures?.map(f => f.time_entry_id) || []);
+      setPendingFailureToLog(pendingEntryIds);
+
+      // Only count hours for entries without pending failure to log requests
+      const validHours = entries
+        .filter(entry => !pendingEntryIds.has(entry.id))
+        .reduce((sum, entry) => sum + (entry.total_hours || 0), 0);
+
+      setTotalHours(validHours);
+    };
+
+    calculateTotalHours();
+  }, [entries, supabase]);
 
   if (loading) {
     return (
@@ -657,7 +764,13 @@ export default function BundyClockPage() {
                         : "—"}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">
-                      {entry.total_hours ? entry.total_hours.toFixed(2) : "-"}
+                      {pendingFailureToLog.has(entry.id) ? (
+                        <span className="text-yellow-600">Pending Approval</span>
+                      ) : entry.total_hours ? (
+                        entry.total_hours.toFixed(2)
+                      ) : (
+                        "-"
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
@@ -680,6 +793,20 @@ export default function BundyClockPage() {
           </table>
         </div>
       </Card>
+
+      {/* Location Confirmation Modal */}
+      {pendingClockAction && (
+        <LocationConfirmationModal
+          isOpen={showLocationModal}
+          onClose={() => {
+            setShowLocationModal(false);
+            setPendingClockAction(null);
+          }}
+          onConfirm={confirmClock}
+          type={pendingClockAction}
+          validateLocation={validateLocationForModal}
+        />
+      )}
     </div>
   );
 }

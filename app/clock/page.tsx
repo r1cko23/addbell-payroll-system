@@ -521,11 +521,6 @@ export default function ClockPage() {
                                 <div className="text-gray-600">Breakdown</div>
                                 <div className="text-xs">
                                   <div>Reg: {entry.regular_hours?.toFixed(2) || 0}h</div>
-                                  {entry.overtime_hours && entry.overtime_hours > 0 && (
-                                    <div className="text-orange-600 font-bold">
-                                      OT: {entry.overtime_hours.toFixed(2)}h
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             </>

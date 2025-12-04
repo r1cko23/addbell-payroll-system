@@ -82,6 +82,7 @@ export default function EmployeesPage() {
 
   async function fetchEmployees() {
     try {
+      // Try the nested query first
       const { data, error } = await supabase
         .from('employees')
         .select(
@@ -94,14 +95,49 @@ export default function EmployeesPage() {
             )
           )`
         )
-        .order('last_name', { nullsFirst: false })
-        .order('first_name', { nullsFirst: false });
+        .order('last_name', { ascending: true, nullsFirst: true })
+        .order('first_name', { ascending: true, nullsFirst: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error with nested query:', error);
+        // Fallback: try without nested query
+        const { data: simpleData, error: simpleError } = await supabase
+          .from('employees')
+          .select('*')
+          .order('last_name', { ascending: true, nullsFirst: true })
+          .order('first_name', { ascending: true, nullsFirst: true });
+
+        if (simpleError) throw simpleError;
+        
+        // Fetch locations separately and merge
+        const employeesWithLocations = await Promise.all(
+          (simpleData || []).map(async (emp) => {
+            const { data: locationData } = await supabase
+              .from('employee_location_assignments')
+              .select(`
+                location_id,
+                office_locations (
+                  id,
+                  name
+                )
+              `)
+              .eq('employee_id', emp.id);
+            
+            return {
+              ...emp,
+              employee_location_assignments: locationData || []
+            };
+          })
+        );
+        
+        setEmployees(employeesWithLocations);
+        return;
+      }
+      
       setEmployees(data || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching employees:', error);
-      toast.error('Failed to load employees');
+      toast.error(`Failed to load employees: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -464,7 +500,8 @@ export default function EmployeesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {(() => {
-                            const names =
+                            // First, try to get locations from employee_location_assignments
+                            const locationNames =
                               employee.employee_location_assignments
                                 ?.map(
                                   (assignment) =>
@@ -473,7 +510,19 @@ export default function EmployeesPage() {
                                     null
                                 )
                                 .filter((name): name is string => Boolean(name)) || [];
-                            return names.length ? names.join(', ') : '—';
+                            
+                            // If we have location assignments, show those
+                            if (locationNames.length > 0) {
+                              return locationNames.join(', ');
+                            }
+                            
+                            // Otherwise, fall back to assigned_hotel if it exists
+                            if (employee.assigned_hotel) {
+                              return employee.assigned_hotel;
+                            }
+                            
+                            // If neither exists, show dash
+                            return '—';
                           })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

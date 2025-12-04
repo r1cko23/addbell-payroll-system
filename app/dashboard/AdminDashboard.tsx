@@ -73,7 +73,6 @@ interface WeeklyTrend {
 
 interface CostBreakdown {
   regularPay: number;
-  overtimePay: number;
   nightDiffPay: number;
   holidayPay: number;
   sundayPay: number;
@@ -211,10 +210,9 @@ export default function AdminDashboardPage() {
         // Placeholder implementation
         if (currentWeekGross > 0) {
           setCostBreakdown({
-            regularPay: currentWeekGross * 0.62,
-            overtimePay: currentWeekGross * 0.18,
-            nightDiffPay: currentWeekGross * 0.08,
-            holidayPay: currentWeekGross * 0.07,
+            regularPay: currentWeekGross * 0.75,
+            nightDiffPay: currentWeekGross * 0.10,
+            holidayPay: currentWeekGross * 0.10,
             sundayPay: currentWeekGross * 0.05,
           });
         }
@@ -357,12 +355,6 @@ export default function AdminDashboardPage() {
                     <span className="text-sm text-muted-foreground">Regular Hours</span>
                     <span className="text-sm font-semibold text-foreground">
                       {formatCurrency(costBreakdown.regularPay)} (62%)
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Overtime</span>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(costBreakdown.overtimePay)} (18%)
                     </span>
                   </div>
                   <div className="flex justify-between items-center">

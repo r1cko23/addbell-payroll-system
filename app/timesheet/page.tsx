@@ -17,7 +17,7 @@ import type { Holiday } from '@/utils/holidays';
 import type { DailyAttendance } from '@/utils/payroll-calculator';
 import { ChevronLeft, ChevronRight, AlertTriangle, Clock } from 'lucide-react';
 import { generateWeeklySummary } from '@/lib/timekeeper';
-import { getApprovedOT } from '@/lib/overtimeHelper';
+// Overtime removed - not part of business process
 import { 
   getBiMonthlyPeriodStart, 
   getBiMonthlyPeriodEnd, 
@@ -315,27 +315,23 @@ export default function TimesheetPage() {
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
       const summary = await generateWeeklySummary(selectedEmployee.id, periodStart);
       
-      // Get approved OT requests for this period
-      const approvedOT = await getApprovedOT(selectedEmployee.id, periodStart, periodEnd);
-
-      if (summary.totalHours === 0 && approvedOT.size === 0) {
+      if (summary.totalHours === 0) {
         if (showToast) {
           toast.dismiss();
-          toast.error('No clock entries or approved OT found for this period');
+          toast.error('No clock entries found for this period');
         }
         return;
       }
 
-      // Map clock entries + approved OT to timesheet days
+      // Map clock entries to timesheet days
       const updatedDays = periodDays.map((day) => {
         const dailySummary = summary.dailySummaries.get(day.date);
-        const otHours = approvedOT.get(day.date) || 0;
         
         // Regular hours from clock entries (already capped at 8h in database)
         const regularHours = dailySummary?.regularHours || 0;
         
-        // OT only from approved OT requests
-        const overtimeHours = otHours;
+        // Overtime not used - always 0
+        const overtimeHours = 0;
         
         // Night diff from clock entries
         const nightDiffHours = dailySummary?.nightDiffHours || 0;
@@ -353,7 +349,7 @@ export default function TimesheetPage() {
         toast.dismiss();
         const totalReg = updatedDays.reduce((sum, d) => sum + (typeof d.regularHours === 'number' ? d.regularHours : 0), 0);
         const totalOT = updatedDays.reduce((sum, d) => sum + (typeof d.overtimeHours === 'number' ? d.overtimeHours : 0), 0);
-        toast.success(`✅ Imported ${totalReg.toFixed(1)}h regular + ${totalOT.toFixed(1)}h OT`);
+        toast.success(`✅ Imported ${totalReg.toFixed(1)}h regular hours`);
       }
     } catch (error) {
       console.error('Error importing clock entries:', error);
@@ -438,21 +434,17 @@ export default function TimesheetPage() {
   const toNum = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
   
   const totalRegular = periodDays.reduce((sum, day) => sum + toNum(day.regularHours), 0);
-  const totalOT = periodDays.reduce((sum, day) => sum + toNum(day.overtimeHours), 0);
   const totalNightDiff = periodDays.reduce((sum, day) => sum + toNum(day.nightDiffHours), 0);
 
   // Validation warnings
   const warnings: string[] = [];
   periodDays.forEach((day) => {
     const reg = toNum(day.regularHours);
-    const ot = toNum(day.overtimeHours);
     const nd = toNum(day.nightDiffHours);
-    const total = reg + ot + nd;
+    const total = reg + nd;
 
     if (total > 16) {
       warnings.push(`⚠️ ${day.dayName} (${formatDateShort(day.date)}): ${total} total hours exceeds 16 (possible duplicate entry?)`);
-    } else if (ot > 8) {
-      warnings.push(`⚠️ ${day.dayName} (${formatDateShort(day.date)}): ${ot} OT hours is unusually high`);
     }
   });
 
@@ -571,9 +563,6 @@ export default function TimesheetPage() {
                       Regular Hrs
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Overtime Hrs
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Night Diff Hrs
                     </th>
                   </tr>
@@ -623,22 +612,6 @@ export default function TimesheetPage() {
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={day.overtimeHours || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            // Allow empty, numbers, and decimals
-                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                              updateDayHours(index, 'overtimeHours', val);
-                            }
-                          }}
-                          placeholder="0"
-                          className="w-24 px-3 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent text-center"
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <input
-                          type="text"
-                          inputMode="decimal"
                           value={day.nightDiffHours || ''}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -658,7 +631,6 @@ export default function TimesheetPage() {
                       BI-MONTHLY TOTALS →
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">{totalRegular.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{totalOT.toFixed(1)}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{totalNightDiff.toFixed(1)}</td>
                   </tr>
                 </tbody>

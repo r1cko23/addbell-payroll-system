@@ -184,7 +184,7 @@ export default function TimeEntriesPage() {
 
   async function exportToCSV() {
     const csv = [
-      ['Employee ID', 'Name', 'Clock In', 'Clock Out', 'Total Hours', 'Regular', 'OT', 'Night Diff', 'Status', 'Notes'].join(','),
+      ['Employee ID', 'Name', 'Clock In', 'Clock Out', 'Total Hours', 'Regular', 'Night Diff', 'Status', 'Notes'].join(','),
       ...entries.map(entry => [
         entry.employees.employee_id,
         entry.employees.full_name,
@@ -192,7 +192,6 @@ export default function TimeEntriesPage() {
         entry.clock_out_time ? format(new Date(entry.clock_out_time), 'yyyy-MM-dd HH:mm:ss') : 'Not clocked out',
         entry.total_hours || 0,
         entry.regular_hours || 0,
-        entry.overtime_hours || 0,
         entry.night_diff_hours || 0,
         entry.status,
         entry.employee_notes || '',
@@ -598,7 +597,7 @@ export default function TimeEntriesPage() {
                 </div>
 
                 {/* Hours Breakdown */}
-                <div className="grid grid-cols-4 gap-4 p-4 bg-emerald-50 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 p-4 bg-emerald-50 rounded-lg">
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Total</div>
                     <div className="text-lg font-bold">{selectedEntry.total_hours?.toFixed(2)}h</div>
@@ -608,13 +607,7 @@ export default function TimeEntriesPage() {
                     <div className="text-lg font-bold">{selectedEntry.regular_hours?.toFixed(2)}h</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground mb-1">OT</div>
-                    <div className="text-lg font-bold text-orange-600">
-                      {selectedEntry.overtime_hours?.toFixed(2)}h
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">Night</div>
+                    <div className="text-xs text-muted-foreground mb-1">Night Diff</div>
                     <div className="text-lg font-bold text-purple-600">
                       {selectedEntry.night_diff_hours?.toFixed(2)}h
                     </div>

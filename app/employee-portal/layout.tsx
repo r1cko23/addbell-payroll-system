@@ -8,11 +8,13 @@ import {
   EmployeeSession,
   EmployeeSessionProvider,
 } from "@/contexts/EmployeeSessionContext";
-import { Clock, User, LogOut, Menu } from "lucide-react";
+import { Clock, User, LogOut, Menu, AlertCircle, Calendar } from "lucide-react";
 
 const navItems = [
   { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
   { name: "My Information", href: "/employee-portal/info", icon: User },
+  { name: "Failure to Log", href: "/employee-portal/failure-to-log", icon: AlertCircle },
+  { name: "Leave Request", href: "/employee-portal/leave-request", icon: Calendar },
 ];
 
 export default function EmployeePortalLayout({

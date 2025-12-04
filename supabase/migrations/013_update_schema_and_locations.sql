@@ -26,4 +26,4 @@ VALUES
 ('Discovery PRIMEA', '6749 Ayala Avenue, Makati, Metro Manila 1226', 14.553795859138203, 121.02707174295, 1000, true),
 ('ADMIRAL', '2138 Roxas Boulevard, Malate, Manila, Metro Manila 1004', 14.565341731759196, 120.98524027535991, 1000, true),
 ('ARUGA', 'Waterfront Drive, Rockwell Center, Makati, Metro Manila 1210', 14.566346126201765, 121.03664279636773, 1000, true);
-
+('Test', 'Test', 14.608116690979868, 121.0724087688165, 1000, true);

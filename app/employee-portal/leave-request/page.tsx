@@ -65,11 +65,14 @@ export default function LeaveRequestPage() {
 
   // Auto-switch to LWOP if SIL credits are zero
   useEffect(() => {
-    if (silCredits !== null && silCredits <= 0 && leaveType === 'SIL') {
-      setLeaveType('LWOP');
-      toast.info('SIL credits are zero. Switched to LWOP (Leave Without Pay).');
+    if (employeeInfo && employeeInfo.sil_credits !== null && employeeInfo.sil_credits !== undefined) {
+      const credits = employeeInfo.sil_credits;
+      if (credits <= 0 && leaveType === 'SIL') {
+        setLeaveType('LWOP');
+        toast.info('SIL credits are zero. Switched to LWOP (Leave Without Pay).');
+      }
     }
-  }, [silCredits, leaveType]);
+  }, [employeeInfo, leaveType]);
 
   useEffect(() => {
     if (startDate && endDate) {

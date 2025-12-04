@@ -21,6 +21,7 @@ interface LeaveRequest {
   reason: string | null;
   status: 'pending' | 'approved_by_manager' | 'approved_by_hr' | 'rejected' | 'cancelled';
   rejection_reason: string | null;
+  account_manager_id: string | null;
   account_manager_notes: string | null;
   hr_notes: string | null;
   created_at: string;
@@ -40,6 +41,7 @@ export default function LeaveApprovalPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [notes, setNotes] = useState('');
   const [userRole, setUserRole] = useState<string>('');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUserRole();
@@ -48,16 +50,41 @@ export default function LeaveApprovalPage() {
 
   async function fetchUserRole() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      console.log('No user found');
+      return;
+    }
 
+    setCurrentUserId(user.id);
+
+    // Try using the RPC function first (bypasses RLS)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_user_role');
+    
+    if (!rpcError && rpcData !== null && rpcData !== undefined) {
+      console.log('User role fetched via RPC:', rpcData);
+      setUserRole(rpcData as string);
+      return;
+    }
+
+    console.log('RPC failed, trying direct query. RPC error:', rpcError, 'RPC data:', rpcData);
+
+    // Fallback to direct query
     const { data, error } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
       .single();
 
-    if (!error && data) {
+    if (error) {
+      console.error('Error fetching user role:', error);
+      return;
+    }
+
+    if (data) {
+      console.log('User role fetched via query:', data.role);
       setUserRole(data.role);
+    } else {
+      console.log('No role data found');
     }
   }
 
@@ -168,13 +195,26 @@ export default function LeaveApprovalPage() {
     rejected: requests.filter(r => r.status === 'rejected').length,
   };
 
-  const canApprove = (request: LeaveRequest) => {
+  const canApprove = (request: LeaveRequest): boolean => {
+    // Don't show buttons until user role is loaded
+    if (!userRole) {
+      console.log('canApprove: userRole not loaded yet');
+      return false;
+    }
+    
     if (userRole === 'account_manager') {
-      return request.status === 'pending';
+      // Any account manager can approve pending requests
+      const canApproveResult = request.status === 'pending';
+      console.log('canApprove (account_manager):', { status: request.status, canApprove: canApproveResult });
+      return canApproveResult;
     }
     if (userRole === 'hr' || userRole === 'admin') {
-      return request.status === 'approved_by_manager';
+      // HR/Admin can approve requests that are already approved by manager
+      const canApproveResult = request.status === 'approved_by_manager';
+      console.log('canApprove (hr/admin):', { status: request.status, canApprove: canApproveResult });
+      return canApproveResult;
     }
+    console.log('canApprove: userRole does not match any condition:', userRole);
     return false;
   };
 
@@ -187,6 +227,12 @@ export default function LeaveApprovalPage() {
           <p className="text-muted-foreground mt-2">
             Review and approve employee leave requests (SIL/LWOP)
           </p>
+          {/* Debug info - remove after testing */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              Debug: User Role = {userRole || 'loading...'}, User ID = {currentUserId ? currentUserId.substring(0, 8) + '...' : 'loading...'}
+            </div>
+          )}
         </div>
 
         {/* Stats */}

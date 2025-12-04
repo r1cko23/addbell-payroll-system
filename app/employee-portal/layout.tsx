@@ -1,18 +1,25 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/Button';
-import { EmployeeSession, EmployeeSessionProvider } from '@/contexts/EmployeeSessionContext';
-import { Clock, User, LogOut, Menu } from 'lucide-react';
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/Button";
+import {
+  EmployeeSession,
+  EmployeeSessionProvider,
+} from "@/contexts/EmployeeSessionContext";
+import { Clock, User, LogOut, Menu } from "lucide-react";
 
 const navItems = [
-  { name: 'Bundy Clock', href: '/employee-portal/bundy', icon: Clock },
-  { name: 'My Information', href: '/employee-portal/info', icon: User },
+  { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
+  { name: "My Information", href: "/employee-portal/info", icon: User },
 ];
 
-export default function EmployeePortalLayout({ children }: { children: React.ReactNode }) {
+export default function EmployeePortalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
@@ -20,9 +27,9 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
   const [isNavOpen, setIsNavOpen] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('employee_session');
+    const stored = localStorage.getItem("employee_session");
     if (!stored) {
-      router.replace('/login?mode=employee');
+      router.replace("/login?mode=employee");
       return;
     }
 
@@ -30,8 +37,8 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
       const parsed = JSON.parse(stored) as EmployeeSession;
       setEmployee(parsed);
     } catch {
-      localStorage.removeItem('employee_session');
-      router.replace('/login?mode=employee');
+      localStorage.removeItem("employee_session");
+      router.replace("/login?mode=employee");
       return;
     } finally {
       setLoading(false);
@@ -42,24 +49,31 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
     setIsNavOpen(false);
   }, [pathname]);
 
-  // Auto-logout after inactivity (30 minutes)
+  // Auto-logout after inactivity (15 minutes)
   useEffect(() => {
     if (!employee) return;
 
-    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+    const INACTIVITY_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
     let inactivityTimer: NodeJS.Timeout;
 
     const resetTimer = () => {
       clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
         // Session expired due to inactivity
-        localStorage.removeItem('employee_session');
-        router.replace('/login?mode=employee&reason=inactivity');
+        localStorage.removeItem("employee_session");
+        router.replace("/login?mode=employee&reason=inactivity");
       }, INACTIVITY_TIMEOUT);
     };
 
     // Reset timer on user activity
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    const events = [
+      "mousedown",
+      "mousemove",
+      "keypress",
+      "scroll",
+      "touchstart",
+      "click",
+    ];
     events.forEach((event) => {
       document.addEventListener(event, resetTimer, true);
     });
@@ -77,15 +91,15 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
   }, [employee, router]);
 
   const refreshSession = () => {
-    const stored = localStorage.getItem('employee_session');
+    const stored = localStorage.getItem("employee_session");
     if (stored) {
       setEmployee(JSON.parse(stored));
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('employee_session');
-    router.replace('/login?mode=employee');
+    localStorage.removeItem("employee_session");
+    router.replace("/login?mode=employee");
   };
 
   if (loading || !employee) {
@@ -111,15 +125,19 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
                   {employee.full_name
-                    .split(' ')
+                    .split(" ")
                     .map((part) => part[0])
-                    .join('')
+                    .join("")
                     .slice(0, 2)
                     .toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-gray-900">{employee.full_name}</p>
-                  <p className="text-sm text-gray-500">ID: {employee.employee_id}</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    {employee.full_name}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    ID: {employee.employee_id}
+                  </p>
                 </div>
               </div>
 
@@ -155,8 +173,8 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
                     href={item.href}
                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
                       isActive
-                        ? 'bg-emerald-600 text-white shadow-md'
-                        : 'bg-white border text-gray-600 hover:bg-emerald-50'
+                        ? "bg-emerald-600 text-white shadow-md"
+                        : "bg-white border text-gray-600 hover:bg-emerald-50"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -181,8 +199,8 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
                       onClick={() => setIsNavOpen(false)}
                       className={`inline-flex items-center justify-between gap-2 px-4 py-3 rounded-lg text-sm font-semibold transition ${
                         isActive
-                          ? 'bg-emerald-600 text-white shadow-md'
-                          : 'bg-white border text-gray-600 hover:bg-emerald-50'
+                          ? "bg-emerald-600 text-white shadow-md"
+                          : "bg-white border text-gray-600 hover:bg-emerald-50"
                       }`}
                     >
                       <span className="flex items-center gap-2">
@@ -210,4 +228,3 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
     </EmployeeSessionProvider>
   );
 }
-

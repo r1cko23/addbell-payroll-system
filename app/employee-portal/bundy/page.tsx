@@ -297,26 +297,68 @@ export default function BundyClockPage() {
     fetchInitialData();
   }, [checkClockStatus, fetchEntries]);
 
-  useEffect(() => {
-    if (!initialFetchComplete) return;
+  // Function to get fresh location
+  const getFreshLocation = useCallback(async (): Promise<{
+    lat: number;
+    lng: number;
+  } | null> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
 
-    if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        async (position) => {
+        (position) => {
           const loc = {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           };
-          setLocation(loc);
-          await validateLocation(loc.lat, loc.lng);
+          resolve(loc);
         },
         (error) => {
           console.log("Location not available:", error);
+          resolve(null);
         },
-        { enableHighAccuracy: true }
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0, // Force fresh location, no caching
+        }
       );
-    }
-  }, [initialFetchComplete, validateLocation]);
+    });
+  }, []);
+
+  // Initial location fetch
+  useEffect(() => {
+    if (!initialFetchComplete) return;
+
+    getFreshLocation().then((loc) => {
+      if (loc) {
+        setLocation(loc);
+        validateLocation(loc.lat, loc.lng);
+      }
+    });
+  }, [initialFetchComplete, getFreshLocation, validateLocation]);
+
+  // Refresh location when app becomes visible (user returns to app)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && initialFetchComplete) {
+        getFreshLocation().then((loc) => {
+          if (loc) {
+            setLocation(loc);
+            validateLocation(loc.lat, loc.lng);
+          }
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [initialFetchComplete, getFreshLocation, validateLocation]);
 
   useEffect(() => {
     fetchCalendarHolidays(calendarDate);
@@ -324,18 +366,27 @@ export default function BundyClockPage() {
   }, [calendarDate, fetchCalendarEntries, fetchCalendarHolidays]);
 
   async function handleClock(event: "in" | "out") {
-    if (!location) {
+    // Always get fresh location before clocking in/out
+    toast.info("📍 Getting your current location...");
+
+    const freshLocation = await getFreshLocation();
+
+    if (!freshLocation) {
       toast.error("📍 Please enable location services to use the time clock");
       return;
     }
 
-    await validateLocation(location.lat, location.lng);
+    // Update location state with fresh coordinates
+    setLocation(freshLocation);
+
+    // Validate the fresh location
+    await validateLocation(freshLocation.lat, freshLocation.lng);
     const { data: validationData } = await supabase.rpc(
       "is_employee_location_allowed",
       {
         p_employee_uuid: employee.id,
-        p_latitude: location.lat,
-        p_longitude: location.lng,
+        p_latitude: freshLocation.lat,
+        p_longitude: freshLocation.lng,
       }
     );
 
@@ -353,9 +404,9 @@ export default function BundyClockPage() {
       return;
     }
 
-    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(
+    const locationString = `${freshLocation.lat.toFixed(
       6
-    )}`;
+    )}, ${freshLocation.lng.toFixed(6)}`;
 
     if (event === "in") {
       const { data, error } = await supabase
@@ -397,6 +448,9 @@ export default function BundyClockPage() {
 
     toast.success("✅ Clocked out successfully!");
     setCurrentEntry(null);
+    // Clear location state after clock out to force fresh location on next clock in
+    setLocation(null);
+    setLocationStatus(null);
     fetchEntries();
   }
 

@@ -42,6 +42,40 @@ export default function EmployeePortalLayout({ children }: { children: React.Rea
     setIsNavOpen(false);
   }, [pathname]);
 
+  // Auto-logout after inactivity (30 minutes)
+  useEffect(() => {
+    if (!employee) return;
+
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+    let inactivityTimer: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        // Session expired due to inactivity
+        localStorage.removeItem('employee_session');
+        router.replace('/login?mode=employee&reason=inactivity');
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    // Reset timer on user activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    events.forEach((event) => {
+      document.addEventListener(event, resetTimer, true);
+    });
+
+    // Initialize timer
+    resetTimer();
+
+    // Cleanup
+    return () => {
+      clearTimeout(inactivityTimer);
+      events.forEach((event) => {
+        document.removeEventListener(event, resetTimer, true);
+      });
+    };
+  }, [employee, router]);
+
   const refreshSession = () => {
     const stored = localStorage.getItem('employee_session');
     if (stored) {

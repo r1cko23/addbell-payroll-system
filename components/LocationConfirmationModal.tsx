@@ -11,11 +11,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/Button';
 import { MapPin, RefreshCw, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface LocationConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (location: { lat: number; lng: number }) => void;
+  onConfirm: (location: { lat: number; lng: number }) => Promise<boolean | void>;
   type: 'in' | 'out';
   validateLocation: (lat: number, lng: number) => Promise<{
     isAllowed: boolean;
@@ -40,6 +41,7 @@ export function LocationConfirmationModal({
     error: string | null;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [refreshCountdown, setRefreshCountdown] = useState(10);
 
@@ -140,10 +142,41 @@ export function LocationConfirmationModal({
   }, [isOpen, lastRefresh]);
 
   const handleConfirm = async () => {
-    if (location && locationStatus?.isAllowed) {
-      // Call onConfirm and wait for it to complete before closing
-      await onConfirm(location);
-      // Note: onClose is now handled by the parent component after confirmClock completes
+    if (!location || !locationStatus?.isAllowed || isConfirming) {
+      console.log("handleConfirm blocked", { location: !!location, isAllowed: locationStatus?.isAllowed, isConfirming });
+      return;
+    }
+
+    console.log("handleConfirm called, setting isConfirming to true");
+    setIsConfirming(true);
+    
+    try {
+      console.log("Calling onConfirm with location:", location);
+      const result = await Promise.race([
+        onConfirm(location),
+        new Promise<boolean>((_, reject) => 
+          setTimeout(() => reject(new Error("Operation timed out after 30 seconds")), 30000)
+        )
+      ]);
+      
+      console.log("onConfirm result:", result);
+      
+      // If onConfirm returns false, it means the operation failed
+      // The modal will stay open so the user can try again
+      if (result === false) {
+        // Operation failed, keep modal open
+        console.log("Operation failed, keeping modal open");
+        setIsConfirming(false);
+        return;
+      }
+      // If result is true or undefined, the parent will close the modal
+      // Don't set isConfirming to false here as the modal will close
+      console.log("Operation succeeded, modal will close");
+    } catch (error) {
+      console.error("Error in handleConfirm:", error);
+      toast.error(error instanceof Error ? error.message : "An error occurred. Please try again.");
+      setIsConfirming(false);
+      // Keep modal open on error
     }
   };
 
@@ -317,10 +350,17 @@ export function LocationConfirmationModal({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!location || !locationStatus?.isAllowed || isLoading}
-            className="bg-emerald-600 hover:bg-emerald-700"
+            disabled={!location || !locationStatus?.isAllowed || isLoading || isConfirming}
+            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Confirm Time {type === 'in' ? 'In' : 'Out'}
+            {isConfirming ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Processing...
+              </>
+            ) : (
+              `Confirm Time ${type === 'in' ? 'In' : 'Out'}`
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

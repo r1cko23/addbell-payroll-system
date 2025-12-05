@@ -78,3 +78,4 @@ Run migration `040_fix_employees_rls_access.sql` which:
 
 After running the migration, refresh the employees page and check the console logs.
 
+

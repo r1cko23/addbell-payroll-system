@@ -406,101 +406,176 @@ export default function BundyClockPage() {
   }
 
   // Actual clock in/out logic (called from modal confirmation)
-  async function confirmClock(location: { lat: number; lng: number }) {
+  async function confirmClock(location: { lat: number; lng: number }): Promise<boolean> {
+    console.log("confirmClock called", { action: pendingClockAction, location });
     const action = pendingClockAction;
     if (!action) {
       console.error('No pending clock action');
-      return;
+      toast.error("No clock action pending");
+      return false;
     }
-
-    // Close modal first
-    setShowLocationModal(false);
-    setPendingClockAction(null);
 
     const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 
-    if (action === "in") {
-      // First, check if there's an unclosed entry from previous day and auto-close it
-      const { data: previousEntry } = await supabase
-        .from("time_clock_entries")
-        .select("*")
-        .eq("employee_id", employee.id)
-        .eq("status", "clocked_in")
-        .order("clock_in_time", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (previousEntry) {
-        const entryDate = new Date(previousEntry.clock_in_time);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+    try {
+      if (action === "in") {
+        console.log("Starting clock in process...");
         
-        // If entry is from a previous day, auto-close it
-        if (entryDate < today) {
-          const endOfPreviousDay = new Date(entryDate);
-          endOfPreviousDay.setHours(23, 59, 59, 999);
-          
-          await supabase
-            .from("time_clock_entries")
-            .update({
-              clock_out_time: endOfPreviousDay.toISOString(),
-              status: "clocked_out",
-              // Don't calculate hours yet - wait for failure to log approval
-              total_hours: null,
-              regular_hours: null,
-            })
-            .eq("id", previousEntry.id);
+        // First, check if there's an unclosed entry from previous day and auto-close it
+        console.log("Checking for previous entries...");
+        const { data: previousEntry, error: prevError } = await supabase
+          .from("time_clock_entries")
+          .select("*")
+          .eq("employee_id", employee.id)
+          .eq("status", "clocked_in")
+          .order("clock_in_time", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (prevError) {
+          console.error("Error checking previous entries:", prevError);
         }
+
+        if (previousEntry) {
+          const entryDate = new Date(previousEntry.clock_in_time);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // If entry is from a previous day, auto-close it
+          if (entryDate < today) {
+            console.log("Auto-closing previous day entry...");
+            const endOfPreviousDay = new Date(entryDate);
+            endOfPreviousDay.setHours(23, 59, 59, 999);
+            
+            const { error: closeError } = await supabase
+              .from("time_clock_entries")
+              .update({
+                clock_out_time: endOfPreviousDay.toISOString(),
+                status: "clocked_out",
+                // Don't calculate hours yet - wait for failure to log approval
+                total_hours: null,
+                regular_hours: null,
+              })
+              .eq("id", previousEntry.id);
+
+            if (closeError) {
+              console.error("Error closing previous entry:", closeError);
+            }
+          }
+        }
+
+        console.log("Calling employee_clock_in RPC...");
+        const { data: clockInData, error: clockInError } = await supabase.rpc(
+          'employee_clock_in',
+          {
+            p_employee_id: employee.id,
+            p_location: locationString,
+          }
+        );
+
+        if (clockInError) {
+          console.error("Clock in error:", clockInError);
+          toast.error(`Failed to clock in: ${clockInError.message || "Unknown error"}`);
+          return false;
+        }
+
+        if (!clockInData || clockInData.length === 0 || !clockInData[0].success) {
+          const errorMsg = clockInData?.[0]?.error_message || "Failed to clock in";
+          console.error("Clock in failed:", errorMsg);
+          toast.error(errorMsg);
+          return false;
+        }
+
+        const entryId = clockInData[0].entry_id;
+        console.log("Clock in successful, fetching entry...", entryId);
+        
+        // Fetch the created entry
+        const { data: entryData, error: fetchError } = await supabase
+          .from("time_clock_entries")
+          .select("*")
+          .eq("id", entryId)
+          .single();
+
+        if (fetchError || !entryData) {
+          console.error("Error fetching created entry:", fetchError);
+          // Still show success since the entry was created
+          toast.success("✅ Clocked in successfully!");
+        } else {
+          console.log("Clock in successful, updating UI...");
+          setCurrentEntry(entryData);
+          toast.success("✅ Clocked in successfully!");
+        }
+        
+        // Don't await these - let them run in background to avoid blocking
+        fetchEntries().catch(err => console.error("Error fetching entries:", err));
+        checkClockStatus().catch(err => console.error("Error checking clock status:", err));
+        
+        // Close modal after successful operation
+        setShowLocationModal(false);
+        setPendingClockAction(null);
+        console.log("Clock in complete");
+        return true;
       }
 
-      const { data, error } = await supabase
-        .from("time_clock_entries")
-        .insert({
-          employee_id: employee.id,
-          clock_in_time: new Date().toISOString(),
-          clock_in_location: locationString,
-          status: "clocked_in",
-        })
-        .select()
-        .single();
-
-      if (error) {
-        toast.error("Failed to clock in");
-        return;
+      // Clock out
+      console.log("Starting clock out process...");
+      if (!currentEntry) {
+        console.error("No current entry found");
+        toast.error("No active clock-in entry found");
+        return false;
       }
 
-      setCurrentEntry(data);
-      toast.success("✅ Clocked in successfully!");
-      await fetchEntries();
-      await checkClockStatus();
-      return;
+      console.log("Calling employee_clock_out RPC...");
+      const { data: clockOutData, error: clockOutError } = await supabase.rpc(
+        'employee_clock_out',
+        {
+          p_employee_id: employee.id,
+          p_entry_id: currentEntry.id,
+          p_location: locationString,
+        }
+      );
+
+      if (clockOutError) {
+        console.error("Clock out error:", clockOutError);
+        toast.error(`Failed to clock out: ${clockOutError.message || "Unknown error"}`);
+        return false;
+      }
+
+      if (!clockOutData || clockOutData.length === 0 || !clockOutData[0].success) {
+        const errorMsg = clockOutData?.[0]?.error_message || "Failed to clock out";
+        console.error("Clock out failed:", errorMsg);
+        toast.error(errorMsg);
+        return false;
+      }
+
+      console.log("Clock out successful, updating UI...");
+      toast.success("✅ Clocked out successfully!");
+      setCurrentEntry(null);
+      
+      // Don't await these - let them run in background to avoid blocking
+      fetchEntries().catch(err => console.error("Error fetching entries:", err));
+      checkClockStatus().catch(err => console.error("Error checking clock status:", err));
+      
+      // Close modal after successful operation
+      setShowLocationModal(false);
+      setPendingClockAction(null);
+      
+      // Re-fetch location after clock out (don't clear it, just refresh)
+      console.log("Refreshing location after clock out...");
+      getFreshLocation().then((loc) => {
+        if (loc) {
+          setLocation(loc);
+          validateLocation(loc.lat, loc.lng);
+        }
+      }).catch(err => console.error("Error refreshing location:", err));
+      
+      console.log("Clock out complete");
+      return true;
+    } catch (error) {
+      console.error("Unexpected error in confirmClock:", error);
+      toast.error("An unexpected error occurred. Please try again.");
+      return false;
     }
-
-    if (!currentEntry) {
-      toast.error("No active clock-in entry found");
-      return;
-    }
-
-    const { error } = await supabase
-      .from("time_clock_entries")
-      .update({
-        clock_out_time: new Date().toISOString(),
-        clock_out_location: locationString,
-      })
-      .eq("id", currentEntry.id);
-
-    if (error) {
-      toast.error("Failed to clock out");
-      return;
-    }
-
-    toast.success("✅ Clocked out successfully!");
-    setCurrentEntry(null);
-    // Clear location state after clock out to force fresh location on next clock in
-    setLocation(null);
-    setLocationStatus(null);
-    await fetchEntries();
-    await checkClockStatus();
   }
 
   // Wrapper for validateLocation to match modal's expected signature
@@ -815,9 +890,7 @@ export default function BundyClockPage() {
             setShowLocationModal(false);
             setPendingClockAction(null);
           }}
-          onConfirm={async (location) => {
-            await confirmClock(location);
-          }}
+          onConfirm={confirmClock}
           type={pendingClockAction}
           validateLocation={validateLocationForModal}
         />

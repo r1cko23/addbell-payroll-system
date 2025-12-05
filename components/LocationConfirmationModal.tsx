@@ -139,10 +139,11 @@ export function LocationConfirmationModal({
     return () => clearInterval(countdownInterval);
   }, [isOpen, lastRefresh]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (location && locationStatus?.isAllowed) {
-      onConfirm(location);
-      onClose();
+      // Call onConfirm and wait for it to complete before closing
+      await onConfirm(location);
+      // Note: onClose is now handled by the parent component after confirmClock completes
     }
   };
 

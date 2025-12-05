@@ -407,11 +407,19 @@ export default function BundyClockPage() {
 
   // Actual clock in/out logic (called from modal confirmation)
   async function confirmClock(location: { lat: number; lng: number }) {
-    if (!pendingClockAction) return;
+    const action = pendingClockAction;
+    if (!action) {
+      console.error('No pending clock action');
+      return;
+    }
+
+    // Close modal first
+    setShowLocationModal(false);
+    setPendingClockAction(null);
 
     const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 
-    if (pendingClockAction === "in") {
+    if (action === "in") {
       // First, check if there's an unclosed entry from previous day and auto-close it
       const { data: previousEntry } = await supabase
         .from("time_clock_entries")
@@ -463,11 +471,15 @@ export default function BundyClockPage() {
 
       setCurrentEntry(data);
       toast.success("✅ Clocked in successfully!");
-      fetchEntries();
+      await fetchEntries();
+      await checkClockStatus();
       return;
     }
 
-    if (!currentEntry) return;
+    if (!currentEntry) {
+      toast.error("No active clock-in entry found");
+      return;
+    }
 
     const { error } = await supabase
       .from("time_clock_entries")
@@ -487,7 +499,8 @@ export default function BundyClockPage() {
     // Clear location state after clock out to force fresh location on next clock in
     setLocation(null);
     setLocationStatus(null);
-    fetchEntries();
+    await fetchEntries();
+    await checkClockStatus();
   }
 
   // Wrapper for validateLocation to match modal's expected signature
@@ -802,7 +815,9 @@ export default function BundyClockPage() {
             setShowLocationModal(false);
             setPendingClockAction(null);
           }}
-          onConfirm={confirmClock}
+          onConfirm={async (location) => {
+            await confirmClock(location);
+          }}
           type={pendingClockAction}
           validateLocation={validateLocationForModal}
         />

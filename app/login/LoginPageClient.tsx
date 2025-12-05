@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { toast } from 'react-hot-toast';
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "react-hot-toast";
 
-type LoginMode = 'admin' | 'employee';
+type LoginMode = "admin" | "employee";
 
 export function LoginPageClient() {
   const router = useRouter();
@@ -13,14 +13,14 @@ export function LoginPageClient() {
   const supabase = createClient();
 
   const modeFromQuery = useMemo<LoginMode>(() => {
-    return searchParams?.get('mode') === 'employee' ? 'employee' : 'admin';
+    return searchParams?.get("mode") === "employee" ? "employee" : "admin";
   }, [searchParams]);
 
   const [mode, setMode] = useState<LoginMode>(modeFromQuery);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
-  const [employeePassword, setEmployeePassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [employeePassword, setEmployeePassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -39,11 +39,11 @@ export function LoginPageClient() {
 
       if (error) throw error;
 
-      toast.success('Login successful!');
-      router.push('/dashboard');
+      toast.success("Login successful!");
+      router.push("/dashboard");
       router.refresh();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to login');
+      toast.error(error.message || "Failed to login");
     } finally {
       setLoading(false);
     }
@@ -53,14 +53,14 @@ export function LoginPageClient() {
     e.preventDefault();
 
     if (!employeeId.trim() || !employeePassword.trim()) {
-      toast.error('Please enter your Employee ID and password');
+      toast.error("Please enter your Employee ID and password");
       return;
     }
 
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc('authenticate_employee', {
+      const { data, error } = await supabase.rpc("authenticate_employee", {
         p_employee_id: employeeId.trim(),
         p_password: employeePassword.trim(),
       });
@@ -68,13 +68,14 @@ export function LoginPageClient() {
       if (error) throw error;
 
       if (!data || data.length === 0 || !data[0].success) {
-        const errorMessage = data && data[0] ? data[0].error_message : 'Invalid credentials';
+        const errorMessage =
+          data && data[0] ? data[0].error_message : "Invalid credentials";
         throw new Error(errorMessage);
       }
 
       const employeeData = data[0].employee_data;
       localStorage.setItem(
-        'employee_session',
+        "employee_session",
         JSON.stringify({
           id: employeeData.id,
           employee_id: employeeData.employee_id,
@@ -84,9 +85,9 @@ export function LoginPageClient() {
       );
 
       toast.success(`Welcome, ${employeeData.full_name}!`);
-      router.push('/employee-portal/bundy');
+      router.push("/employee-portal/bundy");
     } catch (error: any) {
-      toast.error(error.message || 'Failed to login');
+      toast.error(error.message || "Failed to login");
     } finally {
       setLoading(false);
     }
@@ -103,7 +104,7 @@ export function LoginPageClient() {
                 alt="Green Pasture People Management Inc."
                 className="h-24 w-auto"
                 onError={(e) => {
-                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.style.display = "none";
                 }}
               />
             </div>
@@ -116,26 +117,33 @@ export function LoginPageClient() {
           <div className="grid grid-cols-2 mb-6 rounded-lg border overflow-hidden">
             <button
               className={`py-3 text-sm font-medium transition ${
-                mode === 'admin' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
+                mode === "admin"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card text-muted-foreground"
               }`}
-              onClick={() => setMode('admin')}
+              onClick={() => setMode("admin")}
             >
               Admin / HR
             </button>
             <button
               className={`py-3 text-sm font-medium transition ${
-                mode === 'employee' ? 'bg-primary text-primary-foreground' : 'bg-card text-muted-foreground'
+                mode === "employee"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card text-muted-foreground"
               }`}
-              onClick={() => setMode('employee')}
+              onClick={() => setMode("employee")}
             >
               Employee
             </button>
           </div>
 
-          {mode === 'admin' ? (
+          {mode === "admin" ? (
             <form onSubmit={handleAdminLogin} className="space-y-6">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-foreground mb-2"
+                >
                   Email Address
                 </label>
                 <input
@@ -150,7 +158,10 @@ export function LoginPageClient() {
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-foreground mb-2"
+                >
                   Password
                 </label>
                 <input
@@ -169,13 +180,15 @@ export function LoginPageClient() {
                 disabled={loading}
                 className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? "Signing in..." : "Sign In"}
               </button>
             </form>
           ) : (
             <form onSubmit={handleEmployeeLogin} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Employee ID</label>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Employee ID
+                </label>
                 <input
                   type="text"
                   required
@@ -187,7 +200,9 @@ export function LoginPageClient() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">Password</label>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Password
+                </label>
                 <input
                   type="password"
                   required
@@ -203,21 +218,26 @@ export function LoginPageClient() {
                 disabled={loading}
                 className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? "Signing in..." : "Sign In"}
               </button>
             </form>
           )}
 
           <div className="mt-8 text-center text-sm text-muted-foreground">
-            <p>{mode === 'admin' ? 'Authorized personnel only' : 'Use the credentials provided by HR'}</p>
+            <p>
+              {mode === "admin"
+                ? "Authorized personnel only"
+                : "Use the credentials provided by HR"}
+            </p>
           </div>
         </div>
 
         <div className="mt-6 text-center text-sm text-muted-foreground">
-          <p>© 2025 Green Pasture People Management Inc. All rights reserved.</p>
+          <p>
+            © 2025 Green Pasture People Management Inc. All rights reserved.
+          </p>
         </div>
       </div>
     </div>
   );
 }
-

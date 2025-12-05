@@ -68,12 +68,32 @@ export default function HRDashboard() {
             .select('id, name, address, latitude, longitude, radius_meters'),
         ]);
 
+        // Check for errors in responses
+        if (employeeCountRes.error) {
+          console.error('Error fetching employee count:', employeeCountRes.error);
+        }
+        if (recentRes.error) {
+          console.error('Error fetching recent entries:', recentRes.error);
+        }
+        if (activeRes.error) {
+          console.error('Error fetching clocked in entries:', activeRes.error);
+        }
+        if (locationsRes.error) {
+          console.error('Error fetching office locations:', locationsRes.error);
+        }
+
         setTotalEmployees(employeeCountRes.count || 0);
         setRecentEntries((recentRes.data || []) as ClockEntry[]);
         setClockedInEntries((activeRes.data || []) as ClockEntry[]);
         setOfficeLocations((locationsRes.data || []) as OfficeLocation[]);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to load dashboard data:', error);
+        console.error('Error details:', {
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          code: error?.code
+        });
       } finally {
         setLoading(false);
       }

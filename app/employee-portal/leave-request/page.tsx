@@ -79,16 +79,12 @@ export default function LeaveRequestPage() {
       const start = new Date(startDate);
       const end = new Date(endDate);
       if (end >= start) {
-        // Calculate business days (excluding weekends)
-        let days = 0;
-        let current = new Date(start);
-        while (current <= end) {
-          const dayOfWeek = current.getDay();
-          if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Not Sunday or Saturday
-            days++;
-          }
-          current = addDays(current, 1);
-        }
+        // Use calendar days (inclusive), not business days
+        const days =
+          differenceInDays(
+            addDays(end, 1), // inclusive end
+            start
+          );
         setCalculatedDays(days);
       } else {
         setCalculatedDays(0);

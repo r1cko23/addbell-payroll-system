@@ -20,9 +20,11 @@ interface EmployeeSession {
 
 interface FailureToLog {
   id: string;
-  time_entry_id: string;
-  missed_date: string;
-  actual_clock_out_time: string;
+  time_entry_id: string | null;
+  missed_date: string | null;
+  actual_clock_in_time: string | null;
+  actual_clock_out_time: string | null;
+  entry_type: 'in' | 'out' | 'both';
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   rejection_reason: string | null;
@@ -41,8 +43,10 @@ export default function FailureToLogPage() {
   const [loading, setLoading] = useState(true);
   
   // Form state
+  const [entryType, setEntryType] = useState<'in' | 'out' | 'both'>('out');
   const [missedDate, setMissedDate] = useState('');
-  const [actualClockOutTime, setActualClockOutTime] = useState('');
+  const [timeIn, setTimeIn] = useState('');
+  const [timeOut, setTimeOut] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [timeEntries, setTimeEntries] = useState<any[]>([]);
@@ -102,13 +106,27 @@ export default function FailureToLogPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!employee || !missedDate || !actualClockOutTime || !reason.trim() || !selectedTimeEntryId) {
-      toast.error('Please fill in all fields');
+    if (!employee || !reason.trim()) {
+      toast.error('Please fill in the required fields');
       return;
     }
 
-    if (!selectedTimeEntryId) {
-      toast.error('Please select a time entry');
+    const buildDateTime = (date: string, time: string) => {
+      if (!date || !time) return null;
+      return new Date(`${date}T${time}`).toISOString();
+    };
+
+    const actualClockInTime =
+      entryType === 'in' || entryType === 'both' ? buildDateTime(missedDate, timeIn) : null;
+    const actualClockOutTime =
+      entryType === 'out' || entryType === 'both' ? buildDateTime(missedDate, timeOut) : null;
+
+    if (
+      (entryType === 'in' && !actualClockInTime) ||
+      (entryType === 'out' && !actualClockOutTime) ||
+      (entryType === 'both' && (!actualClockInTime || !actualClockOutTime))
+    ) {
+      toast.error('Please provide the missing clock time(s).');
       return;
     }
 
@@ -118,9 +136,11 @@ export default function FailureToLogPage() {
       .from('failure_to_log')
       .insert({
         employee_id: employee.id,
-        time_entry_id: selectedTimeEntryId,
-        missed_date: missedDate,
+        time_entry_id: selectedTimeEntryId || null,
+        missed_date: missedDate || null,
+        actual_clock_in_time: actualClockInTime,
         actual_clock_out_time: actualClockOutTime,
+        entry_type: entryType,
         reason: reason.trim(),
         status: 'pending',
       });
@@ -135,7 +155,9 @@ export default function FailureToLogPage() {
 
     toast.success('✅ Failure to log request submitted successfully!');
     setMissedDate('');
-    setActualClockOutTime('');
+    setTimeIn('');
+    setTimeOut('');
+    setEntryType('out');
     setReason('');
     setSelectedTimeEntryId('');
     fetchFailureToLogRequests(employee.id);
@@ -152,6 +174,8 @@ export default function FailureToLogPage() {
 
   const pendingCount = requests.filter(r => r.status === 'pending').length;
   const approvedCount = requests.filter(r => r.status === 'approved').length;
+  const formatSafe = (value?: string | null, fmt?: string) =>
+    value ? formatPHTime(value, fmt || 'MMM dd, yyyy h:mm a') : '—';
 
   return (
     <div className="min-h-screen bg-background">
@@ -205,26 +229,21 @@ export default function FailureToLogPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="time-entry">Select Time Entry</Label>
+                <Label htmlFor="entry-type">Log Type</Label>
                 <select
-                  id="time-entry"
-                  value={selectedTimeEntryId}
-                  onChange={(e) => setSelectedTimeEntryId(e.target.value)}
+                  id="entry-type"
+                  value={entryType}
+                  onChange={(e) => setEntryType(e.target.value as 'in' | 'out' | 'both')}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  required
                 >
-                  <option value="">Select a time entry...</option>
-                  {timeEntries.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {formatPHTime(entry.clock_in_time, 'MMM dd, yyyy h:mm a')} - {entry.clock_out_time ? formatPHTime(entry.clock_out_time, 'h:mm a') : 'Not clocked out'}
-                    </option>
-                  ))}
+                  <option value="out">Time Out</option>
+                  <option value="in">Time In</option>
+                  <option value="both">Time In & Out</option>
                 </select>
-                <p className="text-xs text-muted-foreground">Select the time entry where you forgot to clock in/out</p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="missed-date">Missed Date</Label>
+                <Label htmlFor="missed-date">Date</Label>
                 <Input
                   id="missed-date"
                   type="date"
@@ -235,17 +254,31 @@ export default function FailureToLogPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="clock-out-time">Actual Clock Out Time</Label>
-                <Input
-                  id="clock-out-time"
-                  type="datetime-local"
-                  value={actualClockOutTime}
-                  onChange={(e) => setActualClockOutTime(e.target.value)}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">The actual time you clocked out (or should have)</p>
-              </div>
+              {(entryType === 'in' || entryType === 'both') && (
+                <div className="space-y-2">
+                  <Label htmlFor="time-in">Time In</Label>
+                  <Input
+                    id="time-in"
+                    type="time"
+                    value={timeIn}
+                    onChange={(e) => setTimeIn(e.target.value)}
+                    required={entryType === 'in' || entryType === 'both'}
+                  />
+                </div>
+              )}
+
+              {(entryType === 'out' || entryType === 'both') && (
+                <div className="space-y-2">
+                  <Label htmlFor="time-out">Time Out</Label>
+                  <Input
+                    id="time-out"
+                    type="time"
+                    value={timeOut}
+                    onChange={(e) => setTimeOut(e.target.value)}
+                    required={entryType === 'out' || entryType === 'both'}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="reason">Reason</Label>
@@ -269,7 +302,7 @@ export default function FailureToLogPage() {
                 className="w-full"
                 isLoading={submitting}
               >
-                Submit Request
+                Request Change
               </Button>
             </form>
           </CardContent>
@@ -299,27 +332,37 @@ export default function FailureToLogPage() {
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <span className="font-bold text-lg">
-                              {formatPHTime(request.missed_date, 'MMM dd, yyyy')}
+                              {formatSafe(request.missed_date, 'MMM dd, yyyy')}
                             </span>
                             <span className="text-sm text-muted-foreground">
-                              Actual: {formatPHTime(request.actual_clock_out_time, 'MMM dd, h:mm a')}
+                              {request.entry_type === 'in' && <>Actual In: {formatSafe(request.actual_clock_in_time, 'MMM dd, h:mm a')}</>}
+                              {request.entry_type === 'out' && <>Actual Out: {formatSafe(request.actual_clock_out_time, 'MMM dd, h:mm a')}</>}
+                              {request.entry_type === 'both' && (
+                                <>
+                                  Actual In: {formatSafe(request.actual_clock_in_time, 'MMM dd, h:mm a')} | Actual Out: {formatSafe(request.actual_clock_out_time, 'MMM dd, h:mm a')}
+                                </>
+                              )}
                             </span>
                           </div>
 
-                          <div className="text-sm mb-2">
+                          <div className="text-sm">
                             <strong>Reason:</strong>
                             <div className="mt-1 text-muted-foreground">{request.reason}</div>
                           </div>
 
                           {request.status === 'rejected' && request.rejection_reason && (
-                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm">
+                            <div className="p-2 bg-red-50 border border-red-200 rounded-md text-sm">
                               <strong className="text-red-900">Rejection Reason:</strong>
                               <div className="text-red-800 mt-1">{request.rejection_reason}</div>
                             </div>
                           )}
+
+                          <div className="text-xs text-muted-foreground">
+                            Filed: {formatSafe(request.created_at, 'MMM dd, yyyy h:mm a')}
+                          </div>
                         </div>
 
                         <div className="ml-4">
@@ -342,10 +385,6 @@ export default function FailureToLogPage() {
                             </Badge>
                           )}
                         </div>
-                      </div>
-
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Filed: {formatPHTime(request.created_at, 'MMM dd, yyyy h:mm a')}
                       </div>
                     </CardContent>
                   </Card>

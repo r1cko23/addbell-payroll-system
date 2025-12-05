@@ -14,9 +14,12 @@ import { formatPHTime } from '@/utils/format';
 interface FailureToLog {
   id: string;
   employee_id: string;
-  time_entry_id: string;
-  missed_date: string;
-  actual_clock_out_time: string;
+  time_entry_id: string | null;
+  missed_date: string | null;
+  actual_clock_in_time: string | null;
+  actual_clock_out_time: string | null;
+  entry_type: 'in' | 'out' | 'both';
+  manual_notes: string | null;
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   rejection_reason: string | null;
@@ -38,6 +41,7 @@ export default function FailureToLogApprovalPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<FailureToLog | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [approveLoading, setApproveLoading] = useState(false);
 
   useEffect(() => {
     fetchRequests();
@@ -79,36 +83,87 @@ export default function FailureToLogApprovalPage() {
   }
 
   async function handleApprove(requestId: string) {
+    setApproveLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setApproveLoading(false);
+      return;
+    }
 
     // First, get the failure to log request details
     const { data: request, error: fetchError } = await supabase
       .from('failure_to_log')
-      .select('time_entry_id, actual_clock_out_time')
+      .select(`
+        id,
+        employee_id,
+        time_entry_id,
+        entry_type,
+        actual_clock_in_time,
+        actual_clock_out_time,
+        reason
+      `)
       .eq('id', requestId)
       .single();
 
     if (fetchError || !request) {
       console.error('Error fetching request:', fetchError);
       toast.error('Failed to fetch request details');
+      setApproveLoading(false);
       return;
     }
 
-    // Update the time_clock_entries table with the actual clock out time
-    const { error: updateTimeEntryError } = await supabase
-      .from('time_clock_entries')
-      .update({
-        clock_out_time: request.actual_clock_out_time,
-        status: 'clocked_out',
-        // The trigger will automatically calculate hours now that clock_out_time is set
-      })
-      .eq('id', request.time_entry_id);
-
-    if (updateTimeEntryError) {
-      console.error('Error updating time entry:', updateTimeEntryError);
-      toast.error('Failed to update time entry');
+    // Validate required times based on entry_type
+    if (
+      (request.entry_type === 'in' && !request.actual_clock_in_time) ||
+      (request.entry_type === 'out' && !request.actual_clock_out_time) ||
+      (request.entry_type === 'both' &&
+        (!request.actual_clock_in_time || !request.actual_clock_out_time))
+    ) {
+      toast.error('Missing actual clock time(s) for this request');
+      setApproveLoading(false);
       return;
+    }
+
+    // If a time_entry_id exists, patch it; otherwise create a new entry
+    if (request.time_entry_id) {
+      const updatePayload: any = {};
+      if (request.actual_clock_in_time) updatePayload.clock_in_time = request.actual_clock_in_time;
+      if (request.actual_clock_out_time) updatePayload.clock_out_time = request.actual_clock_out_time;
+      const { error: updateTimeEntryError } = await supabase
+        .from('time_clock_entries')
+        .update(updatePayload)
+        .eq('id', request.time_entry_id);
+      if (updateTimeEntryError) {
+        console.error('Error updating time entry:', updateTimeEntryError);
+        toast.error('Failed to update time entry');
+        setApproveLoading(false);
+        return;
+      }
+    } else {
+      // Fallback: ensure clock_in_time is present (required by table)
+      const clockInTime = request.actual_clock_in_time || request.actual_clock_out_time;
+      const { data: newEntry, error: insertErr } = await supabase
+        .from('time_clock_entries')
+        .insert({
+          employee_id: request.employee_id,
+          clock_in_time: clockInTime,
+          clock_out_time: request.actual_clock_out_time,
+          status: 'auto_approved',
+        })
+        .select()
+        .single();
+
+      if (insertErr || !newEntry) {
+        console.error('Error creating time entry:', insertErr);
+        toast.error('Failed to create time entry');
+        setApproveLoading(false);
+        return;
+      }
+
+      await supabase
+        .from('failure_to_log')
+        .update({ time_entry_id: newEntry.id })
+        .eq('id', requestId);
     }
 
     // Now update the failure to log request status
@@ -124,20 +179,17 @@ export default function FailureToLogApprovalPage() {
     if (error) {
       console.error('Error approving request:', error);
       toast.error('Failed to approve request');
+      setApproveLoading(false);
       return;
     }
 
     toast.success('✅ Request approved and time entry updated');
     fetchRequests();
     setSelectedRequest(null);
+    setApproveLoading(false);
   }
 
   async function handleReject(requestId: string) {
-    if (!rejectionReason.trim()) {
-      toast.error('Please provide a rejection reason');
-      return;
-    }
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -145,7 +197,7 @@ export default function FailureToLogApprovalPage() {
       .from('failure_to_log')
       .update({
         status: 'rejected',
-        rejection_reason: rejectionReason.trim(),
+        rejection_reason: rejectionReason.trim() || null,
         account_manager_id: user.id,
       })
       .eq('id', requestId);
@@ -248,10 +300,7 @@ export default function FailureToLogApprovalPage() {
               >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between">
-                    <div 
-                      className="flex-1 cursor-pointer"
-                      onClick={() => setSelectedRequest(request)}
-                    >
+                    <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <User className="h-5 w-5 text-muted-foreground" />
                         <span className="font-bold text-lg">
@@ -284,8 +333,8 @@ export default function FailureToLogApprovalPage() {
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedRequest(request);
                                 setRejectionReason('');
+                                handleReject(request.id);
                               }}
                             >
                               <X className="h-4 w-4 mr-1" />
@@ -318,125 +367,7 @@ export default function FailureToLogApprovalPage() {
           </div>
         )}
 
-        {/* Detail Modal */}
-        {selectedRequest && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <CardHeader>
-                <CardTitle>Request Details</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Employee</div>
-                    <div className="font-bold text-lg">
-                      {selectedRequest.employees?.full_name} ({selectedRequest.employees?.employee_id})
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm text-muted-foreground">Missed Date</div>
-                    <div className="font-semibold">
-                      {formatPHTime(selectedRequest.missed_date, 'MMMM dd, yyyy')}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm text-muted-foreground">Actual Clock Out Time</div>
-                    <div className="font-semibold">
-                      {formatPHTime(selectedRequest.actual_clock_out_time, 'MMMM dd, yyyy h:mm a')}
-                    </div>
-                  </div>
-
-                  {selectedRequest.time_clock_entries && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">Time Entry</div>
-                      <div className="font-semibold">
-                        Clock In: {formatPHTime(selectedRequest.time_clock_entries.clock_in_time, 'MMM dd, h:mm a')}
-                        {selectedRequest.time_clock_entries.clock_out_time && (
-                          <> | Clock Out: {formatPHTime(selectedRequest.time_clock_entries.clock_out_time, 'h:mm a')}</>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <div className="text-sm text-muted-foreground">Reason</div>
-                    <div className="p-3 bg-muted rounded-md">{selectedRequest.reason}</div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm text-muted-foreground">Submitted</div>
-                    <div className="text-sm">
-                      {formatPHTime(selectedRequest.created_at, 'MMMM dd, yyyy h:mm a')}
-                    </div>
-                  </div>
-
-                  {selectedRequest.status === 'rejected' && selectedRequest.rejection_reason && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">Rejection Reason</div>
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-900">
-                        {selectedRequest.rejection_reason}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  {selectedRequest.status === 'pending' && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="rejection-reason">Rejection Reason (if rejecting)</Label>
-                        <textarea
-                          id="rejection-reason"
-                          value={rejectionReason}
-                          onChange={(e) => setRejectionReason(e.target.value)}
-                          placeholder="Provide reason for rejection..."
-                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                          rows={3}
-                        />
-                      </div>
-
-                      <div className="flex justify-end gap-3 pt-4">
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setSelectedRequest(null);
-                            setRejectionReason('');
-                          }}
-                        >
-                          Close
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={() => handleReject(selectedRequest.id)}
-                        >
-                          <X className="h-4 w-4 mr-2" />
-                          Reject
-                        </Button>
-                        <Button onClick={() => handleApprove(selectedRequest.id)}>
-                          <Check className="h-4 w-4 mr-2" />
-                          Approve
-                        </Button>
-                      </div>
-                    </>
-                  )}
-
-                  {selectedRequest.status !== 'pending' && (
-                    <div className="flex justify-end pt-4">
-                      <Button
-                        variant="secondary"
-                        onClick={() => setSelectedRequest(null)}
-                      >
-                        Close
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        {/* Detail Modal removed */}
       </div>
     </DashboardLayout>
   );

@@ -31,7 +31,7 @@ BEGIN
     RETURN;
   END IF;
 
-  -- Check if there's an unclosed entry from previous day
+  -- Check if there's an unclosed entry from previous day (using PH local date)
   SELECT * INTO v_existing_entry
   FROM public.time_clock_entries
   WHERE employee_id = p_employee_id
@@ -39,20 +39,24 @@ BEGIN
   ORDER BY clock_in_time DESC
   LIMIT 1;
 
-  -- Auto-close previous day's entry if exists
+  -- Auto-close previous day's entry at PH midnight so next-day clock-in is allowed
   IF v_existing_entry.id IS NOT NULL THEN
     DECLARE
-      v_entry_date DATE;
-      v_today DATE;
+      v_entry_date_ph DATE;
+      v_today_ph DATE;
+      v_entry_midnight_utc TIMESTAMP WITH TIME ZONE;
     BEGIN
-      v_entry_date := DATE(v_existing_entry.clock_in_time);
-      v_today := CURRENT_DATE;
+      v_entry_date_ph := (v_existing_entry.clock_in_time AT TIME ZONE 'Asia/Manila')::DATE;
+      v_today_ph := (NOW() AT TIME ZONE 'Asia/Manila')::DATE;
       
-      IF v_entry_date < v_today THEN
+      IF v_entry_date_ph < v_today_ph THEN
+        -- Close at 23:59:59 PH time of the clock-in date, converted back to UTC
+        v_entry_midnight_utc := ((v_entry_date_ph + 1)::TIMESTAMP AT TIME ZONE 'Asia/Manila') - INTERVAL '1 second';
+        
         UPDATE public.time_clock_entries
         SET 
-          clock_out_time = (v_entry_date + INTERVAL '1 day' - INTERVAL '1 second')::TIMESTAMP WITH TIME ZONE,
-          status = 'clocked_out',
+          clock_out_time = v_entry_midnight_utc,
+          status = 'auto_approved',
           total_hours = NULL,
           regular_hours = NULL
         WHERE id = v_existing_entry.id;

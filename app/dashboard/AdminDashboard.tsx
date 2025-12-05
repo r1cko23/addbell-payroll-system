@@ -92,133 +92,186 @@ export default function AdminDashboardPage() {
         const today = new Date();
         const currentWeekStart = new Date(today);
         currentWeekStart.setDate(today.getDate() - ((today.getDay() + 4) % 7));
-        const currentWeekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+        currentWeekStart.setHours(0, 0, 0, 0);
+        
+        const currentWeekEnd = new Date(currentWeekStart);
+        currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
+        currentWeekEnd.setHours(23, 59, 59, 999);
         
         const previousWeekStart = subWeeks(currentWeekStart, 1);
-        const previousWeekStartStr = format(previousWeekStart, 'yyyy-MM-dd');
+        const previousWeekEnd = new Date(previousWeekStart);
+        previousWeekEnd.setDate(previousWeekStart.getDate() + 6);
+        previousWeekEnd.setHours(23, 59, 59, 999);
         
         const yearStart = startOfYear(today);
-        const yearStartStr = format(yearStart, 'yyyy-MM-dd');
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-        // 1. Current Week Stats
-        const { data: currentWeekData } = await supabase
-          .from('payslips')
-          .select('gross_pay, net_pay, total_deductions')
-          .eq('week_start_date', currentWeekStartStr);
-
-        const currentWeekGross = currentWeekData?.reduce((sum, p) => sum + Number(p.gross_pay), 0) || 0;
-        const currentWeekNet = currentWeekData?.reduce((sum, p) => sum + Number(p.net_pay), 0) || 0;
-        const currentWeekEmployeeCount = currentWeekData?.length || 0;
-
-        // 2. Previous Week Stats (for comparison)
-        const { data: previousWeekData } = await supabase
-          .from('payslips')
-          .select('gross_pay, net_pay')
-          .eq('week_start_date', previousWeekStartStr);
-
-        const previousWeekGross = previousWeekData?.reduce((sum, p) => sum + Number(p.gross_pay), 0) || 0;
-        const previousWeekNet = previousWeekData?.reduce((sum, p) => sum + Number(p.net_pay), 0) || 0;
-
-        // 3. Year to Date Stats
-        const { data: ytdData } = await supabase
-          .from('payslips')
-          .select('gross_pay, net_pay, total_deductions')
-          .gte('week_start_date', yearStartStr);
-
-        const ytdGross = ytdData?.reduce((sum, p) => sum + Number(p.gross_pay), 0) || 0;
-        const ytdNet = ytdData?.reduce((sum, p) => sum + Number(p.net_pay), 0) || 0;
-        const ytdDeductions = ytdData?.reduce((sum, p) => sum + Number(p.total_deductions), 0) || 0;
-
-        // 4. Workforce Stats
-        const { count: totalEmployees } = await supabase
+        // 1. Workforce Stats
+        const { count: totalEmployees, error: employeesError } = await supabase
           .from('employees')
           .select('*', { count: 'exact', head: true });
 
-        const { count: activeEmployees } = await supabase
+        if (employeesError) {
+          console.error('Error fetching employees:', employeesError);
+        }
+
+        const { count: activeEmployees, error: activeEmployeesError } = await supabase
           .from('employees')
           .select('*', { count: 'exact', head: true })
           .eq('is_active', true);
 
+        if (activeEmployeesError) {
+          console.error('Error fetching active employees:', activeEmployeesError);
+        }
+
         const inactiveEmployees = (totalEmployees || 0) - (activeEmployees || 0);
 
+        // 2. Current Week Time Entries Stats
+        const { data: currentWeekEntries, error: currentWeekError } = await supabase
+          .from('time_clock_entries')
+          .select('total_hours, regular_hours, employee_id')
+          .gte('clock_in_time', currentWeekStart.toISOString())
+          .lte('clock_in_time', currentWeekEnd.toISOString());
+
+        if (currentWeekError) {
+          console.error('Error fetching current week entries:', currentWeekError);
+        }
+
+        const currentWeekTotalHours = currentWeekEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
+        const currentWeekRegularHours = currentWeekEntries?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+        const currentWeekEmployeeCount = new Set(currentWeekEntries?.map(e => e.employee_id)).size || 0;
+
+        // 3. Previous Week Time Entries Stats
+        const { data: previousWeekEntries } = await supabase
+          .from('time_clock_entries')
+          .select('total_hours, regular_hours')
+          .gte('clock_in_time', previousWeekStart.toISOString())
+          .lte('clock_in_time', previousWeekEnd.toISOString());
+
+        const previousWeekTotalHours = previousWeekEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
+        const previousWeekRegularHours = previousWeekEntries?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+
+        // 4. Year to Date Stats
+        const { data: ytdEntries } = await supabase
+          .from('time_clock_entries')
+          .select('total_hours, regular_hours')
+          .gte('clock_in_time', yearStart.toISOString());
+
+        const ytdTotalHours = ytdEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
+        const ytdRegularHours = ytdEntries?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+
         // 5. Month to Date
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        const monthStartStr = format(monthStart, 'yyyy-MM-dd');
-        
-        const { data: mtdData } = await supabase
-          .from('payslips')
-          .select('gross_pay, week_start_date')
-          .gte('week_start_date', monthStartStr);
+        const { data: mtdEntries } = await supabase
+          .from('time_clock_entries')
+          .select('total_hours, clock_in_time')
+          .gte('clock_in_time', monthStart.toISOString());
 
-        const mtdGross = mtdData?.reduce((sum, p) => sum + Number(p.gross_pay), 0) || 0;
-        const uniqueWeeks = new Set(mtdData?.map(p => p.week_start_date));
-        const mtdWeeks = uniqueWeeks.size;
+        const mtdTotalHours = mtdEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
+        const uniqueDays = new Set(mtdEntries?.map(e => format(new Date(e.clock_in_time), 'yyyy-MM-dd')));
+        const mtdDays = uniqueDays.size;
 
-        // 6. Alerts (placeholder - would need proper logic)
+        // 6. Pending Approvals (time entries that need approval)
         const { count: pendingApprovals } = await supabase
-          .from('payslips')
+          .from('time_clock_entries')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'draft');
+          .in('status', ['clocked_in', 'clocked_out'])
+          .is('approved_by', null);
+
+        // Calculate estimated costs (placeholder - would need employee rates)
+        // For now, using hours as proxy since we don't have payslips
+        const avgHourlyRate = 200; // Placeholder - would come from employees table
+        const currentWeekGross = currentWeekTotalHours * avgHourlyRate;
+        const previousWeekGross = previousWeekTotalHours * avgHourlyRate;
+        const ytdGross = ytdTotalHours * avgHourlyRate;
+        const mtdGross = mtdTotalHours * avgHourlyRate;
 
         setStats({
           currentWeekGross,
-          currentWeekNet,
+          currentWeekNet: currentWeekGross * 0.85, // Estimate 15% deductions
           currentWeekEmployeeCount,
           previousWeekGross,
-          previousWeekNet,
+          previousWeekNet: previousWeekGross * 0.85,
           ytdGross,
-          ytdNet,
-          ytdDeductions,
+          ytdNet: ytdGross * 0.85,
+          ytdDeductions: ytdGross * 0.15,
           totalEmployees: totalEmployees || 0,
           activeEmployees: activeEmployees || 0,
           inactiveEmployees,
           mtdGross,
-          mtdWeeks,
-          criticalAlerts: 0, // Would calculate based on business rules
-          warningAlerts: 0,  // Would calculate based on business rules
+          mtdWeeks: Math.ceil(mtdDays / 7),
+          criticalAlerts: 0,
+          warningAlerts: 0,
           pendingApprovals: pendingApprovals || 0,
         });
 
-        // 7. Weekly Trends (last 12 weeks)
+        // 7. Weekly Trends (last 12 weeks) - using time entries
         const twelveWeeksAgo = subWeeks(currentWeekStart, 12);
         const { data: trendData } = await supabase
-          .from('payslips')
-          .select('week_start_date, gross_pay, net_pay, employee_id')
-          .gte('week_start_date', format(twelveWeeksAgo, 'yyyy-MM-dd'))
-          .order('week_start_date', { ascending: true });
+          .from('time_clock_entries')
+          .select('clock_in_time, total_hours, employee_id')
+          .gte('clock_in_time', twelveWeeksAgo.toISOString())
+          .order('clock_in_time', { ascending: true });
 
         // Group by week
         const weekGroups: { [key: string]: any[] } = {};
         trendData?.forEach(record => {
-          if (!weekGroups[record.week_start_date]) {
-            weekGroups[record.week_start_date] = [];
+          const weekStart = format(new Date(record.clock_in_time), 'yyyy-MM-dd');
+          const weekKey = format(new Date(weekStart), 'yyyy-\'W\'ww');
+          if (!weekGroups[weekKey]) {
+            weekGroups[weekKey] = [];
           }
-          weekGroups[record.week_start_date].push(record);
+          weekGroups[weekKey].push(record);
         });
 
-        const trends: WeeklyTrend[] = Object.entries(weekGroups).map(([weekStart, records]) => ({
-          weekStart,
-          grossPay: records.reduce((sum, r) => sum + Number(r.gross_pay), 0),
-          netPay: records.reduce((sum, r) => sum + Number(r.net_pay), 0),
-          employeeCount: new Set(records.map(r => r.employee_id)).size,
-        }));
+        const trends: WeeklyTrend[] = Object.entries(weekGroups).map(([weekKey, records]) => {
+          const weekHours = records.reduce((sum, r) => sum + Number(r.total_hours || 0), 0);
+          return {
+            weekStart: weekKey,
+            grossPay: weekHours * avgHourlyRate,
+            netPay: weekHours * avgHourlyRate * 0.85,
+            employeeCount: new Set(records.map(r => r.employee_id)).size,
+          };
+        });
 
         setWeeklyTrends(trends);
 
-        // 8. Cost Breakdown (current week)
-        // Note: This would require parsing earnings_breakdown JSON
-        // Placeholder implementation
-        if (currentWeekGross > 0) {
+        // 8. Cost Breakdown (current week) - simplified
+        if (currentWeekTotalHours > 0) {
           setCostBreakdown({
-            regularPay: currentWeekGross * 0.75,
-            nightDiffPay: currentWeekGross * 0.10,
-            holidayPay: currentWeekGross * 0.10,
-            sundayPay: currentWeekGross * 0.05,
+            regularPay: currentWeekRegularHours * avgHourlyRate,
+            nightDiffPay: (currentWeekTotalHours - currentWeekRegularHours) * avgHourlyRate * 0.1,
+            holidayPay: 0, // Would need holiday data
+            sundayPay: 0, // Would need day type data
           });
         }
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching executive metrics:', error);
+        console.error('Error details:', {
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          code: error?.code
+        });
+        // Set default stats on error so UI doesn't break
+        setStats({
+          currentWeekGross: 0,
+          currentWeekNet: 0,
+          currentWeekEmployeeCount: 0,
+          previousWeekGross: 0,
+          previousWeekNet: 0,
+          ytdGross: 0,
+          ytdNet: 0,
+          ytdDeductions: 0,
+          totalEmployees: 0,
+          activeEmployees: 0,
+          inactiveEmployees: 0,
+          mtdGross: 0,
+          mtdWeeks: 0,
+          criticalAlerts: 0,
+          warningAlerts: 0,
+          pendingApprovals: 0,
+        });
       } finally {
         setLoading(false);
       }

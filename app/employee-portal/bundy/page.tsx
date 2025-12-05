@@ -145,6 +145,16 @@ export default function BundyClockPage() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [pendingClockAction, setPendingClockAction] = useState<"in" | "out" | null>(null);
   const [pendingFailureToLog, setPendingFailureToLog] = useState<Set<string>>(new Set());
+  const [lastLocationUpdate, setLastLocationUpdate] = useState<Date | null>(null);
+  const [clientIp, setClientIp] = useState<string | null>(null);
+
+  // Fetch client IP once for logging
+  useEffect(() => {
+    fetch("https://api.ipify.org?format=json")
+      .then((res) => res.json())
+      .then((data) => setClientIp(data.ip))
+      .catch(() => setClientIp(null));
+  }, []);
 
   const validateLocation = useCallback(
     async (lat: number, lng: number) => {
@@ -363,6 +373,20 @@ export default function BundyClockPage() {
     });
   }, []);
 
+  // Background auto-refresh of geolocation every 10s (no caching)
+  useEffect(() => {
+    if (!initialFetchComplete) return;
+    const id = setInterval(() => {
+      getFreshLocation().then((loc) => {
+        if (loc) {
+          setLocation(loc);
+          validateLocation(loc.lat, loc.lng);
+        }
+      });
+    }, 10000);
+    return () => clearInterval(id);
+  }, [initialFetchComplete, getFreshLocation, validateLocation]);
+
   // Initial location fetch
   useEffect(() => {
     if (!initialFetchComplete) return;
@@ -465,13 +489,15 @@ export default function BundyClockPage() {
         }
 
         console.log("Calling employee_clock_in RPC...");
-        const { data: clockInData, error: clockInError } = await supabase.rpc(
-          'employee_clock_in',
-          {
-            p_employee_id: employee.id,
-            p_location: locationString,
-          }
-        );
+      const { data: clockInData, error: clockInError } = await supabase.rpc(
+        'employee_clock_in',
+        {
+          p_employee_id: employee.id,
+          p_location: locationString,
+          p_device: navigator.userAgent?.slice(0, 255) || null,
+          p_ip: clientIp,
+        }
+      );
 
         if (clockInError) {
           console.error("Clock in error:", clockInError);
@@ -495,6 +521,15 @@ export default function BundyClockPage() {
           .select("*")
           .eq("id", entryId)
           .single();
+
+        // Update device/IP details (best effort)
+        await supabase
+          .from("time_clock_entries")
+          .update({
+            clock_in_device: navigator.userAgent?.slice(0, 255) || null,
+            clock_in_ip: clientIp,
+          })
+          .eq("id", entryId);
 
         if (fetchError || !entryData) {
           console.error("Error fetching created entry:", fetchError);
@@ -532,6 +567,8 @@ export default function BundyClockPage() {
           p_employee_id: employee.id,
           p_entry_id: currentEntry.id,
           p_location: locationString,
+          p_device: navigator.userAgent?.slice(0, 255) || null,
+          p_ip: clientIp,
         }
       );
 
@@ -782,6 +819,7 @@ export default function BundyClockPage() {
               </div>
             )}
           </div>
+
         </div>
       </Card>
 

@@ -45,8 +45,7 @@ export default function LeaveApprovalPage() {
 
   useEffect(() => {
     fetchUserRole();
-    fetchRequests();
-  }, [statusFilter]);
+  }, []);
 
   async function fetchUserRole() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -89,6 +88,10 @@ export default function LeaveApprovalPage() {
   }
 
   async function fetchRequests() {
+    if (!normalizedRole) {
+      return;
+    }
+
     setLoading(true);
 
     let query = supabase
@@ -103,8 +106,13 @@ export default function LeaveApprovalPage() {
       `)
       .order('created_at', { ascending: false });
 
+    // HR should only see requests that have already passed manager review
+    const hrVisibleStatuses = ['approved_by_manager', 'approved_by_hr', 'rejected', 'cancelled'];
+
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter);
+    } else if (normalizedRole === 'hr') {
+      query = query.in('status', hrVisibleStatuses);
     }
 
     const { data, error } = await query;
@@ -120,9 +128,14 @@ export default function LeaveApprovalPage() {
     setRequests(data || []);
   }
 
-  async function handleApprove(requestId: string, level: 'manager' | 'hr') {
+  async function handleApprove(request: LeaveRequest, level: 'manager' | 'hr') {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    if (level === 'hr' && request.status !== 'approved_by_manager') {
+      toast.error('HR approval requires manager approval first');
+      return;
+    }
 
     const updateData: any = {
       account_manager_notes: notes.trim() || null,
@@ -142,12 +155,32 @@ export default function LeaveApprovalPage() {
     const { error } = await supabase
       .from('leave_requests')
       .update(updateData)
-      .eq('id', requestId);
+      .eq('id', request.id);
 
     if (error) {
       console.error('Error approving request:', error);
       toast.error('Failed to approve request');
       return;
+    }
+
+    // Deduct SIL credits on HR approval
+    if (
+      level === 'hr' &&
+      request.leave_type === 'SIL' &&
+      request.employees &&
+      typeof request.employees.sil_credits === 'number'
+    ) {
+      const remaining = Math.max(0, request.employees.sil_credits - (request.total_days || 0));
+      const { error: creditError } = await supabase
+        .from('employees')
+        .update({ sil_credits: remaining })
+        .eq('id', request.employee_id);
+
+      if (creditError) {
+        console.error('Error deducting SIL credits:', creditError);
+        toast.error('Approved but failed to deduct SIL credits');
+        // continue, since approval succeeded
+      }
     }
 
     toast.success(`✅ Request ${level === 'manager' ? 'approved by manager' : 'approved by HR'}`);
@@ -187,6 +220,13 @@ export default function LeaveApprovalPage() {
     setRejectionReason('');
   }
 
+  const normalizedRole = userRole?.trim().toLowerCase() || '';
+
+  useEffect(() => {
+    if (!normalizedRole) return;
+    fetchRequests();
+  }, [statusFilter, normalizedRole]);
+
   const stats = {
     total: requests.length,
     pending: requests.filter(r => r.status === 'pending').length,
@@ -197,24 +237,24 @@ export default function LeaveApprovalPage() {
 
   const canApprove = (request: LeaveRequest): boolean => {
     // Don't show buttons until user role is loaded
-    if (!userRole) {
+    if (!normalizedRole) {
       console.log('canApprove: userRole not loaded yet');
       return false;
     }
     
-    if (userRole === 'account_manager') {
-      // Any account manager can approve pending requests
+    if (normalizedRole === 'account_manager') {
+      // Account managers approve pending requests
       const canApproveResult = request.status === 'pending';
-      console.log('canApprove (account_manager):', { status: request.status, canApprove: canApproveResult });
+      console.log('canApprove (account_manager on pending):', { status: request.status, canApprove: canApproveResult });
       return canApproveResult;
     }
-    if (userRole === 'hr' || userRole === 'admin') {
-      // HR/Admin can approve requests that are already approved by manager
+    if (normalizedRole === 'hr' || normalizedRole === 'admin') {
+      // HR/Admin approve only after manager approval
       const canApproveResult = request.status === 'approved_by_manager';
-      console.log('canApprove (hr/admin):', { status: request.status, canApprove: canApproveResult });
+      console.log('canApprove (hr/admin on approved_by_manager):', { status: request.status, canApprove: canApproveResult });
       return canApproveResult;
     }
-    console.log('canApprove: userRole does not match any condition:', userRole);
+    console.log('canApprove: userRole does not match any condition:', normalizedRole);
     return false;
   };
 
@@ -365,11 +405,11 @@ export default function LeaveApprovalPage() {
                                 <X className="h-4 w-4 mr-1" />
                                 Reject
                               </Button>
-                              <Button
+                        <Button
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleApprove(request.id, userRole === 'account_manager' ? 'manager' : 'hr');
+                            handleApprove(request, userRole === 'account_manager' ? 'manager' : 'hr');
                                 }}
                               >
                                 <Check className="h-4 w-4 mr-1" />
@@ -401,7 +441,7 @@ export default function LeaveApprovalPage() {
                                 size="sm"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleApprove(request.id, 'hr');
+                                  handleApprove(request, 'hr');
                                 }}
                               >
                                 <Check className="h-4 w-4 mr-1" />
@@ -572,7 +612,7 @@ export default function LeaveApprovalPage() {
                         </Button>
                         <Button 
                           onClick={() => handleApprove(
-                            selectedRequest.id, 
+                            selectedRequest, 
                             userRole === 'account_manager' ? 'manager' : 'hr'
                           )}
                         >

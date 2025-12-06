@@ -22,9 +22,13 @@ export function LoginPageClient() {
   const [employeeId, setEmployeeId] = useState("");
   const [employeePassword, setEmployeePassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [adminError, setAdminError] = useState<string>("");
+  const [employeeError, setEmployeeError] = useState<string>("");
 
   useEffect(() => {
     setMode(modeFromQuery);
+    setAdminError("");
+    setEmployeeError("");
   }, [modeFromQuery]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -37,13 +41,21 @@ export function LoginPageClient() {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Normalize Supabase auth errors to friendlier messages
+        const msg = error.message?.toLowerCase().includes("invalid login")
+          ? "Incorrect email or password."
+          : error.message || "Failed to login";
+        throw new Error(msg);
+      }
 
       toast.success("Login successful!");
       router.push("/dashboard");
       router.refresh();
     } catch (error: any) {
-      toast.error(error.message || "Failed to login");
+      const msg = error.message || "Failed to login";
+      setAdminError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -65,11 +77,16 @@ export function LoginPageClient() {
         p_password: employeePassword.trim(),
       });
 
-      if (error) throw error;
+      if (error) {
+        // RPC error (e.g., function failure)
+        throw new Error(error.message || "Failed to login");
+      }
 
       if (!data || data.length === 0 || !data[0].success) {
         const errorMessage =
-          data && data[0] ? data[0].error_message : "Invalid credentials";
+          data && data[0]
+            ? data[0].error_message || "Invalid Employee ID or password."
+            : "Invalid Employee ID or password.";
         throw new Error(errorMessage);
       }
 
@@ -87,7 +104,9 @@ export function LoginPageClient() {
       toast.success(`Welcome, ${employeeData.full_name}!`);
       router.push("/employee-portal/bundy");
     } catch (error: any) {
-      toast.error(error.message || "Failed to login");
+      const msg = error.message || "Invalid Employee ID or password.";
+      setEmployeeError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -182,6 +201,9 @@ export function LoginPageClient() {
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
+              {adminError && (
+                <p className="mt-2 text-sm text-red-600">{adminError}</p>
+              )}
             </form>
           ) : (
             <form onSubmit={handleEmployeeLogin} className="space-y-6">
@@ -220,6 +242,9 @@ export function LoginPageClient() {
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
+              {employeeError && (
+                <p className="mt-2 text-sm text-red-600">{employeeError}</p>
+              )}
             </form>
           )}
 

@@ -85,7 +85,8 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    setRequests(data || []);
+    const cleaned = (data || []).filter((r) => r.status !== "cancelled");
+    setRequests(cleaned);
   }
 
   async function handleApprove(requestId: string) {

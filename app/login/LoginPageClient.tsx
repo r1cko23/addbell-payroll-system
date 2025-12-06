@@ -43,9 +43,8 @@ export function LoginPageClient() {
 
       if (error) {
         // Normalize Supabase auth errors to friendlier messages
-        const msg = error.message?.toLowerCase().includes("invalid login")
-          ? "Incorrect email or password."
-          : error.message || "Failed to login";
+        // Use generic wording to avoid credential enumeration
+        const msg = "Invalid credentials. Please try again.";
         throw new Error(msg);
       }
 
@@ -53,7 +52,7 @@ export function LoginPageClient() {
       router.push("/dashboard");
       router.refresh();
     } catch (error: any) {
-      const msg = error.message || "Failed to login";
+      const msg = "Invalid credentials. Please try again.";
       setAdminError(msg);
       toast.error(msg);
     } finally {
@@ -83,10 +82,8 @@ export function LoginPageClient() {
       }
 
       if (!data || data.length === 0 || !data[0].success) {
-        const errorMessage =
-          data && data[0]
-            ? data[0].error_message || "Invalid Employee ID or password."
-            : "Invalid Employee ID or password.";
+        // Use generic wording to avoid revealing if ID or password is wrong
+        const errorMessage = "Invalid credentials. Please try again.";
         throw new Error(errorMessage);
       }
 
@@ -104,7 +101,7 @@ export function LoginPageClient() {
       toast.success(`Welcome, ${employeeData.full_name}!`);
       router.push("/employee-portal/bundy");
     } catch (error: any) {
-      const msg = error.message || "Invalid Employee ID or password.";
+      const msg = "Invalid credentials. Please try again.";
       setEmployeeError(msg);
       toast.error(msg);
     } finally {

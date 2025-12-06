@@ -78,6 +78,8 @@ export default function LeaveRequestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [calculatedDays, setCalculatedDays] = useState(0);
   const [calculatedHours, setCalculatedHours] = useState(0);
+  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     const sessionData = localStorage.getItem("employee_session");
@@ -373,15 +375,17 @@ export default function LeaveRequestPage() {
   }
 
   async function handleCancel(requestId: string) {
-    if (!confirm("Are you sure you want to cancel this leave request?")) {
-      return;
-    }
-
-    const { error } = await supabase
+    setCancelLoading(true);
+    const { data, error } = await supabase
       .from("leave_requests")
       .update({ status: "cancelled" })
       .eq("id", requestId)
-      .eq("status", "pending");
+      .eq("employee_id", employee?.id || "")
+      .eq("status", "pending")
+      .select()
+      .maybeSingle();
+
+    setCancelLoading(false);
 
     if (error) {
       console.error("Error cancelling leave request:", error);
@@ -389,7 +393,13 @@ export default function LeaveRequestPage() {
       return;
     }
 
+    if (!data || data.length === 0) {
+      toast.error("Could not cancel; request may no longer be pending.");
+      return;
+    }
+
     toast.success("Leave request cancelled");
+    setCancelId(null);
     if (employee) {
       fetchLeaveRequests(employee.id);
       fetchEmployeeInfo(employee.id);
@@ -411,497 +421,534 @@ export default function LeaveRequestPage() {
   // Display both configured offset_hours (credits) and actual balance from earned/usage
   const offsetHours = offsetBalance ?? employeeInfo?.offset_hours ?? 0;
 
-  const pendingCount = requests.filter((r) => r.status === "pending").length;
-  const approvedCount = requests.filter(
+  const visibleRequests = requests.filter((r) => r.status !== "cancelled");
+  const pendingCount = visibleRequests.filter(
+    (r) => r.status === "pending"
+  ).length;
+  const approvedCount = visibleRequests.filter(
     (r) => r.status === "approved_by_hr"
   ).length;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/employee-portal/bundy")}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Leave Request</h1>
-            <p className="text-sm text-muted-foreground">
-              {employee.full_name}
-            </p>
+    <>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+          {/* Header */}
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/employee-portal/bundy")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Leave Request</h1>
+              <p className="text-sm text-muted-foreground">
+                {employee.full_name}
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Pending</div>
-              <div className="text-2xl font-bold text-yellow-600">
-                {pendingCount}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Approved</div>
-              <div className="text-2xl font-bold text-green-600">
-                {approvedCount}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">SIL Credits</div>
-              <div className="text-2xl font-bold text-emerald-600">
-                {silCredits !== null ? silCredits.toFixed(2) : "Loading..."}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Maternity Days
-              </div>
-              <div className="text-2xl font-bold text-emerald-600">
-                {maternityDays.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Paternity Days
-              </div>
-              <div className="text-2xl font-bold text-emerald-600">
-                {paternityDays.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Off-setting Hours
-              </div>
-              <div className="text-2xl font-bold text-emerald-600">
-                {offsetHours.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Request Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              File Leave Request
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Leave Type</Label>
-                <div className="flex flex-wrap gap-4">
-                  <label
-                    className={`flex items-center space-x-2 ${
-                      silCredits !== null && silCredits <= 0
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      value="SIL"
-                      checked={leaveType === "SIL"}
-                      onChange={(e) =>
-                        setLeaveType(e.target.value as typeof leaveType)
-                      }
-                      disabled={silCredits !== null && silCredits <= 0}
-                      className="h-4 w-4"
-                    />
-                    <span>SIL (Service Incentive Leave)</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      value="LWOP"
-                      checked={leaveType === "LWOP"}
-                      onChange={(e) =>
-                        setLeaveType(e.target.value as typeof leaveType)
-                      }
-                      className="h-4 w-4"
-                    />
-                    <span>LWOP (Leave Without Pay)</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      value="Maternity Leave"
-                      checked={leaveType === "Maternity Leave"}
-                      onChange={(e) =>
-                        setLeaveType(e.target.value as typeof leaveType)
-                      }
-                      className="h-4 w-4"
-                    />
-                    <span>Maternity Leave</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      value="Paternity Leave"
-                      checked={leaveType === "Paternity Leave"}
-                      onChange={(e) =>
-                        setLeaveType(e.target.value as typeof leaveType)
-                      }
-                      className="h-4 w-4"
-                    />
-                    <span>Paternity Leave</span>
-                  </label>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="radio"
-                      value="Off-setting"
-                      checked={leaveType === "Off-setting"}
-                      onChange={(e) =>
-                        setLeaveType(e.target.value as typeof leaveType)
-                      }
-                      className="h-4 w-4"
-                    />
-                    <span>Off-setting (hours)</span>
-                  </label>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Pending</div>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {pendingCount}
                 </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  {leaveType === "SIL" && (
-                    <>
-                      <p>
-                        Available SIL Credits:{" "}
-                        <strong>
-                          {silCredits !== null
-                            ? silCredits.toFixed(2)
-                            : "Loading..."}
-                        </strong>
-                      </p>
-                      {silCredits !== null && silCredits <= 0 && (
-                        <p className="text-red-600 font-medium">
-                          ⚠️ You have no SIL credits available. Please select
-                          LWOP instead.
-                        </p>
-                      )}
-                    </>
-                  )}
-                  {leaveType === "Maternity Leave" && (
-                    <p>
-                      Available Maternity days: <strong>{maternityDays}</strong>
-                      {maternityDays === 0 && (
-                        <span className="text-red-600 font-medium ml-1">
-                          (no allocation)
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {leaveType === "Paternity Leave" && (
-                    <p>
-                      Available Paternity days: <strong>{paternityDays}</strong>
-                      {paternityDays === 0 && (
-                        <span className="text-red-600 font-medium ml-1">
-                          (no allocation)
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {leaveType === "Off-setting" && (
-                    <p>
-                      Available Off-setting hours:{" "}
-                      <strong>{offsetHours}</strong>
-                      {offsetHours === 0 && (
-                        <span className="text-red-600 font-medium ml-1">
-                          (no allocation)
-                        </span>
-                      )}
-                    </p>
-                  )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">Approved</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {approvedCount}
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">SIL Credits</div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {silCredits !== null ? silCredits.toFixed(2) : "Loading..."}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-              {leaveType !== "Off-setting" && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="start-date">Start Date</Label>
-                      <Input
-                        id="start-date"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        min={new Date().toISOString().split("T")[0]}
-                        required
-                      />
-                    </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">
+                  Maternity Days
+                </div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {maternityDays.toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">
+                  Paternity Days
+                </div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {paternityDays.toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm text-muted-foreground">
+                  Off-setting Hours
+                </div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {offsetHours.toFixed(2)}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="end-date">End Date</Label>
-                      <Input
-                        id="end-date"
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        min={
-                          startDate || new Date().toISOString().split("T")[0]
+          {/* Request Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                File Leave Request
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Leave Type</Label>
+                  <div className="flex flex-wrap gap-4">
+                    <label
+                      className={`flex items-center space-x-2 ${
+                        silCredits !== null && silCredits <= 0
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        value="SIL"
+                        checked={leaveType === "SIL"}
+                        onChange={(e) =>
+                          setLeaveType(e.target.value as typeof leaveType)
                         }
-                        required
+                        disabled={silCredits !== null && silCredits <= 0}
+                        className="h-4 w-4"
                       />
-                    </div>
+                      <span>SIL (Service Incentive Leave)</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        value="LWOP"
+                        checked={leaveType === "LWOP"}
+                        onChange={(e) =>
+                          setLeaveType(e.target.value as typeof leaveType)
+                        }
+                        className="h-4 w-4"
+                      />
+                      <span>LWOP (Leave Without Pay)</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        value="Maternity Leave"
+                        checked={leaveType === "Maternity Leave"}
+                        onChange={(e) =>
+                          setLeaveType(e.target.value as typeof leaveType)
+                        }
+                        className="h-4 w-4"
+                      />
+                      <span>Maternity Leave</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        value="Paternity Leave"
+                        checked={leaveType === "Paternity Leave"}
+                        onChange={(e) =>
+                          setLeaveType(e.target.value as typeof leaveType)
+                        }
+                        className="h-4 w-4"
+                      />
+                      <span>Paternity Leave</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="radio"
+                        value="Off-setting"
+                        checked={leaveType === "Off-setting"}
+                        onChange={(e) =>
+                          setLeaveType(e.target.value as typeof leaveType)
+                        }
+                        className="h-4 w-4"
+                      />
+                      <span>Off-setting (hours)</span>
+                    </label>
                   </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    {leaveType === "SIL" && (
+                      <>
+                        <p>
+                          Available SIL Credits:{" "}
+                          <strong>
+                            {silCredits !== null
+                              ? silCredits.toFixed(2)
+                              : "Loading..."}
+                          </strong>
+                        </p>
+                        {silCredits !== null && silCredits <= 0 && (
+                          <p className="text-red-600 font-medium">
+                            ⚠️ You have no SIL credits available. Please select
+                            LWOP instead.
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {leaveType === "Maternity Leave" && (
+                      <p>
+                        Available Maternity days:{" "}
+                        <strong>{maternityDays}</strong>
+                        {maternityDays === 0 && (
+                          <span className="text-red-600 font-medium ml-1">
+                            (no allocation)
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {leaveType === "Paternity Leave" && (
+                      <p>
+                        Available Paternity days:{" "}
+                        <strong>{paternityDays}</strong>
+                        {paternityDays === 0 && (
+                          <span className="text-red-600 font-medium ml-1">
+                            (no allocation)
+                          </span>
+                        )}
+                      </p>
+                    )}
+                    {leaveType === "Off-setting" && (
+                      <p>
+                        Available Off-setting hours:{" "}
+                        <strong>{offsetHours}</strong>
+                        {offsetHours === 0 && (
+                          <span className="text-red-600 font-medium ml-1">
+                            (no allocation)
+                          </span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-                  {calculatedDays > 0 && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <div className="text-sm font-semibold text-blue-900">
-                        Calculated Days:{" "}
-                        <span className="text-lg">{calculatedDays}</span>
+                {leaveType !== "Off-setting" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="start-date">Start Date</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          min={new Date().toISOString().split("T")[0]}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="end-date">End Date</Label>
+                        <Input
+                          id="end-date"
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          min={
+                            startDate || new Date().toISOString().split("T")[0]
+                          }
+                          required
+                        />
                       </div>
                     </div>
-                  )}
-                </>
-              )}
 
-              {leaveType === "Off-setting" && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="offset-date">Date</Label>
-                      <Input
-                        id="offset-date"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => {
-                          setStartDate(e.target.value);
-                          setEndDate(e.target.value);
-                        }}
-                        min={new Date().toISOString().split("T")[0]}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Duration (hours)</Label>
-                      <div className="p-3 border rounded-md bg-gray-50 text-sm">
-                        {calculatedHours > 0
-                          ? `${calculatedHours.toFixed(2)} hours`
-                          : "Enter time range"}
+                    {calculatedDays > 0 && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <div className="text-sm font-semibold text-blue-900">
+                          Calculated Days:{" "}
+                          <span className="text-lg">{calculatedDays}</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {leaveType === "Off-setting" && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="offset-date">Date</Label>
+                        <Input
+                          id="offset-date"
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => {
+                            setStartDate(e.target.value);
+                            setEndDate(e.target.value);
+                          }}
+                          min={new Date().toISOString().split("T")[0]}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Duration (hours)</Label>
+                        <div className="p-3 border rounded-md bg-gray-50 text-sm">
+                          {calculatedHours > 0
+                            ? `${calculatedHours.toFixed(2)} hours`
+                            : "Enter time range"}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="start-time">Start Time</Label>
-                      <Input
-                        id="start-time"
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                        required
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="start-time">Start Time</Label>
+                        <Input
+                          id="start-time"
+                          type="time"
+                          value={startTime}
+                          onChange={(e) => setStartTime(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="end-time">End Time</Label>
+                        <Input
+                          id="end-time"
+                          type="time"
+                          value={endTime}
+                          onChange={(e) => setEndTime(e.target.value)}
+                          required
+                        />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="end-time">End Time</Label>
-                      <Input
-                        id="end-time"
-                        type="time"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
 
-              <div className="space-y-2">
-                <Label htmlFor="reason">Reason</Label>
-                <textarea
-                  id="reason"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Provide reason for leave request..."
-                  rows={4}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                  required
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Reason</Label>
+                  <textarea
+                    id="reason"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Provide reason for leave request..."
+                    rows={4}
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                    required
+                  />
+                </div>
 
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full"
-                isLoading={submitting}
-              >
-                Submit Leave Request
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full"
+                  isLoading={submitting}
+                >
+                  Submit Leave Request
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
-        {/* Requests List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>My Leave Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {requests.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No leave requests yet</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {requests.map((request) => (
-                  <Card
-                    key={request.id}
-                    className={`${
-                      request.status === "pending"
-                        ? "border-yellow-300"
-                        : request.status === "approved_by_hr"
-                        ? "border-green-300"
-                        : request.status === "rejected"
-                        ? "border-red-300"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <span className="font-bold text-lg">
-                              {format(new Date(request.start_date), "MMM dd")} -{" "}
-                              {format(
-                                new Date(request.end_date),
-                                "MMM dd, yyyy"
+          {/* Requests List */}
+          <Card>
+            <CardHeader>
+              <CardTitle>My Leave Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {visibleRequests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No leave requests yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {visibleRequests.map((request) => (
+                    <Card
+                      key={request.id}
+                      className={`${
+                        request.status === "pending"
+                          ? "border-yellow-300"
+                          : request.status === "approved_by_hr"
+                          ? "border-green-300"
+                          : request.status === "rejected"
+                          ? "border-red-300"
+                          : "border-gray-300"
+                      }`}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                              <span className="font-bold text-lg">
+                                {format(new Date(request.start_date), "MMM dd")}{" "}
+                                -{" "}
+                                {format(
+                                  new Date(request.end_date),
+                                  "MMM dd, yyyy"
+                                )}
+                              </span>
+                              <Badge
+                                variant={
+                                  request.leave_type === "SIL"
+                                    ? "info"
+                                    : "warning"
+                                }
+                              >
+                                {request.leave_type}
+                              </Badge>
+                              {request.leave_type === "Off-setting" ? (
+                                <span className="text-lg font-bold text-emerald-600">
+                                  {request.total_hours ?? 0} hrs
+                                </span>
+                              ) : (
+                                <span className="text-lg font-bold text-emerald-600">
+                                  {request.total_days}{" "}
+                                  {request.total_days === 1 ? "day" : "days"}
+                                </span>
                               )}
-                            </span>
-                            <Badge
-                              variant={
-                                request.leave_type === "SIL"
-                                  ? "info"
-                                  : "warning"
-                              }
-                            >
-                              {request.leave_type}
-                            </Badge>
-                            {request.leave_type === "Off-setting" ? (
-                              <span className="text-lg font-bold text-emerald-600">
-                                {request.total_hours ?? 0} hrs
-                              </span>
-                            ) : (
-                              <span className="text-lg font-bold text-emerald-600">
-                                {request.total_days}{" "}
-                                {request.total_days === 1 ? "day" : "days"}
-                              </span>
-                            )}
-                          </div>
-
-                          {request.reason && (
-                            <div className="text-sm mb-2">
-                              <strong>Reason:</strong>
-                              <div className="mt-1 text-muted-foreground">
-                                {request.reason}
-                              </div>
                             </div>
-                          )}
 
-                          {request.status === "rejected" &&
-                            request.rejection_reason && (
-                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm">
-                                <strong className="text-red-900">
-                                  Rejection Reason:
-                                </strong>
-                                <div className="text-red-800 mt-1">
-                                  {request.rejection_reason}
+                            {request.reason && (
+                              <div className="text-sm mb-2">
+                                <strong>Reason:</strong>
+                                <div className="mt-1 text-muted-foreground">
+                                  {request.reason}
                                 </div>
                               </div>
                             )}
-                        </div>
 
-                        <div className="ml-4 flex flex-col items-end gap-2">
-                          {request.status === "pending" && (
-                            <>
+                            {request.status === "rejected" &&
+                              request.rejection_reason && (
+                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm">
+                                  <strong className="text-red-900">
+                                    Rejection Reason:
+                                  </strong>
+                                  <div className="text-red-800 mt-1">
+                                    {request.rejection_reason}
+                                  </div>
+                                </div>
+                              )}
+                          </div>
+
+                          <div className="ml-4 flex flex-col items-end gap-2">
+                            {request.status === "pending" && (
+                              <>
+                                <Badge
+                                  variant="warning"
+                                  className="flex items-center gap-2"
+                                >
+                                  <Hourglass className="h-4 w-4" />
+                                  PENDING
+                                </Badge>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setCancelId(request.id)}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
+                            {request.status === "approved_by_manager" && (
                               <Badge
-                                variant="warning"
+                                variant="info"
                                 className="flex items-center gap-2"
                               >
-                                <Hourglass className="h-4 w-4" />
-                                PENDING
+                                <CheckCircle className="h-4 w-4" />
+                                APPROVED BY MANAGER
                               </Badge>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleCancel(request.id)}
+                            )}
+                            {request.status === "approved_by_hr" && (
+                              <Badge
+                                variant="success"
+                                className="flex items-center gap-2"
                               >
-                                Cancel
-                              </Button>
-                            </>
-                          )}
-                          {request.status === "approved_by_manager" && (
-                            <Badge
-                              variant="info"
-                              className="flex items-center gap-2"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              APPROVED BY MANAGER
-                            </Badge>
-                          )}
-                          {request.status === "approved_by_hr" && (
-                            <Badge
-                              variant="success"
-                              className="flex items-center gap-2"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                              APPROVED
-                            </Badge>
-                          )}
-                          {request.status === "rejected" && (
-                            <Badge
-                              variant="destructive"
-                              className="flex items-center gap-2"
-                            >
-                              <XCircle className="h-4 w-4" />
-                              REJECTED
-                            </Badge>
-                          )}
-                          {request.status === "cancelled" && (
-                            <Badge
-                              variant="secondary"
-                              className="flex items-center gap-2"
-                            >
-                              <XCircle className="h-4 w-4" />
-                              CANCELLED
-                            </Badge>
+                                <CheckCircle className="h-4 w-4" />
+                                APPROVED
+                              </Badge>
+                            )}
+                            {request.status === "rejected" && (
+                              <Badge
+                                variant="destructive"
+                                className="flex items-center gap-2"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                REJECTED
+                              </Badge>
+                            )}
+                            {request.status === "cancelled" && (
+                              <Badge
+                                variant="secondary"
+                                className="flex items-center gap-2"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                CANCELLED
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-muted-foreground mt-2">
+                          Filed:{" "}
+                          {format(
+                            new Date(request.created_at),
+                            "MMM dd, yyyy h:mm a"
                           )}
                         </div>
-                      </div>
-
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Filed:{" "}
-                        {format(
-                          new Date(request.created_at),
-                          "MMM dd, yyyy h:mm a"
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+      {cancelId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-semibold text-foreground">
+              Cancel leave request?
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              This will mark the request as cancelled and hide it from your
+              list.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCancelId(null)}
+                disabled={cancelLoading}
+              >
+                Keep request
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => cancelId && handleCancel(cancelId)}
+                isLoading={cancelLoading}
+              >
+                Cancel request
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

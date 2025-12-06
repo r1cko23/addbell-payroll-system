@@ -15,6 +15,8 @@ interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
+  sil_credits?: number;
+  offset_hours?: number;
   last_name?: string;
   first_name?: string;
   middle_initial?: string;
@@ -60,9 +62,9 @@ export default function EmployeesPage() {
     philhealth_number: "",
     pagibig_number: "",
     hmo_provider: "",
+    sil_credits: "",
     maternity_days: "",
     paternity_days: "",
-    offset_hours: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -183,9 +185,9 @@ export default function EmployeesPage() {
       philhealth_number: "",
       pagibig_number: "",
       hmo_provider: "",
+      sil_credits: "",
       maternity_days: "",
       paternity_days: "",
-      offset_hours: "",
     });
     setShowModal(true);
   }
@@ -209,9 +211,12 @@ export default function EmployeesPage() {
       philhealth_number: employee.philhealth_number || "",
       pagibig_number: employee.pagibig_number || "",
       hmo_provider: employee.hmo_provider || "",
+      sil_credits:
+        typeof employee.sil_credits === "number"
+          ? employee.sil_credits.toString()
+          : "",
       maternity_days: "",
       paternity_days: "",
-      offset_hours: "",
     });
     setShowModal(true);
   }
@@ -294,9 +299,11 @@ export default function EmployeesPage() {
         pagibig_number: formData.pagibig_number || null,
         hmo_provider: formData.hmo_provider || null,
         // Sync credits into employees for portal display
+        sil_credits: parseFloat(formData.sil_credits || "0") || 0,
         maternity_credits: parseFloat(formData.maternity_days || "0") || 0,
         paternity_credits: parseFloat(formData.paternity_days || "0") || 0,
-        offset_hours: parseFloat(formData.offset_hours || "0") || 0,
+        // Preserve existing offset hours when editing; default to 0 on create
+        offset_hours: editingEmployee?.offset_hours ?? 0,
       };
 
       let employeeId = editingEmployee ? editingEmployee.id : "";
@@ -793,6 +800,17 @@ export default function EmployeesPage() {
                 type="number"
                 min="0"
                 step="0.5"
+                label="SIL Credits (days)"
+                value={formData.sil_credits}
+                onChange={(e) =>
+                  setFormData({ ...formData, sil_credits: e.target.value })
+                }
+                helperText="Enter allocated SIL days"
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
                 label="Maternity Leave (days)"
                 value={formData.maternity_days}
                 onChange={(e) =>
@@ -812,17 +830,6 @@ export default function EmployeesPage() {
                 helperText="Enter allocated days (e.g., 7)"
               />
             </div>
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              label="Off-setting (hours)"
-              value={formData.offset_hours}
-              onChange={(e) =>
-                setFormData({ ...formData, offset_hours: e.target.value })
-              }
-              helperText="Enter available offset hours (will be stored /8 as days)"
-            />
           </div>
         </form>
       </Modal>

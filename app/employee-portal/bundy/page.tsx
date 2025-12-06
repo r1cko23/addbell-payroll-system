@@ -36,6 +36,7 @@ interface TimeEntry {
   clock_out_location: string | null;
   total_hours: number | null;
   status: string;
+  clock_in_date_ph?: string | null;
 }
 
 interface LocationStatus {
@@ -108,11 +109,14 @@ const PHILIPPINE_HOLIDAYS: Record<number, CalendarHoliday[]> = {
   ],
 };
 
+type CalendarEntryType = "time" | "leave" | "absent" | "inc" | "present";
+
 interface CalendarEntry {
   date: string;
-  clock_in_time: string;
-  clock_out_time: string | null;
-  status: string;
+  type: CalendarEntryType;
+  label: string;
+  clock_in_time?: string;
+  clock_out_time?: string | null;
 }
 
 export default function BundyClockPage() {
@@ -143,9 +147,15 @@ export default function BundyClockPage() {
   );
   const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
   const [showLocationModal, setShowLocationModal] = useState(false);
-  const [pendingClockAction, setPendingClockAction] = useState<"in" | "out" | null>(null);
-  const [pendingFailureToLog, setPendingFailureToLog] = useState<Set<string>>(new Set());
-  const [lastLocationUpdate, setLastLocationUpdate] = useState<Date | null>(null);
+  const [pendingClockAction, setPendingClockAction] = useState<
+    "in" | "out" | null
+  >(null);
+  const [pendingFailureToLog, setPendingFailureToLog] = useState<Set<string>>(
+    new Set()
+  );
+  const [lastLocationUpdate, setLastLocationUpdate] = useState<Date | null>(
+    null
+  );
   const [clientIp, setClientIp] = useState<string | null>(null);
 
   // Fetch client IP once for logging
@@ -189,7 +199,7 @@ export default function BundyClockPage() {
         });
       }
     },
-    [employee.id, supabase]
+    [employee.id, supabase, calendarHolidays]
   );
 
   const checkClockStatus = useCallback(async () => {
@@ -207,13 +217,13 @@ export default function BundyClockPage() {
       const entryDate = new Date(data.clock_in_time);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       // If entry is from a previous day, auto-close it
       if (entryDate < today) {
         // Auto-close the previous day's entry by setting clock_out_time to end of that day
         const endOfPreviousDay = new Date(entryDate);
         endOfPreviousDay.setHours(23, 59, 59, 999);
-        
+
         await supabase
           .from("time_clock_entries")
           .update({
@@ -224,11 +234,11 @@ export default function BundyClockPage() {
             regular_hours: null,
           })
           .eq("id", data.id);
-        
+
         setCurrentEntry(null);
         return;
       }
-      
+
       setCurrentEntry(data);
     } else {
       setCurrentEntry(null);
@@ -301,28 +311,112 @@ export default function BundyClockPage() {
       const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
       const startRange = gridStart.toISOString();
       const endRange = gridEnd.toISOString();
+      const holidaySet = new Set(calendarHolidays.map((h) => h.date));
 
-      const { data, error } = await supabase
+      // Fetch time entries in range
+      const { data: timeData, error: timeError } = await supabase
         .from("time_clock_entries")
-        .select("clock_in_time, clock_out_time, status")
+        .select("clock_in_time, clock_out_time, status, clock_in_date_ph")
         .eq("employee_id", employee.id)
         .gte("clock_in_time", startRange)
         .lte("clock_in_time", endRange)
         .order("clock_in_time", { ascending: true });
 
-      if (error) {
-        console.error("Failed to load calendar entries", error);
+      if (timeError) {
+        console.error("Failed to load calendar time entries", timeError);
         return;
       }
 
-      setCalendarEntries(
-        (data || []).map((entry) => ({
-          date: formatDate(new Date(entry.clock_in_time), "yyyy-MM-dd"),
+      // Fetch approved leave requests overlapping the range
+      const { data: leaveData, error: leaveError } = await supabase
+        .from("leave_requests")
+        .select("leave_type, start_date, end_date, status")
+        .eq("employee_id", employee.id)
+        .in("status", ["approved_by_manager", "approved_by_hr"]);
+
+      if (leaveError) {
+        console.error("Failed to load calendar leaves", leaveError);
+      }
+
+      const entries: CalendarEntry[] = [];
+
+      // Time entries mapped to days
+      (timeData || []).forEach((entry) => {
+        const dateIso =
+          entry.clock_in_date_ph ||
+          formatDate(new Date(entry.clock_in_time), "yyyy-MM-dd");
+        entries.push({
+          date: dateIso,
+          type: entry.clock_out_time ? "time" : "inc",
+          label: entry.clock_out_time ? "Present" : "Incomplete",
           clock_in_time: entry.clock_in_time,
           clock_out_time: entry.clock_out_time,
-          status: entry.status,
-        }))
-      );
+        });
+      });
+
+      // Leave entries expanded by date range
+      (leaveData || []).forEach((leave) => {
+        const start = new Date(leave.start_date);
+        const end = new Date(leave.end_date);
+        const days = eachDayOfInterval({ start, end });
+        days.forEach((d) => {
+          const iso = formatDate(d, "yyyy-MM-dd");
+          // Only include days inside the grid range
+          if (d >= gridStart && d <= gridEnd) {
+            entries.push({
+              date: iso,
+              type: "leave",
+              label: leave.leave_type,
+            });
+          }
+        });
+      });
+
+      // Determine absent/present/inc per day (exclude days with leave)
+      const dayMap = new Map<string, CalendarEntry[]>();
+      entries.forEach((e) => {
+        if (!dayMap.has(e.date)) dayMap.set(e.date, []);
+        dayMap.get(e.date)!.push(e);
+      });
+
+      // Build absent/inc/present markers for each day in grid
+      const today = new Date();
+      eachDayOfInterval({ start: gridStart, end: gridEnd }).forEach((day) => {
+        const iso = formatDate(day, "yyyy-MM-dd");
+        const existing = dayMap.get(iso) || [];
+        const hasLeave = existing.some((e) => e.type === "leave");
+        if (hasLeave) return;
+        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+        const isHoliday = holidaySet.has(iso);
+
+        const timeEntries = existing.filter(
+          (e) => e.type === "time" || e.type === "inc"
+        );
+
+        // Only mark absent/inc/present for dates up to today
+        if (day > today) return;
+        // Skip holidays only (weekends can be working days)
+        if (isHoliday) return;
+
+        if (timeEntries.length === 0) {
+          existing.push({
+            date: iso,
+            type: "absent",
+            label: "Absent",
+          });
+        } else {
+          const hasIncomplete = timeEntries.some((e) => e.type === "inc");
+          existing.push({
+            date: iso,
+            type: hasIncomplete ? "inc" : "present",
+            label: hasIncomplete ? "INC" : "Present",
+          });
+        }
+
+        dayMap.set(iso, existing);
+      });
+
+      setCalendarEntries(Array.from(dayMap.values()).flat());
     },
     [employee.id, supabase]
   );
@@ -430,21 +524,29 @@ export default function BundyClockPage() {
   }
 
   // Actual clock in/out logic (called from modal confirmation)
-  async function confirmClock(location: { lat: number; lng: number }): Promise<boolean> {
-    console.log("confirmClock called", { action: pendingClockAction, location });
+  async function confirmClock(location: {
+    lat: number;
+    lng: number;
+  }): Promise<boolean> {
+    console.log("confirmClock called", {
+      action: pendingClockAction,
+      location,
+    });
     const action = pendingClockAction;
     if (!action) {
-      console.error('No pending clock action');
+      console.error("No pending clock action");
       toast.error("No clock action pending");
       return false;
     }
 
-    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(
+      6
+    )}`;
 
     try {
       if (action === "in") {
         console.log("Starting clock in process...");
-        
+
         // First, check if there's an unclosed entry from previous day and auto-close it
         console.log("Checking for previous entries...");
         const { data: previousEntry, error: prevError } = await supabase
@@ -464,13 +566,13 @@ export default function BundyClockPage() {
           const entryDate = new Date(previousEntry.clock_in_time);
           const today = new Date();
           today.setHours(0, 0, 0, 0);
-          
+
           // If entry is from a previous day, auto-close it
           if (entryDate < today) {
             console.log("Auto-closing previous day entry...");
             const endOfPreviousDay = new Date(entryDate);
             endOfPreviousDay.setHours(23, 59, 59, 999);
-            
+
             const { error: closeError } = await supabase
               .from("time_clock_entries")
               .update({
@@ -489,24 +591,31 @@ export default function BundyClockPage() {
         }
 
         console.log("Calling employee_clock_in RPC...");
-      const { data: clockInData, error: clockInError } = await supabase.rpc(
-        'employee_clock_in',
-        {
-          p_employee_id: employee.id,
-          p_location: locationString,
-          p_device: navigator.userAgent?.slice(0, 255) || null,
-          p_ip: clientIp,
-        }
-      );
+        const { data: clockInData, error: clockInError } = await supabase.rpc(
+          "employee_clock_in",
+          {
+            p_employee_id: employee.id,
+            p_location: locationString,
+            p_device: navigator.userAgent?.slice(0, 255) || null,
+            p_ip: clientIp,
+          }
+        );
 
         if (clockInError) {
           console.error("Clock in error:", clockInError);
-          toast.error(`Failed to clock in: ${clockInError.message || "Unknown error"}`);
+          toast.error(
+            `Failed to clock in: ${clockInError.message || "Unknown error"}`
+          );
           return false;
         }
 
-        if (!clockInData || clockInData.length === 0 || !clockInData[0].success) {
-          const errorMsg = clockInData?.[0]?.error_message || "Failed to clock in";
+        if (
+          !clockInData ||
+          clockInData.length === 0 ||
+          !clockInData[0].success
+        ) {
+          const errorMsg =
+            clockInData?.[0]?.error_message || "Failed to clock in";
           console.error("Clock in failed:", errorMsg);
           toast.error(errorMsg);
           return false;
@@ -514,7 +623,7 @@ export default function BundyClockPage() {
 
         const entryId = clockInData[0].entry_id;
         console.log("Clock in successful, fetching entry...", entryId);
-        
+
         // Fetch the created entry
         const { data: entryData, error: fetchError } = await supabase
           .from("time_clock_entries")
@@ -540,11 +649,15 @@ export default function BundyClockPage() {
           setCurrentEntry(entryData);
           toast.success("✅ Clocked in successfully!");
         }
-        
+
         // Don't await these - let them run in background to avoid blocking
-        fetchEntries().catch(err => console.error("Error fetching entries:", err));
-        checkClockStatus().catch(err => console.error("Error checking clock status:", err));
-        
+        fetchEntries().catch((err) =>
+          console.error("Error fetching entries:", err)
+        );
+        checkClockStatus().catch((err) =>
+          console.error("Error checking clock status:", err)
+        );
+
         // Close modal after successful operation
         setShowLocationModal(false);
         setPendingClockAction(null);
@@ -562,7 +675,7 @@ export default function BundyClockPage() {
 
       console.log("Calling employee_clock_out RPC...");
       const { data: clockOutData, error: clockOutError } = await supabase.rpc(
-        'employee_clock_out',
+        "employee_clock_out",
         {
           p_employee_id: employee.id,
           p_entry_id: currentEntry.id,
@@ -574,12 +687,19 @@ export default function BundyClockPage() {
 
       if (clockOutError) {
         console.error("Clock out error:", clockOutError);
-        toast.error(`Failed to clock out: ${clockOutError.message || "Unknown error"}`);
+        toast.error(
+          `Failed to clock out: ${clockOutError.message || "Unknown error"}`
+        );
         return false;
       }
 
-      if (!clockOutData || clockOutData.length === 0 || !clockOutData[0].success) {
-        const errorMsg = clockOutData?.[0]?.error_message || "Failed to clock out";
+      if (
+        !clockOutData ||
+        clockOutData.length === 0 ||
+        !clockOutData[0].success
+      ) {
+        const errorMsg =
+          clockOutData?.[0]?.error_message || "Failed to clock out";
         console.error("Clock out failed:", errorMsg);
         toast.error(errorMsg);
         return false;
@@ -588,24 +708,30 @@ export default function BundyClockPage() {
       console.log("Clock out successful, updating UI...");
       toast.success("✅ Clocked out successfully!");
       setCurrentEntry(null);
-      
+
       // Don't await these - let them run in background to avoid blocking
-      fetchEntries().catch(err => console.error("Error fetching entries:", err));
-      checkClockStatus().catch(err => console.error("Error checking clock status:", err));
-      
+      fetchEntries().catch((err) =>
+        console.error("Error fetching entries:", err)
+      );
+      checkClockStatus().catch((err) =>
+        console.error("Error checking clock status:", err)
+      );
+
       // Close modal after successful operation
       setShowLocationModal(false);
       setPendingClockAction(null);
-      
+
       // Re-fetch location after clock out (don't clear it, just refresh)
       console.log("Refreshing location after clock out...");
-      getFreshLocation().then((loc) => {
-        if (loc) {
-          setLocation(loc);
-          validateLocation(loc.lat, loc.lng);
-        }
-      }).catch(err => console.error("Error refreshing location:", err));
-      
+      getFreshLocation()
+        .then((loc) => {
+          if (loc) {
+            setLocation(loc);
+            validateLocation(loc.lat, loc.lng);
+          }
+        })
+        .catch((err) => console.error("Error refreshing location:", err));
+
       console.log("Clock out complete");
       return true;
     } catch (error) {
@@ -660,7 +786,7 @@ export default function BundyClockPage() {
 
   // Calculate total hours, excluding entries with pending failure to log requests
   const [totalHours, setTotalHours] = useState(0);
-  
+
   useEffect(() => {
     const calculateTotalHours = async () => {
       if (entries.length === 0) {
@@ -670,19 +796,39 @@ export default function BundyClockPage() {
       }
 
       // Get all pending failure to log requests for these entries
-      const entryIds = entries.map(e => e.id);
+      const entryIds = entries.map((e) => e.id);
       const { data: pendingFailures } = await supabase
-        .from('failure_to_log')
-        .select('time_entry_id')
-        .in('time_entry_id', entryIds)
-        .eq('status', 'pending');
+        .from("failure_to_log")
+        .select("time_entry_id")
+        .in("time_entry_id", entryIds)
+        .eq("status", "pending");
 
-      const pendingEntryIds = new Set(pendingFailures?.map(f => f.time_entry_id) || []);
+      const pendingEntryIds = new Set(
+        pendingFailures?.map((f) => f.time_entry_id) || []
+      );
       setPendingFailureToLog(pendingEntryIds);
 
       // Only count hours for entries without pending failure to log requests
-      const validHours = entries
-        .filter(entry => !pendingEntryIds.has(entry.id))
+      const uniqueByDate = new Map<string, TimeEntry>();
+      entries.forEach((entry) => {
+        const dateIso =
+          entry.clock_in_date_ph ||
+          formatDate(new Date(entry.clock_in_time), "yyyy-MM-dd");
+        const existing = uniqueByDate.get(dateIso);
+        if (!existing) {
+          uniqueByDate.set(dateIso, entry);
+        } else {
+          // Prefer one with clock_out_time (more complete)
+          const existingHasOut = !!existing.clock_out_time;
+          const currentHasOut = !!entry.clock_out_time;
+          if (!existingHasOut && currentHasOut) {
+            uniqueByDate.set(dateIso, entry);
+          }
+        }
+      });
+
+      const validHours = Array.from(uniqueByDate.values())
+        .filter((entry) => !pendingEntryIds.has(entry.id))
         .reduce((sum, entry) => sum + (entry.total_hours || 0), 0);
 
       setTotalHours(validHours);
@@ -819,7 +965,6 @@ export default function BundyClockPage() {
               </div>
             )}
           </div>
-
         </div>
       </Card>
 
@@ -891,7 +1036,9 @@ export default function BundyClockPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">
                       {pendingFailureToLog.has(entry.id) ? (
-                        <span className="text-yellow-600">Pending Approval</span>
+                        <span className="text-yellow-600">
+                          Pending Approval
+                        </span>
                       ) : entry.total_hours ? (
                         entry.total_hours.toFixed(2)
                       ) : (
@@ -967,6 +1114,25 @@ function HolidayCalendar({
     new Map()
   );
 
+  const leaveColor = (label: string) => {
+    if (label === "SIL") return "bg-blue-50 border-blue-200 text-blue-800";
+    if (label === "Maternity Leave")
+      return "bg-purple-50 border-purple-200 text-purple-800";
+    if (label === "Paternity Leave")
+      return "bg-cyan-50 border-cyan-200 text-cyan-800";
+    if (label === "Off-setting")
+      return "bg-amber-50 border-amber-200 text-amber-800";
+    return "bg-emerald-50 border-emerald-200 text-emerald-800";
+  };
+
+  const statusColor = (type: CalendarEntryType) => {
+    if (type === "absent") return "bg-red-50 border-red-200 text-red-800";
+    if (type === "inc") return "bg-orange-50 border-orange-200 text-orange-800";
+    if (type === "present")
+      return "bg-emerald-50 border-emerald-200 text-emerald-800";
+    return "bg-gray-50 border-gray-200 text-gray-700";
+  };
+
   return (
     <Card className="p-4">
       <div className="flex flex-col gap-4">
@@ -991,6 +1157,18 @@ function HolidayCalendar({
               <span className="w-3 h-3 rounded-full bg-amber-400/80" />
               Special Holiday
             </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full bg-red-500/60" />
+              Absent/INC
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full bg-emerald-500/60" />
+              Present
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-3 h-3 rounded-full bg-blue-500/60" />
+              Leave
+            </span>
           </div>
         </div>
 
@@ -1007,6 +1185,15 @@ function HolidayCalendar({
             const dailyEntries = entryMap.get(iso);
             const isCurrentMonth = isSameMonth(day, date);
             const isToday = isSameDay(day, new Date());
+
+            const leaves = (dailyEntries || []).filter(
+              (e) => e.type === "leave"
+            );
+            const status = (dailyEntries || []).find(
+              (e) =>
+                e.type === "absent" || e.type === "inc" || e.type === "present"
+            );
+            const times = (dailyEntries || []).filter((e) => e.type === "time");
 
             const badge =
               holiday &&
@@ -1040,14 +1227,37 @@ function HolidayCalendar({
                   </div>
                 )}
                 {badge}
-                {dailyEntries && dailyEntries.length > 0 && (
+                {status && (
+                  <div
+                    className={`mt-1 text-[11px] px-2 py-1 rounded-full border font-semibold inline-flex items-center gap-1 ${statusColor(
+                      status.type
+                    )}`}
+                  >
+                    {status.label}
+                  </div>
+                )}
+                {leaves.length > 0 && (
                   <div className="mt-1 space-y-1">
-                    {dailyEntries.map((entry, idx) => (
+                    {leaves.map((leave, idx) => (
+                      <div
+                        key={`${leave.label}-${idx}`}
+                        className={`text-[11px] px-2 py-1 rounded-full border font-semibold ${leaveColor(
+                          leave.label
+                        )}`}
+                      >
+                        {leave.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {times.length > 0 && (
+                  <div className="mt-1 space-y-1">
+                    {times.map((entry, idx) => (
                       <div
                         key={`${entry.clock_in_time}-${idx}`}
                         className="text-[11px] bg-emerald-50 border border-emerald-100 rounded px-2 py-1 text-emerald-800"
                       >
-                        {formatDate(new Date(entry.clock_in_time), "h:mm a")}
+                        {formatDate(new Date(entry.clock_in_time!), "h:mm a")}
                         {entry.clock_out_time && (
                           <>
                             {" "}

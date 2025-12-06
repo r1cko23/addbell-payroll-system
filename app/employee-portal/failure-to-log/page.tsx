@@ -1,16 +1,29 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { AlertCircle, ArrowLeft, CheckCircle, XCircle, Hourglass, Clock } from 'lucide-react';
-import { formatPHTime } from '@/utils/format';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle,
+  XCircle,
+  Hourglass,
+  Clock,
+} from "lucide-react";
+import { formatPHTime } from "@/utils/format";
 
 interface EmployeeSession {
   id: string;
@@ -24,9 +37,9 @@ interface FailureToLog {
   missed_date: string | null;
   actual_clock_in_time: string | null;
   actual_clock_out_time: string | null;
-  entry_type: 'in' | 'out' | 'both';
+  entry_type: "in" | "out" | "both";
   reason: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected" | "cancelled";
   rejection_reason: string | null;
   created_at: string;
   time_clock_entries?: {
@@ -41,40 +54,40 @@ export default function FailureToLogPage() {
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
   const [requests, setRequests] = useState<FailureToLog[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Form state
-  const [entryType, setEntryType] = useState<'in' | 'out' | 'both'>('out');
-  const [missedDate, setMissedDate] = useState('');
-  const [timeIn, setTimeIn] = useState('');
-  const [timeOut, setTimeOut] = useState('');
-  const [reason, setReason] = useState('');
+  const [entryType, setEntryType] = useState<"in" | "out" | "both">("out");
+  const [missedDate, setMissedDate] = useState("");
+  const [timeIn, setTimeIn] = useState("");
+  const [timeOut, setTimeOut] = useState("");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [timeEntries, setTimeEntries] = useState<any[]>([]);
-  const [selectedTimeEntryId, setSelectedTimeEntryId] = useState('');
+  const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
 
   useEffect(() => {
-    const sessionData = localStorage.getItem('employee_session');
+    const sessionData = localStorage.getItem("employee_session");
     if (!sessionData) {
-      router.push('/employee-login');
+      router.push("/employee-login");
       return;
     }
 
     const emp = JSON.parse(sessionData) as EmployeeSession;
     setEmployee(emp);
-    fetchFailureToLogRequests(emp.employee_id);
-    fetchTimeEntries(emp.employee_id);
+    fetchFailureToLogRequests(emp.id);
+    fetchTimeEntries(emp.id);
   }, [router]);
 
   async function fetchTimeEntries(employeeId: string) {
     const { data, error } = await supabase
-      .from('time_clock_entries')
-      .select('id, clock_in_time, clock_out_time, status')
-      .eq('employee_id', employeeId)
-      .order('clock_in_time', { ascending: false })
+      .from("time_clock_entries")
+      .select("id, clock_in_time, clock_out_time, status")
+      .eq("employee_id", employeeId)
+      .order("clock_in_time", { ascending: false })
       .limit(50);
 
     if (error) {
-      console.error('Error fetching time entries:', error);
+      console.error("Error fetching time entries:", error);
     } else {
       setTimeEntries(data || []);
     }
@@ -83,20 +96,22 @@ export default function FailureToLogPage() {
   async function fetchFailureToLogRequests(employeeId: string) {
     setLoading(true);
     const { data, error } = await supabase
-      .from('failure_to_log')
-      .select(`
+      .from("failure_to_log")
+      .select(
+        `
         *,
         time_clock_entries (
           clock_in_time,
           clock_out_time
         )
-      `)
-      .eq('employee_id', employeeId)
-      .order('created_at', { ascending: false });
+      `
+      )
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: false });
 
     if (error) {
-      console.error('Error fetching failure to log requests:', error);
-      toast.error('Failed to load requests');
+      console.error("Error fetching failure to log requests:", error);
+      toast.error("Failed to load requests");
     } else {
       setRequests(data || []);
     }
@@ -107,7 +122,7 @@ export default function FailureToLogPage() {
     e.preventDefault();
 
     if (!employee || !reason.trim()) {
-      toast.error('Please fill in the required fields');
+      toast.error("Please fill in the required fields");
       return;
     }
 
@@ -117,51 +132,53 @@ export default function FailureToLogPage() {
     };
 
     const actualClockInTime =
-      entryType === 'in' || entryType === 'both' ? buildDateTime(missedDate, timeIn) : null;
+      entryType === "in" || entryType === "both"
+        ? buildDateTime(missedDate, timeIn)
+        : null;
     const actualClockOutTime =
-      entryType === 'out' || entryType === 'both' ? buildDateTime(missedDate, timeOut) : null;
+      entryType === "out" || entryType === "both"
+        ? buildDateTime(missedDate, timeOut)
+        : null;
 
     if (
-      (entryType === 'in' && !actualClockInTime) ||
-      (entryType === 'out' && !actualClockOutTime) ||
-      (entryType === 'both' && (!actualClockInTime || !actualClockOutTime))
+      (entryType === "in" && !actualClockInTime) ||
+      (entryType === "out" && !actualClockOutTime) ||
+      (entryType === "both" && (!actualClockInTime || !actualClockOutTime))
     ) {
-      toast.error('Please provide the missing clock time(s).');
+      toast.error("Please provide the missing clock time(s).");
       return;
     }
 
     setSubmitting(true);
 
-    const { error } = await supabase
-      .from('failure_to_log')
-      .insert({
-        employee_id: employee.employee_id,
-        time_entry_id: selectedTimeEntryId || null,
-        missed_date: missedDate || null,
-        actual_clock_in_time: actualClockInTime,
-        actual_clock_out_time: actualClockOutTime,
-        entry_type: entryType,
-        reason: reason.trim(),
-        status: 'pending',
-      });
+    const { error } = await supabase.from("failure_to_log").insert({
+      employee_id: employee.id,
+      time_entry_id: selectedTimeEntryId || null,
+      missed_date: missedDate || null,
+      actual_clock_in_time: actualClockInTime,
+      actual_clock_out_time: actualClockOutTime,
+      entry_type: entryType,
+      reason: reason.trim(),
+      status: "pending",
+    });
 
     setSubmitting(false);
 
     if (error) {
-      console.error('Error submitting failure to log request:', error);
-      toast.error('Failed to submit request');
+      console.error("Error submitting failure to log request:", error);
+      toast.error("Failed to submit request");
       return;
     }
 
-    toast.success('✅ Failure to log request submitted successfully!');
-    setMissedDate('');
-    setTimeIn('');
-    setTimeOut('');
-    setEntryType('out');
-    setReason('');
-    setSelectedTimeEntryId('');
-    fetchFailureToLogRequests(employee.employee_id);
-    fetchTimeEntries(employee.employee_id);
+    toast.success("✅ Failure to log request submitted successfully!");
+    setMissedDate("");
+    setTimeIn("");
+    setTimeOut("");
+    setEntryType("out");
+    setReason("");
+    setSelectedTimeEntryId("");
+    fetchFailureToLogRequests(employee.id);
+    fetchTimeEntries(employee.id);
   }
 
   if (loading || !employee) {
@@ -172,10 +189,10 @@ export default function FailureToLogPage() {
     );
   }
 
-  const pendingCount = requests.filter(r => r.status === 'pending').length;
-  const approvedCount = requests.filter(r => r.status === 'approved').length;
+  const pendingCount = requests.filter((r) => r.status === "pending").length;
+  const approvedCount = requests.filter((r) => r.status === "approved").length;
   const formatSafe = (value?: string | null, fmt?: string) =>
-    value ? formatPHTime(value, fmt || 'MMM dd, yyyy h:mm a') : '—';
+    value ? formatPHTime(value, fmt || "MMM dd, yyyy h:mm a") : "—";
 
   return (
     <div className="min-h-screen bg-background">
@@ -185,14 +202,16 @@ export default function FailureToLogPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push('/employee-portal/bundy')}
+            onClick={() => router.push("/employee-portal/bundy")}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Failure to Log Request</h1>
-            <p className="text-sm text-muted-foreground">{employee.full_name}</p>
+            <p className="text-sm text-muted-foreground">
+              {employee.full_name}
+            </p>
           </div>
         </div>
 
@@ -201,18 +220,24 @@ export default function FailureToLogPage() {
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">Pending</div>
-              <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {pendingCount}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">Approved</div>
-              <div className="text-2xl font-bold text-green-600">{approvedCount}</div>
+              <div className="text-2xl font-bold text-green-600">
+                {approvedCount}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Total Requests</div>
+              <div className="text-sm text-muted-foreground">
+                Total Requests
+              </div>
               <div className="text-2xl font-bold">{requests.length}</div>
             </CardContent>
           </Card>
@@ -233,7 +258,9 @@ export default function FailureToLogPage() {
                 <select
                   id="entry-type"
                   value={entryType}
-                  onChange={(e) => setEntryType(e.target.value as 'in' | 'out' | 'both')}
+                  onChange={(e) =>
+                    setEntryType(e.target.value as "in" | "out" | "both")
+                  }
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="out">Time Out</option>
@@ -249,12 +276,12 @@ export default function FailureToLogPage() {
                   type="date"
                   value={missedDate}
                   onChange={(e) => setMissedDate(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={new Date().toISOString().split("T")[0]}
                   required
                 />
               </div>
 
-              {(entryType === 'in' || entryType === 'both') && (
+              {(entryType === "in" || entryType === "both") && (
                 <div className="space-y-2">
                   <Label htmlFor="time-in">Time In</Label>
                   <Input
@@ -262,12 +289,12 @@ export default function FailureToLogPage() {
                     type="time"
                     value={timeIn}
                     onChange={(e) => setTimeIn(e.target.value)}
-                    required={entryType === 'in' || entryType === 'both'}
+                    required={entryType === "in" || entryType === "both"}
                   />
                 </div>
               )}
 
-              {(entryType === 'out' || entryType === 'both') && (
+              {(entryType === "out" || entryType === "both") && (
                 <div className="space-y-2">
                   <Label htmlFor="time-out">Time Out</Label>
                   <Input
@@ -275,7 +302,7 @@ export default function FailureToLogPage() {
                     type="time"
                     value={timeOut}
                     onChange={(e) => setTimeOut(e.target.value)}
-                    required={entryType === 'out' || entryType === 'both'}
+                    required={entryType === "out" || entryType === "both"}
                   />
                 </div>
               )}
@@ -325,9 +352,13 @@ export default function FailureToLogPage() {
                   <Card
                     key={request.id}
                     className={`${
-                      request.status === 'pending' ? 'border-yellow-300' :
-                      request.status === 'approved' ? 'border-green-300' :
-                      'border-red-300'
+                      request.status === "pending"
+                        ? "border-yellow-300"
+                        : request.status === "approved"
+                        ? "border-green-300"
+                        : request.status === "rejected"
+                        ? "border-red-300"
+                        : "border-slate-300"
                     }`}
                   >
                     <CardContent className="p-4">
@@ -335,14 +366,39 @@ export default function FailureToLogPage() {
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-3 flex-wrap">
                             <span className="font-bold text-lg">
-                              {formatSafe(request.missed_date, 'MMM dd, yyyy')}
+                              {formatSafe(request.missed_date, "MMM dd, yyyy")}
                             </span>
                             <span className="text-sm text-muted-foreground">
-                              {request.entry_type === 'in' && <>Actual In: {formatSafe(request.actual_clock_in_time, 'MMM dd, h:mm a')}</>}
-                              {request.entry_type === 'out' && <>Actual Out: {formatSafe(request.actual_clock_out_time, 'MMM dd, h:mm a')}</>}
-                              {request.entry_type === 'both' && (
+                              {request.entry_type === "in" && (
                                 <>
-                                  Actual In: {formatSafe(request.actual_clock_in_time, 'MMM dd, h:mm a')} | Actual Out: {formatSafe(request.actual_clock_out_time, 'MMM dd, h:mm a')}
+                                  Actual In:{" "}
+                                  {formatSafe(
+                                    request.actual_clock_in_time,
+                                    "MMM dd, h:mm a"
+                                  )}
+                                </>
+                              )}
+                              {request.entry_type === "out" && (
+                                <>
+                                  Actual Out:{" "}
+                                  {formatSafe(
+                                    request.actual_clock_out_time,
+                                    "MMM dd, h:mm a"
+                                  )}
+                                </>
+                              )}
+                              {request.entry_type === "both" && (
+                                <>
+                                  Actual In:{" "}
+                                  {formatSafe(
+                                    request.actual_clock_in_time,
+                                    "MMM dd, h:mm a"
+                                  )}{" "}
+                                  | Actual Out:{" "}
+                                  {formatSafe(
+                                    request.actual_clock_out_time,
+                                    "MMM dd, h:mm a"
+                                  )}
                                 </>
                               )}
                             </span>
@@ -350,42 +406,100 @@ export default function FailureToLogPage() {
 
                           <div className="text-sm">
                             <strong>Reason:</strong>
-                            <div className="mt-1 text-muted-foreground">{request.reason}</div>
+                            <div className="mt-1 text-muted-foreground">
+                              {request.reason}
+                            </div>
                           </div>
 
-                          {request.status === 'rejected' && request.rejection_reason && (
-                            <div className="p-2 bg-red-50 border border-red-200 rounded-md text-sm">
-                              <strong className="text-red-900">Rejection Reason:</strong>
-                              <div className="text-red-800 mt-1">{request.rejection_reason}</div>
-                            </div>
-                          )}
+                          {request.status === "rejected" &&
+                            request.rejection_reason && (
+                              <div className="p-2 bg-red-50 border border-red-200 rounded-md text-sm">
+                                <strong className="text-red-900">
+                                  Rejection Reason:
+                                </strong>
+                                <div className="text-red-800 mt-1">
+                                  {request.rejection_reason}
+                                </div>
+                              </div>
+                            )}
 
                           <div className="text-xs text-muted-foreground">
-                            Filed: {formatSafe(request.created_at, 'MMM dd, yyyy h:mm a')}
+                            Filed:{" "}
+                            {formatSafe(
+                              request.created_at,
+                              "MMM dd, yyyy h:mm a"
+                            )}
                           </div>
                         </div>
 
                         <div className="ml-4">
-                          {request.status === 'pending' && (
-                            <Badge variant="warning" className="flex items-center gap-2">
+                          {request.status === "pending" && (
+                            <Badge
+                              variant="warning"
+                              className="flex items-center gap-2"
+                            >
                               <Hourglass className="h-4 w-4" />
                               PENDING
                             </Badge>
                           )}
-                          {request.status === 'approved' && (
-                            <Badge variant="success" className="flex items-center gap-2">
+                          {request.status === "approved" && (
+                            <Badge
+                              variant="success"
+                              className="flex items-center gap-2"
+                            >
                               <CheckCircle className="h-4 w-4" />
                               APPROVED
                             </Badge>
                           )}
-                          {request.status === 'rejected' && (
-                            <Badge variant="destructive" className="flex items-center gap-2">
+                          {request.status === "rejected" && (
+                            <Badge
+                              variant="destructive"
+                              className="flex items-center gap-2"
+                            >
                               <XCircle className="h-4 w-4" />
                               REJECTED
                             </Badge>
                           )}
+                          {request.status === "cancelled" && (
+                            <Badge
+                              variant="secondary"
+                              className="flex items-center gap-2"
+                            >
+                              <XCircle className="h-4 w-4" />
+                              CANCELLED
+                            </Badge>
+                          )}
                         </div>
                       </div>
+                      {request.status === "pending" && (
+                        <div className="flex justify-end pt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const { error } = await supabase
+                                .from("failure_to_log")
+                                .update({ status: "cancelled" })
+                                .eq("id", request.id)
+                                .select()
+                                .single();
+                              if (error) {
+                                console.error(
+                                  "Error cancelling request:",
+                                  error
+                                );
+                                toast.error("Failed to cancel request");
+                              } else {
+                                toast.success("Request cancelled");
+                                fetchFailureToLogRequests(employee.id);
+                              }
+                            }}
+                          >
+                            Cancel Request
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -397,4 +511,3 @@ export default function FailureToLogPage() {
     </div>
   );
 }
-

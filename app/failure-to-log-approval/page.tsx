@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { AlertCircle, Check, X, User, Calendar, Filter } from 'lucide-react';
-import { formatPHTime } from '@/utils/format';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { AlertCircle, Check, X, User, Calendar, Filter } from "lucide-react";
+import { formatPHTime } from "@/utils/format";
 
 interface FailureToLog {
   id: string;
@@ -18,10 +18,10 @@ interface FailureToLog {
   missed_date: string | null;
   actual_clock_in_time: string | null;
   actual_clock_out_time: string | null;
-  entry_type: 'in' | 'out' | 'both';
+  entry_type: "in" | "out" | "both";
   manual_notes: string | null;
   reason: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: "pending" | "approved" | "rejected" | "cancelled";
   rejection_reason: string | null;
   created_at: string;
   employees: {
@@ -38,12 +38,14 @@ export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const [requests, setRequests] = useState<FailureToLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedRequest, setSelectedRequest] = useState<FailureToLog | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedRequest, setSelectedRequest] = useState<FailureToLog | null>(
+    null
+  );
+  const [rejectionReason, setRejectionReason] = useState("");
   const [approveLoading, setApproveLoading] = useState(false);
   const safeFormat = (value: string | null | undefined, fmt: string) =>
-    value ? formatPHTime(value, fmt) : '—';
+    value ? formatPHTime(value, fmt) : "—";
 
   useEffect(() => {
     fetchRequests();
@@ -53,8 +55,9 @@ export default function FailureToLogApprovalPage() {
     setLoading(true);
 
     let query = supabase
-      .from('failure_to_log')
-      .select(`
+      .from("failure_to_log")
+      .select(
+        `
         *,
         employees (
           employee_id,
@@ -64,11 +67,12 @@ export default function FailureToLogApprovalPage() {
           clock_in_time,
           clock_out_time
         )
-      `)
-      .order('created_at', { ascending: false });
+      `
+      )
+      .order("created_at", { ascending: false });
 
-    if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter);
+    if (statusFilter !== "all") {
+      query = query.eq("status", statusFilter);
     }
 
     const { data, error } = await query;
@@ -76,8 +80,8 @@ export default function FailureToLogApprovalPage() {
     setLoading(false);
 
     if (error) {
-      console.error('Error fetching failure to log requests:', error);
-      toast.error('Failed to load requests');
+      console.error("Error fetching failure to log requests:", error);
+      toast.error("Failed to load requests");
       return;
     }
 
@@ -86,7 +90,9 @@ export default function FailureToLogApprovalPage() {
 
   async function handleApprove(requestId: string) {
     setApproveLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       setApproveLoading(false);
       return;
@@ -94,8 +100,9 @@ export default function FailureToLogApprovalPage() {
 
     // First, get the failure to log request details
     const { data: request, error: fetchError } = await supabase
-      .from('failure_to_log')
-      .select(`
+      .from("failure_to_log")
+      .select(
+        `
         id,
         employee_id,
         time_entry_id,
@@ -103,124 +110,91 @@ export default function FailureToLogApprovalPage() {
         actual_clock_in_time,
         actual_clock_out_time,
         reason
-      `)
-      .eq('id', requestId)
+      `
+      )
+      .eq("id", requestId)
       .single();
 
     if (fetchError || !request) {
-      console.error('Error fetching request:', fetchError);
-      toast.error('Failed to fetch request details');
+      console.error("Error fetching request:", fetchError);
+      toast.error("Failed to fetch request details");
       setApproveLoading(false);
       return;
     }
 
     // Validate required times based on entry_type
     if (
-      (request.entry_type === 'in' && !request.actual_clock_in_time) ||
-      (request.entry_type === 'out' && !request.actual_clock_out_time) ||
-      (request.entry_type === 'both' &&
+      (request.entry_type === "in" && !request.actual_clock_in_time) ||
+      (request.entry_type === "out" && !request.actual_clock_out_time) ||
+      (request.entry_type === "both" &&
         (!request.actual_clock_in_time || !request.actual_clock_out_time))
     ) {
-      toast.error('Missing actual clock time(s) for this request');
+      toast.error("Missing actual clock time(s) for this request");
       setApproveLoading(false);
       return;
     }
 
-    // If a time_entry_id exists, patch it; otherwise create a new entry
-    if (request.time_entry_id) {
-      const updatePayload: any = {};
-      if (request.actual_clock_in_time) updatePayload.clock_in_time = request.actual_clock_in_time;
-      if (request.actual_clock_out_time) updatePayload.clock_out_time = request.actual_clock_out_time;
-      const { error: updateTimeEntryError } = await supabase
-        .from('time_clock_entries')
-        .update(updatePayload)
-        .eq('id', request.time_entry_id);
-      if (updateTimeEntryError) {
-        console.error('Error updating time entry:', updateTimeEntryError);
-        toast.error('Failed to update time entry');
-        setApproveLoading(false);
-        return;
-      }
-    } else {
-      // Fallback: ensure clock_in_time is present (required by table)
-      const clockInTime = request.actual_clock_in_time || request.actual_clock_out_time;
-      const { data: newEntry, error: insertErr } = await supabase
-        .from('time_clock_entries')
-        .insert({
-          employee_id: request.employee_id,
-          clock_in_time: clockInTime,
-          clock_out_time: request.actual_clock_out_time,
-          status: 'auto_approved',
-        })
-        .select()
-        .single();
-
-      if (insertErr || !newEntry) {
-        console.error('Error creating time entry:', insertErr);
-        toast.error('Failed to create time entry');
-        setApproveLoading(false);
-        return;
-      }
-
-      await supabase
-        .from('failure_to_log')
-        .update({ time_entry_id: newEntry.id })
-        .eq('id', requestId);
-    }
-
-    // Now update the failure to log request status
+    // Update failure_to_log; time entry upsert is handled by DB trigger
     const { error } = await supabase
-      .from('failure_to_log')
+      .from("failure_to_log")
       .update({
-        status: 'approved',
+        status: "approved",
         approved_at: new Date().toISOString(),
         account_manager_id: user.id,
+        correct_clock_in_time: request.actual_clock_in_time,
+        correct_clock_out_time: request.actual_clock_out_time,
       })
-      .eq('id', requestId);
+      .eq("id", requestId)
+      .select()
+      .single();
 
     if (error) {
-      console.error('Error approving request:', error);
-      toast.error('Failed to approve request');
+      console.error("Error approving request:", error);
+      toast.error("Failed to approve request");
       setApproveLoading(false);
       return;
     }
 
-    toast.success('✅ Request approved and time entry updated');
+    toast.success("✅ Request approved and time entry updated");
     fetchRequests();
     setSelectedRequest(null);
     setApproveLoading(false);
   }
 
   async function handleReject(requestId: string) {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     const { error } = await supabase
-      .from('failure_to_log')
+      .from("failure_to_log")
       .update({
-        status: 'rejected',
+        status: "rejected",
         rejection_reason: rejectionReason.trim() || null,
         account_manager_id: user.id,
       })
-      .eq('id', requestId);
+      .eq("id", requestId)
+      .select()
+      .single();
 
     if (error) {
-      console.error('Error rejecting request:', error);
-      toast.error('Failed to reject request');
+      console.error("Error rejecting request:", error);
+      toast.error("Failed to reject request");
       return;
     }
 
-    toast.success('Request rejected');
+    toast.success("Request rejected");
     fetchRequests();
     setSelectedRequest(null);
-    setRejectionReason('');
+    setRejectionReason("");
   }
 
   const stats = {
     total: requests.length,
-    pending: requests.filter(r => r.status === 'pending').length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
+    pending: requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
   };
 
   return (
@@ -238,26 +212,34 @@ export default function FailureToLogApprovalPage() {
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Total Requests</div>
+              <div className="text-sm text-muted-foreground">
+                Total Requests
+              </div>
               <div className="text-2xl font-bold mt-1">{stats.total}</div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">Pending</div>
-              <div className="text-2xl font-bold mt-1 text-yellow-600">{stats.pending}</div>
+              <div className="text-2xl font-bold mt-1 text-yellow-600">
+                {stats.pending}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">Approved</div>
-              <div className="text-2xl font-bold mt-1 text-green-600">{stats.approved}</div>
+              <div className="text-2xl font-bold mt-1 text-green-600">
+                {stats.approved}
+              </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">Rejected</div>
-              <div className="text-2xl font-bold mt-1 text-red-600">{stats.rejected}</div>
+              <div className="text-2xl font-bold mt-1 text-red-600">
+                {stats.rejected}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -276,6 +258,7 @@ export default function FailureToLogApprovalPage() {
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
+                <option value="cancelled">Cancelled</option>
               </select>
             </div>
           </CardContent>
@@ -306,7 +289,7 @@ export default function FailureToLogApprovalPage() {
                       <div className="flex items-center gap-3 mb-2">
                         <User className="h-5 w-5 text-muted-foreground" />
                         <span className="font-bold text-lg">
-                          {request.employees?.full_name || 'Unknown'}
+                          {request.employees?.full_name || "Unknown"}
                         </span>
                         <span className="text-sm text-muted-foreground">
                           ({request.employees?.employee_id})
@@ -315,10 +298,15 @@ export default function FailureToLogApprovalPage() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          Missed: {safeFormat(request.missed_date, 'MMM dd, yyyy')}
+                          Missed:{" "}
+                          {safeFormat(request.missed_date, "MMM dd, yyyy")}
                         </div>
                         <div>
-                          Actual: {safeFormat(request.actual_clock_out_time, 'MMM dd, h:mm a')}
+                          Actual:{" "}
+                          {safeFormat(
+                            request.actual_clock_out_time,
+                            "MMM dd, h:mm a"
+                          )}
                         </div>
                       </div>
                       <div className="text-sm">
@@ -326,16 +314,19 @@ export default function FailureToLogApprovalPage() {
                       </div>
                     </div>
                     <div className="ml-4 flex flex-col items-end gap-2">
-                      {request.status === 'pending' && (
+                      {request.status === "pending" && (
                         <>
                           <Badge variant="warning">PENDING</Badge>
-                          <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                          <div
+                            className="flex gap-2 mt-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <Button
                               variant="destructive"
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setRejectionReason('');
+                                setRejectionReason("");
                                 handleReject(request.id);
                               }}
                             >
@@ -355,11 +346,14 @@ export default function FailureToLogApprovalPage() {
                           </div>
                         </>
                       )}
-                      {request.status === 'approved' && (
+                      {request.status === "approved" && (
                         <Badge variant="success">APPROVED</Badge>
                       )}
-                      {request.status === 'rejected' && (
+                      {request.status === "rejected" && (
                         <Badge variant="destructive">REJECTED</Badge>
+                      )}
+                      {request.status === "cancelled" && (
+                        <Badge variant="secondary">CANCELLED</Badge>
                       )}
                     </div>
                   </div>

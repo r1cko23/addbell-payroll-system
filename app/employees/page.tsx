@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { Input, Textarea } from '@/components/Input';
-import { Modal } from '@/components/Modal';
-import { Badge } from '@/components/Badge';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import toast from 'react-hot-toast';
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card } from "@/components/Card";
+import { Button } from "@/components/Button";
+import { Input, Textarea } from "@/components/Input";
+import { Modal } from "@/components/Modal";
+import { Badge } from "@/components/Badge";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import toast from "react-hot-toast";
 
 interface Employee {
   id: string;
@@ -43,29 +43,34 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
-    employee_id: '',
-    last_name: '',
-    first_name: '',
-    middle_initial: '',
-    assigned_hotel: '',
+    employee_id: "",
+    last_name: "",
+    first_name: "",
+    middle_initial: "",
+    assigned_hotel: "",
     locations: [] as string[],
-    address: '',
-    birth_date: '',
-    tin_number: '',
-    sss_number: '',
-    philhealth_number: '',
-    pagibig_number: '',
-    hmo_provider: '',
+    address: "",
+    birth_date: "",
+    tin_number: "",
+    sss_number: "",
+    philhealth_number: "",
+    pagibig_number: "",
+    hmo_provider: "",
+    maternity_days: "",
+    paternity_days: "",
+    offset_hours: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordEmployee, setPasswordEmployee] = useState<Employee | null>(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordEmployee, setPasswordEmployee] = useState<Employee | null>(
+    null
+  );
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   const supabase = createClient();
@@ -84,7 +89,7 @@ export default function EmployeesPage() {
     try {
       // Try the nested query first
       const { data, error } = await supabase
-        .from('employees')
+        .from("employees")
         .select(
           `*,
           employee_location_assignments (
@@ -95,49 +100,53 @@ export default function EmployeesPage() {
             )
           )`
         )
-        .order('last_name', { ascending: true, nullsFirst: true })
-        .order('first_name', { ascending: true, nullsFirst: true });
+        .order("last_name", { ascending: true, nullsFirst: true })
+        .order("first_name", { ascending: true, nullsFirst: true });
 
       if (error) {
-        console.error('Error with nested query:', error);
+        console.error("Error with nested query:", error);
         // Fallback: try without nested query
         const { data: simpleData, error: simpleError } = await supabase
-          .from('employees')
-          .select('*')
-          .order('last_name', { ascending: true, nullsFirst: true })
-          .order('first_name', { ascending: true, nullsFirst: true });
+          .from("employees")
+          .select("*")
+          .order("last_name", { ascending: true, nullsFirst: true })
+          .order("first_name", { ascending: true, nullsFirst: true });
 
         if (simpleError) throw simpleError;
-        
+
         // Fetch locations separately and merge
         const employeesWithLocations = await Promise.all(
           (simpleData || []).map(async (emp) => {
             const { data: locationData } = await supabase
-              .from('employee_location_assignments')
-              .select(`
+              .from("employee_location_assignments")
+              .select(
+                `
                 location_id,
                 office_locations (
                   id,
                   name
                 )
-              `)
-              .eq('employee_id', emp.id);
-            
+              `
+              )
+              .eq("employee_id", emp.id);
+
             return {
               ...emp,
-              employee_location_assignments: locationData || []
+              employee_location_assignments: locationData || [],
             };
           })
         );
-        
+
         setEmployees(employeesWithLocations);
         return;
       }
-      
+
       setEmployees(data || []);
     } catch (error: any) {
-      console.error('Error fetching employees:', error);
-      toast.error(`Failed to load employees: ${error.message || 'Unknown error'}`);
+      console.error("Error fetching employees:", error);
+      toast.error(
+        `Failed to load employees: ${error.message || "Unknown error"}`
+      );
     } finally {
       setLoading(false);
     }
@@ -146,34 +155,37 @@ export default function EmployeesPage() {
   async function fetchLocations() {
     try {
       const { data, error } = await supabase
-        .from('office_locations')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('name');
-      
+        .from("office_locations")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+
       if (error) throw error;
       setLocations(data || []);
     } catch (error) {
-      console.error('Error fetching locations:', error);
+      console.error("Error fetching locations:", error);
     }
   }
 
   function openAddModal() {
     setEditingEmployee(null);
     setFormData({
-      employee_id: '',
-      last_name: '',
-      first_name: '',
-      middle_initial: '',
-      assigned_hotel: '',
+      employee_id: "",
+      last_name: "",
+      first_name: "",
+      middle_initial: "",
+      assigned_hotel: "",
       locations: [],
-      address: '',
-      birth_date: '',
-      tin_number: '',
-      sss_number: '',
-      philhealth_number: '',
-      pagibig_number: '',
-      hmo_provider: '',
+      address: "",
+      birth_date: "",
+      tin_number: "",
+      sss_number: "",
+      philhealth_number: "",
+      pagibig_number: "",
+      hmo_provider: "",
+      maternity_days: "",
+      paternity_days: "",
+      offset_hours: "",
     });
     setShowModal(true);
   }
@@ -182,20 +194,24 @@ export default function EmployeesPage() {
     setEditingEmployee(employee);
     setFormData({
       employee_id: employee.employee_id,
-      last_name: employee.last_name || '',
-      first_name: employee.first_name || '',
-      middle_initial: employee.middle_initial || '',
-      assigned_hotel: employee.assigned_hotel || '',
-      locations: employee.employee_location_assignments?.map((a) => a.location_id) || [],
-      address: employee.address || '',
+      last_name: employee.last_name || "",
+      first_name: employee.first_name || "",
+      middle_initial: employee.middle_initial || "",
+      assigned_hotel: employee.assigned_hotel || "",
+      locations:
+        employee.employee_location_assignments?.map((a) => a.location_id) || [],
+      address: employee.address || "",
       birth_date: employee.birth_date
         ? new Date(employee.birth_date).toISOString().slice(0, 10)
-        : '',
-      tin_number: employee.tin_number || '',
-      sss_number: employee.sss_number || '',
-      philhealth_number: employee.philhealth_number || '',
-      pagibig_number: employee.pagibig_number || '',
-      hmo_provider: employee.hmo_provider || '',
+        : "",
+      tin_number: employee.tin_number || "",
+      sss_number: employee.sss_number || "",
+      philhealth_number: employee.philhealth_number || "",
+      pagibig_number: employee.pagibig_number || "",
+      hmo_provider: employee.hmo_provider || "",
+      maternity_days: "",
+      paternity_days: "",
+      offset_hours: "",
     });
     setShowModal(true);
   }
@@ -212,11 +228,14 @@ export default function EmployeesPage() {
     });
   };
 
-  async function saveEmployeeLocations(employeeId: string, locationIds: string[]) {
+  async function saveEmployeeLocations(
+    employeeId: string,
+    locationIds: string[]
+  ) {
     const { error: deleteError } = await supabase
-      .from('employee_location_assignments')
+      .from("employee_location_assignments")
       .delete()
-      .eq('employee_id', employeeId);
+      .eq("employee_id", employeeId);
 
     if (deleteError) throw deleteError;
 
@@ -230,7 +249,7 @@ export default function EmployeesPage() {
     }));
 
     const { error: insertError } = await supabase
-      .from('employee_location_assignments')
+      .from("employee_location_assignments")
       .insert(inserts);
 
     if (insertError) throw insertError;
@@ -240,7 +259,7 @@ export default function EmployeesPage() {
     e.preventDefault();
 
     if (formData.locations.length === 0) {
-      toast.error('Please assign at least one location');
+      toast.error("Please assign at least one location");
       return;
     }
 
@@ -248,7 +267,9 @@ export default function EmployeesPage() {
 
     try {
       // Build full_name from separate fields
-      const middleInitial = formData.middle_initial ? ` ${formData.middle_initial}.` : '';
+      const middleInitial = formData.middle_initial
+        ? ` ${formData.middle_initial}.`
+        : "";
       const full_name = `${formData.first_name}${middleInitial} ${formData.last_name}`;
 
       const primaryLocationName =
@@ -272,46 +293,52 @@ export default function EmployeesPage() {
         philhealth_number: formData.philhealth_number || null,
         pagibig_number: formData.pagibig_number || null,
         hmo_provider: formData.hmo_provider || null,
+        // Sync credits into employees for portal display
+        maternity_credits: parseFloat(formData.maternity_days || "0") || 0,
+        paternity_credits: parseFloat(formData.paternity_days || "0") || 0,
+        offset_hours: parseFloat(formData.offset_hours || "0") || 0,
       };
 
-      let employeeId = editingEmployee ? editingEmployee.id : '';
+      let employeeId = editingEmployee ? editingEmployee.id : "";
 
       if (editingEmployee) {
         // Update existing employee
         const { error } = await supabase
-          .from('employees')
+          .from("employees")
           .update(employeeData)
-          .eq('id', editingEmployee.id);
+          .eq("id", editingEmployee.id);
 
         if (error) throw error;
         await saveEmployeeLocations(editingEmployee.id, formData.locations);
-        toast.success('Employee updated successfully');
+        toast.success("Employee updated successfully");
       } else {
         // Create new employee - set default portal password to employee_id
         const { data: inserted, error } = await supabase
-          .from('employees')
+          .from("employees")
           .insert([
             {
               ...employeeData,
               portal_password: formData.employee_id, // Default password is employee_id
             },
           ])
-          .select('id')
+          .select("id")
           .single();
 
         if (error) throw error;
-        employeeId = inserted?.id || '';
+        employeeId = inserted?.id || "";
         if (employeeId) {
           await saveEmployeeLocations(employeeId, formData.locations);
         }
-        toast.success('Employee added successfully. Portal password set to Employee ID.');
+        toast.success(
+          "Employee added successfully. Portal password set to Employee ID."
+        );
       }
 
       setShowModal(false);
       fetchEmployees();
     } catch (error: any) {
-      console.error('Error saving employee:', error);
-      toast.error(error.message || 'Failed to save employee');
+      console.error("Error saving employee:", error);
+      toast.error(error.message || "Failed to save employee");
     } finally {
       setSubmitting(false);
     }
@@ -320,46 +347,48 @@ export default function EmployeesPage() {
   async function toggleEmployeeStatus(employee: Employee) {
     try {
       const { error } = await supabase
-        .from('employees')
+        .from("employees")
         .update({ is_active: !employee.is_active })
-        .eq('id', employee.id);
+        .eq("id", employee.id);
 
       if (error) throw error;
-      
+
       toast.success(
-        `Employee ${employee.is_active ? 'deactivated' : 'activated'} successfully`
+        `Employee ${
+          employee.is_active ? "deactivated" : "activated"
+        } successfully`
       );
       fetchEmployees();
     } catch (error: any) {
-      console.error('Error toggling employee status:', error);
-      toast.error('Failed to update employee status');
+      console.error("Error toggling employee status:", error);
+      toast.error("Failed to update employee status");
     }
   }
 
   function openPasswordModal(employee: Employee) {
     setPasswordEmployee(employee);
-    setNewPassword('');
-    setConfirmPassword('');
+    setNewPassword("");
+    setConfirmPassword("");
     setShowPasswordModal(true);
   }
 
   async function handlePasswordUpdate(e: React.FormEvent) {
     e.preventDefault();
-    
+
     if (!passwordEmployee) return;
 
     if (!newPassword.trim()) {
-      toast.error('Password cannot be empty');
+      toast.error("Password cannot be empty");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error("Passwords do not match");
       return;
     }
 
     if (newPassword.length < 4) {
-      toast.error('Password must be at least 4 characters long');
+      toast.error("Password must be at least 4 characters long");
       return;
     }
 
@@ -367,25 +396,30 @@ export default function EmployeesPage() {
 
     try {
       const { error } = await supabase
-        .from('employees')
+        .from("employees")
         .update({ portal_password: newPassword.trim() })
-        .eq('id', passwordEmployee.id);
+        .eq("id", passwordEmployee.id);
 
       if (error) throw error;
 
-      toast.success('Portal password updated successfully');
+      toast.success("Portal password updated successfully");
       setShowPasswordModal(false);
       fetchEmployees();
     } catch (error: any) {
-      console.error('Error updating password:', error);
-      toast.error(error.message || 'Failed to update password');
+      console.error("Error updating password:", error);
+      toast.error(error.message || "Failed to update password");
     } finally {
       setPasswordSubmitting(false);
     }
   }
 
   async function resetPasswordToDefault(employee: Employee) {
-    if (!confirm('Reset password to Employee ID? This will set the password to: ' + employee.employee_id)) {
+    if (
+      !confirm(
+        "Reset password to Employee ID? This will set the password to: " +
+          employee.employee_id
+      )
+    ) {
       return;
     }
 
@@ -393,18 +427,18 @@ export default function EmployeesPage() {
 
     try {
       const { error } = await supabase
-        .from('employees')
+        .from("employees")
         .update({ portal_password: employee.employee_id })
-        .eq('id', employee.id);
+        .eq("id", employee.id);
 
       if (error) throw error;
 
-      toast.success('Password reset to Employee ID');
+      toast.success("Password reset to Employee ID");
       setShowPasswordModal(false);
       fetchEmployees();
     } catch (error: any) {
-      console.error('Error resetting password:', error);
-      toast.error(error.message || 'Failed to reset password');
+      console.error("Error resetting password:", error);
+      toast.error(error.message || "Failed to reset password");
     } finally {
       setPasswordSubmitting(false);
     }
@@ -423,10 +457,10 @@ export default function EmployeesPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Employee Management</h1>
-            <p className="text-gray-600 mt-1">
-              Manage employee records
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Employee Management
+            </h1>
+            <p className="text-gray-600 mt-1">Manage employee records</p>
           </div>
           <Button onClick={openAddModal}>
             <svg
@@ -483,10 +517,13 @@ export default function EmployeesPage() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredEmployees.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                      <td
+                        colSpan={5}
+                        className="px-6 py-12 text-center text-gray-500"
+                      >
                         {searchTerm
-                          ? 'No employees found matching your search'
-                          : 'No employees yet. Add your first employee!'}
+                          ? "No employees found matching your search"
+                          : "No employees yet. Add your first employee!"}
                       </td>
                     </tr>
                   ) : (
@@ -509,25 +546,29 @@ export default function EmployeesPage() {
                                     locationMap.get(assignment.location_id) ||
                                     null
                                 )
-                                .filter((name): name is string => Boolean(name)) || [];
-                            
+                                .filter((name): name is string =>
+                                  Boolean(name)
+                                ) || [];
+
                             // If we have location assignments, show those
                             if (locationNames.length > 0) {
-                              return locationNames.join(', ');
+                              return locationNames.join(", ");
                             }
-                            
+
                             // Otherwise, fall back to assigned_hotel if it exists
                             if (employee.assigned_hotel) {
                               return employee.assigned_hotel;
                             }
-                            
+
                             // If neither exists, show dash
-                            return '—';
+                            return "—";
                           })()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant={employee.is_active ? 'success' : 'default'}>
-                            {employee.is_active ? 'Active' : 'Inactive'}
+                          <Badge
+                            variant={employee.is_active ? "success" : "default"}
+                          >
+                            {employee.is_active ? "Active" : "Inactive"}
                           </Badge>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -561,10 +602,12 @@ export default function EmployeesPage() {
                           </Button>
                           <Button
                             size="sm"
-                            variant={employee.is_active ? 'secondary' : 'primary'}
+                            variant={
+                              employee.is_active ? "secondary" : "primary"
+                            }
                             onClick={() => toggleEmployeeStatus(employee)}
                           >
-                            {employee.is_active ? 'Deactivate' : 'Activate'}
+                            {employee.is_active ? "Deactivate" : "Activate"}
                           </Button>
                         </td>
                       </tr>
@@ -581,14 +624,14 @@ export default function EmployeesPage() {
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={editingEmployee ? 'Edit Employee' : 'Add New Employee'}
+        title={editingEmployee ? "Edit Employee" : "Add New Employee"}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowModal(false)}>
               Cancel
             </Button>
             <Button onClick={handleSubmit} isLoading={submitting}>
-              {editingEmployee ? 'Update' : 'Create'}
+              {editingEmployee ? "Update" : "Create"}
             </Button>
           </>
         }
@@ -661,7 +704,9 @@ export default function EmployeesPage() {
           />
 
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-gray-700">Assigned Locations</p>
+            <p className="text-sm font-semibold text-gray-700">
+              Assigned Locations
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
               {locations.length === 0 ? (
                 <p className="text-sm text-gray-500">
@@ -674,7 +719,9 @@ export default function EmployeesPage() {
                     <label
                       key={loc.id}
                       className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm ${
-                        checked ? 'bg-emerald-50 border-emerald-200' : 'border-gray-200'
+                        checked
+                          ? "bg-emerald-50 border-emerald-200"
+                          : "border-gray-200"
                       }`}
                     >
                       <input
@@ -690,8 +737,8 @@ export default function EmployeesPage() {
               )}
             </div>
             <p className="text-xs text-gray-500">
-              Select at least one location. The first selected will be treated as the primary
-              location.
+              Select at least one location. The first selected will be treated
+              as the primary location.
             </p>
           </div>
 
@@ -736,6 +783,47 @@ export default function EmployeesPage() {
               setFormData({ ...formData, hmo_provider: e.target.value })
             }
           />
+
+          <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+            <p className="text-sm font-semibold text-gray-700">
+              Initial Leave Allocations (set on first creation; optional)
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                label="Maternity Leave (days)"
+                value={formData.maternity_days}
+                onChange={(e) =>
+                  setFormData({ ...formData, maternity_days: e.target.value })
+                }
+                helperText="Enter allocated days (e.g., 105)"
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                label="Paternity Leave (days)"
+                value={formData.paternity_days}
+                onChange={(e) =>
+                  setFormData({ ...formData, paternity_days: e.target.value })
+                }
+                helperText="Enter allocated days (e.g., 7)"
+              />
+            </div>
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              label="Off-setting (hours)"
+              value={formData.offset_hours}
+              onChange={(e) =>
+                setFormData({ ...formData, offset_hours: e.target.value })
+              }
+              helperText="Enter available offset hours (will be stored /8 as days)"
+            />
+          </div>
         </form>
       </Modal>
 
@@ -746,7 +834,10 @@ export default function EmployeesPage() {
         title={`Manage Portal Account - ${passwordEmployee?.full_name}`}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowPasswordModal(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setShowPasswordModal(false)}
+            >
               Cancel
             </Button>
             {passwordEmployee && (
@@ -758,7 +849,10 @@ export default function EmployeesPage() {
                 Reset to Default
               </Button>
             )}
-            <Button onClick={handlePasswordUpdate} isLoading={passwordSubmitting}>
+            <Button
+              onClick={handlePasswordUpdate}
+              isLoading={passwordSubmitting}
+            >
               Update Password
             </Button>
           </>
@@ -771,7 +865,8 @@ export default function EmployeesPage() {
                 <strong>Employee ID:</strong> {passwordEmployee.employee_id}
               </p>
               <p className="text-xs text-emerald-700 mt-1">
-                Default password is the Employee ID. Employees can use this to login to the portal.
+                Default password is the Employee ID. Employees can use this to
+                login to the portal.
               </p>
             </div>
 
@@ -813,8 +908,11 @@ export default function EmployeesPage() {
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <p className="text-xs text-yellow-800">
-                  <strong>Note:</strong> The employee will need to use this password to login at{' '}
-                  <code className="bg-yellow-100 px-1 rounded">/employee-login</code>
+                  <strong>Note:</strong> The employee will need to use this
+                  password to login at{" "}
+                  <code className="bg-yellow-100 px-1 rounded">
+                    /employee-login
+                  </code>
                 </p>
               </div>
             </form>

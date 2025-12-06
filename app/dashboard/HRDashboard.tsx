@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { Loader2, Users, Clock, MapPin } from 'lucide-react';
-import { format } from 'date-fns';
-import { OfficeLocation, resolveLocationDetails } from '@/lib/location';
-import Link from 'next/link';
-import { Button } from '@/components/Button';
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card } from "@/components/Card";
+import { Loader2, Users, Clock, MapPin, CheckCircle2 } from "lucide-react";
+import { format } from "date-fns";
+import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
+import Link from "next/link";
+import { Button } from "@/components/Button";
 
 interface ClockEntry {
   id: string;
@@ -30,15 +30,28 @@ export default function HRDashboard() {
   const [recentEntries, setRecentEntries] = useState<ClockEntry[]>([]);
   const [clockedInEntries, setClockedInEntries] = useState<ClockEntry[]>([]);
   const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
+  const [pendingFTL, setPendingFTL] = useState(0);
+  const [pendingLeaveManager, setPendingLeaveManager] = useState(0);
+  const [pendingLeaveHR, setPendingLeaveHR] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [employeeCountRes, recentRes, activeRes, locationsRes] = await Promise.all([
-          supabase.from('employees').select('id', { count: 'exact', head: true }),
+        const [
+          employeeCountRes,
+          recentRes,
+          activeRes,
+          locationsRes,
+          ftlPendingRes,
+          leavePendingRes,
+          leaveHRRes,
+        ] = await Promise.all([
           supabase
-            .from('time_clock_entries')
+            .from("employees")
+            .select("id", { count: "exact", head: true }),
+          supabase
+            .from("time_clock_entries")
             .select(
               `
               *,
@@ -48,10 +61,10 @@ export default function HRDashboard() {
               )
             `
             )
-            .order('clock_in_time', { ascending: false })
+            .order("clock_in_time", { ascending: false })
             .limit(8),
           supabase
-            .from('time_clock_entries')
+            .from("time_clock_entries")
             .select(
               `
               *,
@@ -61,38 +74,57 @@ export default function HRDashboard() {
               )
             `
             )
-            .eq('status', 'clocked_in')
-            .order('clock_in_time', { ascending: true }),
+            .eq("status", "clocked_in")
+            .is("clock_out_time", null)
+            .order("clock_in_time", { ascending: true }),
           supabase
-            .from('office_locations')
-            .select('id, name, address, latitude, longitude, radius_meters'),
+            .from("office_locations")
+            .select("id, name, address, latitude, longitude, radius_meters"),
+          supabase
+            .from("failure_to_log")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+          supabase
+            .from("leave_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+          supabase
+            .from("leave_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "approved_by_manager"),
         ]);
 
         // Check for errors in responses
         if (employeeCountRes.error) {
-          console.error('Error fetching employee count:', employeeCountRes.error);
+          console.error(
+            "Error fetching employee count:",
+            employeeCountRes.error
+          );
         }
         if (recentRes.error) {
-          console.error('Error fetching recent entries:', recentRes.error);
+          console.error("Error fetching recent entries:", recentRes.error);
         }
         if (activeRes.error) {
-          console.error('Error fetching clocked in entries:', activeRes.error);
+          console.error("Error fetching clocked in entries:", activeRes.error);
         }
         if (locationsRes.error) {
-          console.error('Error fetching office locations:', locationsRes.error);
+          console.error("Error fetching office locations:", locationsRes.error);
         }
 
         setTotalEmployees(employeeCountRes.count || 0);
         setRecentEntries((recentRes.data || []) as ClockEntry[]);
         setClockedInEntries((activeRes.data || []) as ClockEntry[]);
         setOfficeLocations((locationsRes.data || []) as OfficeLocation[]);
+        setPendingFTL(ftlPendingRes.count || 0);
+        setPendingLeaveManager(leavePendingRes.count || 0);
+        setPendingLeaveHR(leaveHRRes.count || 0);
       } catch (error: any) {
-        console.error('Failed to load dashboard data:', error);
-        console.error('Error details:', {
+        console.error("Failed to load dashboard data:", error);
+        console.error("Error details:", {
           message: error?.message,
           details: error?.details,
           hint: error?.hint,
-          code: error?.code
+          code: error?.code,
         });
       } finally {
         setLoading(false);
@@ -116,7 +148,9 @@ export default function HRDashboard() {
     <DashboardLayout>
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Workforce Overview</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            Workforce Overview
+          </h1>
           <p className="text-muted-foreground mt-2">
             Track employee registrations and the latest time in/out activity.
           </p>
@@ -126,8 +160,12 @@ export default function HRDashboard() {
           <Card className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Employees Registered</p>
-                <p className="text-3xl font-bold text-foreground mt-2">{totalEmployees}</p>
+                <p className="text-sm text-muted-foreground">
+                  Employees Registered
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-2">
+                  {totalEmployees}
+                </p>
               </div>
               <div className="p-3 bg-emerald-50 rounded-full">
                 <Users className="h-6 w-6 text-emerald-600" />
@@ -137,8 +175,12 @@ export default function HRDashboard() {
           <Card className="p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Currently Clocked In</p>
-                <p className="text-3xl font-bold text-foreground mt-2">{clockedInEntries.length}</p>
+                <p className="text-sm text-muted-foreground">
+                  Currently Clocked In
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-2">
+                  {clockedInEntries.length}
+                </p>
               </div>
               <div className="p-3 bg-green-50 rounded-full">
                 <Clock className="h-6 w-6 text-green-600" />
@@ -147,14 +189,64 @@ export default function HRDashboard() {
           </Card>
           <Card className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Manage Time Entries</p>
+              <p className="text-sm text-muted-foreground">
+                Manage Time Entries
+              </p>
               <p className="text-lg font-semibold text-foreground mt-2">
                 Review approvals and locations
               </p>
-              </div>
+            </div>
             <Link href="/time-entries">
               <Button variant="secondary">Open</Button>
             </Link>
+          </Card>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Pending Failure to Log
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-2">
+                  {pendingFTL}
+                </p>
+              </div>
+              <div className="p-3 bg-amber-50 rounded-full">
+                <Clock className="h-6 w-6 text-amber-600" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Leave — Manager Review
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-2">
+                  {pendingLeaveManager}
+                </p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-full">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </Card>
+          <Card className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Leave — HR/Final
+                </p>
+                <p className="text-3xl font-bold text-foreground mt-2">
+                  {pendingLeaveHR}
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-50 rounded-full">
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              </div>
+            </div>
           </Card>
         </div>
 
@@ -162,74 +254,107 @@ export default function HRDashboard() {
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Currently Clocked In</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Currently Clocked In
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Showing employees whose status is still clocked in today.
                 </p>
               </div>
             </div>
             {clockedInEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No employees are clocked in at the moment.</p>
+              <p className="text-sm text-muted-foreground">
+                No employees are clocked in at the moment.
+              </p>
             ) : (
               <div className="space-y-3">
                 {clockedInEntries.map((entry) => {
-                  const details = resolveLocationDetails(entry.clock_in_location, officeLocations);
+                  const details = resolveLocationDetails(
+                    entry.clock_in_location,
+                    officeLocations
+                  );
                   return (
                     <div
                       key={entry.id}
                       className="border rounded-lg p-3 flex items-start justify-between bg-muted/50"
                     >
                       <div>
-                        <p className="font-semibold text-foreground">{entry.employees.full_name}</p>
+                        <p className="font-semibold text-foreground">
+                          {entry.employees.full_name}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          Since {format(new Date(entry.clock_in_time), 'MMM d, h:mm a')}
+                          Since{" "}
+                          {format(
+                            new Date(entry.clock_in_time),
+                            "MMM d, h:mm a"
+                          )}
                         </p>
                         <div className="mt-2 text-xs text-muted-foreground flex items-start gap-1">
                           <MapPin className="h-3 w-3 mt-0.5 text-emerald-500" />
                           <div>
-                            <span className="text-foreground font-medium">{details.name}</span>
+                            <span className="text-foreground font-medium">
+                              {details.name}
+                            </span>
                             <div>{details.address}</div>
-                    </div>
-                  </div>
-                    </div>
+                          </div>
+                        </div>
+                      </div>
                       <div className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded-full">
                         ACTIVE
-                  </div>
+                      </div>
                     </div>
                   );
                 })}
-                    </div>
+              </div>
             )}
-        </Card>
+          </Card>
 
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Recent Clock Activity</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Recent Clock Activity
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Latest clock in/out events from all employees.
                 </p>
               </div>
               <div className="text-xs text-muted-foreground">
-                {format(new Date(), 'MMM d, yyyy')}
+                {format(new Date(), "MMM d, yyyy")}
               </div>
             </div>
             {recentEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No clock entries recorded yet.</p>
+              <p className="text-sm text-muted-foreground">
+                No clock entries recorded yet.
+              </p>
             ) : (
               <div className="space-y-3">
                 {recentEntries.map((entry) => {
-                  const clockInDetails = resolveLocationDetails(entry.clock_in_location, officeLocations);
-                  const clockOutDetails = resolveLocationDetails(entry.clock_out_location, officeLocations);
-                  const statusLabel = entry.status.replace('_', ' ').toUpperCase();
+                  const clockInDetails = resolveLocationDetails(
+                    entry.clock_in_location,
+                    officeLocations
+                  );
+                  const clockOutDetails = resolveLocationDetails(
+                    entry.clock_out_location,
+                    officeLocations
+                  );
+                  const statusLabel = entry.status
+                    .replace("_", " ")
+                    .toUpperCase();
 
                   return (
                     <div key={entry.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between">
-              <div>
-                          <p className="font-semibold text-foreground">{entry.employees.full_name}</p>
+                        <div>
+                          <p className="font-semibold text-foreground">
+                            {entry.employees.full_name}
+                          </p>
                           <p className="text-xs text-muted-foreground">
-                            {statusLabel} · {format(new Date(entry.clock_in_time), 'MMM d, h:mm a')}
+                            {statusLabel} ·{" "}
+                            {format(
+                              new Date(entry.clock_in_time),
+                              "MMM d, h:mm a"
+                            )}
                           </p>
                         </div>
                         <div className="text-[11px] px-2 py-1 rounded-full bg-muted text-muted-foreground">
@@ -238,7 +363,9 @@ export default function HRDashboard() {
                       </div>
                       <div className="mt-3 space-y-2 text-xs text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <span className="font-semibold text-foreground">Clock In:</span>
+                          <span className="font-semibold text-foreground">
+                            Clock In:
+                          </span>
                           <div>
                             <div>{clockInDetails.name}</div>
                             <div>{clockInDetails.address}</div>
@@ -246,10 +373,15 @@ export default function HRDashboard() {
                         </div>
                         {entry.clock_out_time && (
                           <div className="flex items-start gap-2">
-                            <span className="font-semibold text-foreground">Clock Out:</span>
+                            <span className="font-semibold text-foreground">
+                              Clock Out:
+                            </span>
                             <div>
                               <div>
-                                {format(new Date(entry.clock_out_time), 'MMM d, h:mm a')}
+                                {format(
+                                  new Date(entry.clock_out_time),
+                                  "MMM d, h:mm a"
+                                )}
                               </div>
                               <div>{clockOutDetails.name}</div>
                               <div>{clockOutDetails.address}</div>
@@ -263,7 +395,7 @@ export default function HRDashboard() {
               </div>
             )}
           </Card>
-            </div>
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -220,18 +220,15 @@ export default function BundyClockPage() {
 
       // If entry is from a previous day, auto-close it
       if (entryDate < today) {
-        // Auto-close the previous day's entry by setting clock_out_time to end of that day
-        const endOfPreviousDay = new Date(entryDate);
-        endOfPreviousDay.setHours(23, 59, 59, 999);
-
+        // Mark as incomplete (no timeout) but free the user to time in again
         await supabase
           .from("time_clock_entries")
           .update({
-            clock_out_time: endOfPreviousDay.toISOString(),
             status: "clocked_out",
-            // Don't calculate hours yet - wait for failure to log approval
+            clock_out_time: null,
             total_hours: null,
             regular_hours: null,
+            overtime_hours: null,
           })
           .eq("id", data.id);
 
@@ -1046,18 +1043,24 @@ export default function BundyClockPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          entry.status === "clocked_in"
-                            ? "bg-green-100 text-green-700"
-                            : entry.status === "approved" ||
-                              entry.status === "auto_approved"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {entry.status.replace("_", " ").toUpperCase()}
-                      </span>
+                      {entry.clock_out_time ? (
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            entry.status === "clocked_in"
+                              ? "bg-green-100 text-green-700"
+                              : entry.status === "approved" ||
+                                entry.status === "auto_approved"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {entry.status.replace("_", " ").toUpperCase()}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                          INC
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

@@ -42,6 +42,8 @@ export default function FailureToLogApprovalPage() {
   const [selectedRequest, setSelectedRequest] = useState<FailureToLog | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [approveLoading, setApproveLoading] = useState(false);
+  const safeFormat = (value: string | null | undefined, fmt: string) =>
+    value ? formatPHTime(value, fmt) : '—';
 
   useEffect(() => {
     fetchRequests();
@@ -313,10 +315,10 @@ export default function FailureToLogApprovalPage() {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          Missed: {formatPHTime(request.missed_date, 'MMM dd, yyyy')}
+                          Missed: {safeFormat(request.missed_date, 'MMM dd, yyyy')}
                         </div>
                         <div>
-                          Actual: {formatPHTime(request.actual_clock_out_time, 'MMM dd, h:mm a')}
+                          Actual: {safeFormat(request.actual_clock_out_time, 'MMM dd, h:mm a')}
                         </div>
                       </div>
                       <div className="text-sm">

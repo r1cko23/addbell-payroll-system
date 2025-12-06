@@ -61,8 +61,8 @@ export default function FailureToLogPage() {
 
     const emp = JSON.parse(sessionData) as EmployeeSession;
     setEmployee(emp);
-    fetchFailureToLogRequests(emp.id);
-    fetchTimeEntries(emp.id);
+    fetchFailureToLogRequests(emp.employee_id);
+    fetchTimeEntries(emp.employee_id);
   }, [router]);
 
   async function fetchTimeEntries(employeeId: string) {
@@ -135,7 +135,7 @@ export default function FailureToLogPage() {
     const { error } = await supabase
       .from('failure_to_log')
       .insert({
-        employee_id: employee.id,
+        employee_id: employee.employee_id,
         time_entry_id: selectedTimeEntryId || null,
         missed_date: missedDate || null,
         actual_clock_in_time: actualClockInTime,
@@ -160,8 +160,8 @@ export default function FailureToLogPage() {
     setEntryType('out');
     setReason('');
     setSelectedTimeEntryId('');
-    fetchFailureToLogRequests(employee.id);
-    fetchTimeEntries(employee.id);
+    fetchFailureToLogRequests(employee.employee_id);
+    fetchTimeEntries(employee.employee_id);
   }
 
   if (loading || !employee) {

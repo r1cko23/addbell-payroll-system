@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { toast } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 
 type LoginMode = "admin" | "employee";
 
@@ -22,6 +22,7 @@ export function LoginPageClient() {
   const [employeeId, setEmployeeId] = useState("");
   const [employeePassword, setEmployeePassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [adminError, setAdminError] = useState<string>("");
   const [employeeError, setEmployeeError] = useState<string>("");
 
@@ -57,6 +58,31 @@ export function LoginPageClient() {
       toast.error(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      const msg = "Enter your email to receive a reset link.";
+      setAdminError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setResetLoading(true);
+    setAdminError("");
+
+    try {
+      await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      toast.success("If that email exists, a reset link was sent.");
+    } catch (error: any) {
+      const msg = "Could not send reset email. Try again.";
+      setAdminError(msg);
+      toast.error(msg);
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -111,6 +137,16 @@ export function LoginPageClient() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: "hsl(var(--background))",
+            color: "hsl(var(--foreground))",
+            border: "1px solid hsl(var(--border))",
+          },
+        }}
+      />
       <div className="max-w-md w-full">
         <div className="bg-card rounded-2xl shadow-lg border p-8">
           <div className="text-center mb-8">
@@ -197,6 +233,14 @@ export function LoginPageClient() {
                 className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 {loading ? "Signing in..." : "Sign In"}
+              </button>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="w-full mt-3 text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetLoading ? "Sending reset link..." : "Forgot password?"}
               </button>
               {adminError && (
                 <p className="mt-2 text-sm text-red-600">{adminError}</p>

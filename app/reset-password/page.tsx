@@ -1,0 +1,175 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { Toaster, toast } from "react-hot-toast";
+
+export default function ResetPasswordPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [canReset, setCanReset] = useState(false);
+
+  useEffect(() => {
+    // Mark the page ready when the recovery link has been used
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setCanReset(true);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: sessionData }) => {
+      if (sessionData.session) {
+        setCanReset(true);
+      }
+    });
+
+    // Some recovery links include a query param; honor it as a fallback
+    if (searchParams?.get("type") === "recovery") {
+      setCanReset(true);
+    }
+
+    return () => {
+      authListener.subscription?.unsubscribe();
+    };
+  }, [supabase, searchParams]);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      toast.error("Enter and confirm your new password.");
+      return;
+    }
+
+    if (newPassword.trim().length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword.trim(),
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Password updated. You can now sign in.");
+      router.push("/login");
+      router.refresh();
+    } catch (error: any) {
+      const msg = error?.message || "Unable to update password. Try again.";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: "hsl(var(--background))",
+            color: "hsl(var(--foreground))",
+            border: "1px solid hsl(var(--border))",
+          },
+        }}
+      />
+      <div className="max-w-md w-full">
+        <div className="bg-card rounded-2xl shadow-lg border p-8">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-primary mb-2">
+              Reset Password
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Enter a new password for your account.
+            </p>
+          </div>
+
+          <form onSubmit={handleReset} className="space-y-5">
+            <div>
+              <label
+                htmlFor="new-password"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                New Password
+              </label>
+              <input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-input rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent transition text-foreground"
+                placeholder="••••••••"
+                required
+                minLength={8}
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirm-password"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Confirm Password
+              </label>
+              <input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-input rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent transition text-foreground"
+                placeholder="Repeat new password"
+                required
+                minLength={8}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !canReset}
+              className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              {loading ? "Updating password..." : "Update Password"}
+            </button>
+
+            {!canReset && (
+              <p className="text-sm text-amber-600">
+                Open this page from the password reset link we sent to your
+                email to continue.
+              </p>
+            )}
+          </form>
+        </div>
+
+        <div className="mt-6 text-center text-sm text-muted-foreground">
+          <p>
+            Return to{" "}
+            <button
+              onClick={() => router.push("/login")}
+              className="text-primary hover:underline"
+            >
+              sign in
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

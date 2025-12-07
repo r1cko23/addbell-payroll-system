@@ -73,9 +73,16 @@ export function LoginPageClient() {
     setAdminError("");
 
     try {
-      await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+      const res = await fetch("/api/auth/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
       });
+
+      if (!res.ok) {
+        throw new Error("Request failed");
+      }
+
       toast.success("If that email exists, a reset link was sent.");
     } catch (error: any) {
       const msg = "Could not send reset email. Try again.";

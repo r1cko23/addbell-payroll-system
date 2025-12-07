@@ -20,6 +20,7 @@ function ResetPasswordClient() {
   const [loading, setLoading] = useState(false);
   const [canReset, setCanReset] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
+  const [sessionAttempted, setSessionAttempted] = useState(false);
 
   useEffect(() => {
     // Mark the page ready when the recovery link has been used
@@ -67,10 +68,52 @@ function ResetPasswordClient() {
         });
     }
 
+    // Handle hash-based recovery links (#access_token=...&refresh_token=...&type=recovery)
+    if (!sessionAttempted && typeof window !== "undefined") {
+      const hash = window.location.hash || "";
+      if (hash.startsWith("#")) {
+        const params = new URLSearchParams(hash.slice(1));
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        const typeParam = params.get("type");
+        if (accessToken && refreshToken && typeParam === "recovery") {
+          supabase.auth
+            .setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+            .then(({ error }) => {
+              if (error) {
+                setLinkError(
+                  error.message ||
+                    "This reset link is invalid or has expired. Request a new one."
+                );
+                setCanReset(false);
+              } else {
+                setCanReset(true);
+                setLinkError(null);
+              }
+            })
+            .catch((err) => {
+              setLinkError(
+                err?.message ||
+                  "This reset link is invalid or has expired. Request a new one."
+              );
+              setCanReset(false);
+            })
+            .finally(() => setSessionAttempted(true));
+        } else {
+          setSessionAttempted(true);
+        }
+      } else {
+        setSessionAttempted(true);
+      }
+    }
+
     return () => {
       authListener.subscription?.unsubscribe();
     };
-  }, [supabase, searchParams]);
+  }, [supabase, searchParams, sessionAttempted]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();

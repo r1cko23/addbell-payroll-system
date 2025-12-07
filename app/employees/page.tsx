@@ -516,7 +516,7 @@ export default function EmployeesPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 min-w-[210px]">
                       Actions
                     </th>
                   </tr>
@@ -542,7 +542,7 @@ export default function EmployeesPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {employee.full_name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 text-sm text-gray-900 whitespace-normal break-words max-w-xl">
                           {(() => {
                             // First, try to get locations from employee_location_assignments
                             const locationNames =
@@ -578,7 +578,7 @@ export default function EmployeesPage() {
                             {employee.is_active ? "Active" : "Inactive"}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 sticky right-0 bg-white z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">
                           <Button
                             size="sm"
                             variant="ghost"

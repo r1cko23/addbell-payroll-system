@@ -19,6 +19,7 @@ function ResetPasswordClient() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [canReset, setCanReset] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   useEffect(() => {
     // Mark the page ready when the recovery link has been used
@@ -37,6 +38,33 @@ function ResetPasswordClient() {
     // Some recovery links include a query param; honor it as a fallback
     if (searchParams?.get("type") === "recovery") {
       setCanReset(true);
+    }
+
+    // Handle PKCE code exchange (new Supabase reset links)
+    const code = searchParams?.get("code");
+    const type = searchParams?.get("type");
+    if (code && type === "recovery") {
+      supabase.auth
+        .exchangeCodeForSession(code)
+        .then(({ error }) => {
+          if (error) {
+            setLinkError(
+              error.message ||
+                "This reset link is invalid or has expired. Request a new one."
+            );
+            setCanReset(false);
+          } else {
+            setCanReset(true);
+            setLinkError(null);
+          }
+        })
+        .catch((err) => {
+          setLinkError(
+            err?.message ||
+              "This reset link is invalid or has expired. Request a new one."
+          );
+          setCanReset(false);
+        });
     }
 
     return () => {
@@ -158,6 +186,13 @@ function ResetPasswordClient() {
               <p className="text-sm text-amber-600">
                 Open this page from the password reset link we sent to your
                 email to continue.
+              </p>
+            )}
+
+            {linkError && (
+              <p className="text-sm text-red-600">
+                {linkError} If this link just expired, request a new reset email
+                and use it within a few minutes.
               </p>
             )}
           </form>

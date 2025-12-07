@@ -269,6 +269,16 @@ export default function LeaveRequestPage() {
         );
         return;
       }
+      const requestedHours = Number(calculatedHours || 0);
+      const availableHours = Number(offsetHours || 0);
+      if (requestedHours > availableHours) {
+        toast.error(
+          `Requested Off-setting hours (${requestedHours.toFixed(
+            2
+          )}) exceed your available credits (${availableHours.toFixed(2)})`
+        );
+        return;
+      }
     } else {
       if (calculatedDays <= 0) {
         toast.error("Please select valid dates");
@@ -420,6 +430,8 @@ export default function LeaveRequestPage() {
   const paternityDays = employeeInfo?.paternity_credits ?? 0;
   // Display both configured offset_hours (credits) and actual balance from earned/usage
   const offsetHours = offsetBalance ?? employeeInfo?.offset_hours ?? 0;
+  const exceedsOffset =
+    leaveType === "Off-setting" && calculatedHours > offsetHours;
 
   const visibleRequests = requests.filter((r) => r.status !== "cancelled");
   const pendingCount = visibleRequests.filter(
@@ -713,6 +725,12 @@ export default function LeaveRequestPage() {
                             ? `${calculatedHours.toFixed(2)} hours`
                             : "Enter time range"}
                         </div>
+                        {exceedsOffset && (
+                          <p className="text-sm text-red-600 font-semibold">
+                            Requested hours exceed available Off-setting credits
+                            ({offsetHours.toFixed(2)}).
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">

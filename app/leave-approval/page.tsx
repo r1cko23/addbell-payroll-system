@@ -23,6 +23,7 @@ interface LeaveRequest {
   start_date: string;
   end_date: string;
   total_days: number;
+  total_hours?: number | null;
   reason: string | null;
   status:
     | "pending"
@@ -39,6 +40,7 @@ interface LeaveRequest {
     employee_id: string;
     full_name: string;
     sil_credits: number;
+    offset_hours?: number | null;
   };
 }
 
@@ -123,7 +125,8 @@ export default function LeaveApprovalPage() {
         employees (
           employee_id,
           full_name,
-          sil_credits
+          sil_credits,
+          offset_hours
         )
       `
       )
@@ -162,6 +165,19 @@ export default function LeaveApprovalPage() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
+
+    if (request.leave_type === "Off-setting") {
+      const requestedHours = Number(request.total_hours || 0);
+      const availableHours = Number(request.employees?.offset_hours || 0);
+      if (requestedHours > availableHours) {
+        toast.error(
+          `Requested Off-setting (${requestedHours.toFixed(
+            2
+          )} hrs) exceeds available credits (${availableHours.toFixed(2)} hrs)`
+        );
+        return;
+      }
+    }
 
     if (level === "hr" && request.status !== "approved_by_manager") {
       toast.error("HR approval requires manager approval first");
@@ -447,15 +463,42 @@ export default function LeaveApprovalPage() {
                           )} -{" "}
                           {format(new Date(request.end_date), "MMM dd, yyyy")}
                         </div>
-                        <div className="font-semibold text-emerald-600">
-                          {request.total_days}{" "}
-                          {request.total_days === 1 ? "day" : "days"}
-                        </div>
+                        {request.leave_type === "Off-setting" ? (
+                          <div className="font-semibold text-emerald-600">
+                            {request.total_hours ?? 0} hours
+                          </div>
+                        ) : (
+                          <div className="font-semibold text-emerald-600">
+                            {request.total_days}{" "}
+                            {request.total_days === 1 ? "day" : "days"}
+                          </div>
+                        )}
                         {request.leave_type === "SIL" && request.employees && (
                           <div className="text-xs">
                             Available Credits: {request.employees.sil_credits}
                           </div>
                         )}
+                        {request.leave_type === "Off-setting" &&
+                          typeof request.employees?.offset_hours ===
+                            "number" && (
+                            <div
+                              className={`text-xs ${
+                                (request.total_hours || 0) >
+                                (request.employees?.offset_hours || 0)
+                                  ? "text-red-600 font-semibold"
+                                  : ""
+                              }`}
+                            >
+                              Available Off-setting Hours:{" "}
+                              {request.employees.offset_hours?.toFixed(2)}
+                              {(request.total_hours || 0) >
+                                (request.employees?.offset_hours || 0) && (
+                                <span className="ml-1">
+                                  (request exceeds credits)
+                                </span>
+                              )}
+                            </div>
+                          )}
                       </div>
                       {request.reason && (
                         <div className="text-sm">
@@ -596,10 +639,16 @@ export default function LeaveApprovalPage() {
                       <div className="text-sm text-muted-foreground">
                         Total Days
                       </div>
-                      <div className="font-semibold text-emerald-600">
-                        {selectedRequest.total_days}{" "}
-                        {selectedRequest.total_days === 1 ? "day" : "days"}
-                      </div>
+                      {selectedRequest.leave_type === "Off-setting" ? (
+                        <div className="font-semibold text-emerald-600">
+                          {selectedRequest.total_hours ?? 0} hours
+                        </div>
+                      ) : (
+                        <div className="font-semibold text-emerald-600">
+                          {selectedRequest.total_days}{" "}
+                          {selectedRequest.total_days === 1 ? "day" : "days"}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -641,6 +690,41 @@ export default function LeaveApprovalPage() {
                               (Insufficient)
                             </span>
                           )}
+                        </div>
+                      </div>
+                    )}
+
+                  {selectedRequest.leave_type === "Off-setting" &&
+                    selectedRequest.employees && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">
+                          Off-setting Credits Check
+                        </div>
+                        <div className="space-y-1">
+                          <div className="font-semibold text-emerald-600">
+                            Requested: {selectedRequest.total_hours ?? 0} hours
+                          </div>
+                          <div
+                            className={`font-semibold ${
+                              (selectedRequest.total_hours || 0) >
+                              (selectedRequest.employees.offset_hours || 0)
+                                ? "text-red-600"
+                                : "text-green-600"
+                            }`}
+                          >
+                            Available Credits:{" "}
+                            {selectedRequest.employees.offset_hours?.toFixed(
+                              2
+                            ) ?? "0.00"}{" "}
+                            hours
+                            {(selectedRequest.total_hours || 0) >
+                              (selectedRequest.employees.offset_hours || 0) && (
+                              <span className="flex items-center gap-1 text-red-600 mt-1">
+                                <AlertCircle className="h-4 w-4" />
+                                Requested hours exceed available offset credits.
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}

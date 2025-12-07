@@ -15,6 +15,8 @@ import {
   CheckCircle,
   XCircle,
   Hourglass,
+  FileText,
+  Paperclip,
 } from "lucide-react";
 import { format, differenceInDays, addDays } from "date-fns";
 
@@ -22,6 +24,14 @@ interface EmployeeSession {
   id: string;
   employee_id: string;
   full_name: string;
+}
+
+interface LeaveDocument {
+  id: string;
+  leave_request_id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
 }
 
 interface LeaveRequest {
@@ -47,6 +57,7 @@ interface LeaveRequest {
     | "cancelled";
   rejection_reason: string | null;
   created_at: string;
+  leave_request_documents?: LeaveDocument[];
 }
 
 interface EmployeeInfo {
@@ -65,6 +76,10 @@ export default function LeaveRequestPage() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
+  const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
+  const [docError, setDocError] = useState<string | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
 
   // Form state
   const [leaveType, setLeaveType] = useState<
@@ -80,6 +95,55 @@ export default function LeaveRequestPage() {
   const [calculatedHours, setCalculatedHours] = useState(0);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
+
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB cap to keep DB light
+  const ALLOWED_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ];
+  const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
+
+  const resolveMimeType = (file: File) => {
+    if (file.type) return file.type;
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith(".pdf")) return "application/pdf";
+    if (lower.endsWith(".docx"))
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (lower.endsWith(".doc")) return "application/msword";
+    return "application/octet-stream";
+  };
+
+  const isAllowedFile = (file: File) => {
+    const typeOk = ALLOWED_TYPES.includes(resolveMimeType(file));
+    const extOk = ALLOWED_EXTENSIONS.some((ext) =>
+      file.name.toLowerCase().endsWith(ext)
+    );
+    return typeOk || extOk;
+  };
+
+  const fileToBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        if (base64) resolve(base64);
+        else reject(new Error("Unable to read file"));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const base64ToBlob = (base64: string, type: string) => {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type });
+  };
 
   useEffect(() => {
     const sessionData = localStorage.getItem("employee_session");
@@ -232,7 +296,17 @@ export default function LeaveRequestPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("leave_requests")
-      .select("*")
+      .select(
+        `
+        *,
+        leave_request_documents (
+          id,
+          file_name,
+          file_type,
+          file_size
+        )
+      `
+      )
       .eq("employee_id", employeeId)
       .order("created_at", { ascending: false });
 
@@ -335,6 +409,21 @@ export default function LeaveRequestPage() {
       }
     }
 
+    if (leaveType === "SIL") {
+      if (!supportingDoc) {
+        toast.error("Please attach supporting document (PDF/DOC/DOCX)");
+        return;
+      }
+      if (!isAllowedFile(supportingDoc)) {
+        toast.error("Only PDF, DOC, or DOCX files are allowed");
+        return;
+      }
+      if (supportingDoc.size > MAX_FILE_SIZE) {
+        toast.error("File too large. Max size is 5MB.");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     const payload =
@@ -362,15 +451,56 @@ export default function LeaveRequestPage() {
             status: "pending",
           };
 
-    const { error } = await supabase.from("leave_requests").insert(payload);
+    const { data: inserted, error } = await supabase
+      .from("leave_requests")
+      .insert(payload)
+      .select()
+      .single();
 
-    setSubmitting(false);
-
-    if (error) {
+    if (error || !inserted) {
+      setSubmitting(false);
       console.error("Error submitting leave request:", error);
       toast.error("Failed to submit leave request");
       return;
     }
+
+    if (leaveType === "SIL" && supportingDoc) {
+      setDocUploading(true);
+      try {
+        const base64 = await fileToBase64(supportingDoc);
+        const resolvedType = resolveMimeType(supportingDoc);
+        const { error: docError } = await supabase
+          .from("leave_request_documents")
+          .insert({
+            leave_request_id: inserted.id,
+            employee_id: employee.id,
+            document_type: "SIL",
+            file_name: supportingDoc.name,
+            file_type: resolvedType,
+            file_size: supportingDoc.size,
+            file_base64: base64,
+          });
+
+        if (docError) {
+          console.error("Error saving document:", docError);
+          await supabase.from("leave_requests").delete().eq("id", inserted.id);
+          toast.error("Failed to save document. Please try again.");
+          setDocUploading(false);
+          setSubmitting(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Error preparing document:", err);
+        await supabase.from("leave_requests").delete().eq("id", inserted.id);
+        toast.error("Failed to attach document. Please try again.");
+        setDocUploading(false);
+        setSubmitting(false);
+        return;
+      }
+      setDocUploading(false);
+    }
+
+    setSubmitting(false);
 
     toast.success("✅ Leave request submitted successfully!");
     setStartDate("");
@@ -380,6 +510,8 @@ export default function LeaveRequestPage() {
     setCalculatedHours(0);
     setStartTime("");
     setEndTime("");
+    setSupportingDoc(null);
+    setDocError(null);
     fetchLeaveRequests(employee.id);
     fetchEmployeeInfo(employee.id);
   }
@@ -414,6 +546,36 @@ export default function LeaveRequestPage() {
       fetchLeaveRequests(employee.id);
       fetchEmployeeInfo(employee.id);
     }
+  }
+
+  async function handleDownload(docId: string) {
+    setDownloadingDocId(docId);
+    const { data, error } = await supabase
+      .from("leave_request_documents")
+      .select("file_base64, file_name, file_type")
+      .eq("id", docId)
+      .maybeSingle();
+
+    setDownloadingDocId(null);
+
+    if (error || !data) {
+      console.error("Error fetching document:", error);
+      toast.error("Unable to fetch document");
+      return;
+    }
+
+    const blob = base64ToBlob(
+      data.file_base64,
+      data.file_type || "application/octet-stream"
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = data.file_name || "document";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   if (loading || !employee) {
@@ -758,6 +920,60 @@ export default function LeaveRequestPage() {
                   </>
                 )}
 
+                {leaveType === "SIL" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="supporting-doc">
+                      Supporting Document (PDF/DOC/DOCX)
+                    </Label>
+                    <input
+                      id="supporting-doc"
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) {
+                          setSupportingDoc(null);
+                          setDocError(null);
+                          return;
+                        }
+                        if (!isAllowedFile(file)) {
+                          setDocError(
+                            "Only PDF, DOC, or DOCX files are allowed."
+                          );
+                          setSupportingDoc(null);
+                          return;
+                        }
+                        if (file.size > MAX_FILE_SIZE) {
+                          setDocError("File too large. Max size is 5MB.");
+                          setSupportingDoc(null);
+                          return;
+                        }
+                        setDocError(null);
+                        setSupportingDoc(file);
+                      }}
+                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Attach clinic slip or documentation for SIL. Max 5MB.
+                    </p>
+                    {supportingDoc && !docError && (
+                      <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-3 py-2">
+                        <Paperclip className="h-4 w-4" />
+                        <span>{supportingDoc.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                      </div>
+                    )}
+                    {docError && (
+                      <p className="text-sm text-red-600 font-medium">
+                        {docError}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="reason">Reason</Label>
                   <textarea
@@ -773,9 +989,9 @@ export default function LeaveRequestPage() {
 
                 <Button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || docUploading}
                   className="w-full"
-                  isLoading={submitting}
+                  isLoading={submitting || docUploading}
                 >
                   Submit Leave Request
                 </Button>
@@ -848,6 +1064,41 @@ export default function LeaveRequestPage() {
                                 <div className="mt-1 text-muted-foreground">
                                   {request.reason}
                                 </div>
+                              </div>
+                            )}
+
+                            {request.leave_type === "SIL" && (
+                              <div className="mt-2">
+                                <div className="flex items-center gap-2 text-sm font-semibold">
+                                  <FileText className="h-4 w-4" />
+                                  Supporting Document
+                                </div>
+                                {request.leave_request_documents &&
+                                request.leave_request_documents.length > 0 ? (
+                                  request.leave_request_documents.map((doc) => (
+                                    <div
+                                      key={doc.id}
+                                      className="flex items-center gap-2 mt-1 text-sm"
+                                    >
+                                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                                      <span className="truncate max-w-[160px]">
+                                        {doc.file_name}
+                                      </span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleDownload(doc.id)}
+                                        isLoading={downloadingDocId === doc.id}
+                                      >
+                                        View
+                                      </Button>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">
+                                    No supporting document attached.
+                                  </p>
+                                )}
                               </div>
                             )}
 

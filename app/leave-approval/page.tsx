@@ -8,8 +8,26 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Calendar, Check, X, User, Filter, AlertCircle } from "lucide-react";
+import {
+  Calendar,
+  Check,
+  X,
+  User,
+  Filter,
+  AlertCircle,
+  FileText,
+  Paperclip,
+  Download,
+} from "lucide-react";
 import { format } from "date-fns";
+
+interface LeaveDocument {
+  id: string;
+  leave_request_id: string;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+}
 
 interface LeaveRequest {
   id: string;
@@ -42,6 +60,7 @@ interface LeaveRequest {
     sil_credits: number;
     offset_hours?: number | null;
   };
+  leave_request_documents?: LeaveDocument[];
 }
 
 export default function LeaveApprovalPage() {
@@ -56,6 +75,17 @@ export default function LeaveApprovalPage() {
   const [notes, setNotes] = useState("");
   const [userRole, setUserRole] = useState<string>("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+
+  const base64ToBlob = (base64: string, type: string) => {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type });
+  };
 
   useEffect(() => {
     fetchUserRole();
@@ -127,6 +157,12 @@ export default function LeaveApprovalPage() {
           full_name,
           sil_credits,
           offset_hours
+        ),
+        leave_request_documents (
+          id,
+          file_name,
+          file_type,
+          file_size
         )
       `
       )
@@ -158,6 +194,36 @@ export default function LeaveApprovalPage() {
 
     const cleaned = (data || []).filter((r) => r.status !== "cancelled");
     setRequests(cleaned);
+  }
+
+  async function downloadDocument(docId: string) {
+    setDownloadingDocId(docId);
+    const { data, error } = await supabase
+      .from("leave_request_documents")
+      .select("file_base64, file_name, file_type")
+      .eq("id", docId)
+      .maybeSingle();
+
+    setDownloadingDocId(null);
+
+    if (error || !data) {
+      console.error("Error fetching document:", error);
+      toast.error("Unable to fetch document");
+      return;
+    }
+
+    const blob = base64ToBlob(
+      data.file_base64,
+      data.file_type || "application/octet-stream"
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = data.file_name || "document";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleApprove(request: LeaveRequest, level: "manager" | "hr") {
@@ -737,6 +803,45 @@ export default function LeaveApprovalPage() {
                       <div className="p-3 bg-muted rounded-md">
                         {selectedRequest.reason}
                       </div>
+                    </div>
+                  )}
+
+                  {selectedRequest.leave_type === "SIL" && (
+                    <div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <FileText className="h-4 w-4" />
+                        Supporting Document
+                      </div>
+                      {selectedRequest.leave_request_documents &&
+                      selectedRequest.leave_request_documents.length > 0 ? (
+                        selectedRequest.leave_request_documents.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="flex items-center gap-2 mt-2 text-sm"
+                          >
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                            <div className="flex-1 truncate">
+                              {doc.file_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {(doc.file_size / 1024).toFixed(1)} KB
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadDocument(doc.id)}
+                              isLoading={downloadingDocId === doc.id}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          No supporting document attached.
+                        </p>
+                      )}
                     </div>
                   )}
 

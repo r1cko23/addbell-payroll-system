@@ -66,12 +66,16 @@ export default function SchedulePage() {
     loadWeek();
   }, [employee.id, supabase, weekDays, weekStart]);
 
-  const handleChange = (idx: number, field: keyof DayEntry, value: string) => {
+  const handleChange = (
+    idx: number,
+    field: keyof DayEntry,
+    value: string | boolean
+  ) => {
     setDays((prev) => {
       const next = [...prev];
       // If switching to day_off, clear times
       if (field === "day_off") {
-        const isOff = value === "true" || value === true;
+        const isOff = value === true || value === "true";
         next[idx] = {
           ...next[idx],
           day_off: isOff,
@@ -79,7 +83,7 @@ export default function SchedulePage() {
           end_time: isOff ? "" : next[idx].end_time,
         };
       } else {
-        next[idx] = { ...next[idx], [field]: value };
+        next[idx] = { ...next[idx], [field]: value as string };
       }
       return next;
     });

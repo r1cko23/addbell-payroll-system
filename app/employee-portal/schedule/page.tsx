@@ -13,6 +13,7 @@ type DayEntry = {
   schedule_date: string;
   start_time: string;
   end_time: string;
+  day_off: boolean;
 };
 
 export default function SchedulePage() {
@@ -55,6 +56,7 @@ export default function SchedulePage() {
               schedule_date: iso,
               start_time: existing?.start_time || "",
               end_time: existing?.end_time || "",
+              day_off: existing?.day_off || false,
             };
           })
         );
@@ -67,7 +69,18 @@ export default function SchedulePage() {
   const handleChange = (idx: number, field: keyof DayEntry, value: string) => {
     setDays((prev) => {
       const next = [...prev];
+      // If switching to day_off, clear times
+      if (field === "day_off") {
+        const isOff = value === "true" || value === true;
+        next[idx] = {
+          ...next[idx],
+          day_off: isOff,
+          start_time: isOff ? "" : next[idx].start_time,
+          end_time: isOff ? "" : next[idx].end_time,
+        };
+      } else {
       next[idx] = { ...next[idx], [field]: value };
+      }
       return next;
     });
   };
@@ -82,6 +95,7 @@ export default function SchedulePage() {
         schedule_date: format(d, "yyyy-MM-dd"),
         start_time: "08:00",
         end_time: "17:00",
+        day_off: false,
       }))
     );
   };
@@ -93,22 +107,60 @@ export default function SchedulePage() {
     }
     setLoading(true);
     const entries = days
-      .filter((d) => d.start_time && d.end_time && d.schedule_date)
+      .filter((d) => d.schedule_date)
       .map((d) => ({
         schedule_date: d.schedule_date,
-        start_time: d.start_time,
-        end_time: d.end_time,
+        start_time: d.day_off ? null : d.start_time,
+        end_time: d.day_off ? null : d.end_time,
+        day_off: d.day_off,
       }));
-    const { error } = await supabase.rpc("replace_week_schedule", {
+    const payload = {
       p_employee_id: employee.id,
       p_week_start: format(
         startOfWeek(weekStart, { weekStartsOn: 1 }),
         "yyyy-MM-dd"
       ),
       p_entries: entries,
-    });
+    };
+
+    // First try RPC; fallback to direct table ops if RPC endpoint is not registered yet (404)
+    const { error } = await supabase.rpc("save_week_schedule", payload);
+
+    // If RPC fails for any reason (including 404 path not registered), fallback to direct table writes
     if (error) {
-      toast.error(error.message || "Failed to save schedule");
+      // Fallback: direct delete + insert
+      try {
+        const weekStartIso = payload.p_week_start;
+        const weekEndIso = format(
+          addDays(new Date(weekStartIso), 6),
+          "yyyy-MM-dd"
+        );
+        const { error: delErr } = await supabase
+          .from("employee_week_schedules")
+          .delete()
+          .eq("employee_id", employee.id)
+          .gte("schedule_date", weekStartIso)
+          .lte("schedule_date", weekEndIso);
+        if (delErr) throw delErr;
+
+        const { error: insErr } = await supabase
+          .from("employee_week_schedules")
+          .insert(
+            entries.map((e) => ({
+              employee_id: employee.id,
+              week_start: weekStartIso,
+              schedule_date: e.schedule_date,
+              start_time: e.day_off ? null : e.start_time,
+              end_time: e.day_off ? null : e.end_time,
+              day_off: e.day_off ?? false,
+            }))
+          );
+        if (insErr) throw insErr;
+        toast.success("Schedule saved (fallback)");
+      } catch (fallbackErr: any) {
+        console.error("Fallback save failed", fallbackErr);
+        toast.error(fallbackErr?.message || "Failed to save schedule");
+      }
     } else {
       toast.success("Schedule saved");
     }
@@ -175,12 +227,29 @@ export default function SchedulePage() {
               <div className="text-sm font-semibold text-gray-800">
                 {format(day, "EEEE, MMM d")}
               </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id={`dayoff-${idx}`}
+                  type="checkbox"
+                  checked={!!days[idx]?.day_off}
+                  disabled={isLocked}
+                  onChange={(e) =>
+                    handleChange(idx, "day_off", e.target.checked as any)
+                  }
+                />
+                <label
+                  htmlFor={`dayoff-${idx}`}
+                  className="text-sm text-gray-700 select-none"
+                >
+                  Mark as day off
+                </label>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   type="time"
                   label="Start"
                   value={days[idx]?.start_time || ""}
-                  disabled={isLocked}
+                  disabled={isLocked || days[idx]?.day_off}
                   onChange={(e) =>
                     handleChange(idx, "start_time", e.target.value)
                   }
@@ -189,7 +258,7 @@ export default function SchedulePage() {
                   type="time"
                   label="End"
                   value={days[idx]?.end_time || ""}
-                  disabled={isLocked}
+                  disabled={isLocked || days[idx]?.day_off}
                   onChange={(e) =>
                     handleChange(idx, "end_time", e.target.value)
                   }

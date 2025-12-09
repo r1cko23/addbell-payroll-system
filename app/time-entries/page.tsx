@@ -230,11 +230,11 @@ export default function TimeEntriesPage() {
         format(new Date(entry.clock_in_time), 'yyyy-MM-dd HH:mm:ss'),
         entry.clock_out_time ? format(new Date(entry.clock_out_time), 'yyyy-MM-dd HH:mm:ss') : 'Not clocked out',
           holidayTag || 'Regular Day',
-          entry.total_hours || 0,
-          entry.regular_hours || 0,
-          entry.night_diff_hours || 0,
-          entry.status,
-          entry.employee_notes || '',
+        entry.total_hours || 0,
+        entry.regular_hours || 0,
+        entry.night_diff_hours || 0,
+        entry.status,
+        entry.employee_notes || '',
         ].join(',');
       })
     ].join('\n');

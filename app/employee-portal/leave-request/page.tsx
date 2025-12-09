@@ -373,12 +373,17 @@ export default function LeaveRequestPage() {
         return;
       }
       if (silCredits < calculatedDays) {
-        toast.error(
-          `Insufficient SIL credits. You have ${silCredits.toFixed(
+        const proceedAsLwop = window.confirm(
+          `You only have ${silCredits.toFixed(
             2
-          )} credits but need ${calculatedDays}`
+          )} SIL credits but filed for ${calculatedDays} day(s).\n\n` +
+            `Click OK to switch this request to LWOP, or Cancel to adjust dates.`
         );
-        return;
+        if (!proceedAsLwop) return;
+        setLeaveType("LWOP");
+        toast.warning(
+          "Converted to LWOP because filed SIL exceeds available credits."
+        );
       }
     }
 
@@ -583,7 +588,11 @@ export default function LeaveRequestPage() {
   }
 
   // Use actual values from database
-  const silCredits = employeeInfo?.sil_credits ?? null;
+  const silCredits =
+    employeeInfo?.sil_credits !== undefined &&
+    employeeInfo?.sil_credits !== null
+      ? Number(employeeInfo.sil_credits)
+      : null;
   const maternityDays = employeeInfo?.maternity_credits ?? 0;
   const paternityDays = employeeInfo?.paternity_credits ?? 0;
   // Display both configured offset_hours (credits) and actual balance from earned/usage

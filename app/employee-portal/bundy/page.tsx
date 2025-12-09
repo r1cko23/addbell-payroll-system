@@ -384,6 +384,24 @@ export default function BundyClockPage() {
 
       const entries: CalendarEntry[] = [];
 
+      // Fetch day-off flags from schedule within grid range
+      const { data: scheduleDays, error: scheduleError } = await supabase
+        .from("employee_week_schedules")
+        .select("schedule_date, day_off")
+        .eq("employee_id", employee.id)
+        .gte("schedule_date", formatDate(gridStart, "yyyy-MM-dd"))
+        .lte("schedule_date", formatDate(gridEnd, "yyyy-MM-dd"));
+
+      if (scheduleError) {
+        console.error("Failed to load schedule day-off flags", scheduleError);
+      }
+
+      const dayOffSet = new Set(
+        (scheduleDays || [])
+          .filter((d: any) => d.day_off)
+          .map((d: any) => formatDate(new Date(d.schedule_date), "yyyy-MM-dd"))
+      );
+
       // Time entries mapped to days
       (timeData || []).forEach((entry) => {
         const dateIso =
@@ -432,6 +450,7 @@ export default function BundyClockPage() {
         if (hasLeave) return;
         const isWeekend = day.getDay() === 0 || day.getDay() === 6;
         const isHoliday = holidaySet.has(iso);
+        const isDayOff = dayOffSet.has(iso);
 
         const timeEntries = existing.filter(
           (e) => e.type === "time" || e.type === "inc"
@@ -439,8 +458,8 @@ export default function BundyClockPage() {
 
         // Only mark absent/inc/present for dates up to today
         if (day > today) return;
-        // Skip holidays only (weekends can be working days)
-        if (isHoliday) return;
+        // Skip holidays and marked day-offs (weekends can be working days)
+        if (isHoliday || isDayOff) return;
 
         if (timeEntries.length === 0) {
           existing.push({

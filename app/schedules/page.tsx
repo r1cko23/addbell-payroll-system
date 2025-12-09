@@ -19,6 +19,7 @@ type ScheduleRow = {
   schedule_date: string;
   start_time: string;
   end_time: string;
+  day_off: boolean;
 };
 
 export default function SchedulesPage() {
@@ -170,9 +171,15 @@ export default function SchedulesPage() {
                         <div className="font-semibold text-sm">
                           {entry.employee_name}
                         </div>
+                        {entry.day_off ? (
+                          <div className="flex items-center gap-1 text-red-700 font-semibold">
+                            <Badge color="red">Day Off</Badge>
+                          </div>
+                        ) : (
                         <div>
                           {entry.start_time} - {entry.end_time}
                         </div>
+                        )}
                       </div>
                     ))}
                   </div>

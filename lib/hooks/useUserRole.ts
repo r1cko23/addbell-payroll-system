@@ -7,7 +7,9 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
 
-type UserRole = Database["public"]["Tables"]["users"]["Row"]["role"];
+type UserRole =
+  | Database["public"]["Tables"]["users"]["Row"]["role"]
+  | "account_manager";
 
 interface UserRoleData {
   role: UserRole | null;

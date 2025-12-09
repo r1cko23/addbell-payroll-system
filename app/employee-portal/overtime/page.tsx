@@ -185,7 +185,7 @@ export default function OvertimePage() {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">OT Filing</h1>
@@ -196,7 +196,7 @@ export default function OvertimePage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
                 type="date"
                 label="OT Date"
@@ -268,7 +268,11 @@ export default function OvertimePage() {
             </div>
 
             <div className="flex justify-end">
-              <Button type="submit" isLoading={submitting}>
+              <Button
+                type="submit"
+                isLoading={submitting}
+                className="w-full sm:w-auto"
+              >
                 Submit OT Request
               </Button>
             </div>
@@ -276,8 +280,8 @@ export default function OvertimePage() {
         </div>
       </Card>
 
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
+      <Card className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
             My OT Requests
           </h2>

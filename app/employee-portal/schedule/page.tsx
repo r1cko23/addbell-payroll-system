@@ -186,11 +186,12 @@ export default function SchedulePage() {
             {format(startOfWeek(weekStart, { weekStartsOn: 1 }), "yyyy-MM-dd")}
           </p>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
               <label className="text-sm font-medium text-gray-700">
                 Select week (snaps to Monday)
               </label>
               <Input
+                className="w-full sm:w-auto"
                 type="date"
                 value={format(
                   startOfWeek(weekStart, { weekStartsOn: 1 }),
@@ -205,6 +206,7 @@ export default function SchedulePage() {
               />
             </div>
             <Button
+              className="w-full sm:w-auto"
               variant="secondary"
               onClick={handleAutofill}
               disabled={isLocked || loading}
@@ -221,7 +223,7 @@ export default function SchedulePage() {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-4">
+      <Card className="p-4 sm:p-6 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {weekDays.map((day, idx) => (
             <div
@@ -248,7 +250,7 @@ export default function SchedulePage() {
                   Mark as day off
                 </label>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input
                   type="time"
                   label="Start"

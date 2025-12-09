@@ -692,7 +692,7 @@ export default function LeaveRequestPage() {
           </div>
 
           {/* Request Form */}
-          <Card>
+          <Card className="p-4 sm:p-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="h-5 w-5" />
@@ -829,7 +829,7 @@ export default function LeaveRequestPage() {
 
                 {leaveType !== "Off-setting" && (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="start-date">Start Date</Label>
                         <Input
@@ -870,7 +870,7 @@ export default function LeaveRequestPage() {
 
                 {leaveType === "Off-setting" && (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="offset-date">Date</Label>
                         <Input
@@ -900,7 +900,7 @@ export default function LeaveRequestPage() {
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="start-time">Start Time</Label>
                         <Input

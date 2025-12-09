@@ -113,10 +113,11 @@ export default function SchedulesPage() {
               overwrite weeks.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
               <span className="text-sm text-gray-700">Week starting (Mon)</span>
               <Input
+                className="w-full sm:w-auto"
                 type="date"
                 value={format(
                   startOfWeek(weekStart, { weekStartsOn: 1 }),
@@ -130,7 +131,7 @@ export default function SchedulesPage() {
               />
             </div>
             <select
-              className="rounded-md border px-3 py-2 text-sm"
+              className="rounded-md border px-3 py-2 text-sm w-full sm:w-auto"
               value={filters.employee_id}
               onChange={(e) =>
                 setFilters((f) => ({ ...f, employee_id: e.target.value }))
@@ -143,7 +144,12 @@ export default function SchedulesPage() {
                 </option>
               ))}
             </select>
-            <Button variant="secondary" onClick={loadWeek} isLoading={loading}>
+            <Button
+              className="w-full sm:w-auto"
+              variant="secondary"
+              onClick={loadWeek}
+              isLoading={loading}
+            >
               Refresh
             </Button>
           </div>

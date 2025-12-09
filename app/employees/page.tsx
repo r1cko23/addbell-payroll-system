@@ -9,6 +9,7 @@ import { Input, Textarea } from "@/components/Input";
 import { Modal } from "@/components/Modal";
 import { Badge } from "@/components/Badge";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { useUserRole } from "@/lib/hooks/useUserRole";
 import toast from "react-hot-toast";
 
 interface Employee {
@@ -23,6 +24,7 @@ interface Employee {
   assigned_hotel?: string;
   address?: string | null;
   birth_date?: string | null;
+  hire_date?: string | null;
   tin_number?: string | null;
   sss_number?: string | null;
   philhealth_number?: string | null;
@@ -57,13 +59,12 @@ export default function EmployeesPage() {
     locations: [] as string[],
     address: "",
     birth_date: "",
+    hire_date: "",
     tin_number: "",
     sss_number: "",
     philhealth_number: "",
     pagibig_number: "",
     hmo_provider: "",
-    sil_credits: "",
-    maternity_days: "",
     paternity_days: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -76,6 +77,7 @@ export default function EmployeesPage() {
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
 
   const supabase = createClient();
+  const { isAdmin } = useUserRole();
   const locationMap = useMemo(() => {
     const map = new Map<string, string>();
     locations.forEach((loc) => map.set(loc.id, loc.name));
@@ -180,13 +182,12 @@ export default function EmployeesPage() {
       locations: [],
       address: "",
       birth_date: "",
+      hire_date: "",
       tin_number: "",
       sss_number: "",
       philhealth_number: "",
       pagibig_number: "",
       hmo_provider: "",
-      sil_credits: "",
-      maternity_days: "",
       paternity_days: "",
     });
     setShowModal(true);
@@ -206,16 +207,14 @@ export default function EmployeesPage() {
       birth_date: employee.birth_date
         ? new Date(employee.birth_date).toISOString().slice(0, 10)
         : "",
+      hire_date: employee.hire_date
+        ? new Date(employee.hire_date).toISOString().slice(0, 10)
+        : "",
       tin_number: employee.tin_number || "",
       sss_number: employee.sss_number || "",
       philhealth_number: employee.philhealth_number || "",
       pagibig_number: employee.pagibig_number || "",
       hmo_provider: employee.hmo_provider || "",
-      sil_credits:
-        typeof employee.sil_credits === "number"
-          ? employee.sil_credits.toString()
-          : "",
-      maternity_days: "",
       paternity_days: "",
     });
     setShowModal(true);
@@ -293,14 +292,13 @@ export default function EmployeesPage() {
         assigned_hotel: primaryLocationName,
         address: formData.address || null,
         birth_date: formData.birth_date || null,
+        hire_date: formData.hire_date || null,
         tin_number: formData.tin_number || null,
         sss_number: formData.sss_number || null,
         philhealth_number: formData.philhealth_number || null,
         pagibig_number: formData.pagibig_number || null,
         hmo_provider: formData.hmo_provider || null,
-        // Sync credits into employees for portal display
-        sil_credits: parseFloat(formData.sil_credits || "0") || 0,
-        maternity_credits: parseFloat(formData.maternity_days || "0") || 0,
+        // Only paternity credits are manually set; SIL and Maternity are auto-calculated
         paternity_credits: parseFloat(formData.paternity_days || "0") || 0,
         // Preserve existing offset hours when editing; default to 0 on create
         offset_hours: editingEmployee?.offset_hours ?? 0,
@@ -698,6 +696,17 @@ export default function EmployeesPage() {
                 setFormData({ ...formData, birth_date: e.target.value })
               }
             />
+            <Input
+              type="date"
+              label="Hire Date"
+              value={formData.hire_date}
+              onChange={(e) =>
+                setFormData({ ...formData, hire_date: e.target.value })
+              }
+              helperText="Used for auto SIL accrual eligibility"
+              required
+              disabled={!!editingEmployee && !isAdmin}
+            />
           </div>
 
           <Textarea
@@ -796,28 +805,24 @@ export default function EmployeesPage() {
               Initial Leave Allocations (set on first creation; optional)
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                type="number"
-                min="0"
-                step="0.5"
-                label="SIL Credits (days)"
-                value={formData.sil_credits}
-                onChange={(e) =>
-                  setFormData({ ...formData, sil_credits: e.target.value })
-                }
-                helperText="Enter allocated SIL days"
-              />
-              <Input
-                type="number"
-                min="0"
-                step="0.5"
-                label="Maternity Leave (days)"
-                value={formData.maternity_days}
-                onChange={(e) =>
-                  setFormData({ ...formData, maternity_days: e.target.value })
-                }
-                helperText="Enter allocated days (e.g., 105)"
-              />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700">
+                  SIL (auto)
+                </p>
+                <p className="text-xs text-gray-500">
+                  Auto-awarded: 10 days at 1st anniversary (usable until Dec
+                  31), then pro-rated monthly (10/12) each year; resets every
+                  Jan 1.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700">
+                  Maternity Leave (auto)
+                </p>
+                <p className="text-xs text-gray-500">
+                  Fixed at 105 days; managed automatically.
+                </p>
+              </div>
               <Input
                 type="number"
                 min="0"

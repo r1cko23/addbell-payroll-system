@@ -38,6 +38,9 @@ export default function HRDashboard() {
     const loadData = async () => {
       setLoading(true);
       try {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+
         const [
           employeeCountRes,
           recentRes,
@@ -76,6 +79,8 @@ export default function HRDashboard() {
             )
             .eq("status", "clocked_in")
             .is("clock_out_time", null)
+            // Only show clock-ins from today forward to avoid stale INC entries
+            .gte("clock_in_time", startOfToday.toISOString())
             .order("clock_in_time", { ascending: true }),
           supabase
             .from("office_locations")

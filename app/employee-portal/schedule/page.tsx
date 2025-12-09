@@ -79,7 +79,7 @@ export default function SchedulePage() {
           end_time: isOff ? "" : next[idx].end_time,
         };
       } else {
-      next[idx] = { ...next[idx], [field]: value };
+        next[idx] = { ...next[idx], [field]: value };
       }
       return next;
     });
@@ -156,13 +156,13 @@ export default function SchedulePage() {
             }))
           );
         if (insErr) throw insErr;
-        toast.success("Schedule saved (fallback)");
+        toast.success("Weekly schedule updated");
       } catch (fallbackErr: any) {
         console.error("Fallback save failed", fallbackErr);
         toast.error(fallbackErr?.message || "Failed to save schedule");
       }
     } else {
-      toast.success("Schedule saved");
+      toast.success("Weekly schedule updated");
     }
     setLoading(false);
   };

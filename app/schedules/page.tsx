@@ -173,12 +173,12 @@ export default function SchedulesPage() {
                         </div>
                         {entry.day_off ? (
                           <div className="flex items-center gap-1 text-red-700 font-semibold">
-                            <Badge color="red">Day Off</Badge>
+                            <Badge variant="danger">Day Off</Badge>
                           </div>
                         ) : (
-                        <div>
-                          {entry.start_time} - {entry.end_time}
-                        </div>
+                          <div>
+                            {entry.start_time} - {entry.end_time}
+                          </div>
                         )}
                       </div>
                     ))}

@@ -44,6 +44,12 @@ interface TimeEntry {
   };
 }
 
+interface HolidayEntry {
+  date: string;
+  name: string;
+  type: 'regular' | 'non-working';
+}
+
 export default function TimeEntriesPage() {
   const supabase = createClient();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -55,6 +61,7 @@ export default function TimeEntriesPage() {
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [hrNotes, setHrNotes] = useState('');
   const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
+  const [holidays, setHolidays] = useState<HolidayEntry[]>([]);
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
@@ -98,6 +105,13 @@ export default function TimeEntriesPage() {
     fetchLocations();
   }, [supabase]);
 
+  const getHolidayTag = (clockInTime: string) => {
+    const dateString = format(new Date(clockInTime), 'yyyy-MM-dd');
+    const holiday = holidays.find((h) => h.date === dateString);
+    if (!holiday) return '';
+    return holiday.type === 'regular' ? 'Regular Holiday' : 'Special Holiday';
+  };
+
   async function fetchTimeEntries() {
     setLoading(true);
 
@@ -122,7 +136,18 @@ export default function TimeEntriesPage() {
       query = query.eq('employee_id', selectedEmployee);
     }
 
-    const { data, error } = await query;
+    const [entriesResult, holidaysResult] = await Promise.all([
+      query,
+      supabase
+        .from('holidays')
+        .select('holiday_date, holiday_name, holiday_type')
+        .eq('is_active', true)
+        .gte('holiday_date', format(weekStart, 'yyyy-MM-dd'))
+        .lte('holiday_date', format(weekEnd, 'yyyy-MM-dd')),
+    ]);
+
+    const { data, error } = entriesResult;
+    const { data: holidayData, error: holidayError } = holidaysResult;
 
     setLoading(false);
 
@@ -132,6 +157,18 @@ export default function TimeEntriesPage() {
       return;
     }
 
+    if (holidayError) {
+      console.error('Error loading holidays for period:', holidayError);
+    }
+
+    const formattedHolidays: HolidayEntry[] =
+      holidayData?.map((holiday) => ({
+        date: holiday.holiday_date,
+        name: holiday.holiday_name,
+        type: holiday.holiday_type as 'regular' | 'non-working',
+      })) || [];
+
+    setHolidays(formattedHolidays);
     setEntries(data || []);
   }
 
@@ -184,18 +221,22 @@ export default function TimeEntriesPage() {
 
   async function exportToCSV() {
     const csv = [
-      ['Employee ID', 'Name', 'Clock In', 'Clock Out', 'Total Hours', 'Regular', 'Night Diff', 'Status', 'Notes'].join(','),
-      ...entries.map(entry => [
+      ['Employee ID', 'Name', 'Clock In', 'Clock Out', 'Holiday Tag', 'Total Hours', 'Regular', 'Night Diff', 'Status', 'Notes'].join(','),
+      ...entries.map(entry => {
+        const holidayTag = getHolidayTag(entry.clock_in_time);
+        return [
         entry.employees.employee_id,
         entry.employees.full_name,
         format(new Date(entry.clock_in_time), 'yyyy-MM-dd HH:mm:ss'),
         entry.clock_out_time ? format(new Date(entry.clock_out_time), 'yyyy-MM-dd HH:mm:ss') : 'Not clocked out',
-        entry.total_hours || 0,
-        entry.regular_hours || 0,
-        entry.night_diff_hours || 0,
-        entry.status,
-        entry.employee_notes || '',
-      ].join(','))
+          holidayTag || 'Regular Day',
+          entry.total_hours || 0,
+          entry.regular_hours || 0,
+          entry.night_diff_hours || 0,
+          entry.status,
+          entry.employee_notes || '',
+        ].join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -382,6 +423,7 @@ export default function TimeEntriesPage() {
                   <th className="text-left p-3 text-sm font-medium">Employee</th>
                   <th className="text-left p-3 text-sm font-medium">Clock In</th>
                   <th className="text-left p-3 text-sm font-medium">Clock Out</th>
+                  <th className="text-left p-3 text-sm font-medium">Holiday</th>
                   <th className="text-right p-3 text-sm font-medium">Hours</th>
                   <th className="text-center p-3 text-sm font-medium">Status</th>
                   <th className="text-center p-3 text-sm font-medium">Actions</th>
@@ -390,14 +432,14 @@ export default function TimeEntriesPage() {
               <tbody className="divide-y">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-12 text-muted-foreground">
                       <Clock className="h-8 w-8 animate-spin mx-auto mb-2" />
                       Loading...
                     </td>
                   </tr>
                 ) : entries.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-12 text-muted-foreground">
                       <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
                       No time entries found for this period
                     </td>
@@ -406,6 +448,7 @@ export default function TimeEntriesPage() {
                   entries.map((entry) => {
                     const clockInDetails = resolveLocationDetails(entry.clock_in_location, officeLocations);
                     const clockOutDetails = resolveLocationDetails(entry.clock_out_location, officeLocations);
+                  const holidayTag = getHolidayTag(entry.clock_in_time);
 
                     return (
                     <tr key={entry.id} className="hover:bg-muted/50">
@@ -472,6 +515,16 @@ export default function TimeEntriesPage() {
                           <span className="text-xs text-emerald-600 font-medium">
                             Still clocked in
                           </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-left">
+                        <div className="text-sm font-medium">
+                          {holidayTag || 'Regular Day'}
+                        </div>
+                        {holidayTag && (
+                          <div className="text-xs text-muted-foreground">
+                            Logged on holiday
+                          </div>
                         )}
                       </td>
                       <td className="p-3 text-right font-medium">

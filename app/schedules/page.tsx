@@ -70,7 +70,7 @@ export default function SchedulesPage() {
 
   useEffect(() => {
     loadWeek();
-  }, [weekStart, filters.location_id, filters.employee_id]);
+  }, [weekStart, filters.employee_id]);
 
   if (roleLoading) {
     return (
@@ -108,7 +108,8 @@ export default function SchedulesPage() {
               Weekly Schedules
             </h1>
             <p className="text-sm text-muted-foreground">
-              View employee schedules; color-coded by location.
+              View employee schedules (Mon–Sun). Account managers/admins can
+              overwrite weeks.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 items-center">

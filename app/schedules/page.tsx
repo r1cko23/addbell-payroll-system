@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDays, format, startOfWeek } from "date-fns";
+import { addDays, startOfWeek, format } from "date-fns";
+import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card } from "@/components/Card";
@@ -20,6 +21,18 @@ type ScheduleRow = {
   start_time: string;
   end_time: string;
   day_off: boolean;
+};
+
+// Deterministic per-employee colors (inline HSL for more variety)
+const getColorStyleForEmployee = (employeeId: string) => {
+  const hash = employeeId
+    .split("")
+    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const hue = hash % 360;
+  const bg = `hsl(${hue}deg 80% 93%)`;
+  const border = `hsl(${hue}deg 70% 80%)`;
+  const text = `hsl(${hue}deg 45% 30%)`;
+  return { bg, border, text };
 };
 
 export default function SchedulesPage() {
@@ -169,25 +182,45 @@ export default function SchedulesPage() {
                   <p className="text-xs text-gray-500">No schedules</p>
                 ) : (
                   <div className="space-y-2">
-                    {col.entries.map((entry) => (
-                      <div
-                        key={entry.id}
-                        className="border rounded-md px-3 py-2 text-xs flex flex-col gap-1 bg-emerald-50 border-emerald-200 text-emerald-800"
-                      >
-                        <div className="font-semibold text-sm">
-                          {entry.employee_name}
+                    {col.entries.map((entry) => {
+                      const color = getColorStyleForEmployee(entry.employee_id);
+                      return (
+                        <div
+                          key={entry.id}
+                          className="border rounded-md px-3 py-2 text-xs flex flex-col gap-1"
+                          style={{
+                            backgroundColor: color.bg,
+                            borderColor: color.border,
+                            color: color.text,
+                          }}
+                        >
+                          <div className="font-semibold text-sm">
+                            {entry.employee_name}
+                          </div>
+                          {entry.day_off ? (
+                            <div className="flex items-center gap-1 text-red-700 font-semibold">
+                              <Badge variant="danger">Day Off</Badge>
+                            </div>
+                          ) : (
+                            <div>
+                              {formatPHTime(
+                                new Date(
+                                  `${entry.schedule_date}T${entry.start_time}`
+                                ),
+                                "h:mm a"
+                              )}{" "}
+                              -{" "}
+                              {formatPHTime(
+                                new Date(
+                                  `${entry.schedule_date}T${entry.end_time}`
+                                ),
+                                "h:mm a"
+                              )}
+                            </div>
+                          )}
                         </div>
-                        {entry.day_off ? (
-                          <div className="flex items-center gap-1 text-red-700 font-semibold">
-                            <Badge variant="danger">Day Off</Badge>
-                          </div>
-                        ) : (
-                          <div>
-                            {entry.start_time} - {entry.end_time}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

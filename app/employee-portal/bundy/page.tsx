@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Button } from "@/components/Button";
@@ -125,7 +125,7 @@ export default function BundyClockPage() {
 
   const [currentEntry, setCurrentEntry] = useState<TimeEntry | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null
   );
@@ -157,6 +157,9 @@ export default function BundyClockPage() {
     null
   );
   const [clientIp, setClientIp] = useState<string | null>(null);
+  const serverTimeBaseRef = useRef<Date | null>(null);
+  const serverPerfBaseRef = useRef<number | null>(null);
+  const [timeSyncReady, setTimeSyncReady] = useState(false);
 
   // Fetch client IP once for logging
   useEffect(() => {
@@ -165,6 +168,50 @@ export default function BundyClockPage() {
       .then((data) => setClientIp(data.ip))
       .catch(() => setClientIp(null));
   }, []);
+
+  // Sync with server time to avoid client clock tampering
+  useEffect(() => {
+    let cancelled = false;
+    let tickTimer: NodeJS.Timeout | null = null;
+    let syncTimer: NodeJS.Timeout | null = null;
+
+    const startTicker = () => {
+      const tick = () => {
+        if (!serverTimeBaseRef.current || serverPerfBaseRef.current === null)
+          return;
+        const elapsed = performance.now() - serverPerfBaseRef.current;
+        setCurrentTime(new Date(serverTimeBaseRef.current.getTime() + elapsed));
+      };
+      tick();
+      tickTimer = setInterval(tick, 1000);
+    };
+
+    const syncServerTime = async () => {
+      const { data, error } = await supabase.rpc("get_server_time");
+      if (cancelled) return;
+      if (error || !data) {
+        setTimeSyncReady(false);
+        // fallback to client time if server time unavailable
+        serverTimeBaseRef.current = new Date();
+        serverPerfBaseRef.current = performance.now();
+        if (!tickTimer) startTicker();
+        return;
+      }
+      serverTimeBaseRef.current = new Date(data as string);
+      serverPerfBaseRef.current = performance.now();
+      setTimeSyncReady(true);
+      if (!tickTimer) startTicker();
+    };
+
+    syncServerTime();
+    syncTimer = setInterval(syncServerTime, 60_000); // refresh every minute
+
+    return () => {
+      cancelled = true;
+      if (syncTimer) clearInterval(syncTimer);
+      if (tickTimer) clearInterval(tickTimer);
+    };
+  }, [supabase]);
 
   const validateLocation = useCallback(
     async (lat: number, lng: number) => {
@@ -417,11 +464,6 @@ export default function BundyClockPage() {
     },
     [employee.id, supabase]
   );
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     const fetchInitialData = async () => {
@@ -847,20 +889,24 @@ export default function BundyClockPage() {
       <Card className="p-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
-            <div className="text-6xl font-bold text-gray-800 font-mono">
-              {currentTime.toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
+            <div className="text-6xl font-bold text-gray-800 font-mono min-h-[56px] flex items-center justify-center">
+              {currentTime && timeSyncReady
+                ? currentTime.toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })
+                : "Syncing time..."}
             </div>
-            <div className="text-gray-500">
-              {currentTime.toLocaleDateString("en-US", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+            <div className="text-gray-500 min-h-[22px]">
+              {currentTime && timeSyncReady
+                ? currentTime.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })
+                : ""}
             </div>
           </div>
 

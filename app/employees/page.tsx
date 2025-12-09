@@ -16,6 +16,7 @@ interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
+  gender?: "male" | "female" | null;
   sil_credits?: number;
   offset_hours?: number;
   last_name?: string;
@@ -24,6 +25,7 @@ interface Employee {
   assigned_hotel?: string;
   address?: string | null;
   birth_date?: string | null;
+  gender?: "male" | "female" | null;
   hire_date?: string | null;
   tin_number?: string | null;
   sss_number?: string | null;
@@ -59,6 +61,7 @@ export default function EmployeesPage() {
     locations: [] as string[],
     address: "",
     birth_date: "",
+    gender: "",
     hire_date: "",
     tin_number: "",
     sss_number: "",
@@ -182,6 +185,7 @@ export default function EmployeesPage() {
       locations: [],
       address: "",
       birth_date: "",
+      gender: "",
       hire_date: "",
       tin_number: "",
       sss_number: "",
@@ -207,6 +211,7 @@ export default function EmployeesPage() {
       birth_date: employee.birth_date
         ? new Date(employee.birth_date).toISOString().slice(0, 10)
         : "",
+      gender: (employee as any).gender || "",
       hire_date: employee.hire_date
         ? new Date(employee.hire_date).toISOString().slice(0, 10)
         : "",
@@ -298,8 +303,12 @@ export default function EmployeesPage() {
         philhealth_number: formData.philhealth_number || null,
         pagibig_number: formData.pagibig_number || null,
         hmo_provider: formData.hmo_provider || null,
+        gender: formData.gender || null,
         // Only paternity credits are manually set; SIL and Maternity are auto-calculated
-        paternity_credits: parseFloat(formData.paternity_days || "0") || 0,
+        paternity_credits:
+          formData.gender === "male"
+            ? parseFloat(formData.paternity_days || "0") || 0
+            : 0,
         // Preserve existing offset hours when editing; default to 0 on create
         offset_hours: editingEmployee?.offset_hours ?? 0,
       };
@@ -696,6 +705,32 @@ export default function EmployeesPage() {
                 setFormData({ ...formData, birth_date: e.target.value })
               }
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                Gender
+              </label>
+              <select
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                value={formData.gender}
+                onChange={(e) =>
+                  setFormData({ ...formData, gender: e.target.value })
+                }
+                required
+              >
+                <option value="" disabled>
+                  Select gender
+                </option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+              <p className="text-xs text-gray-500">
+                Used to auto-allocate maternity/paternity leave.
+              </p>
+            </div>
+
             <Input
               type="date"
               label="Hire Date"
@@ -802,7 +837,7 @@ export default function EmployeesPage() {
 
           <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
             <p className="text-sm font-semibold text-gray-700">
-              Initial Leave Allocations (set on first creation; optional)
+              Leave Allocations (auto-managed)
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
@@ -820,20 +855,22 @@ export default function EmployeesPage() {
                   Maternity Leave (auto)
                 </p>
                 <p className="text-xs text-gray-500">
-                  Fixed at 105 days; managed automatically.
+                  105 days when gender is Female; 0 otherwise.
                 </p>
               </div>
-              <Input
-                type="number"
-                min="0"
-                step="0.5"
-                label="Paternity Leave (days)"
-                value={formData.paternity_days}
-                onChange={(e) =>
-                  setFormData({ ...formData, paternity_days: e.target.value })
-                }
-                helperText="Enter allocated days (e.g., 7)"
-              />
+              {formData.gender === "male" && (
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  label="Paternity Leave (days)"
+                  value={formData.paternity_days}
+                  onChange={(e) =>
+                    setFormData({ ...formData, paternity_days: e.target.value })
+                  }
+                  helperText="Enter allocated days (e.g., 7)"
+                />
+              )}
             </div>
           </div>
         </form>

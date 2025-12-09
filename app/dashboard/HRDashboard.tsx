@@ -33,6 +33,17 @@ export default function HRDashboard() {
   const [pendingFTL, setPendingFTL] = useState(0);
   const [pendingLeaveManager, setPendingLeaveManager] = useState(0);
   const [pendingLeaveHR, setPendingLeaveHR] = useState(0);
+  const [parentalLeaves, setParentalLeaves] = useState<
+    {
+      leave_id: string;
+      employee_id: string;
+      employee_name: string;
+      leave_type: string;
+      start_date: string;
+      end_date: string;
+      total_days: number;
+    }[]
+  >([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -49,6 +60,7 @@ export default function HRDashboard() {
           ftlPendingRes,
           leavePendingRes,
           leaveHRRes,
+          parentalRes,
         ] = await Promise.all([
           supabase
             .from("employees")
@@ -97,6 +109,7 @@ export default function HRDashboard() {
             .from("leave_requests")
             .select("id", { count: "exact", head: true })
             .eq("status", "approved_by_manager"),
+          supabase.rpc("get_active_parental_leaves"),
         ]);
 
         // Check for errors in responses
@@ -123,6 +136,17 @@ export default function HRDashboard() {
         setPendingFTL(ftlPendingRes.count || 0);
         setPendingLeaveManager(leavePendingRes.count || 0);
         setPendingLeaveHR(leaveHRRes.count || 0);
+        setParentalLeaves(
+          (parentalRes.data || []) as {
+            leave_id: string;
+            employee_id: string;
+            employee_name: string;
+            leave_type: string;
+            start_date: string;
+            end_date: string;
+            total_days: number;
+          }[]
+        );
       } catch (error: any) {
         console.error("Failed to load dashboard data:", error);
         console.error("Error details:", {
@@ -397,6 +421,52 @@ export default function HRDashboard() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Parental Leave (Approved & Active)
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Maternity/Paternity leaves approved by HR and active today.
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {format(new Date(), "MMM d, yyyy")}
+              </div>
+            </div>
+            {parentalLeaves.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No active maternity or paternity leaves today.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {parentalLeaves.map((leave) => (
+                  <div
+                    key={leave.leave_id}
+                    className="border rounded-lg p-4 bg-muted/50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {leave.employee_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {leave.leave_type} ·{" "}
+                          {format(new Date(leave.start_date), "MMM d")} -{" "}
+                          {format(new Date(leave.end_date), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                      <div className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700">
+                        Active
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </Card>

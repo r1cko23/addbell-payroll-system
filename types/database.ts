@@ -530,6 +530,88 @@ export interface Database {
           updated_at?: string;
         };
       };
+      overtime_requests: {
+        Row: {
+          id: string;
+          employee_id: string;
+          account_manager_id: string | null;
+          ot_date: string;
+          start_time: string;
+          end_time: string;
+          total_hours: number;
+          reason: string | null;
+          attachment_url: string | null;
+          status: "pending" | "approved" | "rejected";
+          created_at: string;
+          updated_at: string;
+          approved_at: string | null;
+          approved_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          employee_id: string;
+          account_manager_id?: string | null;
+          ot_date: string;
+          start_time: string;
+          end_time: string;
+          total_hours: number;
+          reason?: string | null;
+          attachment_url?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          created_at?: string;
+          updated_at?: string;
+          approved_at?: string | null;
+          approved_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          employee_id?: string;
+          account_manager_id?: string | null;
+          ot_date?: string;
+          start_time?: string;
+          end_time?: string;
+          total_hours?: number;
+          reason?: string | null;
+          attachment_url?: string | null;
+          status?: "pending" | "approved" | "rejected";
+          created_at?: string;
+          updated_at?: string;
+          approved_at?: string | null;
+          approved_by?: string | null;
+        };
+      };
+      overtime_documents: {
+        Row: {
+          id: string;
+          overtime_request_id: string;
+          employee_id: string;
+          file_name: string;
+          file_type: string | null;
+          file_size: number | null;
+          file_base64: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          overtime_request_id: string;
+          employee_id: string;
+          file_name: string;
+          file_type?: string | null;
+          file_size?: number | null;
+          file_base64: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          overtime_request_id?: string;
+          employee_id?: string;
+          file_name?: string;
+          file_type?: string | null;
+          file_size?: number | null;
+          file_base64?: string;
+          created_at?: string;
+        };
+      };
       office_locations: {
         Row: {
           id: string;
@@ -561,6 +643,41 @@ export interface Database {
           longitude?: number;
           radius_meters?: number;
           is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      employee_week_schedules: {
+        Row: {
+          id: string;
+          employee_id: string;
+          week_start: string;
+          schedule_date: string;
+          start_time: string;
+          end_time: string;
+          location_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          employee_id: string;
+          week_start: string;
+          schedule_date: string;
+          start_time: string;
+          end_time: string;
+          location_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          employee_id?: string;
+          week_start?: string;
+          schedule_date?: string;
+          start_time?: string;
+          end_time?: string;
+          location_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

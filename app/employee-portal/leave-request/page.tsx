@@ -409,11 +409,7 @@ export default function LeaveRequestPage() {
       }
     }
 
-    if (leaveType === "SIL") {
-      if (!supportingDoc) {
-        toast.error("Please attach supporting document (PDF/DOC/DOCX)");
-        return;
-      }
+    if (leaveType === "SIL" && supportingDoc) {
       if (!isAllowedFile(supportingDoc)) {
         toast.error("Only PDF, DOC, or DOCX files are allowed");
         return;
@@ -923,7 +919,7 @@ export default function LeaveRequestPage() {
                 {leaveType === "SIL" && (
                   <div className="space-y-2">
                     <Label htmlFor="supporting-doc">
-                      Supporting Document (PDF/DOC/DOCX)
+                      Supporting Document (optional, PDF/DOC/DOCX)
                     </Label>
                     <input
                       id="supporting-doc"
@@ -952,10 +948,10 @@ export default function LeaveRequestPage() {
                         setSupportingDoc(file);
                       }}
                       className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
-                      required
                     />
                     <p className="text-xs text-muted-foreground">
-                      Attach clinic slip or documentation for SIL. Max 5MB.
+                      Optional: attach clinic slip or documentation for SIL. Max
+                      5MB.
                     </p>
                     {supportingDoc && !docError && (
                       <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-3 py-2">

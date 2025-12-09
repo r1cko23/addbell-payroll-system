@@ -1,10 +1,18 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import React from 'react';
-import { LayoutDashboard, Users, MapPin, X, Calendar, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import React from "react";
+import {
+  LayoutDashboard,
+  Users,
+  MapPin,
+  X,
+  Calendar,
+  AlertCircle,
+  Timer,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   name: string;
@@ -14,28 +22,38 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    name: 'Dashboard',
-    href: '/dashboard',
+    name: "Dashboard",
+    href: "/dashboard",
     icon: LayoutDashboard,
   },
   {
-    name: 'Employees',
-    href: '/employees',
+    name: "Employees",
+    href: "/employees",
     icon: Users,
   },
   {
-    name: 'Time & Location',
-    href: '/time-entries',
+    name: "Time & Location",
+    href: "/time-entries",
     icon: MapPin,
   },
   {
-    name: 'Failure to Log Approval',
-    href: '/failure-to-log-approval',
+    name: "Failure to Log Approval",
+    href: "/failure-to-log-approval",
     icon: AlertCircle,
   },
   {
-    name: 'Leave Approval',
-    href: '/leave-approval',
+    name: "Leave Approval",
+    href: "/leave-approval",
+    icon: Calendar,
+  },
+  {
+    name: "OT Approvals",
+    href: "/overtime-approval",
+    icon: Timer,
+  },
+  {
+    name: "Schedules",
+    href: "/schedules",
     icon: Calendar,
   },
 ];
@@ -47,9 +65,14 @@ interface SidebarProps {
 
 export function Sidebar({ className, onClose }: SidebarProps) {
   const pathname = usePathname();
-  
+
   return (
-    <div className={cn('flex h-full flex-col w-64 border-r bg-muted/10', className)}>
+    <div
+      className={cn(
+        "flex h-full flex-col w-64 border-r bg-muted/10",
+        className
+      )}
+    >
       <div className="flex items-center justify-between h-16 px-4 border-b">
         <div className="flex-1 flex items-center justify-center">
           <img
@@ -57,7 +80,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
             alt="Green Pasture People Management Inc."
             className="h-12 w-auto"
             onError={(e) => {
-              e.currentTarget.style.display = 'none';
+              e.currentTarget.style.display = "none";
             }}
           />
         </div>
@@ -72,13 +95,14 @@ export function Sidebar({ className, onClose }: SidebarProps) {
           </button>
         )}
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
+          const isActive =
+            pathname === item.href || pathname?.startsWith(item.href + "/");
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.name}
@@ -96,7 +120,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
           );
         })}
       </nav>
-      
+
       {/* Footer */}
       <div className="p-4 border-t">
         <p className="text-xs text-muted-foreground text-center">

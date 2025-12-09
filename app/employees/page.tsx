@@ -25,7 +25,6 @@ interface Employee {
   assigned_hotel?: string;
   address?: string | null;
   birth_date?: string | null;
-  gender?: "male" | "female" | null;
   hire_date?: string | null;
   tin_number?: string | null;
   sss_number?: string | null;

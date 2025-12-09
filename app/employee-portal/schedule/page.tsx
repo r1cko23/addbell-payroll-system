@@ -172,8 +172,8 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6">
+    <div className="space-y-6 pb-24">
+      <Card className="p-4 sm:p-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-bold text-gray-900">Weekly Schedule</h1>
           <p className="text-sm text-gray-600">
@@ -224,7 +224,7 @@ export default function SchedulePage() {
       </Card>
 
       <Card className="p-4 sm:p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {weekDays.map((day, idx) => (
             <div
               key={day.toISOString()}

@@ -16,7 +16,7 @@ type OvertimeRequest = {
   end_time: string;
   total_hours: number;
   reason: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "cancelled";
   created_at: string;
   overtime_documents?: {
     id: string;

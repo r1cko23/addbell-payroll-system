@@ -171,6 +171,44 @@ export default function SchedulePage() {
     setLoading(false);
   };
 
+  const handleClearWeek = async () => {
+    if (isLocked) {
+      toast.error("This week is locked. Edits are only allowed until Monday.");
+      return;
+    }
+    setLoading(true);
+    const weekStartIso = format(
+      startOfWeek(weekStart, { weekStartsOn: 1 }),
+      "yyyy-MM-dd"
+    );
+    const weekEndIso = format(addDays(new Date(weekStartIso), 6), "yyyy-MM-dd");
+    try {
+      const { error } = await supabase
+        .from("employee_week_schedules")
+        .delete()
+        .eq("employee_id", employee.id)
+        .gte("schedule_date", weekStartIso)
+        .lte("schedule_date", weekEndIso);
+      if (error) throw error;
+
+      // Clear local state
+      setDays(
+        weekDays.map((d) => ({
+          schedule_date: format(d, "yyyy-MM-dd"),
+          start_time: "",
+          end_time: "",
+          day_off: false,
+        }))
+      );
+
+      toast.success("Weekly schedule cleared");
+    } catch (err: any) {
+      console.error("Failed to clear week", err);
+      toast.error(err?.message || "Failed to clear schedule");
+    }
+    setLoading(false);
+  };
+
   return (
     <div className="space-y-6 pb-24">
       <Card className="p-4 sm:p-6">
@@ -273,11 +311,21 @@ export default function SchedulePage() {
             </div>
           ))}
         </div>
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row gap-3 justify-end">
+          <Button
+            variant="secondary"
+            onClick={handleClearWeek}
+            isLoading={loading}
+            disabled={isLocked}
+            className="w-full sm:w-auto"
+          >
+            Clear Week
+          </Button>
           <Button
             onClick={handleSubmit}
             isLoading={loading}
             disabled={isLocked}
+            className="w-full sm:w-auto"
           >
             Save Week
           </Button>

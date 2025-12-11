@@ -213,8 +213,17 @@ export default function TimeEntriesPage() {
           type: holiday.holiday_type as "regular" | "non-working",
         })) || [];
 
+      // Transform data to ensure employees is a single object, not an array
+      const transformedEntries: TimeEntry[] =
+        data?.map((entry: any) => ({
+          ...entry,
+          employees: Array.isArray(entry.employees)
+            ? entry.employees[0] || { employee_id: "", full_name: "" }
+            : entry.employees || { employee_id: "", full_name: "" },
+        })) || [];
+
       setHolidays(formattedHolidays);
-      setEntries(data || []);
+      setEntries(transformedEntries);
     } catch (error: any) {
       console.error("Unexpected error in fetchTimeEntries:", error);
       toast.error(

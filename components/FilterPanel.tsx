@@ -215,7 +215,11 @@ export function FilterPanel({
     () =>
       filterOptions.departments ||
       Array.from(
-        new Set(leaveRequests.map((r) => r.department).filter(Boolean))
+        new Set(
+          leaveRequests
+            .map((r) => r.department)
+            .filter((d): d is string => Boolean(d))
+        )
       ).sort(),
     [filterOptions.departments, leaveRequests]
   );
@@ -246,7 +250,16 @@ export function FilterPanel({
   }, [filters, filteredCount, onFilterChange]);
 
   // Date preset handlers
-  const handleDatePreset = (preset: string) => {
+  const handleDatePreset = (
+    preset:
+      | "today"
+      | "thisWeek"
+      | "thisMonth"
+      | "last7Days"
+      | "last30Days"
+      | "custom"
+      | "none"
+  ) => {
     const today = new Date();
     let startDate: string | null = null;
     let endDate: string | null = null;
@@ -285,7 +298,16 @@ export function FilterPanel({
     setFilters((prev) => ({
       ...prev,
       dateRange: {
-        preset: preset === "none" ? null : preset,
+        preset:
+          preset === "none"
+            ? null
+            : (preset as
+                | "today"
+                | "thisWeek"
+                | "thisMonth"
+                | "last7Days"
+                | "last30Days"
+                | "custom"),
         startDate,
         endDate,
       },
@@ -322,6 +344,12 @@ export function FilterPanel({
     setFilters((prev) => ({
       ...prev,
       ...preset,
+      status:
+        "status" in preset && preset.status ? [...preset.status] : prev.status,
+      approvalStage:
+        "approvalStage" in preset && preset.approvalStage
+          ? [...preset.approvalStage]
+          : prev.approvalStage,
     }));
   };
 

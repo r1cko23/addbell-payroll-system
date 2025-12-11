@@ -321,7 +321,6 @@ export function DateRangePresets({
       return;
     }
 
-    const currentRange = format(dateRange.startDate + " " + dateRange.endDate);
     const presets: PresetType[] = [
       "today",
       "tomorrow",

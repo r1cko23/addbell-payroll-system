@@ -408,10 +408,12 @@ function GroupSectionContent({
 
   const mergedRef = useCallback(
     (el: HTMLDivElement | null) => {
-      containerRef.current = el;
+      // Type assertion to allow assignment to ref.current
+      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current =
+        el;
       groupRef?.(el);
     },
-    [groupRef]
+    [groupRef, containerRef]
   );
 
   return (

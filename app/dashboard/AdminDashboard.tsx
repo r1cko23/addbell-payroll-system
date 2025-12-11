@@ -1,55 +1,60 @@
-'use client';
+"use client";
 
 /**
  * ADMIN/EXECUTIVE DASHBOARD - Example Implementation
- * 
+ *
  * This is an example implementation showing what an admin-specific dashboard
  * would look like with executive-level metrics and analytics.
- * 
+ *
  * To use this:
  * 1. Check user role on page load
  * 2. If role === 'admin', show this dashboard
  * 3. If role === 'hr', show the regular dashboard (current dashboard/page.tsx)
  */
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Loader2, Users, DollarSign, TrendingUp, TrendingDown, 
-  AlertTriangle, CheckCircle2, Clock, Building2, 
-  FileText, Activity, Calendar, ArrowUpRight, ArrowDownRight
-} from 'lucide-react';
-import { formatCurrency } from '@/utils/format';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { format, subWeeks, startOfYear } from 'date-fns';
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { formatCurrency } from "@/utils/format";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { format, subWeeks, startOfYear } from "date-fns";
 
 interface ExecutiveStats {
   // Current Week
   currentWeekGross: number;
   currentWeekNet: number;
   currentWeekEmployeeCount: number;
-  
+
   // Previous Week (for comparison)
   previousWeekGross: number;
   previousWeekNet: number;
-  
+
   // Year to Date
   ytdGross: number;
   ytdNet: number;
   ytdDeductions: number;
-  
+
   // Workforce
   totalEmployees: number;
   activeEmployees: number;
   inactiveEmployees: number;
-  
+
   // Month to Date (current month)
   mtdGross: number;
   mtdWeeks: number;
-  
+
   // Alerts
   criticalAlerts: number;
   warningAlerts: number;
@@ -82,7 +87,9 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<ExecutiveStats | null>(null);
   const [departments, setDepartments] = useState<DepartmentCost[]>([]);
   const [weeklyTrends, setWeeklyTrends] = useState<WeeklyTrend[]>([]);
-  const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
+  const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -93,89 +100,127 @@ export default function AdminDashboardPage() {
         const currentWeekStart = new Date(today);
         currentWeekStart.setDate(today.getDate() - ((today.getDay() + 4) % 7));
         currentWeekStart.setHours(0, 0, 0, 0);
-        
+
         const currentWeekEnd = new Date(currentWeekStart);
         currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
         currentWeekEnd.setHours(23, 59, 59, 999);
-        
+
         const previousWeekStart = subWeeks(currentWeekStart, 1);
         const previousWeekEnd = new Date(previousWeekStart);
         previousWeekEnd.setDate(previousWeekStart.getDate() + 6);
         previousWeekEnd.setHours(23, 59, 59, 999);
-        
+
         const yearStart = startOfYear(today);
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
         // 1. Workforce Stats
         const { count: totalEmployees, error: employeesError } = await supabase
-          .from('employees')
-          .select('*', { count: 'exact', head: true });
+          .from("employees")
+          .select("*", { count: "exact", head: true });
 
         if (employeesError) {
-          console.error('Error fetching employees:', employeesError);
+          console.error("Error fetching employees:", employeesError);
         }
 
-        const { count: activeEmployees, error: activeEmployeesError } = await supabase
-          .from('employees')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_active', true);
+        const { count: activeEmployees, error: activeEmployeesError } =
+          await supabase
+            .from("employees")
+            .select("*", { count: "exact", head: true })
+            .eq("is_active", true);
 
         if (activeEmployeesError) {
-          console.error('Error fetching active employees:', activeEmployeesError);
+          console.error(
+            "Error fetching active employees:",
+            activeEmployeesError
+          );
         }
 
-        const inactiveEmployees = (totalEmployees || 0) - (activeEmployees || 0);
+        const inactiveEmployees =
+          (totalEmployees || 0) - (activeEmployees || 0);
 
         // 2. Current Week Time Entries Stats
-        const { data: currentWeekEntries, error: currentWeekError } = await supabase
-          .from('time_clock_entries')
-          .select('total_hours, regular_hours, employee_id')
-          .gte('clock_in_time', currentWeekStart.toISOString())
-          .lte('clock_in_time', currentWeekEnd.toISOString());
+        const { data: currentWeekEntries, error: currentWeekError } =
+          await supabase
+            .from("time_clock_entries")
+            .select("total_hours, regular_hours, employee_id")
+            .gte("clock_in_time", currentWeekStart.toISOString())
+            .lte("clock_in_time", currentWeekEnd.toISOString());
 
         if (currentWeekError) {
-          console.error('Error fetching current week entries:', currentWeekError);
+          console.error(
+            "Error fetching current week entries:",
+            currentWeekError
+          );
         }
 
-        const currentWeekTotalHours = currentWeekEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const currentWeekRegularHours = currentWeekEntries?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
-        const currentWeekEmployeeCount = new Set(currentWeekEntries?.map(e => e.employee_id)).size || 0;
+        const currentWeekTotalHours =
+          currentWeekEntries?.reduce(
+            (sum, e) => sum + Number(e.total_hours || 0),
+            0
+          ) || 0;
+        const currentWeekRegularHours =
+          currentWeekEntries?.reduce(
+            (sum, e) => sum + Number(e.regular_hours || 0),
+            0
+          ) || 0;
+        const currentWeekEmployeeCount =
+          new Set(currentWeekEntries?.map((e) => e.employee_id)).size || 0;
 
         // 3. Previous Week Time Entries Stats
         const { data: previousWeekEntries } = await supabase
-          .from('time_clock_entries')
-          .select('total_hours, regular_hours')
-          .gte('clock_in_time', previousWeekStart.toISOString())
-          .lte('clock_in_time', previousWeekEnd.toISOString());
+          .from("time_clock_entries")
+          .select("total_hours, regular_hours")
+          .gte("clock_in_time", previousWeekStart.toISOString())
+          .lte("clock_in_time", previousWeekEnd.toISOString());
 
-        const previousWeekTotalHours = previousWeekEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const previousWeekRegularHours = previousWeekEntries?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+        const previousWeekTotalHours =
+          previousWeekEntries?.reduce(
+            (sum, e) => sum + Number(e.total_hours || 0),
+            0
+          ) || 0;
+        const previousWeekRegularHours =
+          previousWeekEntries?.reduce(
+            (sum, e) => sum + Number(e.regular_hours || 0),
+            0
+          ) || 0;
 
         // 4. Year to Date Stats
         const { data: ytdEntries } = await supabase
-          .from('time_clock_entries')
-          .select('total_hours, regular_hours')
-          .gte('clock_in_time', yearStart.toISOString());
+          .from("time_clock_entries")
+          .select("total_hours, regular_hours")
+          .gte("clock_in_time", yearStart.toISOString());
 
-        const ytdTotalHours = ytdEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const ytdRegularHours = ytdEntries?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+        const ytdTotalHours =
+          ytdEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) ||
+          0;
+        const ytdRegularHours =
+          ytdEntries?.reduce(
+            (sum, e) => sum + Number(e.regular_hours || 0),
+            0
+          ) || 0;
 
         // 5. Month to Date
         const { data: mtdEntries } = await supabase
-          .from('time_clock_entries')
-          .select('total_hours, clock_in_time')
-          .gte('clock_in_time', monthStart.toISOString());
+          .from("time_clock_entries")
+          .select("total_hours, clock_in_time")
+          .gte("clock_in_time", monthStart.toISOString());
 
-        const mtdTotalHours = mtdEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const uniqueDays = new Set(mtdEntries?.map(e => format(new Date(e.clock_in_time), 'yyyy-MM-dd')));
+        const mtdTotalHours =
+          mtdEntries?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) ||
+          0;
+        const uniqueDays = new Set(
+          mtdEntries?.map((e) =>
+            format(new Date(e.clock_in_time), "yyyy-MM-dd")
+          )
+        );
         const mtdDays = uniqueDays.size;
 
         // 6. Pending Approvals (time entries that need approval)
         const { count: pendingApprovals } = await supabase
-          .from('time_clock_entries')
-          .select('*', { count: 'exact', head: true })
-          .in('status', ['clocked_in', 'clocked_out'])
-          .is('approved_by', null);
+          .from("time_clock_entries")
+          .select("*", { count: "exact", head: true })
+          .in("status", ["clocked_in", "clocked_out"])
+          .is("approved_by", null);
 
         // Calculate estimated costs (placeholder - would need employee rates)
         // For now, using hours as proxy since we don't have payslips
@@ -207,31 +252,39 @@ export default function AdminDashboardPage() {
         // 7. Weekly Trends (last 12 weeks) - using time entries
         const twelveWeeksAgo = subWeeks(currentWeekStart, 12);
         const { data: trendData } = await supabase
-          .from('time_clock_entries')
-          .select('clock_in_time, total_hours, employee_id')
-          .gte('clock_in_time', twelveWeeksAgo.toISOString())
-          .order('clock_in_time', { ascending: true });
+          .from("time_clock_entries")
+          .select("clock_in_time, total_hours, employee_id")
+          .gte("clock_in_time", twelveWeeksAgo.toISOString())
+          .order("clock_in_time", { ascending: true });
 
         // Group by week
         const weekGroups: { [key: string]: any[] } = {};
-        trendData?.forEach(record => {
-          const weekStart = format(new Date(record.clock_in_time), 'yyyy-MM-dd');
-          const weekKey = format(new Date(weekStart), 'yyyy-\'W\'ww');
+        trendData?.forEach((record) => {
+          const weekStart = format(
+            new Date(record.clock_in_time),
+            "yyyy-MM-dd"
+          );
+          const weekKey = format(new Date(weekStart), "yyyy-'W'ww");
           if (!weekGroups[weekKey]) {
             weekGroups[weekKey] = [];
           }
           weekGroups[weekKey].push(record);
         });
 
-        const trends: WeeklyTrend[] = Object.entries(weekGroups).map(([weekKey, records]) => {
-          const weekHours = records.reduce((sum, r) => sum + Number(r.total_hours || 0), 0);
-          return {
-            weekStart: weekKey,
-            grossPay: weekHours * avgHourlyRate,
-            netPay: weekHours * avgHourlyRate * 0.85,
-            employeeCount: new Set(records.map(r => r.employee_id)).size,
-          };
-        });
+        const trends: WeeklyTrend[] = Object.entries(weekGroups).map(
+          ([weekKey, records]) => {
+            const weekHours = records.reduce(
+              (sum, r) => sum + Number(r.total_hours || 0),
+              0
+            );
+            return {
+              weekStart: weekKey,
+              grossPay: weekHours * avgHourlyRate,
+              netPay: weekHours * avgHourlyRate * 0.85,
+              employeeCount: new Set(records.map((r) => r.employee_id)).size,
+            };
+          }
+        );
 
         setWeeklyTrends(trends);
 
@@ -239,19 +292,21 @@ export default function AdminDashboardPage() {
         if (currentWeekTotalHours > 0) {
           setCostBreakdown({
             regularPay: currentWeekRegularHours * avgHourlyRate,
-            nightDiffPay: (currentWeekTotalHours - currentWeekRegularHours) * avgHourlyRate * 0.1,
+            nightDiffPay:
+              (currentWeekTotalHours - currentWeekRegularHours) *
+              avgHourlyRate *
+              0.1,
             holidayPay: 0, // Would need holiday data
             sundayPay: 0, // Would need day type data
           });
         }
-
       } catch (error: any) {
-        console.error('Error fetching executive metrics:', error);
-        console.error('Error details:', {
+        console.error("Error fetching executive metrics:", error);
+        console.error("Error details:", {
           message: error?.message,
           details: error?.details,
           hint: error?.hint,
-          code: error?.code
+          code: error?.code,
         });
         // Set default stats on error so UI doesn't break
         setStats({
@@ -284,111 +339,139 @@ export default function AdminDashboardPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
         </div>
       </DashboardLayout>
     );
   }
 
   // Calculate percentage changes
-  const weekOverWeekChange = stats?.previousWeekGross 
-    ? ((stats.currentWeekGross - stats.previousWeekGross) / stats.previousWeekGross) * 100
+  const weekOverWeekChange = stats?.previousWeekGross
+    ? ((stats.currentWeekGross - stats.previousWeekGross) /
+        stats.previousWeekGross) *
+      100
     : 0;
-  
-  const avgCostPerEmployee = stats && stats.currentWeekEmployeeCount > 0
-    ? stats.currentWeekGross / stats.currentWeekEmployeeCount
-    : 0;
+
+  const avgCostPerEmployee =
+    stats && stats.currentWeekEmployeeCount > 0
+      ? stats.currentWeekGross / stats.currentWeekEmployeeCount
+      : 0;
 
   const isIncreasing = weekOverWeekChange > 0;
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
+      <VStack gap="8" className="w-full">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Executive Dashboard</h1>
-          <p className="text-muted-foreground mt-2">
-            Financial overview and key business metrics for week {format(new Date(), 'w, yyyy')}
-          </p>
-        </div>
+        <VStack gap="2" align="start">
+          <H1>Executive Dashboard</H1>
+          <BodySmall>
+            Financial overview and key business metrics for week{" "}
+            {format(new Date(), "w, yyyy")}
+          </BodySmall>
+        </VStack>
 
         {/* Key Metrics Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-stretch">
           {/* Payroll This Week */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="h-full min-h-[150px]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Payroll This Week
               </CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Icon
+                name="CurrencyDollarSimple"
+                size={IconSizes.sm}
+                className="text-muted-foreground"
+              />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
+              <div className="text-2xl font-bold text-foreground leading-tight">
                 {formatCurrency(stats?.currentWeekGross || 0)}
               </div>
-              <p className="text-xs text-muted-foreground flex items-center mt-1">
-                {isIncreasing ? (
-                  <TrendingUp className="h-3 w-3 text-green-600 mr-1" />
-                ) : (
-                  <TrendingDown className="h-3 w-3 text-red-600 mr-1" />
-                )}
-                <span className={isIncreasing ? 'text-green-600' : 'text-red-600'}>
+              <HStack gap="2" align="center" className="mt-2">
+                <Icon
+                  name={isIncreasing ? "ChartLineUp" : "ChartLineUp"}
+                  size={IconSizes.xs}
+                  className={
+                    isIncreasing ? "text-emerald-600" : "text-destructive"
+                  }
+                />
+                <Caption
+                  className={
+                    isIncreasing ? "text-emerald-600" : "text-destructive"
+                  }
+                >
                   {Math.abs(weekOverWeekChange).toFixed(1)}%
-                </span>
-                <span className="ml-1">vs last week</span>
-              </p>
+                </Caption>
+                <Caption>vs last week</Caption>
+              </HStack>
             </CardContent>
           </Card>
 
           {/* Active Employees */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="h-full min-h-[150px]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Active Employees
               </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Icon
+                name="UsersThree"
+                size={IconSizes.sm}
+                className="text-muted-foreground"
+              />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{stats?.activeEmployees}</div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <div className="text-2xl font-bold text-foreground leading-tight">
+                {stats?.activeEmployees}
+              </div>
+              <Caption className="mt-2">
                 {stats?.inactiveEmployees} inactive
-              </p>
+              </Caption>
             </CardContent>
           </Card>
 
           {/* Avg Cost per Employee */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="h-full min-h-[150px]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Avg Cost / Employee
               </CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <Icon
+                name="ChartLineUp"
+                size={IconSizes.sm}
+                className="text-muted-foreground"
+              />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
+              <div className="text-2xl font-bold text-foreground leading-tight">
                 {formatCurrency(avgCostPerEmployee)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                This week average
-              </p>
+              <Caption className="mt-2">This week average</Caption>
             </CardContent>
           </Card>
 
           {/* YTD Payroll */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className="h-full min-h-[150px]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 YTD Payroll
               </CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Icon
+                name="CalendarBlank"
+                size={IconSizes.sm}
+                className="text-muted-foreground"
+              />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">
+              <div className="text-2xl font-bold text-foreground leading-tight">
                 {formatCurrency(stats?.ytdGross || 0)}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Gross pay since Jan 1
-              </p>
+              <Caption className="mt-2">Gross pay since Jan 1</Caption>
             </CardContent>
           </Card>
         </div>
@@ -396,186 +479,198 @@ export default function AdminDashboardPage() {
         {/* Financial Summary Row */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {/* Cost Breakdown */}
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle className="text-foreground">Cost Breakdown</CardTitle>
-              <CardDescription>Current week composition</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
+          <CardSection
+            title="Cost Breakdown"
+            description="Current week composition"
+          >
+            <VStack gap="3">
               {costBreakdown && (
                 <>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Regular Hours</span>
+                  <HStack justify="between" align="center">
+                    <BodySmall>Regular Hours</BodySmall>
                     <span className="text-sm font-semibold text-foreground">
                       {formatCurrency(costBreakdown.regularPay)} (62%)
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Night Differential</span>
+                  </HStack>
+                  <HStack justify="between" align="center">
+                    <BodySmall>Night Differential</BodySmall>
                     <span className="text-sm font-semibold text-foreground">
                       {formatCurrency(costBreakdown.nightDiffPay)} (8%)
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Holiday Pay</span>
+                  </HStack>
+                  <HStack justify="between" align="center">
+                    <BodySmall>Holiday Pay</BodySmall>
                     <span className="text-sm font-semibold text-foreground">
                       {formatCurrency(costBreakdown.holidayPay)} (7%)
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-muted-foreground">Sunday/Rest Day</span>
+                  </HStack>
+                  <HStack justify="between" align="center">
+                    <BodySmall>Sunday/Rest Day</BodySmall>
                     <span className="text-sm font-semibold text-foreground">
                       {formatCurrency(costBreakdown.sundayPay)} (5%)
                     </span>
-                  </div>
+                  </HStack>
                 </>
               )}
-            </CardContent>
-          </Card>
+            </VStack>
+          </CardSection>
 
           {/* Alerts & Actions */}
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle className="text-foreground">Alerts & Actions</CardTitle>
-              <CardDescription>Items requiring attention</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
-                  <span className="text-sm text-foreground">Critical</span>
-                </div>
-                <span className="text-xl font-bold text-red-600">{stats?.criticalAlerts}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                  <span className="text-sm text-foreground">Warning</span>
-                </div>
-                <span className="text-xl font-bold text-yellow-600">{stats?.warningAlerts}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-emerald-600" />
-                  <span className="text-sm text-foreground">Pending Approvals</span>
-                </div>
-                <span className="text-xl font-bold text-emerald-600">{stats?.pendingApprovals}</span>
-              </div>
-                <Link href="/payslips">
-                <Button variant="secondary" className="w-full mt-4">
-                  View Pending Payslips <ArrowUpRight className="h-4 w-4 ml-2" />
+          <CardSection
+            title="Alerts & Actions"
+            description="Items requiring attention"
+          >
+            <VStack gap="4">
+              <HStack justify="between" align="center">
+                <HStack gap="2" align="center">
+                  <Icon
+                    name="WarningCircle"
+                    size={IconSizes.sm}
+                    className="text-destructive"
+                  />
+                  <BodySmall>Critical</BodySmall>
+                </HStack>
+                <span className="text-xl font-bold text-destructive">
+                  {stats?.criticalAlerts}
+                </span>
+              </HStack>
+              <HStack justify="between" align="center">
+                <HStack gap="2" align="center">
+                  <Icon
+                    name="WarningCircle"
+                    size={IconSizes.sm}
+                    className="text-yellow-600"
+                  />
+                  <BodySmall>Warning</BodySmall>
+                </HStack>
+                <span className="text-xl font-bold text-yellow-600">
+                  {stats?.warningAlerts}
+                </span>
+              </HStack>
+              <HStack justify="between" align="center">
+                <HStack gap="2" align="center">
+                  <Icon
+                    name="Clock"
+                    size={IconSizes.sm}
+                    className="text-emerald-600"
+                  />
+                  <BodySmall>Pending Approvals</BodySmall>
+                </HStack>
+                <span className="text-xl font-bold text-emerald-600">
+                  {stats?.pendingApprovals}
+                </span>
+              </HStack>
+              <Link href="/payslips">
+                <Button variant="secondary" className="w-full mt-2">
+                  <span>View Pending Payslips</span>
+                  <Icon name="CaretRight" size={IconSizes.sm} />
                 </Button>
-                </Link>
-            </CardContent>
-          </Card>
+              </Link>
+            </VStack>
+          </CardSection>
 
           {/* Cash Flow */}
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle className="text-foreground">Cash Flow</CardTitle>
-              <CardDescription>Net payout amounts</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">This Week Net</span>
+          <CardSection title="Cash Flow" description="Net payout amounts">
+            <VStack gap="3">
+              <HStack justify="between" align="center">
+                <BodySmall>This Week Net</BodySmall>
                 <span className="text-sm font-semibold text-foreground">
                   {formatCurrency(stats?.currentWeekNet || 0)}
                 </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Last Week Net</span>
+              </HStack>
+              <HStack justify="between" align="center">
+                <BodySmall>Last Week Net</BodySmall>
                 <span className="text-sm font-semibold text-foreground">
                   {formatCurrency(stats?.previousWeekNet || 0)}
                 </span>
-              </div>
-              <div className="flex justify-between items-center border-t pt-3">
-                <span className="text-sm font-semibold text-foreground">Month to Date</span>
+              </HStack>
+              <HStack
+                justify="between"
+                align="center"
+                className="border-t border-border pt-3"
+              >
+                <span className="text-sm font-semibold text-foreground">
+                  Month to Date
+                </span>
                 <span className="text-lg font-bold text-foreground">
                   {formatCurrency(stats?.mtdGross || 0)}
                 </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {stats?.mtdWeeks} weeks in current month
-              </p>
-            </CardContent>
-          </Card>
+              </HStack>
+              <Caption>{stats?.mtdWeeks} weeks in current month</Caption>
+            </VStack>
+          </CardSection>
         </div>
 
         {/* Payroll Trend Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">Payroll Cost Trend</CardTitle>
-            <CardDescription>Last 12 weeks gross payroll</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {weeklyTrends.map((trend, index) => {
-                const maxValue = Math.max(...weeklyTrends.map(t => t.grossPay));
-                const percentage = (trend.grossPay / maxValue) * 100;
-                
-                return (
-                  <div key={index} className="space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Week {format(new Date(trend.weekStart), 'MMM d')}</span>
-                      <span>{formatCurrency(trend.grossPay)}</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className="bg-primary h-2 rounded-full transition-all"
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
+        <CardSection
+          title="Payroll Cost Trend"
+          description="Last 12 weeks gross payroll"
+        >
+          <VStack gap="3">
+            {weeklyTrends.map((trend, index) => {
+              const maxValue = Math.max(...weeklyTrends.map((t) => t.grossPay));
+              const percentage = (trend.grossPay / maxValue) * 100;
+
+              return (
+                <VStack key={index} gap="2" align="start">
+                  <HStack justify="between" align="center" className="w-full">
+                    <Caption>
+                      Week {format(new Date(trend.weekStart), "MMM d")}
+                    </Caption>
+                    <span className="text-xs font-medium text-foreground">
+                      {formatCurrency(trend.grossPay)}
+                    </span>
+                  </HStack>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all"
+                      style={{ width: `${percentage}%` }}
+                    />
                   </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                </VStack>
+              );
+            })}
+          </VStack>
+        </CardSection>
 
         {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-4">
-              <Link href="/payslips">
-                <Button variant="secondary" className="w-full h-20">
-                  <div className="flex flex-col items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    <span className="text-sm">Review Payslips</span>
-                  </div>
-                </Button>
-              </Link>
-              <Link href="/employees">
-                <Button variant="secondary" className="w-full h-20">
-                  <div className="flex flex-col items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    <span className="text-sm">Manage Staff</span>
-                  </div>
-                </Button>
-              </Link>
-              <Link href="/time-entries">
-                <Button variant="secondary" className="w-full h-20">
-                  <div className="flex flex-col items-center gap-2">
-                    <Clock className="h-5 w-5" />
-                    <span className="text-sm">Time Entries</span>
-                  </div>
-                </Button>
-              </Link>
-              <Link href="/timesheet">
-                <Button variant="secondary" className="w-full h-20">
-                <div className="flex flex-col items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    <span className="text-sm">Timesheet</span>
-                </div>
+        <CardSection title="Quick Actions">
+          <div className="grid gap-4 md:grid-cols-4">
+            <Link href="/payslips">
+              <Button variant="secondary" className="w-full h-20">
+                <VStack gap="2" align="center">
+                  <Icon name="Receipt" size={IconSizes.md} />
+                  <span className="text-sm font-medium">Review Payslips</span>
+                </VStack>
               </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </Link>
+            <Link href="/employees">
+              <Button variant="secondary" className="w-full h-20">
+                <VStack gap="2" align="center">
+                  <Icon name="UsersThree" size={IconSizes.md} />
+                  <span className="text-sm font-medium">Manage Staff</span>
+                </VStack>
+              </Button>
+            </Link>
+            <Link href="/time-entries">
+              <Button variant="secondary" className="w-full h-20">
+                <VStack gap="2" align="center">
+                  <Icon name="Clock" size={IconSizes.md} />
+                  <span className="text-sm font-medium">Time Entries</span>
+                </VStack>
+              </Button>
+            </Link>
+            <Link href="/timesheet">
+              <Button variant="secondary" className="w-full h-20">
+                <VStack gap="2" align="center">
+                  <Icon name="CalendarBlank" size={IconSizes.md} />
+                  <span className="text-sm font-medium">Timesheet</span>
+                </VStack>
+              </Button>
+            </Link>
+          </div>
+        </CardSection>
+      </VStack>
     </DashboardLayout>
   );
 }
-

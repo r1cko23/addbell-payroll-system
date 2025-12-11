@@ -1,11 +1,11 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from "tailwindcss";
 
 const config: Config = {
   darkMode: ["class"],
   content: [
-    './pages/**/*.{js,ts,jsx,tsx,mdx}',
-    './components/**/*.{js,ts,jsx,tsx,mdx}',
-    './app/**/*.{js,ts,jsx,tsx,mdx}',
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     container: {
@@ -52,12 +52,75 @@ const config: Config = {
         },
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        sm: "var(--radius-sm)",
+        md: "var(--radius-md)",
+        lg: "var(--radius-lg)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        hover: "var(--shadow-hover)",
       },
       fontFamily: {
-        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        xs: [
+          "var(--font-size-xs)",
+          { lineHeight: "var(--line-height-normal)" },
+        ],
+        sm: [
+          "var(--font-size-sm)",
+          { lineHeight: "var(--line-height-normal)" },
+        ],
+        base: [
+          "var(--font-size-base)",
+          { lineHeight: "var(--line-height-normal)" },
+        ],
+        lg: [
+          "var(--font-size-lg)",
+          { lineHeight: "var(--line-height-normal)" },
+        ],
+        xl: ["var(--font-size-xl)", { lineHeight: "var(--line-height-snug)" }],
+        "2xl": [
+          "var(--font-size-2xl)",
+          { lineHeight: "var(--line-height-tight)" },
+        ],
+        "3xl": [
+          "var(--font-size-3xl)",
+          { lineHeight: "var(--line-height-tight)" },
+        ],
+        "4xl": [
+          "var(--font-size-4xl)",
+          { lineHeight: "var(--line-height-tight)" },
+        ],
+      },
+      fontWeight: {
+        normal: "var(--font-weight-normal)",
+        medium: "var(--font-weight-medium)",
+        semibold: "var(--font-weight-semibold)",
+        bold: "var(--font-weight-bold)",
+      },
+      letterSpacing: {
+        tighter: "var(--letter-spacing-tighter)",
+        tight: "var(--letter-spacing-tight)",
+        normal: "var(--letter-spacing-normal)",
+        wide: "var(--letter-spacing-wide)",
+        wider: "var(--letter-spacing-wider)",
+      },
+      spacing: {
+        "0": "var(--spacing-0)",
+        "1": "var(--spacing-1)",
+        "2": "var(--spacing-2)",
+        "3": "var(--spacing-3)",
+        "4": "var(--spacing-4)",
+        "5": "var(--spacing-5)",
+        "6": "var(--spacing-6)",
+        "8": "var(--spacing-8)",
+        "10": "var(--spacing-10)",
+        "12": "var(--spacing-12)",
+        "16": "var(--spacing-16)",
+        "20": "var(--spacing-20)",
+        "24": "var(--spacing-24)",
       },
       keyframes: {
         "accordion-down": {
@@ -76,6 +139,5 @@ const config: Config = {
     },
   },
   plugins: [require("tailwindcss-animate")],
-}
-export default config
-
+};
+export default config;

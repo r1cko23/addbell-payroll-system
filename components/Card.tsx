@@ -1,4 +1,15 @@
-import React from 'react';
+"use client";
+
+import React from "react";
+
+import {
+  Card as ShadCard,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface CardProps {
   children: React.ReactNode;
@@ -8,26 +19,34 @@ interface CardProps {
   action?: React.ReactNode;
 }
 
-export function Card({ children, className = '', title, subtitle, action }: CardProps) {
+export function Card({
+  children,
+  className = "",
+  title,
+  subtitle,
+  action,
+}: CardProps) {
+  const titleNode =
+    typeof title === "string" ? (
+      <CardTitle className="text-lg">{title}</CardTitle>
+    ) : (
+      title
+    );
+
   return (
-    <div className={`bg-card text-card-foreground rounded-lg shadow border ${className}`}>
-      {(title || action) && (
-        <div className="px-6 py-4 border-b border-border flex justify-between items-center">
-          <div>
-            {title && (
-              typeof title === 'string' ? (
-                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-              ) : (
-                <div className="text-lg font-semibold text-foreground">{title}</div>
-              )
-            )}
-            {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+    <ShadCard className={cn("border border-border shadow-sm", className)}>
+      {(title || subtitle || action) && (
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            {title && titleNode}
+            {subtitle && <CardDescription>{subtitle}</CardDescription>}
           </div>
-          {action && <div>{action}</div>}
-        </div>
+          {action && <div className="flex-shrink-0">{action}</div>}
+        </CardHeader>
       )}
-      <div className="p-6">{children}</div>
-    </div>
+      <CardContent className={cn(title || subtitle ? "pt-0 sm:pt-0" : "pt-4")}>
+        {children}
+      </CardContent>
+    </ShadCard>
   );
 }
-

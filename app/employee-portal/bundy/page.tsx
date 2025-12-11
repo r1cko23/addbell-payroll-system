@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
-import { Button } from "@/components/Button";
-import { Card } from "@/components/Card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { MapPin, ArrowLeft, ArrowRight } from "lucide-react";
 import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
 import {
   getBiMonthlyPeriodEnd,
@@ -898,17 +902,21 @@ export default function BundyClockPage() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
+        <Icon
+          name="ArrowsClockwise"
+          size={IconSizes.xl}
+          className="animate-spin text-emerald-600"
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6">
+    <VStack gap="8" className="w-full pb-10">
+      <Card className="w-full p-4 sm:p-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
-            <div className="text-6xl font-bold text-gray-800 font-mono min-h-[56px] flex items-center justify-center">
+            <div className="text-4xl sm:text-6xl font-bold text-gray-800 font-mono min-h-[48px] sm:min-h-[56px] flex items-center justify-center">
               {currentTime && timeSyncReady
                 ? currentTime.toLocaleTimeString("en-US", {
                     hour: "2-digit",
@@ -939,16 +947,16 @@ export default function BundyClockPage() {
                   setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))
                 }
               >
-                <ArrowLeft className="h-4 w-4" />
+                <Icon name="CaretLeft" size={IconSizes.sm} />
               </Button>
-              <div className="text-center">
-                <p className="text-xs text-gray-500 uppercase tracking-widest">
+              <VStack gap="0" align="center">
+                <Caption className="uppercase tracking-widest">
                   Bi-Monthly Period
-                </p>
+                </Caption>
                 <p className="text-lg font-semibold text-gray-800">
                   {formatBiMonthlyPeriod(periodStart, periodEnd)}
                 </p>
-              </div>
+              </VStack>
               <Button
                 variant="secondary"
                 size="sm"
@@ -957,7 +965,7 @@ export default function BundyClockPage() {
                   setPeriodStart(getNextBiMonthlyPeriod(periodStart))
                 }
               >
-                <ArrowRight className="h-4 w-4" />
+                <Icon name="CaretRight" size={IconSizes.sm} />
               </Button>
             </div>
             <div className="text-sm text-gray-500">
@@ -968,149 +976,124 @@ export default function BundyClockPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Button
               onClick={() => handleClock("in")}
               disabled={!!currentEntry || !locationStatus?.isAllowed}
-              className={`py-4 rounded-xl text-lg font-bold uppercase tracking-wider transition ${
+              className={cn(
+                "w-full py-4 text-lg font-bold uppercase tracking-wider transition",
                 currentEntry || !locationStatus?.isAllowed
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                   : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-lg"
-              }`}
+              )}
             >
               Time In
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => handleClock("out")}
               disabled={!currentEntry || !locationStatus?.isAllowed}
-              className={`py-4 rounded-xl text-lg font-bold uppercase tracking-wider transition ${
+              className={cn(
+                "w-full py-4 text-lg font-bold uppercase tracking-wider transition",
                 !currentEntry || !locationStatus?.isAllowed
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                   : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-lg"
-              }`}
+              )}
             >
               Time Out
-            </button>
+            </Button>
           </div>
 
           <div>
             {location ? (
               locationStatus ? (
                 locationStatus.isAllowed ? (
-                  <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200">
-                    <MapPin className="h-4 w-4" />
+                  <HStack
+                    gap="2"
+                    align="center"
+                    className="inline-flex text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200"
+                  >
+                    <Icon name="MapPin" size={IconSizes.sm} />
                     <span>
                       At {locationStatus.nearestLocation || "an approved site"}
                       {locationStatus.distance !== null &&
                         ` (${locationStatus.distance}m away)`}
                     </span>
-                  </div>
+                  </HStack>
                 ) : (
                   <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-sm text-red-700">
-                    <p className="font-semibold mb-1">Location not allowed</p>
-                    <p>
+                    <BodySmall className="font-semibold mb-1">
+                      Location not allowed
+                    </BodySmall>
+                    <BodySmall>
                       {locationStatus.error ||
                         "You must be at an approved location to clock in/out."}
-                    </p>
+                    </BodySmall>
                   </div>
                 )
               ) : (
-                <div className="inline-flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200">
-                  <MapPin className="h-4 w-4" />
+                <HStack
+                  gap="2"
+                  align="center"
+                  className="inline-flex text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200"
+                >
+                  <Icon name="MapPin" size={IconSizes.sm} />
                   <span>Validating location...</span>
-                </div>
+                </HStack>
               )
             ) : (
               <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-sm text-red-700">
-                <p className="font-semibold mb-1">Location required</p>
-                <p>Please enable GPS/location services and refresh the page.</p>
+                <BodySmall className="font-semibold mb-1">
+                  Location required
+                </BodySmall>
+                <BodySmall>
+                  Please enable GPS/location services and refresh the page.
+                </BodySmall>
               </div>
             )}
           </div>
         </div>
       </Card>
 
-      <HolidayCalendar
-        date={calendarDate}
-        holidays={calendarHolidays}
-        entries={calendarEntries}
-        onPrev={() => setCalendarDate((prev) => subMonths(prev, 1))}
-        onNext={() => setCalendarDate((prev) => addMonths(prev, 1))}
-      />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4">
+        <HolidayCalendar
+          date={calendarDate}
+          holidays={calendarHolidays}
+          entries={calendarEntries}
+          onPrev={() => setCalendarDate((prev) => subMonths(prev, 1))}
+          onNext={() => setCalendarDate((prev) => addMonths(prev, 1))}
+        />
 
-      <Card className="p-0 overflow-hidden">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-800">Time Records</h2>
-          <p className="text-sm text-gray-500">
-            {formatBiMonthlyPeriod(periodStart, periodEnd)}
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
-              <tr>
-                <th className="text-left px-4 py-3">Date</th>
-                <th className="text-left px-4 py-3">Time In</th>
-                <th className="text-left px-4 py-3">Time Out</th>
-                <th className="text-right px-4 py-3">Hours</th>
-                <th className="text-center px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+        <Card className="w-full p-0 overflow-hidden">
+          <div className="p-3 sm:p-4 border-b">
+            <H3 className="text-sm sm:text-base">Time Records</H3>
+            <BodySmall className="text-xs">
+              {formatBiMonthlyPeriod(periodStart, periodEnd)}
+            </BodySmall>
+          </div>
+          {/* Mobile Card Layout */}
+          <div className="block sm:hidden">
+            <div className="divide-y">
               {entries.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-500">
-                    No time records for this period.
-                  </td>
-                </tr>
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  No time records for this period.
+                </div>
               ) : (
                 entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50 text-gray-800">
-                    <td className="px-4 py-3">
-                      {new Date(entry.clock_in_time).toLocaleDateString(
-                        "en-US",
-                        {
-                          month: "short",
-                          day: "numeric",
-                          weekday: "short",
-                        }
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {new Date(entry.clock_in_time).toLocaleTimeString(
-                        "en-US",
-                        {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      {entry.clock_out_time
-                        ? new Date(entry.clock_out_time).toLocaleTimeString(
-                            "en-US",
-                            {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }
-                          )
-                        : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold">
-                      {pendingFailureToLog.has(entry.id) ? (
-                        <span className="text-yellow-600">
-                          Pending Approval
-                        </span>
-                      ) : entry.total_hours ? (
-                        entry.total_hours.toFixed(2)
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
+                  <div key={entry.id} className="p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-sm">
+                        {new Date(entry.clock_in_time).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            weekday: "short",
+                          }
+                        )}
+                      </div>
                       {entry.clock_out_time ? (
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          className={`px-2 py-1 rounded-full text-[10px] font-semibold ${
                             entry.status === "clocked_in"
                               ? "bg-green-100 text-green-700"
                               : entry.status === "approved" ||
@@ -1122,18 +1105,162 @@ export default function BundyClockPage() {
                           {entry.status.replace("_", " ").toUpperCase()}
                         </span>
                       ) : (
-                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                        <span className="px-2 py-1 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">
                           INC
                         </span>
                       )}
-                    </td>
-                  </tr>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Time In:</span>{" "}
+                        <span className="font-medium">
+                          {new Date(entry.clock_in_time).toLocaleTimeString(
+                            "en-US",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }
+                          )}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Time Out:</span>{" "}
+                        <span className="font-medium">
+                          {entry.clock_out_time
+                            ? new Date(entry.clock_out_time).toLocaleTimeString(
+                                "en-US",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-muted-foreground">Hours:</span>{" "}
+                        <span className="font-semibold">
+                          {pendingFailureToLog.has(entry.id) ? (
+                            <span className="text-yellow-600">
+                              Pending Approval
+                            </span>
+                          ) : entry.total_hours ? (
+                            entry.total_hours.toFixed(2)
+                          ) : (
+                            "-"
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+            </div>
+          </div>
+          {/* Desktop Table Layout */}
+          <div className="hidden sm:block w-full">
+            <table className="w-full text-xs sm:text-sm table-auto">
+              <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] sm:text-xs tracking-wide">
+                <tr>
+                  <th className="text-left px-3 sm:px-4 py-3 min-w-[100px]">
+                    Date
+                  </th>
+                  <th className="text-left px-3 sm:px-4 py-3 min-w-[80px]">
+                    Time In
+                  </th>
+                  <th className="text-left px-3 sm:px-4 py-3 min-w-[80px]">
+                    Time Out
+                  </th>
+                  <th className="text-right px-3 sm:px-4 py-3 min-w-[70px]">
+                    Hours
+                  </th>
+                  <th className="text-center px-3 sm:px-4 py-3 min-w-[120px]">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {entries.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-gray-500">
+                      No time records for this period.
+                    </td>
+                  </tr>
+                ) : (
+                  entries.map((entry) => (
+                    <tr
+                      key={entry.id}
+                      className="hover:bg-gray-50 text-gray-800"
+                    >
+                      <td className="px-3 sm:px-4 py-3">
+                        {new Date(entry.clock_in_time).toLocaleDateString(
+                          "en-US",
+                          {
+                            month: "short",
+                            day: "numeric",
+                            weekday: "short",
+                          }
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 font-medium">
+                        {new Date(entry.clock_in_time).toLocaleTimeString(
+                          "en-US",
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 font-medium">
+                        {entry.clock_out_time
+                          ? new Date(entry.clock_out_time).toLocaleTimeString(
+                              "en-US",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )
+                          : "—"}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 text-right font-semibold">
+                        {pendingFailureToLog.has(entry.id) ? (
+                          <span className="text-yellow-600">
+                            Pending Approval
+                          </span>
+                        ) : entry.total_hours ? (
+                          entry.total_hours.toFixed(2)
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-3 sm:px-4 py-3 text-center">
+                        {entry.clock_out_time ? (
+                          <span
+                            className={`inline-block px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
+                              entry.status === "clocked_in"
+                                ? "bg-green-100 text-green-700"
+                                : entry.status === "approved" ||
+                                  entry.status === "auto_approved"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {entry.status.replace("_", " ").toUpperCase()}
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-orange-100 text-orange-700">
+                            INC
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
 
       {/* Location Confirmation Modal */}
       {pendingClockAction && (
@@ -1148,7 +1275,7 @@ export default function BundyClockPage() {
           validateLocation={validateLocationForModal}
         />
       )}
-    </div>
+    </VStack>
   );
 }
 
@@ -1202,21 +1329,19 @@ function HolidayCalendar({
   };
 
   return (
-    <Card className="p-4">
+    <Card className="w-full p-4">
       <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <HStack gap="2" align="center">
             <Button variant="secondary" size="sm" onClick={onPrev}>
-              <ArrowLeft className="h-4 w-4" />
+              <Icon name="CaretLeft" size={IconSizes.sm} />
             </Button>
-            <div className="text-lg font-semibold">
-              {formatDate(date, "MMMM yyyy")}
-            </div>
+            <H3>{formatDate(date, "MMMM yyyy")}</H3>
             <Button variant="secondary" size="sm" onClick={onNext}>
-              <ArrowRight className="h-4 w-4" />
+              <Icon name="CaretRight" size={IconSizes.sm} />
             </Button>
-          </div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          </HStack>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <span className="w-3 h-3 rounded-full bg-purple-600/60" />
               Regular Holiday
@@ -1240,13 +1365,15 @@ function HolidayCalendar({
           </div>
         </div>
 
-        <div className="grid grid-cols-7 text-center text-xs font-semibold text-muted-foreground border-t pt-2">
+        <div className="grid grid-cols-7 text-center text-[10px] sm:text-xs font-semibold text-muted-foreground border-t pt-2">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-            <div key={day}>{day}</div>
+            <div key={day} className="truncate">
+              {day}
+            </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 border rounded-lg overflow-hidden text-sm">
+        <div className="grid grid-cols-7 border rounded-lg overflow-hidden text-[10px] sm:text-[11px] md:text-sm">
           {days.map((day) => {
             const iso = formatDate(day, "yyyy-MM-dd");
             const holiday = holidayMap.get(iso);
@@ -1266,80 +1393,109 @@ function HolidayCalendar({
             const badge =
               holiday &&
               (holiday.type === "regular" ? (
-                <div className="mt-1 text-[11px] px-2 py-1 rounded-full bg-purple-600/15 text-purple-700 border border-purple-200 font-semibold">
-                  Regular Holiday
+                <div className="text-[8px] sm:text-[9px] md:text-[10px] px-1 py-0.5 rounded-full bg-purple-600/15 text-purple-700 border border-purple-200 font-semibold w-fit leading-tight">
+                  <span className="hidden sm:inline">Regular Holiday</span>
+                  <span className="sm:hidden">Reg</span>
                 </div>
               ) : (
-                <div className="mt-1 text-[11px] px-2 py-1 rounded-full bg-amber-400/30 text-amber-800 border border-amber-200 font-semibold">
-                  Special Holiday
+                <div className="text-[8px] sm:text-[9px] md:text-[10px] px-1 py-0.5 rounded-full bg-amber-400/30 text-amber-800 border border-amber-200 font-semibold w-fit leading-tight">
+                  <span className="hidden sm:inline">Special Holiday</span>
+                  <span className="sm:hidden">Spec</span>
                 </div>
               ));
 
             return (
               <div
                 key={iso}
-                className={`min-h-[90px] border-r border-b p-2 ${
+                className={`min-h-[100px] sm:min-h-[120px] md:min-h-[140px] border-r border-b p-1 sm:p-2 overflow-hidden ${
                   isCurrentMonth ? "bg-white" : "bg-muted/60 text-gray-400"
                 }`}
               >
-                <div
-                  className={`text-right font-semibold ${
-                    isToday ? "text-emerald-600" : "text-gray-600"
-                  }`}
-                >
-                  {formatDate(day, "d")}
-                </div>
-                {holiday && (
-                  <div className="mt-1 text-[11px] font-semibold text-gray-900 leading-tight">
-                    {holiday.name}
-                  </div>
-                )}
-                {badge}
-                {status && (
+                <div className="flex items-start justify-between mb-0.5 sm:mb-1">
                   <div
-                    className={`mt-1 text-[11px] px-2 py-1 rounded-full border font-semibold inline-flex items-center gap-1 ${statusColor(
-                      status.type
-                    )}`}
+                    className={`font-semibold text-xs sm:text-sm ${
+                      isToday ? "text-emerald-600" : "text-gray-600"
+                    }`}
                   >
-                    {status.label}
+                    {formatDate(day, "d")}
                   </div>
-                )}
-                {leaves.length > 0 && (
-                  <div className="mt-1 space-y-1">
-                    {leaves.map((leave, idx) => (
-                      <div
-                        key={`${leave.label}-${idx}`}
-                        className={`text-[11px] px-2 py-1 rounded-full border font-semibold ${leaveColor(
-                          leave.label
-                        )}`}
-                      >
-                        {leave.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {times.length > 0 && (
-                  <div className="mt-1 space-y-1">
-                    {times.map((entry, idx) => (
-                      <div
-                        key={`${entry.clock_in_time}-${idx}`}
-                        className="text-[11px] bg-emerald-50 border border-emerald-100 rounded px-2 py-1 text-emerald-800"
-                      >
-                        {formatDate(new Date(entry.clock_in_time!), "h:mm a")}
-                        {entry.clock_out_time && (
-                          <>
-                            {" "}
-                            –{" "}
-                            {formatDate(
-                              new Date(entry.clock_out_time),
-                              "h:mm a"
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                </div>
+
+                <div className="flex flex-col gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] md:text-[10px] leading-tight overflow-hidden">
+                  {holiday && (
+                    <div className="font-semibold text-gray-900 leading-tight line-clamp-1 break-words text-[8px] sm:text-[9px]">
+                      {holiday.name}
+                    </div>
+                  )}
+                  {badge && <div className="flex-shrink-0">{badge}</div>}
+
+                  {status && (
+                    <div
+                      className={`px-1 py-0.5 rounded-full border font-semibold w-fit text-[8px] sm:text-[9px] md:text-[10px] leading-tight ${statusColor(
+                        status.type
+                      )}`}
+                    >
+                      {status.label}
+                    </div>
+                  )}
+
+                  {leaves.length > 0 && (
+                    <div className="flex flex-wrap gap-0.5">
+                      {leaves.slice(0, 2).map((leave, idx) => (
+                        <div
+                          key={`${leave.label}-${idx}`}
+                          className={`px-1 py-0.5 rounded-full border font-semibold text-[8px] sm:text-[9px] md:text-[10px] w-fit leading-tight ${leaveColor(
+                            leave.label
+                          )}`}
+                        >
+                          {leave.label.length > 8
+                            ? leave.label.slice(0, 6) + "..."
+                            : leave.label}
+                        </div>
+                      ))}
+                      {leaves.length > 2 && (
+                        <div className="px-1 py-0.5 rounded-full border font-semibold text-[8px] sm:text-[9px] bg-gray-100 text-gray-600 w-fit leading-tight">
+                          +{leaves.length - 2}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {times.length > 0 && (
+                    <div className="flex flex-wrap gap-0.5">
+                      {times.slice(0, 1).map((entry, idx) => {
+                        const startLabel = formatDate(
+                          new Date(entry.clock_in_time!),
+                          "h:mm a"
+                        );
+                        const endLabel = entry.clock_out_time
+                          ? formatDate(new Date(entry.clock_out_time), "h:mm a")
+                          : null;
+                        const timeLabel = endLabel
+                          ? `${startLabel} \u2013 ${endLabel}`
+                          : startLabel;
+                        return (
+                          <div
+                            key={`${entry.clock_in_time}-${idx}`}
+                            className="inline-flex items-center gap-0.5 bg-emerald-50 border border-emerald-100 rounded-full px-1 py-0.5 text-emerald-800 text-[8px] sm:text-[9px] md:text-[10px] font-semibold w-fit leading-tight"
+                          >
+                            <span className="hidden sm:inline">
+                              {timeLabel}
+                            </span>
+                            <span className="sm:hidden">
+                              {startLabel.split(" ")[0]}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {times.length > 1 && (
+                        <div className="px-1 py-0.5 rounded-full border font-semibold text-[8px] sm:text-[9px] bg-emerald-100 text-emerald-700 w-fit leading-tight">
+                          +{times.length - 1}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

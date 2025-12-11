@@ -8,17 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Calendar,
-  ArrowLeft,
-  CheckCircle,
-  XCircle,
-  Hourglass,
-  FileText,
-  Paperclip,
-} from "lucide-react";
-import { format, differenceInDays, addDays } from "date-fns";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { H1, H3, H4, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { format, addDays } from "date-fns";
 
 interface EmployeeSession {
   id: string;
@@ -607,103 +612,113 @@ export default function LeaveRequestPage() {
   const approvedCount = visibleRequests.filter(
     (r) => r.status === "approved_by_hr"
   ).length;
+  const statusClasses: Record<LeaveRequest["status"], string> = {
+    pending: "bg-amber-100 text-amber-800 border-amber-200",
+    approved_by_manager: "bg-blue-100 text-blue-800 border-blue-200",
+    approved_by_hr: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    rejected: "bg-rose-100 text-rose-900 border-rose-200",
+    cancelled: "bg-slate-100 text-slate-800 border-slate-200",
+  };
 
   return (
     <>
-      <div className="min-h-screen bg-background">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-          {/* Header */}
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/employee-portal/bundy")}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Leave Request</h1>
-              <p className="text-sm text-muted-foreground">
-                {employee.full_name}
-              </p>
-            </div>
-          </div>
+      <VStack gap="8" className="w-full">
+        {/* Header */}
+        <HStack gap="4" align="center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/employee-portal/bundy")}
+          >
+            <Icon name="ArrowLeft" size={IconSizes.sm} />
+            Back
+          </Button>
+          <VStack gap="2" align="start">
+            <H1>Leave Request</H1>
+            <BodySmall>{employee.full_name}</BodySmall>
+          </VStack>
+        </HStack>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Pending</div>
+        {/* Stats */}
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Pending</BodySmall>
                 <div className="text-2xl font-bold text-yellow-600">
                   {pendingCount}
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Approved</div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Approved</BodySmall>
                 <div className="text-2xl font-bold text-green-600">
                   {approvedCount}
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">SIL Credits</div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>SIL Credits</BodySmall>
                 <div className="text-2xl font-bold text-emerald-600">
                   {silCredits !== null ? silCredits.toFixed(2) : "Loading..."}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">
-                  Maternity Days
-                </div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Maternity Days</BodySmall>
                 <div className="text-2xl font-bold text-emerald-600">
                   {maternityDays.toFixed(2)}
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">
-                  Paternity Days
-                </div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Paternity Days</BodySmall>
                 <div className="text-2xl font-bold text-emerald-600">
                   {paternityDays.toFixed(2)}
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">
-                  Off-setting Hours
-                </div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Off-setting Hours</BodySmall>
                 <div className="text-2xl font-bold text-emerald-600">
                   {offsetHours.toFixed(2)}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </VStack>
+            </CardContent>
+          </Card>
+        </div>
 
-          {/* Request Form */}
-          <Card className="p-4 sm:p-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
+        {/* Request Form */}
+        <Card className="w-full">
+          <CardHeader className="pb-4">
+            <CardTitle>
+              <HStack gap="2" align="center">
+                <Icon name="CalendarBlank" size={IconSizes.md} />
                 File Leave Request
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
+              </HStack>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="w-full">
+            <form onSubmit={handleSubmit} className="w-full">
+              <VStack gap="6" className="w-full">
+                <div className="w-full space-y-2">
                   <Label>Leave Type</Label>
-                  <div className="flex flex-wrap gap-4">
+                  <div className="w-full flex flex-wrap gap-4">
                     <label
                       className={`flex items-center space-x-2 ${
                         silCredits !== null && silCredits <= 0
@@ -829,8 +844,8 @@ export default function LeaveRequestPage() {
 
                 {leaveType !== "Off-setting" && (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
+                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="w-full space-y-2">
                         <Label htmlFor="start-date">Start Date</Label>
                         <Input
                           id="start-date"
@@ -842,7 +857,7 @@ export default function LeaveRequestPage() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="w-full space-y-2">
                         <Label htmlFor="end-date">End Date</Label>
                         <Input
                           id="end-date"
@@ -870,8 +885,8 @@ export default function LeaveRequestPage() {
 
                 {leaveType === "Off-setting" && (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
+                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="w-full space-y-2">
                         <Label htmlFor="offset-date">Date</Label>
                         <Input
                           id="offset-date"
@@ -885,23 +900,23 @@ export default function LeaveRequestPage() {
                           required
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="w-full space-y-2">
                         <Label>Duration (hours)</Label>
-                        <div className="p-3 border rounded-md bg-gray-50 text-sm">
+                        <div className="p-3 border border-input rounded-md bg-muted text-sm">
                           {calculatedHours > 0
                             ? `${calculatedHours.toFixed(2)} hours`
                             : "Enter time range"}
                         </div>
                         {exceedsOffset && (
-                          <p className="text-sm text-red-600 font-semibold">
+                          <p className="text-sm text-destructive font-semibold">
                             Requested hours exceed available Off-setting credits
                             ({offsetHours.toFixed(2)}).
                           </p>
                         )}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
+                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="w-full space-y-2">
                         <Label htmlFor="start-time">Start Time</Label>
                         <Input
                           id="start-time"
@@ -911,7 +926,7 @@ export default function LeaveRequestPage() {
                           required
                         />
                       </div>
-                      <div className="space-y-2">
+                      <div className="w-full space-y-2">
                         <Label htmlFor="end-time">End Time</Label>
                         <Input
                           id="end-time"
@@ -926,7 +941,7 @@ export default function LeaveRequestPage() {
                 )}
 
                 {leaveType === "SIL" && (
-                  <div className="space-y-2">
+                  <div className="w-full space-y-2">
                     <Label htmlFor="supporting-doc">
                       Supporting Document (optional, PDF/DOC/DOCX)
                     </Label>
@@ -963,31 +978,34 @@ export default function LeaveRequestPage() {
                       5MB.
                     </p>
                     {supportingDoc && !docError && (
-                      <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-3 py-2">
-                        <Paperclip className="h-4 w-4" />
+                      <HStack
+                        gap="2"
+                        align="center"
+                        className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2"
+                      >
+                        <Icon name="Paperclip" size={IconSizes.sm} />
                         <span>{supportingDoc.name}</span>
-                        <span className="text-xs text-muted-foreground">
+                        <Caption>
                           {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
-                        </span>
-                      </div>
+                        </Caption>
+                      </HStack>
                     )}
                     {docError && (
-                      <p className="text-sm text-red-600 font-medium">
+                      <p className="text-sm text-destructive font-medium">
                         {docError}
                       </p>
                     )}
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="w-full space-y-2">
                   <Label htmlFor="reason">Reason</Label>
-                  <textarea
+                  <Textarea
                     id="reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="Provide reason for leave request..."
                     rows={4}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
                     required
                   />
                 </div>
@@ -996,233 +1014,253 @@ export default function LeaveRequestPage() {
                   type="submit"
                   disabled={submitting || docUploading}
                   className="w-full"
-                  isLoading={submitting || docUploading}
                 >
-                  Submit Leave Request
+                  {submitting || docUploading
+                    ? "Submitting..."
+                    : "Submit Leave Request"}
                 </Button>
-              </form>
-            </CardContent>
-          </Card>
+              </VStack>
+            </form>
+          </CardContent>
+        </Card>
 
-          {/* Requests List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>My Leave Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {visibleRequests.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No leave requests yet</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {visibleRequests.map((request) => (
-                    <Card
-                      key={request.id}
-                      className={`${
-                        request.status === "pending"
-                          ? "border-yellow-300"
-                          : request.status === "approved_by_hr"
-                          ? "border-green-300"
-                          : request.status === "rejected"
-                          ? "border-red-300"
-                          : "border-gray-300"
-                      }`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
-                              <span className="font-bold text-lg">
-                                {format(new Date(request.start_date), "MMM dd")}{" "}
-                                -{" "}
-                                {format(
-                                  new Date(request.end_date),
-                                  "MMM dd, yyyy"
-                                )}
+        {/* Requests List */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle>My Leave Requests</CardTitle>
+          </CardHeader>
+          <CardContent className="w-full">
+            {visibleRequests.length === 0 ? (
+              <div className="text-center py-8">
+                <VStack gap="4" align="center">
+                  <Icon
+                    name="CalendarBlank"
+                    size={IconSizes.xl}
+                    className="text-muted-foreground opacity-50"
+                  />
+                  <BodySmall>No leave requests yet</BodySmall>
+                </VStack>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {visibleRequests.map((request) => (
+                  <Card
+                    key={request.id}
+                    className={`w-full ${
+                      request.status === "pending"
+                        ? "border-yellow-300"
+                        : request.status === "approved_by_hr"
+                        ? "border-emerald-300"
+                        : request.status === "rejected"
+                        ? "border-destructive"
+                        : "border-border"
+                    }`}
+                  >
+                    <CardContent className="w-full p-6">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2 flex-wrap">
+                            <span className="font-bold text-lg">
+                              {format(new Date(request.start_date), "MMM dd")} -{" "}
+                              {format(
+                                new Date(request.end_date),
+                                "MMM dd, yyyy"
+                              )}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={
+                                request.leave_type === "SIL"
+                                  ? "bg-blue-50 text-blue-800 border-blue-200"
+                                  : request.leave_type === "Off-setting"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                  : "bg-amber-50 text-amber-800 border-amber-200"
+                              }
+                            >
+                              {request.leave_type}
+                            </Badge>
+                            {request.leave_type === "Off-setting" ? (
+                              <span className="text-lg font-bold text-emerald-600">
+                                {request.total_hours ?? 0} hrs
                               </span>
-                              <Badge
-                                variant={
-                                  request.leave_type === "SIL"
-                                    ? "info"
-                                    : "warning"
-                                }
-                              >
-                                {request.leave_type}
-                              </Badge>
-                              {request.leave_type === "Off-setting" ? (
-                                <span className="text-lg font-bold text-emerald-600">
-                                  {request.total_hours ?? 0} hrs
-                                </span>
-                              ) : (
-                                <span className="text-lg font-bold text-emerald-600">
-                                  {request.total_days}{" "}
-                                  {request.total_days === 1 ? "day" : "days"}
-                                </span>
-                              )}
+                            ) : (
+                              <span className="text-lg font-bold text-emerald-600">
+                                {request.total_days}{" "}
+                                {request.total_days === 1 ? "day" : "days"}
+                              </span>
+                            )}
+                          </div>
+
+                          {request.reason && (
+                            <div className="text-sm mb-2">
+                              <strong>Reason:</strong>
+                              <div className="mt-1 text-muted-foreground">
+                                {request.reason}
+                              </div>
                             </div>
-
-                            {request.reason && (
-                              <div className="text-sm mb-2">
-                                <strong>Reason:</strong>
-                                <div className="mt-1 text-muted-foreground">
-                                  {request.reason}
-                                </div>
-                              </div>
-                            )}
-
-                            {request.leave_type === "SIL" && (
-                              <div className="mt-2">
-                                <div className="flex items-center gap-2 text-sm font-semibold">
-                                  <FileText className="h-4 w-4" />
-                                  Supporting Document
-                                </div>
-                                {request.leave_request_documents &&
-                                request.leave_request_documents.length > 0 ? (
-                                  request.leave_request_documents.map((doc) => (
-                                    <div
-                                      key={doc.id}
-                                      className="flex items-center gap-2 mt-1 text-sm"
-                                    >
-                                      <Paperclip className="h-4 w-4 text-muted-foreground" />
-                                      <span className="truncate max-w-[160px]">
-                                        {doc.file_name}
-                                      </span>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleDownload(doc.id)}
-                                        isLoading={downloadingDocId === doc.id}
-                                      >
-                                        View
-                                      </Button>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <p className="text-sm text-muted-foreground">
-                                    No supporting document attached.
-                                  </p>
-                                )}
-                              </div>
-                            )}
-
-                            {request.status === "rejected" &&
-                              request.rejection_reason && (
-                                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm">
-                                  <strong className="text-red-900">
-                                    Rejection Reason:
-                                  </strong>
-                                  <div className="text-red-800 mt-1">
-                                    {request.rejection_reason}
-                                  </div>
-                                </div>
-                              )}
-                          </div>
-
-                          <div className="ml-4 flex flex-col items-end gap-2">
-                            {request.status === "pending" && (
-                              <>
-                                <Badge
-                                  variant="warning"
-                                  className="flex items-center gap-2"
-                                >
-                                  <Hourglass className="h-4 w-4" />
-                                  PENDING
-                                </Badge>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => setCancelId(request.id)}
-                                >
-                                  Cancel
-                                </Button>
-                              </>
-                            )}
-                            {request.status === "approved_by_manager" && (
-                              <Badge
-                                variant="info"
-                                className="flex items-center gap-2"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                APPROVED BY MANAGER
-                              </Badge>
-                            )}
-                            {request.status === "approved_by_hr" && (
-                              <Badge
-                                variant="success"
-                                className="flex items-center gap-2"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                APPROVED
-                              </Badge>
-                            )}
-                            {request.status === "rejected" && (
-                              <Badge
-                                variant="destructive"
-                                className="flex items-center gap-2"
-                              >
-                                <XCircle className="h-4 w-4" />
-                                REJECTED
-                              </Badge>
-                            )}
-                            {request.status === "cancelled" && (
-                              <Badge
-                                variant="secondary"
-                                className="flex items-center gap-2"
-                              >
-                                <XCircle className="h-4 w-4" />
-                                CANCELLED
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-muted-foreground mt-2">
-                          Filed:{" "}
-                          {format(
-                            new Date(request.created_at),
-                            "MMM dd, yyyy h:mm a"
                           )}
+
+                          {request.leave_type === "SIL" && (
+                            <VStack gap="2" align="start" className="mt-2">
+                              <HStack gap="2" align="center">
+                                <Icon name="FileText" size={IconSizes.sm} />
+                                <BodySmall className="font-semibold">
+                                  Supporting Document
+                                </BodySmall>
+                              </HStack>
+                              {request.leave_request_documents &&
+                              request.leave_request_documents.length > 0 ? (
+                                <VStack gap="2">
+                                  {request.leave_request_documents.map(
+                                    (doc) => (
+                                      <HStack
+                                        key={doc.id}
+                                        gap="2"
+                                        align="center"
+                                      >
+                                        <Icon
+                                          name="Paperclip"
+                                          size={IconSizes.sm}
+                                          className="text-muted-foreground"
+                                        />
+                                        <span className="truncate max-w-[160px] text-sm">
+                                          {doc.file_name}
+                                        </span>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => handleDownload(doc.id)}
+                                          disabled={downloadingDocId === doc.id}
+                                        >
+                                          {downloadingDocId === doc.id
+                                            ? "Loading..."
+                                            : "View"}
+                                        </Button>
+                                      </HStack>
+                                    )
+                                  )}
+                                </VStack>
+                              ) : (
+                                <BodySmall>
+                                  No supporting document attached.
+                                </BodySmall>
+                              )}
+                            </VStack>
+                          )}
+
+                          {request.status === "rejected" &&
+                            request.rejection_reason && (
+                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm">
+                                <strong className="text-red-900">
+                                  Rejection Reason:
+                                </strong>
+                                <div className="text-red-800 mt-1">
+                                  {request.rejection_reason}
+                                </div>
+                              </div>
+                            )}
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-      {cancelId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">
-              Cancel leave request?
-            </h3>
-            <p className="text-sm text-muted-foreground">
+
+                        <VStack gap="2" align="end" className="ml-4">
+                          {request.status === "pending" && (
+                            <>
+                              <Badge
+                                variant="outline"
+                                className={`flex items-center gap-2 ${statusClasses.pending}`}
+                              >
+                                <Icon name="Hourglass" size={IconSizes.sm} />
+                                PENDING
+                              </Badge>
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => setCancelId(request.id)}
+                              >
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+                          {request.status === "approved_by_manager" && (
+                            <Badge
+                              variant="outline"
+                              className={`flex items-center gap-2 ${statusClasses.approved_by_manager}`}
+                            >
+                              <Icon name="CheckCircle" size={IconSizes.sm} />
+                              APPROVED BY MANAGER
+                            </Badge>
+                          )}
+                          {request.status === "approved_by_hr" && (
+                            <Badge
+                              variant="outline"
+                              className={`flex items-center gap-2 ${statusClasses.approved_by_hr}`}
+                            >
+                              <Icon name="CheckCircle" size={IconSizes.sm} />
+                              APPROVED
+                            </Badge>
+                          )}
+                          {request.status === "rejected" && (
+                            <Badge
+                              variant="outline"
+                              className={`flex items-center gap-2 ${statusClasses.rejected}`}
+                            >
+                              <Icon name="XCircle" size={IconSizes.sm} />
+                              REJECTED
+                            </Badge>
+                          )}
+                          {request.status === "cancelled" && (
+                            <Badge
+                              variant="outline"
+                              className={`flex items-center gap-2 ${statusClasses.cancelled}`}
+                            >
+                              <Icon name="XCircle" size={IconSizes.sm} />
+                              CANCELLED
+                            </Badge>
+                          )}
+                        </VStack>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground mt-2">
+                        Filed:{" "}
+                        {format(
+                          new Date(request.created_at),
+                          "MMM dd, yyyy h:mm a"
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </VStack>
+      <AlertDialog
+        open={!!cancelId}
+        onOpenChange={(open) => {
+          if (!open) setCancelId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel leave request?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will mark the request as cancelled and hide it from your
               list.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCancelId(null)}
-                disabled={cancelLoading}
-              >
-                Keep request
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => cancelId && handleCancel(cancelId)}
-                isLoading={cancelLoading}
-              >
-                Cancel request
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelLoading}>
+              Keep request
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => cancelId && handleCancel(cancelId)}
+              disabled={cancelLoading}
+            >
+              {cancelLoading ? "Cancelling..." : "Cancel request"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

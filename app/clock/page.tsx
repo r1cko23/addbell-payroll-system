@@ -1,13 +1,25 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { MapPin, User, Calendar, History } from 'lucide-react';
-import { toast } from 'sonner';
-import { format, formatDistanceToNow } from 'date-fns';
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent } from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { format, formatDistanceToNow } from "date-fns";
 
 interface Employee {
   id: string;
@@ -21,7 +33,7 @@ interface ClockEntry {
   clock_out_time: string | null;
   clock_in_location: string | null;
   clock_out_location: string | null;
-  status: 'clocked_in' | 'clocked_out' | 'approved' | 'rejected';
+  status: "clocked_in" | "clocked_out" | "approved" | "rejected";
   total_hours: number | null;
   regular_hours: number | null;
   overtime_hours: number | null;
@@ -31,12 +43,14 @@ interface ClockEntry {
 export default function ClockPage() {
   const supabase = createClient();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("");
   const [currentEntry, setCurrentEntry] = useState<ClockEntry | null>(null);
   const [todayEntries, setTodayEntries] = useState<ClockEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
   const [locationStatus, setLocationStatus] = useState<{
     isAllowed: boolean;
     nearestLocation: string | null;
@@ -80,30 +94,30 @@ export default function ClockPage() {
           await validateLocation(loc.lat, loc.lng);
         },
         (error) => {
-          console.log('Location not available:', error);
+          console.log("Location not available:", error);
         },
         {
           enableHighAccuracy: true,
           timeout: 5000,
-          maximumAge: 0
+          maximumAge: 0,
         }
       );
     }
   }, []);
 
   async function validateLocation(lat: number, lng: number) {
-    const { data, error } = await supabase.rpc('is_location_allowed', {
+    const { data, error } = await supabase.rpc("is_location_allowed", {
       p_latitude: lat,
       p_longitude: lng,
     });
 
     if (error) {
-      console.error('Location validation error:', error);
+      console.error("Location validation error:", error);
       setLocationStatus({
         isAllowed: false,
         nearestLocation: null,
         distance: null,
-        error: 'Failed to validate location',
+        error: "Failed to validate location",
       });
       return;
     }
@@ -113,7 +127,9 @@ export default function ClockPage() {
       setLocationStatus({
         isAllowed: result.is_allowed,
         nearestLocation: result.nearest_location_name,
-        distance: result.distance_meters ? Math.round(result.distance_meters) : null,
+        distance: result.distance_meters
+          ? Math.round(result.distance_meters)
+          : null,
         error: result.error_message,
       });
     }
@@ -121,14 +137,14 @@ export default function ClockPage() {
 
   async function fetchEmployees() {
     const { data, error } = await supabase
-      .from('employees')
-      .select('id, employee_id, full_name')
-      .eq('is_active', true)
-      .order('full_name');
+      .from("employees")
+      .select("id, employee_id, full_name")
+      .eq("is_active", true)
+      .order("full_name");
 
     if (error) {
-      console.error('Error fetching employees:', error);
-      toast.error('Failed to load employees');
+      console.error("Error fetching employees:", error);
+      toast.error("Failed to load employees");
       return;
     }
 
@@ -139,16 +155,16 @@ export default function ClockPage() {
     if (!selectedEmployeeId) return;
 
     const { data, error } = await supabase
-      .from('time_clock_entries')
-      .select('*')
-      .eq('employee_id', selectedEmployeeId)
-      .eq('status', 'clocked_in')
-      .order('clock_in_time', { ascending: false })
+      .from("time_clock_entries")
+      .select("*")
+      .eq("employee_id", selectedEmployeeId)
+      .eq("status", "clocked_in")
+      .order("clock_in_time", { ascending: false })
       .limit(1)
       .single();
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error checking clock status:', error);
+    if (error && error.code !== "PGRST116") {
+      console.error("Error checking clock status:", error);
       return;
     }
 
@@ -164,15 +180,15 @@ export default function ClockPage() {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const { data, error } = await supabase
-      .from('time_clock_entries')
-      .select('*')
-      .eq('employee_id', selectedEmployeeId)
-      .gte('clock_in_time', today.toISOString())
-      .lt('clock_in_time', tomorrow.toISOString())
-      .order('clock_in_time', { ascending: false });
+      .from("time_clock_entries")
+      .select("*")
+      .eq("employee_id", selectedEmployeeId)
+      .gte("clock_in_time", today.toISOString())
+      .lt("clock_in_time", tomorrow.toISOString())
+      .order("clock_in_time", { ascending: false });
 
     if (error) {
-      console.error('Error fetching today entries:', error);
+      console.error("Error fetching today entries:", error);
       return;
     }
 
@@ -181,12 +197,12 @@ export default function ClockPage() {
 
   async function handleClockIn() {
     if (!selectedEmployeeId) {
-      toast.error('Please select an employee');
+      toast.error("Please select an employee");
       return;
     }
 
     if (currentEntry) {
-      toast.error('Already clocked in! Please clock out first.');
+      toast.error("Already clocked in! Please clock out first.");
       return;
     }
 
@@ -195,30 +211,42 @@ export default function ClockPage() {
     // Validate location if available
     if (location) {
       await validateLocation(location.lat, location.lng);
-      const { data: validationData } = await supabase.rpc('is_location_allowed', {
-        p_latitude: location.lat,
-        p_longitude: location.lng,
-      });
+      const { data: validationData } = await supabase.rpc(
+        "is_location_allowed",
+        {
+          p_latitude: location.lat,
+          p_longitude: location.lng,
+        }
+      );
 
-      if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
-        toast.error(`📍 Location Error: ${validationData[0].error_message || 'You must be at an allowed location to clock in.'}`);
-          setLoading(false);
-          return;
+      if (
+        validationData &&
+        validationData.length > 0 &&
+        !validationData[0].is_allowed
+      ) {
+        toast.error(
+          `📍 Location Error: ${
+            validationData[0].error_message ||
+            "You must be at an allowed location to clock in."
+          }`
+        );
+        setLoading(false);
+        return;
       }
     }
 
-    const locationString = location 
+    const locationString = location
       ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
       : null;
 
     const { data, error } = await supabase
-      .from('time_clock_entries')
+      .from("time_clock_entries")
       .insert({
         employee_id: selectedEmployeeId,
         clock_in_time: new Date().toISOString(),
         clock_in_location: locationString,
         clock_in_device: navigator.userAgent.substring(0, 255),
-        status: 'clocked_in',
+        status: "clocked_in",
       })
       .select()
       .single();
@@ -226,19 +254,19 @@ export default function ClockPage() {
     setLoading(false);
 
     if (error) {
-      console.error('Error clocking in:', error);
-      toast.error('Failed to clock in');
+      console.error("Error clocking in:", error);
+      toast.error("Failed to clock in");
       return;
     }
 
     setCurrentEntry(data);
-    toast.success('Clocked in successfully! ✅');
+    toast.success("Clocked in successfully! ✅");
     fetchTodayEntries();
   }
 
   async function handleClockOut() {
     if (!currentEntry) {
-      toast.error('You are not clocked in');
+      toast.error("You are not clocked in");
       return;
     }
 
@@ -247,45 +275,57 @@ export default function ClockPage() {
     // Validate location if available
     if (location) {
       await validateLocation(location.lat, location.lng);
-      const { data: validationData } = await supabase.rpc('is_location_allowed', {
-        p_latitude: location.lat,
-        p_longitude: location.lng,
-      });
+      const { data: validationData } = await supabase.rpc(
+        "is_location_allowed",
+        {
+          p_latitude: location.lat,
+          p_longitude: location.lng,
+        }
+      );
 
-      if (validationData && validationData.length > 0 && !validationData[0].is_allowed) {
-        toast.error(`📍 Location Error: ${validationData[0].error_message || 'You must be at an allowed location to clock in.'}`);
-          setLoading(false);
-          return;
+      if (
+        validationData &&
+        validationData.length > 0 &&
+        !validationData[0].is_allowed
+      ) {
+        toast.error(
+          `📍 Location Error: ${
+            validationData[0].error_message ||
+            "You must be at an allowed location to clock in."
+          }`
+        );
+        setLoading(false);
+        return;
       }
     }
 
-    const locationString = location 
+    const locationString = location
       ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
       : null;
 
     const { error } = await supabase
-      .from('time_clock_entries')
+      .from("time_clock_entries")
       .update({
         clock_out_time: new Date().toISOString(),
         clock_out_location: locationString,
         clock_out_device: navigator.userAgent.substring(0, 255),
       })
-      .eq('id', currentEntry.id);
+      .eq("id", currentEntry.id);
 
     setLoading(false);
 
     if (error) {
-      console.error('Error clocking out:', error);
-      toast.error('Failed to clock out');
+      console.error("Error clocking out:", error);
+      toast.error("Failed to clock out");
       return;
     }
 
-    toast.success('Clocked out successfully! 👋');
+    toast.success("Clocked out successfully! 👋");
     setCurrentEntry(null);
     fetchTodayEntries();
   }
 
-  const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
+  const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
   // Flip clock digit component
   const FlipDigit = ({ value }: { value: string }) => (
@@ -313,32 +353,33 @@ export default function ClockPage() {
     </div>
   );
 
-  const time = currentTime.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
-    second: '2-digit',
-    hour12: false 
+  const time = currentTime.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   });
-  const [hours, minutes, seconds] = time.split(':');
+  const [hours, minutes, seconds] = time.split(":");
 
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 -m-6 p-6">
         <div className="max-w-5xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="text-center">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 tracking-wider">
-              BUNDY CLOCK
-            </h1>
-            <p className="text-gray-600 mt-2">
-              {currentTime.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-          </div>
+          <Card>
+            <CardContent className="text-center py-6">
+              <VStack gap="2" align="center">
+                <H1 className="md:text-4xl tracking-wider">Bundy Clock</H1>
+                <BodySmall>
+                  {currentTime.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </BodySmall>
+              </VStack>
+            </CardContent>
+          </Card>
 
           {/* Main Clock Card */}
           <Card className="p-8 bg-white shadow-xl">
@@ -377,15 +418,24 @@ export default function ClockPage() {
             {/* Current Status */}
             {selectedEmployee && (
               <div className="max-w-md mx-auto mb-6">
-                <div className={`p-4 rounded-lg text-center ${
-                  currentEntry 
-                    ? 'bg-green-50 border-2 border-green-500' 
-                    : 'bg-gray-50 border-2 border-gray-300'
-                }`}>
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <User className="h-5 w-5" />
-                    <span className="font-semibold text-lg">{selectedEmployee.full_name}</span>
-                  </div>
+                <div
+                  className={`p-4 rounded-lg text-center ${
+                    currentEntry
+                      ? "bg-green-50 border-2 border-green-500"
+                      : "bg-gray-50 border-2 border-gray-300"
+                  }`}
+                >
+                  <HStack
+                    gap="2"
+                    align="center"
+                    justify="center"
+                    className="mb-2"
+                  >
+                    <Icon name="User" size={IconSizes.md} />
+                    <span className="font-semibold text-lg">
+                      {selectedEmployee.full_name}
+                    </span>
+                  </HStack>
                   {currentEntry ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-center gap-2 text-green-700 font-bold">
@@ -393,10 +443,16 @@ export default function ClockPage() {
                         CLOCKED IN
                       </div>
                       <div className="text-sm text-gray-600">
-                        Since {new Date(currentEntry.clock_in_time).toLocaleTimeString()}
+                        Since{" "}
+                        {new Date(
+                          currentEntry.clock_in_time
+                        ).toLocaleTimeString()}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {formatDistanceToNow(new Date(currentEntry.clock_in_time), { addSuffix: true })}
+                        {formatDistanceToNow(
+                          new Date(currentEntry.clock_in_time),
+                          { addSuffix: true }
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -416,9 +472,10 @@ export default function ClockPage() {
                 className={`
                   py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
                   transition-all duration-200 transform
-                  ${!selectedEmployeeId || loading || currentEntry
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:scale-105 shadow-lg hover:shadow-xl active:scale-95'
+                  ${
+                    !selectedEmployeeId || loading || currentEntry
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:scale-105 shadow-lg hover:shadow-xl active:scale-95"
                   }
                 `}
               >
@@ -431,9 +488,10 @@ export default function ClockPage() {
                 className={`
                   py-6 px-8 rounded-xl text-xl font-bold uppercase tracking-wider
                   transition-all duration-200 transform
-                  ${!currentEntry || loading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-105 shadow-lg hover:shadow-xl active:scale-95'
+                  ${
+                    !currentEntry || loading
+                      ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:scale-105 shadow-lg hover:shadow-xl active:scale-95"
                   }
                 `}
               >
@@ -444,30 +502,38 @@ export default function ClockPage() {
             {/* GPS Status */}
             {location && (
               <div className="mt-6 text-center">
-                <div className="inline-flex items-center gap-2 text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full">
-                  <MapPin className="h-4 w-4" />
+                <HStack
+                  gap="2"
+                  align="center"
+                  justify="center"
+                  className="inline-flex text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full"
+                >
+                  <Icon name="MapPin" size={IconSizes.sm} />
                   <span>GPS Location Detected</span>
-                </div>
+                </HStack>
               </div>
             )}
           </Card>
 
           {/* Today's Entries */}
           {selectedEmployee && todayEntries.length > 0 && (
-            <Card className="p-6 bg-white shadow-lg">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <History className="h-6 w-6" />
-                Today's Time Records ({todayEntries.length})
-              </h3>
-
-              <div className="space-y-3">
+            <CardSection
+              title={
+                <HStack gap="2" align="center">
+                  <Icon name="ClockClockwise" size={IconSizes.md} />
+                  <span>Today&apos;s Time Records ({todayEntries.length})</span>
+                </HStack>
+              }
+              className="bg-white shadow-lg"
+            >
+              <VStack gap="3">
                 {todayEntries.map((entry, index) => (
                   <div
                     key={entry.id}
                     className={`p-4 rounded-lg border-2 ${
-                      entry.status === 'clocked_in'
-                        ? 'bg-green-50 border-green-300'
-                        : 'bg-gray-50 border-gray-200'
+                      entry.status === "clocked_in"
+                        ? "bg-green-50 border-green-300"
+                        : "bg-gray-50 border-gray-200"
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -476,7 +542,7 @@ export default function ClockPage() {
                           <span className="font-bold text-lg">
                             Shift {todayEntries.length - index}
                           </span>
-                          {entry.status === 'clocked_in' && (
+                          {entry.status === "clocked_in" && (
                             <span className="px-3 py-1 bg-green-600 text-white text-xs rounded-full font-bold">
                               ACTIVE
                             </span>
@@ -487,10 +553,13 @@ export default function ClockPage() {
                           <div>
                             <div className="text-gray-600">Time In</div>
                             <div className="font-semibold">
-                              {new Date(entry.clock_in_time).toLocaleTimeString('en-US', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
+                              {new Date(entry.clock_in_time).toLocaleTimeString(
+                                "en-US",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }
+                              )}
                             </div>
                           </div>
 
@@ -498,12 +567,16 @@ export default function ClockPage() {
                             <div className="text-gray-600">Time Out</div>
                             <div className="font-semibold">
                               {entry.clock_out_time ? (
-                                new Date(entry.clock_out_time).toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
+                                new Date(
+                                  entry.clock_out_time
+                                ).toLocaleTimeString("en-US", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
                                 })
                               ) : (
-                                <span className="text-green-600">Working...</span>
+                                <span className="text-green-600">
+                                  Working...
+                                </span>
                               )}
                             </div>
                           </div>
@@ -520,7 +593,9 @@ export default function ClockPage() {
                               <div>
                                 <div className="text-gray-600">Breakdown</div>
                                 <div className="text-xs">
-                                  <div>Reg: {entry.regular_hours?.toFixed(2) || 0}h</div>
+                                  <div>
+                                    Reg: {entry.regular_hours?.toFixed(2) || 0}h
+                                  </div>
                                 </div>
                               </div>
                             </>
@@ -532,19 +607,23 @@ export default function ClockPage() {
                 ))}
 
                 <div className="mt-4 p-4 bg-emerald-50 rounded-lg border-2 border-emerald-200">
-                  <div className="flex items-center justify-between">
+                  <HStack justify="between" align="center">
                     <span className="font-bold text-emerald-900 text-lg">
                       Total Hours Today:
                     </span>
                     <span className="text-3xl font-bold text-emerald-900">
                       {todayEntries
-                        .reduce((sum, entry) => sum + (entry.total_hours || 0), 0)
-                        .toFixed(2)}h
+                        .reduce(
+                          (sum, entry) => sum + (entry.total_hours || 0),
+                          0
+                        )
+                        .toFixed(2)}
+                      h
                     </span>
-                  </div>
+                  </HStack>
                 </div>
-              </div>
-            </Card>
+              </VStack>
+            </CardSection>
           )}
 
           {/* Instructions */}
@@ -561,11 +640,15 @@ export default function ClockPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="font-bold">2.</span>
-                    <span>Click <strong>"TIME IN"</strong> when you arrive</span>
+                    <span>
+                      Click <strong>"TIME IN"</strong> when you arrive
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="font-bold">3.</span>
-                    <span>Click <strong>"TIME OUT"</strong> when you leave</span>
+                    <span>
+                      Click <strong>"TIME OUT"</strong> when you leave
+                    </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="font-bold">4.</span>

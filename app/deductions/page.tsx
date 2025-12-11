@@ -1,23 +1,31 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { Input, Select } from '@/components/Input';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import toast from 'react-hot-toast';
-import { formatCurrency } from '@/utils/format';
-import { format, addDays } from 'date-fns';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { 
-  getBiMonthlyPeriodStart, 
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { CardSection } from "@/components/ui/card-section";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { H1, H4, BodySmall, Label, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { toast } from "sonner";
+import { formatCurrency } from "@/utils/format";
+import { format, addDays } from "date-fns";
+import {
+  getBiMonthlyPeriodStart,
   getBiMonthlyPeriodEnd,
   getNextBiMonthlyPeriod,
   getPreviousBiMonthlyPeriod,
-  formatBiMonthlyPeriod
-} from '@/utils/bimonthly';
+  formatBiMonthlyPeriod,
+} from "@/utils/bimonthly";
 // import { calculateAllContributions } from '@/utils/ph-deductions';
 
 interface Employee {
@@ -45,23 +53,25 @@ interface Deductions {
 
 export default function DeductionsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
-  const [periodStart, setPeriodStart] = useState<Date>(() => getBiMonthlyPeriodStart(new Date()));
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [periodStart, setPeriodStart] = useState<Date>(() =>
+    getBiMonthlyPeriodStart(new Date())
+  );
   const [deductions, setDeductions] = useState<Deductions | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    vale_amount: '0',
-    uniform_ppe_amount: '0',
-    sss_salary_loan: '0',
-    sss_calamity_loan: '0',
-    pagibig_salary_loan: '0',
-    pagibig_calamity_loan: '0',
-    sss_contribution: '0',
-    philhealth_contribution: '0',
-    pagibig_contribution: '0',
-    withholding_tax: '0',
+    vale_amount: "0",
+    uniform_ppe_amount: "0",
+    sss_salary_loan: "0",
+    sss_calamity_loan: "0",
+    pagibig_salary_loan: "0",
+    pagibig_calamity_loan: "0",
+    sss_contribution: "0",
+    philhealth_contribution: "0",
+    pagibig_contribution: "0",
+    withholding_tax: "0",
   });
 
   const supabase = createClient();
@@ -81,17 +91,17 @@ export default function DeductionsPage() {
   async function loadEmployees() {
     try {
       const { data, error } = await supabase
-        .from('employees')
-        .select('id, employee_id, full_name')
-        .eq('is_active', true)
-        .order('last_name', { nullsFirst: false })
-        .order('first_name', { nullsFirst: false });
+        .from("employees")
+        .select("id, employee_id, full_name")
+        .eq("is_active", true)
+        .order("last_name", { nullsFirst: false })
+        .order("first_name", { nullsFirst: false });
 
       if (error) throw error;
       setEmployees(data || []);
     } catch (error) {
-      console.error('Error loading employees:', error);
-      toast.error('Failed to load employees');
+      console.error("Error loading employees:", error);
+      toast.error("Failed to load employees");
     } finally {
       setLoading(false);
     }
@@ -99,13 +109,13 @@ export default function DeductionsPage() {
 
   // function autoCalculateContributions() {
   //   if (!selectedEmployeeId) return;
-  //   
+  //
   //   const employee = employees.find(emp => emp.id === selectedEmployeeId);
   //   if (!employee || !employee.rate_per_day) return;
   //
   //   // Calculate contributions based on daily rate
   //   const contributions = calculateAllContributions(employee.rate_per_day, 22); // 22 working days per month
-  //   
+  //
   //   // Update form data with calculated bi-monthly contributions
   //   setFormData(prev => ({
   //     ...prev,
@@ -117,13 +127,13 @@ export default function DeductionsPage() {
 
   async function loadDeductions() {
     try {
-      const periodStartStr = format(periodStart, 'yyyy-MM-dd');
-      
+      const periodStartStr = format(periodStart, "yyyy-MM-dd");
+
       const { data, error } = await supabase
-        .from('employee_deductions')
-        .select('*')
-        .eq('employee_id', selectedEmployeeId)
-        .eq('period_start', periodStartStr)
+        .from("employee_deductions")
+        .select("*")
+        .eq("employee_id", selectedEmployeeId)
+        .eq("period_start", periodStartStr)
         .maybeSingle();
 
       if (error) throw error;
@@ -149,44 +159,44 @@ export default function DeductionsPage() {
         // autoCalculateContributions();
       }
     } catch (error) {
-      console.error('Error loading deductions:', error);
-      toast.error('Failed to load deductions');
+      console.error("Error loading deductions:", error);
+      toast.error("Failed to load deductions");
     }
   }
 
   function resetForm() {
     setFormData({
-      vale_amount: '0',
-      uniform_ppe_amount: '0',
-      sss_salary_loan: '0',
-      sss_calamity_loan: '0',
-      pagibig_salary_loan: '0',
-      pagibig_calamity_loan: '0',
-      sss_contribution: '0',
-      philhealth_contribution: '0',
-      pagibig_contribution: '0',
-      withholding_tax: '0',
+      vale_amount: "0",
+      uniform_ppe_amount: "0",
+      sss_salary_loan: "0",
+      sss_calamity_loan: "0",
+      pagibig_salary_loan: "0",
+      pagibig_calamity_loan: "0",
+      sss_contribution: "0",
+      philhealth_contribution: "0",
+      pagibig_contribution: "0",
+      withholding_tax: "0",
     });
   }
 
   async function handleSave() {
     if (!selectedEmployeeId) {
-      toast.error('Please select an employee');
+      toast.error("Please select an employee");
       return;
     }
 
     setSaving(true);
 
     try {
-      const periodStartStr = format(periodStart, 'yyyy-MM-dd');
+      const periodStartStr = format(periodStart, "yyyy-MM-dd");
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
-      const periodEndStr = format(periodEnd, 'yyyy-MM-dd');
-      
+      const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+
       const deductionData = {
         employee_id: selectedEmployeeId,
         period_start: periodStartStr,
         period_end: periodEndStr,
-        period_type: 'bimonthly',
+        period_type: "bimonthly",
         vale_amount: parseFloat(formData.vale_amount) || 0,
         uniform_ppe_amount: parseFloat(formData.uniform_ppe_amount) || 0,
         sss_salary_loan: parseFloat(formData.sss_salary_loan) || 0,
@@ -194,7 +204,8 @@ export default function DeductionsPage() {
         pagibig_salary_loan: parseFloat(formData.pagibig_salary_loan) || 0,
         pagibig_calamity_loan: parseFloat(formData.pagibig_calamity_loan) || 0,
         sss_contribution: parseFloat(formData.sss_contribution) || 0,
-        philhealth_contribution: parseFloat(formData.philhealth_contribution) || 0,
+        philhealth_contribution:
+          parseFloat(formData.philhealth_contribution) || 0,
         pagibig_contribution: parseFloat(formData.pagibig_contribution) || 0,
         withholding_tax: parseFloat(formData.withholding_tax) || 0,
       };
@@ -202,281 +213,348 @@ export default function DeductionsPage() {
       if (deductions?.id) {
         // Update existing
         const { error } = await supabase
-          .from('employee_deductions')
+          .from("employee_deductions")
           .update(deductionData)
-          .eq('id', deductions.id);
+          .eq("id", deductions.id);
 
         if (error) throw error;
-        toast.success(`Deductions updated for period ${formatBiMonthlyPeriod(periodStart, periodEnd)}`);
+        toast.success(
+          `Deductions updated for period ${formatBiMonthlyPeriod(
+            periodStart,
+            periodEnd
+          )}`
+        );
       } else {
         // Create new
         const { error } = await supabase
-          .from('employee_deductions')
+          .from("employee_deductions")
           .insert([deductionData]);
 
         if (error) throw error;
-        toast.success(`Deductions saved for period ${formatBiMonthlyPeriod(periodStart, periodEnd)}`);
+        toast.success(
+          `Deductions saved for period ${formatBiMonthlyPeriod(
+            periodStart,
+            periodEnd
+          )}`
+        );
       }
 
       loadDeductions();
     } catch (error: any) {
-      console.error('Error saving deductions:', error);
-      toast.error(error.message || 'Failed to save deductions');
+      console.error("Error saving deductions:", error);
+      toast.error(error.message || "Failed to save deductions");
     } finally {
       setSaving(false);
     }
   }
 
   const weeklyTotal =
-    parseFloat(formData.vale_amount || '0') +
-    parseFloat(formData.uniform_ppe_amount || '0') +
-    parseFloat(formData.sss_salary_loan || '0') +
-    parseFloat(formData.sss_calamity_loan || '0') +
-    parseFloat(formData.pagibig_salary_loan || '0') +
-    parseFloat(formData.pagibig_calamity_loan || '0');
+    parseFloat(formData.vale_amount || "0") +
+    parseFloat(formData.uniform_ppe_amount || "0") +
+    parseFloat(formData.sss_salary_loan || "0") +
+    parseFloat(formData.sss_calamity_loan || "0") +
+    parseFloat(formData.pagibig_salary_loan || "0") +
+    parseFloat(formData.pagibig_calamity_loan || "0");
 
   const govTotal =
-    parseFloat(formData.sss_contribution || '0') +
-    parseFloat(formData.philhealth_contribution || '0') +
-    parseFloat(formData.pagibig_contribution || '0');
+    parseFloat(formData.sss_contribution || "0") +
+    parseFloat(formData.philhealth_contribution || "0") +
+    parseFloat(formData.pagibig_contribution || "0");
 
   if (loading) {
     return (
       <DashboardLayout>
-        <LoadingSpinner size="lg" className="mt-20" />
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Deductions Management</h1>
-          <p className="text-gray-600 mt-1">
-            Configure bi-monthly deductions and government contributions per employee
-          </p>
-        </div>
+      <VStack gap="8" className="w-full">
+        <VStack gap="2" align="start">
+          <H1>Deductions Management</H1>
+          <BodySmall>
+            Configure bi-monthly deductions and government contributions per
+            employee
+          </BodySmall>
+        </VStack>
 
-        <Card>
-          <div className="space-y-4">
+        <CardSection>
+          <VStack gap="4">
             {/* Period Navigation */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Bi-Monthly Period (Monday - Friday, 2 weeks)
-              </label>
-              <div className="flex items-center gap-3">
+            <VStack gap="2" align="start">
+              <Label>Select Bi-Monthly Period (Monday - Friday, 2 weeks)</Label>
+              <HStack gap="3" align="center" className="w-full">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))}
+                  onClick={() =>
+                    setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))
+                  }
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <Icon name="CaretLeft" size={IconSizes.sm} />
                 </Button>
-                <div className="flex-1 text-center">
-                  <div className="font-semibold text-gray-900">
-                    {formatBiMonthlyPeriod(periodStart, getBiMonthlyPeriodEnd(periodStart))}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Period starting {format(periodStart, 'MMMM d, yyyy')}
-                  </div>
-                </div>
+                <VStack gap="0" align="center" className="flex-1">
+                  <p className="font-semibold text-foreground">
+                    {formatBiMonthlyPeriod(
+                      periodStart,
+                      getBiMonthlyPeriodEnd(periodStart)
+                    )}
+                  </p>
+                  <BodySmall>
+                    Period starting {format(periodStart, "MMMM d, yyyy")}
+                  </BodySmall>
+                </VStack>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setPeriodStart(getNextBiMonthlyPeriod(periodStart))}
+                  onClick={() =>
+                    setPeriodStart(getNextBiMonthlyPeriod(periodStart))
+                  }
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <Icon name="CaretRight" size={IconSizes.sm} />
                 </Button>
-              </div>
-            </div>
+              </HStack>
+            </VStack>
 
             {/* Employee Selection */}
-            <Select
-              label="Select Employee"
-              options={[
-                { value: '', label: '-- Select Employee --' },
-                ...employees.map((emp) => ({
-                  value: emp.id,
-                  label: `${emp.full_name} (${emp.employee_id})`,
-                })),
-              ]}
-              value={selectedEmployeeId}
-              onChange={(e) => setSelectedEmployeeId(e.target.value)}
-            />
-          </div>
-        </Card>
+            <VStack gap="2" align="start">
+              <Label>Select Employee</Label>
+              <Select
+                value={selectedEmployeeId}
+                onValueChange={(value) => setSelectedEmployeeId(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Select Employee --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.full_name} ({emp.employee_id})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </VStack>
+          </VStack>
+        </CardSection>
 
         {selectedEmployeeId && (
           <>
-            <Card 
-              title="Bi-Monthly Deductions" 
-              subtitle={`For period ${formatBiMonthlyPeriod(periodStart, getBiMonthlyPeriodEnd(periodStart))}`}
+            <CardSection
+              title="Bi-Monthly Deductions"
+              description={`For period ${formatBiMonthlyPeriod(
+                periodStart,
+                getBiMonthlyPeriodEnd(periodStart)
+              )}`}
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="Vale"
-                  type="number"
-                  step="0.01"
-                  value={formData.vale_amount}
-                  onChange={(e) =>
-                    setFormData({ ...formData, vale_amount: e.target.value })
-                  }
-                  helperText="Cash advance deduction"
-                />
+                <VStack gap="2" align="start">
+                  <Label>Vale</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.vale_amount}
+                    onChange={(e) =>
+                      setFormData({ ...formData, vale_amount: e.target.value })
+                    }
+                  />
+                  <Caption>Cash advance deduction</Caption>
+                </VStack>
 
-                <Input
-                  label="Uniform / PPE"
-                  type="number"
-                  step="0.01"
-                  value={formData.uniform_ppe_amount}
-                  onChange={(e) =>
-                    setFormData({ ...formData, uniform_ppe_amount: e.target.value })
-                  }
-                  helperText="Uniform or safety equipment"
-                />
+                <VStack gap="2" align="start">
+                  <Label>Uniform / PPE</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.uniform_ppe_amount}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        uniform_ppe_amount: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>Uniform or safety equipment</Caption>
+                </VStack>
 
-                <Input
-                  label="SSS Salary Loan"
-                  type="number"
-                  step="0.01"
-                  value={formData.sss_salary_loan}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sss_salary_loan: e.target.value })
-                  }
-                />
+                <VStack gap="2" align="start">
+                  <Label>SSS Salary Loan</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.sss_salary_loan}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        sss_salary_loan: e.target.value,
+                      })
+                    }
+                  />
+                </VStack>
 
-                <Input
-                  label="SSS Calamity Loan"
-                  type="number"
-                  step="0.01"
-                  value={formData.sss_calamity_loan}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sss_calamity_loan: e.target.value })
-                  }
-                />
+                <VStack gap="2" align="start">
+                  <Label>SSS Calamity Loan</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.sss_calamity_loan}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        sss_calamity_loan: e.target.value,
+                      })
+                    }
+                  />
+                </VStack>
 
-                <Input
-                  label="Pag-IBIG Salary Loan"
-                  type="number"
-                  step="0.01"
-                  value={formData.pagibig_salary_loan}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pagibig_salary_loan: e.target.value })
-                  }
-                />
+                <VStack gap="2" align="start">
+                  <Label>Pag-IBIG Salary Loan</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.pagibig_salary_loan}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        pagibig_salary_loan: e.target.value,
+                      })
+                    }
+                  />
+                </VStack>
 
-                <Input
-                  label="Pag-IBIG Calamity Loan"
-                  type="number"
-                  step="0.01"
-                  value={formData.pagibig_calamity_loan}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pagibig_calamity_loan: e.target.value })
-                  }
-                />
+                <VStack gap="2" align="start">
+                  <Label>Pag-IBIG Calamity Loan</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.pagibig_calamity_loan}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        pagibig_calamity_loan: e.target.value,
+                      })
+                    }
+                  />
+                </VStack>
               </div>
 
               <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">
+                <HStack justify="between" align="center">
+                  <span className="font-semibold text-foreground">
                     Total Bi-Monthly Deductions:
                   </span>
-                  <span className="text-xl font-bold text-gray-900">
+                  <span className="text-xl font-bold text-foreground">
                     {formatCurrency(weeklyTotal)}
                   </span>
-                </div>
+                </HStack>
               </div>
-            </Card>
+            </CardSection>
 
-            <Card
+            <CardSection
               title="Government Contributions"
-              subtitle="Manual entry required (rates removed)."
+              description="Manual entry required (rates removed)."
             >
-              {/* <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-sm text-green-800">
-                  💡 <strong>Auto-Calculated:</strong> Contributions are automatically calculated based on the employee's daily rate using Philippine salary brackets. You can manually adjust if needed.
-                </p>
-              </div> */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  label="SSS Contribution"
-                  type="number"
-                  step="0.01"
-                  value={formData.sss_contribution}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sss_contribution: e.target.value })
-                  }
-                  helperText="Bi-monthly amount"
-                />
+                <VStack gap="2" align="start">
+                  <Label>SSS Contribution</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.sss_contribution}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        sss_contribution: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>Bi-monthly amount</Caption>
+                </VStack>
 
-                <Input
-                  label="PhilHealth Contribution"
-                  type="number"
-                  step="0.01"
-                  value={formData.philhealth_contribution}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      philhealth_contribution: e.target.value,
-                    })
-                  }
-                  helperText="Bi-monthly amount"
-                />
+                <VStack gap="2" align="start">
+                  <Label>PhilHealth Contribution</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.philhealth_contribution}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        philhealth_contribution: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>Bi-monthly amount</Caption>
+                </VStack>
 
-                <Input
-                  label="Pag-IBIG Contribution"
-                  type="number"
-                  step="0.01"
-                  value={formData.pagibig_contribution}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      pagibig_contribution: e.target.value,
-                    })
-                  }
-                  helperText="Bi-monthly amount"
-                />
+                <VStack gap="2" align="start">
+                  <Label>Pag-IBIG Contribution</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.pagibig_contribution}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        pagibig_contribution: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>Bi-monthly amount</Caption>
+                </VStack>
 
-                <Input
-                  label="Withholding Tax"
-                  type="number"
-                  step="0.01"
-                  value={formData.withholding_tax}
-                  onChange={(e) =>
-                    setFormData({ ...formData, withholding_tax: e.target.value })
-                  }
-                  helperText="Income tax withheld"
-                />
+                <VStack gap="2" align="start">
+                  <Label>Withholding Tax</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.withholding_tax}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        withholding_tax: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>Income tax withheld</Caption>
+                </VStack>
               </div>
 
               <div className="mt-4 p-4 bg-emerald-50 rounded-lg">
-                <div className="flex justify-between items-center">
+                <HStack justify="between" align="center">
                   <span className="font-semibold text-emerald-700">
                     Total Government Contributions:
                   </span>
                   <span className="text-xl font-bold text-emerald-900">
                     {formatCurrency(govTotal)}
                   </span>
-                </div>
-                <p className="text-sm text-emerald-600 mt-2">
-                  💡 These will be applied when you check the boxes in the payslip
-                  (usually 3rd or 4th week)
-                </p>
+                </HStack>
+                <BodySmall className="text-emerald-600 mt-2">
+                  💡 These will be applied when you check the boxes in the
+                  payslip (usually 3rd or 4th week)
+                </BodySmall>
               </div>
-            </Card>
+            </CardSection>
 
-            <div className="flex justify-end gap-3">
+            <HStack justify="end" gap="3">
               <Button variant="secondary" onClick={resetForm}>
                 Reset
               </Button>
-              <Button onClick={handleSave} isLoading={saving}>
+              <Button onClick={handleSave} disabled={saving}>
                 Save Deductions
               </Button>
-            </div>
+            </HStack>
           </>
         )}
-      </div>
+      </VStack>
     </DashboardLayout>
   );
 }

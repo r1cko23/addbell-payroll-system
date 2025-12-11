@@ -1,66 +1,61 @@
-import React from 'react';
+"use client";
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+import * as React from "react";
+import { SpinnerGap } from "phosphor-react";
+
+import {
+  Button as ShadButton,
+  type ButtonProps as ShadButtonProps,
+} from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+type LegacyVariant = "primary" | "secondary" | "danger" | "ghost";
+type LegacySize = "sm" | "md" | "lg";
+
+interface ButtonProps extends Omit<ShadButtonProps, "variant" | "size"> {
+  variant?: LegacyVariant | ShadButtonProps["variant"];
+  size?: LegacySize | ShadButtonProps["size"];
   isLoading?: boolean;
   children: React.ReactNode;
 }
 
+const variantMap: Record<LegacyVariant, ShadButtonProps["variant"]> = {
+  primary: "default",
+  secondary: "secondary",
+  danger: "destructive",
+  ghost: "ghost",
+};
+
+const sizeMap: Record<LegacySize, ShadButtonProps["size"]> = {
+  sm: "sm",
+  md: "default",
+  lg: "lg",
+};
+
 export function Button({
-  variant = 'primary',
-  size = 'md',
+  variant = "default",
+  size = "default",
   isLoading = false,
   children,
-  className = '',
+  className,
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
-  
-  const variants = {
-    primary: 'bg-primary text-primary-foreground hover:opacity-90 focus:ring-ring shadow-sm',
-    secondary: 'bg-secondary text-secondary-foreground hover:opacity-80 focus:ring-ring',
-    danger: 'bg-destructive text-destructive-foreground hover:opacity-90 focus:ring-ring',
-    ghost: 'bg-transparent text-foreground hover:bg-accent hover:text-accent-foreground focus:ring-ring',
-  };
-  
-  const sizes = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
-  };
-  
+  const resolvedVariant = (variantMap[variant as LegacyVariant] ??
+    variant) as ShadButtonProps["variant"];
+  const resolvedSize = (sizeMap[size as LegacySize] ??
+    size) as ShadButtonProps["size"];
+
   return (
-    <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+    <ShadButton
+      variant={resolvedVariant}
+      size={resolvedSize}
       disabled={disabled || isLoading}
+      className={cn("gap-2", className)}
       {...props}
     >
-      {isLoading && (
-        <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-      )}
+      {isLoading && <SpinnerGap className="h-4 w-4 animate-spin" />}
       {children}
-    </button>
+    </ShadButton>
   );
 }
-

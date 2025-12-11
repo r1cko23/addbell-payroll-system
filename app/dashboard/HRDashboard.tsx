@@ -3,12 +3,21 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card } from "@/components/Card";
-import { Loader2, Users, Clock, MapPin, CheckCircle2 } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format } from "date-fns";
 import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
 import Link from "next/link";
-import { Button } from "@/components/Button";
+import { Button } from "@/components/ui/button";
 
 interface ClockEntry {
   id: string;
@@ -167,7 +176,11 @@ export default function HRDashboard() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
         </div>
       </DashboardLayout>
     );
@@ -175,189 +188,240 @@ export default function HRDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Workforce Overview
-          </h1>
-          <p className="text-muted-foreground mt-2">
+      <VStack gap="8" className="w-full">
+        <VStack gap="2" align="start">
+          <H1>Workforce Overview</H1>
+          <BodySmall>
             Track employee registrations and the latest time in/out activity.
-          </p>
+          </BodySmall>
+        </VStack>
+
+        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4 items-stretch">
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex flex-col">
+              <HStack justify="between" align="start" className="flex-1">
+                <VStack gap="2" align="start" className="flex-1">
+                  <BodySmall>Employees Registered</BodySmall>
+                  <p className="text-3xl font-bold text-foreground leading-tight">
+                    {totalEmployees}
+                  </p>
+                </VStack>
+                <div className="p-3 bg-emerald-50 rounded-full flex-shrink-0">
+                  <Icon
+                    name="UsersThree"
+                    size={IconSizes.md}
+                    className="text-emerald-600"
+                  />
+                </div>
+              </HStack>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex flex-col">
+              <HStack justify="between" align="start" className="flex-1">
+                <VStack gap="2" align="start" className="flex-1">
+                  <BodySmall>Currently Clocked In</BodySmall>
+                  <p className="text-3xl font-bold text-foreground leading-tight">
+                    {clockedInEntries.length}
+                  </p>
+                </VStack>
+                <div className="p-3 bg-emerald-50 rounded-full flex-shrink-0">
+                  <Icon
+                    name="Clock"
+                    size={IconSizes.md}
+                    className="text-emerald-600"
+                  />
+                </div>
+              </HStack>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex flex-col">
+              <HStack justify="between" align="start" className="flex-1">
+                <VStack gap="2" align="start" className="flex-1">
+                  <BodySmall>Pending Failure to Log</BodySmall>
+                  <p className="text-3xl font-bold text-foreground leading-tight">
+                    {pendingFTL}
+                  </p>
+                </VStack>
+                <div className="p-3 bg-amber-50 rounded-full flex-shrink-0">
+                  <Icon
+                    name="Clock"
+                    size={IconSizes.md}
+                    className="text-amber-600"
+                  />
+                </div>
+              </HStack>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex flex-col">
+              <HStack justify="between" align="start" className="flex-1">
+                <VStack gap="2" align="start" className="flex-1">
+                  <BodySmall>Leave — Manager Review</BodySmall>
+                  <p className="text-3xl font-bold text-foreground leading-tight">
+                    {pendingLeaveManager}
+                  </p>
+                </VStack>
+                <div className="p-3 bg-blue-50 rounded-full flex-shrink-0">
+                  <Icon
+                    name="UsersThree"
+                    size={IconSizes.md}
+                    className="text-blue-600"
+                  />
+                </div>
+              </HStack>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex flex-col">
+              <HStack justify="between" align="start" className="flex-1">
+                <VStack gap="2" align="start" className="flex-1">
+                  <BodySmall>Leave — HR/Final</BodySmall>
+                  <p className="text-3xl font-bold text-foreground leading-tight">
+                    {pendingLeaveHR}
+                  </p>
+                </VStack>
+                <div className="p-3 bg-emerald-50 rounded-full flex-shrink-0">
+                  <Icon
+                    name="Check"
+                    size={IconSizes.md}
+                    className="text-emerald-600"
+                  />
+                </div>
+              </HStack>
+            </CardContent>
+          </Card>
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex flex-col">
+              <VStack gap="3" align="start" className="flex-1">
+                <VStack gap="1" align="start" className="w-full">
+                  <p className="text-base font-semibold text-foreground leading-tight">
+                    Parental Leave (Approved & Active)
+                  </p>
+                  <BodySmall className="text-muted-foreground">
+                    Maternity/Paternity leaves approved by HR and active today.
+                  </BodySmall>
+                </VStack>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(), "MMM d, yyyy")}
+                </div>
+                <div className="flex-1 flex items-start">
+                  {parentalLeaves.length === 0 ? (
+                    <BodySmall className="text-muted-foreground">
+                      No active maternity or paternity leaves today.
+                    </BodySmall>
+                  ) : (
+                    <VStack gap="2" align="start" className="w-full">
+                      <p className="text-2xl font-bold text-foreground leading-tight">
+                        {parentalLeaves.length}
+                      </p>
+                      <BodySmall className="text-muted-foreground">
+                        Active leave{parentalLeaves.length !== 1 ? "s" : ""}
+                      </BodySmall>
+                    </VStack>
+                  )}
+                </div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="h-full md:col-span-3 lg:col-span-1">
+            <CardContent className="p-6 h-full flex flex-col">
+              <VStack gap="3" align="start" className="flex-1 justify-between">
+                <VStack gap="2" align="start" className="flex-1">
+                  <BodySmall>Manage Time Entries</BodySmall>
+                  <p className="text-sm text-muted-foreground">
+                    Review approvals and locations
+                  </p>
+                </VStack>
+                <Link href="/time-entries" className="w-full">
+                  <Button variant="secondary" className="w-full">
+                    Open
+                  </Button>
+                </Link>
+              </VStack>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Employees Registered
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {totalEmployees}
-                </p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-full">
-                <Users className="h-6 w-6 text-emerald-600" />
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Currently Clocked In
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {clockedInEntries.length}
-                </p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-full">
-                <Clock className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Manage Time Entries
-              </p>
-              <p className="text-lg font-semibold text-foreground mt-2">
-                Review approvals and locations
-              </p>
-            </div>
-            <Link href="/time-entries">
-              <Button variant="secondary">Open</Button>
-            </Link>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Pending Failure to Log
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {pendingFTL}
-                </p>
-              </div>
-              <div className="p-3 bg-amber-50 rounded-full">
-                <Clock className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Leave — Manager Review
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {pendingLeaveManager}
-                </p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-full">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Leave — HR/Final
-                </p>
-                <p className="text-3xl font-bold text-foreground mt-2">
-                  {pendingLeaveHR}
-                </p>
-              </div>
-              <div className="p-3 bg-emerald-50 rounded-full">
-                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  Currently Clocked In
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Showing employees whose status is still clocked in today.
-                </p>
-              </div>
-            </div>
+        <div className="grid gap-4 lg:grid-cols-2 items-stretch">
+          <CardSection
+            title="Currently Clocked In"
+            description="Showing employees whose status is still clocked in today."
+            className="h-full"
+          >
             {clockedInEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No employees are clocked in at the moment.
-              </p>
+              <BodySmall>No employees are clocked in at the moment.</BodySmall>
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {clockedInEntries.map((entry) => {
                   const details = resolveLocationDetails(
                     entry.clock_in_location,
                     officeLocations
                   );
                   return (
-                    <div
+                    <Card
                       key={entry.id}
-                      className="border rounded-lg p-3 flex items-start justify-between bg-muted/50"
+                      className="h-full min-h-[220px] shadow-sm border-border"
                     >
-                      <div>
-                        <p className="font-semibold text-foreground">
-                          {entry.employees.full_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Since{" "}
-                          {format(
-                            new Date(entry.clock_in_time),
-                            "MMM d, h:mm a"
-                          )}
-                        </p>
-                        <div className="mt-2 text-xs text-muted-foreground flex items-start gap-1">
-                          <MapPin className="h-3 w-3 mt-0.5 text-emerald-500" />
-                          <div>
-                            <span className="text-foreground font-medium">
+                      <CardContent className="p-4 flex flex-col gap-3 h-full">
+                        <HStack justify="between" align="start">
+                          <VStack gap="1" align="start">
+                            <p className="text-sm font-semibold text-foreground leading-tight">
+                              {entry.employees.full_name}
+                            </p>
+                            <Caption className="text-muted-foreground">
+                              Since{" "}
+                              {format(
+                                new Date(entry.clock_in_time),
+                                "MMM d, h:mm a"
+                              )}
+                            </Caption>
+                          </VStack>
+                          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                            ACTIVE
+                          </span>
+                        </HStack>
+
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <Icon
+                            name="MapPin"
+                            size={IconSizes.xs}
+                            className="mt-0.5 text-emerald-600"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <div className="text-foreground font-medium text-sm leading-tight line-clamp-1">
                               {details.name}
-                            </span>
-                            <div>{details.address}</div>
+                            </div>
+                            <div
+                              className="text-muted-foreground line-clamp-2"
+                              title={details.address}
+                            >
+                              {details.address}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-1 rounded-full">
-                        ACTIVE
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
             )}
-          </Card>
+          </CardSection>
 
-          <Card className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  Recent Clock Activity
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Latest clock in/out events from all employees.
-                </p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {format(new Date(), "MMM d, yyyy")}
-              </div>
+          <CardSection
+            title="Recent Clock Activity"
+            description="Latest clock in/out events from all employees."
+            headerClassName="flex items-center justify-between"
+            className="h-full"
+          >
+            <div className="text-xs text-muted-foreground mb-4">
+              {format(new Date(), "MMM d, yyyy")}
             </div>
             {recentEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No clock entries recorded yet.
-              </p>
+              <BodySmall>No clock entries recorded yet.</BodySmall>
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {recentEntries.map((entry) => {
                   const clockInDetails = resolveLocationDetails(
                     entry.clock_in_location,
@@ -372,106 +436,81 @@ export default function HRDashboard() {
                     .toUpperCase();
 
                   return (
-                    <div key={entry.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-foreground">
-                            {entry.employees.full_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {statusLabel} ·{" "}
-                            {format(
-                              new Date(entry.clock_in_time),
-                              "MMM d, h:mm a"
-                            )}
-                          </p>
-                        </div>
-                        <div className="text-[11px] px-2 py-1 rounded-full bg-muted text-muted-foreground">
-                          {entry.employees.employee_id}
-                        </div>
-                      </div>
-                      <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-                        <div className="flex items-start gap-2">
-                          <span className="font-semibold text-foreground">
-                            Clock In:
-                          </span>
-                          <div>
-                            <div>{clockInDetails.name}</div>
-                            <div>{clockInDetails.address}</div>
-                          </div>
-                        </div>
-                        {entry.clock_out_time && (
-                          <div className="flex items-start gap-2">
+                    <Card
+                      key={entry.id}
+                      className="h-full min-h-[240px] shadow-sm border-border"
+                    >
+                      <CardContent className="p-4 flex flex-col gap-3 h-full">
+                        <HStack justify="between" align="start">
+                          <VStack gap="1" align="start">
+                            <p className="text-sm font-semibold text-foreground leading-tight">
+                              {entry.employees.full_name}
+                            </p>
+                            <Caption className="text-muted-foreground">
+                              {statusLabel} ·{" "}
+                              {format(
+                                new Date(entry.clock_in_time),
+                                "MMM d, h:mm a"
+                              )}
+                            </Caption>
+                          </VStack>
+                          <Caption className="px-2 py-1 rounded-full bg-muted text-foreground">
+                            {entry.employees.employee_id}
+                          </Caption>
+                        </HStack>
+
+                        <VStack
+                          gap="3"
+                          align="start"
+                          className="text-xs text-muted-foreground"
+                        >
+                          <div className="space-y-1">
                             <span className="font-semibold text-foreground">
-                              Clock Out:
+                              Clock In
                             </span>
-                            <div>
-                              <div>
+                            <div className="text-sm text-foreground leading-tight line-clamp-1">
+                              {clockInDetails.name}
+                            </div>
+                            <div
+                              className="line-clamp-2"
+                              title={clockInDetails.address}
+                            >
+                              {clockInDetails.address}
+                            </div>
+                          </div>
+
+                          {entry.clock_out_time && (
+                            <div className="space-y-1">
+                              <span className="font-semibold text-foreground">
+                                Clock Out
+                              </span>
+                              <div className="text-sm text-foreground leading-tight">
                                 {format(
                                   new Date(entry.clock_out_time),
                                   "MMM d, h:mm a"
                                 )}
                               </div>
-                              <div>{clockOutDetails.name}</div>
-                              <div>{clockOutDetails.address}</div>
+                              <div className="text-sm text-foreground leading-tight line-clamp-1">
+                                {clockOutDetails.name}
+                              </div>
+                              <div
+                                className="line-clamp-2"
+                                title={clockOutDetails.address}
+                              >
+                                {clockOutDetails.address}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                          )}
+                        </VStack>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
             )}
-          </Card>
-
-          <Card className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground">
-                  Parental Leave (Approved & Active)
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Maternity/Paternity leaves approved by HR and active today.
-                </p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {format(new Date(), "MMM d, yyyy")}
-              </div>
-            </div>
-            {parentalLeaves.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No active maternity or paternity leaves today.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {parentalLeaves.map((leave) => (
-                  <div
-                    key={leave.leave_id}
-                    className="border rounded-lg p-4 bg-muted/50"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-foreground">
-                          {leave.employee_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {leave.leave_type} ·{" "}
-                          {format(new Date(leave.start_date), "MMM d")} -{" "}
-                          {format(new Date(leave.end_date), "MMM d, yyyy")}
-                        </p>
-                      </div>
-                      <div className="text-[11px] px-2 py-1 rounded-full bg-blue-50 text-blue-700">
-                        Active
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+          </CardSection>
         </div>
-      </div>
+      </VStack>
     </DashboardLayout>
   );
 }

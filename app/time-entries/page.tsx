@@ -3,22 +3,35 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
 import {
-  Clock,
-  Filter,
-  Download,
-  Check,
-  X,
-  Edit,
-  Calendar,
-  User,
-  MapPin,
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
@@ -123,63 +136,95 @@ export default function TimeEntriesPage() {
   async function fetchTimeEntries() {
     setLoading(true);
 
-    let query = supabase
-      .from("time_clock_entries")
-      .select(
-        `
-        *,
-        employees (
+    try {
+      // Optimize query: select only needed fields instead of * to improve performance
+      let query = supabase
+        .from("time_clock_entries")
+        .select(
+          `
+          id,
           employee_id,
-          full_name
+          clock_in_time,
+          clock_out_time,
+          total_hours,
+          regular_hours,
+          overtime_hours,
+          night_diff_hours,
+          status,
+          employee_notes,
+          hr_notes,
+          clock_in_location,
+          clock_out_location,
+          is_manual_entry,
+          employees (
+            employee_id,
+            full_name
+          )
+        `
         )
-      `
-      )
-      .gte("clock_in_time", weekStart.toISOString())
-      .lte("clock_in_time", weekEnd.toISOString())
-      .order("clock_in_time", { ascending: false });
+        .gte("clock_in_time", weekStart.toISOString())
+        .lte("clock_in_time", weekEnd.toISOString())
+        .order("clock_in_time", { ascending: false })
+        .limit(1000); // Add reasonable limit to prevent excessive data fetching
 
-    if (statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
+      if (statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      if (selectedEmployee !== "all") {
+        query = query.eq("employee_id", selectedEmployee);
+      }
+
+      // Fetch entries and holidays in parallel
+      const [entriesResult, holidaysResult] = await Promise.all([
+        query,
+        supabase
+          .from("holidays")
+          .select("holiday_date, holiday_name, holiday_type")
+          .eq("is_active", true)
+          .gte("holiday_date", format(weekStart, "yyyy-MM-dd"))
+          .lte("holiday_date", format(weekEnd, "yyyy-MM-dd")),
+      ]);
+
+      const { data, error } = entriesResult;
+      const { data: holidayData, error: holidayError } = holidaysResult;
+
+      if (error) {
+        console.error("Error fetching time entries:", error);
+        toast.error(
+          `Failed to load time entries: ${
+            error.message || error.code || "Unknown error"
+          }`
+        );
+        setEntries([]); // Clear entries on error to prevent stale data
+        setLoading(false);
+        return;
+      }
+
+      if (holidayError) {
+        console.warn("Error loading holidays for period:", holidayError);
+        // Don't fail the whole request if holidays fail - this is non-critical
+      }
+
+      const formattedHolidays: HolidayEntry[] =
+        holidayData?.map((holiday) => ({
+          date: holiday.holiday_date,
+          name: holiday.holiday_name,
+          type: holiday.holiday_type as "regular" | "non-working",
+        })) || [];
+
+      setHolidays(formattedHolidays);
+      setEntries(data || []);
+    } catch (error: any) {
+      console.error("Unexpected error in fetchTimeEntries:", error);
+      toast.error(
+        error?.message ||
+          "Failed to load time entries. Please refresh the page."
+      );
+      setEntries([]); // Clear entries on error
+    } finally {
+      setLoading(false);
     }
-
-    if (selectedEmployee !== "all") {
-      query = query.eq("employee_id", selectedEmployee);
-    }
-
-    const [entriesResult, holidaysResult] = await Promise.all([
-      query,
-      supabase
-        .from("holidays")
-        .select("holiday_date, holiday_name, holiday_type")
-        .eq("is_active", true)
-        .gte("holiday_date", format(weekStart, "yyyy-MM-dd"))
-        .lte("holiday_date", format(weekEnd, "yyyy-MM-dd")),
-    ]);
-
-    const { data, error } = entriesResult;
-    const { data: holidayData, error: holidayError } = holidaysResult;
-
-    setLoading(false);
-
-    if (error) {
-      console.error("Error fetching time entries:", error);
-      toast.error("Failed to load time entries");
-      return;
-    }
-
-    if (holidayError) {
-      console.error("Error loading holidays for period:", holidayError);
-    }
-
-    const formattedHolidays: HolidayEntry[] =
-      holidayData?.map((holiday) => ({
-        date: holiday.holiday_date,
-        name: holiday.holiday_name,
-        type: holiday.holiday_type as "regular" | "non-working",
-      })) || [];
-
-    setHolidays(formattedHolidays);
-    setEntries(data || []);
   }
 
   async function handleApprove(entryId: string) {
@@ -273,29 +318,31 @@ export default function TimeEntriesPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const tones: Record<string, string> = {
       clocked_in: "bg-emerald-100 text-emerald-800",
-      clocked_out: "bg-yellow-100 text-yellow-800",
+      clocked_out: "bg-amber-100 text-amber-800",
       approved: "bg-green-100 text-green-800",
       auto_approved: "bg-green-100 text-green-800",
       rejected: "bg-red-100 text-red-800",
+      pending: "bg-muted text-foreground",
     };
-    const labels = {
+    const labels: Record<string, string> = {
       clocked_in: "CLOCKED IN",
       clocked_out: "CLOCKED OUT",
       approved: "APPROVED",
       auto_approved: "AUTO APPROVED",
       rejected: "REJECTED",
+      pending: "PENDING",
     };
     return (
-      <span
-        className={`px-2 py-1 rounded-full text-xs font-medium ${
-          styles[status as keyof typeof styles]
+      <Badge
+        variant="secondary"
+        className={`rounded-full px-2 py-1 text-[11px] font-semibold ${
+          tones[status] || "bg-muted text-foreground"
         }`}
       >
-        {labels[status as keyof typeof labels] ||
-          status.replace("_", " ").toUpperCase()}
-      </span>
+        {labels[status] || status.replace("_", " ").toUpperCase()}
+      </Badge>
     );
   };
 
@@ -317,478 +364,554 @@ export default function TimeEntriesPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <VStack gap="8" className="w-full">
         {/* Header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Time Entries</h1>
-            <p className="text-muted-foreground mt-2">
+        <HStack
+          justify="between"
+          align="start"
+          className="flex-col sm:flex-row gap-4"
+        >
+          <VStack gap="2" align="start">
+            <H1>Time Entries</H1>
+            <BodySmall>
               Review and approve employee time clock entries
-            </p>
-          </div>
+            </BodySmall>
+          </VStack>
           <Button
             onClick={exportToCSV}
             variant="secondary"
             className="w-full sm:w-auto"
           >
-            <Download className="h-4 w-4 mr-2" />
+            <Icon name="ArrowsClockwise" size={IconSizes.sm} />
             Export CSV
           </Button>
-        </div>
+        </HStack>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Total Entries</div>
-            <div className="text-2xl font-bold mt-1">{stats.total}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full auto-rows-fr">
+          <Card className="h-full w-full">
+            <CardContent className="p-6 h-full flex flex-col w-full">
+              <VStack gap="2" align="start" className="flex-1 w-full">
+                <BodySmall>Total Entries</BodySmall>
+                <div className="text-2xl font-bold leading-tight text-foreground">
+                  {stats.total}
+                </div>
+              </VStack>
+            </CardContent>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Pending Review</div>
-            <div className="text-2xl font-bold mt-1 text-yellow-600">
-              {stats.pending}
-            </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-6 h-full flex flex-col w-full">
+              <VStack gap="2" align="start" className="flex-1 w-full">
+                <BodySmall>Pending Review</BodySmall>
+                <div className="text-2xl font-bold leading-tight text-yellow-600">
+                  {stats.pending}
+                </div>
+              </VStack>
+            </CardContent>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Approved</div>
-            <div className="text-2xl font-bold mt-1 text-green-600">
-              {stats.approved}
-            </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-6 h-full flex flex-col w-full">
+              <VStack gap="2" align="start" className="flex-1 w-full">
+                <BodySmall>Approved</BodySmall>
+                <div className="text-2xl font-bold leading-tight text-emerald-600">
+                  {stats.approved}
+                </div>
+              </VStack>
+            </CardContent>
           </Card>
-          <Card className="p-4">
-            <div className="text-sm text-muted-foreground">Total Hours</div>
-            <div className="text-2xl font-bold mt-1">
-              {stats.totalHours.toFixed(1)}h
-            </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-6 h-full flex flex-col w-full">
+              <VStack gap="2" align="start" className="flex-1 w-full">
+                <BodySmall>Total Hours</BodySmall>
+                <div className="text-2xl font-bold leading-tight text-foreground">
+                  {stats.totalHours.toFixed(1)}h
+                </div>
+              </VStack>
+            </CardContent>
           </Card>
         </div>
 
         {/* Info Banner */}
         {stats.pending > 0 && (
-          <Card className="p-4 bg-emerald-50 border-emerald-200">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-emerald-900">
-                <p className="font-semibold mb-1">ℹ️ Auto-Sync to Timesheet</p>
-                <p>
-                  Approved entries automatically populate the timesheet. Review
-                  and approve{" "}
-                  <strong>
-                    {stats.pending} pending{" "}
-                    {stats.pending === 1 ? "entry" : "entries"}
-                  </strong>{" "}
-                  to make them available for payroll processing.
-                </p>
+          <Card className="bg-emerald-50 border-emerald-200">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Icon
+                  name="WarningCircle"
+                  size={IconSizes.sm}
+                  className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0"
+                />
+                <div className="text-sm text-emerald-900 leading-relaxed">
+                  <p className="font-semibold mb-2">
+                    ℹ️ Auto-Sync to Timesheet
+                  </p>
+                  <p>
+                    Approved entries automatically populate the timesheet.
+                    Review and approve{" "}
+                    <strong>
+                      {stats.pending} pending{" "}
+                      {stats.pending === 1 ? "entry" : "entries"}
+                    </strong>{" "}
+                    to make them available for payroll processing.
+                  </p>
+                </div>
               </div>
-            </div>
+            </CardContent>
           </Card>
         )}
 
         {/* Filters */}
-        <Card className="p-4">
-          <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-center">
-            {/* Week Navigation */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="text-sm font-medium min-w-[200px] text-center">
-                {format(weekStart, "MMM d")} - {format(weekEnd, "MMM d, yyyy")}
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setSelectedWeek(new Date())}
-              >
-                Today
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-4 flex-wrap">
-              {/* Status Filter */}
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="p-2 border rounded-md text-sm"
+        <Card className="w-full">
+          <CardContent className="p-4 sm:p-6 w-full">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center w-full">
+              {/* Week Navigation */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 items-center sm:items-center flex-shrink-0 w-full sm:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
+                    className="flex-shrink-0"
+                  >
+                    <Icon name="CaretLeft" size={IconSizes.sm} />
+                  </Button>
+                  <Caption className="min-w-[180px] sm:min-w-[200px] text-center font-medium text-xs sm:text-sm">
+                    {format(weekStart, "MMM d")} -{" "}
+                    {format(weekEnd, "MMM d, yyyy")}
+                  </Caption>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
+                    className="flex-shrink-0"
+                  >
+                    <Icon name="CaretRight" size={IconSizes.sm} />
+                  </Button>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedWeek(new Date())}
+                  className="w-full sm:w-auto"
                 >
-                  <option value="all">All Status</option>
-                  <option value="clocked_in">Clocked In</option>
-                  <option value="clocked_out">Pending Review</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                </select>
+                  Today
+                </Button>
               </div>
 
-              {/* Employee Filter */}
-              <div className="flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <select
-                  value={selectedEmployee}
-                  onChange={(e) => setSelectedEmployee(e.target.value)}
-                  className="p-2 border rounded-md text-sm"
-                >
-                  <option value="all">All Employees</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.full_name} ({employee.employee_id})
-                    </option>
-                  ))}
-                </select>
+              {/* Spacer to push filters to the right (hidden on mobile) */}
+              <div className="hidden md:block flex-1 min-w-0" />
+
+              {/* Filters Section */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
+                {/* Status Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground flex-shrink-0 hidden sm:block"
+                  />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="flex h-10 w-full sm:w-[160px] lg:w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="clocked_in">Clocked In</option>
+                    <option value="clocked_out">Pending Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+
+                {/* Employee Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground flex-shrink-0 hidden sm:block"
+                  />
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="flex h-10 w-full sm:w-[200px] lg:w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">All Employees</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.full_name} ({employee.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
+          </CardContent>
         </Card>
 
         {/* Entries List */}
         <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3 text-sm font-medium">
-                    Employee
-                  </th>
-                  <th className="text-left p-3 text-sm font-medium">
-                    Clock In
-                  </th>
-                  <th className="text-left p-3 text-sm font-medium">
-                    Clock Out
-                  </th>
-                  <th className="text-left p-3 text-sm font-medium">Holiday</th>
-                  <th className="text-right p-3 text-sm font-medium">Hours</th>
-                  <th className="text-center p-3 text-sm font-medium">
-                    Status
-                  </th>
-                  <th className="text-center p-3 text-sm font-medium">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="text-center py-12 text-muted-foreground"
-                    >
-                      <Clock className="h-8 w-8 animate-spin mx-auto mb-2" />
-                      Loading...
-                    </td>
-                  </tr>
-                ) : entries.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="text-center py-12 text-muted-foreground"
-                    >
-                      <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      No time entries found for this period
-                    </td>
-                  </tr>
-                ) : (
-                  entries.map((entry) => {
-                    const clockInDetails = resolveLocationDetails(
-                      entry.clock_in_location,
-                      officeLocations
-                    );
-                    const clockOutDetails = resolveLocationDetails(
-                      entry.clock_out_location,
-                      officeLocations
-                    );
-                    const holidayTag = getHolidayTag(entry.clock_in_time);
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted">
+                  <TableRow>
+                    <TableHead className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Employee
+                    </TableHead>
+                    <TableHead className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Clock In
+                    </TableHead>
+                    <TableHead className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Clock Out
+                    </TableHead>
+                    <TableHead className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Holiday
+                    </TableHead>
+                    <TableHead className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Hours
+                    </TableHead>
+                    <TableHead className="text-center p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-center p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y">
+                  {loading ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center py-8 sm:py-12 text-muted-foreground p-2 sm:p-3"
+                      >
+                        <Icon
+                          name="Clock"
+                          size={IconSizes.lg}
+                          className="animate-spin mx-auto mb-2"
+                        />
+                        Loading...
+                      </TableCell>
+                    </TableRow>
+                  ) : entries.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="text-center py-8 sm:py-12 text-muted-foreground p-2 sm:p-3"
+                      >
+                        <Icon
+                          name="WarningCircle"
+                          size={IconSizes.xl}
+                          className="mx-auto mb-3 opacity-50"
+                        />
+                        No time entries found for this period
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    entries.map((entry) => {
+                      const clockInDetails = resolveLocationDetails(
+                        entry.clock_in_location,
+                        officeLocations
+                      );
+                      const clockOutDetails = resolveLocationDetails(
+                        entry.clock_out_location,
+                        officeLocations
+                      );
+                      const holidayTag = getHolidayTag(entry.clock_in_time);
 
-                    return (
-                      <tr key={entry.id} className="hover:bg-muted/50">
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <div>
-                              <div className="font-medium">
-                                {entry.employees.full_name}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {entry.employees.employee_id}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="text-sm font-medium">
-                            {format(
-                              new Date(entry.clock_in_time),
-                              "MMM d, h:mm a"
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {clockInDetails.name}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {clockInDetails.address}
-                          </div>
-                          {clockInDetails.coordinates && (
-                            <a
-                              href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
-                            >
-                              <MapPin className="h-3 w-3" />
-                              View map
-                            </a>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          {entry.clock_out_time ? (
-                            <>
-                              <div className="text-sm font-medium">
-                                {format(
-                                  new Date(entry.clock_out_time),
-                                  "MMM d, h:mm a"
-                                )}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {clockOutDetails.name}
-                              </div>
-                              <div className="text-[11px] text-muted-foreground">
-                                {clockOutDetails.address}
-                              </div>
-                              {clockOutDetails.coordinates && (
-                                <a
-                                  href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
-                                >
-                                  <MapPin className="h-3 w-3" />
-                                  View map
-                                </a>
+                      return (
+                        <TableRow key={entry.id} className="hover:bg-muted/50">
+                          <TableCell className="p-2 sm:p-3">
+                            <HStack gap="2" align="center">
+                              <Icon
+                                name="User"
+                                size={IconSizes.sm}
+                                className="text-muted-foreground flex-shrink-0"
+                              />
+                              <VStack gap="0" align="start" className="min-w-0">
+                                <div className="font-medium text-xs sm:text-sm truncate">
+                                  {entry.employees.full_name}
+                                </div>
+                                <Caption className="text-[10px] sm:text-xs truncate">
+                                  {entry.employees.employee_id}
+                                </Caption>
+                              </VStack>
+                            </HStack>
+                          </TableCell>
+                          <TableCell className="p-2 sm:p-3">
+                            <div className="text-xs sm:text-sm font-medium">
+                              {format(
+                                new Date(entry.clock_in_time),
+                                "MMM d, h:mm a"
                               )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-emerald-600 font-medium">
-                              Still clocked in
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3 text-left">
-                          <div className="text-sm font-medium">
-                            {holidayTag || "Regular Day"}
-                          </div>
-                          {holidayTag && (
-                            <div className="text-xs text-muted-foreground">
-                              Logged on holiday
                             </div>
-                          )}
-                        </td>
-                        <td className="p-3 text-right font-medium">
-                          {entry.total_hours?.toFixed(2) || "-"}
-                        </td>
-                        <td className="p-3 text-center">
-                          {getStatusBadge(entry.status)}
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center justify-center gap-1">
-                            {entry.status === "clocked_out" && (
+                            <div className="text-[10px] sm:text-xs text-muted-foreground">
+                              {clockInDetails.name}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                              {clockInDetails.address}
+                            </div>
+                            {clockInDetails.coordinates && (
+                              <a
+                                href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                              >
+                                <Icon name="MapPin" size={IconSizes.xs} />
+                                View map
+                              </a>
+                            )}
+                          </TableCell>
+                          <TableCell className="p-2 sm:p-3">
+                            {entry.clock_out_time ? (
                               <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setSelectedEntry(entry);
-                                    setHrNotes(entry.hr_notes || "");
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
+                                <div className="text-xs sm:text-sm font-medium">
+                                  {format(
+                                    new Date(entry.clock_out_time),
+                                    "MMM d, h:mm a"
+                                  )}
+                                </div>
+                                <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                  {clockOutDetails.name}
+                                </div>
+                                <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                                  {clockOutDetails.address}
+                                </div>
+                                {clockOutDetails.coordinates && (
+                                  <a
+                                    href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                  >
+                                    <Icon name="MapPin" size={IconSizes.xs} />
+                                    View map
+                                  </a>
+                                )}
                               </>
-                            )}
-                            {(entry.status === "approved" ||
-                              entry.status === "auto_approved") && (
-                              <span className="text-xs text-green-600">
-                                ✓ Approved
+                            ) : (
+                              <span className="text-xs text-emerald-600 font-medium">
+                                Still clocked in
                               </span>
                             )}
-                            {entry.status === "rejected" && (
-                              <span className="text-xs text-red-600">
-                                ✗ Rejected
-                              </span>
+                          </TableCell>
+                          <TableCell className="p-2 sm:p-3 text-left">
+                            <div className="text-xs sm:text-sm font-medium">
+                              {holidayTag || "Regular Day"}
+                            </div>
+                            {holidayTag && (
+                              <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                Logged on holiday
+                              </div>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                          </TableCell>
+                          <TableCell className="p-2 sm:p-3 text-right font-medium">
+                            {entry.total_hours?.toFixed(2) || "-"}
+                          </TableCell>
+                          <TableCell className="p-2 sm:p-3 text-center">
+                            {getStatusBadge(entry.status)}
+                          </TableCell>
+                          <TableCell className="p-2 sm:p-3">
+                            <div className="flex items-center justify-center gap-1">
+                              {entry.status === "clocked_out" && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setSelectedEntry(entry);
+                                      setHrNotes(entry.hr_notes || "");
+                                    }}
+                                  >
+                                    <Icon
+                                      name="PencilSimple"
+                                      size={IconSizes.sm}
+                                    />
+                                  </Button>
+                                </>
+                              )}
+                              {(entry.status === "approved" ||
+                                entry.status === "auto_approved") && (
+                                <span className="text-xs text-green-600">
+                                  ✓ Approved
+                                </span>
+                              )}
+                              {entry.status === "rejected" && (
+                                <span className="text-xs text-red-600">
+                                  ✗ Rejected
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
         </Card>
 
-        {/* Review Modal */}
-        {selectedEntry && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <Card className="w-full max-w-2xl p-6">
-              <h3 className="text-lg font-semibold mb-4">Review Time Entry</h3>
+        <Dialog
+          open={!!selectedEntry}
+          onOpenChange={(open) => !open && setSelectedEntry(null)}
+        >
+          <DialogContent className="max-w-2xl">
+            {selectedEntry && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Review Time Entry</DialogTitle>
+                </DialogHeader>
 
-              <div className="space-y-4">
-                {/* Employee Info */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Employee
+                <div className="space-y-4">
+                  {/* Employee Info */}
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                    <div>
+                      <div className="text-sm text-muted-foreground">
+                        Employee
+                      </div>
+                      <div className="font-medium">
+                        {selectedEntry.employees.full_name}
+                      </div>
                     </div>
-                    <div className="font-medium">
-                      {selectedEntry.employees.full_name}
+                    <div>
+                      <div className="text-sm text-muted-foreground">
+                        Employee ID
+                      </div>
+                      <div className="font-medium">
+                        {selectedEntry.employees.employee_id}
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Employee ID
-                    </div>
-                    <div className="font-medium">
-                      {selectedEntry.employees.employee_id}
-                    </div>
-                  </div>
-                </div>
 
-                {/* Time Details */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">
-                      Clock In
-                    </div>
-                    <div className="font-medium">
-                      {format(
-                        new Date(selectedEntry.clock_in_time),
-                        "MMM d, yyyy h:mm a"
+                  {/* Time Details */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Clock In
+                      </div>
+                      <div className="font-medium">
+                        {format(
+                          new Date(selectedEntry.clock_in_time),
+                          "MMM d, yyyy h:mm a"
+                        )}
+                      </div>
+                      {selectedClockInDetails && (
+                        <>
+                          <div className="text-xs text-muted-foreground">
+                            {selectedClockInDetails.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {selectedClockInDetails.address}
+                          </div>
+                          {selectedClockInDetails.coordinates && (
+                            <a
+                              href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                            >
+                              <Icon name="MapPin" size={IconSizes.xs} />
+                              View GPS Location
+                            </a>
+                          )}
+                        </>
                       )}
                     </div>
-                    {selectedClockInDetails && (
-                      <>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedClockInDetails.name}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {selectedClockInDetails.address}
-                        </div>
-                        {selectedClockInDetails.coordinates && (
-                          <a
-                            href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            View GPS Location
-                          </a>
-                        )}
-                      </>
-                    )}
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Clock Out
+                      </div>
+                      <div className="font-medium">
+                        {selectedEntry.clock_out_time
+                          ? format(
+                              new Date(selectedEntry.clock_out_time),
+                              "MMM d, yyyy h:mm a"
+                            )
+                          : "Not clocked out"}
+                      </div>
+                      {selectedClockOutDetails && (
+                        <>
+                          <div className="text-xs text-muted-foreground">
+                            {selectedClockOutDetails.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {selectedClockOutDetails.address}
+                          </div>
+                          {selectedClockOutDetails.coordinates && (
+                            <a
+                              href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                            >
+                              <Icon name="MapPin" size={IconSizes.xs} />
+                              View GPS Location
+                            </a>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Hours Breakdown */}
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-emerald-50 rounded-lg">
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        Total
+                      </div>
+                      <div className="text-lg font-bold">
+                        {selectedEntry.total_hours?.toFixed(2)}h
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        Regular
+                      </div>
+                      <div className="text-lg font-bold">
+                        {selectedEntry.regular_hours?.toFixed(2)}h
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        Night Diff
+                      </div>
+                      <div className="text-lg font-bold text-purple-600">
+                        {selectedEntry.night_diff_hours?.toFixed(2)}h
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Employee Notes */}
+                  {selectedEntry.employee_notes && (
+                    <div>
+                      <div className="text-sm text-muted-foreground mb-1">
+                        Employee Notes
+                      </div>
+                      <div className="p-3 bg-muted rounded border">
+                        {selectedEntry.employee_notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* HR Notes */}
                   <div>
-                    <div className="text-sm text-muted-foreground mb-1">
-                      Clock Out
-                    </div>
-                    <div className="font-medium">
-                      {selectedEntry.clock_out_time
-                        ? format(
-                            new Date(selectedEntry.clock_out_time),
-                            "MMM d, yyyy h:mm a"
-                          )
-                        : "Not clocked out"}
-                    </div>
-                    {selectedClockOutDetails && (
-                      <>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedClockOutDetails.name}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {selectedClockOutDetails.address}
-                        </div>
-                        {selectedClockOutDetails.coordinates && (
-                          <a
-                            href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            View GPS Location
-                          </a>
-                        )}
-                      </>
-                    )}
+                    <label className="text-sm font-medium mb-2 block">
+                      HR Notes (Optional)
+                    </label>
+                    <textarea
+                      value={hrNotes}
+                      onChange={(e) => setHrNotes(e.target.value)}
+                      placeholder="Add any notes or reasons for rejection..."
+                      className="w-full p-3 border rounded-md resize-none"
+                      rows={3}
+                    />
                   </div>
                 </div>
 
-                {/* Hours Breakdown */}
-                <div className="grid grid-cols-3 gap-4 p-4 bg-emerald-50 rounded-lg">
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">
-                      Total
-                    </div>
-                    <div className="text-lg font-bold">
-                      {selectedEntry.total_hours?.toFixed(2)}h
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">
-                      Regular
-                    </div>
-                    <div className="text-lg font-bold">
-                      {selectedEntry.regular_hours?.toFixed(2)}h
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">
-                      Night Diff
-                    </div>
-                    <div className="text-lg font-bold text-purple-600">
-                      {selectedEntry.night_diff_hours?.toFixed(2)}h
-                    </div>
-                  </div>
-                </div>
-
-                {/* Employee Notes */}
-                {selectedEntry.employee_notes && (
-                  <div>
-                    <div className="text-sm text-muted-foreground mb-1">
-                      Employee Notes
-                    </div>
-                    <div className="p-3 bg-muted rounded border">
-                      {selectedEntry.employee_notes}
-                    </div>
-                  </div>
-                )}
-
-                {/* HR Notes */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    HR Notes (Optional)
-                  </label>
-                  <textarea
-                    value={hrNotes}
-                    onChange={(e) => setHrNotes(e.target.value)}
-                    placeholder="Add any notes or reasons for rejection..."
-                    className="w-full p-3 border rounded-md resize-none"
-                    rows={3}
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="flex justify-end gap-3 pt-4">
+                <DialogFooter className="pt-4">
                   <Button
                     variant="secondary"
                     onClick={() => {
@@ -799,22 +922,28 @@ export default function TimeEntriesPage() {
                     Cancel
                   </Button>
                   <Button
-                    variant="danger"
-                    onClick={() => handleReject(selectedEntry.id)}
+                    variant="destructive"
+                    onClick={() =>
+                      selectedEntry && handleReject(selectedEntry.id)
+                    }
                   >
-                    <X className="h-4 w-4 mr-2" />
+                    <Icon name="X" size={IconSizes.sm} />
                     Reject
                   </Button>
-                  <Button onClick={() => handleApprove(selectedEntry.id)}>
-                    <Check className="h-4 w-4 mr-2" />
+                  <Button
+                    onClick={() =>
+                      selectedEntry && handleApprove(selectedEntry.id)
+                    }
+                  >
+                    <Icon name="Check" size={IconSizes.sm} />
                     Approve
                   </Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        )}
-      </div>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      </VStack>
     </DashboardLayout>
   );
 }

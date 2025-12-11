@@ -1,13 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
-import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
-import { Input, Textarea } from "@/components/Input";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 
 type OvertimeRequest = {
   id: string;
@@ -46,6 +53,12 @@ export default function OvertimePage() {
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
+  const statusStyles: Record<OvertimeRequest["status"], string> = {
+    pending: "bg-amber-100 text-amber-800 border-amber-200",
+    approved: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    rejected: "bg-rose-100 text-rose-900 border-rose-200",
+    cancelled: "bg-slate-100 text-slate-800 border-slate-200",
+  };
   const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
 
   const resolveMimeType = (file: File) => {
@@ -184,66 +197,74 @@ export default function OvertimePage() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="p-4 sm:p-6">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">OT Filing</h1>
-            <p className="text-sm text-gray-600">
-              File overtime; once approved by Account Manager, hours convert 1:1
-              to Off-setting credits.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                type="date"
-                label="OT Date"
-                required
-                value={formData.ot_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, ot_date: e.target.value })
-                }
-              />
-              <Input
-                label="Start Time"
-                type="time"
-                required
-                value={formData.start_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, start_time: e.target.value })
-                }
-              />
-              <Input
-                label="End Time"
-                type="time"
-                required
-                value={formData.end_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, end_time: e.target.value })
-                }
-              />
-              <Input
-                label="Total Hours (auto)"
-                value={totalHours.toFixed(2)}
-                readOnly
-              />
+    <VStack gap="6" className="w-full">
+      <CardSection
+        title="OT Filing"
+        description="File overtime. After approval, hours convert 1:1 to Off-setting credits."
+      >
+        <form onSubmit={handleSubmit} className="w-full">
+          <VStack gap="6" className="w-full">
+            <div className="w-full grid grid-cols-1 gap-4 md:grid-cols-2">
+              <VStack gap="2" align="start" className="w-full">
+                <Label htmlFor="ot-date">OT Date</Label>
+                <Input
+                  id="ot-date"
+                  type="date"
+                  required
+                  value={formData.ot_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, ot_date: e.target.value })
+                  }
+                />
+              </VStack>
+              <VStack gap="2" align="start" className="w-full">
+                <Label htmlFor="start-time">Start Time</Label>
+                <Input
+                  id="start-time"
+                  type="time"
+                  required
+                  value={formData.start_time}
+                  onChange={(e) =>
+                    setFormData({ ...formData, start_time: e.target.value })
+                  }
+                />
+              </VStack>
+              <VStack gap="2" align="start" className="w-full">
+                <Label htmlFor="end-time">End Time</Label>
+                <Input
+                  id="end-time"
+                  type="time"
+                  required
+                  value={formData.end_time}
+                  onChange={(e) =>
+                    setFormData({ ...formData, end_time: e.target.value })
+                  }
+                />
+              </VStack>
+              <VStack gap="2" align="start" className="w-full">
+                <Label htmlFor="total-hours">Total Hours (auto)</Label>
+                <Input
+                  id="total-hours"
+                  value={totalHours.toFixed(2)}
+                  readOnly
+                />
+              </VStack>
             </div>
 
-            <Textarea
-              label="Reason"
-              rows={3}
-              value={formData.reason}
-              onChange={(e) =>
-                setFormData({ ...formData, reason: e.target.value })
-              }
-            />
+            <VStack gap="2" align="start" className="w-full">
+              <Label htmlFor="reason">Reason</Label>
+              <Textarea
+                id="reason"
+                rows={3}
+                value={formData.reason}
+                onChange={(e) =>
+                  setFormData({ ...formData, reason: e.target.value })
+                }
+              />
+            </VStack>
 
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Supporting Document (PDF/DOC/DOCX)
-              </label>
+            <VStack gap="2" align="start" className="w-full">
+              <Label htmlFor="ot-doc">Supporting Document (optional)</Label>
               <input
                 id="ot-doc"
                 type="file"
@@ -253,97 +274,91 @@ export default function OvertimePage() {
                   setSupportingDoc(file);
                   setDocError(null);
                 }}
-                className="block w-full text-sm text-gray-700"
+                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
               />
               {supportingDoc && (
-                <p className="text-xs text-gray-500">
+                <Caption>
                   {supportingDoc.name} (
                   {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB)
-                </p>
+                </Caption>
               )}
-              {docError && <p className="text-xs text-red-600">{docError}</p>}
-              {!supportingDoc && (
-                <p className="text-xs text-gray-400">Optional</p>
+              {docError && (
+                <Caption className="text-destructive">{docError}</Caption>
               )}
-            </div>
+              {!supportingDoc && <Caption>Optional</Caption>}
+            </VStack>
 
-            <div className="flex justify-end">
+            <HStack justify="end" align="center">
               <Button
                 type="submit"
-                isLoading={submitting}
+                disabled={submitting}
                 className="w-full sm:w-auto"
               >
-                Submit OT Request
+                {submitting ? "Submitting..." : "Submit OT Request"}
               </Button>
-            </div>
-          </form>
-        </div>
-      </Card>
+            </HStack>
+          </VStack>
+        </form>
+      </CardSection>
 
-      <Card className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            My OT Requests
-          </h2>
-        </div>
+      <CardSection title="My OT Requests">
         {loading ? (
-          <div className="py-8 text-center text-sm text-gray-500">
-            Loading OT requests...
+          <div className="py-8 text-center">
+            <BodySmall>Loading OT requests...</BodySmall>
           </div>
         ) : requests.length === 0 ? (
-          <div className="py-8 text-center text-sm text-gray-500">
-            No OT requests yet.
+          <div className="py-8 text-center">
+            <BodySmall>No OT requests yet.</BodySmall>
           </div>
         ) : (
-          <div className="space-y-3">
+          <VStack gap="3">
             {requests.map((req) => (
               <div
                 key={req.id}
-                className="border rounded-lg p-4 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                className="w-full border border-border rounded-lg p-4 bg-card"
               >
-                <div>
-                  <p className="font-semibold text-gray-900">
-                    {format(new Date(req.ot_date), "MMM d, yyyy")}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {req.start_time} - {req.end_time} · {req.total_hours}h
-                  </p>
-                  {req.reason && (
-                    <p className="text-xs text-gray-500 mt-1">{req.reason}</p>
-                  )}
-                  {req.overtime_documents?.length ? (
-                    <div className="text-xs text-emerald-700 mt-1">
-                      {req.overtime_documents.map((doc) => (
-                        <div key={doc.id}>
-                          📎 {doc.file_name}{" "}
-                          {doc.file_size
-                            ? `(${(doc.file_size / 1024 / 1024).toFixed(2)} MB)`
-                            : ""}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <div className="text-sm">
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      req.status === "approved"
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : req.status === "rejected"
-                        ? "bg-red-50 text-red-700 border border-red-200"
-                        : req.status === "cancelled"
-                        ? "bg-gray-50 text-gray-700 border border-gray-200"
-                        : "bg-amber-50 text-amber-700 border border-amber-200"
-                    }`}
-                  >
-                    {req.status.toUpperCase()}
-                  </span>
-                  {req.status === "pending" && (
-                    <div className="mt-2 flex items-center gap-2">
+                <HStack
+                  justify="between"
+                  align="start"
+                  className="flex-col md:flex-row gap-3"
+                >
+                  <VStack gap="1" align="start">
+                    <BodySmall className="font-semibold">
+                      {format(new Date(req.ot_date), "MMM d, yyyy")}
+                    </BodySmall>
+                    <BodySmall>
+                      {req.start_time} - {req.end_time} · {req.total_hours}h
+                    </BodySmall>
+                    {req.reason && (
+                      <Caption className="mt-2">{req.reason}</Caption>
+                    )}
+                    {req.overtime_documents?.length ? (
+                      <VStack gap="1" className="mt-2">
+                        {req.overtime_documents.map((doc) => (
+                          <Caption key={doc.id} className="text-emerald-600">
+                            📎 {doc.file_name}{" "}
+                            {doc.file_size
+                              ? `(${(doc.file_size / 1024 / 1024).toFixed(
+                                  2
+                                )} MB)`
+                              : ""}
+                          </Caption>
+                        ))}
+                      </VStack>
+                    ) : null}
+                  </VStack>
+                  <VStack gap="2" align="end">
+                    <Badge
+                      variant="outline"
+                      className={statusStyles[req.status]}
+                    >
+                      {req.status.toUpperCase()}
+                    </Badge>
+                    {req.status === "pending" && (
                       <Button
                         size="sm"
                         variant="secondary"
-                        isLoading={cancelLoading === req.id}
+                        disabled={cancelLoading === req.id}
                         onClick={async () => {
                           setCancelLoading(req.id);
                           const { error } = await supabase.rpc(
@@ -364,16 +379,16 @@ export default function OvertimePage() {
                           setCancelLoading(null);
                         }}
                       >
-                        Cancel
+                        {cancelLoading === req.id ? "Cancelling..." : "Cancel"}
                       </Button>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </VStack>
+                </HStack>
               </div>
             ))}
-          </div>
+          </VStack>
         )}
-      </Card>
-    </div>
+      </CardSection>
+    </VStack>
   );
 }

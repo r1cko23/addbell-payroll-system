@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Card } from '@/components/Card';
-import { createClient } from '@/lib/supabase/client';
-import { useEmployeeSession } from '@/contexts/EmployeeSessionContext';
-import { format } from 'date-fns';
+import { useEffect, useMemo, useState } from "react";
+import { CardSection } from "@/components/ui/card-section";
+import { Card, CardContent } from "@/components/ui/card";
+import { H1, H2, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { createClient } from "@/lib/supabase/client";
+import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { format } from "date-fns";
 
 interface EmployeeInfo {
   employee_id: string;
@@ -57,7 +61,7 @@ export default function EmployeeInfoPage() {
   useEffect(() => {
     const fetchInfo = async () => {
       try {
-        const { data, error } = await supabase.rpc('get_employee_profile', {
+        const { data, error } = await supabase.rpc("get_employee_profile", {
           p_employee_uuid: employee.id,
         });
 
@@ -67,12 +71,16 @@ export default function EmployeeInfoPage() {
           setInfo(data[0] as EmployeeInfo);
         } else {
           setInfo(fallbackInfo);
-          setErrorMessage('We could not find your HR profile, so we are showing the basic information from your session.');
+          setErrorMessage(
+            "We could not find your HR profile, so we are showing the basic information from your session."
+          );
         }
       } catch (err) {
-        console.error('Failed to load employee info:', err);
+        console.error("Failed to load employee info:", err);
         setInfo(fallbackInfo);
-        setErrorMessage('Unable to load the HR record right now. Showing the information we have on file.');
+        setErrorMessage(
+          "Unable to load the HR record right now. Showing the information we have on file."
+        );
       } finally {
         setLoading(false);
       }
@@ -84,62 +92,87 @@ export default function EmployeeInfoPage() {
   if (loading || !info) {
     return (
       <div className="min-h-[40vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+        <Icon
+          name="ArrowsClockwise"
+          size={IconSizes.lg}
+          className="animate-spin text-emerald-600"
+        />
       </div>
     );
   }
 
   const rows = [
-    { label: 'Employee ID', value: info.employee_id },
-    { label: 'Full Name', value: info.full_name },
-    { label: 'First Name', value: info.first_name || '—' },
-    { label: 'Last Name', value: info.last_name || '—' },
-    { label: 'Middle Initial', value: info.middle_initial || '—' },
-    { label: 'Address', value: info.address || '—' },
+    { label: "Employee ID", value: info.employee_id },
+    { label: "Full Name", value: info.full_name },
+    { label: "First Name", value: info.first_name || "—" },
+    { label: "Last Name", value: info.last_name || "—" },
+    { label: "Middle Initial", value: info.middle_initial || "—" },
+    { label: "Address", value: info.address || "—" },
     {
-      label: 'Birth Date',
-      value: info.birth_date ? format(new Date(info.birth_date), 'MMMM d, yyyy') : '—',
+      label: "Birth Date",
+      value: info.birth_date
+        ? format(new Date(info.birth_date), "MMMM d, yyyy")
+        : "—",
     },
-    { label: 'TIN #', value: info.tin_number || '—' },
-    { label: 'SSS #', value: info.sss_number || '—' },
-    { label: 'PhilHealth #', value: info.philhealth_number || '—' },
-    { label: 'Pag-IBIG #', value: info.pagibig_number || '—' },
-    { label: 'HMO', value: info.hmo_provider || '—' },
+    { label: "TIN #", value: info.tin_number || "—" },
+    { label: "SSS #", value: info.sss_number || "—" },
+    { label: "PhilHealth #", value: info.philhealth_number || "—" },
+    { label: "Pag-IBIG #", value: info.pagibig_number || "—" },
+    { label: "HMO", value: info.hmo_provider || "—" },
     {
-      label: 'Assigned Locations',
-      value: info.assigned_locations.length ? info.assigned_locations.join(', ') : '—',
+      label: "Assigned Locations",
+      value: info.assigned_locations.length
+        ? info.assigned_locations.join(", ")
+        : "—",
     },
-    { label: 'Status', value: info.is_active ? 'Active' : 'Inactive' },
-    { label: 'Date Added', value: format(new Date(info.created_at), 'MMMM d, yyyy') },
+    { label: "Status", value: info.is_active ? "Active" : "Inactive" },
+    {
+      label: "Date Added",
+      value: format(new Date(info.created_at), "MMMM d, yyyy"),
+    },
   ];
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6">
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Employee Information</h2>
-          <p className="text-sm text-gray-500">Details registered by HR</p>
-        </div>
+    <VStack gap="6" className="w-full">
+      <CardSection
+        title="Employee Information"
+        description="Details registered by HR"
+      >
         {errorMessage && (
-          <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-            {errorMessage}
+          <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
+            <BodySmall className="text-yellow-800">{errorMessage}</BodySmall>
           </div>
         )}
-        <dl className="divide-y divide-gray-200">
+        <dl className="w-full grid gap-4 md:grid-cols-2">
           {rows.map((row) => (
-            <div key={row.label} className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <dt className="text-sm font-medium text-gray-500">{row.label}</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0">{row.value}</dd>
+            <div key={row.label} className="py-3">
+              <HStack
+                justify="between"
+                align="center"
+                className="flex-col sm:flex-row"
+              >
+                <dt className="text-sm font-medium text-muted-foreground">
+                  {row.label}
+                </dt>
+                <dd className="mt-1 text-sm text-foreground sm:mt-0">
+                  {row.value}
+                </dd>
+              </HStack>
             </div>
           ))}
         </dl>
-      </Card>
+      </CardSection>
 
-      <Card className="p-4 bg-emerald-50 border border-emerald-100 text-emerald-900 text-sm">
-        <p className="font-semibold mb-1">Need to update something?</p>
-        <p>Contact your HR representative to request changes to your profile.</p>
+      <Card className="w-full p-4 bg-emerald-50 border border-emerald-100">
+        <VStack gap="1">
+          <BodySmall className="font-semibold text-emerald-900">
+            Need to update something?
+          </BodySmall>
+          <BodySmall className="text-emerald-900">
+            Contact your HR representative to request changes to your profile.
+          </BodySmall>
+        </VStack>
       </Card>
-    </div>
+    </VStack>
   );
 }
-

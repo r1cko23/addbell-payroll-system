@@ -3,9 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDays, startOfWeek, format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
-import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
-import { Input } from "@/components/Input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { toast } from "sonner";
 
@@ -210,26 +215,38 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="space-y-6 pb-24">
-      <Card className="p-4 sm:p-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold text-gray-900">Weekly Schedule</h1>
-          <p className="text-sm text-gray-600">
-            Set your schedule for the selected week (Mon–Sun). Edits allowed
-            until end of Monday of that week; after that, contact your Account
-            Manager.
-          </p>
-          <p className="text-xs text-gray-500">
-            Week starting:{" "}
-            {format(startOfWeek(weekStart, { weekStartsOn: 1 }), "yyyy-MM-dd")}
-          </p>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
-              <label className="text-sm font-medium text-gray-700">
-                Select week (snaps to Monday)
-              </label>
+    <VStack gap="6" className="w-full pb-24">
+      <CardSection
+        title={
+          <HStack gap="2" align="center">
+            <Icon name="CalendarBlank" size={IconSizes.md} />
+            Weekly Schedule
+          </HStack>
+        }
+        description="Set your schedule for the selected week (Mon–Sun). Edits allowed until end of Monday of that week; after that, contact your Account Manager."
+      >
+        <VStack gap="4">
+          <VStack gap="2" align="start">
+            <Caption>
+              Week starting:{" "}
+              <span className="font-medium text-foreground">
+                {format(
+                  startOfWeek(weekStart, { weekStartsOn: 1 }),
+                  "yyyy-MM-dd"
+                )}
+              </span>
+            </Caption>
+          </VStack>
+          <HStack
+            gap="4"
+            align="end"
+            justify="between"
+            className="flex-col md:flex-row"
+          >
+            <VStack gap="2" align="start">
+              <Label>Select week (snaps to Monday)</Label>
               <Input
-                className="w-full sm:w-auto"
+                className="w-full sm:w-64"
                 type="date"
                 value={format(
                   startOfWeek(weekStart, { weekStartsOn: 1 }),
@@ -242,95 +259,122 @@ export default function SchedulePage() {
                 }
                 disabled={loading}
               />
-            </div>
+            </VStack>
             <Button
               className="w-full sm:w-auto"
               variant="secondary"
               onClick={handleAutofill}
               disabled={isLocked || loading}
             >
+              <Icon name="ArrowsClockwise" size={IconSizes.sm} />
               Auto-fill 8:00–17:00
             </Button>
-          </div>
+          </HStack>
           {isLocked && (
-            <p className="text-xs text-red-600">
-              Locked: This week can no longer be edited. Please reach out to
-              your Account Manager for changes.
-            </p>
-          )}
-        </div>
-      </Card>
-
-      <Card className="p-4 sm:p-6 space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {weekDays.map((day, idx) => (
-            <div
-              key={day.toISOString()}
-              className="border rounded-lg p-4 space-y-3 bg-white"
-            >
-              <div className="text-sm font-semibold text-gray-800">
-                {format(day, "EEEE, MMM d")}
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  id={`dayoff-${idx}`}
-                  type="checkbox"
-                  checked={!!days[idx]?.day_off}
-                  disabled={isLocked}
-                  onChange={(e) =>
-                    handleChange(idx, "day_off", e.target.checked as any)
-                  }
-                />
-                <label
-                  htmlFor={`dayoff-${idx}`}
-                  className="text-sm text-gray-700 select-none"
-                >
-                  Mark as day off
-                </label>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  type="time"
-                  label="Start"
-                  value={days[idx]?.start_time || ""}
-                  disabled={isLocked || days[idx]?.day_off}
-                  onChange={(e) =>
-                    handleChange(idx, "start_time", e.target.value)
-                  }
-                />
-                <Input
-                  type="time"
-                  label="End"
-                  value={days[idx]?.end_time || ""}
-                  disabled={isLocked || days[idx]?.day_off}
-                  onChange={(e) =>
-                    handleChange(idx, "end_time", e.target.value)
-                  }
-                />
-              </div>
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3">
+              <Caption className="font-medium text-destructive">
+                Locked: This week can no longer be edited. Please reach out to
+                your Account Manager for changes.
+              </Caption>
             </div>
-          ))}
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 justify-end">
-          <Button
-            variant="secondary"
-            onClick={handleClearWeek}
-            isLoading={loading}
-            disabled={isLocked}
-            className="w-full sm:w-auto"
+          )}
+        </VStack>
+      </CardSection>
+
+      <CardSection>
+        <VStack gap="6" className="w-full">
+          <div className="w-full grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {weekDays.map((day, idx) => (
+              <div
+                key={day.toISOString()}
+                className="w-full rounded-lg border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+              >
+                <VStack gap="4" className="w-full">
+                  <HStack
+                    justify="between"
+                    align="start"
+                    gap="3"
+                    className="w-full"
+                  >
+                    <H3>{format(day, "EEEE, MMM d")}</H3>
+                    <label
+                      htmlFor={`dayoff-${idx}`}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    >
+                      <input
+                        id={`dayoff-${idx}`}
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                        checked={!!days[idx]?.day_off}
+                        disabled={isLocked}
+                        onChange={(e) =>
+                          handleChange(idx, "day_off", e.target.checked as any)
+                        }
+                      />
+                      <Label className="cursor-pointer">Mark as day off</Label>
+                    </label>
+                  </HStack>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <VStack gap="2" align="start">
+                      <Label htmlFor={`start-${idx}`} className="text-xs">
+                        Start
+                      </Label>
+                      <Input
+                        id={`start-${idx}`}
+                        type="time"
+                        value={days[idx]?.start_time || ""}
+                        disabled={isLocked || days[idx]?.day_off}
+                        onChange={(e) =>
+                          handleChange(idx, "start_time", e.target.value)
+                        }
+                      />
+                    </VStack>
+                    <VStack gap="2" align="start">
+                      <Label htmlFor={`end-${idx}`} className="text-xs">
+                        End
+                      </Label>
+                      <Input
+                        id={`end-${idx}`}
+                        type="time"
+                        value={days[idx]?.end_time || ""}
+                        disabled={isLocked || days[idx]?.day_off}
+                        onChange={(e) =>
+                          handleChange(idx, "end_time", e.target.value)
+                        }
+                      />
+                    </VStack>
+                  </div>
+                </VStack>
+              </div>
+            ))}
+          </div>
+          <HStack
+            gap="3"
+            justify="end"
+            align="center"
+            className="flex-col sm:flex-row pt-2"
           >
-            Clear Week
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            isLoading={loading}
-            disabled={isLocked}
-            className="w-full sm:w-auto"
-          >
-            Save Week
-          </Button>
-        </div>
-      </Card>
-    </div>
+            <Button
+              variant="outline"
+              onClick={handleClearWeek}
+              disabled={isLocked || loading}
+              className="w-full sm:w-auto"
+            >
+              <Icon name="TrashSimple" size={IconSizes.sm} />
+              {loading ? "Clearing..." : "Clear Week"}
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={isLocked || loading}
+              className="w-full sm:w-auto"
+            >
+              <Icon name="FloppyDisk" size={IconSizes.sm} />
+              {loading ? "Saving..." : "Save Week"}
+            </Button>
+          </HStack>
+        </VStack>
+      </CardSection>
+    </VStack>
   );
 }

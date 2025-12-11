@@ -1,22 +1,30 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { Input, Select } from '@/components/Input';
-import { Modal } from '@/components/Modal';
-import { Badge } from '@/components/Badge';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import toast from 'react-hot-toast';
-import { formatDateDisplay } from '@/utils/holidays';
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { CardSection } from "@/components/ui/card-section";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { H1, H3, H4, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { toast } from "sonner";
+import { formatDateDisplay } from "@/utils/holidays";
 
 interface User {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'hr';
+  role: "admin" | "hr";
   is_active: boolean;
   created_at: string;
 }
@@ -25,7 +33,7 @@ interface Holiday {
   id: string;
   holiday_date: string;
   holiday_name: string;
-  holiday_type: 'regular' | 'non-working';
+  holiday_type: "regular" | "non-working";
   year: number;
 }
 
@@ -49,127 +57,140 @@ export default function SettingsPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      
+
       if (user) {
         const { data: userData } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', user.id)
+          .from("users")
+          .select("*")
+          .eq("id", user.id)
           .single();
-        
+
         setCurrentUser(userData);
       }
 
       // Load all users (admin only)
       const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .order('full_name');
+        .from("users")
+        .select("*")
+        .order("full_name");
 
       if (usersError) throw usersError;
       setUsers(usersData || []);
 
       // Load holidays
       const { data: holidaysData, error: holidaysError } = await supabase
-        .from('holidays')
-        .select('*')
-        .eq('year', 2025)
-        .order('holiday_date');
+        .from("holidays")
+        .select("*")
+        .eq("year", 2025)
+        .order("holiday_date");
 
       if (holidaysError) throw holidaysError;
       setHolidays(holidaysData || []);
     } catch (error) {
-      console.error('Error loading settings:', error);
-      toast.error('Failed to load settings');
+      console.error("Error loading settings:", error);
+      toast.error("Failed to load settings");
     } finally {
       setLoading(false);
     }
   }
 
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = currentUser?.role === "admin";
 
   if (loading) {
     return (
       <DashboardLayout>
-        <LoadingSpinner size="lg" className="mt-20" />
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600 mt-1">System configuration and user management</p>
-        </div>
+      <VStack gap="8" className="w-full">
+        <VStack gap="2" align="start">
+          <H1>Settings</H1>
+          <BodySmall>System configuration and user management</BodySmall>
+        </VStack>
 
         {/* User Info */}
-        <Card title="Your Account">
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Name:</span>
+        <CardSection title="Your Account">
+          <VStack gap="3">
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Name:</BodySmall>
               <span className="font-semibold">{currentUser?.full_name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Email:</span>
+            </HStack>
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Email:</BodySmall>
               <span className="font-semibold">{currentUser?.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Role:</span>
-              <Badge variant={isAdmin ? 'warning' : 'info'}>
+            </HStack>
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Role:</BodySmall>
+              <Badge variant={isAdmin ? "default" : "secondary"}>
                 {currentUser?.role?.toUpperCase()}
               </Badge>
-            </div>
-          </div>
-        </Card>
+            </HStack>
+          </VStack>
+        </CardSection>
 
         {/* User Management (Admin Only) */}
         {isAdmin && (
-          <Card
+          <CardSection
             title="User Management"
-            subtitle="Manage system users"
-            action={
-              <Button size="sm" onClick={() => setShowUserModal(true)}>
-                + Add User
-              </Button>
-            }
+            description="Manage system users"
           >
+            <HStack justify="end" align="center" className="mb-4">
+              <Button size="sm" onClick={() => setShowUserModal(true)}>
+                <Icon name="Plus" size={IconSizes.sm} />
+                Add User
+              </Button>
+            </HStack>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Role
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Status
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y divide-gray-200">
                   {users.map((user) => (
                     <tr key={user.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
                         {user.full_name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-foreground">
                         {user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <Badge variant={user.role === 'admin' ? 'warning' : 'info'}>
+                        <Badge
+                          variant={
+                            user.role === "admin" ? "default" : "secondary"
+                          }
+                        >
                           {user.role.toUpperCase()}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <Badge variant={user.is_active ? 'success' : 'default'}>
-                          {user.is_active ? 'Active' : 'Inactive'}
+                        <Badge
+                          variant={user.is_active ? "default" : "secondary"}
+                        >
+                          {user.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </td>
                     </tr>
@@ -177,115 +198,120 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </CardSection>
         )}
 
         {/* Holidays */}
-        <Card
+        <CardSection
           title="Philippine Holidays 2025"
-          subtitle="System automatically detects these holidays"
+          description="System automatically detects these holidays"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-3">Regular Holidays (2x Pay)</h4>
-              <div className="space-y-2">
+            <VStack gap="3" align="start">
+              <H4>Regular Holidays (2x Pay)</H4>
+              <VStack gap="2" className="w-full">
                 {holidays
-                  .filter((h) => h.holiday_type === 'regular')
+                  .filter((h) => h.holiday_type === "regular")
                   .map((holiday) => (
-                    <div
+                    <HStack
                       key={holiday.id}
-                      className="flex justify-between items-center p-2 bg-red-50 rounded"
+                      justify="between"
+                      align="center"
+                      className="p-2 bg-red-50 rounded w-full"
                     >
-                      <span className="text-sm">{holiday.holiday_name}</span>
-                      <span className="text-xs text-gray-600">
+                      <BodySmall>{holiday.holiday_name}</BodySmall>
+                      <Caption>
                         {formatDateDisplay(holiday.holiday_date)}
-                      </span>
-                    </div>
+                      </Caption>
+                    </HStack>
                   ))}
-              </div>
-            </div>
+              </VStack>
+            </VStack>
 
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-3">
-                Non-Working Holidays (1.3x Pay)
-              </h4>
-              <div className="space-y-2">
+            <VStack gap="3" align="start">
+              <H4>Non-Working Holidays (1.3x Pay)</H4>
+              <VStack gap="2" className="w-full">
                 {holidays
-                  .filter((h) => h.holiday_type === 'non-working')
+                  .filter((h) => h.holiday_type === "non-working")
                   .map((holiday) => (
-                    <div
+                    <HStack
                       key={holiday.id}
-                      className="flex justify-between items-center p-2 bg-yellow-50 rounded"
+                      justify="between"
+                      align="center"
+                      className="p-2 bg-yellow-50 rounded w-full"
                     >
-                      <span className="text-sm">{holiday.holiday_name}</span>
-                      <span className="text-xs text-gray-600">
+                      <BodySmall>{holiday.holiday_name}</BodySmall>
+                      <Caption>
                         {formatDateDisplay(holiday.holiday_date)}
-                      </span>
-                    </div>
+                      </Caption>
+                    </HStack>
                   ))}
-              </div>
-            </div>
+              </VStack>
+            </VStack>
           </div>
-        </Card>
+        </CardSection>
 
         {/* System Info */}
-        <Card title="System Information">
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Version:</span>
+        <CardSection title="System Information">
+          <VStack gap="3">
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Version:</BodySmall>
               <span className="font-semibold">2.0.0</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Database:</span>
+            </HStack>
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Database:</BodySmall>
               <span className="font-semibold">Supabase (PostgreSQL)</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Hosting:</span>
+            </HStack>
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Hosting:</BodySmall>
               <span className="font-semibold">Vercel</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Employees:</span>
+            </HStack>
+            <HStack justify="between" align="center" className="w-full">
+              <BodySmall>Total Employees:</BodySmall>
               <span className="font-semibold">{users.length}</span>
-            </div>
-          </div>
-        </Card>
+            </HStack>
+          </VStack>
+        </CardSection>
 
         {/* Help */}
-        <Card title="Need Help?">
-          <div className="space-y-2 text-sm text-gray-600">
-            <p>
-              📖 <strong>Documentation:</strong> Check SETUP.md and README_V2.md in the project root
-            </p>
-            <p>
-              🚀 <strong>Quick Start:</strong> See QUICKSTART.md for a 30-minute setup guide
-            </p>
-            <p>
-              💡 <strong>Payroll Process:</strong> Enter Timesheet → Generate Payslips → Print/Export
-            </p>
-          </div>
-        </Card>
-      </div>
+        <CardSection title="Need Help?">
+          <VStack gap="2">
+            <BodySmall>
+              📖 <strong>Documentation:</strong> Check SETUP.md and README_V2.md
+              in the project root
+            </BodySmall>
+            <BodySmall>
+              🚀 <strong>Quick Start:</strong> See QUICKSTART.md for a 30-minute
+              setup guide
+            </BodySmall>
+            <BodySmall>
+              💡 <strong>Payroll Process:</strong> Enter Timesheet → Generate
+              Payslips → Print/Export
+            </BodySmall>
+          </VStack>
+        </CardSection>
+      </VStack>
 
       {/* Modals */}
-      <Modal
-        isOpen={showUserModal}
-        onClose={() => setShowUserModal(false)}
-        title="Add New User"
-        footer={
-          <>
+      <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+          </DialogHeader>
+          <BodySmall>
+            To add new users, please use the Supabase dashboard Authentication
+            section, then add them to the public.users table.
+          </BodySmall>
+          <DialogFooter>
             <Button variant="secondary" onClick={() => setShowUserModal(false)}>
               Cancel
             </Button>
-            <Button onClick={() => toast('Feature coming soon!')}>Create User</Button>
-          </>
-        }
-      >
-        <p className="text-gray-600">
-          To add new users, please use the Supabase dashboard Authentication section, then add them to
-          the public.users table.
-        </p>
-      </Modal>
+            <Button onClick={() => toast("Feature coming soon!")}>
+              Create User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
-

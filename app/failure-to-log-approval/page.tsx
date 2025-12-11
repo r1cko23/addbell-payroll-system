@@ -1,14 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import { AlertCircle, Check, X, User, Calendar, Filter } from "lucide-react";
 import { formatPHTime } from "@/utils/format";
 
 interface FailureToLog {
@@ -46,6 +69,13 @@ export default function FailureToLogApprovalPage() {
   const [approveLoading, setApproveLoading] = useState(false);
   const safeFormat = (value: string | null | undefined, fmt: string) =>
     value ? formatPHTime(value, fmt) : "—";
+
+  const statusStyles: Record<FailureToLog["status"], string> = {
+    pending: "bg-amber-100 text-amber-900 border-amber-200",
+    approved: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    rejected: "bg-rose-100 text-rose-900 border-rose-200",
+    cancelled: "bg-muted text-muted-foreground border-transparent",
+  };
 
   useEffect(() => {
     fetchRequests();
@@ -200,172 +230,421 @@ export default function FailureToLogApprovalPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <VStack gap="8" className="w-full pb-24">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold">Failure to Log Approval</h1>
-          <p className="text-muted-foreground mt-2">
+        <VStack gap="2" align="start">
+          <H1>Failure to Log Approval</H1>
+          <BodySmall>
             Review and approve employee failure to log requests
-          </p>
-        </div>
+          </BodySmall>
+        </VStack>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full items-stretch">
+          <Card className="border-muted h-full w-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Total Requests
-              </div>
-              <div className="text-2xl font-bold mt-1">{stats.total}</div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-full flex flex-col">
+              <HStack justify="between" align="center" className="flex-1">
+                <div className="text-3xl font-semibold">{stats.total}</div>
+                <Icon
+                  name="WarningCircle"
+                  size={IconSizes.md}
+                  className="text-muted-foreground"
+                />
+              </HStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Pending</div>
-              <div className="text-2xl font-bold mt-1 text-yellow-600">
-                {stats.pending}
-              </div>
+          <Card className="border-muted h-full w-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Pending
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-full flex flex-col">
+              <HStack justify="between" align="center" className="flex-1">
+                <div className="text-3xl font-semibold text-amber-700">
+                  {stats.pending}
+                </div>
+                <Icon
+                  name="ClockClockwise"
+                  size={IconSizes.md}
+                  className="text-amber-600"
+                />
+              </HStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Approved</div>
-              <div className="text-2xl font-bold mt-1 text-green-600">
-                {stats.approved}
-              </div>
+          <Card className="border-muted h-full w-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Approved
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-full flex flex-col">
+              <HStack justify="between" align="center" className="flex-1">
+                <div className="text-3xl font-semibold text-emerald-700">
+                  {stats.approved}
+                </div>
+                <Icon
+                  name="Check"
+                  size={IconSizes.md}
+                  className="text-emerald-600"
+                />
+              </HStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Rejected</div>
-              <div className="text-2xl font-bold mt-1 text-red-600">
-                {stats.rejected}
-              </div>
+          <Card className="border-muted h-full w-full">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Rejected
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-full flex flex-col">
+              <HStack justify="between" align="center" className="flex-1">
+                <div className="text-3xl font-semibold text-rose-700">
+                  {stats.rejected}
+                </div>
+                <Icon name="X" size={IconSizes.md} className="text-rose-600" />
+              </HStack>
             </CardContent>
           </Card>
         </div>
 
         {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <Filter className="h-5 w-5 text-muted-foreground" />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-          </CardContent>
-        </Card>
+        <CardSection
+          title={
+            <HStack gap="2" align="center">
+              <Icon
+                name="MagnifyingGlass"
+                size={IconSizes.md}
+                className="text-muted-foreground"
+              />
+              <span>Filters</span>
+            </HStack>
+          }
+          description="Narrow down requests by their current status."
+        >
+          <VStack gap="2" align="start">
+            <Label htmlFor="status">Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value)}
+            >
+              <SelectTrigger id="status" className="w-full">
+                <SelectValue placeholder="Select status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </VStack>
+        </CardSection>
 
         {/* Requests List */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <Icon
+              name="ArrowsClockwise"
+              size={IconSizes.lg}
+              className="animate-spin text-primary"
+            />
           </div>
         ) : requests.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
-              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No requests found</p>
+              <VStack gap="4" align="center">
+                <Icon
+                  name="WarningCircle"
+                  size={IconSizes.xl}
+                  className="text-muted-foreground"
+                />
+                <BodySmall>No failure-to-log requests found</BodySmall>
+              </VStack>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {requests.map((request) => (
               <Card
                 key={request.id}
-                className="hover:shadow-md transition-shadow"
+                className="border-muted/60 transition-shadow hover:shadow-hover h-full min-h-[220px]"
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedRequest(request)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedRequest(request);
+                  }
+                }}
               >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <User className="h-5 w-5 text-muted-foreground" />
-                        <span className="font-bold text-lg">
-                          {request.employees?.full_name || "Unknown"}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          ({request.employees?.employee_id})
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          Missed:{" "}
-                          {safeFormat(request.missed_date, "MMM dd, yyyy")}
-                        </div>
-                        <div>
-                          Actual:{" "}
-                          {safeFormat(
-                            request.actual_clock_out_time,
-                            "MMM dd, h:mm a"
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-sm">
-                        <strong>Reason:</strong> {request.reason}
-                      </div>
-                    </div>
-                    <div className="ml-4 flex flex-col items-end gap-2">
-                      {request.status === "pending" && (
-                        <>
-                          <Badge variant="warning">PENDING</Badge>
-                          <div
-                            className="flex gap-2 mt-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRejectionReason("");
-                                handleReject(request.id);
-                              }}
-                            >
-                              <X className="h-4 w-4 mr-1" />
-                              Reject
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleApprove(request.id);
-                              }}
-                            >
-                              <Check className="h-4 w-4 mr-1" />
-                              Approve
-                            </Button>
-                          </div>
-                        </>
+                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
+                  <VStack gap="1" align="start">
+                    <HStack gap="2" align="center">
+                      <Icon
+                        name="User"
+                        size={IconSizes.md}
+                        className="text-muted-foreground"
+                      />
+                      <BodySmall>
+                        {request.employees?.employee_id || "Unknown ID"}
+                      </BodySmall>
+                    </HStack>
+                    <H3>
+                      {request.employees?.full_name || "Unknown employee"}
+                    </H3>
+                    <HStack gap="2" align="center">
+                      <Icon name="CalendarBlank" size={IconSizes.sm} />
+                      <BodySmall>
+                        Missed {safeFormat(request.missed_date, "MMM dd, yyyy")}
+                      </BodySmall>
+                    </HStack>
+                  </VStack>
+                  <Badge
+                    className={statusStyles[request.status]}
+                    variant="outline"
+                  >
+                    {request.status.toUpperCase()}
+                  </Badge>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0 flex flex-col h-full">
+                  <HStack
+                    gap="4"
+                    align="center"
+                    className="flex-wrap text-sm text-muted-foreground"
+                  >
+                    <HStack gap="2" align="center">
+                      <Icon name="ClockClockwise" size={IconSizes.sm} />
+                      Entry type: {request.entry_type.toUpperCase()}
+                    </HStack>
+                    <HStack gap="2" align="center">
+                      <Icon name="Timer" size={IconSizes.sm} />
+                      Actual:{" "}
+                      {safeFormat(
+                        request.actual_clock_in_time ||
+                          request.actual_clock_out_time,
+                        "MMM dd, h:mm a"
                       )}
-                      {request.status === "approved" && (
-                        <Badge variant="success">APPROVED</Badge>
-                      )}
-                      {request.status === "rejected" && (
-                        <Badge variant="destructive">REJECTED</Badge>
-                      )}
-                      {request.status === "cancelled" && (
-                        <Badge variant="secondary">CANCELLED</Badge>
-                      )}
-                    </div>
-                  </div>
+                    </HStack>
+                  </HStack>
+                  <BodySmall>
+                    <span className="font-semibold text-foreground">
+                      Reason:
+                    </span>{" "}
+                    <span className="text-muted-foreground">
+                      {request.reason}
+                    </span>
+                  </BodySmall>
+                  {request.manual_notes && (
+                    <BodySmall>
+                      <span className="font-semibold text-foreground">
+                        Employee notes:
+                      </span>{" "}
+                      <span className="text-muted-foreground">
+                        {request.manual_notes}
+                      </span>
+                    </BodySmall>
+                  )}
+                  <HStack gap="2" align="center" className="flex-wrap mt-auto">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRequest(request);
+                      }}
+                    >
+                      View details
+                    </Button>
+                    {request.status === "pending" && (
+                      <>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRejectionReason("");
+                            setSelectedRequest(request);
+                          }}
+                        >
+                          <Icon name="X" size={IconSizes.sm} />
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedRequest(request);
+                            handleApprove(request.id);
+                          }}
+                          disabled={approveLoading}
+                        >
+                          <Icon name="Check" size={IconSizes.sm} />
+                          {approveLoading ? "Processing..." : "Approve"}
+                        </Button>
+                      </>
+                    )}
+                  </HStack>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
 
-        {/* Detail Modal removed */}
-      </div>
+        <Dialog
+          open={!!selectedRequest}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedRequest(null);
+              setRejectionReason("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Failure-to-log details</DialogTitle>
+            </DialogHeader>
+            {selectedRequest && (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Employee</p>
+                    <p className="text-base font-semibold">
+                      {selectedRequest.employees?.full_name || "Unknown"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      ID: {selectedRequest.employees?.employee_id || "—"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <Badge
+                      variant="outline"
+                      className={statusStyles[selectedRequest.status]}
+                    >
+                      {selectedRequest.status.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Missed date</p>
+                    <p className="text-base font-medium">
+                      {safeFormat(selectedRequest.missed_date, "MMM dd, yyyy")}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Entry type</p>
+                    <p className="text-base font-medium uppercase">
+                      {selectedRequest.entry_type}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      Actual clock-in
+                    </p>
+                    <p className="text-base font-medium">
+                      {safeFormat(
+                        selectedRequest.actual_clock_in_time,
+                        "MMM dd, h:mm a"
+                      )}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      Actual clock-out
+                    </p>
+                    <p className="text-base font-medium">
+                      {safeFormat(
+                        selectedRequest.actual_clock_out_time,
+                        "MMM dd, h:mm a"
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Reason</Label>
+                  <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
+                    {selectedRequest.reason || "No reason provided."}
+                  </p>
+                </div>
+
+                {selectedRequest.manual_notes && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Employee notes</Label>
+                    <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
+                      {selectedRequest.manual_notes}
+                    </p>
+                  </div>
+                )}
+
+                {selectedRequest.rejection_reason && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Previous rejection</Label>
+                    <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
+                      {selectedRequest.rejection_reason}
+                    </p>
+                  </div>
+                )}
+
+                {selectedRequest.status === "pending" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="rejection-reason">Rejection reason</Label>
+                    <textarea
+                      id="rejection-reason"
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      placeholder="Add an optional reason for rejection"
+                      className="min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="flex flex-wrap justify-between gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setRejectionReason("");
+                }}
+              >
+                Close
+              </Button>
+              {selectedRequest?.status === "pending" && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      if (!selectedRequest) return;
+                      handleReject(selectedRequest.id);
+                    }}
+                  >
+                    <Icon name="X" size={IconSizes.sm} />
+                    Reject
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (!selectedRequest) return;
+                      handleApprove(selectedRequest.id);
+                    }}
+                    disabled={approveLoading}
+                  >
+                    <Icon name="Check" size={IconSizes.sm} />
+                    {approveLoading ? "Processing..." : "Approve"}
+                  </Button>
+                </div>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </VStack>
     </DashboardLayout>
   );
 }

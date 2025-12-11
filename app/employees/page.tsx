@@ -1,16 +1,52 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { addDays, format, startOfWeek } from "date-fns";
+import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
-import { Input, Textarea } from "@/components/Input";
-import { Modal } from "@/components/Modal";
-import { Badge } from "@/components/Badge";
-import { LoadingSpinner } from "@/components/LoadingSpinner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { useUserRole } from "@/lib/hooks/useUserRole";
-import toast from "react-hot-toast";
+import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { CardSection } from "@/components/ui/card-section";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { InputGroup } from "@/components/ui/input-group";
 
 interface Employee {
   id: string;
@@ -44,11 +80,37 @@ interface Location {
   name: string;
 }
 
+type ScheduleRow = {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  schedule_date: string;
+  start_time: string;
+  end_time: string;
+  day_off: boolean;
+};
+
+const getColorStyleForEmployee = (employeeId: string) => {
+  const hash = employeeId
+    .split("")
+    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const hue = hash % 360;
+  const bg = `hsl(${hue}deg 80% 94%)`;
+  const border = `hsl(${hue}deg 70% 82%)`;
+  const text = `hsl(${hue}deg 45% 28%)`;
+  return { bg, border, text };
+};
+
 export default function EmployeesPage() {
+  const supabase = createClient();
+  const { role, isAdmin, loading: roleLoading } = useUserRole();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"directory" | "schedules">(
+    "directory"
+  );
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
@@ -77,23 +139,41 @@ export default function EmployeesPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
+  const [weekStart, setWeekStart] = useState<Date>(() =>
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+  const [filters, setFilters] = useState<{ employee_id: string }>({
+    employee_id: "all",
+  });
+  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
-  const supabase = createClient();
-  const { isAdmin } = useUserRole();
   const locationMap = useMemo(() => {
     const map = new Map<string, string>();
     locations.forEach((loc) => map.set(loc.id, loc.name));
     return map;
   }, [locations]);
 
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)),
+    [weekStart]
+  );
+
+  const scheduleAllowed = isAdmin || role === "account_manager";
+
   useEffect(() => {
     fetchEmployees();
     fetchLocations();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === "schedules" && scheduleAllowed) {
+      loadWeek();
+    }
+  }, [activeTab, weekStart, filters.employee_id, scheduleAllowed]);
+
   async function fetchEmployees() {
     try {
-      // Try the nested query first
       const { data, error } = await supabase
         .from("employees")
         .select(
@@ -109,43 +189,7 @@ export default function EmployeesPage() {
         .order("last_name", { ascending: true, nullsFirst: true })
         .order("first_name", { ascending: true, nullsFirst: true });
 
-      if (error) {
-        console.error("Error with nested query:", error);
-        // Fallback: try without nested query
-        const { data: simpleData, error: simpleError } = await supabase
-          .from("employees")
-          .select("*")
-          .order("last_name", { ascending: true, nullsFirst: true })
-          .order("first_name", { ascending: true, nullsFirst: true });
-
-        if (simpleError) throw simpleError;
-
-        // Fetch locations separately and merge
-        const employeesWithLocations = await Promise.all(
-          (simpleData || []).map(async (emp) => {
-            const { data: locationData } = await supabase
-              .from("employee_location_assignments")
-              .select(
-                `
-                location_id,
-                office_locations (
-                  id,
-                  name
-                )
-              `
-              )
-              .eq("employee_id", emp.id);
-
-            return {
-              ...emp,
-              employee_location_assignments: locationData || [],
-            };
-          })
-        );
-
-        setEmployees(employeesWithLocations);
-        return;
-      }
+      if (error) throw error;
 
       setEmployees(data || []);
     } catch (error: any) {
@@ -171,6 +215,24 @@ export default function EmployeesPage() {
     } catch (error) {
       console.error("Error fetching locations:", error);
     }
+  }
+
+  async function loadWeek() {
+    setScheduleLoading(true);
+    const { data, error } = await supabase.rpc(
+      "get_week_schedule_for_manager",
+      {
+        p_week_start: format(weekStart, "yyyy-MM-dd"),
+        p_employee_id:
+          filters.employee_id === "all" ? null : filters.employee_id,
+      }
+    );
+    if (error) {
+      toast.error(error.message || "Failed to load schedules");
+    } else {
+      setScheduleRows((data || []) as ScheduleRow[]);
+    }
+    setScheduleLoading(false);
   }
 
   function openAddModal() {
@@ -274,7 +336,6 @@ export default function EmployeesPage() {
     setSubmitting(true);
 
     try {
-      // Build full_name from separate fields
       const middleInitial = formData.middle_initial
         ? ` ${formData.middle_initial}.`
         : "";
@@ -303,19 +364,16 @@ export default function EmployeesPage() {
         pagibig_number: formData.pagibig_number || null,
         hmo_provider: formData.hmo_provider || null,
         gender: formData.gender || null,
-        // Only paternity credits are manually set; SIL and Maternity are auto-calculated
         paternity_credits:
           formData.gender === "male"
             ? parseFloat(formData.paternity_days || "0") || 0
             : 0,
-        // Preserve existing offset hours when editing; default to 0 on create
         offset_hours: editingEmployee?.offset_hours ?? 0,
       };
 
       let employeeId = editingEmployee ? editingEmployee.id : "";
 
       if (editingEmployee) {
-        // Update existing employee
         const { error } = await supabase
           .from("employees")
           .update(employeeData)
@@ -325,13 +383,12 @@ export default function EmployeesPage() {
         await saveEmployeeLocations(editingEmployee.id, formData.locations);
         toast.success("Employee updated successfully");
       } else {
-        // Create new employee - set default portal password to employee_id
         const { data: inserted, error } = await supabase
           .from("employees")
           .insert([
             {
               ...employeeData,
-              portal_password: formData.employee_id, // Default password is employee_id
+              portal_password: formData.employee_id,
             },
           ])
           .select("id")
@@ -465,508 +522,714 @@ export default function EmployeesPage() {
       emp.employee_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const groupedSchedules = weekDays.map((d) => {
+    const iso = format(d, "yyyy-MM-dd");
+    return {
+      date: iso,
+      label: format(d, "EEE, MMM d"),
+      entries: scheduleRows.filter((r) => r.schedule_date === iso),
+    };
+  });
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Employee Management
-            </h1>
-            <p className="text-gray-600 mt-1">Manage employee records</p>
-          </div>
+      <VStack gap="8" className="w-full pb-24">
+        {/* Header Section */}
+        <HStack justify="between" align="center">
+          <VStack gap="2" align="start">
+            <H1>Employee Management</H1>
+            <BodySmall>Manage employee records and view schedules.</BodySmall>
+          </VStack>
           <Button onClick={openAddModal}>
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <Icon name="Plus" size={IconSizes.sm} />
             Add Employee
           </Button>
-        </div>
+        </HStack>
 
-        <Card>
-          <div className="mb-4">
-            <Input
-              type="search"
-              placeholder="Search by name or employee ID..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "directory" | "schedules")}
+          className="space-y-4"
+        >
+          <TabsList>
+            <TabsTrigger value="directory">Directory</TabsTrigger>
+            <TabsTrigger value="schedules">Schedules</TabsTrigger>
+          </TabsList>
 
-          {loading ? (
-            <LoadingSpinner className="py-12" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Employee ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Full Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Assigned Locations
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-10 min-w-[210px]">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredEmployees.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className="px-6 py-12 text-center text-gray-500"
-                      >
-                        {searchTerm
-                          ? "No employees found matching your search"
-                          : "No employees yet. Add your first employee!"}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredEmployees.map((employee) => (
-                      <tr key={employee.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {employee.employee_id}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {employee.full_name}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 whitespace-normal break-words max-w-xl">
-                          {(() => {
-                            // First, try to get locations from employee_location_assignments
-                            const locationNames =
-                              employee.employee_location_assignments
-                                ?.map(
-                                  (assignment) =>
-                                    assignment.office_locations?.name ||
-                                    locationMap.get(assignment.location_id) ||
-                                    null
-                                )
-                                .filter((name): name is string =>
-                                  Boolean(name)
-                                ) || [];
+          <TabsContent value="directory" className="space-y-4">
+            <CardSection
+              title="Directory"
+              description="Search, edit, and manage employee portal access."
+            >
+              <HStack justify="between" align="end" gap="4">
+                <div className="relative flex-1 max-w-md">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="absolute left-3 top-2.5 text-muted-foreground"
+                  />
+                  <Input
+                    type="search"
+                    placeholder="Search by name or employee ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <HStack gap="2" align="center">
+                  <Icon
+                    name="User"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground"
+                  />
+                  <Caption>{filteredEmployees.length} employees</Caption>
+                </HStack>
+              </HStack>
 
-                            // If we have location assignments, show those
-                            if (locationNames.length > 0) {
-                              return locationNames.join(", ");
-                            }
-
-                            // Otherwise, fall back to assigned_hotel if it exists
-                            if (employee.assigned_hotel) {
-                              return employee.assigned_hotel;
-                            }
-
-                            // If neither exists, show dash
-                            return "—";
-                          })()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge
-                            variant={employee.is_active ? "success" : "default"}
-                          >
-                            {employee.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 sticky right-0 bg-white z-10 shadow-[-6px_0_8px_-6px_rgba(0,0,0,0.15)]">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openEditModal(employee)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => openPasswordModal(employee)}
-                            title="Manage Portal Account"
-                          >
-                            <svg
-                              className="w-4 h-4 mr-1"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                              />
-                            </svg>
-                            Portal
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={
-                              employee.is_active ? "secondary" : "primary"
-                            }
-                            onClick={() => toggleEmployeeStatus(employee)}
-                          >
-                            {employee.is_active ? "Deactivate" : "Activate"}
-                          </Button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
-      </div>
-
-      {/* Add/Edit Modal */}
-      <Modal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingEmployee ? "Edit Employee" : "Add New Employee"}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} isLoading={submitting}>
-              {editingEmployee ? "Update" : "Create"}
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            label="Employee ID"
-            required
-            value={formData.employee_id}
-            onChange={(e) =>
-              setFormData({ ...formData, employee_id: e.target.value })
-            }
-            disabled={!!editingEmployee}
-            helperText="Unique identifier (e.g., EMP001)"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Last Name"
-              required
-              value={formData.last_name}
-              onChange={(e) =>
-                setFormData({ ...formData, last_name: e.target.value })
-              }
-              helperText="Surname/Family name"
-            />
-
-            <Input
-              label="First Name"
-              required
-              value={formData.first_name}
-              onChange={(e) =>
-                setFormData({ ...formData, first_name: e.target.value })
-              }
-              helperText="Given name"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="Middle Initial"
-              value={formData.middle_initial}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  middle_initial: e.target.value.toUpperCase().slice(0, 1),
-                })
-              }
-              helperText="Optional - just the initial (e.g., M)"
-            />
-
-            <Input
-              type="date"
-              label="Birth Date"
-              value={formData.birth_date}
-              onChange={(e) =>
-                setFormData({ ...formData, birth_date: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">
-                Gender
-              </label>
-              <select
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                value={formData.gender}
-                onChange={(e) =>
-                  setFormData({ ...formData, gender: e.target.value })
-                }
-                required
-              >
-                <option value="" disabled>
-                  Select gender
-                </option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-              <p className="text-xs text-gray-500">
-                Used to auto-allocate maternity/paternity leave.
-              </p>
-            </div>
-
-            <Input
-              type="date"
-              label="Hire Date"
-              value={formData.hire_date}
-              onChange={(e) =>
-                setFormData({ ...formData, hire_date: e.target.value })
-              }
-              helperText="Used for auto SIL accrual eligibility"
-              required
-              disabled={!!editingEmployee && !isAdmin}
-            />
-          </div>
-
-          <Textarea
-            label="Address"
-            rows={3}
-            value={formData.address}
-            onChange={(e) =>
-              setFormData({ ...formData, address: e.target.value })
-            }
-            helperText="Residential address"
-          />
-
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-gray-700">
-              Assigned Locations
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-              {locations.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  No active locations configured yet. Add locations first.
-                </p>
+              {loading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                </div>
               ) : (
-                locations.map((loc) => {
-                  const checked = formData.locations.includes(loc.id);
-                  return (
-                    <label
-                      key={loc.id}
-                      className={`flex items-center gap-2 border rounded-lg px-3 py-2 text-sm ${
-                        checked
-                          ? "bg-emerald-50 border-emerald-200"
-                          : "border-gray-200"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 text-emerald-600 rounded border-gray-300"
-                        checked={checked}
-                        onChange={() => toggleLocationSelection(loc.id)}
-                      />
-                      <span className="text-gray-800">{loc.name}</span>
-                    </label>
-                  );
-                })
+                <div className="overflow-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee ID</TableHead>
+                        <TableHead>Full Name</TableHead>
+                        <TableHead>Assigned Locations</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEmployees.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center">
+                            {searchTerm
+                              ? "No employees found matching your search."
+                              : "No employees yet. Add your first employee!"}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredEmployees.map((employee) => (
+                          <TableRow key={employee.id}>
+                            <TableCell className="font-semibold">
+                              {employee.employee_id}
+                            </TableCell>
+                            <TableCell>{employee.full_name}</TableCell>
+                            <TableCell className="max-w-xl text-sm text-muted-foreground">
+                              {(() => {
+                                const locationNames =
+                                  employee.employee_location_assignments
+                                    ?.map(
+                                      (assignment) =>
+                                        assignment.office_locations?.name ||
+                                        locationMap.get(
+                                          assignment.location_id
+                                        ) ||
+                                        null
+                                    )
+                                    .filter((name): name is string =>
+                                      Boolean(name)
+                                    ) || [];
+
+                                if (locationNames.length > 0) {
+                                  return locationNames.join(", ");
+                                }
+
+                                if (employee.assigned_hotel) {
+                                  return employee.assigned_hotel;
+                                }
+
+                                return "—";
+                              })()}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  employee.is_active
+                                    ? "bg-emerald-100 text-emerald-900 border-emerald-200"
+                                    : "bg-slate-100 text-slate-800 border-slate-200"
+                                }
+                              >
+                                {employee.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <HStack
+                                gap="2"
+                                justify="end"
+                                className="whitespace-nowrap"
+                              >
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => openEditModal(employee)}
+                                >
+                                  <Icon
+                                    name="PencilSimple"
+                                    size={IconSizes.sm}
+                                  />
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => openPasswordModal(employee)}
+                                  title="Manage portal account"
+                                >
+                                  <Icon name="Key" size={IconSizes.sm} />
+                                  Portal
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={
+                                    employee.is_active
+                                      ? "destructive"
+                                      : "default"
+                                  }
+                                  onClick={() => toggleEmployeeStatus(employee)}
+                                >
+                                  <Icon name="Power" size={IconSizes.sm} />
+                                  {employee.is_active
+                                    ? "Deactivate"
+                                    : "Activate"}
+                                </Button>
+                              </HStack>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
-            </div>
-            <p className="text-xs text-gray-500">
-              Select at least one location. The first selected will be treated
-              as the primary location.
-            </p>
-          </div>
+            </CardSection>
+          </TabsContent>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="TIN #"
-              value={formData.tin_number}
-              onChange={(e) =>
-                setFormData({ ...formData, tin_number: e.target.value })
-              }
-            />
-            <Input
-              label="SSS #"
-              value={formData.sss_number}
-              onChange={(e) =>
-                setFormData({ ...formData, sss_number: e.target.value })
-              }
-            />
-          </div>
+          <TabsContent value="schedules" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>Schedules</CardTitle>
+                <CardDescription>
+                  Weekly schedules for account managers and admins.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {roleLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                  </div>
+                ) : !scheduleAllowed ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    Only account managers or admins can view schedules.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="space-y-1.5">
+                          <Label>Week starting (Mon)</Label>
+                          <Input
+                            type="date"
+                            value={format(
+                              startOfWeek(weekStart, { weekStartsOn: 1 }),
+                              "yyyy-MM-dd"
+                            )}
+                            onChange={(e) =>
+                              setWeekStart(
+                                startOfWeek(new Date(e.target.value), {
+                                  weekStartsOn: 1,
+                                })
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Employee</Label>
+                          <Select
+                            value={filters.employee_id}
+                            onValueChange={(value) =>
+                              setFilters({ employee_id: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="All employees" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All employees</SelectItem>
+                              {employees.map((emp) => (
+                                <SelectItem key={emp.id} value={emp.id}>
+                                  {emp.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <Button
+                        className="w-full sm:w-auto"
+                        variant="secondary"
+                        onClick={loadWeek}
+                        disabled={scheduleLoading}
+                      >
+                        <Icon name="ArrowsClockwise" size={IconSizes.sm} />
+                        {scheduleLoading ? "Refreshing..." : "Refresh"}
+                      </Button>
+                    </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              label="PhilHealth #"
-              value={formData.philhealth_number}
-              onChange={(e) =>
-                setFormData({ ...formData, philhealth_number: e.target.value })
-              }
-            />
-            <Input
-              label="Pag-IBIG #"
-              value={formData.pagibig_number}
-              onChange={(e) =>
-                setFormData({ ...formData, pagibig_number: e.target.value })
-              }
-            />
-          </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {groupedSchedules.map((col) => (
+                        <Card key={col.date} className="border-muted/60">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base">
+                              {col.label}
+                            </CardTitle>
+                            <CardDescription>{col.date}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {col.entries.length === 0 ? (
+                              <p className="text-sm text-muted-foreground">
+                                No schedules
+                              </p>
+                            ) : (
+                              col.entries.map((entry) => {
+                                const color = getColorStyleForEmployee(
+                                  entry.employee_id
+                                );
+                                return (
+                                  <div
+                                    key={entry.id}
+                                    className="rounded-md border px-3 py-2 text-sm"
+                                    style={{
+                                      backgroundColor: color.bg,
+                                      borderColor: color.border,
+                                      color: color.text,
+                                    }}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-semibold">
+                                        {entry.employee_name}
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="bg-white/60 text-xs"
+                                      >
+                                        {entry.day_off ? "Day Off" : "Shift"}
+                                      </Badge>
+                                    </div>
+                                    <HStack
+                                      gap="2"
+                                      align="center"
+                                      className="mt-1 text-xs"
+                                    >
+                                      <Icon
+                                        name="CalendarBlank"
+                                        size={IconSizes.sm}
+                                      />
+                                      {formatPHTime(
+                                        new Date(entry.schedule_date),
+                                        "MMM dd"
+                                      )}
+                                    </HStack>
+                                    <HStack
+                                      gap="2"
+                                      align="center"
+                                      className="mt-1 text-xs"
+                                    >
+                                      <Icon name="MapPin" size={IconSizes.sm} />
+                                      {entry.day_off
+                                        ? "No shift scheduled"
+                                        : `${formatPHTime(
+                                            new Date(
+                                              `${entry.schedule_date}T${entry.start_time}`
+                                            ),
+                                            "h:mm a"
+                                          )} - ${formatPHTime(
+                                            new Date(
+                                              `${entry.schedule_date}T${entry.end_time}`
+                                            ),
+                                            "h:mm a"
+                                          )}`}
+                                    </HStack>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </VStack>
 
-          <Input
-            label="HMO"
-            value={formData.hmo_provider}
-            onChange={(e) =>
-              setFormData({ ...formData, hmo_provider: e.target.value })
-            }
-          />
-
-          <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
-            <p className="text-sm font-semibold text-gray-700">
-              Leave Allocations (auto-managed)
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-700">
-                  SIL (auto)
-                </p>
-                <p className="text-xs text-gray-500">
-                  Auto-awarded: 10 days at 1st anniversary (usable until Dec
-                  31), then pro-rated monthly (10/12) each year; resets every
-                  Jan 1.
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-700">
-                  Maternity Leave (auto)
-                </p>
-                <p className="text-xs text-gray-500">
-                  105 days when gender is Female; 0 otherwise.
-                </p>
-              </div>
-              {formData.gender === "male" && (
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingEmployee ? "Edit Employee" : "Add New Employee"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="employee-id">Employee ID</Label>
                 <Input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  label="Paternity Leave (days)"
-                  value={formData.paternity_days}
+                  id="employee-id"
+                  required
+                  value={formData.employee_id}
                   onChange={(e) =>
-                    setFormData({ ...formData, paternity_days: e.target.value })
+                    setFormData({ ...formData, employee_id: e.target.value })
                   }
-                  helperText="Enter allocated days (e.g., 7)"
+                  disabled={!!editingEmployee}
+                  placeholder="EMP001"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Unique identifier. Immutable after creation.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="hire-date">Hire Date</Label>
+                <Input
+                  id="hire-date"
+                  type="date"
+                  value={formData.hire_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hire_date: e.target.value })
+                  }
+                  required
+                  disabled={!!editingEmployee && !isAdmin}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="last-name">Last Name</Label>
+                <Input
+                  id="last-name"
+                  required
+                  value={formData.last_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, last_name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="first-name">First Name</Label>
+                <Input
+                  id="first-name"
+                  required
+                  value={formData.first_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, first_name: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="middle-initial">Middle Initial</Label>
+                <Input
+                  id="middle-initial"
+                  value={formData.middle_initial}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      middle_initial: e.target.value.toUpperCase().slice(0, 1),
+                    })
+                  }
+                  placeholder="M"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="birth-date">Birth Date</Label>
+                <Input
+                  id="birth-date"
+                  type="date"
+                  value={formData.birth_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, birth_date: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Gender</Label>
+                <Select
+                  value={formData.gender}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, gender: value })
+                  }
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Used to auto-allocate maternity/paternity leave.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Textarea
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  placeholder="Residential address"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Assigned Locations</Label>
+              <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {locations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No active locations configured yet. Add locations first.
+                  </p>
+                ) : (
+                  locations.map((loc) => {
+                    const checked = formData.locations.includes(loc.id);
+                    return (
+                      <label
+                        key={loc.id}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                          checked
+                            ? "border-emerald-200 bg-emerald-50"
+                            : "border-border"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                          checked={checked}
+                          onChange={() => toggleLocationSelection(loc.id)}
+                        />
+                        <span>{loc.name}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select at least one location. The first selected becomes the
+                primary location.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="tin">TIN #</Label>
+                <Input
+                  id="tin"
+                  value={formData.tin_number}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tin_number: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sss">SSS #</Label>
+                <Input
+                  id="sss"
+                  value={formData.sss_number}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sss_number: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="philhealth">PhilHealth #</Label>
+                <Input
+                  id="philhealth"
+                  value={formData.philhealth_number}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      philhealth_number: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pagibig">Pag-IBIG #</Label>
+                <Input
+                  id="pagibig"
+                  value={formData.pagibig_number}
+                  onChange={(e) =>
+                    setFormData({ ...formData, pagibig_number: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="hmo">HMO</Label>
+              <Input
+                id="hmo"
+                value={formData.hmo_provider}
+                onChange={(e) =>
+                  setFormData({ ...formData, hmo_provider: e.target.value })
+                }
+                placeholder="Provider name"
+              />
+            </div>
+
+            <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+              <p className="text-sm font-semibold text-foreground">
+                Leave Allocations (auto-managed)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                SIL: 10 days after first anniversary (usable until Dec 31), then
+                prorated monthly each year. Maternity: 105 days when gender is
+                female.
+              </p>
+              {formData.gender === "male" && (
+                <div className="space-y-2">
+                  <Label htmlFor="paternity">Paternity Leave (days)</Label>
+                  <Input
+                    id="paternity"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={formData.paternity_days}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        paternity_days: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., 7"
+                  />
+                </div>
               )}
             </div>
-          </div>
-        </form>
-      </Modal>
 
-      {/* Portal Password Management Modal */}
-      <Modal
-        isOpen={showPasswordModal}
-        onClose={() => setShowPasswordModal(false)}
-        title={`Manage Portal Account - ${passwordEmployee?.full_name}`}
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setShowPasswordModal(false)}
-            >
-              Cancel
-            </Button>
-            {passwordEmployee && (
+            <DialogFooter className="flex items-center justify-end gap-2">
               <Button
-                variant="ghost"
-                onClick={() => resetPasswordToDefault(passwordEmployee)}
-                disabled={passwordSubmitting}
+                type="button"
+                variant="outline"
+                onClick={() => setShowModal(false)}
               >
-                Reset to Default
+                Cancel
               </Button>
-            )}
-            <Button
-              onClick={handlePasswordUpdate}
-              isLoading={passwordSubmitting}
-            >
-              Update Password
-            </Button>
-          </>
-        }
-      >
-        {passwordEmployee && (
-          <div className="space-y-4">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-              <p className="text-sm text-emerald-900">
-                <strong>Employee ID:</strong> {passwordEmployee.employee_id}
-              </p>
-              <p className="text-xs text-emerald-700 mt-1">
-                Default password is the Employee ID. Employees can use this to
-                login to the portal.
-              </p>
-            </div>
+              <Button type="submit" disabled={submitting}>
+                {submitting
+                  ? "Saving..."
+                  : editingEmployee
+                  ? "Update"
+                  : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Portal Account
+              {passwordEmployee?.full_name
+                ? ` - ${passwordEmployee.full_name}`
+                : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {passwordEmployee && (
             <form onSubmit={handlePasswordUpdate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  New Password
-                </label>
-                <input
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
+                <p className="text-emerald-900">
+                  <strong>Employee ID:</strong> {passwordEmployee.employee_id}
+                </p>
+                <p className="text-xs text-emerald-800 mt-1">
+                  Default password is the employee ID.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-password">New password</Label>
+                <Input
+                  id="new-password"
                   type="password"
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  disabled={passwordSubmitting}
-                  required
                   minLength={4}
+                  required
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={passwordSubmitting}
                 />
-                <p className="mt-1 text-xs text-gray-500">
-                  Minimum 4 characters
-                </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirm password</Label>
+                <Input
+                  id="confirm-password"
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                  disabled={passwordSubmitting}
-                  required
                   minLength={4}
+                  required
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={passwordSubmitting}
                 />
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                <p className="text-xs text-yellow-800">
-                  <strong>Note:</strong> The employee will need to use this
-                  password to login at{" "}
-                  <code className="bg-yellow-100 px-1 rounded">
-                    /employee-login
-                  </code>
-                </p>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                Employee will use this password to sign in at /employee-login.
               </div>
+
+              <DialogFooter className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() =>
+                    passwordEmployee && resetPasswordToDefault(passwordEmployee)
+                  }
+                  disabled={passwordSubmitting}
+                >
+                  <Icon
+                    name="ClockClockwise"
+                    size={IconSizes.sm}
+                    className="mr-2"
+                  />
+                  Reset to default
+                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowPasswordModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={passwordSubmitting}>
+                    {passwordSubmitting ? "Saving..." : "Update password"}
+                  </Button>
+                </div>
+              </DialogFooter>
             </form>
-          </div>
-        )}
-      </Modal>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

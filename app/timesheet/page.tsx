@@ -1,31 +1,43 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { DashboardLayout } from '@/components/DashboardLayout';
-import { Card } from '@/components/Card';
-import { Button } from '@/components/Button';
-import { Select } from '@/components/Input';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
-import toast from 'react-hot-toast';
-import { format, addDays, parseISO } from 'date-fns';
-import { determineDayType, getDayName, formatDateShort } from '@/utils/holidays';
-// import { calculateDailyPay, getDayTypeLabel } from '@/utils/payroll-calculator';
-import { getDayTypeLabel } from '@/utils/payroll-calculator';
-// import { formatCurrency } from '@/utils/format';
-import type { Holiday } from '@/utils/holidays';
-import type { DailyAttendance } from '@/utils/payroll-calculator';
-import { ChevronLeft, ChevronRight, AlertTriangle, Clock } from 'lucide-react';
-import { generateWeeklySummary } from '@/lib/timekeeper';
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { DashboardLayout } from "@/components/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, H3, H4, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { format, addDays, parseISO } from "date-fns";
+import {
+  determineDayType,
+  getDayName,
+  formatDateShort,
+} from "@/utils/holidays";
+import { getDayTypeLabel } from "@/utils/payroll-calculator";
+import type { Holiday } from "@/utils/holidays";
+import type { DailyAttendance } from "@/utils/payroll-calculator";
+import { generateWeeklySummary } from "@/lib/timekeeper";
 // Overtime removed - not part of business process
-import { 
-  getBiMonthlyPeriodStart, 
-  getBiMonthlyPeriodEnd, 
+import {
+  getBiMonthlyPeriodStart,
+  getBiMonthlyPeriodEnd,
   getBiMonthlyWorkingDays,
   getNextBiMonthlyPeriod,
   getPreviousBiMonthlyPeriod,
-  formatBiMonthlyPeriod
-} from '@/utils/bimonthly';
+  formatBiMonthlyPeriod,
+} from "@/utils/bimonthly";
 
 interface Employee {
   id: string;
@@ -44,7 +56,9 @@ interface DayData {
 
 export default function TimesheetPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null
+  );
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [periodStart, setPeriodStart] = useState<Date>(
     getBiMonthlyPeriodStart(new Date()) // Bi-monthly period starts on Monday
@@ -69,33 +83,33 @@ export default function TimesheetPage() {
     try {
       // Load employees
       const { data: empData, error: empError } = await supabase
-        .from('employees')
-        .select('id, employee_id, full_name')
-        .eq('is_active', true)
-        .order('full_name');
+        .from("employees")
+        .select("id, employee_id, full_name")
+        .eq("is_active", true)
+        .order("full_name");
 
       if (empError) throw empError;
       setEmployees(empData || []);
 
       // Load holidays
       const { data: holidayData, error: holidayError } = await supabase
-        .from('holidays')
-        .select('holiday_date, holiday_name, holiday_type')
-        .eq('year', 2025)
-        .eq('is_active', true);
+        .from("holidays")
+        .select("holiday_date, holiday_name, holiday_type")
+        .eq("year", 2025)
+        .eq("is_active", true);
 
       if (holidayError) throw holidayError;
-      
+
       const formattedHolidays: Holiday[] = (holidayData || []).map((h) => ({
         date: h.holiday_date,
         name: h.holiday_name,
-        type: h.holiday_type as 'regular' | 'non-working',
+        type: h.holiday_type as "regular" | "non-working",
       }));
-      
+
       setHolidays(formattedHolidays);
     } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load data');
+      console.error("Error loading data:", error);
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -104,11 +118,11 @@ export default function TimesheetPage() {
   function initializePeriodDays() {
     const workingDays = getBiMonthlyWorkingDays(periodStart);
     const days: DayData[] = [];
-    
+
     workingDays.forEach((date) => {
-      const dateString = format(date, 'yyyy-MM-dd');
+      const dateString = format(date, "yyyy-MM-dd");
       const dayType = determineDayType(dateString, holidays);
-      
+
       days.push({
         date: dateString,
         dayName: getDayName(dateString),
@@ -118,25 +132,25 @@ export default function TimesheetPage() {
         nightDiffHours: 0,
       });
     });
-    
+
     setPeriodDays(days);
   }
 
   function updateDayHours(index: number, field: string, value: string) {
     if (!selectedEmployee) return;
-    
+
     // Store string as-is to allow smooth typing
     const updatedDays = [...periodDays];
     updatedDays[index] = {
       ...updatedDays[index],
       [field]: value,
     };
-    
+
     setPeriodDays(updatedDays);
   }
 
-  function changePeriod(direction: 'prev' | 'next') {
-    if (direction === 'prev') {
+  function changePeriod(direction: "prev" | "next") {
+    if (direction === "prev") {
       setPeriodStart(getPreviousBiMonthlyPeriod(periodStart));
     } else {
       setPeriodStart(getNextBiMonthlyPeriod(periodStart));
@@ -145,19 +159,23 @@ export default function TimesheetPage() {
 
   async function handleSave() {
     if (!selectedEmployee) {
-      toast.error('Please select an employee');
+      toast.error("Please select an employee");
       return;
     }
 
     // Convert string values to numbers for validation and saving
-    const toNumber = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
+    const toNumber = (val: string | number) =>
+      typeof val === "string" ? parseFloat(val) || 0 : val;
 
     const hasAnyHours = periodDays.some(
-      (day) => toNumber(day.regularHours) > 0 || toNumber(day.overtimeHours) > 0 || toNumber(day.nightDiffHours) > 0
+      (day) =>
+        toNumber(day.regularHours) > 0 ||
+        toNumber(day.overtimeHours) > 0 ||
+        toNumber(day.nightDiffHours) > 0
     );
 
     if (!hasAnyHours) {
-      toast.error('Please enter at least some hours');
+      toast.error("Please enter at least some hours");
       return;
     }
 
@@ -172,25 +190,34 @@ export default function TimesheetPage() {
         nightDiffHours: toNumber(day.nightDiffHours),
       }));
 
-      const totalRegularHours = periodDays.reduce((sum, d) => sum + toNumber(d.regularHours), 0);
-      const totalOvertimeHours = periodDays.reduce((sum, d) => sum + toNumber(d.overtimeHours), 0);
-      const totalNightDiffHours = periodDays.reduce((sum, d) => sum + toNumber(d.nightDiffHours), 0);
+      const totalRegularHours = periodDays.reduce(
+        (sum, d) => sum + toNumber(d.regularHours),
+        0
+      );
+      const totalOvertimeHours = periodDays.reduce(
+        (sum, d) => sum + toNumber(d.overtimeHours),
+        0
+      );
+      const totalNightDiffHours = periodDays.reduce(
+        (sum, d) => sum + toNumber(d.nightDiffHours),
+        0
+      );
       const grossPay = 0; // Removed rate calculation
 
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
       // Check if attendance already exists
       const { data: existingData } = await supabase
-        .from('weekly_attendance')
-        .select('id')
-        .eq('employee_id', selectedEmployee.id)
-        .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
+        .from("weekly_attendance")
+        .select("id")
+        .eq("employee_id", selectedEmployee.id)
+        .eq("period_start", format(periodStart, "yyyy-MM-dd"))
         .single();
 
       if (existingData) {
         // Update existing
         const { error } = await supabase
-          .from('weekly_attendance')
+          .from("weekly_attendance")
           .update({
             attendance_data: attendanceData,
             total_regular_hours: totalRegularHours,
@@ -198,18 +225,18 @@ export default function TimesheetPage() {
             total_night_diff_hours: totalNightDiffHours,
             gross_pay: grossPay,
           })
-          .eq('id', existingData.id);
+          .eq("id", existingData.id);
 
         if (error) throw error;
-        toast.success('Timesheet updated successfully');
+        toast.success("Timesheet updated successfully");
       } else {
         // Create new
-        const { error } = await supabase.from('weekly_attendance').insert([
+        const { error } = await supabase.from("weekly_attendance").insert([
           {
             employee_id: selectedEmployee.id,
-            period_start: format(periodStart, 'yyyy-MM-dd'),
-            period_end: format(periodEnd, 'yyyy-MM-dd'),
-            period_type: 'bimonthly',
+            period_start: format(periodStart, "yyyy-MM-dd"),
+            period_end: format(periodEnd, "yyyy-MM-dd"),
+            period_type: "bimonthly",
             attendance_data: attendanceData,
             total_regular_hours: totalRegularHours,
             total_overtime_hours: totalOvertimeHours,
@@ -219,14 +246,14 @@ export default function TimesheetPage() {
         ]);
 
         if (error) throw error;
-        toast.success('Timesheet saved successfully');
+        toast.success("Timesheet saved successfully");
       }
 
       // Clear form
       initializePeriodDays();
     } catch (error: any) {
-      console.error('Error saving timesheet:', error);
-      toast.error(error.message || 'Failed to save timesheet');
+      console.error("Error saving timesheet:", error);
+      toast.error(error.message || "Failed to save timesheet");
     } finally {
       setSaving(false);
     }
@@ -234,7 +261,7 @@ export default function TimesheetPage() {
 
   async function copyLastPeriod() {
     if (!selectedEmployee) {
-      toast.error('Please select an employee first');
+      toast.error("Please select an employee first");
       return;
     }
 
@@ -242,16 +269,21 @@ export default function TimesheetPage() {
 
     try {
       const { data, error } = await supabase
-        .from('weekly_attendance')
-        .select('*')
-        .eq('employee_id', selectedEmployee.id)
-        .eq('period_start', format(lastPeriodStart, 'yyyy-MM-dd'))
+        .from("weekly_attendance")
+        .select("*")
+        .eq("employee_id", selectedEmployee.id)
+        .eq("period_start", format(lastPeriodStart, "yyyy-MM-dd"))
         .maybeSingle();
 
       if (error) throw error;
 
       if (!data || !data.attendance_data) {
-        toast.error(`No timesheet found for period starting ${format(lastPeriodStart, 'MMM d, yyyy')}`);
+        toast.error(
+          `No timesheet found for period starting ${format(
+            lastPeriodStart,
+            "MMM d, yyyy"
+          )}`
+        );
         return;
       }
 
@@ -271,10 +303,12 @@ export default function TimesheetPage() {
       });
 
       setPeriodDays(updatedDays);
-      toast.success('✅ Copied last period\'s hours! Review and save when ready.');
+      toast.success(
+        "✅ Copied last period's hours! Review and save when ready."
+      );
     } catch (error) {
-      console.error('Error copying last period:', error);
-      toast.error('Failed to copy last period\'s data');
+      console.error("Error copying last period:", error);
+      toast.error("Failed to copy last period's data");
     }
   }
 
@@ -283,14 +317,18 @@ export default function TimesheetPage() {
 
     try {
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
-      const summary = await generateWeeklySummary(selectedEmployee.id, periodStart);
-      
+      const summary = await generateWeeklySummary(
+        selectedEmployee.id,
+        periodStart
+      );
+
       if (summary.totalHours > 0) {
         // Check if timesheet is already populated
-        const hasData = periodDays.some(day => 
-          (typeof day.regularHours === 'number' && day.regularHours > 0) ||
-          (typeof day.overtimeHours === 'number' && day.overtimeHours > 0) ||
-          (typeof day.nightDiffHours === 'number' && day.nightDiffHours > 0)
+        const hasData = periodDays.some(
+          (day) =>
+            (typeof day.regularHours === "number" && day.regularHours > 0) ||
+            (typeof day.overtimeHours === "number" && day.overtimeHours > 0) ||
+            (typeof day.nightDiffHours === "number" && day.nightDiffHours > 0)
         );
 
         if (!hasData) {
@@ -299,26 +337,29 @@ export default function TimesheetPage() {
         }
       }
     } catch (error) {
-      console.error('Error checking clock entries:', error);
+      console.error("Error checking clock entries:", error);
     }
   }
 
   async function autoImportFromClockEntries(showToast = true) {
     if (!selectedEmployee) {
-      if (showToast) toast.error('Please select an employee first');
+      if (showToast) toast.error("Please select an employee first");
       return;
     }
 
     try {
-      if (showToast) toast.loading('Importing clock entries...');
-      
+      if (showToast) toast.loading("Importing clock entries...");
+
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
-      const summary = await generateWeeklySummary(selectedEmployee.id, periodStart);
-      
+      const summary = await generateWeeklySummary(
+        selectedEmployee.id,
+        periodStart
+      );
+
       if (summary.totalHours === 0) {
         if (showToast) {
           toast.dismiss();
-          toast.error('No clock entries found for this period');
+          toast.error("No clock entries found for this period");
         }
         return;
       }
@@ -326,13 +367,13 @@ export default function TimesheetPage() {
       // Map clock entries to timesheet days
       const updatedDays = periodDays.map((day) => {
         const dailySummary = summary.dailySummaries.get(day.date);
-        
+
         // Regular hours from clock entries (already capped at 8h in database)
         const regularHours = dailySummary?.regularHours || 0;
-        
+
         // Overtime not used - always 0
         const overtimeHours = 0;
-        
+
         // Night diff from clock entries
         const nightDiffHours = dailySummary?.nightDiffHours || 0;
 
@@ -347,22 +388,30 @@ export default function TimesheetPage() {
       setPeriodDays(updatedDays);
       if (showToast) {
         toast.dismiss();
-        const totalReg = updatedDays.reduce((sum, d) => sum + (typeof d.regularHours === 'number' ? d.regularHours : 0), 0);
-        const totalOT = updatedDays.reduce((sum, d) => sum + (typeof d.overtimeHours === 'number' ? d.overtimeHours : 0), 0);
+        const totalReg = updatedDays.reduce(
+          (sum, d) =>
+            sum + (typeof d.regularHours === "number" ? d.regularHours : 0),
+          0
+        );
+        const totalOT = updatedDays.reduce(
+          (sum, d) =>
+            sum + (typeof d.overtimeHours === "number" ? d.overtimeHours : 0),
+          0
+        );
         toast.success(`✅ Imported ${totalReg.toFixed(1)}h regular hours`);
       }
     } catch (error) {
-      console.error('Error importing clock entries:', error);
+      console.error("Error importing clock entries:", error);
       if (showToast) {
         toast.dismiss();
-        toast.error('Failed to import clock entries');
+        toast.error("Failed to import clock entries");
       }
     }
   }
 
   function applyStandardPeriod() {
     if (!selectedEmployee) {
-      toast.error('Please select an employee first');
+      toast.error("Please select an employee first");
       return;
     }
 
@@ -381,7 +430,7 @@ export default function TimesheetPage() {
     });
 
     setPeriodDays(updatedDays);
-    toast.success('✅ Applied standard bi-monthly period (8hrs Mon-Fri)');
+    toast.success("✅ Applied standard bi-monthly period (8hrs Mon-Fri)");
   }
 
   async function loadExistingTimesheet() {
@@ -389,10 +438,10 @@ export default function TimesheetPage() {
 
     try {
       const { data, error } = await supabase
-        .from('weekly_attendance')
-        .select('*')
-        .eq('employee_id', selectedEmployee.id)
-        .eq('period_start', format(periodStart, 'yyyy-MM-dd'))
+        .from("weekly_attendance")
+        .select("*")
+        .eq("employee_id", selectedEmployee.id)
+        .eq("period_start", format(periodStart, "yyyy-MM-dd"))
         .maybeSingle();
 
       if (error) throw error;
@@ -405,7 +454,7 @@ export default function TimesheetPage() {
             const regularHours = savedDay.regularHours || 0;
             const overtimeHours = savedDay.overtimeHours || 0;
             const nightDiffHours = savedDay.nightDiffHours || 0;
-            
+
             return {
               ...day,
               regularHours,
@@ -416,10 +465,10 @@ export default function TimesheetPage() {
           return day;
         });
         setPeriodDays(updatedDays);
-        toast.success('Loaded existing timesheet');
+        toast.success("Loaded existing timesheet");
       }
     } catch (error) {
-      console.error('Error loading timesheet:', error);
+      console.error("Error loading timesheet:", error);
     }
   }
 
@@ -431,10 +480,17 @@ export default function TimesheetPage() {
   }, [selectedEmployee, periodStart]);
 
   // Helper to convert string or number to number
-  const toNum = (val: string | number) => typeof val === 'string' ? parseFloat(val) || 0 : val;
-  
-  const totalRegular = periodDays.reduce((sum, day) => sum + toNum(day.regularHours), 0);
-  const totalNightDiff = periodDays.reduce((sum, day) => sum + toNum(day.nightDiffHours), 0);
+  const toNum = (val: string | number) =>
+    typeof val === "string" ? parseFloat(val) || 0 : val;
+
+  const totalRegular = periodDays.reduce(
+    (sum, day) => sum + toNum(day.regularHours),
+    0
+  );
+  const totalNightDiff = periodDays.reduce(
+    (sum, day) => sum + toNum(day.nightDiffHours),
+    0
+  );
 
   // Validation warnings
   const warnings: string[] = [];
@@ -444,149 +500,170 @@ export default function TimesheetPage() {
     const total = reg + nd;
 
     if (total > 16) {
-      warnings.push(`⚠️ ${day.dayName} (${formatDateShort(day.date)}): ${total} total hours exceeds 16 (possible duplicate entry?)`);
+      warnings.push(
+        `⚠️ ${day.dayName} (${formatDateShort(
+          day.date
+        )}): ${total} total hours exceeds 16 (possible duplicate entry?)`
+      );
     }
   });
 
   if (loading) {
     return (
       <DashboardLayout>
-        <LoadingSpinner size="lg" className="mt-20" />
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Timesheet Entry</h1>
-          <p className="text-gray-600 mt-1">
+      <VStack gap="8" className="w-full pb-24">
+        <VStack gap="2" align="start">
+          <H1>Timesheet Entry</H1>
+          <BodySmall>
             Enter hours for the bi-monthly period (Monday-Friday, 2 weeks)
-          </p>
-        </div>
+          </BodySmall>
+        </VStack>
 
-        <Card>
-          <div className="space-y-4">
+        <CardSection>
+          <VStack gap="4">
             {/* Period Navigation */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <VStack gap="2" align="start">
+              <Label className="text-sm font-medium">
                 Select Bi-Monthly Period (Monday - Friday, 2 weeks)
-              </label>
-              <div className="flex items-center gap-3">
+              </Label>
+              <HStack gap="3" align="center" className="w-full">
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => changePeriod('prev')}
+                  onClick={() => changePeriod("prev")}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <Icon name="CaretLeft" size={IconSizes.sm} />
                 </Button>
-                <div className="flex-1 text-center">
-                  <div className="font-semibold text-gray-900">
-                    {formatBiMonthlyPeriod(periodStart, getBiMonthlyPeriodEnd(periodStart))}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Period starting {format(periodStart, 'MMMM d, yyyy')}
-                  </div>
-                </div>
+                <VStack gap="0" align="center" className="flex-1">
+                  <p className="font-semibold text-foreground">
+                    {formatBiMonthlyPeriod(
+                      periodStart,
+                      getBiMonthlyPeriodEnd(periodStart)
+                    )}
+                  </p>
+                  <BodySmall>
+                    Period starting {format(periodStart, "MMMM d, yyyy")}
+                  </BodySmall>
+                </VStack>
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => changePeriod('next')}
+                  onClick={() => changePeriod("next")}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <Icon name="CaretRight" size={IconSizes.sm} />
                 </Button>
-              </div>
-            </div>
+              </HStack>
+            </VStack>
 
             {/* Employee Selection */}
-            <Select
-              label="Select Employee"
-              options={[
-                { value: '', label: '-- Select Employee --' },
-                ...employees.map((emp) => ({
-                  value: emp.id,
-                  label: `${emp.full_name} (${emp.employee_id})`,
-                })),
-              ]}
-              value={selectedEmployee?.id || ''}
-              onChange={(e) => {
-                const emp = employees.find((emp) => emp.id === e.target.value);
-                setSelectedEmployee(emp || null);
-              }}
-            />
-          </div>
-        </Card>
+            <VStack gap="2" align="start">
+              <Label className="text-sm font-medium">Select Employee</Label>
+              <Select
+                value={selectedEmployee?.id || ""}
+                onValueChange={(value) => {
+                  const emp = employees.find((emp) => emp.id === value);
+                  setSelectedEmployee(emp || null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="-- Select Employee --" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.full_name} ({emp.employee_id})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </VStack>
+          </VStack>
+        </CardSection>
 
         {selectedEmployee && (
-          <Card title="Hours Entry">
+          <CardSection title="Hours Entry">
             {/* Validation Warnings */}
             {warnings.length > 0 && (
               <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <AlertTriangle className="h-5 w-5 text-yellow-400" />
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-yellow-800">
+                <HStack gap="3" align="start">
+                  <Icon
+                    name="WarningCircle"
+                    size={IconSizes.md}
+                    className="text-yellow-400 flex-shrink-0"
+                  />
+                  <VStack gap="2" align="start">
+                    <H3 className="text-sm font-medium text-yellow-800">
                       Validation Warnings ({warnings.length})
-                    </h3>
-                    <div className="mt-2 text-sm text-yellow-700">
-                      <ul className="list-disc pl-5 space-y-1">
-                        {warnings.map((warning, idx) => (
-                          <li key={idx}>{warning}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <p className="mt-2 text-xs text-yellow-600">
-                      💡 These are just warnings. Review the data and save if correct.
-                    </p>
-                  </div>
-                </div>
+                    </H3>
+                    <ul className="list-disc pl-5 space-y-1 text-sm text-yellow-700">
+                      {warnings.map((warning, idx) => (
+                        <li key={idx}>{warning}</li>
+                      ))}
+                    </ul>
+                    <Caption className="text-yellow-600">
+                      💡 These are just warnings. Review the data and save if
+                      correct.
+                    </Caption>
+                  </VStack>
+                </HStack>
               </div>
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-border">
+                <thead className="bg-muted">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Day
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Date
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Day Type
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Regular Hrs
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Night Diff Hrs
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-card divide-y divide-border">
                   {periodDays.map((day, index) => (
-                    <tr key={day.date} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    <tr key={day.date} className="hover:bg-muted/50">
+                      <td className="px-4 py-3 text-sm font-medium text-foreground">
                         {day.dayName}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-foreground">
                         {formatDateShort(day.date)}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
-                            day.dayType === 'regular-holiday' || day.dayType === 'sunday-regular-holiday'
-                              ? 'bg-red-100 text-red-800'
-                              : day.dayType === 'non-working-holiday' ||
-                                day.dayType === 'sunday-special-holiday'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : day.dayType === 'sunday'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-gray-100 text-gray-800'
+                            day.dayType === "regular-holiday" ||
+                            day.dayType === "sunday-regular-holiday"
+                              ? "bg-red-100 text-red-800"
+                              : day.dayType === "non-working-holiday" ||
+                                day.dayType === "sunday-special-holiday"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : day.dayType === "sunday"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-muted text-muted-foreground"
                           }`}
                         >
                           {getDayTypeLabel(day.dayType as any)}
@@ -596,12 +673,12 @@ export default function TimesheetPage() {
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={day.regularHours || ''}
+                          value={day.regularHours || ""}
                           onChange={(e) => {
                             const val = e.target.value;
                             // Allow empty, numbers, and decimals
-                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                              updateDayHours(index, 'regularHours', val);
+                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                              updateDayHours(index, "regularHours", val);
                             }
                           }}
                           placeholder="0"
@@ -612,12 +689,12 @@ export default function TimesheetPage() {
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={day.nightDiffHours || ''}
+                          value={day.nightDiffHours || ""}
                           onChange={(e) => {
                             const val = e.target.value;
                             // Allow empty, numbers, and decimals
-                            if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                              updateDayHours(index, 'nightDiffHours', val);
+                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                              updateDayHours(index, "nightDiffHours", val);
                             }
                           }}
                           placeholder="0"
@@ -630,8 +707,12 @@ export default function TimesheetPage() {
                     <td colSpan={3} className="px-4 py-3 text-sm text-right">
                       BI-MONTHLY TOTALS →
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{totalRegular.toFixed(1)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{totalNightDiff.toFixed(1)}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                      {totalRegular.toFixed(1)}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-foreground">
+                      {totalNightDiff.toFixed(1)}
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -640,20 +721,23 @@ export default function TimesheetPage() {
             {/* Quick Fill Templates */}
             {/* Auto-Import Info Banner */}
             <div className="mt-4 p-4 bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-lg border-2 border-emerald-200">
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <Clock className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="text-sm font-bold text-purple-900 mb-1">
+              <HStack gap="3" align="start">
+                <Icon
+                  name="Clock"
+                  size={IconSizes.md}
+                  className="text-purple-600 flex-shrink-0"
+                />
+                <VStack gap="2" align="start" className="flex-1">
+                  <H4 className="text-sm font-bold text-purple-900">
                     🤖 Auto-Sync Enabled
-                  </h4>
-                  <p className="text-xs text-purple-800 mb-2">
-                    Hours automatically populate from approved employee clock entries. You can still manually adjust any values below.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button 
-                      variant="primary" 
+                  </H4>
+                  <BodySmall className="text-purple-800">
+                    Hours automatically populate from approved employee clock
+                    entries. You can still manually adjust any values below.
+                  </BodySmall>
+                  <HStack gap="2" align="center" className="flex-wrap">
+                    <Button
+                      variant="default"
                       size="sm"
                       onClick={() => {
                         initializePeriodDays();
@@ -661,44 +745,44 @@ export default function TimesheetPage() {
                       }}
                       className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
                     >
-                      <Clock className="h-4 w-4 mr-1" />
+                      <Icon name="Clock" size={IconSizes.sm} />
                       Refresh from Clock
                     </Button>
-                    <Button 
-                      variant="secondary" 
+                    <Button
+                      variant="secondary"
                       size="sm"
                       onClick={applyStandardPeriod}
                     >
                       📅 Standard Period
                     </Button>
-                    <Button 
-                      variant="secondary" 
+                    <Button
+                      variant="secondary"
                       size="sm"
                       onClick={copyLastPeriod}
                     >
                       📋 Copy Last Period
                     </Button>
-                    <Button 
-                      variant="secondary" 
+                    <Button
+                      variant="secondary"
                       size="sm"
                       onClick={initializePeriodDays}
                     >
                       🗑️ Clear All
                     </Button>
-                  </div>
-                </div>
-              </div>
+                  </HStack>
+                </VStack>
+              </HStack>
             </div>
 
             {/* Save Actions */}
-            <div className="mt-6 flex justify-end gap-3">
-              <Button onClick={handleSave} isLoading={saving}>
+            <HStack justify="end" gap="3" className="mt-6">
+              <Button onClick={handleSave} disabled={saving}>
                 💾 Save Timesheet
               </Button>
-            </div>
-          </Card>
+            </HStack>
+          </CardSection>
         )}
-      </div>
+      </VStack>
     </DashboardLayout>
   );
 }

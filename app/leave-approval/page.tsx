@@ -3,22 +3,40 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import {
-  Calendar,
-  Check,
-  X,
-  User,
-  Filter,
-  AlertCircle,
-  FileText,
-  Paperclip,
-  Download,
-} from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format } from "date-fns";
 
 interface LeaveDocument {
@@ -53,6 +71,7 @@ interface LeaveRequest {
   account_manager_id: string | null;
   account_manager_notes: string | null;
   hr_notes: string | null;
+  hr_approver_id?: string | null;
   created_at: string;
   employees: {
     employee_id: string;
@@ -76,6 +95,12 @@ export default function LeaveApprovalPage() {
   const [userRole, setUserRole] = useState<string>("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+  const [approverNames, setApproverNames] = useState<Record<string, string>>(
+    {}
+  );
+  const [hrApproverNames, setHrApproverNames] = useState<
+    Record<string, string>
+  >({});
 
   const base64ToBlob = (base64: string, type: string) => {
     const byteCharacters = atob(base64);
@@ -194,6 +219,97 @@ export default function LeaveApprovalPage() {
 
     const cleaned = (data || []).filter((r) => r.status !== "cancelled");
     setRequests(cleaned);
+
+    // Load manager names for approved items
+    const managerIds = Array.from(
+      new Set(
+        cleaned
+          .map((r) => r.account_manager_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    if (managerIds.length > 0) {
+      loadApproverNames(managerIds);
+    }
+
+    // Load HR approver names when available
+    const hrIds = Array.from(
+      new Set(
+        cleaned
+          .map((r) => r.hr_approver_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    if (hrIds.length > 0) {
+      loadHrApproverNames(hrIds);
+    }
+  }
+
+  async function loadApproverNames(ids: string[]) {
+    // Primary: users table (auth profiles), fallback: employees
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id, full_name, email")
+      .in("id", ids);
+
+    if (userData && !userError) {
+      setApproverNames((prev) => {
+        const next = { ...prev };
+        userData.forEach((row) => {
+          next[row.id] = row.full_name || row.email || row.id;
+        });
+        return next;
+      });
+      return;
+    }
+
+    const { data: empData, error: empError } = await supabase
+      .from("employees")
+      .select("id, full_name, email")
+      .in("id", ids);
+
+    if (empError || !empData) return;
+
+    setApproverNames((prev) => {
+      const next = { ...prev };
+      empData.forEach((row) => {
+        next[row.id] = row.full_name || row.email || row.id;
+      });
+      return next;
+    });
+  }
+
+  async function loadHrApproverNames(ids: string[]) {
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id, full_name, email")
+      .in("id", ids);
+
+    if (userData && !userError) {
+      setHrApproverNames((prev) => {
+        const next = { ...prev };
+        userData.forEach((row) => {
+          next[row.id] = row.full_name || row.email || row.id;
+        });
+        return next;
+      });
+      return;
+    }
+
+    const { data: empData, error: empError } = await supabase
+      .from("employees")
+      .select("id, full_name, email")
+      .in("id", ids);
+
+    if (empError || !empData) return;
+
+    setHrApproverNames((prev) => {
+      const next = { ...prev };
+      empData.forEach((row) => {
+        next[row.id] = row.full_name || row.email || row.id;
+      });
+      return next;
+    });
   }
 
   async function downloadDocument(docId: string) {
@@ -393,81 +509,93 @@ export default function LeaveApprovalPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <VStack gap="8" className="w-full pb-24">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold">Leave Approval</h1>
-          <p className="text-muted-foreground mt-2">
+        <VStack gap="2" align="start">
+          <H1>Leave Approval</H1>
+          <BodySmall>
             Review and approve employee leave requests (SIL/LWOP)
-          </p>
+          </BodySmall>
           {/* Debug info - remove after testing */}
           {process.env.NODE_ENV === "development" && (
-            <div className="mt-2 text-xs text-muted-foreground">
+            <Caption>
               Debug: User Role = {userRole || "loading..."}, User ID ={" "}
               {currentUserId
                 ? currentUserId.substring(0, 8) + "..."
                 : "loading..."}
-            </div>
+            </Caption>
           )}
-        </div>
+        </VStack>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-5">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Total Requests
-              </div>
-              <div className="text-2xl font-bold mt-1">{stats.total}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Total Requests</BodySmall>
+                <div className="text-2xl font-bold">{stats.total}</div>
+              </VStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Pending</div>
-              <div className="text-2xl font-bold mt-1 text-yellow-600">
-                {stats.pending}
-              </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Pending</BodySmall>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {stats.pending}
+                </div>
+              </VStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Approved by Manager
-              </div>
-              <div className="text-2xl font-bold mt-1 text-blue-600">
-                {stats.approvedByManager}
-              </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Approved by Manager</BodySmall>
+                <div className="text-2xl font-bold text-blue-600">
+                  {stats.approvedByManager}
+                </div>
+              </VStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">
-                Approved by HR
-              </div>
-              <div className="text-2xl font-bold mt-1 text-green-600">
-                {stats.approvedByHR}
-              </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Approved by HR</BodySmall>
+                <div className="text-2xl font-bold text-green-600">
+                  {stats.approvedByHR}
+                </div>
+              </VStack>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Rejected</div>
-              <div className="text-2xl font-bold mt-1 text-red-600">
-                {stats.rejected}
-              </div>
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Rejected</BodySmall>
+                <div className="text-2xl font-bold text-red-600">
+                  {stats.rejected}
+                </div>
+              </VStack>
             </CardContent>
           </Card>
         </div>
 
         {/* Filters */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <Filter className="h-5 w-5 text-muted-foreground" />
+        <Card className="w-full">
+          <CardContent className="p-4 sm:p-6 w-full">
+            <HStack
+              gap="4"
+              align="center"
+              className="flex-col sm:flex-row w-full"
+            >
+              <Icon
+                name="MagnifyingGlass"
+                size={IconSizes.md}
+                className="text-muted-foreground flex-shrink-0 hidden sm:block"
+              />
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="flex h-10 w-full sm:w-auto sm:min-w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
@@ -475,85 +603,103 @@ export default function LeaveApprovalPage() {
                 <option value="approved_by_hr">Approved by HR</option>
                 <option value="rejected">Rejected</option>
               </select>
-            </div>
+            </HStack>
           </CardContent>
         </Card>
 
         {/* Requests List */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+            <Icon
+              name="ArrowsClockwise"
+              size={IconSizes.lg}
+              className="animate-spin text-primary"
+            />
           </div>
         ) : requests.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
-              <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No requests found</p>
+              <VStack gap="4" align="center">
+                <Icon
+                  name="CalendarBlank"
+                  size={IconSizes.xl}
+                  className="text-muted-foreground"
+                />
+                <BodySmall>No requests found</BodySmall>
+              </VStack>
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
             {requests.map((request) => (
               <Card
                 key={request.id}
-                className="hover:shadow-md transition-shadow"
+                className="hover:shadow-hover transition-shadow h-full min-h-[260px]"
               >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
+                <CardContent className="p-6 flex flex-col gap-4 h-full">
+                  <HStack justify="between" align="start">
                     <div
                       className="flex-1 cursor-pointer"
                       onClick={() => setSelectedRequest(request)}
                     >
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <User className="h-5 w-5 text-muted-foreground" />
+                      <HStack gap="3" align="center" className="mb-2 flex-wrap">
+                        <Icon
+                          name="User"
+                          size={IconSizes.md}
+                          className="text-muted-foreground"
+                        />
                         <span className="font-bold text-lg">
                           {request.employees?.full_name || "Unknown"}
                         </span>
-                        <span className="text-sm text-muted-foreground">
-                          ({request.employees?.employee_id})
-                        </span>
+                        <Caption>({request.employees?.employee_id})</Caption>
                         <Badge
                           variant={
-                            request.leave_type === "SIL" ? "info" : "warning"
+                            request.leave_type === "SIL"
+                              ? "default"
+                              : "secondary"
                           }
                         >
                           {request.leave_type}
                         </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2 flex-wrap">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
+                      </HStack>
+                      <HStack
+                        gap="4"
+                        align="center"
+                        className="text-sm text-muted-foreground mb-2 flex-wrap"
+                      >
+                        <HStack gap="1" align="center">
+                          <Icon name="CalendarBlank" size={IconSizes.sm} />
                           {format(
                             new Date(request.start_date),
                             "MMM dd"
                           )} -{" "}
                           {format(new Date(request.end_date), "MMM dd, yyyy")}
-                        </div>
+                        </HStack>
                         {request.leave_type === "Off-setting" ? (
-                          <div className="font-semibold text-emerald-600">
+                          <span className="font-semibold text-emerald-600">
                             {request.total_hours ?? 0} hours
-                          </div>
+                          </span>
                         ) : (
-                          <div className="font-semibold text-emerald-600">
+                          <span className="font-semibold text-emerald-600">
                             {request.total_days}{" "}
                             {request.total_days === 1 ? "day" : "days"}
-                          </div>
+                          </span>
                         )}
                         {request.leave_type === "SIL" && request.employees && (
-                          <div className="text-xs">
+                          <Caption>
                             Available Credits: {request.employees.sil_credits}
-                          </div>
+                          </Caption>
                         )}
                         {request.leave_type === "Off-setting" &&
                           typeof request.employees?.offset_hours ===
                             "number" && (
-                            <div
-                              className={`text-xs ${
+                            <Caption
+                              className={
                                 (request.total_hours || 0) >
                                 (request.employees?.offset_hours || 0)
                                   ? "text-red-600 font-semibold"
                                   : ""
-                              }`}
+                              }
                             >
                               Available Off-setting Hours:{" "}
                               {request.employees.offset_hours?.toFixed(2)}
@@ -563,22 +709,44 @@ export default function LeaveApprovalPage() {
                                   (request exceeds credits)
                                 </span>
                               )}
-                            </div>
+                            </Caption>
                           )}
-                      </div>
+                      </HStack>
                       {request.reason && (
-                        <div className="text-sm">
+                        <BodySmall className="mt-2">
                           <strong>Reason:</strong> {request.reason}
-                        </div>
+                        </BodySmall>
+                      )}
+                      {(request.account_manager_id ||
+                        request.hr_approver_id) && (
+                        <VStack
+                          gap="1"
+                          align="start"
+                          className="text-xs text-gray-600 mt-2"
+                        >
+                          {request.account_manager_id && (
+                            <Caption>
+                              Approved by Manager:{" "}
+                              {approverNames[request.account_manager_id] ||
+                                "Manager"}
+                            </Caption>
+                          )}
+                          {request.hr_approver_id && (
+                            <Caption>
+                              Approved by HR:{" "}
+                              {hrApproverNames[request.hr_approver_id] || "HR"}
+                            </Caption>
+                          )}
+                        </VStack>
                       )}
                     </div>
-                    <div className="ml-4 flex flex-col items-end gap-2">
+                    <VStack gap="2" align="end" className="ml-4">
                       {request.status === "pending" && (
                         <>
-                          <Badge variant="warning">PENDING</Badge>
+                          <Badge variant="secondary">PENDING</Badge>
                           {canApprove(request) && (
                             <div
-                              className="flex gap-2 mt-2"
+                              className="flex items-center gap-2"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
@@ -591,7 +759,7 @@ export default function LeaveApprovalPage() {
                                   setNotes("");
                                 }}
                               >
-                                <X className="h-4 w-4 mr-1" />
+                                <Icon name="X" size={IconSizes.sm} />
                                 Reject
                               </Button>
                               <Button
@@ -606,7 +774,7 @@ export default function LeaveApprovalPage() {
                                   );
                                 }}
                               >
-                                <Check className="h-4 w-4 mr-1" />
+                                <Icon name="Check" size={IconSizes.sm} />
                                 {userRole === "account_manager"
                                   ? "Approve"
                                   : "Approve (HR)"}
@@ -617,10 +785,10 @@ export default function LeaveApprovalPage() {
                       )}
                       {request.status === "approved_by_manager" && (
                         <>
-                          <Badge variant="info">APPROVED BY MANAGER</Badge>
+                          <Badge variant="default">APPROVED BY MANAGER</Badge>
                           {canApprove(request) && (
                             <div
-                              className="flex gap-2 mt-2"
+                              className="flex items-center gap-2"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <Button
@@ -633,7 +801,7 @@ export default function LeaveApprovalPage() {
                                   setNotes("");
                                 }}
                               >
-                                <X className="h-4 w-4 mr-1" />
+                                <Icon name="X" size={IconSizes.sm} />
                                 Reject
                               </Button>
                               <Button
@@ -643,7 +811,7 @@ export default function LeaveApprovalPage() {
                                   handleApprove(request, "hr");
                                 }}
                               >
-                                <Check className="h-4 w-4 mr-1" />
+                                <Icon name="Check" size={IconSizes.sm} />
                                 Approve (HR)
                               </Button>
                             </div>
@@ -651,7 +819,7 @@ export default function LeaveApprovalPage() {
                         </>
                       )}
                       {request.status === "approved_by_hr" && (
-                        <Badge variant="success">APPROVED</Badge>
+                        <Badge variant="default">APPROVED</Badge>
                       )}
                       {request.status === "rejected" && (
                         <Badge variant="destructive">REJECTED</Badge>
@@ -659,32 +827,38 @@ export default function LeaveApprovalPage() {
                       {request.status === "cancelled" && (
                         <Badge variant="secondary">CANCELLED</Badge>
                       )}
-                    </div>
-                  </div>
+                    </VStack>
+                  </HStack>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
 
-        {/* Detail Modal */}
-        {selectedRequest && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <CardHeader>
-                <CardTitle>Leave Request Details</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Employee
-                    </div>
-                    <div className="font-bold text-lg">
+        <Dialog
+          open={!!selectedRequest}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedRequest(null);
+              setRejectionReason("");
+              setNotes("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            {selectedRequest && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Leave Request Details</DialogTitle>
+                </DialogHeader>
+                <VStack gap="4" className="py-2">
+                  <VStack gap="1" align="start">
+                    <BodySmall>Employee</BodySmall>
+                    <H3>
                       {selectedRequest.employees?.full_name} (
                       {selectedRequest.employees?.employee_id})
-                    </div>
-                  </div>
+                    </H3>
+                  </VStack>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -785,10 +959,17 @@ export default function LeaveApprovalPage() {
                             hours
                             {(selectedRequest.total_hours || 0) >
                               (selectedRequest.employees.offset_hours || 0) && (
-                              <span className="flex items-center gap-1 text-red-600 mt-1">
-                                <AlertCircle className="h-4 w-4" />
+                              <HStack
+                                gap="1"
+                                align="center"
+                                className="text-red-600 mt-1"
+                              >
+                                <Icon
+                                  name="WarningCircle"
+                                  size={IconSizes.sm}
+                                />
                                 Requested hours exceed available offset credits.
-                              </span>
+                              </HStack>
                             )}
                           </div>
                         </div>
@@ -807,42 +988,53 @@ export default function LeaveApprovalPage() {
                   )}
 
                   {selectedRequest.leave_type === "SIL" && (
-                    <div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <FileText className="h-4 w-4" />
-                        Supporting Document
-                      </div>
+                    <VStack gap="2" align="start">
+                      <HStack gap="2" align="center">
+                        <Icon name="Receipt" size={IconSizes.sm} />
+                        <BodySmall>Supporting Document</BodySmall>
+                      </HStack>
                       {selectedRequest.leave_request_documents &&
                       selectedRequest.leave_request_documents.length > 0 ? (
-                        selectedRequest.leave_request_documents.map((doc) => (
-                          <div
-                            key={doc.id}
-                            className="flex items-center gap-2 mt-2 text-sm"
-                          >
-                            <Paperclip className="h-4 w-4 text-muted-foreground" />
-                            <div className="flex-1 truncate">
-                              {doc.file_name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {(doc.file_size / 1024).toFixed(1)} KB
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => downloadDocument(doc.id)}
-                              isLoading={downloadingDocId === doc.id}
-                            >
-                              <Download className="h-4 w-4 mr-1" />
-                              View
-                            </Button>
-                          </div>
-                        ))
+                        <VStack gap="2">
+                          {selectedRequest.leave_request_documents.map(
+                            (doc) => (
+                              <HStack
+                                key={doc.id}
+                                gap="2"
+                                align="center"
+                                className="text-sm"
+                              >
+                                <Icon
+                                  name="Receipt"
+                                  size={IconSizes.sm}
+                                  className="text-muted-foreground"
+                                />
+                                <div className="flex-1 truncate">
+                                  {doc.file_name}
+                                </div>
+                                <Caption>
+                                  {(doc.file_size / 1024).toFixed(1)} KB
+                                </Caption>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => downloadDocument(doc.id)}
+                                  disabled={downloadingDocId === doc.id}
+                                >
+                                  <Icon
+                                    name="ArrowsClockwise"
+                                    size={IconSizes.sm}
+                                  />
+                                  View
+                                </Button>
+                              </HStack>
+                            )
+                          )}
+                        </VStack>
                       ) : (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          No supporting document attached.
-                        </p>
+                        <BodySmall>No supporting document attached.</BodySmall>
                       )}
-                    </div>
+                    </VStack>
                   )}
 
                   {selectedRequest.account_manager_notes && (
@@ -892,9 +1084,9 @@ export default function LeaveApprovalPage() {
                     )}
 
                   {/* Actions */}
-                  {canApprove(selectedRequest) && (
-                    <>
-                      <div className="space-y-2">
+                  {canApprove(selectedRequest) ? (
+                    <DialogFooter className="pt-2 gap-3">
+                      <div className="flex-1 space-y-2">
                         <Label htmlFor="notes">Notes (optional)</Label>
                         <textarea
                           id="notes"
@@ -906,7 +1098,7 @@ export default function LeaveApprovalPage() {
                         />
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="flex-1 space-y-2">
                         <Label htmlFor="rejection-reason">
                           Rejection Reason (if rejecting)
                         </Label>
@@ -920,7 +1112,7 @@ export default function LeaveApprovalPage() {
                         />
                       </div>
 
-                      <div className="flex justify-end gap-3 pt-4">
+                      <div className="flex justify-end gap-3 w-full">
                         <Button
                           variant="secondary"
                           onClick={() => {
@@ -936,7 +1128,7 @@ export default function LeaveApprovalPage() {
                           onClick={() => handleReject(selectedRequest.id)}
                           disabled={!rejectionReason.trim()}
                         >
-                          <X className="h-4 w-4 mr-2" />
+                          <Icon name="X" size={IconSizes.sm} />
                           Reject
                         </Button>
                         <Button
@@ -947,17 +1139,15 @@ export default function LeaveApprovalPage() {
                             )
                           }
                         >
-                          <Check className="h-4 w-4 mr-2" />
+                          <Icon name="Check" size={IconSizes.sm} />
                           {userRole === "account_manager"
                             ? "Approve (Manager)"
                             : "Approve (HR)"}
                         </Button>
                       </div>
-                    </>
-                  )}
-
-                  {!canApprove(selectedRequest) && (
-                    <div className="flex justify-end pt-4">
+                    </DialogFooter>
+                  ) : (
+                    <DialogFooter className="pt-2">
                       <Button
                         variant="secondary"
                         onClick={() => {
@@ -968,14 +1158,14 @@ export default function LeaveApprovalPage() {
                       >
                         Close
                       </Button>
-                    </div>
+                    </DialogFooter>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+                </VStack>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+      </VStack>
     </DashboardLayout>
   );
 }

@@ -5,12 +5,25 @@ import { addDays, startOfWeek, format } from "date-fns";
 import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Card } from "@/components/Card";
-import { Input } from "@/components/Input";
-import { Button } from "@/components/Button";
-import { Badge } from "@/components/Badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { Input } from "@/components/ui/input";
+import { InputGroup } from "@/components/ui/input-group";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useUserRole } from "@/lib/hooks/useUserRole";
-import { toast } from "react-hot-toast";
+import { toast } from "sonner";
 
 type EmployeeOption = { id: string; full_name: string };
 type ScheduleRow = {
@@ -44,7 +57,7 @@ export default function SchedulesPage() {
   );
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [filters, setFilters] = useState<{ employee_id: string }>({
-    employee_id: "",
+    employee_id: "all",
   });
   const [rows, setRows] = useState<ScheduleRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -71,7 +84,8 @@ export default function SchedulesPage() {
       "get_week_schedule_for_manager",
       {
         p_week_start: format(weekStart, "yyyy-MM-dd"),
-        p_employee_id: filters.employee_id || null,
+        p_employee_id:
+          filters.employee_id === "all" ? null : filters.employee_id,
       }
     );
     if (error) {
@@ -89,7 +103,13 @@ export default function SchedulesPage() {
   if (roleLoading) {
     return (
       <DashboardLayout>
-        <div className="p-6">Loading...</div>
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
       </DashboardLayout>
     );
   }
@@ -97,9 +117,11 @@ export default function SchedulesPage() {
   if (!isAdmin && role !== "account_manager") {
     return (
       <DashboardLayout>
-        <div className="p-6 text-sm text-gray-600">
-          Only Account Managers or Admins can view schedules.
-        </div>
+        <VStack gap="4" className="w-full">
+          <BodySmall>
+            Only Account Managers or Admins can view schedules.
+          </BodySmall>
+        </VStack>
       </DashboardLayout>
     );
   }
@@ -115,119 +137,140 @@ export default function SchedulesPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">
-              Weekly Schedules
-            </h1>
-            <p className="text-sm text-muted-foreground">
+      <VStack gap="8" className="w-full pb-24">
+        <HStack
+          justify="between"
+          align="start"
+          className="flex-col md:flex-row gap-4"
+        >
+          <VStack gap="2" align="start">
+            <H1>Weekly Schedules</H1>
+            <BodySmall>
               View employee schedules (Mon–Sun). Account managers/admins can
               overwrite weeks.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
-              <span className="text-sm text-gray-700">Week starting (Mon)</span>
-              <Input
-                className="w-full sm:w-auto"
-                type="date"
-                value={format(
-                  startOfWeek(weekStart, { weekStartsOn: 1 }),
-                  "yyyy-MM-dd"
-                )}
-                onChange={(e) =>
-                  setWeekStart(
-                    startOfWeek(new Date(e.target.value), { weekStartsOn: 1 })
-                  )
-                }
-              />
-            </div>
-            <select
-              className="rounded-md border px-3 py-2 text-sm w-full sm:w-auto"
-              value={filters.employee_id}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, employee_id: e.target.value }))
-              }
-            >
-              <option value="">All employees</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.full_name}
-                </option>
-              ))}
-            </select>
-            <Button
-              className="w-full sm:w-auto"
-              variant="secondary"
-              onClick={loadWeek}
-              isLoading={loading}
-            >
-              Refresh
-            </Button>
-          </div>
-        </div>
+            </BodySmall>
+          </VStack>
+          <Card className="w-full md:w-auto">
+            <CardContent className="p-6">
+              <HStack gap="4" align="end" className="flex-col md:flex-row">
+                <InputGroup
+                  label="Week starting (Mon)"
+                  className="w-full sm:w-56"
+                >
+                  <Input
+                    type="date"
+                    value={format(
+                      startOfWeek(weekStart, { weekStartsOn: 1 }),
+                      "yyyy-MM-dd"
+                    )}
+                    onChange={(e) =>
+                      setWeekStart(
+                        startOfWeek(new Date(e.target.value), {
+                          weekStartsOn: 1,
+                        })
+                      )
+                    }
+                  />
+                </InputGroup>
+                <div className="space-y-2 w-full sm:w-56">
+                  <Label className="text-sm font-medium">Employee</Label>
+                  <Select
+                    value={filters.employee_id}
+                    onValueChange={(val) =>
+                      setFilters((f) => ({ ...f, employee_id: val }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All employees</SelectItem>
+                      {employees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={loadWeek}
+                  disabled={loading}
+                >
+                  <Icon name="ArrowsClockwise" size={IconSizes.sm} />
+                  {loading ? "Refreshing..." : "Refresh"}
+                </Button>
+              </HStack>
+            </CardContent>
+          </Card>
+        </HStack>
 
-        <Card className="p-4 overflow-auto">
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <CardSection className="overflow-auto">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
             {grouped.map((col) => (
               <div
                 key={col.date}
-                className="border rounded-lg p-3 bg-white min-h-[240px]"
+                className="border border-border rounded-lg p-4 bg-card min-h-[240px]"
               >
-                <div className="text-sm font-semibold text-gray-800 mb-2">
+                <p className="text-sm font-semibold text-foreground mb-3">
                   {col.label}
-                </div>
+                </p>
                 {col.entries.length === 0 ? (
-                  <p className="text-xs text-gray-500">No schedules</p>
+                  <Caption>No schedules</Caption>
                 ) : (
-                  <div className="space-y-2">
+                  <VStack gap="2">
                     {col.entries.map((entry) => {
                       const color = getColorStyleForEmployee(entry.employee_id);
                       return (
                         <div
                           key={entry.id}
-                          className="border rounded-md px-3 py-2 text-xs flex flex-col gap-1"
+                          className="border border-border rounded-md px-3 py-2"
                           style={{
                             backgroundColor: color.bg,
                             borderColor: color.border,
                             color: color.text,
                           }}
                         >
-                          <div className="font-semibold text-sm">
-                            {entry.employee_name}
-                          </div>
-                          {entry.day_off ? (
-                            <div className="flex items-center gap-1 text-red-700 font-semibold">
-                              <Badge variant="danger">Day Off</Badge>
-                            </div>
-                          ) : (
-                            <div>
-                              {formatPHTime(
-                                new Date(
-                                  `${entry.schedule_date}T${entry.start_time}`
-                                ),
-                                "h:mm a"
-                              )}{" "}
-                              -{" "}
-                              {formatPHTime(
-                                new Date(
-                                  `${entry.schedule_date}T${entry.end_time}`
-                                ),
-                                "h:mm a"
-                              )}
-                            </div>
-                          )}
+                          <VStack gap="2" align="start">
+                            <p className="font-semibold text-sm">
+                              {entry.employee_name}
+                            </p>
+                            {entry.day_off ? (
+                              <Badge
+                                variant="outline"
+                                className="border-destructive/20 bg-destructive/10 text-destructive"
+                              >
+                                Day Off
+                              </Badge>
+                            ) : (
+                              <Caption>
+                                {formatPHTime(
+                                  new Date(
+                                    `${entry.schedule_date}T${entry.start_time}`
+                                  ),
+                                  "h:mm a"
+                                )}{" "}
+                                -{" "}
+                                {formatPHTime(
+                                  new Date(
+                                    `${entry.schedule_date}T${entry.end_time}`
+                                  ),
+                                  "h:mm a"
+                                )}
+                              </Caption>
+                            )}
+                          </VStack>
                         </div>
                       );
                     })}
-                  </div>
+                  </VStack>
                 )}
               </div>
             ))}
           </div>
-        </Card>
-      </div>
+        </CardSection>
+      </VStack>
     </DashboardLayout>
   );
 }

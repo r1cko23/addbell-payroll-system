@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/Button";
+import { Button } from "@/components/ui/button";
 import {
   EmployeeSession,
   EmployeeSessionProvider,
@@ -11,12 +11,12 @@ import {
 import {
   Clock,
   User,
-  LogOut,
-  Menu,
-  AlertCircle,
-  Calendar,
+  SignOut,
+  List,
+  WarningCircle,
+  CalendarBlank,
   Timer,
-} from "lucide-react";
+} from "phosphor-react";
 
 const navItems = [
   { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
@@ -24,15 +24,15 @@ const navItems = [
   {
     name: "Failure to Log",
     href: "/employee-portal/failure-to-log",
-    icon: AlertCircle,
+    icon: WarningCircle,
   },
   {
     name: "Leave Request",
     href: "/employee-portal/leave-request",
-    icon: Calendar,
+    icon: CalendarBlank,
   },
   { name: "OT Filing", href: "/employee-portal/overtime", icon: Timer },
-  { name: "Schedule", href: "/employee-portal/schedule", icon: Calendar },
+  { name: "Schedule", href: "/employee-portal/schedule", icon: CalendarBlank },
 ];
 
 export default function EmployeePortalLayout({
@@ -140,7 +140,7 @@ export default function EmployeePortalLayout({
     >
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         <header className="bg-white border-b shadow-sm">
-          <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4">
+          <div className="w-full max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-4 flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
@@ -169,7 +169,7 @@ export default function EmployeePortalLayout({
                   aria-expanded={isNavOpen}
                   aria-controls="employee-portal-nav"
                 >
-                  <Menu className="h-4 w-4" />
+                  <List className="h-4 w-4" />
                   Menu
                 </Button>
                 <Button
@@ -177,7 +177,7 @@ export default function EmployeePortalLayout({
                   onClick={handleLogout}
                   className="hidden md:inline-flex items-center gap-2"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <SignOut className="h-4 w-4" weight="bold" />
                   Logout
                 </Button>
               </div>
@@ -235,7 +235,7 @@ export default function EmployeePortalLayout({
                   onClick={handleLogout}
                   className="inline-flex items-center justify-center gap-2"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <SignOut className="h-4 w-4" />
                   Logout
                 </Button>
               </div>
@@ -243,7 +243,9 @@ export default function EmployeePortalLayout({
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">{children}</main>
+        <main className="w-full max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6">
+          {children}
+        </main>
       </div>
     </EmployeeSessionProvider>
   );

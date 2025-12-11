@@ -14,15 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { CardSection } from "@/components/ui/card-section";
+import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle,
-  XCircle,
-  Hourglass,
-  Clock,
-} from "lucide-react";
 import { formatPHTime } from "@/utils/format";
 
 interface EmployeeSession {
@@ -234,81 +230,84 @@ export default function FailureToLogPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-background">
-        <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-          {/* Header */}
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/employee-portal/bundy")}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold">Failure to Log Request</h1>
-              <p className="text-sm text-muted-foreground">
-                {employee.full_name}
-              </p>
-            </div>
-          </div>
+      <VStack gap="8" className="w-full">
+        {/* Header */}
+        <HStack gap="4" align="center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/employee-portal/bundy")}
+          >
+            <Icon name="ArrowLeft" size={IconSizes.sm} />
+            Back
+          </Button>
+          <VStack gap="2" align="start">
+            <H1>Failure to Log Request</H1>
+            <BodySmall>{employee.full_name}</BodySmall>
+          </VStack>
+        </HStack>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Pending</div>
+        {/* Stats */}
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Pending</BodySmall>
                 <div className="text-2xl font-bold text-yellow-600">
                   {pendingCount}
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Approved</div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Approved</BodySmall>
                 <div className="text-2xl font-bold text-green-600">
                   {approvedCount}
                 </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">
-                  Total Requests
-                </div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full">
+            <CardContent className="w-full p-4">
+              <VStack gap="1" align="start" className="w-full">
+                <BodySmall>Total Requests</BodySmall>
                 <div className="text-2xl font-bold">{requests.length}</div>
-              </CardContent>
-            </Card>
-          </div>
+              </VStack>
+            </CardContent>
+          </Card>
+        </div>
 
-          {/* Request Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" />
-                File Failure to Log Request
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="entry-type">Log Type</Label>
-                  <select
-                    id="entry-type"
-                    value={entryType}
-                    onChange={(e) =>
-                      setEntryType(e.target.value as "in" | "out" | "both")
-                    }
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <option value="out">Time Out</option>
-                    <option value="in">Time In</option>
-                    <option value="both">Time In & Out</option>
-                  </select>
-                </div>
+        {/* Request Form */}
+        <CardSection
+          title={
+            <HStack gap="2" align="center">
+              <Icon name="WarningCircle" size={IconSizes.md} />
+              File Failure to Log Request
+            </HStack>
+          }
+        >
+          <form onSubmit={handleSubmit} className="w-full">
+            <VStack gap="4" className="w-full">
+              <VStack gap="2" align="start" className="w-full">
+                <Label htmlFor="entry-type">Log Type</Label>
+                <select
+                  id="entry-type"
+                  value={entryType}
+                  onChange={(e) =>
+                    setEntryType(e.target.value as "in" | "out" | "both")
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <option value="out">Time Out</option>
+                  <option value="in">Time In</option>
+                  <option value="both">Time In & Out</option>
+                </select>
+              </VStack>
 
-                <div className="space-y-2">
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                <VStack gap="2" align="start" className="w-full">
                   <Label htmlFor="missed-date">Date</Label>
                   <Input
                     id="missed-date"
@@ -318,10 +317,10 @@ export default function FailureToLogPage() {
                     max={new Date().toISOString().split("T")[0]}
                     required
                   />
-                </div>
+                </VStack>
 
                 {(entryType === "in" || entryType === "both") && (
-                  <div className="space-y-2">
+                  <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor="time-in">Time In</Label>
                     <Input
                       id="time-in"
@@ -330,11 +329,11 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeIn(e.target.value)}
                       required={entryType === "in" || entryType === "both"}
                     />
-                  </div>
+                  </VStack>
                 )}
 
                 {(entryType === "out" || entryType === "both") && (
-                  <div className="space-y-2">
+                  <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor="time-out">Time Out</Label>
                     <Input
                       id="time-out"
@@ -343,225 +342,218 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeOut(e.target.value)}
                       required={entryType === "out" || entryType === "both"}
                     />
-                  </div>
+                  </VStack>
                 )}
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reason">Reason</Label>
-                  <textarea
-                    id="reason"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Explain why you forgot to clock in/out..."
-                    rows={4}
-                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Please provide a detailed explanation
-                  </p>
-                </div>
+              <VStack gap="2" align="start" className="w-full">
+                <Label htmlFor="reason">Reason</Label>
+                <textarea
+                  id="reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Explain why you forgot to clock in/out..."
+                  rows={4}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                  required
+                />
+                <Caption>Please provide a detailed explanation</Caption>
+              </VStack>
 
-                <Button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full"
-                  isLoading={submitting}
+              <Button type="submit" disabled={submitting} className="w-full">
+                Request Change
+              </Button>
+            </VStack>
+          </form>
+        </CardSection>
+
+        {/* Requests List */}
+        <CardSection title="My Failure to Log Requests">
+          {visibleRequests.length === 0 ? (
+            <div className="text-center py-8">
+              <VStack gap="4" align="center">
+                <Icon
+                  name="Clock"
+                  size={IconSizes.xl}
+                  className="text-muted-foreground opacity-50"
+                />
+                <BodySmall>No failure to log requests yet</BodySmall>
+              </VStack>
+            </div>
+          ) : (
+            <VStack gap="4">
+              {visibleRequests.map((request) => (
+                <Card
+                  key={request.id}
+                  className={`w-full ${
+                    request.status === "pending"
+                      ? "border-yellow-300"
+                      : request.status === "approved"
+                      ? "border-green-300"
+                      : request.status === "rejected"
+                      ? "border-red-300"
+                      : "border-slate-300"
+                  }`}
                 >
-                  Request Change
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-
-          {/* Requests List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>My Failure to Log Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {visibleRequests.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No failure to log requests yet</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {visibleRequests.map((request) => (
-                    <Card
-                      key={request.id}
-                      className={`${
-                        request.status === "pending"
-                          ? "border-yellow-300"
-                          : request.status === "approved"
-                          ? "border-green-300"
-                          : request.status === "rejected"
-                          ? "border-red-300"
-                          : "border-slate-300"
-                      }`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <span className="font-bold text-lg">
+                  <CardContent className="w-full p-4">
+                    <HStack justify="between" align="start" className="mb-2">
+                      <VStack gap="2" align="start" className="flex-1">
+                        <HStack gap="3" align="center" className="flex-wrap">
+                          <H3>
+                            {formatSafe(request.missed_date, "MMM dd, yyyy")}
+                          </H3>
+                          <BodySmall>
+                            {request.entry_type === "in" && (
+                              <>
+                                Actual In:{" "}
                                 {formatSafe(
-                                  request.missed_date,
-                                  "MMM dd, yyyy"
+                                  request.actual_clock_in_time,
+                                  "MMM dd, h:mm a"
                                 )}
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                {request.entry_type === "in" && (
-                                  <>
-                                    Actual In:{" "}
-                                    {formatSafe(
-                                      request.actual_clock_in_time,
-                                      "MMM dd, h:mm a"
-                                    )}
-                                  </>
+                              </>
+                            )}
+                            {request.entry_type === "out" && (
+                              <>
+                                Actual Out:{" "}
+                                {formatSafe(
+                                  request.actual_clock_out_time,
+                                  "MMM dd, h:mm a"
                                 )}
-                                {request.entry_type === "out" && (
-                                  <>
-                                    Actual Out:{" "}
-                                    {formatSafe(
-                                      request.actual_clock_out_time,
-                                      "MMM dd, h:mm a"
-                                    )}
-                                  </>
+                              </>
+                            )}
+                            {request.entry_type === "both" && (
+                              <>
+                                Actual In:{" "}
+                                {formatSafe(
+                                  request.actual_clock_in_time,
+                                  "MMM dd, h:mm a"
+                                )}{" "}
+                                | Actual Out:{" "}
+                                {formatSafe(
+                                  request.actual_clock_out_time,
+                                  "MMM dd, h:mm a"
                                 )}
-                                {request.entry_type === "both" && (
-                                  <>
-                                    Actual In:{" "}
-                                    {formatSafe(
-                                      request.actual_clock_in_time,
-                                      "MMM dd, h:mm a"
-                                    )}{" "}
-                                    | Actual Out:{" "}
-                                    {formatSafe(
-                                      request.actual_clock_out_time,
-                                      "MMM dd, h:mm a"
-                                    )}
-                                  </>
-                                )}
-                              </span>
+                              </>
+                            )}
+                          </BodySmall>
+                        </HStack>
+
+                        <VStack gap="1" align="start">
+                          <BodySmall>
+                            <strong>Reason:</strong>
+                          </BodySmall>
+                          <BodySmall className="text-muted-foreground">
+                            {request.reason}
+                          </BodySmall>
+                        </VStack>
+
+                        {request.status === "rejected" &&
+                          request.rejection_reason && (
+                            <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                              <BodySmall className="text-red-900 font-semibold">
+                                Rejection Reason:
+                              </BodySmall>
+                              <BodySmall className="text-red-800 mt-1">
+                                {request.rejection_reason}
+                              </BodySmall>
                             </div>
+                          )}
 
-                            <div className="text-sm">
-                              <strong>Reason:</strong>
-                              <div className="mt-1 text-muted-foreground">
-                                {request.reason}
-                              </div>
-                            </div>
+                        <Caption>
+                          Filed:{" "}
+                          {formatSafe(
+                            request.created_at,
+                            "MMM dd, yyyy h:mm a"
+                          )}
+                        </Caption>
+                      </VStack>
 
-                            {request.status === "rejected" &&
-                              request.rejection_reason && (
-                                <div className="p-2 bg-red-50 border border-red-200 rounded-md text-sm">
-                                  <strong className="text-red-900">
-                                    Rejection Reason:
-                                  </strong>
-                                  <div className="text-red-800 mt-1">
-                                    {request.rejection_reason}
-                                  </div>
-                                </div>
-                              )}
-
-                            <div className="text-xs text-muted-foreground">
-                              Filed:{" "}
-                              {formatSafe(
-                                request.created_at,
-                                "MMM dd, yyyy h:mm a"
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="ml-4">
-                            {request.status === "pending" && (
-                              <Badge
-                                variant="warning"
-                                className="flex items-center gap-2"
-                              >
-                                <Hourglass className="h-4 w-4" />
-                                PENDING
-                              </Badge>
-                            )}
-                            {request.status === "approved" && (
-                              <Badge
-                                variant="success"
-                                className="flex items-center gap-2"
-                              >
-                                <CheckCircle className="h-4 w-4" />
-                                APPROVED
-                              </Badge>
-                            )}
-                            {request.status === "rejected" && (
-                              <Badge
-                                variant="destructive"
-                                className="flex items-center gap-2"
-                              >
-                                <XCircle className="h-4 w-4" />
-                                REJECTED
-                              </Badge>
-                            )}
-                            {request.status === "cancelled" && (
-                              <Badge
-                                variant="secondary"
-                                className="flex items-center gap-2"
-                              >
-                                <XCircle className="h-4 w-4" />
-                                CANCELLED
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
+                      <VStack gap="2" align="end" className="ml-4">
                         {request.status === "pending" && (
-                          <div className="flex justify-end pt-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setCancelId(request.id);
-                              }}
-                            >
-                              Cancel Request
-                            </Button>
-                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-2"
+                          >
+                            <Icon name="Hourglass" size={IconSizes.sm} />
+                            PENDING
+                          </Badge>
                         )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                        {request.status === "approved" && (
+                          <Badge
+                            variant="default"
+                            className="flex items-center gap-2"
+                          >
+                            <Icon name="CheckCircle" size={IconSizes.sm} />
+                            APPROVED
+                          </Badge>
+                        )}
+                        {request.status === "rejected" && (
+                          <Badge
+                            variant="destructive"
+                            className="flex items-center gap-2"
+                          >
+                            <Icon name="XCircle" size={IconSizes.sm} />
+                            REJECTED
+                          </Badge>
+                        )}
+                        {request.status === "cancelled" && (
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-2"
+                          >
+                            <Icon name="XCircle" size={IconSizes.sm} />
+                            CANCELLED
+                          </Badge>
+                        )}
+                      </VStack>
+                    </HStack>
+                    {request.status === "pending" && (
+                      <HStack justify="end" align="center" className="pt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCancelId(request.id);
+                          }}
+                        >
+                          Cancel Request
+                        </Button>
+                      </HStack>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </VStack>
+          )}
+        </CardSection>
+      </VStack>
       {cancelId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-lg font-semibold text-foreground">
-              Cancel failure-to-log request?
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              This will mark the request as cancelled and hide it from your
-              list.
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCancelId(null)}
-                disabled={cancelLoading}
-              >
-                Keep request
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => cancelId && handleCancel(cancelId)}
-                isLoading={cancelLoading}
-              >
-                Cancel request
-              </Button>
-            </div>
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <VStack gap="4">
+              <H3>Cancel failure-to-log request?</H3>
+              <BodySmall>
+                This will mark the request as cancelled and hide it from your
+                list.
+              </BodySmall>
+              <HStack gap="2" justify="end" align="center">
+                <Button
+                  variant="outline"
+                  onClick={() => setCancelId(null)}
+                  disabled={cancelLoading}
+                >
+                  Keep request
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => cancelId && handleCancel(cancelId)}
+                  disabled={cancelLoading}
+                >
+                  Cancel request
+                </Button>
+              </HStack>
+            </VStack>
           </div>
         </div>
       )}

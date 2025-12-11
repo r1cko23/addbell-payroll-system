@@ -1,4 +1,18 @@
-import React from 'react';
+"use client";
+
+import React, { useId } from "react";
+
+import {
+  Select as ShadSelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input as ShadInput } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea as ShadTextarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -10,43 +24,38 @@ export function Input({
   label,
   error,
   helperText,
-  className = '',
+  className = "",
   id,
   ...props
 }: InputProps) {
-  const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
-  
+  const inputId = id || useId();
+
   return (
-    <div className="w-full">
+    <div className="w-full space-y-1.5">
       {label && (
-        <label
-          htmlFor={inputId}
-          className="block text-sm font-medium text-foreground mb-1"
-        >
+        <Label htmlFor={inputId} className="text-sm font-medium">
           {label}
           {props.required && <span className="text-destructive ml-1">*</span>}
-        </label>
+        </Label>
       )}
-      <input
+      <ShadInput
         id={inputId}
-        className={`
-          w-full px-3 py-2 border rounded-lg shadow-sm bg-background text-foreground
-          focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
-          disabled:bg-muted disabled:cursor-not-allowed
-          ${error ? 'border-destructive' : 'border-input'}
-          ${className}
-        `}
+        className={cn(
+          error ? "border-destructive focus-visible:ring-destructive" : "",
+          className
+        )}
         {...props}
       />
-      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {helperText && !error && (
-        <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
+        <p className="text-sm text-muted-foreground">{helperText}</p>
       )}
     </div>
   );
 }
 
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface TextareaProps
+  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
   error?: string;
   helperText?: string;
@@ -56,47 +65,46 @@ export function Textarea({
   label,
   error,
   helperText,
-  className = '',
+  className = "",
   id,
   ...props
 }: TextareaProps) {
-  const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
-  
+  const textareaId = id || useId();
+
   return (
-    <div className="w-full">
+    <div className="w-full space-y-1.5">
       {label && (
-        <label
-          htmlFor={textareaId}
-          className="block text-sm font-medium text-foreground mb-1"
-        >
+        <Label htmlFor={textareaId} className="text-sm font-medium">
           {label}
           {props.required && <span className="text-destructive ml-1">*</span>}
-        </label>
+        </Label>
       )}
-      <textarea
+      <ShadTextarea
         id={textareaId}
-        className={`
-          w-full px-3 py-2 border rounded-lg shadow-sm bg-background text-foreground
-          focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
-          disabled:bg-muted disabled:cursor-not-allowed
-          ${error ? 'border-destructive' : 'border-input'}
-          ${className}
-        `}
+        className={cn(
+          error ? "border-destructive focus-visible:ring-destructive" : "",
+          className
+        )}
         {...props}
       />
-      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {helperText && !error && (
-        <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
+        <p className="text-sm text-muted-foreground">{helperText}</p>
       )}
     </div>
   );
 }
 
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps {
   label?: string;
   error?: string;
   helperText?: string;
   options: Array<{ value: string; label: string }>;
+  value?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  onValueChange?: (value: string) => void;
+  onChange?: (event: { target: { value: string } }) => void;
 }
 
 export function Select({
@@ -104,45 +112,55 @@ export function Select({
   error,
   helperText,
   options,
-  className = '',
-  id,
-  ...props
+  value,
+  placeholder,
+  disabled,
+  onValueChange,
+  onChange,
 }: SelectProps) {
-  const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
-  
+  const selectId = useId();
+  const resolvedPlaceholder =
+    placeholder ||
+    options.find((opt) => opt.value === "")?.label ||
+    "Select an option";
+
+  const handleValueChange = (next: string) => {
+    onValueChange?.(next);
+    onChange?.({ target: { value: next } });
+  };
+
   return (
-    <div className="w-full">
+    <div className="w-full space-y-1.5">
       {label && (
-        <label
-          htmlFor={selectId}
-          className="block text-sm font-medium text-foreground mb-1"
-        >
+        <Label htmlFor={selectId} className="text-sm font-medium">
           {label}
-          {props.required && <span className="text-destructive ml-1">*</span>}
-        </label>
+        </Label>
       )}
-      <select
-        id={selectId}
-        className={`
-          w-full px-3 py-2 border rounded-lg shadow-sm bg-background text-foreground
-          focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
-          disabled:bg-muted disabled:cursor-not-allowed
-          ${error ? 'border-destructive' : 'border-input'}
-          ${className}
-        `}
-        {...props}
+      <ShadSelect
+        value={value}
+        onValueChange={handleValueChange}
+        disabled={disabled}
       >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+        <SelectTrigger
+          id={selectId}
+          className={cn(
+            error ? "border-destructive focus:ring-destructive" : ""
+          )}
+        >
+          <SelectValue placeholder={resolvedPlaceholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </ShadSelect>
+      {error && <p className="text-sm text-destructive">{error}</p>}
       {helperText && !error && (
-        <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
+        <p className="text-sm text-muted-foreground">{helperText}</p>
       )}
     </div>
   );
 }
-

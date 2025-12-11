@@ -4,57 +4,76 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 import {
-  LayoutDashboard,
-  Users,
+  ChartPieSlice,
+  ChatCircleDots,
+  ClockClockwise,
+  CalendarCheck,
+  CalendarBlank,
+  CurrencyDollarSimple,
+  ChartLineUp,
+  Gear,
+  UsersThree,
   MapPin,
+  Receipt,
+  WarningCircle,
+  CaretDown,
+  CaretRight,
   X,
-  Calendar,
-  AlertCircle,
-  Timer,
-} from "lucide-react";
+} from "phosphor-react";
 import { cn } from "@/lib/utils";
 
-interface NavItem {
+type NavItem = {
   name: string;
   href: string;
   icon: React.ElementType;
-}
+};
 
-const navItems: NavItem[] = [
+type NavGroup = {
+  label: string;
+  icon: React.ElementType;
+  items: NavItem[];
+  defaultOpen?: boolean;
+};
+
+const HIDDEN_GROUPS = new Set(["Payroll", "Reports"]);
+
+const navGroups: NavGroup[] = [
   {
-    name: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
+    label: "Dashboard",
+    icon: ChartPieSlice,
+    items: [{ name: "Overview", href: "/dashboard", icon: ChartPieSlice }],
   },
   {
-    name: "Employees",
-    href: "/employees",
-    icon: Users,
+    label: "People",
+    icon: UsersThree,
+    items: [
+      { name: "Employees", href: "/employees", icon: UsersThree },
+      { name: "Schedules", href: "/schedules", icon: CalendarBlank },
+    ],
   },
   {
-    name: "Time & Location",
-    href: "/time-entries",
-    icon: MapPin,
+    label: "Time & Attendance",
+    icon: ClockClockwise,
+    defaultOpen: true,
+    items: [
+      { name: "Time Entries", href: "/time-entries", icon: MapPin },
+      { name: "Leave Approvals", href: "/leave-approval", icon: CalendarCheck },
+      {
+        name: "OT Approvals",
+        href: "/overtime-approval",
+        icon: ClockClockwise,
+      },
+      {
+        name: "Failure to Log",
+        href: "/failure-to-log-approval",
+        icon: WarningCircle,
+      },
+    ],
   },
   {
-    name: "Failure to Log Approval",
-    href: "/failure-to-log-approval",
-    icon: AlertCircle,
-  },
-  {
-    name: "Leave Approval",
-    href: "/leave-approval",
-    icon: Calendar,
-  },
-  {
-    name: "OT Approvals",
-    href: "/overtime-approval",
-    icon: Timer,
-  },
-  {
-    name: "Schedules",
-    href: "/schedules",
-    icon: Calendar,
+    label: "Settings",
+    icon: Gear,
+    items: [{ name: "Settings", href: "/settings", icon: Gear }],
   },
 ];
 
@@ -65,6 +84,31 @@ interface SidebarProps {
 
 export function Sidebar({ className, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [openGroup, setOpenGroup] = React.useState<string | null>("People");
+  const FallbackIcon = WarningCircle;
+
+  const toggleGroup = (label: string) => {
+    setOpenGroup((prev) => (prev === label ? null : label));
+  };
+
+  // Auto-open the group that matches the current route
+  React.useEffect(() => {
+    let matchedGroup: string | null = null;
+    let longest = 0;
+    navGroups.forEach((group) => {
+      group.items.forEach((item) => {
+        const isMatch =
+          pathname === item.href || pathname?.startsWith(item.href + "/");
+        if (isMatch && item.href.length > longest) {
+          matchedGroup = group.label;
+          longest = item.href.length;
+        }
+      });
+    });
+    if (matchedGroup) {
+      setOpenGroup(matchedGroup);
+    }
+  }, [pathname]);
 
   return (
     <div
@@ -98,27 +142,59 @@ export function Sidebar({ className, onClose }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive =
-            pathname === item.href || pathname?.startsWith(item.href + "/");
-          const Icon = item.icon;
+        {navGroups
+          .filter((group) => !HIDDEN_GROUPS.has(group.label))
+          .map((group) => {
+            const GroupIcon = group.icon || FallbackIcon;
+            const isOpen = openGroup === group.label;
 
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon className="mr-3 h-4 w-4" />
-              {item.name}
-            </Link>
-          );
-        })}
+            return (
+              <div key={group.label} className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.label)}
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent transition"
+                  aria-expanded={isOpen}
+                >
+                  <span className="flex items-center gap-2">
+                    <GroupIcon className="h-4 w-4" />
+                    {group.label}
+                  </span>
+                  {isOpen ? (
+                    <CaretDown className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <CaretRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </button>
+                {isOpen && (
+                  <div className="space-y-1 pl-3">
+                    {group.items.map((item) => {
+                      const isActive =
+                        pathname === item.href ||
+                        pathname?.startsWith(item.href + "/");
+                      const Icon = item.icon || FallbackIcon;
+
+                      return (
+                        <Link
+                          key={item.name}
+                          href={item.href}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                            isActive
+                              ? "bg-primary text-primary-foreground"
+                              : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.name}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </nav>
 
       {/* Footer */}

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { LogOut, ChevronDown, Menu } from "lucide-react";
+import { ChevronDown, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -101,7 +102,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
+                <Icon name="SignOut" size={IconSizes.sm} className="mr-2" />
                 <span>Logout</span>
               </DropdownMenuItem>
             </DropdownMenuContent>

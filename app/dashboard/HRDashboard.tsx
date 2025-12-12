@@ -390,15 +390,39 @@ export default function HRDashboard() {
                             className="mt-0.5 text-emerald-600"
                           />
                           <div className="flex-1 space-y-1">
-                            <div className="text-foreground font-medium text-sm leading-tight line-clamp-1">
-                              {details.name}
-                            </div>
+                            {details.coordinates ? (
+                              <a
+                                href={`https://www.google.com/maps?q=${details.coordinates}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-foreground font-medium text-sm leading-tight line-clamp-1 hover:text-emerald-600 hover:underline cursor-pointer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {details.name}
+                              </a>
+                            ) : (
+                              <div className="text-foreground font-medium text-sm leading-tight line-clamp-1">
+                                {details.name}
+                              </div>
+                            )}
                             <div
                               className="text-muted-foreground line-clamp-2"
                               title={details.address}
                             >
                               {details.address}
                             </div>
+                            {details.coordinates && (
+                              <a
+                                href={`https://www.google.com/maps?q=${details.coordinates}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Icon name="MapPin" size={IconSizes.xs} />
+                                View map
+                              </a>
+                            )}
                           </div>
                         </div>
                       </CardContent>

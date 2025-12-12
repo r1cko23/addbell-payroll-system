@@ -292,3 +292,4 @@ The component uses Tailwind CSS and follows your design system:
 - `FilterPanel` - Filter leave requests
 - `utils/leave-requests.ts` - Grouping utilities
 - `utils/leave-request-filters.ts` - Filter utilities
+

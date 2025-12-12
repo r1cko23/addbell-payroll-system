@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -87,7 +88,7 @@ type ScheduleRow = {
   schedule_date: string;
   start_time: string;
   end_time: string;
-  day_off: boolean;
+  tasks: string | null;
 };
 
 const getColorStyleForEmployee = (employeeId: string) => {
@@ -147,6 +148,8 @@ export default function EmployeesPage() {
   });
   const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [selectedScheduleEntry, setSelectedScheduleEntry] =
+    useState<ScheduleRow | null>(null);
 
   const locationMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -802,7 +805,10 @@ export default function EmployeesPage() {
                                 return (
                                   <div
                                     key={entry.id}
-                                    className="rounded-md border px-3 py-2 text-sm"
+                                    onClick={() =>
+                                      setSelectedScheduleEntry(entry)
+                                    }
+                                    className="rounded-md border px-3 py-2 text-sm cursor-pointer transition-all hover:shadow-md"
                                     style={{
                                       backgroundColor: color.bg,
                                       borderColor: color.border,
@@ -817,7 +823,7 @@ export default function EmployeesPage() {
                                         variant="outline"
                                         className="bg-white/60 text-xs"
                                       >
-                                        {entry.day_off ? "Day Off" : "Shift"}
+                                        Shift
                                       </Badge>
                                     </div>
                                     <HStack
@@ -834,26 +840,41 @@ export default function EmployeesPage() {
                                         "MMM dd"
                                       )}
                                     </HStack>
-                                    <HStack
-                                      gap="2"
-                                      align="center"
-                                      className="mt-1 text-xs"
-                                    >
-                                      <Icon name="MapPin" size={IconSizes.sm} />
-                                      {entry.day_off
-                                        ? "No shift scheduled"
-                                        : `${formatPHTime(
-                                            new Date(
-                                              `${entry.schedule_date}T${entry.start_time}`
-                                            ),
-                                            "h:mm a"
-                                          )} - ${formatPHTime(
-                                            new Date(
-                                              `${entry.schedule_date}T${entry.end_time}`
-                                            ),
-                                            "h:mm a"
-                                          )}`}
-                                    </HStack>
+                                    {entry.start_time && entry.end_time ? (
+                                      <HStack
+                                        gap="2"
+                                        align="center"
+                                        className="mt-1 text-xs"
+                                      >
+                                        <Icon
+                                          name="Clock"
+                                          size={IconSizes.sm}
+                                        />
+                                        {`${formatPHTime(
+                                          new Date(
+                                            `${entry.schedule_date}T${entry.start_time}`
+                                          ),
+                                          "h:mm a"
+                                        )} - ${formatPHTime(
+                                          new Date(
+                                            `${entry.schedule_date}T${entry.end_time}`
+                                          ),
+                                          "h:mm a"
+                                        )}`}
+                                      </HStack>
+                                    ) : (
+                                      <HStack
+                                        gap="2"
+                                        align="center"
+                                        className="mt-1 text-xs text-muted-foreground"
+                                      >
+                                        <Icon
+                                          name="Clock"
+                                          size={IconSizes.sm}
+                                        />
+                                        No schedule set
+                                      </HStack>
+                                    )}
                                   </div>
                                 );
                               })
@@ -868,265 +889,334 @@ export default function EmployeesPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog
+          open={!!selectedScheduleEntry}
+          onOpenChange={(open) => !open && setSelectedScheduleEntry(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedScheduleEntry?.employee_name} -{" "}
+                {selectedScheduleEntry &&
+                  format(
+                    new Date(selectedScheduleEntry.schedule_date),
+                    "EEEE, MMM d, yyyy"
+                  )}
+              </DialogTitle>
+              <DialogDescription>Schedule details and tasks</DialogDescription>
+            </DialogHeader>
+            {selectedScheduleEntry && (
+              <div className="mt-4 space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Schedule</Label>
+                  {selectedScheduleEntry.start_time &&
+                  selectedScheduleEntry.end_time ? (
+                    <p className="mt-2 text-sm">
+                      {formatPHTime(
+                        new Date(
+                          `${selectedScheduleEntry.schedule_date}T${selectedScheduleEntry.start_time}`
+                        ),
+                        "h:mm a"
+                      )}{" "}
+                      -{" "}
+                      {formatPHTime(
+                        new Date(
+                          `${selectedScheduleEntry.schedule_date}T${selectedScheduleEntry.end_time}`
+                        ),
+                        "h:mm a"
+                      )}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground italic">
+                      No schedule set for this day
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Tasks</Label>
+                  {selectedScheduleEntry.tasks ? (
+                    <p className="mt-2 text-sm whitespace-pre-wrap bg-muted p-3 rounded-md">
+                      {selectedScheduleEntry.tasks}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground italic">
+                      No tasks submitted for this day
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </VStack>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
             <DialogTitle>
               {editingEmployee ? "Edit Employee" : "Add New Employee"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="employee-id">Employee ID</Label>
-                <Input
-                  id="employee-id"
-                  required
-                  value={formData.employee_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, employee_id: e.target.value })
-                  }
-                  disabled={!!editingEmployee}
-                  placeholder="EMP001"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Unique identifier. Immutable after creation.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="hire-date">Hire Date</Label>
-                <Input
-                  id="hire-date"
-                  type="date"
-                  value={formData.hire_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, hire_date: e.target.value })
-                  }
-                  required
-                  disabled={!!editingEmployee && !isAdmin}
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="last-name">Last Name</Label>
-                <Input
-                  id="last-name"
-                  required
-                  value={formData.last_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, last_name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="first-name">First Name</Label>
-                <Input
-                  id="first-name"
-                  required
-                  value={formData.first_name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, first_name: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="middle-initial">Middle Initial</Label>
-                <Input
-                  id="middle-initial"
-                  value={formData.middle_initial}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      middle_initial: e.target.value.toUpperCase().slice(0, 1),
-                    })
-                  }
-                  placeholder="M"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="birth-date">Birth Date</Label>
-                <Input
-                  id="birth-date"
-                  type="date"
-                  value={formData.birth_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, birth_date: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Gender</Label>
-                <Select
-                  value={formData.gender}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, gender: value })
-                  }
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select gender" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Male</SelectItem>
-                    <SelectItem value="female">Female</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Used to auto-allocate maternity/paternity leave.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) =>
-                    setFormData({ ...formData, address: e.target.value })
-                  }
-                  placeholder="Residential address"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Assigned Locations</Label>
-              <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                {locations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No active locations configured yet. Add locations first.
-                  </p>
-                ) : (
-                  locations.map((loc) => {
-                    const checked = formData.locations.includes(loc.id);
-                    return (
-                      <label
-                        key={loc.id}
-                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                          checked
-                            ? "border-emerald-200 bg-emerald-50"
-                            : "border-border"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
-                          checked={checked}
-                          onChange={() => toggleLocationSelection(loc.id)}
-                        />
-                        <span>{loc.name}</span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Select at least one location. The first selected becomes the
-                primary location.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="tin">TIN #</Label>
-                <Input
-                  id="tin"
-                  value={formData.tin_number}
-                  onChange={(e) =>
-                    setFormData({ ...formData, tin_number: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sss">SSS #</Label>
-                <Input
-                  id="sss"
-                  value={formData.sss_number}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sss_number: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="philhealth">PhilHealth #</Label>
-                <Input
-                  id="philhealth"
-                  value={formData.philhealth_number}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      philhealth_number: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pagibig">Pag-IBIG #</Label>
-                <Input
-                  id="pagibig"
-                  value={formData.pagibig_number}
-                  onChange={(e) =>
-                    setFormData({ ...formData, pagibig_number: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="hmo">HMO</Label>
-              <Input
-                id="hmo"
-                value={formData.hmo_provider}
-                onChange={(e) =>
-                  setFormData({ ...formData, hmo_provider: e.target.value })
-                }
-                placeholder="Provider name"
-              />
-            </div>
-
-            <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
-              <p className="text-sm font-semibold text-foreground">
-                Leave Allocations (auto-managed)
-              </p>
-              <p className="text-xs text-muted-foreground">
-                SIL: 10 days after first anniversary (usable until Dec 31), then
-                prorated monthly each year. Maternity: 105 days when gender is
-                female.
-              </p>
-              {formData.gender === "male" && (
+          <form
+            onSubmit={handleSubmit}
+            className="flex flex-col flex-1 min-h-0"
+          >
+            <div className="space-y-4 overflow-y-auto flex-1 px-6 pr-4">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="paternity">Paternity Leave (days)</Label>
+                  <Label htmlFor="employee-id">Employee ID</Label>
                   <Input
-                    id="paternity"
-                    type="number"
-                    min="0"
-                    step="0.5"
-                    value={formData.paternity_days}
+                    id="employee-id"
+                    required
+                    value={formData.employee_id}
+                    onChange={(e) =>
+                      setFormData({ ...formData, employee_id: e.target.value })
+                    }
+                    disabled={!!editingEmployee}
+                    placeholder="EMP001"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Unique identifier. Immutable after creation.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hire-date">Hire Date</Label>
+                  <Input
+                    id="hire-date"
+                    type="date"
+                    value={formData.hire_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, hire_date: e.target.value })
+                    }
+                    required
+                    disabled={!!editingEmployee && !isAdmin}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="last-name">Last Name</Label>
+                  <Input
+                    id="last-name"
+                    required
+                    value={formData.last_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, last_name: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="first-name">First Name</Label>
+                  <Input
+                    id="first-name"
+                    required
+                    value={formData.first_name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, first_name: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="middle-initial">Middle Initial</Label>
+                  <Input
+                    id="middle-initial"
+                    value={formData.middle_initial}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        paternity_days: e.target.value,
+                        middle_initial: e.target.value
+                          .toUpperCase()
+                          .slice(0, 1),
                       })
                     }
-                    placeholder="e.g., 7"
+                    placeholder="M"
                   />
                 </div>
-              )}
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birth-date">Birth Date</Label>
+                  <Input
+                    id="birth-date"
+                    type="date"
+                    value={formData.birth_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, birth_date: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
 
-            <DialogFooter className="flex items-center justify-end gap-2">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <Select
+                    value={formData.gender}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, gender: value })
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Male</SelectItem>
+                      <SelectItem value="female">Female</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Used to auto-allocate maternity/paternity leave.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Textarea
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
+                    placeholder="Residential address"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Assigned Locations</Label>
+                <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  {locations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No active locations configured yet. Add locations first.
+                    </p>
+                  ) : (
+                    locations.map((loc) => {
+                      const checked = formData.locations.includes(loc.id);
+                      return (
+                        <label
+                          key={loc.id}
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                            checked
+                              ? "border-emerald-200 bg-emerald-50"
+                              : "border-border"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                            checked={checked}
+                            onChange={() => toggleLocationSelection(loc.id)}
+                          />
+                          <span>{loc.name}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Select at least one location. The first selected becomes the
+                  primary location.
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="tin">TIN #</Label>
+                  <Input
+                    id="tin"
+                    value={formData.tin_number}
+                    onChange={(e) =>
+                      setFormData({ ...formData, tin_number: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sss">SSS #</Label>
+                  <Input
+                    id="sss"
+                    value={formData.sss_number}
+                    onChange={(e) =>
+                      setFormData({ ...formData, sss_number: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="philhealth">PhilHealth #</Label>
+                  <Input
+                    id="philhealth"
+                    value={formData.philhealth_number}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        philhealth_number: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pagibig">Pag-IBIG #</Label>
+                  <Input
+                    id="pagibig"
+                    value={formData.pagibig_number}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        pagibig_number: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="hmo">HMO</Label>
+                <Input
+                  id="hmo"
+                  value={formData.hmo_provider}
+                  onChange={(e) =>
+                    setFormData({ ...formData, hmo_provider: e.target.value })
+                  }
+                  placeholder="Provider name"
+                />
+              </div>
+
+              <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+                <p className="text-sm font-semibold text-foreground">
+                  Leave Allocations (auto-managed)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  SIL: 10 days after first anniversary (usable until Dec 31),
+                  then prorated monthly each year. Maternity: 105 days when
+                  gender is female.
+                </p>
+                {formData.gender === "male" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="paternity">Paternity Leave (days)</Label>
+                    <Input
+                      id="paternity"
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={formData.paternity_days}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          paternity_days: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., 7"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter className="flex items-center justify-end gap-2 flex-shrink-0 pt-4 pb-6 px-6 border-t bg-background">
               <Button
                 type="button"
                 variant="outline"

@@ -359,3 +359,4 @@ Searches for "John" AND filters by date.
 3. **Save Common Filters**: Use saved filters for frequently used combinations
 4. **Check Recent Searches**: Access recent searches via dropdown
 5. **Highlight Results**: Use `highlightSearchTerms` to show matches in results
+

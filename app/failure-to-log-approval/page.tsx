@@ -33,6 +33,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 
 interface FailureToLog {
   id: string;
@@ -60,13 +61,21 @@ interface FailureToLog {
 export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const [requests, setRequests] = useState<FailureToLog[]>([]);
+  const [employees, setEmployees] = useState<
+    { id: string; employee_id: string; full_name: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
+  const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [selectedRequest, setSelectedRequest] = useState<FailureToLog | null>(
     null
   );
   const [rejectionReason, setRejectionReason] = useState("");
   const [approveLoading, setApproveLoading] = useState(false);
+
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
+  const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
   const safeFormat = (value: string | null | undefined, fmt: string) =>
     value ? formatPHTime(value, fmt) : "—";
 
@@ -78,11 +87,36 @@ export default function FailureToLogApprovalPage() {
   };
 
   useEffect(() => {
+    loadEmployees();
+  }, []);
+
+  async function loadEmployees() {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, employee_id, full_name")
+      .order("full_name", { ascending: true });
+
+    if (error) {
+      console.error("Failed to load employees", error);
+      return;
+    }
+
+    setEmployees(data || []);
+  }
+
+  useEffect(() => {
     fetchRequests();
-  }, [statusFilter]);
+  }, [statusFilter, selectedWeek, selectedEmployee]);
 
   async function fetchRequests() {
     setLoading(true);
+
+    // Ensure weekEnd includes the full day
+    const weekEndInclusive = new Date(weekEnd);
+    weekEndInclusive.setHours(23, 59, 59, 999);
+
+    const weekStartStr = format(weekStart, "yyyy-MM-dd");
+    const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
     let query = supabase
       .from("failure_to_log")
@@ -99,10 +133,16 @@ export default function FailureToLogApprovalPage() {
         )
       `
       )
+      .gte("missed_date", weekStartStr)
+      .lte("missed_date", weekEndStr)
       .order("created_at", { ascending: false });
 
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
+    }
+
+    if (selectedEmployee !== "all") {
+      query = query.eq("employee_id", selectedEmployee);
     }
 
     const { data, error } = await query;
@@ -241,111 +281,133 @@ export default function FailureToLogApprovalPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full items-stretch">
-          <Card className="border-muted h-full w-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Requests
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-full flex flex-col">
-              <HStack justify="between" align="center" className="flex-1">
-                <div className="text-3xl font-semibold">{stats.total}</div>
-                <Icon
-                  name="WarningCircle"
-                  size={IconSizes.md}
-                  className="text-muted-foreground"
-                />
-              </HStack>
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Total Requests</BodySmall>
+                <div className="text-2xl font-bold">{stats.total}</div>
+              </VStack>
             </CardContent>
           </Card>
-          <Card className="border-muted h-full w-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pending
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-full flex flex-col">
-              <HStack justify="between" align="center" className="flex-1">
-                <div className="text-3xl font-semibold text-amber-700">
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Pending</BodySmall>
+                <div className="text-2xl font-bold text-yellow-600">
                   {stats.pending}
                 </div>
-                <Icon
-                  name="ClockClockwise"
-                  size={IconSizes.md}
-                  className="text-amber-600"
-                />
-              </HStack>
+              </VStack>
             </CardContent>
           </Card>
-          <Card className="border-muted h-full w-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Approved
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-full flex flex-col">
-              <HStack justify="between" align="center" className="flex-1">
-                <div className="text-3xl font-semibold text-emerald-700">
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Approved</BodySmall>
+                <div className="text-2xl font-bold text-emerald-600">
                   {stats.approved}
                 </div>
-                <Icon
-                  name="Check"
-                  size={IconSizes.md}
-                  className="text-emerald-600"
-                />
-              </HStack>
+              </VStack>
             </CardContent>
           </Card>
-          <Card className="border-muted h-full w-full">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Rejected
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="h-full flex flex-col">
-              <HStack justify="between" align="center" className="flex-1">
-                <div className="text-3xl font-semibold text-rose-700">
+          <Card className="h-full w-full">
+            <CardContent className="p-4 h-full flex flex-col w-full">
+              <VStack gap="1" align="start" className="flex-1 w-full">
+                <BodySmall>Rejected</BodySmall>
+                <div className="text-2xl font-bold text-red-600">
                   {stats.rejected}
                 </div>
-                <Icon name="X" size={IconSizes.md} className="text-rose-600" />
-              </HStack>
+              </VStack>
             </CardContent>
           </Card>
         </div>
 
         {/* Filters */}
-        <CardSection
-          title={
-            <HStack gap="2" align="center">
-              <Icon
-                name="MagnifyingGlass"
-                size={IconSizes.md}
-                className="text-muted-foreground"
-              />
-              <span>Filters</span>
-            </HStack>
-          }
-          description="Narrow down requests by their current status."
-        >
-          <VStack gap="2" align="start">
-            <Label htmlFor="status">Status</Label>
-            <Select
-              value={statusFilter}
-              onValueChange={(value) => setStatusFilter(value)}
-            >
-              <SelectTrigger id="status" className="w-full">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-          </VStack>
-        </CardSection>
+        <Card className="w-full">
+          <CardContent className="p-4 sm:p-6 w-full">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center w-full">
+              {/* Week Navigation */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 items-center sm:items-center flex-shrink-0 w-full sm:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
+                    className="flex-shrink-0"
+                  >
+                    <Icon name="CaretLeft" size={IconSizes.sm} />
+                  </Button>
+                  <Caption className="min-w-[180px] sm:min-w-[200px] text-center font-medium text-xs sm:text-sm">
+                    {format(weekStart, "MMM d")} -{" "}
+                    {format(weekEnd, "MMM d, yyyy")}
+                  </Caption>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
+                    className="flex-shrink-0"
+                  >
+                    <Icon name="CaretRight" size={IconSizes.sm} />
+                  </Button>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedWeek(new Date())}
+                  className="w-full sm:w-auto"
+                >
+                  Today
+                </Button>
+              </div>
+
+              {/* Spacer to push filters to the right (hidden on mobile) */}
+              <div className="hidden md:block flex-1 min-w-0" />
+
+              {/* Filters Section */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
+                {/* Status Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground flex-shrink-0 hidden sm:block"
+                  />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="flex h-10 w-full sm:w-[160px] lg:w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                {/* Employee Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground flex-shrink-0 hidden sm:block"
+                  />
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="flex h-10 w-full sm:w-[200px] lg:w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">All Employees</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.full_name} ({employee.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Requests List */}
         {loading ? (

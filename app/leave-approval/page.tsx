@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +38,7 @@ import { CardSection } from "@/components/ui/card-section";
 import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 
 interface LeaveDocument {
   id: string;
@@ -85,8 +86,13 @@ interface LeaveRequest {
 export default function LeaveApprovalPage() {
   const supabase = createClient();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [employees, setEmployees] = useState<
+    { id: string; employee_id: string; full_name: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
+  const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(
     null
   );
@@ -102,6 +108,9 @@ export default function LeaveApprovalPage() {
     Record<string, string>
   >({});
 
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
+  const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
+
   const base64ToBlob = (base64: string, type: string) => {
     const byteCharacters = atob(base64);
     const byteNumbers = new Array(byteCharacters.length);
@@ -114,7 +123,22 @@ export default function LeaveApprovalPage() {
 
   useEffect(() => {
     fetchUserRole();
+    loadEmployees();
   }, []);
+
+  async function loadEmployees() {
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, employee_id, full_name")
+      .order("full_name", { ascending: true });
+
+    if (error) {
+      console.error("Failed to load employees", error);
+      return;
+    }
+
+    setEmployees(data || []);
+  }
 
   async function fetchUserRole() {
     const {
@@ -172,6 +196,13 @@ export default function LeaveApprovalPage() {
 
     setLoading(true);
 
+    // Ensure weekEnd includes the full day
+    const weekEndInclusive = new Date(weekEnd);
+    weekEndInclusive.setHours(23, 59, 59, 999);
+
+    const weekStartStr = format(weekStart, "yyyy-MM-dd");
+    const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
+
     let query = supabase
       .from("leave_requests")
       .select(
@@ -191,6 +222,10 @@ export default function LeaveApprovalPage() {
         )
       `
       )
+      // Filter by week - leave request overlaps with week if:
+      // start_date <= weekEnd AND end_date >= weekStart
+      .lte("start_date", weekEndStr)
+      .gte("end_date", weekStartStr)
       .order("created_at", { ascending: false });
 
     // HR should only see requests that have already passed manager review
@@ -205,6 +240,10 @@ export default function LeaveApprovalPage() {
       query = query.eq("status", statusFilter);
     } else if (normalizedRole === "hr") {
       query = query.in("status", hrVisibleStatuses);
+    }
+
+    if (selectedEmployee !== "all") {
+      query = query.eq("employee_id", selectedEmployee);
     }
 
     const { data, error } = await query;
@@ -463,7 +502,7 @@ export default function LeaveApprovalPage() {
   useEffect(() => {
     if (!normalizedRole) return;
     fetchRequests();
-  }, [statusFilter, normalizedRole]);
+  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee]);
 
   const stats = {
     total: requests.length,
@@ -582,28 +621,90 @@ export default function LeaveApprovalPage() {
         {/* Filters */}
         <Card className="w-full">
           <CardContent className="p-4 sm:p-6 w-full">
-            <HStack
-              gap="4"
-              align="center"
-              className="flex-col sm:flex-row w-full"
-            >
-              <Icon
-                name="MagnifyingGlass"
-                size={IconSizes.md}
-                className="text-muted-foreground flex-shrink-0 hidden sm:block"
-              />
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex h-10 w-full sm:w-auto sm:min-w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="approved_by_manager">Approved by Manager</option>
-                <option value="approved_by_hr">Approved by HR</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </HStack>
+            <div className="flex flex-col gap-4 md:flex-row md:items-center w-full">
+              {/* Week Navigation */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 items-center sm:items-center flex-shrink-0 w-full sm:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
+                    className="flex-shrink-0"
+                  >
+                    <Icon name="CaretLeft" size={IconSizes.sm} />
+                  </Button>
+                  <Caption className="min-w-[180px] sm:min-w-[200px] text-center font-medium text-xs sm:text-sm">
+                    {format(weekStart, "MMM d")} -{" "}
+                    {format(weekEnd, "MMM d, yyyy")}
+                  </Caption>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
+                    className="flex-shrink-0"
+                  >
+                    <Icon name="CaretRight" size={IconSizes.sm} />
+                  </Button>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSelectedWeek(new Date())}
+                  className="w-full sm:w-auto"
+                >
+                  Today
+                </Button>
+              </div>
+
+              {/* Spacer to push filters to the right (hidden on mobile) */}
+              <div className="hidden md:block flex-1 min-w-0" />
+
+              {/* Filters Section */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
+                {/* Status Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground flex-shrink-0 hidden sm:block"
+                  />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="flex h-10 w-full sm:w-[160px] lg:w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved_by_manager">
+                      Approved by Manager
+                    </option>
+                    <option value="approved_by_hr">Approved by HR</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+
+                {/* Employee Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Icon
+                    name="MagnifyingGlass"
+                    size={IconSizes.sm}
+                    className="text-muted-foreground flex-shrink-0 hidden sm:block"
+                  />
+                  <select
+                    value={selectedEmployee}
+                    onChange={(e) => setSelectedEmployee(e.target.value)}
+                    className="flex h-10 w-full sm:w-[200px] lg:w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="all">All Employees</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.full_name} ({employee.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -1085,34 +1186,36 @@ export default function LeaveApprovalPage() {
 
                   {/* Actions */}
                   {canApprove(selectedRequest) ? (
-                    <DialogFooter className="pt-2 gap-3">
-                      <div className="flex-1 space-y-2">
-                        <Label htmlFor="notes">Notes (optional)</Label>
-                        <textarea
-                          id="notes"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="Add notes about this approval..."
-                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                          rows={3}
-                        />
+                    <div className="space-y-4 pt-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="notes">Notes (optional)</Label>
+                          <Textarea
+                            id="notes"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Add notes about this approval..."
+                            rows={4}
+                            className="h-full"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="rejection-reason">
+                            Rejection Reason (if rejecting)
+                          </Label>
+                          <Textarea
+                            id="rejection-reason"
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                            placeholder="Provide reason for rejection..."
+                            rows={4}
+                            className="h-full"
+                          />
+                        </div>
                       </div>
 
-                      <div className="flex-1 space-y-2">
-                        <Label htmlFor="rejection-reason">
-                          Rejection Reason (if rejecting)
-                        </Label>
-                        <textarea
-                          id="rejection-reason"
-                          value={rejectionReason}
-                          onChange={(e) => setRejectionReason(e.target.value)}
-                          placeholder="Provide reason for rejection..."
-                          className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                          rows={3}
-                        />
-                      </div>
-
-                      <div className="flex justify-end gap-3 w-full">
+                      <DialogFooter className="pt-2">
                         <Button
                           variant="secondary"
                           onClick={() => {
@@ -1144,8 +1247,8 @@ export default function LeaveApprovalPage() {
                             ? "Approve (Manager)"
                             : "Approve (HR)"}
                         </Button>
-                      </div>
-                    </DialogFooter>
+                      </DialogFooter>
+                    </div>
                   ) : (
                     <DialogFooter className="pt-2">
                       <Button

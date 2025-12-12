@@ -22,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { toast } from "sonner";
 
@@ -33,7 +40,7 @@ type ScheduleRow = {
   schedule_date: string;
   start_time: string;
   end_time: string;
-  day_off: boolean;
+  tasks: string | null;
 };
 
 // Deterministic per-employee colors (inline HSL for more variety)
@@ -61,6 +68,7 @@ export default function SchedulesPage() {
   });
   const [rows, setRows] = useState<ScheduleRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<ScheduleRow | null>(null);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)),
@@ -225,7 +233,8 @@ export default function SchedulesPage() {
                       return (
                         <div
                           key={entry.id}
-                          className="border border-border rounded-md px-3 py-2"
+                          onClick={() => setSelectedEntry(entry)}
+                          className="border border-border rounded-md px-3 py-2 cursor-pointer transition-all hover:shadow-md"
                           style={{
                             backgroundColor: color.bg,
                             borderColor: color.border,
@@ -236,14 +245,7 @@ export default function SchedulesPage() {
                             <p className="font-semibold text-sm">
                               {entry.employee_name}
                             </p>
-                            {entry.day_off ? (
-                              <Badge
-                                variant="outline"
-                                className="border-destructive/20 bg-destructive/10 text-destructive"
-                              >
-                                Day Off
-                              </Badge>
-                            ) : (
+                            {entry.start_time && entry.end_time ? (
                               <Caption>
                                 {formatPHTime(
                                   new Date(
@@ -259,6 +261,10 @@ export default function SchedulesPage() {
                                   "h:mm a"
                                 )}
                               </Caption>
+                            ) : (
+                              <Caption className="text-muted-foreground">
+                                No schedule set
+                              </Caption>
                             )}
                           </VStack>
                         </div>
@@ -270,6 +276,65 @@ export default function SchedulesPage() {
             ))}
           </div>
         </CardSection>
+
+        <Dialog
+          open={!!selectedEntry}
+          onOpenChange={(open) => !open && setSelectedEntry(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {selectedEntry?.employee_name} -{" "}
+                {selectedEntry &&
+                  format(
+                    new Date(selectedEntry.schedule_date),
+                    "EEEE, MMM d, yyyy"
+                  )}
+              </DialogTitle>
+              <DialogDescription>Schedule details and tasks</DialogDescription>
+            </DialogHeader>
+            {selectedEntry && (
+              <VStack gap="4" className="mt-4">
+                <div>
+                  <Label className="text-sm font-medium">Schedule</Label>
+                  {selectedEntry.start_time && selectedEntry.end_time ? (
+                    <p className="mt-2 text-sm">
+                      {formatPHTime(
+                        new Date(
+                          `${selectedEntry.schedule_date}T${selectedEntry.start_time}`
+                        ),
+                        "h:mm a"
+                      )}{" "}
+                      -{" "}
+                      {formatPHTime(
+                        new Date(
+                          `${selectedEntry.schedule_date}T${selectedEntry.end_time}`
+                        ),
+                        "h:mm a"
+                      )}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground italic">
+                      No schedule set for this day
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Tasks</Label>
+                  {selectedEntry.tasks ? (
+                    <p className="mt-2 text-sm whitespace-pre-wrap bg-muted p-3 rounded-md">
+                      {selectedEntry.tasks}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground italic">
+                      No tasks submitted for this day
+                    </p>
+                  )}
+                </div>
+              </VStack>
+            )}
+          </DialogContent>
+        </Dialog>
       </VStack>
     </DashboardLayout>
   );

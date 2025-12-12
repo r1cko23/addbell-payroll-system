@@ -8,6 +8,7 @@ import { CardSection } from "@/components/ui/card-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
@@ -19,6 +20,7 @@ type DayEntry = {
   start_time: string;
   end_time: string;
   day_off: boolean;
+  tasks: string;
 };
 
 export default function SchedulePage() {
@@ -62,6 +64,7 @@ export default function SchedulePage() {
               start_time: existing?.start_time || "",
               end_time: existing?.end_time || "",
               day_off: existing?.day_off || false,
+              tasks: existing?.tasks || "",
             };
           })
         );
@@ -105,6 +108,7 @@ export default function SchedulePage() {
         start_time: "08:00",
         end_time: "17:00",
         day_off: false,
+        tasks: "",
       }))
     );
   };
@@ -116,12 +120,12 @@ export default function SchedulePage() {
     }
     setLoading(true);
     const entries = days
-      .filter((d) => d.schedule_date)
+      .filter((d) => d.schedule_date && !d.day_off)
       .map((d) => ({
         schedule_date: d.schedule_date,
-        start_time: d.day_off ? null : d.start_time,
-        end_time: d.day_off ? null : d.end_time,
-        day_off: d.day_off,
+        start_time: d.start_time,
+        end_time: d.end_time,
+        tasks: d.tasks || null,
       }));
     const payload = {
       p_employee_id: employee.id,
@@ -159,9 +163,9 @@ export default function SchedulePage() {
               employee_id: employee.id,
               week_start: weekStartIso,
               schedule_date: e.schedule_date,
-              start_time: e.day_off ? null : e.start_time,
-              end_time: e.day_off ? null : e.end_time,
-              day_off: e.day_off ?? false,
+              start_time: e.start_time,
+              end_time: e.end_time,
+              tasks: e.tasks || null,
             }))
           );
         if (insErr) throw insErr;
@@ -203,6 +207,7 @@ export default function SchedulePage() {
           start_time: "",
           end_time: "",
           day_off: false,
+          tasks: "",
         }))
       );
 
@@ -345,6 +350,22 @@ export default function SchedulePage() {
                       />
                     </VStack>
                   </div>
+                  <VStack gap="2" align="start" className="w-full">
+                    <Label htmlFor={`tasks-${idx}`} className="text-xs">
+                      Tasks for this day
+                    </Label>
+                    <Textarea
+                      id={`tasks-${idx}`}
+                      placeholder="Enter tasks you plan to work on..."
+                      value={days[idx]?.tasks || ""}
+                      disabled={isLocked}
+                      onChange={(e) =>
+                        handleChange(idx, "tasks", e.target.value)
+                      }
+                      rows={3}
+                      className="resize-none"
+                    />
+                  </VStack>
                 </VStack>
               </div>
             ))}

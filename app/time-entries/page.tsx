@@ -137,43 +137,61 @@ export default function TimeEntriesPage() {
     setLoading(true);
 
     try {
-      // Optimize query: select only needed fields instead of * to improve performance
+      // Ensure weekEnd includes the full day
+      const weekEndInclusive = new Date(weekEnd);
+      weekEndInclusive.setHours(23, 59, 59, 999);
+
+      // Debug logging
+      console.log("Fetching time entries for range:", {
+        weekStart: weekStart.toISOString(),
+        weekEnd: weekEndInclusive.toISOString(),
+        statusFilter,
+        selectedEmployee,
+      });
+
+      // Build query step by step to avoid issues
+      // Use single-line format to avoid any whitespace issues with Supabase PostgREST
       let query = supabase
         .from("time_clock_entries")
-        .select(
-          `
-          id,
-          employee_id,
-          clock_in_time,
-          clock_out_time,
-          total_hours,
-          regular_hours,
-          overtime_hours,
-          night_diff_hours,
-          status,
-          employee_notes,
-          hr_notes,
-          clock_in_location,
-          clock_out_location,
-          is_manual_entry,
-          employees (
-            employee_id,
-            full_name
-          )
-        `
-        )
+        .select("*,employees(employee_id,full_name)");
+
+      // Apply date filters
+      query = query
         .gte("clock_in_time", weekStart.toISOString())
-        .lte("clock_in_time", weekEnd.toISOString())
-        .order("clock_in_time", { ascending: false })
-        .limit(1000); // Add reasonable limit to prevent excessive data fetching
+        .lte("clock_in_time", weekEndInclusive.toISOString());
 
-      if (statusFilter !== "all") {
-        query = query.eq("status", statusFilter);
+      // Apply status filter if needed
+      if (statusFilter && statusFilter !== "all") {
+        // Validate status filter value
+        const validStatuses = [
+          "clocked_in",
+          "clocked_out",
+          "approved",
+          "rejected",
+          "auto_approved",
+          "pending",
+        ];
+        if (validStatuses.includes(statusFilter)) {
+          query = query.eq("status", statusFilter);
+        } else {
+          console.warn("Invalid status filter:", statusFilter);
+        }
       }
 
-      if (selectedEmployee !== "all") {
-        query = query.eq("employee_id", selectedEmployee);
+      // Apply employee filter if needed
+      if (selectedEmployee && selectedEmployee !== "all") {
+        // Validate that selectedEmployee is a valid UUID format
+        const uuidRegex =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(selectedEmployee)) {
+          query = query.eq("employee_id", selectedEmployee);
+        } else {
+          console.warn("Invalid employee ID format:", selectedEmployee);
+        }
       }
+
+      // Apply ordering and limit
+      query = query.order("clock_in_time", { ascending: false }).limit(1000);
 
       // Fetch entries and holidays in parallel
       const [entriesResult, holidaysResult] = await Promise.all([
@@ -191,6 +209,12 @@ export default function TimeEntriesPage() {
 
       if (error) {
         console.error("Error fetching time entries:", error);
+        console.error("Error details:", {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
         toast.error(
           `Failed to load time entries: ${
             error.message || error.code || "Unknown error"
@@ -200,6 +224,8 @@ export default function TimeEntriesPage() {
         setLoading(false);
         return;
       }
+
+      console.log("Fetched entries:", data?.length || 0, "entries");
 
       if (holidayError) {
         console.warn("Error loading holidays for period:", holidayError);
@@ -215,15 +241,60 @@ export default function TimeEntriesPage() {
 
       // Transform data to ensure employees is a single object, not an array
       const transformedEntries: TimeEntry[] =
-        data?.map((entry: any) => ({
-          ...entry,
-          employees: Array.isArray(entry.employees)
-            ? entry.employees[0] || { employee_id: "", full_name: "" }
-            : entry.employees || { employee_id: "", full_name: "" },
-        })) || [];
+        data?.map((entry: any) => {
+          // Handle employees relationship - could be array, object, or null
+          let employeeData = { employee_id: "", full_name: "Unknown Employee" };
+
+          if (entry.employees) {
+            if (Array.isArray(entry.employees)) {
+              employeeData = entry.employees[0] || employeeData;
+            } else {
+              employeeData = entry.employees;
+            }
+          }
+
+          return {
+            ...entry,
+            employees: employeeData,
+          };
+        }) || [];
+
+      console.log("Transformed entries:", transformedEntries.length);
 
       setHolidays(formattedHolidays);
       setEntries(transformedEntries);
+
+      // Log if no entries found to help debug
+      if (transformedEntries.length === 0) {
+        console.warn("No time entries found for the selected period:", {
+          weekStart: weekStart.toISOString(),
+          weekEnd: weekEndInclusive.toISOString(),
+          statusFilter,
+          selectedEmployee,
+        });
+
+        // Test query: Check if there are ANY entries in the database (for debugging)
+        const { data: testData, error: testError } = await supabase
+          .from("time_clock_entries")
+          .select("id, clock_in_time, employee_id")
+          .limit(5);
+
+        if (!testError && testData && testData.length > 0) {
+          console.log(
+            "Found entries in database (sample):",
+            testData.map((e) => ({
+              id: e.id,
+              clock_in_time: e.clock_in_time,
+              employee_id: e.employee_id,
+            }))
+          );
+          console.log("But none match the filter criteria.");
+        } else if (!testError) {
+          console.log("No entries found in database at all.");
+        } else {
+          console.error("Error testing database:", testError);
+        }
+      }
     } catch (error: any) {
       console.error("Unexpected error in fetchTimeEntries:", error);
       toast.error(

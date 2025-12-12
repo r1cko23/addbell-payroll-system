@@ -421,3 +421,4 @@ export function getDaysUntilLeave(startDate: string): number {
   const today = new Date();
   return differenceInDays(date, today);
 }
+

@@ -742,14 +742,20 @@ export default function LeaveApprovalPage() {
             {requests.map((request) => (
               <Card
                 key={request.id}
-                className="hover:shadow-hover transition-shadow h-full min-h-[260px]"
+                className="border-muted/60 transition-shadow hover:shadow-hover h-full min-h-[220px] cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedRequest(request)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedRequest(request);
+                  }
+                }}
               >
-                <CardContent className="p-6 flex flex-col gap-4 h-full">
+                <CardContent className="p-4 flex flex-col gap-3 h-full">
                   <HStack justify="between" align="start">
-                    <div
-                      className="flex-1 cursor-pointer"
-                      onClick={() => setSelectedRequest(request)}
-                    >
+                    <div className="flex-1">
                       <HStack gap="3" align="center" className="mb-2 flex-wrap">
                         <Icon
                           name="User"
@@ -848,95 +854,79 @@ export default function LeaveApprovalPage() {
                         </VStack>
                       )}
                     </div>
-                    <VStack gap="2" align="end" className="ml-4">
-                      {request.status === "pending" && (
-                        <>
-                          <Badge variant="secondary">PENDING</Badge>
-                          {canApprove(request) && (
-                            <div
-                              className="flex items-center gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedRequest(request);
-                                  setRejectionReason("");
-                                  setNotes("");
-                                }}
-                              >
-                                <Icon name="X" size={IconSizes.sm} />
-                                Reject
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleApprove(
-                                    request,
-                                    userRole === "account_manager"
-                                      ? "manager"
-                                      : "hr"
-                                  );
-                                }}
-                              >
-                                <Icon name="Check" size={IconSizes.sm} />
-                                {userRole === "account_manager"
-                                  ? "Approve"
-                                  : "Approve (HR)"}
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {request.status === "approved_by_manager" && (
-                        <>
-                          <Badge variant="default">APPROVED BY MANAGER</Badge>
-                          {canApprove(request) && (
-                            <div
-                              className="flex items-center gap-2"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedRequest(request);
-                                  setRejectionReason("");
-                                  setNotes("");
-                                }}
-                              >
-                                <Icon name="X" size={IconSizes.sm} />
-                                Reject
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleApprove(request, "hr");
-                                }}
-                              >
-                                <Icon name="Check" size={IconSizes.sm} />
-                                Approve (HR)
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {request.status === "approved_by_hr" && (
-                        <Badge variant="default">APPROVED</Badge>
-                      )}
-                      {request.status === "rejected" && (
-                        <Badge variant="destructive">REJECTED</Badge>
-                      )}
-                      {request.status === "cancelled" && (
-                        <Badge variant="secondary">CANCELLED</Badge>
-                      )}
-                    </VStack>
+                    <Badge
+                      variant={
+                        request.status === "pending"
+                          ? "secondary"
+                          : request.status === "approved_by_hr"
+                          ? "default"
+                          : request.status === "rejected"
+                          ? "destructive"
+                          : "default"
+                      }
+                      className={
+                        request.status === "approved_by_manager"
+                          ? "bg-blue-100 text-blue-900 border-blue-200"
+                          : ""
+                      }
+                    >
+                      {request.status === "pending"
+                        ? "PENDING"
+                        : request.status === "approved_by_manager"
+                        ? "APPROVED BY MANAGER"
+                        : request.status === "approved_by_hr"
+                        ? "APPROVED"
+                        : request.status === "rejected"
+                        ? "REJECTED"
+                        : "CANCELLED"}
+                    </Badge>
                   </HStack>
+                  {canApprove(request) && (
+                    <HStack
+                      gap="2"
+                      align="center"
+                      className="flex-wrap mt-auto pt-2 border-t"
+                    >
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                        }}
+                      >
+                        View details
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                          setRejectionReason("");
+                          setNotes("");
+                        }}
+                      >
+                        <Icon name="X" size={IconSizes.sm} />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleApprove(
+                            request,
+                            userRole === "account_manager" ? "manager" : "hr"
+                          );
+                        }}
+                      >
+                        <Icon name="Check" size={IconSizes.sm} />
+                        {userRole === "account_manager"
+                          ? "Approve"
+                          : "Approve (HR)"}
+                      </Button>
+                    </HStack>
+                  )}
                 </CardContent>
               </Card>
             ))}

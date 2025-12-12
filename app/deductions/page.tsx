@@ -218,12 +218,12 @@ export default function DeductionsPage() {
           .eq("id", deductions.id);
 
         if (error) throw error;
-        toast.success(
-          `Deductions updated for period ${formatBiMonthlyPeriod(
+        toast.success("✅ Deductions updated successfully!", {
+          description: `Period: ${formatBiMonthlyPeriod(
             periodStart,
             periodEnd
-          )}`
-        );
+          )}`,
+        });
       } else {
         // Create new
         const { error } = await supabase
@@ -231,12 +231,12 @@ export default function DeductionsPage() {
           .insert([deductionData]);
 
         if (error) throw error;
-        toast.success(
-          `Deductions saved for period ${formatBiMonthlyPeriod(
+        toast.success("✅ Deductions saved successfully!", {
+          description: `Period: ${formatBiMonthlyPeriod(
             periodStart,
             periodEnd
-          )}`
-        );
+          )}`,
+        });
       }
 
       loadDeductions();

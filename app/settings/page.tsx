@@ -216,7 +216,9 @@ export default function SettingsPage() {
         throw new Error(errorMessage);
       }
 
-      toast.success(`User ${data.user.full_name} created successfully!`);
+      toast.success(`✅ User created successfully!`, {
+        description: `${data.user.full_name} • ${data.user.email} • Role: ${data.user.role}`,
+      });
       setShowUserModal(false);
       setNewUser({
         email: "",
@@ -255,7 +257,10 @@ export default function SettingsPage() {
       }
 
       toast.success(
-        `User ${isActive ? "activated" : "deactivated"} successfully!`
+        `✅ User ${isActive ? "activated" : "deactivated"} successfully!`,
+        {
+          description: "User status has been updated",
+        }
       );
       setUserToDeactivate(null);
       setUserToActivate(null);
@@ -295,7 +300,9 @@ export default function SettingsPage() {
         throw new Error(data.error || "Failed to delete user");
       }
 
-      toast.success(`User ${userToDelete.full_name} deleted successfully!`);
+      toast.success(`✅ User deleted successfully!`, {
+        description: `${userToDelete.full_name} • ${userToDelete.email}`,
+      });
       setUserToDelete(null);
       setDeleteConfirmText("");
       // Reload users list

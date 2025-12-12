@@ -455,9 +455,14 @@ export default function LeaveApprovalPage() {
     }
 
     toast.success(
-      `✅ Request ${
+      `✅ Leave request ${
         level === "manager" ? "approved by manager" : "approved by HR"
-      }`
+      }!`,
+      {
+        description: `${request.leave_type} • ${
+          request.total_days || 0
+        } day(s)`,
+      }
     );
     fetchRequests();
     setSelectedRequest(null);
@@ -491,7 +496,9 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    toast.success("Request rejected");
+    toast.success("Leave request rejected", {
+      description: "The request has been declined",
+    });
     fetchRequests();
     setSelectedRequest(null);
     setRejectionReason("");

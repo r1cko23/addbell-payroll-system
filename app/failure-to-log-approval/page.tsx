@@ -226,7 +226,9 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    toast.success("✅ Request approved and time entry updated");
+    toast.success("✅ Failure to log request approved!", {
+      description: "Time entry has been updated successfully",
+    });
     fetchRequests();
     setSelectedRequest(null);
     setApproveLoading(false);
@@ -255,7 +257,9 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    toast.success("Request rejected");
+    toast.success("Failure to log request rejected", {
+      description: "The request has been declined",
+    });
     fetchRequests();
     setSelectedRequest(null);
     setRejectionReason("");

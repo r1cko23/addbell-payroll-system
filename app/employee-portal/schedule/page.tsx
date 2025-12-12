@@ -12,6 +12,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { toast } from "sonner";
 
@@ -32,6 +42,7 @@ export default function SchedulePage() {
   );
   const [days, setDays] = useState<DayEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const weekMonday = startOfWeek(weekStart, { weekStartsOn: 1 });
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -113,12 +124,13 @@ export default function SchedulePage() {
     );
   };
 
-  const handleSubmit = async () => {
+  const handleSaveWeek = async () => {
     if (isLocked) {
       toast.error("This week is locked. Edits are only allowed until Monday.");
       return;
     }
     setLoading(true);
+    setShowSaveConfirm(false);
     const entries = days
       .filter((d) => d.schedule_date && !d.day_off)
       .map((d) => ({
@@ -127,35 +139,86 @@ export default function SchedulePage() {
         end_time: d.end_time,
         tasks: d.tasks || null,
       }));
-    const payload = {
-      p_employee_id: employee.id,
-      p_week_start: format(
-        startOfWeek(weekStart, { weekStartsOn: 1 }),
-        "yyyy-MM-dd"
-      ),
-      p_entries: entries,
-    };
 
-    // First try RPC; fallback to direct table ops if RPC endpoint is not registered yet (404)
-    const { error } = await supabase.rpc("save_week_schedule", payload);
+    const weekStartIso = format(
+      startOfWeek(weekStart, { weekStartsOn: 1 }),
+      "yyyy-MM-dd"
+    );
 
-    // If RPC fails for any reason (including 404 path not registered), fallback to direct table writes
-    if (error) {
-      // Fallback: direct delete + insert
-      try {
-        const weekStartIso = payload.p_week_start;
-        const weekEndIso = format(
-          addDays(new Date(weekStartIso), 6),
-          "yyyy-MM-dd"
+    try {
+      console.log("Saving schedule:", {
+        employeeId: employee.id,
+        weekStartIso,
+        entries,
+      });
+
+      // Use replace_week_schedule RPC function
+      const { data, error } = await supabase.rpc("replace_week_schedule", {
+        p_employee_id: employee.id,
+        p_week_start: weekStartIso,
+        p_entries: entries.length > 0 ? entries : null,
+      });
+
+      console.log("RPC response:", { data, error });
+
+      // If RPC succeeds
+      if (!error) {
+        console.log("RPC succeeded, showing success toast");
+        toast.success("✅ Schedule has been saved successfully!", {
+          description: `Week starting ${format(
+            startOfWeek(weekStart, { weekStartsOn: 1 }),
+            "MMMM d, yyyy"
+          )}`,
+          duration: 5000,
+        });
+
+        // Reload the schedule to show updated data
+        const monday = startOfWeek(weekStart, { weekStartsOn: 1 });
+        const { data: updatedData, error: reloadError } = await supabase.rpc(
+          "get_my_week_schedule",
+          {
+            p_employee_id: employee.id,
+            p_week_start: format(monday, "yyyy-MM-dd"),
+          }
         );
-        const { error: delErr } = await supabase
-          .from("employee_week_schedules")
-          .delete()
-          .eq("employee_id", employee.id)
-          .gte("schedule_date", weekStartIso)
-          .lte("schedule_date", weekEndIso);
-        if (delErr) throw delErr;
+        if (!reloadError && updatedData) {
+          setDays(
+            weekDays.map((d) => {
+              const iso = format(d, "yyyy-MM-dd");
+              const existing = (updatedData || []).find(
+                (row: any) => row.schedule_date === iso
+              );
+              return {
+                schedule_date: iso,
+                start_time: existing?.start_time || "",
+                end_time: existing?.end_time || "",
+                day_off: existing?.day_off || false,
+                tasks: existing?.tasks || "",
+              };
+            })
+          );
+        }
+        setLoading(false);
+        return;
+      }
 
+      // If RPC fails, fallback to direct table writes
+      console.warn("RPC failed, using fallback:", error);
+      const weekEndIso = format(
+        addDays(new Date(weekStartIso), 6),
+        "yyyy-MM-dd"
+      );
+
+      const { error: delErr } = await supabase
+        .from("employee_week_schedules")
+        .delete()
+        .eq("employee_id", employee.id)
+        .gte("schedule_date", weekStartIso)
+        .lte("schedule_date", weekEndIso);
+
+      if (delErr) throw delErr;
+
+      if (entries.length > 0) {
         const { error: insErr } = await supabase
           .from("employee_week_schedules")
           .insert(
@@ -168,16 +231,51 @@ export default function SchedulePage() {
               tasks: e.tasks || null,
             }))
           );
+
         if (insErr) throw insErr;
-        toast.success("Weekly schedule updated");
-      } catch (fallbackErr: any) {
-        console.error("Fallback save failed", fallbackErr);
-        toast.error(fallbackErr?.message || "Failed to save schedule");
       }
-    } else {
-      toast.success("Weekly schedule updated");
+
+      console.log("Fallback save succeeded, showing success toast");
+      toast.success("✅ Schedule has been saved successfully!", {
+        description: `Week starting ${format(
+          startOfWeek(weekStart, { weekStartsOn: 1 }),
+          "MMMM d, yyyy"
+        )}`,
+        duration: 5000,
+      });
+
+      // Reload the schedule to show updated data
+      const monday = startOfWeek(weekStart, { weekStartsOn: 1 });
+      const { data: updatedData, error: reloadError } = await supabase.rpc(
+        "get_my_week_schedule",
+        {
+          p_employee_id: employee.id,
+          p_week_start: format(monday, "yyyy-MM-dd"),
+        }
+      );
+      if (!reloadError && updatedData) {
+        setDays(
+          weekDays.map((d) => {
+            const iso = format(d, "yyyy-MM-dd");
+            const existing = (updatedData || []).find(
+              (row: any) => row.schedule_date === iso
+            );
+            return {
+              schedule_date: iso,
+              start_time: existing?.start_time || "",
+              end_time: existing?.end_time || "",
+              day_off: existing?.day_off || false,
+              tasks: existing?.tasks || "",
+            };
+          })
+        );
+      }
+    } catch (err: any) {
+      console.error("Save failed:", err);
+      toast.error(err?.message || "Failed to save schedule. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleClearWeek = async () => {
@@ -275,6 +373,30 @@ export default function SchedulePage() {
               Auto-fill 8:00–17:00
             </Button>
           </HStack>
+          <HStack
+            gap="3"
+            justify="end"
+            align="center"
+            className="flex-col sm:flex-row pt-2"
+          >
+            <Button
+              variant="outline"
+              onClick={handleClearWeek}
+              disabled={isLocked || loading}
+              className="w-full sm:w-auto"
+            >
+              <Icon name="TrashSimple" size={IconSizes.sm} />
+              {loading ? "Clearing..." : "Clear Week"}
+            </Button>
+            <Button
+              onClick={() => setShowSaveConfirm(true)}
+              disabled={isLocked || loading}
+              className="w-full sm:w-auto"
+            >
+              <Icon name="FloppyDisk" size={IconSizes.sm} />
+              {loading ? "Saving..." : "Save Week"}
+            </Button>
+          </HStack>
           {isLocked && (
             <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3">
               <Caption className="font-medium text-destructive">
@@ -370,32 +492,35 @@ export default function SchedulePage() {
               </div>
             ))}
           </div>
-          <HStack
-            gap="3"
-            justify="end"
-            align="center"
-            className="flex-col sm:flex-row pt-2"
-          >
-            <Button
-              variant="outline"
-              onClick={handleClearWeek}
-              disabled={isLocked || loading}
-              className="w-full sm:w-auto"
-            >
-              <Icon name="TrashSimple" size={IconSizes.sm} />
-              {loading ? "Clearing..." : "Clear Week"}
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={isLocked || loading}
-              className="w-full sm:w-auto"
-            >
-              <Icon name="FloppyDisk" size={IconSizes.sm} />
-              {loading ? "Saving..." : "Save Week"}
-            </Button>
-          </HStack>
         </VStack>
       </CardSection>
+
+      <AlertDialog open={showSaveConfirm} onOpenChange={setShowSaveConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save Weekly Schedule</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to save your schedule for the week starting{" "}
+              <span className="font-medium">
+                {format(
+                  startOfWeek(weekStart, { weekStartsOn: 1 }),
+                  "MMMM d, yyyy"
+                )}
+              </span>
+              ? This will overwrite any existing schedule for this week.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSaveWeek} disabled={loading}>
+              <HStack gap="2" align="center">
+                <Icon name="FloppyDisk" size={IconSizes.sm} />
+                <span>{loading ? "Saving..." : "Save Schedule"}</span>
+              </HStack>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </VStack>
   );
 }

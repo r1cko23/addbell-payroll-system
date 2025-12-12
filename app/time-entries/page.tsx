@@ -322,7 +322,9 @@ export default function TimeEntriesPage() {
       return;
     }
 
-    toast.success("Entry approved ✅");
+    toast.success("✅ Time entry approved successfully!", {
+      description: "Entry has been verified and approved",
+    });
     fetchTimeEntries();
     setSelectedEntry(null);
     setHrNotes("");
@@ -348,7 +350,9 @@ export default function TimeEntriesPage() {
       return;
     }
 
-    toast.success("Entry rejected");
+    toast.success("Time entry rejected", {
+      description: "The entry has been declined",
+    });
     fetchTimeEntries();
     setSelectedEntry(null);
     setHrNotes("");

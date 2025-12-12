@@ -162,7 +162,8 @@ export default function EmployeesPage() {
     [weekStart]
   );
 
-  const scheduleAllowed = isAdmin || role === "account_manager";
+  const scheduleAllowed =
+    isAdmin || role === "account_manager" || role === "hr";
 
   useEffect(() => {
     fetchEmployees();
@@ -384,7 +385,9 @@ export default function EmployeesPage() {
 
         if (error) throw error;
         await saveEmployeeLocations(editingEmployee.id, formData.locations);
-        toast.success("Employee updated successfully");
+        toast.success("✅ Employee updated successfully!", {
+          description: `${formData.full_name} • ${formData.employee_id}`,
+        });
       } else {
         const { data: inserted, error } = await supabase
           .from("employees")
@@ -402,9 +405,9 @@ export default function EmployeesPage() {
         if (employeeId) {
           await saveEmployeeLocations(employeeId, formData.locations);
         }
-        toast.success(
-          "Employee added successfully. Portal password set to Employee ID."
-        );
+        toast.success("✅ Employee added successfully!", {
+          description: `${formData.full_name} • Portal password set to Employee ID`,
+        });
       }
 
       setShowModal(false);
@@ -427,9 +430,12 @@ export default function EmployeesPage() {
       if (error) throw error;
 
       toast.success(
-        `Employee ${
+        `✅ Employee ${
           employee.is_active ? "deactivated" : "activated"
-        } successfully`
+        } successfully!`,
+        {
+          description: `${employee.full_name} • ${employee.employee_id}`,
+        }
       );
       fetchEmployees();
     } catch (error: any) {
@@ -475,7 +481,9 @@ export default function EmployeesPage() {
 
       if (error) throw error;
 
-      toast.success("Portal password updated successfully");
+      toast.success("✅ Portal password updated successfully!", {
+        description: `${passwordEmployee.full_name} • ${passwordEmployee.employee_id}`,
+      });
       setShowPasswordModal(false);
       fetchEmployees();
     } catch (error: any) {
@@ -717,7 +725,7 @@ export default function EmployeesPage() {
               <CardHeader className="pb-3">
                 <CardTitle>Schedules</CardTitle>
                 <CardDescription>
-                  Weekly schedules for account managers and admins.
+                  Weekly schedules for account managers, HR, and admins.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -727,7 +735,7 @@ export default function EmployeesPage() {
                   </div>
                 ) : !scheduleAllowed ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    Only account managers or admins can view schedules.
+                    Only account managers, HR, or admins can view schedules.
                   </div>
                 ) : (
                   <>

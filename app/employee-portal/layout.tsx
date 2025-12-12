@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   EmployeeSession,
@@ -246,6 +247,7 @@ export default function EmployeePortalLayout({
         <main className="w-full max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6">
           {children}
         </main>
+        <Toaster position="top-right" richColors />
       </div>
     </EmployeeSessionProvider>
   );

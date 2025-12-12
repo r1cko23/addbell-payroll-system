@@ -140,7 +140,9 @@ export default function FailureToLogPage() {
       return;
     }
 
-    toast.success("Request cancelled");
+    toast.success("Request cancelled", {
+      description: "Your failure to log request has been cancelled",
+    });
     setCancelId(null);
     if (employee) {
       fetchFailureToLogRequests(employee.id);
@@ -199,7 +201,15 @@ export default function FailureToLogPage() {
       return;
     }
 
-    toast.success("✅ Failure to log request submitted successfully!");
+    toast.success("✅ Failure to log request submitted successfully!", {
+      description: `Status: Pending approval • ${
+        entryType === "both"
+          ? "Clock in & out"
+          : entryType === "in"
+          ? "Clock in"
+          : "Clock out"
+      }`,
+    });
     setMissedDate("");
     setTimeIn("");
     setTimeOut("");

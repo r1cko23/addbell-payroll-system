@@ -122,12 +122,12 @@ export default function SchedulesPage() {
     );
   }
 
-  if (!isAdmin && role !== "account_manager") {
+  if (!isAdmin && role !== "account_manager" && role !== "hr") {
     return (
       <DashboardLayout>
         <VStack gap="4" className="w-full">
           <BodySmall>
-            Only Account Managers or Admins can view schedules.
+            Only Account Managers, HR, or Admins can view schedules.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -154,7 +154,7 @@ export default function SchedulesPage() {
           <VStack gap="2" align="start">
             <H1>Weekly Schedules</H1>
             <BodySmall>
-              View employee schedules (Mon–Sun). Account managers/admins can
+              View employee schedules (Mon–Sun). Account managers/HR/admins can
               overwrite weeks.
             </BodySmall>
           </VStack>

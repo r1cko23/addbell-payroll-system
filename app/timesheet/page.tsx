@@ -228,7 +228,12 @@ export default function TimesheetPage() {
           .eq("id", existingData.id);
 
         if (error) throw error;
-        toast.success("Timesheet updated successfully");
+        toast.success("✅ Timesheet updated successfully!", {
+          description: `Period: ${formatBiMonthlyPeriod(
+            periodStart,
+            periodEnd
+          )}`,
+        });
       } else {
         // Create new
         const { error } = await supabase.from("weekly_attendance").insert([
@@ -246,7 +251,12 @@ export default function TimesheetPage() {
         ]);
 
         if (error) throw error;
-        toast.success("Timesheet saved successfully");
+        toast.success("✅ Timesheet saved successfully!", {
+          description: `Period: ${formatBiMonthlyPeriod(
+            periodStart,
+            periodEnd
+          )}`,
+        });
       }
 
       // Clear form

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,7 +184,12 @@ export default function OvertimePage() {
         }
       }
 
-      toast.success("OT request submitted");
+      toast.success("✅ Overtime request submitted successfully!", {
+        description: `Date: ${formatPHTime(
+          new Date(formData.ot_date),
+          "MMM d, yyyy"
+        )} • ${totalHours.toFixed(2)} hours`,
+      });
       setFormData({
         ot_date: "",
         start_time: "",

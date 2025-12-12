@@ -508,7 +508,9 @@ export default function LeaveRequestPage() {
 
     setSubmitting(false);
 
-    toast.success("✅ Leave request submitted successfully!");
+    toast.success("✅ Leave request submitted successfully!", {
+      description: `${leaveType} • ${calculatedDays} day(s) • Status: Pending approval`,
+    });
     setStartDate("");
     setEndDate("");
     setReason("");
@@ -546,7 +548,9 @@ export default function LeaveRequestPage() {
       return;
     }
 
-    toast.success("Leave request cancelled");
+    toast.success("Leave request cancelled", {
+      description: "Your request has been cancelled successfully",
+    });
     setCancelId(null);
     if (employee) {
       fetchLeaveRequests(employee.id);

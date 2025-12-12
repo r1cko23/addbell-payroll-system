@@ -184,7 +184,9 @@ export default function OvertimeApprovalPage() {
     if (error) {
       toast.error(error.message || "Failed to approve OT");
     } else {
-      toast.success("OT approved and offset hours added");
+      toast.success("✅ Overtime request approved successfully!", {
+        description: "Offset hours have been added to employee balance",
+      });
       loadRequests();
     }
     setActioningId(null);
@@ -199,7 +201,9 @@ export default function OvertimeApprovalPage() {
     if (error) {
       toast.error(error.message || "Failed to reject OT");
     } else {
-      toast.success("OT rejected");
+      toast.success("Overtime request rejected", {
+        description: "The request has been declined",
+      });
       loadRequests();
     }
     setActioningId(null);

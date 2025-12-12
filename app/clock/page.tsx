@@ -260,7 +260,7 @@ export default function ClockPage() {
     }
 
     setCurrentEntry(data);
-    toast.success("Clocked in successfully! ✅");
+    toast.success("Clocked in successfully!");
     fetchTodayEntries();
   }
 
@@ -631,7 +631,7 @@ export default function ClockPage() {
             <Card className="p-6 bg-emerald-50 border-emerald-200">
               <div className="text-center space-y-4">
                 <h3 className="text-lg font-bold text-emerald-900">
-                  📋 How to Use
+                  How to Use
                 </h3>
                 <ul className="text-left max-w-md mx-auto space-y-2 text-emerald-800">
                   <li className="flex items-start gap-2">

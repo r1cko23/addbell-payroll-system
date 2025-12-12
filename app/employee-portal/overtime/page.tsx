@@ -184,7 +184,7 @@ export default function OvertimePage() {
         }
       }
 
-      toast.success("✅ Overtime request submitted successfully!", {
+      toast.success("Overtime request submitted successfully!", {
         description: `Date: ${formatPHTime(
           new Date(formData.ot_date),
           "MMM d, yyyy"

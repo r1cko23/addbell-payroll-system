@@ -184,7 +184,7 @@ export default function OvertimeApprovalPage() {
     if (error) {
       toast.error(error.message || "Failed to approve OT");
     } else {
-      toast.success("✅ Overtime request approved successfully!", {
+      toast.success("Overtime request approved successfully!", {
         description: "Offset hours have been added to employee balance",
       });
       loadRequests();

@@ -508,7 +508,7 @@ export default function LeaveRequestPage() {
 
     setSubmitting(false);
 
-    toast.success("✅ Leave request submitted successfully!", {
+    toast.success("Leave request submitted successfully!", {
       description: `${leaveType} • ${calculatedDays} day(s) • Status: Pending approval`,
     });
     setStartDate("");
@@ -804,7 +804,7 @@ export default function LeaveRequestPage() {
                         </p>
                         {silCredits !== null && silCredits <= 0 && (
                           <p className="text-red-600 font-medium">
-                            ⚠️ You have no SIL credits available. Please select
+                            You have no SIL credits available. Please select
                             LWOP instead.
                           </p>
                         )}

@@ -228,7 +228,7 @@ export default function TimesheetPage() {
           .eq("id", existingData.id);
 
         if (error) throw error;
-        toast.success("✅ Timesheet updated successfully!", {
+        toast.success("Timesheet updated successfully!", {
           description: `Period: ${formatBiMonthlyPeriod(
             periodStart,
             periodEnd
@@ -251,7 +251,7 @@ export default function TimesheetPage() {
         ]);
 
         if (error) throw error;
-        toast.success("✅ Timesheet saved successfully!", {
+        toast.success("Timesheet saved successfully!", {
           description: `Period: ${formatBiMonthlyPeriod(
             periodStart,
             periodEnd
@@ -313,9 +313,7 @@ export default function TimesheetPage() {
       });
 
       setPeriodDays(updatedDays);
-      toast.success(
-        "✅ Copied last period's hours! Review and save when ready."
-      );
+      toast.success("Copied last period's hours! Review and save when ready.");
     } catch (error) {
       console.error("Error copying last period:", error);
       toast.error("Failed to copy last period's data");
@@ -408,7 +406,7 @@ export default function TimesheetPage() {
             sum + (typeof d.overtimeHours === "number" ? d.overtimeHours : 0),
           0
         );
-        toast.success(`✅ Imported ${totalReg.toFixed(1)}h regular hours`);
+        toast.success(`Imported ${totalReg.toFixed(1)}h regular hours`);
       }
     } catch (error) {
       console.error("Error importing clock entries:", error);
@@ -440,7 +438,7 @@ export default function TimesheetPage() {
     });
 
     setPeriodDays(updatedDays);
-    toast.success("✅ Applied standard bi-monthly period (8hrs Mon-Fri)");
+    toast.success("Applied standard bi-monthly period (8hrs Mon-Fri)");
   }
 
   async function loadExistingTimesheet() {
@@ -511,7 +509,7 @@ export default function TimesheetPage() {
 
     if (total > 16) {
       warnings.push(
-        `⚠️ ${day.dayName} (${formatDateShort(
+        `${day.dayName} (${formatDateShort(
           day.date
         )}): ${total} total hours exceeds 16 (possible duplicate entry?)`
       );
@@ -624,7 +622,7 @@ export default function TimesheetPage() {
                       ))}
                     </ul>
                     <Caption className="text-yellow-600">
-                      💡 These are just warnings. Review the data and save if
+                      These are just warnings. Review the data and save if
                       correct.
                     </Caption>
                   </VStack>
@@ -763,21 +761,21 @@ export default function TimesheetPage() {
                       size="sm"
                       onClick={applyStandardPeriod}
                     >
-                      📅 Standard Period
+                      Standard Period
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={copyLastPeriod}
                     >
-                      📋 Copy Last Period
+                      Copy Last Period
                     </Button>
                     <Button
                       variant="secondary"
                       size="sm"
                       onClick={initializePeriodDays}
                     >
-                      🗑️ Clear All
+                      Clear All
                     </Button>
                   </HStack>
                 </VStack>

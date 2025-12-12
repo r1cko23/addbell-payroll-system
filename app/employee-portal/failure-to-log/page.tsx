@@ -201,7 +201,7 @@ export default function FailureToLogPage() {
       return;
     }
 
-    toast.success("✅ Failure to log request submitted successfully!", {
+    toast.success("Failure to log request submitted successfully!", {
       description: `Status: Pending approval • ${
         entryType === "both"
           ? "Clock in & out"

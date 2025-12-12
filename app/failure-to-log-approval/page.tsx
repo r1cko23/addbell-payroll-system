@@ -226,7 +226,7 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    toast.success("✅ Failure to log request approved!", {
+    toast.success("Failure to log request approved!", {
       description: "Time entry has been updated successfully",
     });
     fetchRequests();

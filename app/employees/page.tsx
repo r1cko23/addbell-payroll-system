@@ -385,7 +385,7 @@ export default function EmployeesPage() {
 
         if (error) throw error;
         await saveEmployeeLocations(editingEmployee.id, formData.locations);
-        toast.success("✅ Employee updated successfully!", {
+        toast.success("Employee updated successfully!", {
           description: `${full_name} • ${formData.employee_id}`,
         });
       } else {
@@ -405,7 +405,7 @@ export default function EmployeesPage() {
         if (employeeId) {
           await saveEmployeeLocations(employeeId, formData.locations);
         }
-        toast.success("✅ Employee added successfully!", {
+        toast.success("Employee added successfully!", {
           description: `${full_name} • Portal password set to Employee ID`,
         });
       }
@@ -430,7 +430,7 @@ export default function EmployeesPage() {
       if (error) throw error;
 
       toast.success(
-        `✅ Employee ${
+        `Employee ${
           employee.is_active ? "deactivated" : "activated"
         } successfully!`,
         {
@@ -481,7 +481,7 @@ export default function EmployeesPage() {
 
       if (error) throw error;
 
-      toast.success("✅ Portal password updated successfully!", {
+      toast.success("Portal password updated successfully!", {
         description: `${passwordEmployee.full_name} • ${passwordEmployee.employee_id}`,
       });
       setShowPasswordModal(false);

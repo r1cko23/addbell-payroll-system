@@ -216,7 +216,7 @@ export default function SettingsPage() {
         throw new Error(errorMessage);
       }
 
-      toast.success(`✅ User created successfully!`, {
+      toast.success(`User created successfully!`, {
         description: `${data.user.full_name} • ${data.user.email} • Role: ${data.user.role}`,
       });
       setShowUserModal(false);
@@ -257,7 +257,7 @@ export default function SettingsPage() {
       }
 
       toast.success(
-        `✅ User ${isActive ? "activated" : "deactivated"} successfully!`,
+        `User ${isActive ? "activated" : "deactivated"} successfully!`,
         {
           description: "User status has been updated",
         }
@@ -300,7 +300,7 @@ export default function SettingsPage() {
         throw new Error(data.error || "Failed to delete user");
       }
 
-      toast.success(`✅ User deleted successfully!`, {
+      toast.success(`User deleted successfully!`, {
         description: `${userToDelete.full_name} • ${userToDelete.email}`,
       });
       setUserToDelete(null);
@@ -597,11 +597,11 @@ export default function SettingsPage() {
               in the project root
             </BodySmall>
             <BodySmall>
-              🚀 <strong>Quick Start:</strong> See QUICKSTART.md for a 30-minute
+              <strong>Quick Start:</strong> See QUICKSTART.md for a 30-minute
               setup guide
             </BodySmall>
             <BodySmall>
-              💡 <strong>Payroll Process:</strong> Enter Timesheet → Generate
+              <strong>Payroll Process:</strong> Enter Timesheet → Generate
               Payslips → Print/Export
             </BodySmall>
           </VStack>

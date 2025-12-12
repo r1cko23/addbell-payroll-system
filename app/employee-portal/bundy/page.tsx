@@ -705,11 +705,11 @@ export default function BundyClockPage() {
         if (fetchError || !entryData) {
           console.error("Error fetching created entry:", fetchError);
           // Still show success since the entry was created
-          toast.success("✅ Clocked in successfully!");
+          toast.success("Clocked in successfully!");
         } else {
           console.log("Clock in successful, updating UI...");
           setCurrentEntry(entryData);
-          toast.success("✅ Clocked in successfully!");
+          toast.success("Clocked in successfully!");
         }
 
         // Don't await these - let them run in background to avoid blocking
@@ -768,7 +768,7 @@ export default function BundyClockPage() {
       }
 
       console.log("Clock out successful, updating UI...");
-      toast.success("✅ Clocked out successfully!");
+      toast.success("Clocked out successfully!");
       setCurrentEntry(null);
 
       // Don't await these - let them run in background to avoid blocking

@@ -455,7 +455,7 @@ export default function LeaveApprovalPage() {
     }
 
     toast.success(
-      `✅ Leave request ${
+      `Leave request ${
         level === "manager" ? "approved by manager" : "approved by HR"
       }!`,
       {

@@ -322,7 +322,7 @@ export default function TimeEntriesPage() {
       return;
     }
 
-    toast.success("✅ Time entry approved successfully!", {
+    toast.success("Time entry approved successfully!", {
       description: "Entry has been verified and approved",
     });
     fetchTimeEntries();
@@ -526,9 +526,7 @@ export default function TimeEntriesPage() {
                   className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0"
                 />
                 <div className="text-sm text-emerald-900 leading-relaxed">
-                  <p className="font-semibold mb-2">
-                    ℹ️ Auto-Sync to Timesheet
-                  </p>
+                  <p className="font-semibold mb-2">Auto-Sync to Timesheet</p>
                   <p>
                     Approved entries automatically populate the timesheet.
                     Review and approve{" "}

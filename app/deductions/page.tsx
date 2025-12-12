@@ -218,7 +218,7 @@ export default function DeductionsPage() {
           .eq("id", deductions.id);
 
         if (error) throw error;
-        toast.success("✅ Deductions updated successfully!", {
+        toast.success("Deductions updated successfully!", {
           description: `Period: ${formatBiMonthlyPeriod(
             periodStart,
             periodEnd
@@ -231,7 +231,7 @@ export default function DeductionsPage() {
           .insert([deductionData]);
 
         if (error) throw error;
-        toast.success("✅ Deductions saved successfully!", {
+        toast.success("Deductions saved successfully!", {
           description: `Period: ${formatBiMonthlyPeriod(
             periodStart,
             periodEnd
@@ -538,8 +538,8 @@ export default function DeductionsPage() {
                   </span>
                 </HStack>
                 <BodySmall className="text-emerald-600 mt-2">
-                  💡 These will be applied when you check the boxes in the
-                  payslip (usually 3rd or 4th week)
+                  These will be applied when you check the boxes in the payslip
+                  (usually 3rd or 4th week)
                 </BodySmall>
               </div>
             </CardSection>

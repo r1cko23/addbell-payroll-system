@@ -164,7 +164,7 @@ export default function SchedulePage() {
       // If RPC succeeds
       if (!error) {
         console.log("RPC succeeded, showing success toast");
-        toast.success("✅ Schedule has been saved successfully!", {
+        toast.success("Schedule has been saved successfully!", {
           description: `Week starting ${format(
             startOfWeek(weekStart, { weekStartsOn: 1 }),
             "MMMM d, yyyy"
@@ -236,7 +236,7 @@ export default function SchedulePage() {
       }
 
       console.log("Fallback save succeeded, showing success toast");
-      toast.success("✅ Schedule has been saved successfully!", {
+      toast.success("Schedule has been saved successfully!", {
         description: `Week starting ${format(
           startOfWeek(weekStart, { weekStartsOn: 1 }),
           "MMMM d, yyyy"

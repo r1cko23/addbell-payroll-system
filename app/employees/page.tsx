@@ -386,7 +386,7 @@ export default function EmployeesPage() {
         if (error) throw error;
         await saveEmployeeLocations(editingEmployee.id, formData.locations);
         toast.success("✅ Employee updated successfully!", {
-          description: `${formData.full_name} • ${formData.employee_id}`,
+          description: `${full_name} • ${formData.employee_id}`,
         });
       } else {
         const { data: inserted, error } = await supabase
@@ -406,7 +406,7 @@ export default function EmployeesPage() {
           await saveEmployeeLocations(employeeId, formData.locations);
         }
         toast.success("✅ Employee added successfully!", {
-          description: `${formData.full_name} • Portal password set to Employee ID`,
+          description: `${full_name} • Portal password set to Employee ID`,
         });
       }
 

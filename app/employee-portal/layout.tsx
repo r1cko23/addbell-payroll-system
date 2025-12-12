@@ -247,7 +247,27 @@ export default function EmployeePortalLayout({
         <main className="w-full max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-6">
           {children}
         </main>
-        <Toaster position="top-right" richColors />
+        <Toaster
+          position="top-center"
+          richColors
+          expand={true}
+          toastOptions={{
+            style: {
+              background: "hsl(var(--background))",
+              color: "hsl(var(--foreground))",
+              border: "1px solid hsl(var(--border))",
+              borderRadius: "0.5rem",
+              boxShadow:
+                "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+              padding: "1rem",
+              minWidth: "320px",
+              maxWidth: "420px",
+            },
+            className: "toast-message",
+            duration: 4000,
+          }}
+          offset={80}
+        />
       </div>
     </EmployeeSessionProvider>
   );

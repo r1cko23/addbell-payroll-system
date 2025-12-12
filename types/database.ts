@@ -14,7 +14,7 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          role: "admin" | "hr";
+          role: "admin" | "hr" | "account_manager";
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -23,7 +23,7 @@ export interface Database {
           id?: string;
           email: string;
           full_name: string;
-          role: "admin" | "hr";
+          role: "admin" | "hr" | "account_manager";
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -32,7 +32,7 @@ export interface Database {
           id?: string;
           email?: string;
           full_name?: string;
-          role?: "admin" | "hr";
+          role?: "admin" | "hr" | "account_manager";
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;

@@ -45,6 +45,10 @@ type PhosphorIconName =
   | "Paperclip"
   | "XCircle"
   | "TrashSimple"
+  | "Trash"
+  | "UserMinus"
+  | "UserPlus"
+  | "DotsThreeVertical"
   | "FloppyDisk"
   | "Clock"
   | "ArrowRight";

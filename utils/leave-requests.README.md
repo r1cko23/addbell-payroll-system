@@ -257,3 +257,4 @@ export function LeaveRequestList({ requests }: { requests: LeaveRequest[] }) {
 - The utility handles missing department fields gracefully (groups as 'Unassigned')
 - Groups are automatically sorted in a logical order (e.g., Overdue → Today → This Week → This Month → Upcoming)
 
+

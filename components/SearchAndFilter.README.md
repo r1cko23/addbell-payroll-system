@@ -360,3 +360,4 @@ Searches for "John" AND filters by date.
 4. **Check Recent Searches**: Access recent searches via dropdown
 5. **Highlight Results**: Use `highlightSearchTerms` to show matches in results
 
+

@@ -212,11 +212,13 @@ export default function OvertimeApprovalPage() {
     );
   }
 
-  if (role !== "account_manager") {
+  if (role !== "account_manager" && role !== "admin") {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
-          <BodySmall>Only Account Managers can access OT approvals.</BodySmall>
+          <BodySmall>
+            Only Account Managers and Admins can access OT approvals.
+          </BodySmall>
         </VStack>
       </DashboardLayout>
     );
@@ -400,7 +402,7 @@ export default function OvertimeApprovalPage() {
                           {req.status.toUpperCase()}
                         </Badge>
                         {req.status === "pending" &&
-                          role === "account_manager" && (
+                          (role === "account_manager" || role === "admin") && (
                             <>
                               <Button
                                 size="sm"

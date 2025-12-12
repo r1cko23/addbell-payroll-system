@@ -361,3 +361,4 @@ Searches for "John" AND filters by date.
 5. **Highlight Results**: Use `highlightSearchTerms` to show matches in results
 
 
+

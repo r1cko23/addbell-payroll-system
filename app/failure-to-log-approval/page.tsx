@@ -47,6 +47,7 @@ interface FailureToLog {
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
   rejection_reason: string | null;
+  account_manager_id: string | null;
   created_at: string;
   employees: {
     employee_id: string;
@@ -73,6 +74,9 @@ export default function FailureToLogApprovalPage() {
   );
   const [rejectionReason, setRejectionReason] = useState("");
   const [approveLoading, setApproveLoading] = useState(false);
+  const [approverNames, setApproverNames] = useState<Record<string, string>>(
+    {}
+  );
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
@@ -157,6 +161,54 @@ export default function FailureToLogApprovalPage() {
 
     const cleaned = (data || []).filter((r) => r.status !== "cancelled");
     setRequests(cleaned);
+
+    // Load approver names for approved items
+    const approverIds = Array.from(
+      new Set(
+        cleaned
+          .map((r) => r.account_manager_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    if (approverIds.length > 0) {
+      loadApproverNames(approverIds);
+    }
+  }
+
+  async function loadApproverNames(ids: string[]) {
+    if (ids.length === 0) return;
+
+    // Primary: users table (auth profiles), fallback: employees
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id, full_name, email")
+      .in("id", ids);
+
+    if (userData && !userError) {
+      setApproverNames((prev) => {
+        const next = { ...prev };
+        userData.forEach((row) => {
+          next[row.id] = row.full_name || row.email || row.id;
+        });
+        return next;
+      });
+      return;
+    }
+
+    const { data: empData, error: empError } = await supabase
+      .from("employees")
+      .select("id, full_name, email")
+      .in("id", ids);
+
+    if (empError || !empData) return;
+
+    setApproverNames((prev) => {
+      const next = { ...prev };
+      empData.forEach((row) => {
+        next[row.id] = row.full_name || row.email || row.id;
+      });
+      return next;
+    });
   }
 
   async function handleApprove(requestId: string) {
@@ -518,6 +570,13 @@ export default function FailureToLogApprovalPage() {
                       </span>
                     </BodySmall>
                   )}
+                  {request.status === "approved" &&
+                    request.account_manager_id && (
+                      <Caption className="text-xs text-gray-600 mt-1">
+                        Approved by Manager:{" "}
+                        {approverNames[request.account_manager_id] || "Manager"}
+                      </Caption>
+                    )}
                   <HStack gap="2" align="center" className="flex-wrap mt-auto">
                     <Button
                       variant="secondary"
@@ -658,6 +717,19 @@ export default function FailureToLogApprovalPage() {
                     </p>
                   </div>
                 )}
+
+                {selectedRequest.status === "approved" &&
+                  selectedRequest.account_manager_id && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Approved by Manager:{" "}
+                        <span className="font-medium text-foreground">
+                          {approverNames[selectedRequest.account_manager_id] ||
+                            "Manager"}
+                        </span>
+                      </p>
+                    </div>
+                  )}
 
                 {selectedRequest.status === "pending" && (
                   <div className="space-y-2">

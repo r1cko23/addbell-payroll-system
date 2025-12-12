@@ -959,7 +959,7 @@ export default function LeaveApprovalPage() {
                 <DialogHeader>
                   <DialogTitle>Leave Request Details</DialogTitle>
                 </DialogHeader>
-                <VStack gap="4" className="py-2">
+                <VStack gap="4" className="py-2 w-full">
                   <VStack gap="1" align="start">
                     <BodySmall>Employee</BodySmall>
                     <H3>
@@ -1085,13 +1085,11 @@ export default function LeaveApprovalPage() {
                     )}
 
                   {selectedRequest.reason && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        Reason
-                      </div>
-                      <div className="p-3 bg-muted rounded-md">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Reason</Label>
+                      <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
                         {selectedRequest.reason}
-                      </div>
+                      </p>
                     </div>
                   )}
 
@@ -1193,21 +1191,21 @@ export default function LeaveApprovalPage() {
 
                   {/* Actions */}
                   {canApprove(selectedRequest) ? (
-                    <div className="space-y-4 pt-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                    <div className="space-y-6 pt-4 border-t w-full">
+                      <div className="space-y-4 w-full">
+                        <div className="space-y-2 w-full">
                           <Label htmlFor="notes">Notes (optional)</Label>
                           <Textarea
                             id="notes"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder="Add notes about this approval..."
-                            rows={4}
-                            className="h-full"
+                            rows={3}
+                            className="w-full"
                           />
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 w-full">
                           <Label htmlFor="rejection-reason">
                             Rejection Reason (if rejecting)
                           </Label>
@@ -1216,13 +1214,13 @@ export default function LeaveApprovalPage() {
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
                             placeholder="Provide reason for rejection..."
-                            rows={4}
-                            className="h-full"
+                            rows={3}
+                            className="w-full"
                           />
                         </div>
                       </div>
 
-                      <DialogFooter className="pt-2">
+                      <DialogFooter className="pt-4">
                         <Button
                           variant="secondary"
                           onClick={() => {

@@ -10,6 +10,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -349,7 +350,16 @@ export default function OvertimeApprovalPage() {
               {requests.map((req) => (
                 <Card
                   key={req.id}
-                  className="h-full min-h-[200px] shadow-sm border-border bg-white"
+                  className="h-full min-h-[200px] shadow-sm border-border bg-white transition-shadow hover:shadow-hover cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelected(req)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelected(req);
+                    }
+                  }}
                 >
                   <CardContent className="p-4 flex flex-col gap-3 h-full">
                     <HStack
@@ -381,23 +391,14 @@ export default function OvertimeApprovalPage() {
                             Attachment
                           </a>
                         )}
-                        {req.status === "approved" && (
-                          <VStack
-                            gap="1"
-                            align="start"
-                            className="mt-1 text-xs text-gray-600"
-                          >
-                            <p className="font-semibold text-foreground">
-                              Approved by Account Manager
-                            </p>
-                            <Caption>
-                              {req.account_manager_id
-                                ? approverNames[req.account_manager_id] ||
-                                  "Not captured"
-                                : "Not captured"}
+                        {req.status === "approved" &&
+                          req.account_manager_id && (
+                            <Caption className="text-xs text-gray-600 mt-1">
+                              Approved by Manager:{" "}
+                              {approverNames[req.account_manager_id] ||
+                                "Manager"}
                             </Caption>
-                          </VStack>
-                        )}
+                          )}
                       </VStack>
                       <HStack gap="2" align="center">
                         <Badge
@@ -417,7 +418,10 @@ export default function OvertimeApprovalPage() {
                             <>
                               <Button
                                 size="sm"
-                                onClick={() => handleApprove(req.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApprove(req.id);
+                                }}
                                 disabled={actioningId === req.id}
                               >
                                 <Icon name="Check" size={IconSizes.sm} />
@@ -425,8 +429,11 @@ export default function OvertimeApprovalPage() {
                               </Button>
                               <Button
                                 size="sm"
-                                variant="secondary"
-                                onClick={() => handleReject(req.id)}
+                                variant="destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReject(req.id);
+                                }}
                                 disabled={actioningId === req.id}
                               >
                                 <Icon name="X" size={IconSizes.sm} />
@@ -442,6 +449,156 @@ export default function OvertimeApprovalPage() {
             </div>
           )}
         </CardSection>
+
+        {/* Detail Modal */}
+        <Dialog
+          open={!!selected}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelected(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>OT Request Details</DialogTitle>
+            </DialogHeader>
+            {selected && (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Employee</p>
+                    <p className="text-base font-semibold">
+                      {selected.employees?.full_name || "Unknown"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      ID: {selected.employees?.employee_id || "—"}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <Badge
+                      variant="outline"
+                      className={
+                        selected.status === "approved"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : selected.status === "rejected"
+                          ? "bg-red-50 text-red-700 border-red-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }
+                    >
+                      {selected.status.toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">OT Date</p>
+                    <p className="text-base font-medium">
+                      {format(new Date(selected.ot_date), "MMM dd, yyyy")}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Time Range</p>
+                    <p className="text-base font-medium">
+                      {selected.start_time} - {selected.end_time}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Total Hours</p>
+                    <p className="text-base font-semibold text-emerald-600">
+                      {selected.total_hours}h
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Submitted</p>
+                    <p className="text-base font-medium">
+                      {format(
+                        new Date(selected.created_at),
+                        "MMM dd, yyyy h:mm a"
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {selected.reason && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Reason</Label>
+                    <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
+                      {selected.reason}
+                    </p>
+                  </div>
+                )}
+
+                {selected.attachment_url && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Attachment</Label>
+                    <a
+                      href={selected.attachment_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 text-sm text-emerald-600 underline hover:text-emerald-700"
+                    >
+                      <Icon name="Paperclip" size={IconSizes.sm} />
+                      View Attachment
+                    </a>
+                  </div>
+                )}
+
+                {selected.status === "approved" &&
+                  selected.account_manager_id && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Approved by Manager:{" "}
+                        <span className="font-medium text-foreground">
+                          {approverNames[selected.account_manager_id] ||
+                            "Manager"}
+                        </span>
+                      </p>
+                    </div>
+                  )}
+              </div>
+            )}
+            <DialogFooter className="flex flex-wrap justify-between gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setSelected(null);
+                }}
+              >
+                Close
+              </Button>
+              {selected?.status === "pending" &&
+                (role === "account_manager" || role === "admin") && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        if (!selected) return;
+                        handleReject(selected.id);
+                        setSelected(null);
+                      }}
+                      disabled={actioningId === selected.id}
+                    >
+                      <Icon name="X" size={IconSizes.sm} />
+                      Reject
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (!selected) return;
+                        handleApprove(selected.id);
+                        setSelected(null);
+                      }}
+                      disabled={actioningId === selected.id}
+                    >
+                      <Icon name="Check" size={IconSizes.sm} />
+                      {actioningId === selected.id
+                        ? "Processing..."
+                        : "Approve"}
+                    </Button>
+                  </div>
+                )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </VStack>
     </DashboardLayout>
   );

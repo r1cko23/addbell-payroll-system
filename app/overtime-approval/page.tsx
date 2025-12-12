@@ -94,6 +94,13 @@ export default function OvertimeApprovalPage() {
       console.error("Error loading OT requests", error);
       toast.error("Failed to load OT requests");
     } else {
+      console.log("OT Requests loaded:", {
+        count: data?.length || 0,
+        dateRange: `${weekStartStr} to ${weekEndStr}`,
+        statusFilter,
+        selectedEmployee,
+        requests: data || [],
+      });
       setRequests((data || []) as OTRequest[]);
 
       // Load approver names for approved requests

@@ -1102,7 +1102,9 @@ export default function BundyClockPage() {
                               : "bg-gray-100 text-gray-600"
                           }`}
                         >
-                          {entry.status.replace("_", " ").toUpperCase()}
+                          {entry.status === "auto_approved"
+                            ? "AUTO APPROVED"
+                            : entry.status.replace("_", " ").toUpperCase()}
                         </span>
                       ) : (
                         <span className="px-2 py-1 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700">
@@ -1233,10 +1235,10 @@ export default function BundyClockPage() {
                           "-"
                         )}
                       </td>
-                      <td className="px-3 sm:px-4 py-3 text-center">
+                      <td className="px-3 sm:px-4 py-3 text-center min-w-[100px]">
                         {entry.clock_out_time ? (
                           <span
-                            className={`inline-block px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold whitespace-nowrap ${
+                            className={`inline-block px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold ${
                               entry.status === "clocked_in"
                                 ? "bg-green-100 text-green-700"
                                 : entry.status === "approved" ||
@@ -1245,7 +1247,9 @@ export default function BundyClockPage() {
                                 : "bg-gray-100 text-gray-600"
                             }`}
                           >
-                            {entry.status.replace("_", " ").toUpperCase()}
+                            {entry.status === "auto_approved"
+                              ? "AUTO APPROVED"
+                              : entry.status.replace("_", " ").toUpperCase()}
                           </span>
                         ) : (
                           <span className="inline-block px-2 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-orange-100 text-orange-700">

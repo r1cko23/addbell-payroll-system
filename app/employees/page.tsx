@@ -902,7 +902,7 @@ export default function EmployeesPage() {
           open={!!selectedScheduleEntry}
           onOpenChange={(open) => !open && setSelectedScheduleEntry(null)}
         >
-          <DialogContent>
+          <DialogContent className="overflow-x-hidden max-w-lg">
             <DialogHeader>
               <DialogTitle>
                 {selectedScheduleEntry?.employee_name} -{" "}
@@ -915,8 +915,8 @@ export default function EmployeesPage() {
               <DialogDescription>Schedule details and tasks</DialogDescription>
             </DialogHeader>
             {selectedScheduleEntry && (
-              <div className="mt-4 space-y-4">
-                <div>
+              <div className="mt-4 space-y-4 min-w-0">
+                <div className="min-w-0 w-full">
                   <Label className="text-sm font-medium">Schedule</Label>
                   {selectedScheduleEntry.start_time &&
                   selectedScheduleEntry.end_time ? (
@@ -941,12 +941,14 @@ export default function EmployeesPage() {
                     </p>
                   )}
                 </div>
-                <div>
+                <div className="min-w-0 w-full">
                   <Label className="text-sm font-medium">Tasks</Label>
                   {selectedScheduleEntry.tasks ? (
-                    <p className="mt-2 text-sm whitespace-pre-wrap bg-muted p-3 rounded-md">
-                      {selectedScheduleEntry.tasks}
-                    </p>
+                    <div className="mt-2 min-w-0 w-full overflow-hidden">
+                      <p className="text-sm whitespace-pre-wrap break-words bg-muted p-3 rounded-md overflow-wrap-anywhere word-break-break-all max-w-full">
+                        {selectedScheduleEntry.tasks}
+                      </p>
+                    </div>
                   ) : (
                     <p className="mt-2 text-sm text-muted-foreground italic">
                       No tasks submitted for this day

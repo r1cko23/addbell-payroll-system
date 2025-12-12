@@ -281,7 +281,7 @@ export default function SchedulesPage() {
           open={!!selectedEntry}
           onOpenChange={(open) => !open && setSelectedEntry(null)}
         >
-          <DialogContent>
+          <DialogContent className="overflow-x-hidden max-w-lg">
             <DialogHeader>
               <DialogTitle>
                 {selectedEntry?.employee_name} -{" "}
@@ -294,8 +294,8 @@ export default function SchedulesPage() {
               <DialogDescription>Schedule details and tasks</DialogDescription>
             </DialogHeader>
             {selectedEntry && (
-              <VStack gap="4" className="mt-4">
-                <div>
+              <VStack gap="4" className="mt-4 min-w-0">
+                <div className="min-w-0 w-full">
                   <Label className="text-sm font-medium">Schedule</Label>
                   {selectedEntry.start_time && selectedEntry.end_time ? (
                     <p className="mt-2 text-sm">
@@ -319,12 +319,14 @@ export default function SchedulesPage() {
                     </p>
                   )}
                 </div>
-                <div>
+                <div className="min-w-0 w-full">
                   <Label className="text-sm font-medium">Tasks</Label>
                   {selectedEntry.tasks ? (
-                    <p className="mt-2 text-sm whitespace-pre-wrap bg-muted p-3 rounded-md">
-                      {selectedEntry.tasks}
-                    </p>
+                    <div className="mt-2 min-w-0 w-full overflow-hidden">
+                      <p className="text-sm whitespace-pre-wrap break-words bg-muted p-3 rounded-md overflow-wrap-anywhere word-break-break-all max-w-full">
+                        {selectedEntry.tasks}
+                      </p>
+                    </div>
                   ) : (
                     <p className="mt-2 text-sm text-muted-foreground italic">
                       No tasks submitted for this day

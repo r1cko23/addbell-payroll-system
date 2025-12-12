@@ -135,8 +135,8 @@ export default function SchedulePage() {
       .filter((d) => d.schedule_date && !d.day_off)
       .map((d) => ({
         schedule_date: d.schedule_date,
-        start_time: d.start_time,
-        end_time: d.end_time,
+        start_time: d.start_time || null,
+        end_time: d.end_time || null,
         tasks: d.tasks || null,
       }));
 
@@ -226,8 +226,8 @@ export default function SchedulePage() {
               employee_id: employee.id,
               week_start: weekStartIso,
               schedule_date: e.schedule_date,
-              start_time: e.start_time,
-              end_time: e.end_time,
+              start_time: e.start_time || null,
+              end_time: e.end_time || null,
               tasks: e.tasks || null,
             }))
           );

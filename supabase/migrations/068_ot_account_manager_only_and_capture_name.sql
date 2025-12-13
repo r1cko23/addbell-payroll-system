@@ -71,3 +71,4 @@ GRANT EXECUTE ON FUNCTION public.approve_overtime_request(UUID) TO authenticated
 GRANT EXECUTE ON FUNCTION public.reject_overtime_request(UUID, TEXT) TO authenticated;
 
 
+

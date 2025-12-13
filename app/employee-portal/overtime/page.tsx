@@ -7,13 +7,12 @@ import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CardSection } from "@/components/ui/card-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 
@@ -204,197 +203,337 @@ export default function OvertimePage() {
 
   return (
     <VStack gap="6" className="w-full">
-      <CardSection
-        title="OT Filing"
-        description="File overtime. After approval, hours convert 1:1 to Off-setting credits."
-      >
-        <form onSubmit={handleSubmit} className="w-full">
-          <VStack gap="6" className="w-full">
-            <div className="w-full grid grid-cols-1 gap-4 md:grid-cols-2">
-              <VStack gap="2" align="start" className="w-full">
-                <Label htmlFor="ot-date">OT Date</Label>
-                <Input
-                  id="ot-date"
-                  type="date"
-                  required
-                  value={formData.ot_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, ot_date: e.target.value })
-                  }
-                />
-              </VStack>
-              <VStack gap="2" align="start" className="w-full">
-                <Label htmlFor="start-time">Start Time</Label>
-                <Input
-                  id="start-time"
-                  type="time"
-                  required
-                  value={formData.start_time}
-                  onChange={(e) =>
-                    setFormData({ ...formData, start_time: e.target.value })
-                  }
-                />
-              </VStack>
-              <VStack gap="2" align="start" className="w-full">
-                <Label htmlFor="end-time">End Time</Label>
-                <Input
-                  id="end-time"
-                  type="time"
-                  required
-                  value={formData.end_time}
-                  onChange={(e) =>
-                    setFormData({ ...formData, end_time: e.target.value })
-                  }
-                />
-              </VStack>
-              <VStack gap="2" align="start" className="w-full">
-                <Label htmlFor="total-hours">Total Hours (auto)</Label>
-                <Input
-                  id="total-hours"
-                  value={totalHours.toFixed(2)}
-                  readOnly
-                />
-              </VStack>
-            </div>
+      {/* Request Form */}
+      <Card className="w-full">
+        <CardHeader className="pb-4">
+          <CardTitle>
+            <HStack gap="2" align="center">
+              <Icon name="ClockClockwise" size={IconSizes.md} />
+              OT Filing
+            </HStack>
+          </CardTitle>
+          <BodySmall className="text-muted-foreground">
+            File overtime. After approval, hours convert 1:1 to Off-setting
+            credits.
+          </BodySmall>
+        </CardHeader>
+        <CardContent className="w-full">
+          <form onSubmit={handleSubmit} className="w-full">
+            <VStack gap="6" className="w-full">
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full space-y-2">
+                  <Label htmlFor="ot-date">OT Date</Label>
+                  <Input
+                    id="ot-date"
+                    type="date"
+                    required
+                    value={formData.ot_date}
+                    onChange={(e) =>
+                      setFormData({ ...formData, ot_date: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="w-full space-y-2">
+                  <Label htmlFor="start-time">Start Time</Label>
+                  <Input
+                    id="start-time"
+                    type="time"
+                    required
+                    value={formData.start_time}
+                    onChange={(e) =>
+                      setFormData({ ...formData, start_time: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="w-full space-y-2">
+                  <Label htmlFor="end-time">End Time</Label>
+                  <Input
+                    id="end-time"
+                    type="time"
+                    required
+                    value={formData.end_time}
+                    onChange={(e) =>
+                      setFormData({ ...formData, end_time: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="w-full space-y-2">
+                  <Label htmlFor="total-hours">Total Hours (auto)</Label>
+                  <Input
+                    id="total-hours"
+                    value={totalHours.toFixed(2)}
+                    readOnly
+                    className="bg-muted"
+                  />
+                </div>
+              </div>
 
-            <VStack gap="2" align="start" className="w-full">
-              <Label htmlFor="reason">Reason</Label>
-              <Textarea
-                id="reason"
-                rows={3}
-                value={formData.reason}
-                onChange={(e) =>
-                  setFormData({ ...formData, reason: e.target.value })
-                }
-              />
-            </VStack>
-
-            <VStack gap="2" align="start" className="w-full">
-              <Label htmlFor="ot-doc">Supporting Document (optional)</Label>
-              <input
-                id="ot-doc"
-                type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setSupportingDoc(file);
-                  setDocError(null);
-                }}
-                className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-              />
-              {supportingDoc && (
-                <Caption>
-                  {supportingDoc.name} (
-                  {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB)
-                </Caption>
+              {totalHours > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="text-sm font-semibold text-blue-900">
+                    Calculated Hours:{" "}
+                    <span className="text-lg">{totalHours.toFixed(2)}</span>
+                  </div>
+                </div>
               )}
-              {docError && (
-                <Caption className="text-destructive">{docError}</Caption>
-              )}
-              {!supportingDoc && <Caption>Optional</Caption>}
-            </VStack>
 
-            <HStack justify="end" align="center">
-              <Button
-                type="submit"
-                disabled={submitting}
-                className="w-full sm:w-auto"
-              >
+              <div className="w-full space-y-2">
+                <Label htmlFor="reason">Reason</Label>
+                <Textarea
+                  id="reason"
+                  rows={4}
+                  value={formData.reason}
+                  onChange={(e) =>
+                    setFormData({ ...formData, reason: e.target.value })
+                  }
+                  placeholder="Provide reason for overtime request..."
+                />
+              </div>
+
+              <div className="w-full space-y-2">
+                <Label htmlFor="ot-doc">
+                  Supporting Document (optional, PDF/DOC/DOCX)
+                </Label>
+                <input
+                  id="ot-doc"
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) {
+                      setSupportingDoc(null);
+                      setDocError(null);
+                      return;
+                    }
+                    if (!isAllowedFile(file)) {
+                      setDocError("Only PDF, DOC, or DOCX files are allowed.");
+                      setSupportingDoc(null);
+                      return;
+                    }
+                    if (file.size > MAX_FILE_SIZE) {
+                      setDocError("File too large. Max size is 5MB.");
+                      setSupportingDoc(null);
+                      return;
+                    }
+                    setDocError(null);
+                    setSupportingDoc(file);
+                  }}
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional: attach supporting document for overtime. Max 5MB.
+                </p>
+                {supportingDoc && !docError && (
+                  <HStack
+                    gap="2"
+                    align="center"
+                    className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2"
+                  >
+                    <Icon name="Paperclip" size={IconSizes.sm} />
+                    <span>{supportingDoc.name}</span>
+                    <Caption>
+                      {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
+                    </Caption>
+                  </HStack>
+                )}
+                {docError && (
+                  <p className="text-sm text-destructive font-medium">
+                    {docError}
+                  </p>
+                )}
+              </div>
+
+              <Button type="submit" disabled={submitting} className="w-full">
                 {submitting ? "Submitting..." : "Submit OT Request"}
               </Button>
-            </HStack>
-          </VStack>
-        </form>
-      </CardSection>
+            </VStack>
+          </form>
+        </CardContent>
+      </Card>
 
-      <CardSection title="My OT Requests">
-        {loading ? (
-          <div className="py-8 text-center">
-            <BodySmall>Loading OT requests...</BodySmall>
-          </div>
-        ) : requests.length === 0 ? (
-          <div className="py-8 text-center">
-            <BodySmall>No OT requests yet.</BodySmall>
-          </div>
-        ) : (
-          <VStack gap="3">
-            {requests.map((req) => (
-              <div
-                key={req.id}
-                className="w-full border border-border rounded-lg p-4 bg-card"
-              >
-                <HStack
-                  justify="between"
-                  align="start"
-                  className="flex-col md:flex-row gap-3"
+      {/* Requests List */}
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>My OT Requests</CardTitle>
+        </CardHeader>
+        <CardContent className="w-full">
+          {loading ? (
+            <div className="text-center py-8">
+              <BodySmall>Loading OT requests...</BodySmall>
+            </div>
+          ) : requests.length === 0 ? (
+            <div className="text-center py-8">
+              <VStack gap="4" align="center">
+                <Icon
+                  name="ClockClockwise"
+                  size={IconSizes.xl}
+                  className="text-muted-foreground opacity-50"
+                />
+                <BodySmall>No OT requests yet</BodySmall>
+              </VStack>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {requests.map((req) => (
+                <Card
+                  key={req.id}
+                  className={`w-full ${
+                    req.status === "pending"
+                      ? "border-yellow-300"
+                      : req.status === "approved"
+                      ? "border-emerald-300"
+                      : req.status === "rejected"
+                      ? "border-destructive"
+                      : "border-border"
+                  }`}
                 >
-                  <VStack gap="1" align="start">
-                    <BodySmall className="font-semibold">
-                      {format(new Date(req.ot_date), "MMM d, yyyy")}
-                    </BodySmall>
-                    <BodySmall>
-                      {req.start_time} - {req.end_time} · {req.total_hours}h
-                    </BodySmall>
-                    {req.reason && (
-                      <Caption className="mt-2">{req.reason}</Caption>
-                    )}
-                    {req.overtime_documents?.length ? (
-                      <VStack gap="1" className="mt-2">
-                        {req.overtime_documents.map((doc) => (
-                          <Caption key={doc.id} className="text-emerald-600">
-                            📎 {doc.file_name}{" "}
-                            {doc.file_size
-                              ? `(${(doc.file_size / 1024 / 1024).toFixed(
-                                  2
-                                )} MB)`
-                              : ""}
-                          </Caption>
-                        ))}
+                  <CardContent className="w-full p-6">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                          <span className="font-bold text-lg">
+                            {format(new Date(req.ot_date), "MMM dd, yyyy")}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className="bg-emerald-50 text-emerald-800 border-emerald-200"
+                          >
+                            OT
+                          </Badge>
+                          <span className="text-lg font-bold text-emerald-600">
+                            {req.total_hours}h
+                          </span>
+                        </div>
+
+                        <div className="text-sm mb-2">
+                          <strong>Time:</strong> {req.start_time} -{" "}
+                          {req.end_time}
+                        </div>
+
+                        {req.reason && (
+                          <div className="text-sm mb-2">
+                            <strong>Reason:</strong>
+                            <div className="mt-1 text-muted-foreground">
+                              {req.reason}
+                            </div>
+                          </div>
+                        )}
+
+                        {req.overtime_documents?.length ? (
+                          <VStack gap="2" align="start" className="mt-2">
+                            <HStack gap="2" align="center">
+                              <Icon name="FileText" size={IconSizes.sm} />
+                              <BodySmall className="font-semibold">
+                                Supporting Document
+                              </BodySmall>
+                            </HStack>
+                            <VStack gap="2">
+                              {req.overtime_documents.map((doc) => (
+                                <HStack key={doc.id} gap="2" align="center">
+                                  <Icon
+                                    name="Paperclip"
+                                    size={IconSizes.sm}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span className="truncate max-w-[160px] text-sm">
+                                    {doc.file_name}
+                                  </span>
+                                  {doc.file_size && (
+                                    <Caption>
+                                      (
+                                      {(doc.file_size / 1024 / 1024).toFixed(2)}{" "}
+                                      MB)
+                                    </Caption>
+                                  )}
+                                </HStack>
+                              ))}
+                            </VStack>
+                          </VStack>
+                        ) : null}
+                      </div>
+
+                      <VStack gap="2" align="end" className="ml-4">
+                        {req.status === "pending" && (
+                          <>
+                            <Badge
+                              variant="outline"
+                              className={`flex items-center gap-2 ${statusStyles.pending}`}
+                            >
+                              <Icon name="Hourglass" size={IconSizes.sm} />
+                              PENDING
+                            </Badge>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              disabled={cancelLoading === req.id}
+                              onClick={async () => {
+                                setCancelLoading(req.id);
+                                const { error } = await supabase.rpc(
+                                  "cancel_overtime_request",
+                                  {
+                                    p_request_id: req.id,
+                                    p_employee_id: employee.id,
+                                  }
+                                );
+                                if (error) {
+                                  toast.error(
+                                    error.message ||
+                                      "Failed to cancel OT request"
+                                  );
+                                } else {
+                                  toast.success("OT request cancelled");
+                                  await loadRequests();
+                                }
+                                setCancelLoading(null);
+                              }}
+                            >
+                              {cancelLoading === req.id
+                                ? "Cancelling..."
+                                : "Cancel"}
+                            </Button>
+                          </>
+                        )}
+                        {req.status === "approved" && (
+                          <Badge
+                            variant="outline"
+                            className={`flex items-center gap-2 ${statusStyles.approved}`}
+                          >
+                            <Icon name="CheckCircle" size={IconSizes.sm} />
+                            APPROVED
+                          </Badge>
+                        )}
+                        {req.status === "rejected" && (
+                          <Badge
+                            variant="outline"
+                            className={`flex items-center gap-2 ${statusStyles.rejected}`}
+                          >
+                            <Icon name="XCircle" size={IconSizes.sm} />
+                            REJECTED
+                          </Badge>
+                        )}
+                        {req.status === "cancelled" && (
+                          <Badge
+                            variant="outline"
+                            className={`flex items-center gap-2 ${statusStyles.cancelled}`}
+                          >
+                            <Icon name="XCircle" size={IconSizes.sm} />
+                            CANCELLED
+                          </Badge>
+                        )}
                       </VStack>
-                    ) : null}
-                  </VStack>
-                  <VStack gap="2" align="end">
-                    <Badge
-                      variant="outline"
-                      className={statusStyles[req.status]}
-                    >
-                      {req.status.toUpperCase()}
-                    </Badge>
-                    {req.status === "pending" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={cancelLoading === req.id}
-                        onClick={async () => {
-                          setCancelLoading(req.id);
-                          const { error } = await supabase.rpc(
-                            "cancel_overtime_request",
-                            {
-                              p_request_id: req.id,
-                              p_employee_id: employee.id,
-                            }
-                          );
-                          if (error) {
-                            toast.error(
-                              error.message || "Failed to cancel OT request"
-                            );
-                          } else {
-                            toast.success("OT request cancelled");
-                            await loadRequests();
-                          }
-                          setCancelLoading(null);
-                        }}
-                      >
-                        {cancelLoading === req.id ? "Cancelling..." : "Cancel"}
-                      </Button>
-                    )}
-                  </VStack>
-                </HStack>
-              </div>
-            ))}
-          </VStack>
-        )}
-      </CardSection>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground mt-2">
+                      Filed:{" "}
+                      {format(new Date(req.created_at), "MMM dd, yyyy h:mm a")}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </VStack>
   );
 }

@@ -421,24 +421,28 @@ export default function SchedulePage() {
                     justify="between"
                     align="start"
                     gap="3"
-                    className="w-full"
+                    className="w-full flex-nowrap"
                   >
-                    <H3>{format(day, "EEEE, MMM d")}</H3>
+                    <H3 className="whitespace-nowrap flex-shrink-0">
+                      {format(day, "EEEE, MMM d")}
+                    </H3>
                     <label
                       htmlFor={`dayoff-${idx}`}
-                      className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                      className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors flex-shrink-0"
                     >
                       <input
                         id={`dayoff-${idx}`}
                         type="checkbox"
-                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
                         checked={!!days[idx]?.day_off}
                         disabled={isLocked}
                         onChange={(e) =>
                           handleChange(idx, "day_off", e.target.checked as any)
                         }
                       />
-                      <Label className="cursor-pointer">Mark as day off</Label>
+                      <Label className="cursor-pointer whitespace-nowrap">
+                        Mark as day off
+                      </Label>
                     </label>
                   </HStack>
 

@@ -9,6 +9,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
+import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 
 interface EmployeeInfo {
   employee_id: string;
@@ -25,6 +26,7 @@ interface EmployeeInfo {
   philhealth_number: string | null;
   pagibig_number: string | null;
   hmo_provider: string | null;
+  profile_picture_url: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -52,6 +54,7 @@ export default function EmployeeInfoPage() {
       philhealth_number: null,
       pagibig_number: null,
       hmo_provider: null,
+      profile_picture_url: null,
       is_active: true,
       created_at: employee.loginTime,
     }),
@@ -143,6 +146,49 @@ export default function EmployeeInfoPage() {
             <BodySmall className="text-yellow-800">{errorMessage}</BodySmall>
           </div>
         )}
+        <VStack gap="6" align="center" className="mb-6">
+          {employee?.id ? (
+            <ProfilePictureUpload
+              currentPictureUrl={info?.profile_picture_url || null}
+              userId={employee.id}
+              userName={info?.full_name || employee.full_name}
+              userType="employee"
+              onUploadComplete={async () => {
+                // Reload employee info
+                try {
+                  const { data, error } = await supabase.rpc(
+                    "get_employee_profile",
+                    {
+                      p_employee_uuid: employee.id,
+                    }
+                  );
+                  if (!error && data && data.length > 0) {
+                    setInfo(data[0] as EmployeeInfo);
+                  }
+                } catch (err) {
+                  console.error("Failed to reload employee info:", err);
+                }
+              }}
+              size="lg"
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center border-2 border-border">
+                <span className="text-muted-foreground text-lg">
+                  {(info?.full_name || employee.full_name || "E")
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .substring(0, 2)
+                    .toUpperCase()}
+                </span>
+              </div>
+              <Caption className="text-xs text-muted-foreground">
+                Loading employee information...
+              </Caption>
+            </div>
+          )}
+        </VStack>
         <dl className="w-full grid gap-4 md:grid-cols-2">
           {rows.map((row) => (
             <div key={row.label} className="py-3">

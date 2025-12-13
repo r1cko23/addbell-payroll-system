@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
 interface ClockEntry {
   id: string;
@@ -29,6 +30,7 @@ interface ClockEntry {
   employees: {
     employee_id: string;
     full_name: string;
+    profile_picture_url?: string | null;
   };
 }
 
@@ -81,7 +83,8 @@ export default function HRDashboard() {
               *,
               employees (
                 employee_id,
-                full_name
+                full_name,
+                profile_picture_url
               )
             `
             )
@@ -94,7 +97,8 @@ export default function HRDashboard() {
               *,
               employees (
                 employee_id,
-                full_name
+                full_name,
+                profile_picture_url
               )
             `
             )
@@ -367,9 +371,18 @@ export default function HRDashboard() {
                       <CardContent className="p-4 flex flex-col gap-3 h-full">
                         <HStack justify="between" align="start">
                           <VStack gap="1" align="start">
-                            <p className="text-sm font-semibold text-foreground leading-tight">
-                              {entry.employees.full_name}
-                            </p>
+                            <HStack gap="2" align="center">
+                              <EmployeeAvatar
+                                profilePictureUrl={
+                                  entry.employees.profile_picture_url
+                                }
+                                fullName={entry.employees.full_name}
+                                size="sm"
+                              />
+                              <p className="text-sm font-semibold text-foreground leading-tight">
+                                {entry.employees.full_name}
+                              </p>
+                            </HStack>
                             <Caption className="text-muted-foreground">
                               Since{" "}
                               {format(
@@ -467,9 +480,18 @@ export default function HRDashboard() {
                       <CardContent className="p-4 flex flex-col gap-3 h-full">
                         <HStack justify="between" align="start">
                           <VStack gap="1" align="start">
-                            <p className="text-sm font-semibold text-foreground leading-tight">
-                              {entry.employees.full_name}
-                            </p>
+                            <HStack gap="2" align="center">
+                              <EmployeeAvatar
+                                profilePictureUrl={
+                                  entry.employees.profile_picture_url
+                                }
+                                fullName={entry.employees.full_name}
+                                size="sm"
+                              />
+                              <p className="text-sm font-semibold text-foreground leading-tight">
+                                {entry.employees.full_name}
+                              </p>
+                            </HStack>
                             <Caption className="text-muted-foreground">
                               {statusLabel} ·{" "}
                               {format(

@@ -44,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 
 interface User {
   id: string;
@@ -51,6 +52,7 @@ interface User {
   full_name: string;
   role: "admin" | "hr" | "account_manager";
   is_active: boolean;
+  profile_picture_url: string | null;
   created_at: string;
 }
 
@@ -370,21 +372,50 @@ export default function SettingsPage() {
 
         {/* User Info */}
         <CardSection title="Your Account">
-          <VStack gap="3">
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Name:</BodySmall>
-              <span className="font-semibold">{currentUser?.full_name}</span>
-            </HStack>
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Email:</BodySmall>
-              <span className="font-semibold">{currentUser?.email}</span>
-            </HStack>
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Role:</BodySmall>
-              <Badge variant={isAdmin ? "default" : "secondary"}>
-                {currentUser?.role?.toUpperCase()}
-              </Badge>
-            </HStack>
+          <VStack gap="6" align="center" className="w-full">
+            {currentUser?.id ? (
+              <ProfilePictureUpload
+                currentPictureUrl={currentUser?.profile_picture_url || null}
+                userId={currentUser.id}
+                userName={currentUser?.full_name || "User"}
+                userType="user"
+                onUploadComplete={async () => {
+                  await loadData();
+                }}
+                size="lg"
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-32 w-32 rounded-full bg-muted flex items-center justify-center border-2 border-border">
+                  <span className="text-muted-foreground text-lg">US</span>
+                </div>
+                <Caption className="text-xs text-muted-foreground">
+                  Loading user information...
+                </Caption>
+              </div>
+            )}
+            <VStack gap="3" align="center" className="w-full">
+              <div className="flex flex-col items-center">
+                <VStack gap="3" align="start">
+                  <HStack gap="3" align="center">
+                    <BodySmall className="w-16 text-left">Name:</BodySmall>
+                    <span className="font-semibold">
+                      {currentUser?.full_name}
+                    </span>
+                  </HStack>
+                  <HStack gap="3" align="center">
+                    <BodySmall className="w-16 text-left">Email:</BodySmall>
+                    <span className="font-semibold">{currentUser?.email}</span>
+                  </HStack>
+                  <HStack gap="3" align="center">
+                    <BodySmall className="w-16 text-left">Role:</BodySmall>
+                    <Badge variant={isAdmin ? "default" : "secondary"}>
+                      {currentUser?.role?.toUpperCase()}
+                    </Badge>
+                  </HStack>
+                </VStack>
+              </div>
+            </VStack>
           </VStack>
         </CardSection>
 
@@ -565,46 +596,6 @@ export default function SettingsPage() {
               </VStack>
             </VStack>
           </div>
-        </CardSection>
-
-        {/* System Info */}
-        <CardSection title="System Information">
-          <VStack gap="3">
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Version:</BodySmall>
-              <span className="font-semibold">2.0.0</span>
-            </HStack>
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Database:</BodySmall>
-              <span className="font-semibold">Supabase (PostgreSQL)</span>
-            </HStack>
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Hosting:</BodySmall>
-              <span className="font-semibold">Vercel</span>
-            </HStack>
-            <HStack justify="between" align="center" className="w-full">
-              <BodySmall>Total Employees:</BodySmall>
-              <span className="font-semibold">{users.length}</span>
-            </HStack>
-          </VStack>
-        </CardSection>
-
-        {/* Help */}
-        <CardSection title="Need Help?">
-          <VStack gap="2">
-            <BodySmall>
-              📖 <strong>Documentation:</strong> Check SETUP.md and README_V2.md
-              in the project root
-            </BodySmall>
-            <BodySmall>
-              <strong>Quick Start:</strong> See QUICKSTART.md for a 30-minute
-              setup guide
-            </BodySmall>
-            <BodySmall>
-              <strong>Payroll Process:</strong> Enter Timesheet → Generate
-              Payslips → Print/Export
-            </BodySmall>
-          </VStack>
         </CardSection>
       </VStack>
 

@@ -51,7 +51,8 @@ type PhosphorIconName =
   | "DotsThreeVertical"
   | "FloppyDisk"
   | "Clock"
-  | "ArrowRight";
+  | "ArrowRight"
+  | "Camera";
 
 interface PhosphorIconProps {
   name: PhosphorIconName;

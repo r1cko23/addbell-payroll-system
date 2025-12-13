@@ -21,6 +21,7 @@ import {
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { toast } from "sonner";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
 type OTRequest = {
   id: string;
@@ -34,7 +35,11 @@ type OTRequest = {
   status: "pending" | "approved" | "rejected";
   account_manager_id?: string | null;
   created_at: string;
-  employees?: { full_name: string; employee_id: string };
+  employees?: {
+    full_name: string;
+    employee_id: string;
+    profile_picture_url?: string | null;
+  };
 };
 
 export default function OvertimeApprovalPage() {
@@ -74,7 +79,8 @@ export default function OvertimeApprovalPage() {
         *,
         employees (
           full_name,
-          employee_id
+          employee_id,
+          profile_picture_url
         )
       `
       )
@@ -362,87 +368,132 @@ export default function OvertimeApprovalPage() {
                   }}
                 >
                   <CardContent className="p-4 flex flex-col gap-3 h-full">
-                    <HStack
-                      justify="between"
-                      align="start"
-                      className="flex-col md:flex-row gap-3"
-                    >
-                      <VStack gap="2" align="start" className="flex-1">
-                        <p className="font-semibold text-foreground leading-tight">
-                          {req.employees?.full_name || "Unknown"} (
-                          {req.employees?.employee_id || "—"})
-                        </p>
-                        <BodySmall className="text-muted-foreground">
-                          {format(new Date(req.ot_date), "MMM d, yyyy")} ·{" "}
-                          {req.start_time} - {req.end_time} · {req.total_hours}h
-                        </BodySmall>
-                        {req.reason && (
-                          <Caption className="line-clamp-2" title={req.reason}>
-                            {req.reason}
+                    <HStack justify="between" align="start">
+                      <div className="flex-1">
+                        <HStack
+                          gap="3"
+                          align="center"
+                          className="mb-2 flex-wrap"
+                        >
+                          <EmployeeAvatar
+                            profilePictureUrl={
+                              req.employees?.profile_picture_url
+                            }
+                            fullName={req.employees?.full_name || "Unknown"}
+                            size="sm"
+                          />
+                          <span className="font-bold text-lg">
+                            {req.employees?.full_name || "Unknown"}
+                          </span>
+                          <Caption>
+                            ({req.employees?.employee_id || "—"})
                           </Caption>
+                          <Badge variant="secondary">OT</Badge>
+                        </HStack>
+                        <HStack
+                          gap="4"
+                          align="center"
+                          className="text-sm text-muted-foreground mb-2 flex-wrap"
+                        >
+                          <HStack gap="1" align="center">
+                            <Icon name="CalendarBlank" size={IconSizes.sm} />
+                            {format(new Date(req.ot_date), "MMM d, yyyy")}
+                          </HStack>
+                          <HStack gap="1" align="center">
+                            <Icon name="Timer" size={IconSizes.sm} />
+                            {req.start_time} - {req.end_time}
+                          </HStack>
+                          <span className="font-semibold text-emerald-600">
+                            {req.total_hours}h
+                          </span>
+                        </HStack>
+                        {req.reason && (
+                          <BodySmall className="mt-2">
+                            <strong>Reason:</strong> {req.reason}
+                          </BodySmall>
                         )}
                         {req.attachment_url && (
-                          <a
-                            href={req.attachment_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs text-emerald-600 underline"
-                          >
-                            Attachment
-                          </a>
+                          <BodySmall className="mt-2">
+                            <a
+                              href={req.attachment_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-600 underline"
+                            >
+                              View Attachment
+                            </a>
+                          </BodySmall>
                         )}
                         {req.status === "approved" &&
                           req.account_manager_id && (
-                            <Caption className="text-xs text-gray-600 mt-1">
+                            <Caption className="text-xs text-gray-600 mt-2">
                               Approved by Manager:{" "}
                               {approverNames[req.account_manager_id] ||
                                 "Manager"}
                             </Caption>
                           )}
-                      </VStack>
-                      <HStack gap="2" align="center">
-                        <Badge
-                          variant="outline"
-                          className={
-                            req.status === "approved"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : req.status === "rejected"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }
-                        >
-                          {req.status.toUpperCase()}
-                        </Badge>
-                        {req.status === "pending" &&
-                          (role === "account_manager" || role === "admin") && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleApprove(req.id);
-                                }}
-                                disabled={actioningId === req.id}
-                              >
-                                <Icon name="Check" size={IconSizes.sm} />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleReject(req.id);
-                                }}
-                                disabled={actioningId === req.id}
-                              >
-                                <Icon name="X" size={IconSizes.sm} />
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                      </HStack>
+                      </div>
+                      <Badge
+                        variant={
+                          req.status === "approved"
+                            ? "default"
+                            : req.status === "rejected"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                        className={
+                          req.status === "approved"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : req.status === "rejected"
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }
+                      >
+                        {req.status.toUpperCase()}
+                      </Badge>
                     </HStack>
+                    {req.status === "pending" &&
+                      (role === "account_manager" || role === "admin") && (
+                        <HStack
+                          gap="2"
+                          align="center"
+                          className="flex-wrap mt-auto pt-2 border-t"
+                        >
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelected(req);
+                            }}
+                          >
+                            View details
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReject(req.id);
+                            }}
+                            disabled={actioningId === req.id}
+                          >
+                            <Icon name="X" size={IconSizes.sm} />
+                            Reject
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(req.id);
+                            }}
+                            disabled={actioningId === req.id}
+                          >
+                            <Icon name="Check" size={IconSizes.sm} />
+                            Approve
+                          </Button>
+                        </HStack>
+                      )}
                   </CardContent>
                 </Card>
               ))}
@@ -468,9 +519,18 @@ export default function OvertimeApprovalPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Employee</p>
-                    <p className="text-base font-semibold">
-                      {selected.employees?.full_name || "Unknown"}
-                    </p>
+                    <HStack gap="2" align="center">
+                      <EmployeeAvatar
+                        profilePictureUrl={
+                          selected.employees?.profile_picture_url
+                        }
+                        fullName={selected.employees?.full_name || "Unknown"}
+                        size="md"
+                      />
+                      <p className="text-base font-semibold">
+                        {selected.employees?.full_name || "Unknown"}
+                      </p>
+                    </HStack>
                     <p className="text-sm text-muted-foreground">
                       ID: {selected.employees?.employee_id || "—"}
                     </p>

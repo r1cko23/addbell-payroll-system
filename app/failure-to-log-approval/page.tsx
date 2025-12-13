@@ -34,6 +34,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
 interface FailureToLog {
   id: string;
@@ -52,6 +53,7 @@ interface FailureToLog {
   employees: {
     employee_id: string;
     full_name: string;
+    profile_picture_url?: string | null;
   };
   time_clock_entries?: {
     clock_in_time: string;
@@ -129,7 +131,8 @@ export default function FailureToLogApprovalPage() {
         *,
         employees (
           employee_id,
-          full_name
+          full_name,
+          profile_picture_url
         ),
         time_clock_entries (
           clock_in_time,
@@ -503,120 +506,129 @@ export default function FailureToLogApprovalPage() {
                   }
                 }}
               >
-                <CardHeader className="flex flex-row items-start justify-between gap-3 pb-2">
-                  <VStack gap="1" align="start">
-                    <HStack gap="2" align="center">
-                      <Icon
-                        name="User"
-                        size={IconSizes.md}
-                        className="text-muted-foreground"
-                      />
-                      <BodySmall>
-                        {request.employees?.employee_id || "Unknown ID"}
+                <CardContent className="p-4 flex flex-col gap-3 h-full">
+                  <HStack justify="between" align="start">
+                    <div className="flex-1">
+                      <HStack gap="3" align="center" className="mb-2 flex-wrap">
+                        <EmployeeAvatar
+                          profilePictureUrl={
+                            request.employees?.profile_picture_url
+                          }
+                          fullName={
+                            request.employees?.full_name || "Unknown employee"
+                          }
+                          size="sm"
+                        />
+                        <span className="font-bold text-lg">
+                          {request.employees?.full_name || "Unknown employee"}
+                        </span>
+                        <Caption>
+                          ({request.employees?.employee_id || "Unknown ID"})
+                        </Caption>
+                        <Badge variant="secondary">FTL</Badge>
+                      </HStack>
+                      <HStack
+                        gap="4"
+                        align="center"
+                        className="text-sm text-muted-foreground mb-2 flex-wrap"
+                      >
+                        <HStack gap="1" align="center">
+                          <Icon name="CalendarBlank" size={IconSizes.sm} />
+                          Missed{" "}
+                          {safeFormat(request.missed_date, "MMM dd, yyyy")}
+                        </HStack>
+                        <HStack gap="1" align="center">
+                          <Icon name="ClockClockwise" size={IconSizes.sm} />
+                          Entry type: {request.entry_type.toUpperCase()}
+                        </HStack>
+                        {request.actual_clock_in_time ||
+                        request.actual_clock_out_time ? (
+                          <HStack gap="1" align="center">
+                            <Icon name="Timer" size={IconSizes.sm} />
+                            Actual:{" "}
+                            {safeFormat(
+                              request.actual_clock_in_time ||
+                                request.actual_clock_out_time,
+                              "MMM dd, h:mm a"
+                            )}
+                          </HStack>
+                        ) : null}
+                      </HStack>
+                      <BodySmall className="mt-2">
+                        <strong>Reason:</strong> {request.reason}
                       </BodySmall>
-                    </HStack>
-                    <H3>
-                      {request.employees?.full_name || "Unknown employee"}
-                    </H3>
-                    <HStack gap="2" align="center">
-                      <Icon name="CalendarBlank" size={IconSizes.sm} />
-                      <BodySmall>
-                        Missed {safeFormat(request.missed_date, "MMM dd, yyyy")}
-                      </BodySmall>
-                    </HStack>
-                  </VStack>
-                  <Badge
-                    className={statusStyles[request.status]}
-                    variant="outline"
-                  >
-                    {request.status.toUpperCase()}
-                  </Badge>
-                </CardHeader>
-                <CardContent className="space-y-4 pt-0 flex flex-col h-full">
-                  <HStack
-                    gap="4"
-                    align="center"
-                    className="flex-wrap text-sm text-muted-foreground"
-                  >
-                    <HStack gap="2" align="center">
-                      <Icon name="ClockClockwise" size={IconSizes.sm} />
-                      Entry type: {request.entry_type.toUpperCase()}
-                    </HStack>
-                    <HStack gap="2" align="center">
-                      <Icon name="Timer" size={IconSizes.sm} />
-                      Actual:{" "}
-                      {safeFormat(
-                        request.actual_clock_in_time ||
-                          request.actual_clock_out_time,
-                        "MMM dd, h:mm a"
+                      {request.manual_notes && (
+                        <BodySmall className="mt-2">
+                          <strong>Employee notes:</strong>{" "}
+                          {request.manual_notes}
+                        </BodySmall>
                       )}
-                    </HStack>
-                  </HStack>
-                  <BodySmall>
-                    <span className="font-semibold text-foreground">
-                      Reason:
-                    </span>{" "}
-                    <span className="text-muted-foreground">
-                      {request.reason}
-                    </span>
-                  </BodySmall>
-                  {request.manual_notes && (
-                    <BodySmall>
-                      <span className="font-semibold text-foreground">
-                        Employee notes:
-                      </span>{" "}
-                      <span className="text-muted-foreground">
-                        {request.manual_notes}
-                      </span>
-                    </BodySmall>
-                  )}
-                  {request.status === "approved" &&
-                    request.account_manager_id && (
-                      <Caption className="text-xs text-gray-600 mt-1">
-                        Approved by Manager:{" "}
-                        {approverNames[request.account_manager_id] || "Manager"}
-                      </Caption>
-                    )}
-                  <HStack gap="2" align="center" className="flex-wrap mt-auto">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedRequest(request);
-                      }}
+                      {request.status === "approved" &&
+                        request.account_manager_id && (
+                          <Caption className="text-xs text-gray-600 mt-2">
+                            Approved by Manager:{" "}
+                            {approverNames[request.account_manager_id] ||
+                              "Manager"}
+                          </Caption>
+                        )}
+                    </div>
+                    <Badge
+                      variant={
+                        request.status === "pending"
+                          ? "secondary"
+                          : request.status === "approved"
+                          ? "default"
+                          : request.status === "rejected"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                      className={statusStyles[request.status]}
                     >
-                      View details
-                    </Button>
-                    {request.status === "pending" && (
-                      <>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRejectionReason("");
-                            setSelectedRequest(request);
-                          }}
-                        >
-                          <Icon name="X" size={IconSizes.sm} />
-                          Reject
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedRequest(request);
-                            handleApprove(request.id);
-                          }}
-                          disabled={approveLoading}
-                        >
-                          <Icon name="Check" size={IconSizes.sm} />
-                          {approveLoading ? "Processing..." : "Approve"}
-                        </Button>
-                      </>
-                    )}
+                      {request.status.toUpperCase()}
+                    </Badge>
                   </HStack>
+                  {request.status === "pending" && (
+                    <HStack
+                      gap="2"
+                      align="center"
+                      className="flex-wrap mt-auto pt-2 border-t"
+                    >
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                        }}
+                      >
+                        View details
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRejectionReason("");
+                          setSelectedRequest(request);
+                        }}
+                      >
+                        <Icon name="X" size={IconSizes.sm} />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(request);
+                          handleApprove(request.id);
+                        }}
+                        disabled={approveLoading}
+                      >
+                        <Icon name="Check" size={IconSizes.sm} />
+                        {approveLoading ? "Processing..." : "Approve"}
+                      </Button>
+                    </HStack>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -641,9 +653,20 @@ export default function FailureToLogApprovalPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Employee</p>
-                    <p className="text-base font-semibold">
-                      {selectedRequest.employees?.full_name || "Unknown"}
-                    </p>
+                    <HStack gap="2" align="center">
+                      <EmployeeAvatar
+                        profilePictureUrl={
+                          selectedRequest.employees?.profile_picture_url
+                        }
+                        fullName={
+                          selectedRequest.employees?.full_name || "Unknown"
+                        }
+                        size="md"
+                      />
+                      <p className="text-base font-semibold">
+                        {selectedRequest.employees?.full_name || "Unknown"}
+                      </p>
+                    </HStack>
                     <p className="text-sm text-muted-foreground">
                       ID: {selectedRequest.employees?.employee_id || "—"}
                     </p>

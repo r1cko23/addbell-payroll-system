@@ -48,11 +48,13 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { InputGroup } from "@/components/ui/input-group";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
 interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
+  profile_picture_url?: string | null;
   gender?: "male" | "female" | null;
   sil_credits?: number;
   offset_hours?: number;
@@ -607,7 +609,7 @@ export default function EmployeesPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Employee ID</TableHead>
-                        <TableHead>Full Name</TableHead>
+                        <TableHead>Employee</TableHead>
                         <TableHead>Assigned Locations</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -628,7 +630,18 @@ export default function EmployeesPage() {
                             <TableCell className="font-semibold">
                               {employee.employee_id}
                             </TableCell>
-                            <TableCell>{employee.full_name}</TableCell>
+                            <TableCell>
+                              <HStack gap="3" align="center">
+                                <EmployeeAvatar
+                                  profilePictureUrl={
+                                    employee.profile_picture_url
+                                  }
+                                  fullName={employee.full_name}
+                                  size="sm"
+                                />
+                                <span>{employee.full_name}</span>
+                              </HStack>
+                            </TableCell>
                             <TableCell className="max-w-xl text-sm text-muted-foreground">
                               {(() => {
                                 const locationNames =

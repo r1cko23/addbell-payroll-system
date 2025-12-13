@@ -39,6 +39,7 @@ import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
 interface LeaveDocument {
   id: string;
@@ -77,6 +78,7 @@ interface LeaveRequest {
   employees: {
     employee_id: string;
     full_name: string;
+    profile_picture_url?: string | null;
     sil_credits: number;
     offset_hours?: number | null;
   };
@@ -211,6 +213,7 @@ export default function LeaveApprovalPage() {
         employees (
           employee_id,
           full_name,
+          profile_picture_url,
           sil_credits,
           offset_hours
         ),
@@ -757,10 +760,12 @@ export default function LeaveApprovalPage() {
                   <HStack justify="between" align="start">
                     <div className="flex-1">
                       <HStack gap="3" align="center" className="mb-2 flex-wrap">
-                        <Icon
-                          name="User"
-                          size={IconSizes.md}
-                          className="text-muted-foreground"
+                        <EmployeeAvatar
+                          profilePictureUrl={
+                            request.employees?.profile_picture_url
+                          }
+                          fullName={request.employees?.full_name || "Unknown"}
+                          size="sm"
                         />
                         <span className="font-bold text-lg">
                           {request.employees?.full_name || "Unknown"}
@@ -952,10 +957,21 @@ export default function LeaveApprovalPage() {
                 <VStack gap="4" className="py-2 w-full">
                   <VStack gap="1" align="start">
                     <BodySmall>Employee</BodySmall>
-                    <H3>
-                      {selectedRequest.employees?.full_name} (
-                      {selectedRequest.employees?.employee_id})
-                    </H3>
+                    <HStack gap="3" align="center">
+                      <EmployeeAvatar
+                        profilePictureUrl={
+                          selectedRequest.employees?.profile_picture_url
+                        }
+                        fullName={
+                          selectedRequest.employees?.full_name || "Unknown"
+                        }
+                        size="lg"
+                      />
+                      <H3>
+                        {selectedRequest.employees?.full_name} (
+                        {selectedRequest.employees?.employee_id})
+                      </H3>
+                    </HStack>
                   </VStack>
 
                   <div className="grid grid-cols-2 gap-4">

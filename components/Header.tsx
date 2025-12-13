@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 
 interface HeaderProps {
@@ -26,6 +26,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState<string>("");
+  const [userFullName, setUserFullName] = useState<string>("");
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     async function getUser() {
@@ -36,20 +40,72 @@ export function Header({ onMenuClick }: HeaderProps) {
       if (user) {
         setUser(user);
 
-        // Get user role from public.users table
+        // Get user role and profile picture from public.users table
         const { data: userData } = await supabase
           .from("users")
-          .select("role, full_name")
+          .select("role, full_name, profile_picture_url")
           .eq("id", user.id)
           .single();
 
         if (userData) {
           setUserRole(userData.role);
+          setUserFullName(userData.full_name || "");
+          setProfilePictureUrl(userData.profile_picture_url);
         }
       }
     }
 
     getUser();
+
+    // Listen for auth state changes to refresh user data
+    const {
+      data: { subscription: authSubscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      getUser();
+    });
+
+    // Listen for changes to the user's profile picture in real-time
+    let userSubscription: ReturnType<typeof supabase.channel> | null = null;
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        userSubscription = supabase
+          .channel(`user-profile-${user.id}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "users",
+              filter: `id=eq.${user.id}`,
+            },
+            (payload) => {
+              const newData = payload.new as {
+                profile_picture_url?: string | null;
+                full_name?: string;
+                role?: string;
+              };
+              if (newData.profile_picture_url !== undefined) {
+                setProfilePictureUrl(newData.profile_picture_url);
+              }
+              if (newData.full_name !== undefined) {
+                setUserFullName(newData.full_name || "");
+              }
+              if (newData.role !== undefined) {
+                setUserRole(newData.role);
+              }
+            }
+          )
+          .subscribe();
+      }
+    });
+
+    return () => {
+      authSubscription.unsubscribe();
+      if (userSubscription) {
+        userSubscription.unsubscribe();
+      }
+    };
   }, [supabase]);
 
   const handleLogout = async () => {
@@ -58,8 +114,18 @@ export function Header({ onMenuClick }: HeaderProps) {
     router.refresh();
   };
 
-  const getInitials = (email: string) => {
-    return email.substring(0, 2).toUpperCase();
+  const getInitials = () => {
+    if (userFullName) {
+      const parts = userFullName.trim().split(" ");
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+      }
+      return userFullName.substring(0, 2).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return "U";
   };
 
   return (
@@ -83,13 +149,17 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
+                  <AvatarImage
+                    src={profilePictureUrl || undefined}
+                    alt={userFullName || user?.email || "User"}
+                  />
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                    {user?.email ? getInitials(user.email) : "U"}
+                    {getInitials()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start">
                   <span className="text-sm font-medium text-foreground">
-                    {user?.email}
+                    {userFullName || user?.email}
                   </span>
                   <span className="text-xs text-muted-foreground capitalize">
                     {userRole}

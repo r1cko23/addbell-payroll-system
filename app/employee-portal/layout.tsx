@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { createClient } from "@/lib/supabase/client";
 import {
   EmployeeSession,
   EmployeeSessionProvider,
@@ -43,9 +45,13 @@ export default function EmployeePortalLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const supabase = createClient();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const stored = localStorage.getItem("employee_session");
@@ -65,6 +71,58 @@ export default function EmployeePortalLayout({
       setLoading(false);
     }
   }, [router]);
+
+  // Fetch profile picture when employee is loaded
+  useEffect(() => {
+    if (!employee?.id) return;
+
+    const employeeId = employee.id;
+
+    async function fetchProfilePicture() {
+      try {
+        const { data, error } = await supabase.rpc("get_employee_profile", {
+          p_employee_uuid: employeeId,
+        });
+
+        if (!error && data && data.length > 0) {
+          const profileData = data[0] as {
+            profile_picture_url?: string | null;
+          };
+          setProfilePictureUrl(profileData.profile_picture_url || null);
+        }
+      } catch (err) {
+        console.error("Failed to load profile picture:", err);
+      }
+    }
+
+    fetchProfilePicture();
+
+    // Listen for changes to the employee's profile picture in real-time
+    const channel = supabase
+      .channel(`employee-profile-${employeeId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "employees",
+          filter: `id=eq.${employeeId}`,
+        },
+        (payload) => {
+          const newData = payload.new as {
+            profile_picture_url?: string | null;
+          };
+          if (newData.profile_picture_url !== undefined) {
+            setProfilePictureUrl(newData.profile_picture_url);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [employee?.id, supabase]);
 
   useEffect(() => {
     setIsNavOpen(false);
@@ -114,7 +172,23 @@ export default function EmployeePortalLayout({
   const refreshSession = () => {
     const stored = localStorage.getItem("employee_session");
     if (stored) {
-      setEmployee(JSON.parse(stored));
+      const parsed = JSON.parse(stored) as EmployeeSession;
+      setEmployee(parsed);
+      // Also refresh profile picture when session is refreshed
+      if (parsed?.id) {
+        supabase
+          .rpc("get_employee_profile", {
+            p_employee_uuid: parsed.id,
+          })
+          .then(({ data, error }) => {
+            if (!error && data && data.length > 0) {
+              const profileData = data[0] as {
+                profile_picture_url?: string | null;
+              };
+              setProfilePictureUrl(profileData.profile_picture_url || null);
+            }
+          });
+      }
     }
   };
 
@@ -144,14 +218,20 @@ export default function EmployeePortalLayout({
           <div className="w-full max-w-6xl mx-auto px-4 md:px-6 lg:px-8 py-4 flex flex-col gap-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center text-white text-xl font-bold">
-                  {employee.full_name
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </div>
+                <Avatar className="w-12 h-12 border-2 border-emerald-600">
+                  <AvatarImage
+                    src={profilePictureUrl || undefined}
+                    alt={employee.full_name}
+                  />
+                  <AvatarFallback className="bg-emerald-600 text-white text-xl font-bold">
+                    {employee.full_name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
                   <p className="text-lg font-semibold text-gray-900">
                     {employee.full_name}

@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
 interface TimeEntry {
   id: string;
@@ -60,6 +61,7 @@ interface TimeEntry {
   employees: {
     employee_id: string;
     full_name: string;
+    profile_picture_url?: string | null;
   };
 }
 
@@ -153,7 +155,7 @@ export default function TimeEntriesPage() {
       // Use single-line format to avoid any whitespace issues with Supabase PostgREST
       let query = supabase
         .from("time_clock_entries")
-        .select("*,employees(employee_id,full_name)");
+        .select("*,employees(employee_id,full_name,profile_picture_url)");
 
       // Apply date filters
       query = query
@@ -243,7 +245,11 @@ export default function TimeEntriesPage() {
       const transformedEntries: TimeEntry[] =
         data?.map((entry: any) => {
           // Handle employees relationship - could be array, object, or null
-          let employeeData = { employee_id: "", full_name: "Unknown Employee" };
+          let employeeData = {
+            employee_id: "",
+            full_name: "Unknown Employee",
+            profile_picture_url: null as string | null | undefined,
+          };
 
           if (entry.employees) {
             if (Array.isArray(entry.employees)) {
@@ -704,11 +710,13 @@ export default function TimeEntriesPage() {
                       return (
                         <TableRow key={entry.id} className="hover:bg-muted/50">
                           <TableCell className="p-2 sm:p-3">
-                            <HStack gap="2" align="center">
-                              <Icon
-                                name="User"
-                                size={IconSizes.sm}
-                                className="text-muted-foreground flex-shrink-0"
+                            <HStack gap="2" align="center" className="min-w-0">
+                              <EmployeeAvatar
+                                profilePictureUrl={
+                                  entry.employees.profile_picture_url
+                                }
+                                fullName={entry.employees.full_name}
+                                size="sm"
                               />
                               <VStack gap="0" align="start" className="min-w-0">
                                 <div className="font-medium text-xs sm:text-sm truncate">
@@ -854,9 +862,18 @@ export default function TimeEntriesPage() {
                       <div className="text-sm text-muted-foreground">
                         Employee
                       </div>
-                      <div className="font-medium">
-                        {selectedEntry.employees.full_name}
-                      </div>
+                      <HStack gap="2" align="center">
+                        <EmployeeAvatar
+                          profilePictureUrl={
+                            selectedEntry.employees.profile_picture_url
+                          }
+                          fullName={selectedEntry.employees.full_name}
+                          size="md"
+                        />
+                        <div className="font-medium">
+                          {selectedEntry.employees.full_name}
+                        </div>
+                      </HStack>
                     </div>
                     <div>
                       <div className="text-sm text-muted-foreground">

@@ -1,0 +1,131 @@
+-- =====================================================
+-- 067: SIL accrual refactor
+--  - Before 1-year anniversary: Accrue 10/12 credits monthly on hire date
+--    (e.g., if hired Aug 20, accrue on 20th of each month)
+--  - After 1-year anniversary: Accrue 10/12 credits monthly on 1st of each month
+--  - Credits reset to 0 on Dec 31 of each calendar year
+--  - Credits capped at 10 days maximum
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.refresh_employee_leave_balances(p_employee_id UUID)
+RETURNS TABLE (
+  sil_credits NUMERIC,
+  maternity_credits NUMERIC,
+  paternity_credits NUMERIC,
+  offset_hours NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_emp RECORD;
+  v_today DATE := CURRENT_DATE;
+  v_current_year INT := EXTRACT(YEAR FROM v_today)::int;
+  v_first_anniv DATE;
+  v_month_accrual NUMERIC := 10.0 / 12.0; -- monthly slice of the 10-day yearly entitlement (0.833...)
+  v_year_start DATE;
+  v_year_end DATE;
+  v_next_accrual_date DATE;
+  v_hire_day INT;
+  v_cursor DATE;
+BEGIN
+  SELECT *
+  INTO v_emp
+  FROM public.employees
+  WHERE id = p_employee_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  -- Reset credits on year-end (Dec 31)
+  v_year_start := date_trunc('year', v_today)::date;
+  v_year_end := (date_trunc('year', v_today) + INTERVAL '1 year - 1 day')::date;
+  
+  IF v_emp.sil_balance_year IS DISTINCT FROM v_current_year THEN
+    v_emp.sil_credits := 0;
+    v_emp.sil_last_accrual := NULL;
+    v_emp.sil_balance_year := v_current_year;
+  END IF;
+
+  v_emp.sil_credits := COALESCE(v_emp.sil_credits, 0);
+
+  IF v_emp.hire_date IS NOT NULL AND v_emp.hire_date <= v_today THEN
+    v_first_anniv := (v_emp.hire_date + INTERVAL '1 year')::date;
+    v_hire_day := EXTRACT(DAY FROM v_emp.hire_date)::int;
+
+    IF v_today < v_first_anniv THEN
+      -- Before 1-year anniversary: Accrue monthly on hire date (e.g., 20th of each month)
+      -- First accrual is one month after hire date
+      IF v_emp.sil_last_accrual IS NULL THEN
+        -- First accrual: one month after hire date
+        v_next_accrual_date := date_trunc('month', v_emp.hire_date)::date + INTERVAL '1 month' + (v_hire_day - 1) * INTERVAL '1 day';
+        -- Handle cases where hire day doesn't exist in next month (e.g., Jan 31 -> Feb 28)
+        IF EXTRACT(DAY FROM v_next_accrual_date) != v_hire_day THEN
+          v_next_accrual_date := date_trunc('month', v_next_accrual_date)::date + INTERVAL '1 month - 1 day';
+        END IF;
+      ELSE
+        -- Continue from last accrual: next month's hire date
+        v_next_accrual_date := date_trunc('month', v_emp.sil_last_accrual)::date + INTERVAL '1 month' + (v_hire_day - 1) * INTERVAL '1 day';
+        -- Handle cases where hire day doesn't exist in next month
+        IF EXTRACT(DAY FROM v_next_accrual_date) != v_hire_day THEN
+          v_next_accrual_date := date_trunc('month', v_next_accrual_date)::date + INTERVAL '1 month - 1 day';
+        END IF;
+      END IF;
+
+      -- Process all accruals up to today
+      WHILE v_next_accrual_date <= v_today AND v_next_accrual_date < v_first_anniv LOOP
+        v_emp.sil_credits := LEAST(10, v_emp.sil_credits + v_month_accrual);
+        v_emp.sil_last_accrual := v_next_accrual_date;
+        
+        -- Move to next month's hire date
+        v_next_accrual_date := date_trunc('month', v_next_accrual_date)::date + INTERVAL '1 month' + (v_hire_day - 1) * INTERVAL '1 day';
+        -- Handle cases where hire day doesn't exist in next month
+        IF EXTRACT(DAY FROM v_next_accrual_date) != v_hire_day THEN
+          v_next_accrual_date := date_trunc('month', v_next_accrual_date)::date + INTERVAL '1 month - 1 day';
+        END IF;
+      END LOOP;
+    ELSE
+      -- After 1-year anniversary: Accrue monthly on 1st of each month
+      IF v_emp.sil_last_accrual IS NULL OR v_emp.sil_last_accrual < v_first_anniv THEN
+        -- First accrual after anniversary: 1st of next month after anniversary
+        v_cursor := date_trunc('month', v_first_anniv)::date + INTERVAL '1 month';
+      ELSE
+        -- Continue from last accrual: 1st of next month
+        v_cursor := date_trunc('month', v_emp.sil_last_accrual)::date + INTERVAL '1 month';
+      END IF;
+
+      -- Process all accruals up to today (1st of each month)
+      WHILE v_cursor <= v_today LOOP
+        v_emp.sil_credits := LEAST(10, v_emp.sil_credits + v_month_accrual);
+        v_emp.sil_last_accrual := v_cursor;
+        v_cursor := date_trunc('month', v_cursor)::date + INTERVAL '1 month';
+      END LOOP;
+    END IF;
+  END IF;
+
+  v_emp.maternity_credits := CASE WHEN v_emp.gender = 'female' THEN 105 ELSE 0 END;
+  v_emp.paternity_credits := CASE WHEN v_emp.gender = 'male' THEN COALESCE(v_emp.paternity_credits, 0) ELSE 0 END;
+
+  UPDATE public.employees
+  SET
+    sil_credits = v_emp.sil_credits,
+    sil_last_accrual = v_emp.sil_last_accrual,
+    sil_balance_year = v_emp.sil_balance_year,
+    maternity_credits = v_emp.maternity_credits,
+    paternity_credits = v_emp.paternity_credits
+  WHERE id = v_emp.id;
+
+  RETURN QUERY
+  SELECT
+    COALESCE(v_emp.sil_credits, 0),
+    COALESCE(v_emp.maternity_credits, 0),
+    COALESCE(v_emp.paternity_credits, 0),
+    COALESCE(v_emp.offset_hours, 0);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.refresh_employee_leave_balances(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.refresh_employee_leave_balances(UUID) TO anon;

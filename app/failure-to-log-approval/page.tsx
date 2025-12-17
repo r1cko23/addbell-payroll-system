@@ -67,7 +67,7 @@ export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { role, isHR, loading: roleLoading } = useUserRole();
-  
+
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
   const [employees, setEmployees] = useState<

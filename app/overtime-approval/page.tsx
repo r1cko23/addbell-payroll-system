@@ -47,7 +47,7 @@ export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
-  
+
   // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<OTRequest[]>([]);

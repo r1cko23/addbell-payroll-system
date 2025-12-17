@@ -67,32 +67,13 @@ export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { role, isHR, loading: roleLoading } = useUserRole();
+  
+  // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
   >([]);
   const [loading, setLoading] = useState(true);
-
-  // Block HR users from accessing this page
-  useEffect(() => {
-    if (!roleLoading && isHR) {
-      router.push("/dashboard");
-    }
-  }, [roleLoading, isHR, router]);
-
-  if (roleLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (isHR) {
-    return null; // Will redirect via useEffect
-  }
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -104,6 +85,13 @@ export default function FailureToLogApprovalPage() {
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
+
+  // Block HR users from accessing this page
+  useEffect(() => {
+    if (!roleLoading && isHR) {
+      router.push("/dashboard");
+    }
+  }, [roleLoading, isHR, router]);
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday

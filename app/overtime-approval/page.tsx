@@ -47,28 +47,9 @@ export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
+  
+  // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
-
-  // Block HR users from accessing this page
-  useEffect(() => {
-    if (!roleLoading && isHR) {
-      router.push("/dashboard");
-    }
-  }, [roleLoading, isHR, router]);
-
-  if (roleLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (isHR) {
-    return null; // Will redirect via useEffect
-  }
   const [requests, setRequests] = useState<OTRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
@@ -81,6 +62,13 @@ export default function OvertimeApprovalPage() {
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
+
+  // Block HR users from accessing this page
+  useEffect(() => {
+    if (!roleLoading && isHR) {
+      router.push("/dashboard");
+    }
+  }, [roleLoading, isHR, router]);
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
@@ -203,8 +191,10 @@ export default function OvertimeApprovalPage() {
   }
 
   useEffect(() => {
-    loadRequests();
-  }, [selectedWeek, statusFilter, selectedEmployee]);
+    if (role === "account_manager" || role === "admin") {
+      loadRequests();
+    }
+  }, [selectedWeek, statusFilter, selectedEmployee, role]);
 
   const handleApprove = async (id: string) => {
     setActioningId(id);
@@ -239,6 +229,7 @@ export default function OvertimeApprovalPage() {
     setActioningId(null);
   };
 
+  // Show loading state while checking role
   if (roleLoading) {
     return (
       <DashboardLayout>
@@ -253,6 +244,12 @@ export default function OvertimeApprovalPage() {
     );
   }
 
+  // Block HR users - redirect handled by useEffect above
+  if (isHR) {
+    return null;
+  }
+
+  // Only allow account managers and admins
   if (role !== "account_manager" && role !== "admin") {
     return (
       <DashboardLayout>

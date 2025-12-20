@@ -33,7 +33,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect Account Managers away from /employees and /payslips (to prevent seeing salary info)
+  // Redirect Account Managers and HR users without salary access away from /employees and /payslips
   if (
     session &&
     (req.nextUrl.pathname.startsWith("/employees") ||
@@ -46,18 +46,27 @@ export async function middleware(req: NextRequest) {
     if (user) {
       const { data: userData } = await supabase
         .from("users")
-        .select("role")
+        .select("role, can_access_salary")
         .eq("id", user.id)
         .eq("is_active", true)
         .single();
 
-      if (
-        userData &&
-        (userData as { role: string }).role === "account_manager"
-      ) {
-        const redirectUrl = req.nextUrl.clone();
-        redirectUrl.pathname = "/dashboard";
-        return NextResponse.redirect(redirectUrl);
+      if (userData) {
+        const userRecord = userData as { role: string; can_access_salary: boolean | null };
+        
+        // Redirect Account Managers
+        if (userRecord.role === "account_manager") {
+          const redirectUrl = req.nextUrl.clone();
+          redirectUrl.pathname = "/dashboard";
+          return NextResponse.redirect(redirectUrl);
+        }
+        
+        // Redirect HR users without salary access
+        if (userRecord.role === "hr" && !userRecord.can_access_salary) {
+          const redirectUrl = req.nextUrl.clone();
+          redirectUrl.pathname = "/dashboard";
+          return NextResponse.redirect(redirectUrl);
+        }
       }
     }
   }

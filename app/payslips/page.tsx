@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,7 +92,8 @@ interface EmployeeDeductions {
 }
 
 export default function PayslipsPage() {
-  const { canAccessSalaryInfo } = useUserRole();
+  const router = useRouter();
+  const { canAccessSalaryInfo, loading: roleLoading } = useUserRole();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
@@ -105,6 +107,14 @@ export default function PayslipsPage() {
   const [loading, setLoading] = useState(true);
   const [clockEntries, setClockEntries] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
+
+  // Redirect HR users without salary access
+  useEffect(() => {
+    if (!roleLoading && !canAccessSalaryInfo) {
+      toast.error("You do not have permission to access this page.");
+      router.push("/dashboard");
+    }
+  }, [canAccessSalaryInfo, roleLoading, router]);
 
   // Helper function to check if current period is second cutoff (deductions applied monthly)
   const isSecondCutoff = () => {
@@ -1364,7 +1374,8 @@ export default function PayslipsPage() {
     }
   }
 
-  if (loading) {
+  // Show loading or access denied
+  if (roleLoading || loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -1373,6 +1384,35 @@ export default function PayslipsPage() {
             size={IconSizes.lg}
             className="animate-spin text-muted-foreground"
           />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show access denied message if user doesn't have permission
+  if (!canAccessSalaryInfo) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Card className="max-w-md">
+            <CardContent className="pt-6">
+              <VStack gap="4" align="center">
+                <Icon
+                  name="Lock"
+                  size={IconSizes.xl}
+                  className="text-destructive"
+                />
+                <H3>Access Denied</H3>
+                <BodySmall className="text-center text-muted-foreground">
+                  You do not have permission to access the payslip management page.
+                  Please contact your administrator if you need access.
+                </BodySmall>
+                <Button onClick={() => router.push("/dashboard")}>
+                  Return to Dashboard
+                </Button>
+              </VStack>
+            </CardContent>
+          </Card>
         </div>
       </DashboardLayout>
     );

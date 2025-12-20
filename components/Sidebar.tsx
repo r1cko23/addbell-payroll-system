@@ -114,7 +114,7 @@ const NavItem = memo(function NavItem({
 
 function SidebarComponent({ className, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { role, isHR, isAccountManager, loading: roleLoading } = useUserRole();
+  const { role, isHR, isAccountManager, canAccessSalaryInfo, loading: roleLoading } = useUserRole();
   const [openGroup, setOpenGroup] = React.useState<string | null>("People");
   const FallbackIcon = WarningCircle;
 
@@ -146,10 +146,19 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
             ),
           };
         }
+        // Hide Payslips link from HR users without salary access
+        if (group.label === "People" && isHR && !canAccessSalaryInfo) {
+          return {
+            ...group,
+            items: group.items.filter(
+              (item) => item.href !== "/payslips"
+            ),
+          };
+        }
       }
       return group;
     });
-  }, [isHR, isAccountManager, roleLoading]);
+  }, [isHR, isAccountManager, canAccessSalaryInfo, roleLoading]);
 
   // Auto-open the group that matches the current route
   React.useEffect(() => {

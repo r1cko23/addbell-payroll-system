@@ -94,6 +94,14 @@ export default function SchedulePage() {
     loadWeek();
   }, [employee.id, supabase, weekDays, weekStart]);
 
+  // Helper function to validate time range for a day
+  const isValidTimeRange = (day: DayEntry): boolean => {
+    if (day.day_off || !day.start_time || !day.end_time) {
+      return true; // Valid if day off or times not set
+    }
+    return day.start_time < day.end_time;
+  };
+
   const handleChange = (
     idx: number,
     field: keyof DayEntry,
@@ -138,6 +146,26 @@ export default function SchedulePage() {
       toast.error("This week is locked. Edits are only allowed until Monday.");
       return;
     }
+    
+    // Client-side validation: check for invalid time ranges
+    for (const day of days) {
+      if (!day.day_off && day.start_time && day.end_time) {
+        // Convert time strings to comparable format
+        const startTime = day.start_time;
+        const endTime = day.end_time;
+        
+        // Compare times (HH:MM format)
+        if (startTime >= endTime) {
+          const dayName = format(new Date(day.schedule_date), "EEEE, MMM d");
+          toast.error(
+            `Invalid time range on ${dayName}: The end time must be later than the start time.`,
+            { duration: 6000 }
+          );
+          return;
+        }
+      }
+    }
+    
     setLoading(true);
     setShowSaveConfirm(false);
     // Include all days: working days with times, and day off days
@@ -301,7 +329,23 @@ export default function SchedulePage() {
       }
     } catch (err: any) {
       console.error("Save failed:", err);
-      toast.error(err?.message || "Failed to save schedule. Please try again.");
+      
+      // Check for constraint violation or time validation errors
+      const errorMessage = err?.message || "";
+      let friendlyMessage = "Failed to save schedule. Please try again.";
+      
+      if (
+        errorMessage.includes("employee_week_schedules_time_check") ||
+        errorMessage.includes("start_time must be before end_time") ||
+        errorMessage.includes("end time must be later than the start time") ||
+        errorMessage.includes("violates check constraint")
+      ) {
+        friendlyMessage = "The end time must be later than the start time. Please check your schedule times.";
+      } else if (errorMessage) {
+        friendlyMessage = errorMessage;
+      }
+      
+      toast.error(friendlyMessage);
     } finally {
       setLoading(false);
     }
@@ -485,10 +529,21 @@ export default function SchedulePage() {
       <CardSection>
         <VStack gap="6" className="w-full">
           <div className="w-full grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {weekDays.map((day, idx) => (
+            {weekDays.map((day, idx) => {
+              const hasInvalidTimeRange =
+                !days[idx]?.day_off &&
+                days[idx]?.start_time &&
+                days[idx]?.end_time &&
+                !isValidTimeRange(days[idx]);
+              
+              return (
               <div
                 key={day.toISOString()}
-                className="w-full rounded-lg border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+                className={`w-full rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md ${
+                  hasInvalidTimeRange
+                    ? "border-destructive/50"
+                    : "border-border"
+                }`}
               >
                 <VStack gap="4" className="w-full">
                   <HStack
@@ -499,6 +554,14 @@ export default function SchedulePage() {
                   >
                     <H3 className="whitespace-nowrap flex-shrink-0">
                       {format(day, "EEEE, MMM d")}
+                      {!days[idx]?.day_off &&
+                        days[idx]?.start_time &&
+                        days[idx]?.end_time &&
+                        !isValidTimeRange(days[idx]) && (
+                          <span className="text-destructive ml-1" title="Invalid time range">
+                            *
+                          </span>
+                        )}
                     </H3>
                     <HStack gap="2" align="center" className="flex-shrink-0">
                       <Button
@@ -546,6 +609,12 @@ export default function SchedulePage() {
                     <VStack gap="2" align="start">
                       <Label htmlFor={`start-${idx}`} className="text-xs">
                         Start
+                        {!days[idx]?.day_off &&
+                          days[idx]?.start_time &&
+                          days[idx]?.end_time &&
+                          !isValidTimeRange(days[idx]) && (
+                            <span className="text-destructive ml-1">*</span>
+                          )}
                       </Label>
                       <Input
                         id={`start-${idx}`}
@@ -555,11 +624,25 @@ export default function SchedulePage() {
                         onChange={(e) =>
                           handleChange(idx, "start_time", e.target.value)
                         }
+                        className={
+                          !days[idx]?.day_off &&
+                          days[idx]?.start_time &&
+                          days[idx]?.end_time &&
+                          !isValidTimeRange(days[idx])
+                            ? "border-destructive focus-visible:ring-destructive"
+                            : ""
+                        }
                       />
                     </VStack>
                     <VStack gap="2" align="start">
                       <Label htmlFor={`end-${idx}`} className="text-xs">
                         End
+                        {!days[idx]?.day_off &&
+                          days[idx]?.start_time &&
+                          days[idx]?.end_time &&
+                          !isValidTimeRange(days[idx]) && (
+                            <span className="text-destructive ml-1">*</span>
+                          )}
                       </Label>
                       <Input
                         id={`end-${idx}`}
@@ -569,9 +652,32 @@ export default function SchedulePage() {
                         onChange={(e) =>
                           handleChange(idx, "end_time", e.target.value)
                         }
+                        className={
+                          !days[idx]?.day_off &&
+                          days[idx]?.start_time &&
+                          days[idx]?.end_time &&
+                          !isValidTimeRange(days[idx])
+                            ? "border-destructive focus-visible:ring-destructive"
+                            : ""
+                        }
                       />
                     </VStack>
                   </div>
+                  {!days[idx]?.day_off &&
+                    days[idx]?.start_time &&
+                    days[idx]?.end_time &&
+                    !isValidTimeRange(days[idx]) && (
+                      <div className="rounded-md border border-destructive/20 bg-destructive/5 p-2">
+                        <Caption className="text-destructive text-xs">
+                          <Icon
+                            name="WarningCircle"
+                            size={IconSizes.xs}
+                            className="inline mr-1"
+                          />
+                          Invalid time range: End time must be later than start time
+                        </Caption>
+                      </div>
+                    )}
                   <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor={`tasks-${idx}`} className="text-xs">
                       Tasks for this day
@@ -590,7 +696,8 @@ export default function SchedulePage() {
                   </VStack>
                 </VStack>
               </div>
-            ))}
+            );
+            })}
           </div>
         </VStack>
       </CardSection>

@@ -214,7 +214,7 @@ export default function EmployeePortalLayout({
               className="fixed inset-0 bg-black/50 z-40 lg:hidden"
               onClick={() => setIsSidebarOpen(false)}
             />
-            <aside className="fixed left-0 top-0 bottom-0 z-50 lg:hidden">
+            <aside className="fixed left-0 top-0 bottom-0 z-50 lg:hidden w-64 shadow-xl">
               <EmployeePortalSidebar onClose={() => setIsSidebarOpen(false)} />
             </aside>
           </>

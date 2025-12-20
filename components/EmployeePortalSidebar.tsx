@@ -153,7 +153,7 @@ export function EmployeePortalSidebar({
   return (
     <div
       className={cn(
-        "flex h-full flex-col w-64 border-r bg-muted/10",
+        "flex h-full flex-col w-64 border-r bg-background",
         className
       )}
     >

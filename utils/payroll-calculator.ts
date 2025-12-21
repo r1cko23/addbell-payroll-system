@@ -29,11 +29,55 @@ export interface PayCalculation {
 }
 
 /**
+ * Payroll Multipliers (Philippine Labor Code)
+ * Exported for use in UI components to display correct multipliers
+ */
+export const PAYROLL_MULTIPLIERS = {
+  REGULAR: 1.0,
+  REGULAR_OT: 1.25,
+  REST_DAY: 1.3,
+  SPECIAL_HOLIDAY: 1.3,
+  REGULAR_HOLIDAY: 2.0,
+  SUNDAY_SPECIAL_HOLIDAY: 1.5,
+  SUNDAY_REGULAR_HOLIDAY: 2.6,
+  OT_PREMIUM: 1.3, // Applied on top of base day multiplier
+  NIGHT_DIFF: 0.1,
+} as const;
+
+/**
+ * Generic function to calculate pay with multiplier
+ * Formula: HRS × RATE/HR × MULTIPLIER
+ */
+function calculatePayWithMultiplier(
+  hours: number,
+  ratePerHour: number,
+  multiplier: number
+): number {
+  return hours * ratePerHour * multiplier;
+}
+
+/**
+ * Generic function to calculate overtime pay
+ * Formula: HRS × RATE/HR × BASE_MULTIPLIER × OT_PREMIUM
+ */
+function calculateOTWithBaseMultiplier(
+  hours: number,
+  ratePerHour: number,
+  baseMultiplier: number
+): number {
+  return hours * ratePerHour * baseMultiplier * PAYROLL_MULTIPLIERS.OT_PREMIUM;
+}
+
+/**
  * Calculate Regular Overtime
  * Formula: HRS × RATE/HR × 1.25
  */
-export function calculateRegularOT(hours: number, ratePerHour: number): number {
-  return hours * ratePerHour * 1.25;
+export function calculateRegularOT(hours: number, ratePerHour: number): number {  
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.REGULAR_OT
+  );
 }
 
 /**
@@ -44,7 +88,11 @@ export function calculateSundayRestDay(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 1.3;
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.REST_DAY
+  );
 }
 
 /**
@@ -55,7 +103,11 @@ export function calculateSundayRestDayOT(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 1.3 * 1.3;
+  return calculateOTWithBaseMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.REST_DAY
+  );
 }
 
 /**
@@ -66,7 +118,11 @@ export function calculateSundaySpecialHoliday(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 1.5;
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.SUNDAY_SPECIAL_HOLIDAY
+  );
 }
 
 /**
@@ -77,7 +133,11 @@ export function calculateSundaySpecialHolidayOT(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 1.5 * 1.3;
+  return calculateOTWithBaseMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.SUNDAY_SPECIAL_HOLIDAY
+  );
 }
 
 /**
@@ -88,7 +148,11 @@ export function calculateSundayRegularHoliday(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 2.6;
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.SUNDAY_REGULAR_HOLIDAY
+  );
 }
 
 /**
@@ -99,29 +163,37 @@ export function calculateSundayRegularHolidayOT(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 2.6 * 1.3;
+  return calculateOTWithBaseMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.SUNDAY_REGULAR_HOLIDAY
+  );
 }
 
 /**
- * Calculate Non-Working Holiday
+ * Calculate Non-Working Holiday (Special Holiday)
  * Formula: HRS × RATE/HR × 1.3
+ * Note: Same multiplier as Rest Day, reusing the same calculation
  */
 export function calculateNonWorkingHoliday(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 1.3;
+  // Reuse rest day calculation since multiplier is identical (1.3)
+  return calculateSundayRestDay(hours, ratePerHour);
 }
 
 /**
  * Calculate Non-Working Holiday OT
  * Formula: (HRS × RATE/HR × 1.3) × 1.3
+ * Note: Same multiplier as Rest Day OT, reusing the same calculation
  */
 export function calculateNonWorkingHolidayOT(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 1.3 * 1.3;
+  // Reuse rest day OT calculation since multiplier is identical (1.69)
+  return calculateSundayRestDayOT(hours, ratePerHour);
 }
 
 /**
@@ -132,7 +204,11 @@ export function calculateRegularHoliday(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 2;
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY
+  );
 }
 
 /**
@@ -143,15 +219,24 @@ export function calculateRegularHolidayOT(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour * 2 * 1.3;
+  return calculateOTWithBaseMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY
+  );
 }
 
 /**
  * Calculate Night Differential
  * Formula: HRS × RATE/HR × 0.1
+ * Note: Night differential multiplier is constant regardless of day type
  */
 export function calculateNightDiff(hours: number, ratePerHour: number): number {
-  return hours * ratePerHour * 0.1;
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.NIGHT_DIFF
+  );
 }
 
 /**
@@ -162,7 +247,11 @@ export function calculateRegularPay(
   hours: number,
   ratePerHour: number
 ): number {
-  return hours * ratePerHour;
+  return calculatePayWithMultiplier(
+    hours,
+    ratePerHour,
+    PAYROLL_MULTIPLIERS.REGULAR
+  );
 }
 
 /**

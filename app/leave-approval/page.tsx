@@ -57,7 +57,6 @@ interface LeaveRequest {
     | "LWOP"
     | "Maternity Leave"
     | "Paternity Leave"
-    | "Off-setting";
   start_date: string;
   end_date: string;
   selected_dates?: string[] | null;
@@ -82,7 +81,6 @@ interface LeaveRequest {
     full_name: string;
     profile_picture_url?: string | null;
     sil_credits: number;
-    offset_hours?: number | null;
   };
   leave_request_documents?: LeaveDocument[];
 }
@@ -221,7 +219,6 @@ export default function LeaveApprovalPage() {
           full_name,
           profile_picture_url,
           sil_credits,
-          offset_hours
         ),
         leave_request_documents (
           id,
@@ -265,14 +262,12 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    const requestsData = data as Array<{
-      status: string;
-      approved_by_manager?: string | null;
-      rejected_by_manager?: string | null;
-      account_manager_id?: string | null;
-      hr_approver_id?: string | null;
-      rejected_by?: string | null;
-    }> | null;
+    if (!data) {
+      setRequests([]);
+      return;
+    }
+
+    const requestsData = data as any[];
 
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
@@ -495,18 +490,6 @@ export default function LeaveApprovalPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    if (request.leave_type === "Off-setting") {
-      const requestedHours = Number(request.total_hours || 0);
-      const availableHours = Number(request.employees?.offset_hours || 0);
-      if (requestedHours > availableHours) {
-        toast.error(
-          `Requested Off-setting (${requestedHours.toFixed(
-            2
-          )} hrs) exceeds available credits (${availableHours.toFixed(2)} hrs)`
-        );
-        return;
-      }
-    }
 
     if (level === "hr" && request.status !== "approved_by_manager") {
       toast.error("HR approval requires manager approval first");
@@ -919,42 +902,15 @@ export default function LeaveApprovalPage() {
                             </>
                           )}
                         </HStack>
-                        {request.leave_type === "Off-setting" ? (
-                          <span className="font-semibold text-emerald-600">
-                            {request.total_hours ?? 0} hours
-                          </span>
-                        ) : (
-                          <span className="font-semibold text-emerald-600">
-                            {request.total_days}{" "}
-                            {request.total_days === 1 ? "day" : "days"}
-                          </span>
-                        )}
+                        <span className="font-semibold text-emerald-600">
+                          {request.total_days}{" "}
+                          {request.total_days === 1 ? "day" : "days"}
+                        </span>
                         {request.leave_type === "SIL" && request.employees && (
                           <Caption>
                             Available Credits: {request.employees.sil_credits}
                           </Caption>
                         )}
-                        {request.leave_type === "Off-setting" &&
-                          typeof request.employees?.offset_hours ===
-                            "number" && (
-                            <Caption
-                              className={
-                                (request.total_hours || 0) >
-                                (request.employees?.offset_hours || 0)
-                                  ? "text-red-600 font-semibold"
-                                  : ""
-                              }
-                            >
-                              Available Off-setting Hours:{" "}
-                              {request.employees.offset_hours?.toFixed(2)}
-                              {(request.total_hours || 0) >
-                                (request.employees?.offset_hours || 0) && (
-                                <span className="ml-1">
-                                  (request exceeds credits)
-                                </span>
-                              )}
-                            </Caption>
-                          )}
                       </HStack>
                       {request.reason && (
                         <BodySmall className="mt-2">
@@ -1145,16 +1101,10 @@ export default function LeaveApprovalPage() {
                       <div className="text-sm text-muted-foreground">
                         Total Days
                       </div>
-                      {selectedRequest.leave_type === "Off-setting" ? (
-                        <div className="font-semibold text-emerald-600">
-                          {selectedRequest.total_hours ?? 0} hours
-                        </div>
-                      ) : (
-                        <div className="font-semibold text-emerald-600">
-                          {selectedRequest.total_days}{" "}
-                          {selectedRequest.total_days === 1 ? "day" : "days"}
-                        </div>
-                      )}
+                      <div className="font-semibold text-emerald-600">
+                        {selectedRequest.total_days}{" "}
+                        {selectedRequest.total_days === 1 ? "day" : "days"}
+                      </div>
                     </div>
                   </div>
 
@@ -1200,47 +1150,6 @@ export default function LeaveApprovalPage() {
                       </div>
                     )}
 
-                  {selectedRequest.leave_type === "Off-setting" &&
-                    selectedRequest.employees && (
-                      <div>
-                        <div className="text-sm text-muted-foreground">
-                          Off-setting Credits Check
-                        </div>
-                        <div className="space-y-1">
-                          <div className="font-semibold text-emerald-600">
-                            Requested: {selectedRequest.total_hours ?? 0} hours
-                          </div>
-                          <div
-                            className={`font-semibold ${
-                              (selectedRequest.total_hours || 0) >
-                              (selectedRequest.employees.offset_hours || 0)
-                                ? "text-red-600"
-                                : "text-green-600"
-                            }`}
-                          >
-                            Available Credits:{" "}
-                            {selectedRequest.employees.offset_hours?.toFixed(
-                              2
-                            ) ?? "0.00"}{" "}
-                            hours
-                            {(selectedRequest.total_hours || 0) >
-                              (selectedRequest.employees.offset_hours || 0) && (
-                              <HStack
-                                gap="1"
-                                align="center"
-                                className="text-red-600 mt-1"
-                              >
-                                <Icon
-                                  name="WarningCircle"
-                                  size={IconSizes.sm}
-                                />
-                                Requested hours exceed available offset credits.
-                              </HStack>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                   {selectedRequest.reason && (
                     <div className="space-y-2">

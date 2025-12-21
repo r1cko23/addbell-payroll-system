@@ -57,7 +57,6 @@ interface Employee {
   profile_picture_url?: string | null;
   gender?: "male" | "female" | null;
   sil_credits?: number;
-  offset_hours?: number;
   last_name?: string;
   first_name?: string;
   middle_initial?: string;
@@ -401,7 +400,6 @@ export default function EmployeesPage() {
           formData.gender === "male"
             ? parseFloat(formData.paternity_days || "0") || 0
             : 0,
-        offset_hours: editingEmployee?.offset_hours ?? 0,
       };
 
       let employeeId = editingEmployee ? editingEmployee.id : "";

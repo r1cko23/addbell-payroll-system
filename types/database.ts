@@ -50,6 +50,7 @@ export interface Database {
           last_name: string | null;
           middle_initial: string | null;
           assigned_hotel: string | null;
+          deployed: boolean | null;
           address: string | null;
           birth_date: string | null;
           gender: "male" | "female" | null;
@@ -62,7 +63,6 @@ export interface Database {
           sil_credits: number | null;
           maternity_credits: number | null;
           paternity_credits: number | null;
-          offset_hours: number | null;
           is_active: boolean;
           portal_password: string | null;
           created_at: string;
@@ -80,6 +80,7 @@ export interface Database {
           last_name?: string | null;
           middle_initial?: string | null;
           assigned_hotel?: string | null;
+          deployed?: boolean | null;
           address?: string | null;
           birth_date?: string | null;
           gender?: "male" | "female" | null;
@@ -92,7 +93,6 @@ export interface Database {
           sil_credits?: number | null;
           maternity_credits?: number | null;
           paternity_credits?: number | null;
-          offset_hours?: number | null;
           is_active?: boolean;
           portal_password?: string | null;
           created_at?: string;
@@ -107,6 +107,7 @@ export interface Database {
           last_name?: string | null;
           middle_initial?: string | null;
           assigned_hotel?: string | null;
+          deployed?: boolean | null;
           address?: string | null;
           birth_date?: string | null;
           gender?: "male" | "female" | null;
@@ -119,7 +120,6 @@ export interface Database {
           sil_credits?: number | null;
           maternity_credits?: number | null;
           paternity_credits?: number | null;
-          offset_hours?: number | null;
           is_active?: boolean;
           portal_password?: string | null;
           created_at?: string;

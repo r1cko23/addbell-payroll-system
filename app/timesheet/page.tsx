@@ -646,10 +646,7 @@ export default function TimesheetPage() {
         if (leave.leave_type === "LWOP") {
           status = "LWOP";
           bh = 0;
-        } else if (
-          leave.leave_type === "CTO" ||
-          leave.leave_type === "Off-setting"
-        ) {
+        } else if (leave.leave_type === "CTO") {
           status = "CTO";
           bh = 8; // CTO typically counts as 8 hours
         } else if (

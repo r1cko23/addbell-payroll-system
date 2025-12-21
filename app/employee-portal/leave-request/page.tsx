@@ -47,8 +47,7 @@ interface LeaveRequest {
     | "SIL"
     | "LWOP"
     | "Maternity Leave"
-    | "Paternity Leave"
-    | "Off-setting";
+    | "Paternity Leave";
   start_date: string;
   end_date: string;
   selected_dates?: string[] | null;
@@ -72,7 +71,6 @@ interface EmployeeInfo {
   sil_credits: number;
   maternity_credits: number;
   paternity_credits: number;
-  offset_hours: number;
 }
 
 export default function LeaveRequestPage() {
@@ -80,7 +78,6 @@ export default function LeaveRequestPage() {
   const supabase = createClient();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
   const [employeeInfo, setEmployeeInfo] = useState<EmployeeInfo | null>(null);
-  const [offsetBalance, setOffsetBalance] = useState<number | null>(null);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
@@ -91,7 +88,7 @@ export default function LeaveRequestPage() {
 
   // Form state
   const [leaveType, setLeaveType] = useState<
-    "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave" | "Off-setting"
+    "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave"
   >("SIL");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [startDate, setStartDate] = useState("");
@@ -168,7 +165,6 @@ export default function LeaveRequestPage() {
     Promise.all([
       fetchLeaveRequests(emp.id),
       fetchEmployeeInfo(emp.id),
-      fetchOffsetBalance(emp.id),
       fetchHolidayDates(),
     ]).catch((err) => {
       console.error("Error loading initial data:", err);
@@ -192,25 +188,8 @@ export default function LeaveRequestPage() {
     }
   }, [employeeInfo, leaveType]);
 
-  // Clear selectedDates when switching to Off-setting, clear startDate/endDate when switching away
+  // Update startDate and endDate when selectedDates changes
   useEffect(() => {
-    if (leaveType === "Off-setting") {
-      setSelectedDates([]);
-    } else {
-      // Clear startDate/endDate if they were set for Off-setting
-      if (startDate && !selectedDates.includes(startDate)) {
-        setStartDate("");
-        setEndDate("");
-      }
-    }
-  }, [leaveType]);
-
-  // Update startDate and endDate when selectedDates changes (for backward compatibility)
-  // Only update if not Off-setting type
-  useEffect(() => {
-    if (leaveType === "Off-setting") {
-      return; // Don't override startDate/endDate for Off-setting
-    }
     if (selectedDates.length > 0) {
       const sortedDates = [...selectedDates].sort();
       setStartDate(sortedDates[0]);
@@ -219,27 +198,9 @@ export default function LeaveRequestPage() {
       setStartDate("");
       setEndDate("");
     }
-  }, [selectedDates, leaveType]);
+  }, [selectedDates]);
 
   useEffect(() => {
-    if (leaveType === "Off-setting") {
-      if (startDate && startTime && endTime) {
-        const start = new Date(`${startDate}T${startTime}`);
-        const end = new Date(`${startDate}T${endTime}`);
-        if (end > start) {
-          const diffHours =
-            (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-          setCalculatedHours(diffHours);
-        } else {
-          setCalculatedHours(0);
-        }
-      } else {
-        setCalculatedHours(0);
-      }
-      setCalculatedDays(0);
-      return;
-    }
-
     // Calculate days from selected dates array
     if (selectedDates.length > 0) {
       let days = 0;
@@ -257,7 +218,7 @@ export default function LeaveRequestPage() {
       setCalculatedDays(0);
     }
     setCalculatedHours(0);
-  }, [selectedDates, leaveType, startDate, startTime, endTime, holidayDates]);
+  }, [selectedDates, holidayDates]);
 
   async function fetchEmployeeInfo(employeeId: string) {
     try {
@@ -267,7 +228,12 @@ export default function LeaveRequestPage() {
 
       if (error) {
         console.error("Error fetching employee leave credits:", error);
-        setEmployeeInfo(null);
+        // Set default values instead of null to prevent infinite loading state
+        setEmployeeInfo({
+          sil_credits: 0,
+          maternity_credits: 0,
+          paternity_credits: 0,
+        });
         return;
       }
 
@@ -275,7 +241,6 @@ export default function LeaveRequestPage() {
         sil_credits: number | null;
         maternity_credits: number | null;
         paternity_credits: number | null;
-        offset_hours: number | null;
       }> | null;
 
       if (creditsData && creditsData.length > 0) {
@@ -283,43 +248,22 @@ export default function LeaveRequestPage() {
           sil_credits: Number(creditsData[0].sil_credits ?? 0),
           maternity_credits: Number(creditsData[0].maternity_credits ?? 0),
           paternity_credits: Number(creditsData[0].paternity_credits ?? 0),
-          offset_hours: Number(creditsData[0].offset_hours ?? 0),
         });
       } else {
         setEmployeeInfo({
           sil_credits: 0,
           maternity_credits: 0,
           paternity_credits: 0,
-          offset_hours: 0,
         });
       }
     } catch (err) {
       console.error("Error fetching employee info:", err);
-      setEmployeeInfo(null);
-    }
-  }
-
-  async function fetchOffsetBalance(employeeId: string) {
-    try {
-      const { data, error } = await supabase.rpc("get_offset_balance_rpc", {
-        p_employee_uuid: employeeId,
-      } as any);
-      if (error) {
-        console.error("Error fetching offset balance:", error);
-        setOffsetBalance(null);
-        return;
-      }
-      const offsetData = data as
-        | Array<{ get_offset_balance_rpc: number | null }>
-        | number
-        | null;
-      const val = Array.isArray(offsetData)
-        ? offsetData[0]?.get_offset_balance_rpc
-        : offsetData;
-      setOffsetBalance(val !== undefined && val !== null ? Number(val) : 0);
-    } catch (err) {
-      console.error("Error fetching offset balance:", err);
-      setOffsetBalance(null);
+      // Set default values instead of null to prevent infinite loading state
+      setEmployeeInfo({
+        sil_credits: 0,
+        maternity_credits: 0,
+        paternity_credits: 0,
+      });
     }
   }
 
@@ -380,40 +324,16 @@ export default function LeaveRequestPage() {
 
     if (
       !employee ||
-      (leaveType !== "Off-setting" && selectedDates.length === 0) ||
-      (leaveType === "Off-setting" && !startDate) ||
+      selectedDates.length === 0 ||
       !reason.trim()
     ) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    if (leaveType === "Off-setting") {
-      if (!startTime || !endTime) {
-        toast.error("Please provide start and end time for Off-setting");
-        return;
-      }
-      if (calculatedHours <= 0) {
-        toast.error(
-          "Please provide a valid time range (end time after start time)"
-        );
-        return;
-      }
-      const requestedHours = Number(calculatedHours || 0);
-      const availableHours = Number(offsetHours || 0);
-      if (requestedHours > availableHours) {
-        toast.error(
-          `Requested Off-setting hours (${requestedHours.toFixed(
-            2
-          )}) exceed your available credits (${availableHours.toFixed(2)})`
-        );
-        return;
-      }
-    } else {
-      if (calculatedDays <= 0) {
-        toast.error("Please select valid dates");
-        return;
-      }
+    if (calculatedDays <= 0) {
+      toast.error("Please select valid dates");
+      return;
     }
 
     // Check SIL credits if SIL type
@@ -461,15 +381,6 @@ export default function LeaveRequestPage() {
       }
     }
 
-    if (leaveType === "Off-setting") {
-      if (calculatedHours > offsetHours) {
-        toast.error(
-          `Insufficient Off-setting hours. Available: ${offsetHours.toFixed(2)}`
-        );
-        return;
-      }
-    }
-
     if (leaveType === "SIL" && supportingDoc) {
       if (!isAllowedFile(supportingDoc)) {
         toast.error("Only PDF, DOC, or DOCX files are allowed");
@@ -483,31 +394,17 @@ export default function LeaveRequestPage() {
 
     setSubmitting(true);
 
-    const payload =
-      leaveType === "Off-setting"
-        ? {
-            employee_id: employee.id,
-            leave_type: leaveType,
-            start_date: startDate,
-            end_date: startDate,
-            start_time: startTime,
-            end_time: endTime,
-            total_days: 0,
-            total_hours: calculatedHours,
-            reason: reason.trim(),
-            status: "pending",
-          }
-        : {
-            employee_id: employee.id,
-            leave_type: leaveType,
-            start_date: startDate,
-            end_date: endDate,
-            selected_dates: selectedDates.length > 0 ? selectedDates : null,
-            total_days: calculatedDays,
-            total_hours: 0,
-            reason: reason.trim(),
-            status: "pending",
-          };
+    const payload = {
+      employee_id: employee.id,
+      leave_type: leaveType,
+      start_date: startDate,
+      end_date: endDate,
+      selected_dates: selectedDates.length > 0 ? selectedDates : null,
+      total_days: calculatedDays,
+      total_hours: 0,
+      reason: reason.trim(),
+      status: "pending",
+    };
 
     const { data: inserted, error } = await (
       supabase.from("leave_requests") as any
@@ -673,10 +570,6 @@ export default function LeaveRequestPage() {
       : null;
   const maternityDays = employeeInfo?.maternity_credits ?? 0;
   const paternityDays = employeeInfo?.paternity_credits ?? 0;
-  // Display both configured offset_hours (credits) and actual balance from earned/usage
-  const offsetHours = offsetBalance ?? employeeInfo?.offset_hours ?? 0;
-  const exceedsOffset =
-    leaveType === "Off-setting" && calculatedHours > offsetHours;
 
   const visibleRequests = requests.filter((r) => r.status !== "cancelled");
   const pendingCount = visibleRequests.filter(
@@ -801,25 +694,6 @@ export default function LeaveRequestPage() {
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-indigo-500 hover:shadow-md transition-shadow">
-            <CardContent className="w-full p-5">
-              <VStack gap="2" align="start" className="w-full">
-                <HStack gap="2" align="center">
-                  <Icon
-                    name="Clock"
-                    size={IconSizes.sm}
-                    className="text-indigo-600"
-                  />
-                  <BodySmall className="font-medium text-muted-foreground">
-                    Off-setting Hours
-                  </BodySmall>
-                </HStack>
-                <div className="text-3xl font-bold text-indigo-600">
-                  {offsetHours.toFixed(2)}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Request Form */}
@@ -893,18 +767,6 @@ export default function LeaveRequestPage() {
                       />
                       <span>Paternity Leave</span>
                     </label>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        value="Off-setting"
-                        checked={leaveType === "Off-setting"}
-                        onChange={(e) =>
-                          setLeaveType(e.target.value as typeof leaveType)
-                        }
-                        className="h-4 w-4"
-                      />
-                      <span>Off-setting (hours)</span>
-                    </label>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     {leaveType === "SIL" && (
@@ -947,109 +809,37 @@ export default function LeaveRequestPage() {
                         )}
                       </p>
                     )}
-                    {leaveType === "Off-setting" && (
-                      <p>
-                        Available Off-setting hours:{" "}
-                        <strong>{offsetHours}</strong>
-                        {offsetHours === 0 && (
-                          <span className="text-red-600 font-medium ml-1">
-                            (no allocation)
-                          </span>
-                        )}
-                      </p>
-                    )}
                   </div>
                 </div>
 
-                {leaveType !== "Off-setting" && (
-                  <>
-                    <div className="w-full space-y-2">
-                      <Label>Select Dates</Label>
-                      <MultiDatePicker
-                        selectedDates={selectedDates}
-                        onChange={setSelectedDates}
-                        minDate={new Date().toISOString().split("T")[0]}
-                        holidayDates={holidayDates}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Select multiple non-consecutive dates by clicking on
-                        them in the calendar. Weekends and holidays are
-                        automatically excluded from the day count.
-                      </p>
-                    </div>
+                <div className="w-full space-y-2">
+                  <Label>Select Dates</Label>
+                  <MultiDatePicker
+                    selectedDates={selectedDates}
+                    onChange={setSelectedDates}
+                    minDate={new Date().toISOString().split("T")[0]}
+                    holidayDates={holidayDates}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Select multiple non-consecutive dates by clicking on
+                    them in the calendar. Weekends and holidays are
+                    automatically excluded from the day count.
+                  </p>
+                </div>
 
-                    {calculatedDays > 0 && (
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                        <div className="text-sm font-semibold text-blue-900">
-                          Calculated Days:{" "}
-                          <span className="text-lg">{calculatedDays}</span>
-                          {selectedDates.length > 0 && (
-                            <span className="text-xs font-normal text-blue-700 ml-2">
-                              ({selectedDates.length} date
-                              {selectedDates.length !== 1 ? "s" : ""} selected)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {leaveType === "Off-setting" && (
-                  <>
-                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="w-full space-y-2">
-                        <Label htmlFor="offset-date">Date</Label>
-                        <Input
-                          id="offset-date"
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => {
-                            setStartDate(e.target.value);
-                            setEndDate(e.target.value);
-                          }}
-                          min={new Date().toISOString().split("T")[0]}
-                          required
-                        />
-                      </div>
-                      <div className="w-full space-y-2">
-                        <Label>Duration (hours)</Label>
-                        <div className="p-3 border border-input rounded-md bg-muted text-sm">
-                          {calculatedHours > 0
-                            ? `${calculatedHours.toFixed(2)} hours`
-                            : "Enter time range"}
-                        </div>
-                        {exceedsOffset && (
-                          <p className="text-sm text-destructive font-semibold">
-                            Requested hours exceed available Off-setting credits
-                            ({offsetHours.toFixed(2)}).
-                          </p>
-                        )}
-                      </div>
+                {calculatedDays > 0 && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <div className="text-sm font-semibold text-blue-900">
+                      Calculated Days:{" "}
+                      <span className="text-lg">{calculatedDays}</span>
+                      {selectedDates.length > 0 && (
+                        <span className="text-xs font-normal text-blue-700 ml-2">
+                          ({selectedDates.length} date
+                          {selectedDates.length !== 1 ? "s" : ""} selected)
+                        </span>
+                      )}
                     </div>
-                    <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="w-full space-y-2">
-                        <Label htmlFor="start-time">Start Time</Label>
-                        <Input
-                          id="start-time"
-                          type="time"
-                          value={startTime}
-                          onChange={(e) => setStartTime(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="w-full space-y-2">
-                        <Label htmlFor="end-time">End Time</Label>
-                        <Input
-                          id="end-time"
-                          type="time"
-                          value={endTime}
-                          onChange={(e) => setEndTime(e.target.value)}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
                 {leaveType === "SIL" && (
@@ -1213,23 +1003,15 @@ export default function LeaveRequestPage() {
                               className={
                                 request.leave_type === "SIL"
                                   ? "bg-blue-50 text-blue-800 border-blue-200"
-                                  : request.leave_type === "Off-setting"
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                   : "bg-amber-50 text-amber-800 border-amber-200"
                               }
                             >
                               {request.leave_type}
                             </Badge>
-                            {request.leave_type === "Off-setting" ? (
-                              <span className="text-lg font-bold text-emerald-600">
-                                {request.total_hours ?? 0} hrs
-                              </span>
-                            ) : (
-                              <span className="text-lg font-bold text-emerald-600">
-                                {request.total_days}{" "}
-                                {request.total_days === 1 ? "day" : "days"}
-                              </span>
-                            )}
+                            <span className="text-lg font-bold text-emerald-600">
+                              {request.total_days}{" "}
+                              {request.total_days === 1 ? "day" : "days"}
+                            </span>
                           </div>
 
                           {request.reason && (

@@ -35,7 +35,6 @@ export interface LeaveRequestCardData {
     | "LWOP"
     | "Maternity Leave"
     | "Paternity Leave"
-    | "Off-setting";
   totalDays?: number;
   totalHours?: number;
   reason?: string | null;
@@ -46,7 +45,6 @@ export interface LeaveRequestCardData {
   approvedByHR?: boolean;
   // Leave balance information
   availableCredits?: number; // For SIL
-  availableOffsetHours?: number; // For Off-setting
   // Approval information
   approvedByManagerName?: string;
   approvedByHRName?: string;
@@ -133,12 +131,6 @@ function getLeaveTypeColor(leaveType: LeaveRequestCardData["leaveType"]) {
       text: "text-cyan-700",
       badge: "bg-cyan-100 text-cyan-800 border-cyan-200",
     },
-    "Off-setting": {
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
-      text: "text-emerald-700",
-      badge: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    },
   };
   return colors[leaveType] || colors.SIL;
 }
@@ -187,15 +179,6 @@ function calculateDuration(
   totalDays?: number,
   totalHours?: number
 ) {
-  if (leaveType === "Off-setting" && totalHours) {
-    return {
-      value: totalHours,
-      unit: totalHours === 1 ? "hour" : "hours",
-      display: `${totalHours.toFixed(1)} ${
-        totalHours === 1 ? "hour" : "hours"
-      }`,
-    };
-  }
 
   if (totalDays !== undefined) {
     return {
@@ -408,19 +391,13 @@ export function LeaveRequestCard({
           </HStack>
 
           {/* Leave Balance (if applicable) */}
-          {(request.availableCredits !== undefined ||
-            request.availableOffsetHours !== undefined) && (
+          {request.availableCredits !== undefined && (
             <div
               className={cn(
                 "rounded-md border p-3",
                 request.leaveType === "SIL" &&
                   request.availableCredits !== undefined &&
                   (request.totalDays || 0) > (request.availableCredits || 0)
-                  ? "border-red-200 bg-red-50"
-                  : request.leaveType === "Off-setting" &&
-                    request.availableOffsetHours !== undefined &&
-                    (request.totalHours || 0) >
-                      (request.availableOffsetHours || 0)
                   ? "border-red-200 bg-red-50"
                   : "border-emerald-200 bg-emerald-50"
               )}
@@ -434,11 +411,6 @@ export function LeaveRequestCard({
                     request.availableCredits !== undefined &&
                     (request.totalDays || 0) > (request.availableCredits || 0)
                       ? "text-red-600"
-                      : request.leaveType === "Off-setting" &&
-                        request.availableOffsetHours !== undefined &&
-                        (request.totalHours || 0) >
-                          (request.availableOffsetHours || 0)
-                      ? "text-red-600"
                       : "text-emerald-600"
                   }
                 />
@@ -447,11 +419,6 @@ export function LeaveRequestCard({
                     request.leaveType === "SIL" &&
                     request.availableCredits !== undefined &&
                     (request.totalDays || 0) > (request.availableCredits || 0)
-                      ? "text-red-700 font-semibold"
-                      : request.leaveType === "Off-setting" &&
-                        request.availableOffsetHours !== undefined &&
-                        (request.totalHours || 0) >
-                          (request.availableOffsetHours || 0)
                       ? "text-red-700 font-semibold"
                       : "text-emerald-700"
                   }
@@ -463,17 +430,6 @@ export function LeaveRequestCard({
                         {(request.totalDays || 0) >
                           (request.availableCredits || 0) && (
                           <span className="ml-1">(Insufficient)</span>
-                        )}
-                      </>
-                    )}
-                  {request.leaveType === "Off-setting" &&
-                    request.availableOffsetHours !== undefined && (
-                      <>
-                        Available Hours:{" "}
-                        {request.availableOffsetHours.toFixed(2)}
-                        {(request.totalHours || 0) >
-                          (request.availableOffsetHours || 0) && (
-                          <span className="ml-1">(Exceeds balance)</span>
                         )}
                       </>
                     )}

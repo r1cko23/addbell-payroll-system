@@ -1146,10 +1146,7 @@ export default function BundyClockPage() {
           if (leave.leave_type === "LWOP") {
             status = "LWOP";
             bh = 0;
-          } else if (
-            leave.leave_type === "CTO" ||
-            leave.leave_type === "Off-setting"
-          ) {
+          } else if (leave.leave_type === "CTO") {
             status = "CTO";
             bh = 8;
           } else if (
@@ -1976,8 +1973,6 @@ const HolidayCalendar = memo(
         return "bg-purple-50 border-purple-200 text-purple-800";
       if (label === "Paternity Leave")
         return "bg-cyan-50 border-cyan-200 text-cyan-800";
-      if (label === "Off-setting")
-        return "bg-amber-50 border-amber-200 text-amber-800";
       return "bg-emerald-50 border-emerald-200 text-emerald-800";
     };
 

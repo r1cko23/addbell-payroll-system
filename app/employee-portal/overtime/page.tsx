@@ -280,8 +280,7 @@ export default function OvertimePage() {
             </HStack>
           </CardTitle>
           <BodySmall className="text-muted-foreground">
-            File overtime. After approval, hours convert 1:1 to Off-setting
-            credits.
+            File overtime request for approval.
           </BodySmall>
         </CardHeader>
         <CardContent className="w-full">

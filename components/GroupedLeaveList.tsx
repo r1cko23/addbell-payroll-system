@@ -70,9 +70,7 @@ function calculateGroupStats(items: LeaveRequestCardData[]) {
   let totalHours = 0;
 
   items.forEach((item) => {
-    if (item.leaveType === "Off-setting" && item.totalHours) {
-      totalHours += item.totalHours;
-    } else if (item.totalDays) {
+    if (item.totalDays) {
       totalDays += item.totalDays;
     } else {
       // Fallback: calculate from dates

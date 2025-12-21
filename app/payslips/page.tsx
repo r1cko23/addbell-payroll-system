@@ -66,6 +66,8 @@ interface Employee {
   per_day?: number | null;
   position?: string | null;
   eligible_for_ot?: boolean | null;
+  assigned_hotel?: string | null;
+  deployed?: boolean | null; // true = deployed employee (regular), false/null = office-based
   // Computed fields for backward compatibility
   rate_per_day?: number; // Alias for per_day
   rate_per_hour?: number; // Computed from per_day / 8
@@ -85,6 +87,13 @@ interface EmployeeDeductions {
   sss_calamity_loan: number;
   pagibig_salary_loan: number;
   pagibig_calamity_loan: number;
+  monthly_loans?: {
+    sssLoan?: number;
+    pagibigLoan?: number;
+    companyLoan?: number;
+    emergencyLoan?: number;
+    otherLoan?: number;
+  }; // Manual loan deductions for 1st cutoff (1-15) only, separated by loan type
   sss_contribution: number;
   philhealth_contribution: number;
   pagibig_contribution: number;
@@ -120,6 +129,26 @@ export default function PayslipsPage() {
   const isSecondCutoff = () => {
     return periodStart.getDate() >= 16;
   };
+
+  // Helper function to check if current period is first cutoff (1-15)
+  const isFirstCutoff = () => {
+    return periodStart.getDate() <= 15;
+  };
+
+  // State for manual monthly loans input (only for 1st cutoff) - separated by loan type
+  const [monthlyLoans, setMonthlyLoans] = useState<{
+    sssLoan: number;
+    pagibigLoan: number;
+    companyLoan: number;
+    emergencyLoan: number;
+    otherLoan: number;
+  }>({
+    sssLoan: 0,
+    pagibigLoan: 0,
+    companyLoan: 0,
+    emergencyLoan: 0,
+    otherLoan: 0,
+  });
 
   // Payslip form data - Mandatory deductions are now always applied
   const [applySss] = useState(true); // Always true - mandatory
@@ -237,7 +266,7 @@ export default function PayslipsPage() {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot"
+          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot, assigned_hotel, deployed"
         )
         .eq("is_active", true)
         .order("full_name");
@@ -1127,7 +1156,14 @@ export default function PayslipsPage() {
         (deductions?.sss_salary_loan || 0) +
         (deductions?.sss_calamity_loan || 0) +
         (deductions?.pagibig_salary_loan || 0) +
-        (deductions?.pagibig_calamity_loan || 0);
+        (deductions?.pagibig_calamity_loan || 0) +
+        (isFirstCutoff()
+          ? (monthlyLoans.sssLoan || 0) +
+            (monthlyLoans.pagibigLoan || 0) +
+            (monthlyLoans.companyLoan || 0) +
+            (monthlyLoans.emergencyLoan || 0) +
+            (monthlyLoans.otherLoan || 0)
+          : 0); // Monthly loans only for 1st cutoff
 
       // Add mandatory government contributions (only during second cutoff)
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
@@ -1165,6 +1201,15 @@ export default function PayslipsPage() {
           sss_calamity: deductions?.sss_calamity_loan || 0,
           pagibig_loan: deductions?.pagibig_salary_loan || 0,
           pagibig_calamity: deductions?.pagibig_calamity_loan || 0,
+          monthly_loans: isFirstCutoff()
+            ? {
+                sssLoan: monthlyLoans.sssLoan || 0,
+                pagibigLoan: monthlyLoans.pagibigLoan || 0,
+                companyLoan: monthlyLoans.companyLoan || 0,
+                emergencyLoan: monthlyLoans.emergencyLoan || 0,
+                otherLoan: monthlyLoans.otherLoan || 0,
+              }
+            : undefined, // Monthly loans only for 1st cutoff
         },
         tax: withholdingTax,
       };
@@ -1425,7 +1470,14 @@ export default function PayslipsPage() {
     (deductions?.sss_salary_loan || 0) +
     (deductions?.sss_calamity_loan || 0) +
     (deductions?.pagibig_salary_loan || 0) +
-    (deductions?.pagibig_calamity_loan || 0);
+    (deductions?.pagibig_calamity_loan || 0) +
+    (isFirstCutoff()
+      ? (monthlyLoans.sssLoan || 0) +
+        (monthlyLoans.pagibigLoan || 0) +
+        (monthlyLoans.companyLoan || 0) +
+        (monthlyLoans.emergencyLoan || 0) +
+        (monthlyLoans.otherLoan || 0)
+      : 0); // Monthly loans only for 1st cutoff
 
   // Calculate mandatory government contributions based on monthly basic salary
   let govDed = 0;
@@ -1676,6 +1728,8 @@ export default function PayslipsPage() {
                               ? selectedEmployee.per_day / 8
                               : 0),
                           position: selectedEmployee.position || null,
+                          assigned_hotel: selectedEmployee.assigned_hotel || null,
+                          deployed: selectedEmployee.deployed,
                         }}
                         attendanceData={(
                           attendance.attendance_data as any[]
@@ -1809,6 +1863,215 @@ export default function PayslipsPage() {
                             )}
                           </span>
                         </HStack>
+                      )}
+                      {/* Monthly Loans - Only for 1st cutoff (1-15) */}
+                      {isFirstCutoff() && (
+                        <div className="w-full pt-2 border-t border-gray-200">
+                          <BodySmall className="font-medium mb-2 block">
+                            Monthly Loans:
+                          </BodySmall>
+                          <VStack gap="2" className="w-full">
+                            {/* Company Loan */}
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="w-full"
+                            >
+                              <BodySmall className="text-gray-700">
+                                Company Loan:
+                              </BodySmall>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={monthlyLoans.companyLoan || 0}
+                                onChange={(e) =>
+                                  setMonthlyLoans({
+                                    ...monthlyLoans,
+                                    companyLoan:
+                                      parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-24 h-8 text-sm text-right"
+                                placeholder="0.00"
+                              />
+                            </HStack>
+                            {(monthlyLoans.companyLoan || 0) > 0 && (
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="w-full pl-4"
+                              >
+                                <BodySmall className="text-gray-600 text-xs">
+                                  Company Loan:
+                                </BodySmall>
+                                <span className="font-semibold text-red-600 text-xs">
+                                  {formatCurrency(monthlyLoans.companyLoan || 0)}
+                                </span>
+                              </HStack>
+                            )}
+
+                            {/* SSS Loan */}
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="w-full"
+                            >
+                              <BodySmall className="text-gray-700">
+                                SSS Loan:
+                              </BodySmall>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={monthlyLoans.sssLoan || 0}
+                                onChange={(e) =>
+                                  setMonthlyLoans({
+                                    ...monthlyLoans,
+                                    sssLoan: parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-24 h-8 text-sm text-right"
+                                placeholder="0.00"
+                              />
+                            </HStack>
+                            {(monthlyLoans.sssLoan || 0) > 0 && (
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="w-full pl-4"
+                              >
+                                <BodySmall className="text-gray-600 text-xs">
+                                  SSS Loan:
+                                </BodySmall>
+                                <span className="font-semibold text-red-600 text-xs">
+                                  {formatCurrency(monthlyLoans.sssLoan || 0)}
+                                </span>
+                              </HStack>
+                            )}
+
+                            {/* Pag-IBIG Loan */}
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="w-full"
+                            >
+                              <BodySmall className="text-gray-700">
+                                Pag-IBIG Loan:
+                              </BodySmall>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={monthlyLoans.pagibigLoan || 0}
+                                onChange={(e) =>
+                                  setMonthlyLoans({
+                                    ...monthlyLoans,
+                                    pagibigLoan:
+                                      parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-24 h-8 text-sm text-right"
+                                placeholder="0.00"
+                              />
+                            </HStack>
+                            {(monthlyLoans.pagibigLoan || 0) > 0 && (
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="w-full pl-4"
+                              >
+                                <BodySmall className="text-gray-600 text-xs">
+                                  Pag-IBIG Loan:
+                                </BodySmall>
+                                <span className="font-semibold text-red-600 text-xs">
+                                  {formatCurrency(monthlyLoans.pagibigLoan || 0)}
+                                </span>
+                              </HStack>
+                            )}
+
+                            {/* Emergency Loan */}
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="w-full"
+                            >
+                              <BodySmall className="text-gray-700">
+                                Emergency Loan:
+                              </BodySmall>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={monthlyLoans.emergencyLoan || 0}
+                                onChange={(e) =>
+                                  setMonthlyLoans({
+                                    ...monthlyLoans,
+                                    emergencyLoan:
+                                      parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-24 h-8 text-sm text-right"
+                                placeholder="0.00"
+                              />
+                            </HStack>
+                            {(monthlyLoans.emergencyLoan || 0) > 0 && (
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="w-full pl-4"
+                              >
+                                <BodySmall className="text-gray-600 text-xs">
+                                  Emergency Loan:
+                                </BodySmall>
+                                <span className="font-semibold text-red-600 text-xs">
+                                  {formatCurrency(
+                                    monthlyLoans.emergencyLoan || 0
+                                  )}
+                                </span>
+                              </HStack>
+                            )}
+
+                            {/* Other Loan */}
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="w-full"
+                            >
+                              <BodySmall className="text-gray-700">
+                                Other Loan:
+                              </BodySmall>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={monthlyLoans.otherLoan || 0}
+                                onChange={(e) =>
+                                  setMonthlyLoans({
+                                    ...monthlyLoans,
+                                    otherLoan: parseFloat(e.target.value) || 0,
+                                  })
+                                }
+                                className="w-24 h-8 text-sm text-right"
+                                placeholder="0.00"
+                              />
+                            </HStack>
+                            {(monthlyLoans.otherLoan || 0) > 0 && (
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="w-full pl-4"
+                              >
+                                <BodySmall className="text-gray-600 text-xs">
+                                  Other Loan:
+                                </BodySmall>
+                                <span className="font-semibold text-red-600 text-xs">
+                                  {formatCurrency(monthlyLoans.otherLoan || 0)}
+                                </span>
+                              </HStack>
+                            )}
+                          </VStack>
+                        </div>
                       )}
                       <div className="border-t pt-1.5 mt-1.5 w-full">
                         <HStack
@@ -2167,7 +2430,8 @@ export default function PayslipsPage() {
                             ? selectedEmployee.per_day / 8
                             : 0),
                         position: selectedEmployee.position || null,
-                        assigned_hotel: null, // Can be added if available
+                        assigned_hotel: selectedEmployee.assigned_hotel || null,
+                        deployed: selectedEmployee.deployed ?? null,
                       }}
                       weekStart={periodStart}
                       weekEnd={periodEnd}
@@ -2180,6 +2444,22 @@ export default function PayslipsPage() {
                         pagibigLoan: deductions?.pagibig_salary_loan || 0,
                         pagibigCalamityLoan:
                           deductions?.pagibig_calamity_loan || 0,
+                        monthlyLoan: isFirstCutoff()
+                          ? (monthlyLoans.sssLoan || 0) +
+                            (monthlyLoans.pagibigLoan || 0) +
+                            (monthlyLoans.companyLoan || 0) +
+                            (monthlyLoans.emergencyLoan || 0) +
+                            (monthlyLoans.otherLoan || 0)
+                          : 0,
+                        monthlyLoans: isFirstCutoff()
+                          ? {
+                              sssLoan: monthlyLoans.sssLoan || 0,
+                              pagibigLoan: monthlyLoans.pagibigLoan || 0,
+                              companyLoan: monthlyLoans.companyLoan || 0,
+                              emergencyLoan: monthlyLoans.emergencyLoan || 0,
+                              otherLoan: monthlyLoans.otherLoan || 0,
+                            }
+                          : undefined,
                         sssContribution: (() => {
                           // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
                           const applyMonthlyDeductions = isSecondCutoff();

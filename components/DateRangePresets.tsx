@@ -479,7 +479,6 @@ export function DateRangePresets({
       LWOP: "bg-gray-100 border-gray-300 text-gray-800",
       "Maternity Leave": "bg-purple-100 border-purple-300 text-purple-800",
       "Paternity Leave": "bg-cyan-100 border-cyan-300 text-cyan-800",
-      "Off-setting": "bg-amber-100 border-amber-300 text-amber-800",
     };
     return (
       colors[leaveType] || "bg-emerald-100 border-emerald-300 text-emerald-800"

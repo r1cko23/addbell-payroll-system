@@ -186,10 +186,9 @@ export default function TimesheetPage() {
 
       const { data: holidayData, error: holidayError } = await supabase
         .from("holidays")
-        .select("holiday_date, holiday_name, holiday_type")
+        .select("holiday_date, name, is_regular")
         .gte("holiday_date", monthStartStr)
-        .lte("holiday_date", monthEndStr)
-        .eq("is_active", true);
+        .lte("holiday_date", monthEndStr);
 
       if (holidayError) {
         console.warn("Error loading holidays (non-critical):", holidayError);
@@ -198,14 +197,14 @@ export default function TimesheetPage() {
 
       const holidaysArray = holidayData as Array<{
         holiday_date: string;
-        holiday_name: string;
-        holiday_type: "regular" | "non-working";
+        name: string;
+        is_regular: boolean;
       }> | null;
 
       const formattedHolidays: Holiday[] = (holidaysArray || []).map((h) => ({
         date: h.holiday_date,
-        name: h.holiday_name,
-        type: h.holiday_type,
+        name: h.name,
+        type: h.is_regular ? "regular" : "non-working",
       }));
 
       setHolidays(formattedHolidays);
@@ -673,9 +672,25 @@ export default function TimesheetPage() {
       } else if (dayType.includes("holiday")) {
         // Holiday
         status = dayType.includes("regular") ? "RH" : "SH";
-      } else if (dayOfWeek === 0 || dayOfWeek === 6) {
-        // Weekend
-        status = "-";
+      } else if (dayType === "sunday") {
+        // Rest day (Sunday is the designated rest day for office-based employees)
+        // If no work, still show as rest day (paid)
+        // If worked, show as LOG with rest day pay
+        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+          status = "LOG"; // Worked on rest day
+        } else {
+          status = "RD"; // Rest day - paid even if not worked
+        }
+      } else if (dayOfWeek === 6) {
+        // Saturday - company benefit (paid even if not worked, but at regular rate, not rest day premium)
+        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+          status = "LOG"; // Worked on Saturday
+        } else {
+          status = "SAT"; // Saturday - paid company benefit day
+        }
+      } else if (dayOfWeek === 0) {
+        // Sunday fallback (should be caught by dayType === "sunday" above)
+        status = "RD"; // Rest day
       } else {
         // Check if the date is in the future (hasn't occurred yet)
         const today = new Date();
@@ -835,6 +850,76 @@ export default function TimesheetPage() {
           bh = 0;
         }
       }
+      
+      // Saturday Company Benefit: Set BH = 8 even if employee didn't work
+      // Saturday is a company benefit - paid even if not worked, and counts towards days worked and total hours
+      if (bh === 0 && dayOfWeek === 6 && dayType === "regular" && status === "SAT") {
+        bh = 8; // Company benefit: 8 hours even if not worked
+      }
+
+      // Sunday Rest Day: Set BH = 8 even if employee didn't work
+      // Sunday is the designated rest day - paid even if not worked, and counts towards days worked and total hours
+      if (bh === 0 && dayType === "sunday" && status === "RD") {
+        bh = 8; // Rest day: 8 hours even if not worked
+      }
+
+      // Holiday: Set BH = 8 if employee is eligible (worked day before) even if didn't work on holiday
+      // Check "1 Day Before" rule for holidays - find the last working day before the holiday
+      // Note: Status is already set to "SH" or "RH" above, but we still need to set BH
+      if ((dayType === "regular-holiday" || dayType === "non-working-holiday")) {
+        // Only set BH if it's currently 0 (no entries for this holiday)
+        if (bh === 0) {
+          // Find the last working day before the holiday (skip rest days and holidays)
+          // Check up to 7 days back to find a working day
+          let foundWorkingDay = false;
+          for (let daysBack = 1; daysBack <= 7; daysBack++) {
+            const checkDate = new Date(date);
+            checkDate.setDate(checkDate.getDate() - daysBack);
+            const checkDateStr = format(checkDate, "yyyy-MM-dd");
+            
+            // Get schedule for this date to check if it's a rest day
+            const checkSchedule = scheduleMap.get(checkDateStr);
+            const isRestDay = checkSchedule?.day_off === true;
+            
+            // Determine day type for this date
+            const checkDayType = determineDayType(checkDateStr, holidays, isRestDay);
+            const checkDayOfWeek = getDay(checkDate);
+            
+            // Only check regular working days (Mon-Fri) and Saturdays (company benefit)
+            // Skip Sundays (rest days) and holidays
+            // Saturday is already dayType "regular", so we just check for regular days
+            if (checkDayType === "regular") {
+              // Check if employee worked on this day using entriesByDate map
+              const checkDayEntries = entriesByDate.get(checkDateStr) || [];
+              const checkDayIncompleteEntries = incompleteByDate.get(checkDateStr) || [];
+              const allCheckEntries = [...checkDayEntries, ...checkDayIncompleteEntries];
+              
+              // Check if employee worked this day (has entry with regular_hours >= 8)
+              const workedEntry = allCheckEntries.find((e: any) => {
+                // For complete entries, check if regular_hours >= 8
+                if (e.clock_out_time && (e.regular_hours || 0) >= 8) {
+                  return true;
+                }
+                // For incomplete entries (clocked in but not out), also count as worked
+                if (!e.clock_out_time) {
+                  return true;
+                }
+                return false;
+              });
+
+              if (workedEntry) {
+                // Found a working day where employee worked - eligible for holiday pay
+                bh = 8; // Eligible holiday: 8 hours even if not worked
+                foundWorkingDay = true;
+                break; // Stop searching once we find a working day with work
+              }
+            }
+          }
+        } else {
+          // Employee worked on the holiday - BH is already set from entries above
+          // Keep the actual hours worked
+        }
+      }
 
       // LT (Late) - Not applicable for flexible hours, always 0
       const lt = 0;
@@ -924,17 +1009,32 @@ export default function TimesheetPage() {
       : `Second Cut Off 16 to ${format(periodEnd, "d")}`;
 
   // Calculate "Days Work" - should match payslip generation logic
-  // SIL (status = "LEAVE") counts as working day
+  // Days Work is calculated as fractional days: total hours / 8
+  // Partial days (undertime/early out) contribute fractional days based on hours worked
+  // IMPORTANT: "Days Work" = Regular working days (Mon-Fri) AND Saturdays (company benefit) AND eligible holidays
+  // Exclude Sundays and non-working leave types from "Days Work"
+  // Eligible holidays (employee worked day before) count towards "Days Work"
+  // SIL (status = "LEAVE") counts as working day if it's a regular day
   // LWOP, CTO, OB do NOT count as working days (even if they have bh > 0)
-  const daysWorked = attendanceDays.filter((d) => {
+  const totalBH = attendanceDays.reduce((sum, d) => {
     // Exclude non-working leave types
     if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
-      return false;
+      return sum;
     }
-    // Count days with bh > 0 (includes SIL/LEAVE, regular work days, rest days, etc.)
-    return d.bh > 0;
-  }).length;
-  const totalBH = attendanceDays.reduce((sum, d) => sum + d.bh, 0);
+    // Count regular working days (Mon-Fri), Saturdays (company benefit), and eligible holidays towards "Days Work"
+    // Exclude rest days (Sunday) from "Days Work"
+    // Eligible holidays have bh > 0 (set to 8 hours if employee worked day before)
+    if (d.bh > 0) {
+      // Include regular days, Saturdays, and eligible holidays (all have bh > 0)
+      // Exclude Sundays (they have dayType === "sunday" and bh might be 0 or 8, but we exclude them)
+      if (d.dayType === "regular" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday") {
+        return sum + d.bh;
+      }
+    }
+    return sum;
+  }, 0);
+  // Days Work = Total Hours / 8 (fractional days)
+  const daysWorked = totalBH / 8;
   const totalOT = attendanceDays.reduce((sum, d) => sum + d.ot, 0);
   const totalUT = attendanceDays.reduce((sum, d) => sum + d.ut, 0);
   const totalND = attendanceDays.reduce((sum, d) => sum + d.nd, 0);
@@ -1171,7 +1271,7 @@ export default function TimesheetPage() {
                   {/* Summary Row */}
                   <tr className="border-t-2 font-semibold">
                     <td colSpan={5} className="px-4 py-2 text-sm">
-                      Days Work : {daysWorked}
+                      Days Work : {daysWorked.toFixed(2)}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">
                       {totalBH > 0 ? totalBH.toFixed(1) : "0"}

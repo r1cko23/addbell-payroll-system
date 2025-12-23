@@ -318,3 +318,4 @@ This document maps each employee type to their specific payroll calculation rule
 - ✅ Office-Based Managerial
 - ❌ Office-Based Rank and File (uses multipliers: 2.0x, 1.3x, etc.)
 
+

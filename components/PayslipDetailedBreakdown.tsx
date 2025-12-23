@@ -287,27 +287,39 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // If they didn't work on the holiday, check if they worked the day before
+      // Search up to 7 days back to find the last working day (skip rest days and holidays)
+      // This matches the timesheet logic
       const currentDateObj = new Date(currentDate);
-      const previousDateObj = new Date(currentDateObj);
-      previousDateObj.setDate(previousDateObj.getDate() - 1);
-      const previousDateStr = previousDateObj.toISOString().split("T")[0];
+      for (let i = 1; i <= 7; i++) {
+        const checkDateObj = new Date(currentDateObj);
+        checkDateObj.setDate(checkDateObj.getDate() - i);
+        const checkDateStr = checkDateObj.toISOString().split("T")[0];
 
-      // Find the previous day in attendance data
-      const previousDay = attendanceDataArray.find(
-        (day) => day.date === previousDateStr
-      );
+        // Find the day in attendance data
+        const checkDay = attendanceDataArray.find(
+          (day) => day.date === checkDateStr
+        );
 
-      // Check if they worked the day before (regularHours >= 8)
-      if (previousDay && (previousDay.regularHours || 0) >= 8) {
-        return true;
+        if (checkDay) {
+          // Skip rest days (Sunday) and holidays - only count regular working days
+          if (
+            checkDay.dayType === "regular" &&
+            (checkDay.regularHours || 0) >= 8
+          ) {
+            return true; // Found a working day with 8+ hours
+          }
+          // If it's a rest day or holiday, continue searching
+        }
       }
 
       return false;
     };
-    let totalHours = 0; // Total hours including all day types (regular + rest days + holidays)
-    let daysWorked = 0; // Total days worked (regular + rest days, excluding holidays)
+    // Total hours for "Hours Work" - should match timesheet calculation exactly
+    // Only count regular days (Mon-Fri), Saturdays (company benefit), and eligible holidays
+    // Exclude Sundays from "Hours Work" (they're paid separately)
+    let totalHours = 0; // Total hours for "Hours Work" display (matches timesheet BH)
+    let totalRegularHours = 0; // Total regular hours for "Days Work" calculation
     let basicSalary = 0; // Basic salary from regular days only
-    let totalRegularHours = 0;
 
     const breakdown = {
       nightDifferential: { hours: 0, amount: 0 },
@@ -365,64 +377,82 @@ function PayslipDetailedBreakdownComponent({
           ? parseFloat(rawOvertimeHours)
           : rawOvertimeHours || 0;
 
-      // Calculate hours from clock times if available, otherwise use provided values
+      // Use regularHours directly from attendance_data (same as timesheet uses bh)
+      // The attendance_data is generated from time clock entries, so it already has the correct hours
+      // Only recalculate from clock times if clock times are available AND regularHours is 0 (to catch missing data)
       let regularHours = dayRegularHours;
       let nightDiffHours = dayNightDiffHours;
 
-      // IMPORTANT: If regularHours is already 8 (e.g., for leave days), don't recalculate from clock times
-      // This ensures leave days with BH = 8 are counted correctly even if they have clock times
+      // Only recalculate from clock times if:
+      // 1. Clock times are available
+      // 2. regularHours is 0 (missing data)
+      // 3. It's not a leave day with full hours
       const isLeaveDayWithFullHours = (dayRegularHours || 0) >= 8;
-
-      if (clockInTime && clockOutTime && !isLeaveDayWithFullHours) {
-        // Only recalculate regular hours from clock times if needed
-        // IMPORTANT: Night differential should come from approved OT requests only, NOT from clock times
-        // The nightDiffHours from attendance_data already comes from approved OT requests (via timesheet generator)
+      if (
+        clockInTime &&
+        clockOutTime &&
+        regularHours === 0 &&
+        !isLeaveDayWithFullHours
+      ) {
+        // Recalculate regular hours from clock times to fix missing data
         const calculated = calculateHoursFromClockTimes(
           clockInTime,
           clockOutTime,
           date
         );
         regularHours = calculated.regularHours;
-        // DO NOT override nightDiffHours - it should come from approved OT requests only
-        // nightDiffHours remains as dayNightDiffHours (from approved OT requests)
-        totalHours += calculated.totalHours;
-      } else {
-        totalHours += regularHours + overtimeHours;
       }
 
-      // Count days worked and calculate basic salary
-      // Days with regularHours >= 8 count as 1 working day (matches timesheet logic where BH = 8 = 1 day)
-      // IMPORTANT:
-      // - "Days Work" = ALL days worked (regular + rest days, excluding holidays)
-      // - Basic Salary = ONLY regular days (rest days and holidays paid separately)
-      // - Rest days count in "Days Work" but are paid with premium separately
+      // Use regularHours as-is (matches timesheet bh calculation)
+      // This is the "bh" equivalent in the payslip
+      const finalRegularHours = regularHours;
 
-      // Count all days with 8+ hours as working days (including rest days, excluding holidays)
-      if (regularHours >= 8) {
-        // Count rest days and regular days as "Days Work" (but not holidays)
-        if (
-          dayType === "regular" ||
-          dayType === "sunday" ||
-          dayType === "sunday-special-holiday" ||
-          dayType === "sunday-regular-holiday"
-        ) {
-          daysWorked++;
+      // Calculate hours to count for this day (matches timesheet bh calculation)
+      // Timesheet logic: sum bh where bh > 0 AND dayType is "regular", "regular-holiday", or "non-working-holiday"
+      // Exclude Sundays (they have dayType === "sunday" and are excluded even if bh > 0)
+      let hoursToCount = 0;
+
+      if (dayType === "regular") {
+        const dateObj = new Date(date);
+        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        if (dayOfWeek === 6 && finalRegularHours === 0) {
+          // Saturday with no work - company benefit: 8 hours
+          hoursToCount = 8;
+          basicSalary += 8 * ratePerHour;
+        } else if (finalRegularHours > 0) {
+          // Regular day or Saturday with work - count actual hours
+          hoursToCount = finalRegularHours;
+          // Only add to basic salary if it's a regular day (not Saturday - Saturday is company benefit)
+          if (dayOfWeek !== 6) {
+            basicSalary += finalRegularHours * ratePerHour;
+          }
         }
-
-        totalRegularHours += regularHours;
-
-        // Only add to basic salary if it's a regular day
-        // Rest days and holidays are paid separately with premium
-        if (dayType === "regular") {
-          // Basic salary = regular hours × hourly rate
-          // This represents the base pay for regular working hours (8AM-5PM)
-          basicSalary += regularHours * ratePerHour;
+      } else if (
+        dayType === "regular-holiday" ||
+        dayType === "non-working-holiday"
+      ) {
+        if (finalRegularHours > 0) {
+          // Employee worked on holiday - count actual hours
+          hoursToCount = finalRegularHours;
+        } else {
+          // Check if eligible for holiday pay (worked day before)
+          const eligibleForHolidayPay = isEligibleForHolidayPay(
+            date,
+            finalRegularHours,
+            attendanceData
+          );
+          if (eligibleForHolidayPay) {
+            // Eligible holiday: 8 hours even if not worked
+            hoursToCount = 8;
+          }
         }
-      } else if (regularHours > 0 && dayType === "regular") {
-        // Partial days (< 8 hours) on regular days still count towards total hours and basic salary
-        // but don't count as a full working day
-        totalRegularHours += regularHours;
-        basicSalary += regularHours * ratePerHour;
+      }
+      // Sundays are excluded (dayType === "sunday") - they're paid separately
+
+      // Add hours to both totals (they should match exactly)
+      if (hoursToCount > 0) {
+        totalRegularHours += hoursToCount;
+        totalHours += hoursToCount;
       }
 
       // Regular Overtime - Move to allowances or Other Pay based on employee type
@@ -626,22 +656,28 @@ function PayslipDetailedBreakdownComponent({
         }
       }
 
-      // Sunday/Rest Day
+      // Sunday/Rest Day (Sunday is the designated rest day for office-based employees)
       if (dayType === "sunday") {
-        // Supervisory/Managerial: Get daily rate (1x) only
-        // Rank and File: Get 1.3x multiplier
+        // Supervisory/Managerial: Only pay if they actually worked on rest day (no automatic 8 hours)
+        // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
         if (isClientBased || isEligibleForAllowances) {
-          // Supervisory/Managerial: Daily rate only (1x), no multiplier
-          const dailyRateAmount = regularHours * ratePerHour;
-          breakdown.restDay.hours += regularHours;
-          breakdown.restDay.amount += dailyRateAmount;
+          // Supervisory/Managerial: Only pay if they worked on rest day
+          if (regularHours > 0) {
+            // Supervisory/Managerial: Daily rate only (1x), no multiplier
+            const dailyRateAmount = regularHours * ratePerHour;
+            breakdown.restDay.hours += regularHours;
+            breakdown.restDay.amount += dailyRateAmount;
+          }
+          // If didn't work: no rest day pay for supervisory employees
         } else {
+          // Rank and File: Always paid, even if didn't work
+          const hoursToPay = regularHours > 0 ? regularHours : 8;
           // Rank and File: Standard multiplier calculation (1.3x)
           const standardAmount = calculateSundayRestDay(
-            regularHours,
+            hoursToPay,
             ratePerHour
           );
-          breakdown.restDay.hours += regularHours;
+          breakdown.restDay.hours += hoursToPay;
           breakdown.restDay.amount += standardAmount;
         }
 
@@ -821,6 +857,10 @@ function PayslipDetailedBreakdownComponent({
       }
     });
 
+    // Calculate "Days Work" as fractional days: totalRegularHours / 8
+    // totalHours and totalRegularHours are calculated together above, so they should match exactly
+    const daysWorked = totalRegularHours / 8;
+
     return {
       totalHours,
       daysWorked,
@@ -889,7 +929,7 @@ function PayslipDetailedBreakdownComponent({
               <tbody>
                 <tr className="bg-white hover:bg-gray-50 transition-colors">
                   <td className="px-2 py-1.5 text-xs font-medium text-gray-900">
-                    {daysWorked}
+                    {daysWorked.toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-semibold text-gray-700">
                     {formatCurrency(ratePerDay)}
@@ -1062,7 +1102,11 @@ function PayslipDetailedBreakdownComponent({
                       {renderEarningRow(
                         "4. Special Holiday",
                         breakdown.specialHoliday.hours,
-                        PAYROLL_MULTIPLIERS.SPECIAL_HOLIDAY,
+                        // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
+                        // Rank and File: 1.3x multiplier
+                        isClientBased || isEligibleForAllowances
+                          ? 1.0
+                          : PAYROLL_MULTIPLIERS.SPECIAL_HOLIDAY,
                         breakdown.specialHoliday.amount,
                         true
                       )}
@@ -1071,7 +1115,11 @@ function PayslipDetailedBreakdownComponent({
                       {renderEarningRow(
                         "5. Rest Day",
                         breakdown.restDay.hours,
-                        PAYROLL_MULTIPLIERS.REST_DAY,
+                        // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
+                        // Rank and File: 1.3x multiplier
+                        isClientBased || isEligibleForAllowances
+                          ? 1.0
+                          : PAYROLL_MULTIPLIERS.REST_DAY,
                         breakdown.restDay.amount,
                         true
                       )}

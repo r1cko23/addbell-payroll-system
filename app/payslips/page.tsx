@@ -385,24 +385,10 @@ export default function PayslipsPage() {
         periodEndDate: periodEnd.toISOString(),
       });
 
-      // Load attendance - use same query as timesheet page (period_start only)
-      let { data: attData, error: attError } = await supabase
-        .from("weekly_attendance")
-        .select("*")
-        .eq("employee_id", selectedEmployeeId)
-        .eq("period_start", periodStartStr)
-        .maybeSingle();
-
-      if (attError) {
-        console.error("Attendance error:", attError);
-        console.error("Error details:", {
-          message: attError.message,
-          code: attError.code,
-          details: attError.details,
-          hint: attError.hint,
-        });
-        // Don't throw - continue to generate from clock entries
-      }
+      // Always generate from time clock entries to match timesheet data
+      // Use time attendance sheet as reference (same as timesheet page)
+      // This ensures payslip always matches what's shown in the timesheet
+      let attData = null; // Don't use stored weekly_attendance - always regenerate from time_clock_entries
 
       // Load leave requests for the period (needed for both existing and new attendance)
       const { data: leaveData, error: leaveError } = await supabase
@@ -464,76 +450,15 @@ export default function PayslipsPage() {
 
       console.log("Leave dates map:", Array.from(leaveDatesMap.entries()));
 
-      if (attData) {
-        const att = attData as any;
-        console.log("Found attendance record:", {
-          period_start: att.period_start,
-          period_end: att.period_end,
-          gross_pay: att.gross_pay,
-          status: att.status,
-        });
+      // Always generate from time clock entries to match timesheet data
+      // Use time attendance sheet as reference (same as timesheet page)
+      // This ensures payslip always matches what's shown in the timesheet
+      // OT will come from approved OT requests (handled below)
+      console.log(
+        "Generating payslip from time clock entries (matching timesheet)..."
+      );
 
-        // Update existing attendance_data to include leave days with BH = 8
-        if (att.attendance_data && Array.isArray(att.attendance_data)) {
-          att.attendance_data = att.attendance_data.map((day: any) => {
-            const leaveInfo = leaveDatesMap.get(day.date);
-            if (leaveInfo) {
-              // If this day has an approved leave request
-              if (leaveInfo.leaveType === "SIL") {
-                // SIL (Sick Leave) counts as 8 hours working day
-                // Set regularHours to 8 and dayType to "regular" for SIL leaves
-                // This ensures they count as working days even if there are clock entries
-                return {
-                  ...day,
-                  regularHours: 8, // Always set to 8 for SIL leaves
-                  dayType: "regular", // Set dayType to "regular" so it counts in basic earnings
-                };
-              }
-              // All other leave types (LWOP, CTO, OB, etc.) - do not count as working day
-              // Return day as-is (no hours added)
-            }
-            return day;
-          });
-
-          // Recalculate total_regular_hours after updating leave days
-          att.total_regular_hours =
-            Math.round(
-              att.attendance_data.reduce(
-                (sum: number, day: any) => sum + (day.regularHours || 0),
-                0
-              ) * 100
-            ) / 100;
-
-          // Recalculate gross_pay if needed (if it was calculated from hours)
-          // Note: This is a simple recalculation - full payroll calculation happens later
-          if (selectedEmployee) {
-            const ratePerHour =
-              selectedEmployee.rate_per_hour ||
-              (selectedEmployee.per_day
-                ? selectedEmployee.per_day / 8
-                : selectedEmployee.monthly_rate
-                ? selectedEmployee.monthly_rate / (22 * 8)
-                : 0);
-            if (ratePerHour > 0 && att.gross_pay) {
-              // Only update if gross_pay seems to be based on hours
-              // Otherwise, keep the existing gross_pay
-              const calculatedFromHours = att.total_regular_hours * ratePerHour;
-              // If the difference is small, update it
-              if (Math.abs(att.gross_pay - calculatedFromHours) < 100) {
-                att.gross_pay = Math.round(calculatedFromHours * 100) / 100;
-              }
-            }
-          }
-        }
-      }
-
-      // If no attendance record exists, generate it directly from time clock entries
-      if (!attData) {
-        console.log(
-          "No attendance record found. Generating from time clock entries..."
-        );
-
-        try {
+      try {
           // Load time clock entries for this period
           // Use wider date range like timesheet page to account for timezone differences
           const periodStartDate = new Date(periodStart);
@@ -761,7 +686,18 @@ export default function PayslipsPage() {
           // Map clock entries to match the generator function's expected format
           // Overtime hours and night differential should come from approved OT requests, not calculated from clock entries
           const mappedClockEntries = filteredClockEntries.map((entry: any) => {
-            const entryDate = entry.clock_in_time?.split("T")[0];
+            // Use Asia/Manila timezone for date grouping (same as timesheet)
+            const entryDateUTC = new Date(entry.clock_in_time);
+            const formatter = new Intl.DateTimeFormat("en-US", {
+              timeZone: "Asia/Manila",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+            const parts = formatter.formatToParts(entryDateUTC);
+            const entryDate = `${parts.find((p) => p.type === "year")!.value}-${
+              parts.find((p) => p.type === "month")!.value
+            }-${parts.find((p) => p.type === "day")!.value}`;
             // Get overtime hours from approved OT requests for this date
             const otHoursFromRequest = isEligibleForOT
               ? approvedOTByDate.get(entryDate) || 0
@@ -893,7 +829,6 @@ export default function PayslipsPage() {
           setAttendance(null);
           return;
         }
-      }
 
       console.log("Attendance data loaded:", attData ? "Found" : "Not found");
       if (attData) {
@@ -1984,7 +1919,17 @@ export default function PayslipsPage() {
 
             if (dayType === "regular") {
               // Regular days: standard calculation
-              basicPay += regularHours * ratePerHour;
+              // Saturday Company Benefit: Pay 8 hours even if employee didn't work
+              // Saturday is NOT a rest day (Sunday is the designated rest day), but it's a company benefit
+              const dateObj = new Date(date);
+              const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+              if (dayOfWeek === 6 && regularHours === 0) {
+                // Saturday with no work - company benefit: pay 8 hours at regular rate
+                basicPay += 8 * ratePerHour;
+              } else {
+                // Regular day with work - pay actual hours
+                basicPay += regularHours * ratePerHour;
+              }
             } else if (
               dayType === "regular-holiday" ||
               dayType === "non-working-holiday"
@@ -2007,11 +1952,14 @@ export default function PayslipsPage() {
               dayType === "sunday-special-holiday" ||
               dayType === "sunday-regular-holiday"
             ) {
-              // For Rest Days: Always pay if they worked (no "1 Day Before" rule for rest days)
+              // For Rest Days (Sunday is the designated rest day for office-based employees):
+              // Account Supervisors/Supervisory: Only pay if they actually worked on rest day (no automatic 8 hours)
+              // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
               if (regularHours > 0) {
-                // For Account Supervisors: Rest Days are paid at 1.0x (daily rate, no multiplier)
+                // For Account Supervisors: Rest Days are paid at 1.0x (daily rate, no multiplier) only if worked
                 holidayRestDayPay += regularHours * ratePerHour;
               }
+              // If didn't work: no rest day pay for Account Supervisors
             }
           });
 
@@ -2161,24 +2109,83 @@ export default function PayslipsPage() {
   function calculateWorkingDays() {
     if (!attendance || !attendance.attendance_data) return 0;
     const days = attendance.attendance_data as any[];
-    // Count days with regularHours >= 8 (including leave days with BH = 8)
-    // IMPORTANT: "Days Work" = ALL days worked (regular + rest days)
-    // Basic salary is calculated separately using only regular days
-    // Rest days are paid separately with premium but still count as "Days Work"
-    // Only exclude holidays since they're paid separately with different rates
-    return days.filter((day: any) => {
+    
+    // Helper function to check "1 Day Before" rule for holidays
+    const isEligibleForHolidayPay = (
+      currentDate: string,
+      currentRegularHours: number,
+      attendanceData: Array<any>
+    ): boolean => {
+      // If employee worked on the holiday itself, they get daily rate regardless
+      if (currentRegularHours > 0) {
+        return true;
+      }
+
+      // If they didn't work on the holiday, check if they worked the day before
+      const currentDateObj = new Date(currentDate);
+      const previousDateObj = new Date(currentDateObj);
+      previousDateObj.setDate(previousDateObj.getDate() - 1);
+      const previousDateStr = previousDateObj.toISOString().split("T")[0];
+
+      // Find the previous day in attendance data
+      const previousDay = attendanceData.find(
+        (day: any) => day.date === previousDateStr
+      );
+
+      // Check if they worked the day before (regularHours >= 8)
+      if (previousDay && (previousDay.regularHours || 0) >= 8) {
+        return true;
+      }
+
+      return false;
+    };
+
+    // Calculate "Days Work" as fractional days: total hours / 8
+    // Partial days (undertime/early out) contribute fractional days based on hours worked
+    // IMPORTANT: "Days Work" = Regular working days (Mon-Fri) AND Saturdays (company benefit) AND eligible holidays
+    // Exclude Sundays from "Days Work" count (they're paid separately)
+    // Eligible holidays (employee worked day before) count towards "Days Work"
+    let totalHours = 0;
+
+    days.forEach((day: any) => {
       const regularHours = day.regularHours || 0;
       const dayType = day.dayType || "regular";
-      // Count all days with 8+ hours, including rest days (sunday)
-      // Exclude only holidays: regular-holiday, non-working-holiday, and their combinations
-      return (
-        regularHours >= 8 &&
-        dayType !== "regular-holiday" &&
-        dayType !== "non-working-holiday" &&
-        dayType !== "sunday-special-holiday" &&
-        dayType !== "sunday-regular-holiday"
-      );
-    }).length;
+      const date = day.date || "";
+
+      // Count regular working days (Mon-Fri) and Saturdays towards "Days Work"
+      if (dayType === "regular") {
+        if (regularHours > 0) {
+          totalHours += regularHours;
+        } else {
+          // Check if it's a Saturday with no work (company benefit: 8 hours)
+          const dateObj = new Date(date);
+          const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+          if (dayOfWeek === 6) {
+            totalHours += 8; // Saturday company benefit: 8 hours even if not worked
+          }
+        }
+      }
+
+      // Count eligible holidays towards "Days Work"
+      // Eligible holidays get 8 hours even if employee didn't work (per "1 Day Before" rule)
+      if (
+        (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
+        regularHours === 0
+      ) {
+        if (isEligibleForHolidayPay(date, regularHours, days)) {
+          totalHours += 8; // Eligible holiday: 8 hours even if not worked
+        }
+      } else if (
+        (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
+        regularHours > 0
+      ) {
+        // Employee worked on holiday - count actual hours
+        totalHours += regularHours;
+      }
+    });
+
+    // Days Work = Total Hours / 8 (fractional days)
+    return totalHours / 8;
   }
 
   return (
@@ -2319,11 +2326,21 @@ export default function PayslipsPage() {
                           const dayDate =
                             day.date || day.clock_in_time?.split("T")[0] || "";
 
-                          // Find matching clock entry for this date
+                          // Find matching clock entry for this date (use Asia/Manila timezone)
                           const matchingEntry = clockEntries.find((entry) => {
-                            const entryDate =
-                              entry.clock_in_time?.split("T")[0];
-                            return entryDate === dayDate;
+                            if (!entry.clock_in_time) return false;
+                            const entryDateUTC = new Date(entry.clock_in_time);
+                            const formatter = new Intl.DateTimeFormat("en-US", {
+                              timeZone: "Asia/Manila",
+                              year: "numeric",
+                              month: "2-digit",
+                              day: "2-digit",
+                            });
+                            const parts = formatter.formatToParts(entryDateUTC);
+                            const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
+                              parts.find((p) => p.type === "month")!.value
+                            }-${parts.find((p) => p.type === "day")!.value}`;
+                            return entryDateStr === dayDate;
                           });
 
                           // Account Supervisors have flexi time, so they should not have night differential

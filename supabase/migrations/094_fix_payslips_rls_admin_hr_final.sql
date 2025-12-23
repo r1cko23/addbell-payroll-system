@@ -105,3 +105,4 @@ COMMENT ON POLICY "Admin/HR can update payslips" ON public.payslips IS
 
 
 
+

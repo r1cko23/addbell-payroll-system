@@ -96,3 +96,4 @@ CREATE POLICY "Admin/HR can delete payslips" ON public.payslips
 
 
 
+

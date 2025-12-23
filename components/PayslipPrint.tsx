@@ -509,25 +509,29 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         }
       }
 
-      // Rest Day (Sunday)
+      // Rest Day (Sunday) - Sunday is the designated rest day for office-based employees
       if (dayType === "sunday") {
-        if (regularHours > 0) {
-          // Supervisory/Managerial: Get daily rate (1x) only
-          // Rank and File: Get 1.3x multiplier
-          if (useFixedAllowances) {
+        // Supervisory/Managerial: Only pay if they actually worked on rest day (no automatic 8 hours)
+        // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
+        if (useFixedAllowances) {
+          // Supervisory/Managerial: Only pay if they worked on rest day
+          if (regularHours > 0) {
             // Supervisory/Managerial: Daily rate only (1x), no multiplier
             const dailyRateAmount = regularHours * ratePerHour;
             earningsBreakdown.restDay.days++;
             earningsBreakdown.restDay.amount += dailyRateAmount;
-          } else {
-            // Rank and File: Standard multiplier calculation (1.3x)
-            const standardAmount = calculateSundayRestDay(
-              regularHours,
-              ratePerHour
-            );
-            earningsBreakdown.restDay.days++;
-            earningsBreakdown.restDay.amount += standardAmount;
           }
+          // If didn't work: no rest day pay for supervisory employees
+        } else {
+          // Rank and File: Always paid, even if didn't work
+          const hoursToPay = regularHours > 0 ? regularHours : 8;
+          // Rank and File: Standard multiplier calculation (1.3x)
+          const standardAmount = calculateSundayRestDay(
+            hoursToPay,
+            ratePerHour
+          );
+          earningsBreakdown.restDay.days++;
+          earningsBreakdown.restDay.amount += standardAmount;
         }
         if (overtimeHours > 0) {
           if (useFixedAllowances) {

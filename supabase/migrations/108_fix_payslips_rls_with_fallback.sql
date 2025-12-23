@@ -48,3 +48,4 @@ CREATE POLICY "Admin/HR can create payslips" ON public.payslips
 
 
 
+

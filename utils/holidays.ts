@@ -1,4 +1,4 @@
-import { format, isSunday, parseISO } from "date-fns";
+import { format, isSunday, parseISO, getDay } from "date-fns";
 import type { DayType } from "./payroll-calculator";
 
 export type { DayType };
@@ -17,17 +17,30 @@ export function isDateSunday(dateString: string): boolean {
 }
 
 /**
+ * Check if a date is Saturday
+ */
+export function isDateSaturday(dateString: string): boolean {
+  const dayOfWeek = getDay(parseISO(dateString));
+  return dayOfWeek === 6; // Saturday is 6 in date-fns (0 = Sunday, 6 = Saturday)
+}
+
+/**
  * Determine day type based on date, holidays, and rest days
  * @param dateString - Date in YYYY-MM-DD format
  * @param holidays - Array of holidays
  * @param isRestDay - Optional: whether this date is a rest day for the employee (from schedule)
+ *                    For office-based employees: Sunday is the designated rest day
+ *                    For client-based employees: Rest days are determined by schedule (day_off flag)
  */
 export function determineDayType(
   dateString: string,
   holidays: Holiday[],
   isRestDay?: boolean
 ): DayType {
-  // Check if it's a rest day (from employee schedule) or Sunday (default for most employees)
+  // Check if it's a rest day:
+  // 1. From employee schedule (isRestDay parameter) - for client-based employees with custom schedules
+  // 2. Sunday (default rest day for office-based employees per Labor Code)
+  // Note: Saturday is NOT automatically a rest day - it's a company benefit (paid regular day)
   const isRestDayDate =
     isRestDay !== undefined ? isRestDay : isDateSunday(dateString);
   const holiday = holidays.find((h) => h.date === dateString);

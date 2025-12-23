@@ -55,7 +55,21 @@ export function generateTimesheetFromClockEntries(
   clockEntries.forEach((entry) => {
     if (!entry.clock_out_time) return; // Skip incomplete entries
 
-    const entryDate = format(parseISO(entry.clock_in_time), "yyyy-MM-dd");
+    // Use Asia/Manila timezone for date grouping (same as timesheet page)
+    // Convert UTC time to Asia/Manila timezone for correct date grouping
+    const entryDateUTC = parseISO(entry.clock_in_time);
+    // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = formatter.formatToParts(entryDateUTC);
+    const entryDate = `${parts.find((p) => p.type === "year")!.value}-${
+      parts.find((p) => p.type === "month")!.value
+    }-${parts.find((p) => p.type === "day")!.value}`;
+    
     if (!entriesByDate.has(entryDate)) {
       entriesByDate.set(entryDate, []);
     }
@@ -112,12 +126,70 @@ export function generateTimesheetFromClockEntries(
       }
     });
 
+    // Saturday Company Benefit: Set regularHours = 8 even if employee didn't work
+    // Saturday is a company benefit - paid even if not worked, and counts towards days worked and total hours
+    // This applies to ALL employees (office-based)
+    if (dayType === "regular" && regularHours === 0) {
+      const dateObj = parseISO(dateStr);
+      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek === 6) {
+        regularHours = 8; // Company benefit: 8 hours even if not worked
+      }
+    }
+
+    // Sunday Rest Day: DO NOT automatically set regularHours = 8
+    // For Rank and File: They get paid 8 hours even if not worked (handled in payslip calculation)
+    // For Account Supervisors/Supervisory: They only get paid if they actually worked (regularHours > 0)
+    // The payslip calculation will handle the payment logic based on employee type
+    // We keep regularHours = 0 if they didn't work, so the payslip can check if they actually worked
+
+    // Holidays: Set regularHours = 8 if employee is eligible (worked day before) even if didn't work on holiday
+    // Check "1 Day Before" rule for holidays - eligible holidays count towards "Days Work" and "Hours Worked"
+    if (
+      (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
+      regularHours === 0
+    ) {
+      const dateObj = parseISO(dateStr);
+      const previousDateObj = new Date(dateObj);
+      previousDateObj.setDate(previousDateObj.getDate() - 1);
+      const previousDateStr = format(previousDateObj, "yyyy-MM-dd");
+
+      // Check if employee worked the day before (has entry with regular_hours >= 8)
+      // Use Asia/Manila timezone for date comparison (same as timesheet page)
+      const previousDayEntry = clockEntries.find((entry) => {
+        const entryDateUTC = parseISO(entry.clock_in_time);
+        // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const parts = formatter.formatToParts(entryDateUTC);
+        const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
+          parts.find((p) => p.type === "month")!.value
+        }-${parts.find((p) => p.type === "day")!.value}`;
+        return (
+          entryDateStr === previousDateStr &&
+          (entry.status === "approved" ||
+            entry.status === "auto_approved" ||
+            entry.status === "clocked_out") &&
+          (entry.regular_hours || 0) >= 8
+        );
+      });
+
+      if (previousDayEntry) {
+        regularHours = 8; // Eligible holiday: 8 hours even if not worked
+      }
+    }
+
+    // Floor down hours (round down to full hours only, matching database trigger)
     attendance_data.push({
       date: dateStr,
       dayType: dayType as any,
-      regularHours: Math.round(regularHours * 100) / 100,
-      overtimeHours: Math.round(overtimeHours * 100) / 100,
-      nightDiffHours: Math.round(nightDiffHours * 100) / 100,
+      regularHours: Math.floor(regularHours),
+      overtimeHours: Math.floor(overtimeHours),
+      nightDiffHours: Math.floor(nightDiffHours),
     });
 
     // Move to next day
@@ -125,21 +197,16 @@ export function generateTimesheetFromClockEntries(
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  // Calculate totals
-  const total_regular_hours =
-    Math.round(
-      attendance_data.reduce((sum, day) => sum + day.regularHours, 0) * 100
-    ) / 100;
-
-  const total_overtime_hours =
-    Math.round(
-      attendance_data.reduce((sum, day) => sum + day.overtimeHours, 0) * 100
-    ) / 100;
-
-  const total_night_diff_hours =
-    Math.round(
-      attendance_data.reduce((sum, day) => sum + day.nightDiffHours, 0) * 100
-    ) / 100;
+  // Calculate totals (already floored in individual days, but ensure totals are also floored)
+  const total_regular_hours = Math.floor(
+    attendance_data.reduce((sum, day) => sum + day.regularHours, 0)
+  );
+  const total_overtime_hours = Math.floor(
+    attendance_data.reduce((sum, day) => sum + day.overtimeHours, 0)
+  );
+  const total_night_diff_hours = Math.floor(
+    attendance_data.reduce((sum, day) => sum + day.nightDiffHours, 0)
+  );
 
   return {
     attendance_data,

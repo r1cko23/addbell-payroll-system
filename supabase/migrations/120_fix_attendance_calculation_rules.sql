@@ -39,6 +39,13 @@ BEGIN
     v_clock_out_date := v_clock_out_ph::DATE;
     
     total_minutes := EXTRACT(EPOCH FROM (NEW.clock_out_time - NEW.clock_in_time)) / 60;
+    
+    -- Automatically apply 1-hour break (60 minutes) for all working days if not already set
+    -- Every working day has a 1-hour break by default
+    IF COALESCE(NEW.total_break_minutes, 0) = 0 THEN
+      NEW.total_break_minutes := 60;
+    END IF;
+    
     work_minutes := total_minutes - COALESCE(NEW.total_break_minutes, 0);
     NEW.total_hours := ROUND(work_minutes / 60.0, 2);
 

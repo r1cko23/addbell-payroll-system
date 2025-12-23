@@ -36,3 +36,4 @@ DROP INDEX IF EXISTS idx_employees_deployed;
 ALTER TABLE public.employees
 DROP COLUMN IF EXISTS deployed;
 
+

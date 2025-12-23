@@ -282,7 +282,7 @@ export default function LoansPage() {
 
       // Update loan with updated_by for audit trail
       // Only update fields that are allowed to be changed (exclude id, created_by, created_at, is_active)
-      const updateData: any = {
+      const updateData = {
         employee_id: loanData.employee_id,
         loan_type: loanData.loan_type,
         original_balance: parseFloat(loanData.original_balance.toString()),
@@ -294,7 +294,7 @@ export default function LoansPage() {
         cutoff_assignment: loanData.cutoff_assignment,
         notes: loanData.notes || null,
         updated_by: userData.user.id,
-      };
+      } as Record<string, unknown>;
 
       console.log("Updating loan with data:", {
         loanId: editingLoan.id,
@@ -304,7 +304,9 @@ export default function LoansPage() {
 
       // Update loan without select to avoid potential column reference issues
       const { error } = await supabase
+        // @ts-ignore - employee_loans table type may not be in generated types
         .from("employee_loans")
+        // @ts-expect-error - Type inference issue with employee_loans table
         .update(updateData)
         .eq("id", editingLoan.id);
 
@@ -682,7 +684,7 @@ export default function LoansPage() {
 
       // Fetch user details for each log entry
       const logsWithUsers = await Promise.all(
-        (logsData || []).map(async (log) => {
+        (logsData || []).map(async (log: any) => {
           if (log.user_id) {
             const { data: userData } = await supabase
               .from("users")
@@ -735,7 +737,7 @@ export default function LoansPage() {
       let runningBalance = parseFloat(loan.original_balance.toString());
 
       if (payslips) {
-        for (const payslip of payslips) {
+        for (const payslip of payslips as any[]) {
           const deductions = payslip.deductions_breakdown as any;
 
           // Determine cutoff based on period start date
@@ -1724,4 +1726,5 @@ export default function LoansPage() {
     </DashboardLayout>
   );
 }
+
 

@@ -76,3 +76,4 @@ BEFORE UPDATE ON public.employee_loans
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
+

@@ -306,7 +306,7 @@ export default function LoansPage() {
       const { error } = await supabase
         // @ts-ignore - employee_loans table type may not be in generated types
         .from("employee_loans")
-        // @ts-expect-error - Type inference issue with employee_loans table
+        // @ts-ignore - Type inference issue with employee_loans table
         .update(updateData)
         .eq("id", editingLoan.id);
 

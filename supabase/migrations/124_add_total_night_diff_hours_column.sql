@@ -42,3 +42,4 @@ COMMENT ON COLUMN public.time_clock_entries.total_night_diff_hours IS
   'Night differential hours calculated from clock times (5PM-6AM). This column is used by the calculate_time_clock_hours() trigger function (migration 120+).';
 
 
+

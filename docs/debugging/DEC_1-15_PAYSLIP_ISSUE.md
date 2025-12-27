@@ -162,3 +162,4 @@ if (clockInTime && clockOutTime && !isLeaveDayWithFullHours) {
 - **Basic Salary:** 11 days × ₱1,600/day = ₱17,600
 
 
+

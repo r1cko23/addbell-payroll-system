@@ -49,3 +49,4 @@ COMMENT ON POLICY "Authenticated users can view payslips" ON public.payslips IS
 
 
 
+

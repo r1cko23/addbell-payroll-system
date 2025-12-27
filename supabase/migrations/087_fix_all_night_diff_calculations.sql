@@ -57,3 +57,4 @@ ALTER TABLE time_clock_entries ENABLE TRIGGER trigger_calculate_time_clock_hours
 
 
 
+

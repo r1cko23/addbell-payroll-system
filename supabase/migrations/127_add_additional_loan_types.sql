@@ -14,3 +14,4 @@ CHECK (loan_type IN ('company', 'sss_calamity', 'pagibig_calamity', 'sss', 'pagi
 COMMENT ON COLUMN public.employee_loans.loan_type IS 'Type of loan: company (6 months), sss_calamity (24 months), sss (24 months), pagibig_calamity (12/24/36 months), pagibig (12/24/36 months), emergency (flexible terms), other (flexible terms)';
 
 
+

@@ -413,9 +413,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             earningsBreakdown.legalHoliday.days++;
             earningsBreakdown.legalHoliday.amount += dailyRateAmount;
 
-            // Add allowance ONLY if they actually worked on the holiday (regularHours > 0)
-            // For holidays, there's no automatic assignment, so if regularHours > 0, they worked
-            if (regularHours > 0 && regularHours >= 4) {
+            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
+            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
+            if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(regularHours);
               if (allowance > 0) {
                 fixedAllowances.legalHolidayAllowance.amount += allowance;
@@ -490,9 +490,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             earningsBreakdown.spHoliday.days++;
             earningsBreakdown.spHoliday.amount += dailyRateAmount;
 
-            // Add allowance ONLY if they actually worked on the holiday (regularHours > 0)
-            // For holidays, there's no automatic assignment, so if regularHours > 0, they worked
-            if (regularHours > 0 && regularHours >= 4) {
+            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
+            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
+            if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(regularHours);
               if (allowance > 0) {
                 fixedAllowances.specialHolidayAllowance.amount += allowance;

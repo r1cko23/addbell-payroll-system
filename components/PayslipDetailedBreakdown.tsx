@@ -591,8 +591,9 @@ function PayslipDetailedBreakdownComponent({
             breakdown.legalHoliday.hours += hoursToPay;
             breakdown.legalHoliday.amount += dailyRateAmount;
 
-            // Add allowance ONLY if they worked on the holiday (regularHours > 0)
-            if (regularHours > 0) {
+            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
+            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
+            if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(
                 regularHours,
                 dayType
@@ -685,8 +686,9 @@ function PayslipDetailedBreakdownComponent({
             breakdown.specialHoliday.hours += hoursToPay;
             breakdown.specialHoliday.amount += dailyRateAmount;
 
-            // Add allowance ONLY if they worked on the holiday (regularHours > 0)
-            if (regularHours > 0) {
+            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
+            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
+            if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(
                 regularHours,
                 dayType

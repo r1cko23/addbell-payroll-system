@@ -66,7 +66,7 @@ const getColorStyleForEmployee = (employeeId: string) => {
 };
 
 export default function SchedulesPage() {
-  const supabase = useMemo(() => createClient(), []);
+  const supabase = createClient();
   const { role, isAdmin, loading: roleLoading } = useUserRole();
 
   const [weekStart, setWeekStart] = useState<Date>(() =>

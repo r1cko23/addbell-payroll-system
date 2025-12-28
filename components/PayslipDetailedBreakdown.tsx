@@ -19,7 +19,7 @@ import {
   type DayType,
 } from "@/utils/payroll-calculator";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfWeek } from "date-fns";
 
 interface PayslipDetailedBreakdownProps {
   employee: {
@@ -478,6 +478,32 @@ function PayslipDetailedBreakdownComponent({
       if (dayType === "regular") {
         const dateObj = new Date(date);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        
+        // Check if this is Account Supervisor's first rest day (treated as regular workday)
+        // The first rest day gets 8 BH even if not worked (like Saturday company benefit)
+        // The timesheet generator already sets regularHours = 8 for first rest day
+        const isFirstRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
+        let isFirstRestDayChronologically = false;
+        if (isFirstRestDay && restDays) {
+          // Get the week start (Monday) for this date
+          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Monday = 1
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+          
+          // Get all rest days in THIS WEEK (not the entire period)
+          const restDaysInWeek = Array.from(restDays.keys())
+            .filter(rd => {
+              const rdDate = new Date(rd);
+              return rdDate >= weekStart && rdDate <= weekEnd;
+            })
+            .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
+          
+          // Check if this is the first rest day of THIS WEEK (chronologically)
+          if (restDaysInWeek.length >= 1 && date === restDaysInWeek[0]) {
+            isFirstRestDayChronologically = true;
+          }
+        }
+        
         if (dayOfWeek === 6 && finalRegularHours === 0) {
           // Saturday with no work - company benefit: 8 hours
           hoursToCount = 8;
@@ -488,11 +514,25 @@ function PayslipDetailedBreakdownComponent({
           hoursToCount = finalRegularHours;
           // Basic Salary = ONLY regular work days (Mon-Fri) that were actually worked
           // Exclude Saturday (company benefit), holidays, rest days
+          // BUT include Account Supervisor's first rest day (it's part of their 6-day work week)
           if (dayOfWeek !== 6) {
             // Regular work day (Mon-Fri) - add to basic salary
+            // This includes first rest day if it's Mon-Fri (timesheet generator already set regularHours = 8)
             basicSalary += finalRegularHours * ratePerHour;
           }
           // Saturday worked: count hours but don't add to basic salary (it's company benefit, shown separately)
+          // Note: If first rest day falls on Saturday, it's treated same as Saturday company benefit (not in basic salary)
+        } else if (isFirstRestDayChronologically && finalRegularHours === 0) {
+          // Account Supervisor's first rest day with no work - gets 8 BH (like Saturday company benefit)
+          // This should not happen if timesheet generator is working correctly, but handle it just in case
+          // This is part of their 6-day work week
+          hoursToCount = 8;
+          // Include in basic salary (it's a regular workday for them)
+          if (dayOfWeek !== 6) {
+            // First rest day on Mon-Fri - add to basic salary
+            basicSalary += 8 * ratePerHour;
+          }
+          // If first rest day falls on Saturday, don't add to basic salary (same as Saturday company benefit)
         }
       } else if (
         dayType === "regular-holiday" ||
@@ -763,44 +803,77 @@ function PayslipDetailedBreakdownComponent({
       // Sunday/Rest Day (Sunday is the designated rest day for office-based employees)
       // For client-based Account Supervisors: Rest days can be on any weekday (often Mon-Fri since hotels are busy Fri-Sun)
       // Rest days that fall on holidays are treated as holidays (holiday takes priority)
-      // Only the FIRST rest day (chronologically) gets paid if they didn't work (like Saturday for office-based)
-      // The second rest day only gets paid if they worked on it
+      // The FIRST rest day (chronologically) is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
+      // - It's NOT a rest day - it's just a regular workday (paid at regular rate, no rest day premium, no allowances)
+      // - It's already processed above as dayType === "regular" and included in basic salary
+      // The SECOND rest day is the actual rest day (paid at rest day rate if worked, with allowances if worked ≥4 hours)
       if (dayType === "sunday") {
-        // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
-        if (!isClientBased && !isEligibleForAllowances) {
-          const hoursToPay = regularHours > 0 ? regularHours : 8;
-          // Rank and File: Standard multiplier calculation (1.3x)
-          const standardAmount = calculateSundayRestDay(
-            hoursToPay,
-            ratePerHour
-          );
-          breakdown.restDay.hours += hoursToPay;
-          breakdown.restDay.amount += standardAmount;
+        // Verify this is NOT the first rest day for Account Supervisors
+        // The first rest day should have dayType === "regular" (set by timesheet generator)
+        // If dayType === "sunday", it should only be the second rest day
+        const isFirstRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
+        let isFirstRestDayChronologically = false;
+        if (isFirstRestDay && restDays) {
+          // Get the week start (Monday) for this date
+          const dateObj = new Date(date);
+          const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Monday = 1
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+          
+          // Get all rest days in THIS WEEK (not the entire period)
+          const restDaysInWeek = Array.from(restDays.keys())
+            .filter(rd => {
+              const rdDate = new Date(rd);
+              return rdDate >= weekStart && rdDate <= weekEnd;
+            })
+            .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
+          
+          // Check if this is the first rest day of THIS WEEK (chronologically)
+          if (restDaysInWeek.length >= 1 && date === restDaysInWeek[0]) {
+            isFirstRestDayChronologically = true;
+          }
+        }
+        
+        // If this is the first rest day, it should NOT be processed here (should have dayType === "regular")
+        // This is a safety check - if somehow the first rest day has dayType === "sunday", skip it
+        if (isFirstRestDayChronologically) {
+          // First rest day should not be here - skip rest day processing
+          // It should have been processed as dayType === "regular" above
         } else {
-          // Client-based Account Supervisors/Supervisory/Managerial:
-          // The timesheet generator sets regularHours = 8 for the first rest day if they didn't work
-          // So if regularHours > 0, it means either they worked OR it's the first rest day
-          // Pay for rest day if they worked OR if it's the first rest day (regularHours already set to 8)
-          if (regularHours > 0) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            const dailyRateAmount = regularHours * ratePerHour;
-            breakdown.restDay.hours += regularHours;
-            breakdown.restDay.amount += dailyRateAmount;
+          // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
+          if (!isClientBased && !isEligibleForAllowances) {
+            const hoursToPay = regularHours > 0 ? regularHours : 8;
+            // Rank and File: Standard multiplier calculation (1.3x)
+            const standardAmount = calculateSundayRestDay(
+              hoursToPay,
+              ratePerHour
+            );
+            breakdown.restDay.hours += hoursToPay;
+            breakdown.restDay.amount += standardAmount;
+          } else {
+            // Client-based Account Supervisors/Supervisory/Managerial:
+            // This is the SECOND rest day (the actual rest day)
+            // Only paid if they worked on it (regularHours > 0 means they worked)
+            if (regularHours > 0) {
+              // Supervisory/Managerial: Daily rate only (1x), no multiplier
+              const dailyRateAmount = regularHours * ratePerHour;
+              breakdown.restDay.hours += regularHours;
+              breakdown.restDay.amount += dailyRateAmount;
 
-            // Add allowance ONLY if they actually worked on the rest day (not just the automatic 8 hours)
-            // If clockInTime exists, they actually worked; otherwise, regularHours = 8 is automatic assignment
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(
-                regularHours,
-                dayType
-              );
-              if (allowance > 0) {
-                otherPay.restDayAllowance.hours += regularHours;
-                otherPay.restDayAllowance.amount += allowance;
+              // Add allowance ONLY if they actually worked on the rest day (clockInTime exists and regularHours >= 4)
+              if (clockInTime && regularHours >= 4) {
+                const allowance = calculateHolidayRestDayAllowance(
+                  regularHours,
+                  dayType
+                );
+                if (allowance > 0) {
+                  otherPay.restDayAllowance.hours += regularHours;
+                  otherPay.restDayAllowance.amount += allowance;
+                }
               }
             }
+            // If regularHours === 0, it means they didn't work on the second rest day - no pay
           }
-          // If regularHours === 0, it means it's a second rest day and they didn't work - no pay
         }
 
         // Note: Fixed allowances for Account Supervisors and Office-based are NOT added here

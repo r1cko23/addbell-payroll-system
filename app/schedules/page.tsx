@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { addDays, startOfWeek, format } from "date-fns";
 import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { toast } from "sonner";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type EmployeeOption = { id: string; full_name: string };
 type ScheduleRow = {
@@ -42,6 +44,13 @@ type ScheduleRow = {
   end_time: string;
   tasks: string | null;
   day_off: boolean;
+};
+type DayEntry = {
+  schedule_date: string;
+  start_time: string;
+  end_time: string;
+  day_off: boolean;
+  tasks: string;
 };
 
 // Deterministic per-employee colors (inline HSL for more variety)
@@ -57,7 +66,7 @@ const getColorStyleForEmployee = (employeeId: string) => {
 };
 
 export default function SchedulesPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const { role, isAdmin, loading: roleLoading } = useUserRole();
 
   const [weekStart, setWeekStart] = useState<Date>(() =>
@@ -70,6 +79,10 @@ export default function SchedulesPage() {
   const [rows, setRows] = useState<ScheduleRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<ScheduleRow | null>(null);
+  const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
+  const [editingWeekSchedule, setEditingWeekSchedule] = useState<DayEntry[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)),
@@ -87,7 +100,7 @@ export default function SchedulesPage() {
     loadMeta();
   }, [supabase]);
 
-  const loadWeek = async () => {
+  const loadWeek = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.rpc(
       "get_week_schedule_for_manager",
@@ -103,39 +116,14 @@ export default function SchedulesPage() {
       setRows((data || []) as ScheduleRow[]);
     }
     setLoading(false);
-  };
+  }, [supabase, weekStart, filters.employee_id]);
 
   useEffect(() => {
     loadWeek();
-  }, [weekStart, filters.employee_id]);
-
-  if (roleLoading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Icon
-            name="ArrowsClockwise"
-            size={IconSizes.lg}
-            className="animate-spin text-muted-foreground"
-          />
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!isAdmin && role !== "account_manager" && role !== "hr") {
-    return (
-      <DashboardLayout>
-        <VStack gap="4" className="w-full">
-          <BodySmall>
-            Only Account Managers, HR, or Admins can view schedules.
-          </BodySmall>
-        </VStack>
-      </DashboardLayout>
-    );
-  }
+  }, [loadWeek]);
 
   // Get all unique employees and sort alphabetically
+  // IMPORTANT: Hooks must be called before any early returns
   const allEmployees = useMemo(() => {
     const uniqueEmployees = new Map<string, { id: string; name: string }>();
     rows.forEach((row) => {
@@ -188,6 +176,32 @@ export default function SchedulesPage() {
       };
     });
   }, [weekDays, rows, allEmployees]);
+
+  if (roleLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!isAdmin && role !== "account_manager" && role !== "hr") {
+    return (
+      <DashboardLayout>
+        <VStack gap="4" className="w-full">
+          <BodySmall>
+            Only Account Managers, HR, or Admins can view schedules.
+          </BodySmall>
+        </VStack>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -294,7 +308,13 @@ export default function SchedulesPage() {
                       return (
                         <div
                           key={entry.id}
-                          onClick={() => setSelectedEntry(entry)}
+                          onClick={() => {
+                            // Regular click: just view the schedule (read-only)
+                            setSelectedEntry(entry);
+                            setIsEditMode(false);
+                            setEditingEmployeeId(null);
+                            setEditingWeekSchedule([]);
+                          }}
                           className={`border rounded-md px-2.5 py-2 cursor-pointer transition-all hover:shadow-md w-full ${
                             isDayOff ? "border-dashed border-2" : ""
                           }`}
@@ -365,83 +385,354 @@ export default function SchedulesPage() {
 
         <Dialog
           open={!!selectedEntry}
-          onOpenChange={(open) => !open && setSelectedEntry(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedEntry(null);
+              setEditingEmployeeId(null);
+              setEditingWeekSchedule([]);
+              setIsEditMode(false);
+            }
+          }}
         >
-          <DialogContent className="overflow-x-hidden max-w-md">
+          <DialogContent className="overflow-x-hidden max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader className="pb-3">
               <DialogTitle className="text-base">
-                {selectedEntry?.employee_name}
+                {isEditMode ? "Edit" : "View"} Schedule for {selectedEntry?.employee_name}
               </DialogTitle>
               <DialogDescription className="text-xs">
-                {selectedEntry &&
-                  format(
-                    new Date(selectedEntry.schedule_date),
-                    "EEEE, MMM d, yyyy"
-                  )}
+                Week of {format(weekStart, "MMM d, yyyy")}
               </DialogDescription>
             </DialogHeader>
-            {selectedEntry && (
-              <VStack gap="3" className="min-w-0">
-                <div className="min-w-0 w-full">
-                  <HStack gap="2" align="center" justify="between" className="mb-1.5">
-                    <Label className="text-xs font-medium">Schedule</Label>
-                    {selectedEntry.day_off && (
-                      <Badge 
-                        variant="outline" 
-                        className="border-2 border-current font-semibold opacity-80 text-xs px-2 py-0.5"
+            
+            {selectedEntry && !isEditMode && (
+              // View Mode: Read-only display
+              <VStack gap="4" className="min-w-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 w-full">
+                  {weekDays.map((day) => {
+                    const dayStr = format(day, "yyyy-MM-dd");
+                    const dayEntry = rows.find(
+                      (r) => r.employee_id === selectedEntry.employee_id && r.schedule_date === dayStr
+                    );
+                    const isCurrentDay = dayStr === selectedEntry.schedule_date;
+                    
+                    return (
+                      <Card
+                        key={dayStr}
+                        className={`p-3 ${
+                          isCurrentDay ? "border-primary-500 border-2" : ""
+                        }`}
                       >
-                        <Icon name="CalendarX" size={IconSizes.xs} className="mr-1" />
-                        Day Off
-                      </Badge>
-                    )}
+                        <VStack gap="2" align="start">
+                          <Label className="text-xs font-medium">
+                            {format(day, "EEE, MMM d")}
+                          </Label>
+                          {dayEntry?.day_off ? (
+                            <div className="p-2 rounded-md bg-muted/50 border border-dashed border-2 w-full">
+                              <HStack gap="2" align="center">
+                                <Icon name="Moon" size={IconSizes.xs} className="shrink-0 opacity-70" />
+                                <p className="text-xs font-medium italic">Rest day</p>
+                              </HStack>
+                            </div>
+                          ) : dayEntry?.start_time && dayEntry?.end_time ? (
+                            <>
+                              <div className="text-xs">
+                                <span className="font-medium">Time:</span>{" "}
+                                {formatPHTime(
+                                  new Date(`${dayStr}T${dayEntry.start_time}`),
+                                  "h:mm a"
+                                )}{" "}
+                                -{" "}
+                                {formatPHTime(
+                                  new Date(`${dayStr}T${dayEntry.end_time}`),
+                                  "h:mm a"
+                                )}
+                              </div>
+                              {dayEntry.tasks && (
+                                <div className="text-xs w-full">
+                                  <span className="font-medium">Tasks:</span>
+                                  <p className="text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+                                    {dayEntry.tasks}
+                                  </p>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">No schedule</p>
+                          )}
+                        </VStack>
+                      </Card>
+                    );
+                  })}
+                </div>
+                {(isAdmin || role === "account_manager") && (
+                  <HStack justify="end" gap="2" className="w-full pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedEntry(null);
+                        setIsEditMode(false);
+                      }}
+                    >
+                      Close
+                    </Button>
+                    <Button
+                      onClick={async () => {
+                        // Load full week schedule for editing
+                        setIsEditMode(true);
+                        setEditingEmployeeId(selectedEntry.employee_id);
+                        setEditingWeekSchedule([]);
+                        
+                        const weekStartIso = format(weekStart, "yyyy-MM-dd");
+                        const { data: weekData, error } = await supabase.rpc(
+                          "get_week_schedule_for_manager",
+                          {
+                            p_week_start: weekStartIso,
+                            p_employee_id: selectedEntry.employee_id,
+                          } as any
+                        );
+                        
+                        if (!error && weekData) {
+                          const scheduleMap = new Map(
+                            (weekData as ScheduleRow[]).map((r) => [r.schedule_date, r])
+                          );
+                          const weekSchedule: DayEntry[] = weekDays.map((day) => {
+                            const iso = format(day, "yyyy-MM-dd");
+                            const existing = scheduleMap.get(iso);
+                            return {
+                              schedule_date: iso,
+                              start_time: existing?.start_time || "",
+                              end_time: existing?.end_time || "",
+                              day_off: existing?.day_off || false,
+                              tasks: existing?.tasks || "",
+                            };
+                          });
+                          setEditingWeekSchedule(weekSchedule);
+                        }
+                      }}
+                    >
+                      <Icon name="PencilSimple" size={IconSizes.xs} className="mr-2" />
+                      Edit Schedule
+                    </Button>
                   </HStack>
-                  {selectedEntry.day_off ? (
-                    <div className="mt-1.5 p-2 rounded-md bg-muted/50 border border-dashed border-2">
-                      <HStack gap="2" align="center">
-                        <Icon name="Moon" size={IconSizes.xs} className="shrink-0 opacity-70" />
-                        <p className="text-xs font-medium italic">
-                          Rest day - No schedule set
-                        </p>
-                      </HStack>
-                    </div>
-                  ) : selectedEntry.start_time && selectedEntry.end_time ? (
-                    <p className="mt-1.5 text-sm">
-                      {formatPHTime(
-                        new Date(
-                          `${selectedEntry.schedule_date}T${selectedEntry.start_time}`
-                        ),
-                        "h:mm a"
-                      )}{" "}
-                      -{" "}
-                      {formatPHTime(
-                        new Date(
-                          `${selectedEntry.schedule_date}T${selectedEntry.end_time}`
-                        ),
-                        "h:mm a"
-                      )}
-                    </p>
-                  ) : (
-                    <p className="mt-1.5 text-xs text-muted-foreground italic">
-                      No schedule set for this day
-                    </p>
-                  )}
-                </div>
-                <div className="min-w-0 w-full">
-                  <Label className="text-xs font-medium mb-1.5 block">Tasks</Label>
-                  {selectedEntry.tasks ? (
-                    <div className="min-w-0 w-full overflow-hidden">
-                      <p className="text-xs whitespace-pre-wrap break-words bg-muted p-2 rounded-md overflow-wrap-anywhere word-break-break-all max-w-full">
-                        {selectedEntry.tasks}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground italic">
-                      No tasks submitted for this day
-                    </p>
-                  )}
-                </div>
+                )}
               </VStack>
             )}
+            
+            {selectedEntry && isEditMode && (
+              // Edit Mode: Editable form
+              <VStack gap="4" className="min-w-0">
+                {editingEmployeeId !== selectedEntry.employee_id ? (
+                  // Loading week schedule
+                  <div className="flex items-center justify-center py-8">
+                    <Icon
+                      name="ArrowsClockwise"
+                      size={IconSizes.lg}
+                      className="animate-spin text-muted-foreground"
+                    />
+                  </div>
+                ) : (
+                  // Edit form
+                  <VStack gap="4" className="w-full">
+                        {weekDays.map((day, idx) => {
+                          const dayEntry = editingWeekSchedule[idx] || {
+                            schedule_date: format(day, "yyyy-MM-dd"),
+                            start_time: "",
+                            end_time: "",
+                            day_off: false,
+                            tasks: "",
+                          };
+                          const isCurrentDay = dayEntry.schedule_date === selectedEntry.schedule_date;
+                          
+                          return (
+                            <Card key={dayEntry.schedule_date} className={`w-full ${isCurrentDay ? "border-2 border-primary" : ""}`}>
+                              <CardContent className="p-4">
+                                <VStack gap="3" className="w-full">
+                                  <HStack gap="2" align="center" justify="between" className="w-full">
+                                    <Label className="text-sm font-semibold">
+                                      {format(day, "EEEE, MMM d")}
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                      <Checkbox
+                                        id={`dayoff-${idx}`}
+                                        checked={dayEntry.day_off}
+                                        onCheckedChange={(checked) => {
+                                          const newSchedule = [...editingWeekSchedule];
+                                          newSchedule[idx] = {
+                                            ...dayEntry,
+                                            day_off: checked === true,
+                                            start_time: checked ? "" : dayEntry.start_time,
+                                            end_time: checked ? "" : dayEntry.end_time,
+                                          };
+                                          setEditingWeekSchedule(newSchedule);
+                                        }}
+                                      />
+                                      <Label
+                                        htmlFor={`dayoff-${idx}`}
+                                        className="text-xs font-medium cursor-pointer"
+                                      >
+                                        Day Off
+                                      </Label>
+                                    </div>
+                                  </HStack>
+                                  
+                                  {dayEntry.day_off ? (
+                                    <div className="p-2 rounded-md bg-muted/50 border border-dashed border-2">
+                                      <HStack gap="2" align="center">
+                                        <Icon name="Moon" size={IconSizes.xs} className="shrink-0 opacity-70" />
+                                        <p className="text-xs font-medium italic">
+                                          Rest day - No schedule set
+                                        </p>
+                                      </HStack>
+                                    </div>
+                                  ) : (
+                                    <HStack gap="2" className="w-full">
+                                      <div className="flex-1">
+                                        <Label className="text-xs font-medium mb-1 block">Start Time</Label>
+                                        <Input
+                                          type="time"
+                                          value={dayEntry.start_time}
+                                          onChange={(e) => {
+                                            const newSchedule = [...editingWeekSchedule];
+                                            newSchedule[idx] = {
+                                              ...dayEntry,
+                                              start_time: e.target.value,
+                                            };
+                                            setEditingWeekSchedule(newSchedule);
+                                          }}
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                      <div className="flex-1">
+                                        <Label className="text-xs font-medium mb-1 block">End Time</Label>
+                                        <Input
+                                          type="time"
+                                          value={dayEntry.end_time}
+                                          onChange={(e) => {
+                                            const newSchedule = [...editingWeekSchedule];
+                                            newSchedule[idx] = {
+                                              ...dayEntry,
+                                              end_time: e.target.value,
+                                            };
+                                            setEditingWeekSchedule(newSchedule);
+                                          }}
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                    </HStack>
+                                  )}
+                                  
+                                  {!dayEntry.day_off && (
+                                    <div className="w-full">
+                                      <Label className="text-xs font-medium mb-1 block">Tasks</Label>
+                                      <Textarea
+                                        value={dayEntry.tasks}
+                                        onChange={(e) => {
+                                          const newSchedule = [...editingWeekSchedule];
+                                          newSchedule[idx] = {
+                                            ...dayEntry,
+                                            tasks: e.target.value,
+                                          };
+                                          setEditingWeekSchedule(newSchedule);
+                                        }}
+                                        placeholder="Enter tasks for this day..."
+                                        className="text-xs min-h-[60px]"
+                                      />
+                                    </div>
+                                  )}
+                                </VStack>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                        
+                        <HStack gap="2" justify="end" className="w-full pt-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setIsEditMode(false);
+                              setEditingEmployeeId(null);
+                              setEditingWeekSchedule([]);
+                            }}
+                            disabled={saving}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={async () => {
+                              // Validate time ranges
+                              for (const day of editingWeekSchedule) {
+                                if (!day.day_off && day.start_time && day.end_time) {
+                                  if (day.start_time >= day.end_time) {
+                                    toast.error(
+                                      `Invalid time range on ${format(new Date(day.schedule_date), "EEEE, MMM d")}: End time must be later than start time.`
+                                    );
+                                    return;
+                                  }
+                                }
+                              }
+                              
+                              setSaving(true);
+                              const weekStartIso = format(weekStart, "yyyy-MM-dd");
+                              // Ensure we have exactly 7 days (one for each day of the week)
+                              if (editingWeekSchedule.length !== 7) {
+                                toast.error("Schedule must include all 7 days of the week");
+                                setSaving(false);
+                                return;
+                              }
+                              
+                              // Convert empty strings to empty string (not null) for JSON payload
+                              // Database function expects empty strings '' which it converts to NULL
+                              // IMPORTANT: Include ALL 7 days of the week, even if some have no schedule
+                              const entries = editingWeekSchedule.map((d) => {
+                                // If day_off is true, ensure times are empty strings
+                                // If day_off is false and times are empty, that's OK (both NULL is valid)
+                                const startTime = d.day_off ? '' : (d.start_time && d.start_time.trim() ? d.start_time : '');
+                                const endTime = d.day_off ? '' : (d.end_time && d.end_time.trim() ? d.end_time : '');
+                                
+                                return {
+                                  schedule_date: d.schedule_date,
+                                  start_time: startTime,
+                                  end_time: endTime,
+                                  tasks: d.day_off ? '' : (d.tasks && d.tasks.trim() ? d.tasks : ''),
+                                  day_off: d.day_off || false,
+                                };
+                              });
+                              
+                              // Log the payload for debugging
+                              console.log('Saving schedule entries:', JSON.stringify(entries, null, 2));
+                              
+                              try {
+                                const { error } = await supabase.rpc("replace_week_schedule", {
+                                  p_employee_id: selectedEntry.employee_id,
+                                  p_week_start: weekStartIso,
+                                  p_entries: entries,
+                                } as any);
+                                
+                                if (error) {
+                                  console.error('Schedule save error:', error);
+                                  toast.error(error.message || "Failed to save schedule");
+                                } else {
+                                  toast.success("Schedule updated successfully!");
+                                  setIsEditMode(false);
+                                  setEditingEmployeeId(null);
+                                  setEditingWeekSchedule([]);
+                                  loadWeek();
+                                }
+                              } catch (err: any) {
+                                toast.error(err.message || "Failed to save schedule");
+                              } finally {
+                                setSaving(false);
+                              }
+                            }}
+                            disabled={saving}
+                          >
+                            {saving ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </HStack>
+                      </VStack>
+                    )}
+                  </VStack>
+                )}
           </DialogContent>
         </Dialog>
       </VStack>

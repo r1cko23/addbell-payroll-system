@@ -332,15 +332,27 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       // - Rest days (sunday) should NOT be included in basic salary (paid separately)
       // - Saturday company benefit should NOT be included in basic salary (shown separately)
       // - Holidays should NOT be included in basic salary (paid separately)
+      // - Account Supervisor's first rest day IS included in basic salary (it's part of their 6-day work week)
       // Basic Salary = ONLY regular work days (Mon-Fri) that were actually worked
+      // PLUS Account Supervisor's first rest day (even if not worked, gets 8 BH from timesheet generator)
       if (dayType === "regular") {
         const dateObj = new Date(date);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        
+        // Check if this might be Account Supervisor's first rest day
+        // The timesheet generator sets regularHours = 8 for first rest day even if not worked
+        // If regularHours === 8 and no clockInTime, it's likely the first rest day (company benefit)
+        const isLikelyFirstRestDay = (isClientBased || isAccountSupervisor) && 
+          regularHours === 8 && 
+          !clockInTime && 
+          dayOfWeek !== 6; // Not Saturday (Saturday is always company benefit, not first rest day)
+        
         // Only count Mon-Fri (exclude Saturday and Sunday)
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && regularHours > 0) {
-          // Regular work day (Mon-Fri) with hours worked
+        // BUT include Account Supervisor's first rest day (even if it's on Mon-Fri with 8 BH and no clock in)
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && (regularHours > 0 || isLikelyFirstRestDay)) {
+          // Regular work day (Mon-Fri) with hours worked OR first rest day with 8 BH
           earningsBreakdown.basic.days++;
-          const dayAmount = regularHours * ratePerHour;
+          const dayAmount = (regularHours || (isLikelyFirstRestDay ? 8 : 0)) * ratePerHour;
           earningsBreakdown.basic.amount += dayAmount;
         }
         // Saturday (dayOfWeek === 6) is company benefit - NOT included in basic salary
@@ -564,17 +576,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.restDay.amount += standardAmount;
         } else {
           // Client-based Account Supervisors/Supervisory/Managerial:
-          // The timesheet generator sets regularHours = 8 for the first rest day if they didn't work
-          // So if regularHours > 0, it means either they worked OR it's the first rest day
-          // Pay for rest day if they worked OR if it's the first rest day (regularHours already set to 8)
+          // The FIRST rest day (chronologically) is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
+          // - It's NOT a rest day - it's already processed above as dayType === "regular" and included in basic salary
+          // This is the SECOND rest day (the actual rest day)
+          // Only paid if they worked on it (regularHours > 0 means they worked)
           if (regularHours > 0) {
             // Supervisory/Managerial: Daily rate only (1x), no multiplier
             const dailyRateAmount = regularHours * ratePerHour;
             earningsBreakdown.restDay.days++;
             earningsBreakdown.restDay.amount += dailyRateAmount;
 
-            // Add allowance ONLY if they actually worked on the rest day (not just the automatic 8 hours)
-            // If clockInTime exists, they actually worked; otherwise, regularHours = 8 is automatic assignment
+            // Add allowance ONLY if they actually worked on the rest day (clockInTime exists and regularHours >= 4)
             if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(regularHours);
               if (allowance > 0) {
@@ -582,7 +594,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }
             }
           }
-          // If regularHours === 0, it means it's a second rest day and they didn't work - no pay
+          // If regularHours === 0, it means they didn't work on the second rest day - no pay
         }
         if (overtimeHours > 0) {
           if (useFixedAllowances) {

@@ -5,7 +5,7 @@
  * This eliminates manual timesheet entry by auto-generating from time clock data
  */
 
-import { format, parseISO, startOfDay, isWithinInterval } from "date-fns";
+import { format, parseISO, startOfDay, isWithinInterval, startOfWeek } from "date-fns";
 import { determineDayType, normalizeHolidays } from "@/utils/holidays";
 import type { DailyAttendance } from "@/utils/payroll-calculator";
 
@@ -85,17 +85,6 @@ export function generateTimesheetFromClockEntries(
   let currentDate = new Date(periodStart);
   const endDate = new Date(periodEnd);
 
-  // Pre-calculate all rest days for client-based Account Supervisors (for rest day logic)
-  let allRestDaysSorted: string[] = [];
-  if (isClientBasedAccountSupervisor && restDays && restDays.size > 0) {
-    allRestDaysSorted = Array.from(restDays.keys())
-      .filter(rd => {
-        const rdDate = parseISO(rd);
-        return rdDate >= periodStart && rdDate <= endDate;
-      })
-      .sort((a, b) => a.localeCompare(b)); // Sort chronologically
-  }
-
   while (currentDate <= endDate) {
     const dateStr = format(currentDate, "yyyy-MM-dd");
     const dayEntries = entriesByDate.get(dateStr) || [];
@@ -112,8 +101,34 @@ export function generateTimesheetFromClockEntries(
       }))
     );
 
+    // For client-based Account Supervisors: First rest day PER WEEK is treated as regular workday (not rest day)
+    // Only the second rest day PER WEEK is an actual rest day
+    let actualIsRestDay = isRestDay;
+    if (isClientBasedAccountSupervisor && isRestDay && restDays && restDays.size > 0) {
+      // Get the week start (Monday) for this date
+      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday = 1
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
+      
+      // Get all rest days in THIS WEEK (not the entire period)
+      const restDaysInWeek = Array.from(restDays.keys())
+        .filter(rd => {
+          const rdDate = parseISO(rd);
+          return rdDate >= weekStart && rdDate <= weekEnd;
+        })
+        .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
+      
+      // Check if this is the first rest day of THIS WEEK (chronologically)
+      if (restDaysInWeek.length >= 2 && dateStr === restDaysInWeek[0]) {
+        // First rest day of the week: Treat as regular workday (like Mon-Sat for office-based)
+        // It's NOT a rest day - it's just a regular workday (paid at regular rate, no rest day premium, no allowances)
+        actualIsRestDay = false;
+      }
+      // Second rest day of the week (restDaysInWeek[1]): Keep as rest day
+    }
+    
     // Determine day type (regular, holiday, sunday/rest day, etc.)
-    const dayType = determineDayType(dateStr, normalizedHolidays, isRestDay);
+    const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay);
 
     // Aggregate hours from all entries for this day
     let regularHours = 0;
@@ -153,20 +168,22 @@ export function generateTimesheetFromClockEntries(
     // Client-based Account Supervisor Rest Day Logic:
     // They can mark any 2 days as rest days in their schedule (often weekdays since hotels are busy Fri-Sun)
     // Rest days that fall on holidays are treated as holidays (handled by determineDayType)
-    // Only 1 rest day gets paid at regular rate (like Saturday for office-based) - the FIRST rest day chronologically
-    // The second rest day only gets paid if worked (like Sunday for office-based)
+    // The FIRST rest day (chronologically) is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
+    // - It's NOT a rest day - it's just a regular workday (paid at regular rate, no rest day premium, no allowances)
+    // - It gets 8 BH even if not worked (like Saturday company benefit) - part of 6-day work week
+    // - It's included in basic salary calculation
+    // The SECOND rest day is the actual rest day (paid at rest day rate if worked, with allowances if worked ≥4 hours)
     // Rest days can be on any weekday - they often work Sat/Sun due to hotel peak days
-    if (isClientBasedAccountSupervisor && isRestDay && regularHours === 0 && dayType === "sunday") {
-      // Only apply rest day pay logic if dayType is "sunday" (meaning it's a rest day, not a holiday)
-      // First rest day (chronologically) = treated like Saturday (paid even if not worked)
-      // Second rest day (chronologically) = treated like Sunday (only paid if worked)
-      if (allRestDaysSorted.length >= 1 && dateStr === allRestDaysSorted[0]) {
-        // First rest day: Paid even if not worked (like Saturday)
-        regularHours = 8;
-      }
-      // Second rest day (and beyond): Only paid if worked (keep regularHours = 0)
-      // Note: If they worked on the second rest day, regularHours will already be > 0 from entries above
+    
+    // First rest day: Set regularHours = 8 even if not worked (like Saturday company benefit)
+    // This is part of their 6-day work week, so they get 8 BH even without logging in
+    if (isClientBasedAccountSupervisor && isRestDay && dayType === "regular" && regularHours === 0) {
+      // This is the first rest day (treated as regular workday)
+      // Set 8 BH even if not worked - it's part of the 6-day work week
+      regularHours = 8;
     }
+    
+    // Note: The second rest day (dayType === "sunday") needs rest day pay logic, which is handled in payslip calculation
     // If rest day falls on holiday, dayType will be "sunday-regular-holiday" or "sunday-special-holiday"
     // and it will be handled by the holiday logic below
 

@@ -162,3 +162,4 @@ COMMENT ON POLICY "Only Admins can approve payslips" ON public.payslips IS
 
 
 
+

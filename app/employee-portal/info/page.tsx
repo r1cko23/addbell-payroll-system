@@ -11,6 +11,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
+import { Input } from "@/components/Input";
+import { Button } from "@/components/Button";
+import { toast } from "sonner";
 
 interface EmployeeInfo {
   employee_id: string;
@@ -38,6 +41,14 @@ export default function EmployeeInfoPage() {
   const [info, setInfo] = useState<EmployeeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const fallbackInfo = useMemo<EmployeeInfo>(
     () => ({
@@ -141,6 +152,71 @@ export default function EmployeeInfoPage() {
     },
   ];
 
+  async function handlePasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordError(null);
+
+    // Validation
+    if (!currentPassword.trim()) {
+      setPasswordError("Please enter your current password");
+      return;
+    }
+
+    if (!newPassword.trim()) {
+      setPasswordError("Please enter a new password");
+      return;
+    }
+
+    if (newPassword.trim().length < 4) {
+      setPasswordError("Password must be at least 4 characters long");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setPasswordError("New password must be different from current password");
+      return;
+    }
+
+    setIsChangingPassword(true);
+
+    try {
+      const response = await fetch("/api/employee/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          employee_id: employee.employee_id,
+          current_password: currentPassword.trim(),
+          new_password: newPassword.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update password");
+      }
+
+      toast.success("Password updated successfully!");
+      setShowPasswordForm(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError(null);
+    } catch (error: any) {
+      console.error("Error changing password:", error);
+      setPasswordError(error.message || "Failed to update password. Please try again.");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  }
+
   return (
     <VStack gap="6" className="w-full">
       <CardSection
@@ -217,6 +293,96 @@ export default function EmployeeInfoPage() {
             </div>
           ))}
         </dl>
+      </CardSection>
+
+      <CardSection
+        title="Change Password"
+        description="Update your portal password"
+      >
+        {!showPasswordForm ? (
+          <VStack gap="4">
+            <BodySmall className="text-muted-foreground">
+              Keep your account secure by regularly updating your password.
+            </BodySmall>
+            <Button
+              variant="outline"
+              onClick={() => setShowPasswordForm(true)}
+            >
+              Change Password
+            </Button>
+          </VStack>
+        ) : (
+          <form
+            onSubmit={handlePasswordChange}
+            className="space-y-4"
+          >
+            <Input
+              label="Current Password"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => {
+                setCurrentPassword(e.target.value);
+                setPasswordError(null);
+              }}
+              required
+              disabled={isChangingPassword}
+              placeholder="Enter your current password"
+            />
+            <Input
+              label="New Password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setPasswordError(null);
+              }}
+              required
+              disabled={isChangingPassword}
+              placeholder="Enter your new password"
+              helperText="Must be at least 4 characters long"
+            />
+            <Input
+              label="Confirm New Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setPasswordError(null);
+              }}
+              required
+              disabled={isChangingPassword}
+              placeholder="Confirm your new password"
+            />
+            {passwordError && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+                <BodySmall className="text-destructive">{passwordError}</BodySmall>
+              </div>
+            )}
+            <HStack gap="3" justify="end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setPasswordError(null);
+                }}
+                disabled={isChangingPassword}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isChangingPassword}
+                isLoading={isChangingPassword}
+              >
+                Update Password
+              </Button>
+            </HStack>
+          </form>
+        )}
       </CardSection>
 
       <Card className="w-full p-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 shadow-sm">

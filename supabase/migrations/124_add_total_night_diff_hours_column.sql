@@ -45,3 +45,4 @@ COMMENT ON COLUMN public.time_clock_entries.total_night_diff_hours IS
 
 
 
+

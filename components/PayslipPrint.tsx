@@ -175,27 +175,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
   /**
    * Calculate OT allowance based on employee type
-   * Client-based (Account Supervisors): 3-4 hours = ₱500 (fixed per day, no succeeding hours)
-   * Office-based Account Supervisors: ₱200 + (hours-2) × ₱100
-   * Office-based Supervisory/Managerial: ₱200 + (hours-2) × ₱100
+   * Client-based, Office-based Supervisory/Managerial: First 2 hours = ₱200 total, then ₱100 per succeeding hour
    * Office-based Rank and File: Standard calculation (1.25x hourly rate)
    */
   function calculateOTAllowance(hours: number): number {
-    // Client-based employees: identified by employee_type === "client-based" OR position includes "ACCOUNT SUPERVISOR"
-    // Use ₱500 fixed allowance if ≥3 hours OT
-    if (isClientBased || isAccountSupervisor) {
-      // Client-based Account Supervisors: Fixed ₱500 per day if they work ≥3 hours OT
-      if (hours >= 3) {
-        return 500;
+    // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
+    if (isClientBased || isAccountSupervisor || isEligibleForAllowances) {
+      if (hours < 2) {
+        return 0;
       }
-      // Less than 3 hours = no OT allowance
-      return 0;
-    } else if (isEligibleForAllowances) {
-      // Office-based Supervisory or Managerial (but NOT Account Supervisor): ₱200 + (hours-2) × ₱100
-      if (hours >= 2) {
-        return 200 + (hours - 2) * 100;
-      }
-      return 0;
+      // First 2 hours = ₱200, then ₱100 per succeeding hour
+      return 200 + Math.max(0, hours - 2) * 100;
     }
     // Office-based Rank and File: Standard calculation (1.25x hourly rate)
     return calculateRegularOT(hours, ratePerHour);
@@ -203,13 +193,13 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
   /**
    * Calculate holiday/rest day allowance for client-based and office-based supervisory/managerial
-   * Uses same fixed amounts: ₱350 for ≥4 hours, ₱600 for ≥8 hours
+   * Uses same fixed amounts: ₱350 for ≥4 hours, ₱700 for ≥8 hours
    * NO PRO-RATING - must meet exact hour requirements
    */
   function calculateHolidayRestDayAllowance(hours: number): number {
     if (isClientBased || isEligibleForAllowances) {
       if (hours >= 8) {
-        return 600;
+        return 700;
       } else if (hours >= 4) {
         return 350;
       }
@@ -222,13 +212,13 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
   /**
    * Calculate holiday/rest day OT allowance for client-based and office-based supervisory/managerial
-   * Uses same fixed amounts: ₱350 for ≥4 hours, ₱600 for ≥8 hours
+   * Uses same fixed amounts: ₱350 for ≥4 hours, ₱700 for ≥8 hours
    * NO PRO-RATING - must meet exact hour requirements
    */
   function calculateHolidayRestDayOTAllowance(hours: number): number {
     if (isClientBased || isEligibleForAllowances) {
       if (hours >= 8) {
-        return 600;
+        return 700;
       } else if (hours >= 4) {
         return 350;
       }

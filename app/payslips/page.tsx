@@ -1883,17 +1883,11 @@ export default function PayslipsPage() {
 
             // Regular OT allowance
             if (dayType === "regular" && overtimeHours > 0) {
-              // Client-based employees: identified by employee_type === "client-based" OR position includes "ACCOUNT SUPERVISOR"
-              // Use ₱500 fixed allowance if ≥3 hours OT
-              if (isClientBased || isAccountSupervisor) {
-                // Client-based Account Supervisors: Fixed ₱500 per day if ≥3 hours OT
-                if (overtimeHours >= 3) {
-                  totalFixedAllowances += 500;
-                }
-              } else if (isEligibleForAllowances) {
-                // Office-based Supervisory or Managerial (but NOT Account Supervisor): ₱200 + (hours-2) × ₱100
+              // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
+              if (isClientBased || isAccountSupervisor || isEligibleForAllowances) {
                 if (overtimeHours >= 2) {
-                  totalFixedAllowances += 200 + (overtimeHours - 2) * 100;
+                  // First 2 hours = ₱200, then ₱100 per succeeding hour
+                  totalFixedAllowances += 200 + Math.max(0, overtimeHours - 2) * 100;
                 }
               }
             }
@@ -1908,7 +1902,7 @@ export default function PayslipsPage() {
 
             if (isHolidayOrRestDay && overtimeHours > 0) {
               if (overtimeHours >= 8) {
-                totalFixedAllowances += 600;
+                totalFixedAllowances += 700;
               } else if (overtimeHours >= 4) {
                 totalFixedAllowances += 350;
               }
@@ -1918,9 +1912,9 @@ export default function PayslipsPage() {
             // This applies if employee worked regular hours on holiday/rest day
             const regularHours = day.regularHours || 0;
             if (isHolidayOrRestDay && regularHours > 0) {
-              // Allowance for regular hours worked on holiday/rest day: ₱600 for ≥8 hours, ₱350 for ≥4 hours
+              // Allowance for regular hours worked on holiday/rest day: ₱700 for ≥8 hours, ₱350 for ≥4 hours
               if (regularHours >= 8) {
-                totalFixedAllowances += 600;
+                totalFixedAllowances += 700;
               } else if (regularHours >= 4) {
                 totalFixedAllowances += 350;
               }

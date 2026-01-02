@@ -119,10 +119,10 @@ console.log(`  Regular Pay: ₱${clientBasedASPayroll.totals.regularPay.toFixed(
 console.log(`  OT Pay: ₱${clientBasedASPayroll.totals.overtimePay.toFixed(2)}`);
 console.log(`  Gross Pay (Base): ₱${clientBasedASPayroll.grossPay.toFixed(2)}`);
 
-// For Account Supervisors, OT allowance is fixed: ₱500 for 3-4 hours
+// For Account Supervisors, OT allowance: First 2 hours = ₱200, then ₱100 per succeeding hour
 // This should be added separately in the payslip calculation
-console.log(`  OT Allowance (Fixed): ₱500 (4 hours OT)`);
-console.log(`  Total Expected: ₱${(clientBasedASPayroll.totals.regularPay + 500).toFixed(2)}`);
+console.log(`  OT Allowance (Fixed): ₱400 (4 hours OT = 200 + (4-2)*100)`);
+console.log(`  Total Expected: ₱${(clientBasedASPayroll.totals.regularPay + 400).toFixed(2)}`);
 console.log();
 
 // Test Case 3: Account Supervisor (Office-based) - Regular Day with OT

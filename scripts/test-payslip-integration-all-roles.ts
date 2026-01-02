@@ -46,17 +46,11 @@ function calculateFixedAllowances(
 
     // Regular OT allowance
     if (dayType === "regular" && overtimeHours > 0) {
-      if (isClientBased && isAccountSupervisor) {
-        // Client-based Account Supervisors: Fixed ₱500 per day if 3-4 hours OT
-        if (overtimeHours >= 3 && overtimeHours <= 4) {
-          totalFixedAllowances += 500;
-        } else if (overtimeHours > 4) {
-          totalFixedAllowances += 500; // Still ₱500 even if > 4 hours
-        }
-      } else if (isEligibleForAllowances) {
-        // Office-based Account Supervisors, Supervisory, or Managerial: ₱200 + (hours-2) × ₱100
+      // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
+      if (isClientBased || isEligibleForAllowances) {
         if (overtimeHours >= 2) {
-          totalFixedAllowances += 200 + (overtimeHours - 2) * 100;
+          // First 2 hours = ₱200, then ₱100 per succeeding hour
+          totalFixedAllowances += 200 + Math.max(0, overtimeHours - 2) * 100;
         }
       }
     }
@@ -71,7 +65,7 @@ function calculateFixedAllowances(
 
     if (isHolidayOrRestDay && overtimeHours > 0) {
       if (overtimeHours >= 8) {
-        totalFixedAllowances += 600;
+        totalFixedAllowances += 700;
       } else if (overtimeHours >= 4) {
         totalFixedAllowances += 350;
       }
@@ -232,7 +226,7 @@ console.log(`  Basic Pay: ₱${clientBasedASBasicPay.toFixed(2)}`);
 console.log(`  OT Allowance (Fixed): ₱${clientBasedASFixedAllowances.toFixed(2)}`);
 console.log(`  Total Gross Pay: ₱${(clientBasedASBasicPay + clientBasedASFixedAllowances).toFixed(2)}`);
 
-const expectedClientBasedAS = 800 + 500; // Basic: 800, OT Allowance: 500
+const expectedClientBasedAS = 800 + 400; // Basic: 800, OT Allowance: 400 (200 + (4-2)*100)
 console.log(`  Expected: ₱${expectedClientBasedAS.toFixed(2)}`);
 const clientBasedASMatch = Math.abs((clientBasedASBasicPay + clientBasedASFixedAllowances) - expectedClientBasedAS) < 0.01;
 console.log(`  Match: ${clientBasedASMatch ? "✓ PASS" : "✗ FAIL"}`);

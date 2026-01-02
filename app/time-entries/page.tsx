@@ -672,6 +672,24 @@ export default function TimeEntriesPage() {
                 </Caption>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <select
+                    value={selectedMonth.getFullYear()}
+                    onChange={(e) => {
+                      const year = parseInt(e.target.value, 10);
+                      setSelectedMonth(new Date(year, selectedMonth.getMonth(), 1));
+                    }}
+                    className="flex h-10 w-full sm:w-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    style={{ minWidth: "100px" }}
+                  >
+                    {Array.from({ length: 2 }, (_, i) => {
+                      const year = today.getFullYear() - i;
+                      return (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <select
                     value={format(selectedMonth, "yyyy-MM")}
                     onChange={(e) => {
                       const [year, month] = e.target.value.split("-").map(Number);

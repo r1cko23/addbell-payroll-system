@@ -100,6 +100,7 @@ export default function TimesheetPage() {
     null
   );
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const today = new Date();
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [cutoffPeriod, setCutoffPeriod] = useState<"first" | "second">("first");
   const [attendanceDays, setAttendanceDays] = useState<AttendanceDay[]>([]);
@@ -1112,6 +1113,29 @@ export default function TimesheetPage() {
         <div className="flex items-center justify-between w-full">
           <H1>TIME ATTENDANCE</H1>
           <HStack gap="3" align="center">
+            {/* Year Selector */}
+            <Select
+              value={selectedMonth.getFullYear().toString()}
+              onValueChange={(value) => {
+                const year = parseInt(value, 10);
+                setSelectedMonth(new Date(year, selectedMonth.getMonth(), 1));
+              }}
+            >
+              <SelectTrigger className="w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 2 }, (_, i) => {
+                  const year = today.getFullYear() - i;
+                  return (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
             {/* Month Selector */}
             <Select
               value={format(selectedMonth, "yyyy-MM")}

@@ -33,4 +33,3 @@ CREATE POLICY "Users can view leave requests" ON public.leave_requests
     OR
     (SELECT auth.role()) IS NULL
   );
-

@@ -60,4 +60,3 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_my_week_schedule(UUID, DATE) TO anon, authenticated;
-

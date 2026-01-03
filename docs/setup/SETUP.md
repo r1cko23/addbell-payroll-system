@@ -407,4 +407,3 @@ You now have a production-ready payroll system that will save your team hours ev
 4. Start processing weekly payroll
 
 **Questions?** Refer back to this guide or check the troubleshooting section.
-

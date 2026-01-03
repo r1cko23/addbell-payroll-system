@@ -23,4 +23,3 @@ SET deployed = true
 WHERE assigned_hotel IS NOT NULL 
   AND assigned_hotel != '' 
   AND deployed IS NULL;
-

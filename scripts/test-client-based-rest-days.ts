@@ -147,4 +147,3 @@ console.log("2. Rest Day 1 (first chronologically): Paid even if not worked (lik
 console.log("3. Rest Day 2 (second chronologically): Only paid if worked (like Sunday)");
 console.log();
 console.log("=".repeat(80));
-

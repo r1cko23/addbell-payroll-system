@@ -18,4 +18,3 @@ WHERE employee_id = '2025-001' AND (portal_password IS NULL OR portal_password =
 -- SELECT employee_id, full_name, portal_password, is_active 
 -- FROM public.employees 
 -- WHERE employee_id = '2025-001';
-

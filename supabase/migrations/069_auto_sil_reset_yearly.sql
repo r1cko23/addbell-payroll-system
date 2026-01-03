@@ -94,4 +94,3 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'Could not schedule pg_cron job. Error: %. Please schedule manually or run reset_all_sil_credits_yearly() on January 1st.', SQLERRM;
 END $$;
-

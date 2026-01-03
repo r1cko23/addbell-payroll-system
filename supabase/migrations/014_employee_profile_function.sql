@@ -64,4 +64,3 @@ GRANT EXECUTE ON FUNCTION public.get_employee_profile(UUID) TO authenticated;
 
 COMMENT ON FUNCTION public.get_employee_profile(UUID) IS
   'Returns employee profile details for the portal using the employee UUID. Runs with elevated privileges to bypass RLS.';
-

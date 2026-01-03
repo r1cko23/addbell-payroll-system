@@ -17,4 +17,3 @@ COMMENT ON COLUMN public.employee_loans.loan_type IS 'Type of loan: company (6 m
 
 
 
-

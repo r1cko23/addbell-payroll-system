@@ -85,4 +85,3 @@ GRANT EXECUTE ON FUNCTION public.authenticate_employee(TEXT, TEXT) TO authentica
 -- Add comment
 COMMENT ON FUNCTION public.authenticate_employee(TEXT, TEXT) IS 
   'Authenticates employee for portal access. Returns employee data on success, error message on failure.';
-

@@ -8,4 +8,3 @@ CREATE TABLE IF NOT EXISTS public.employee_location_assignments (
 
 CREATE UNIQUE INDEX IF NOT EXISTS employee_location_unique
   ON public.employee_location_assignments (employee_id, location_id);
-

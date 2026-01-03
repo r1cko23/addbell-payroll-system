@@ -23,4 +23,3 @@ CREATE INDEX idx_employees_portal_password ON public.employees(employee_id, port
 
 -- Note: In production, you should use proper password hashing
 -- For now, this is a simple implementation for employee portal access
-

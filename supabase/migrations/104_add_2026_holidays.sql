@@ -33,4 +33,3 @@ INSERT INTO public.holidays (holiday_date, holiday_name, holiday_type, year, is_
 
 -- Add comment
 COMMENT ON TABLE public.holidays IS 'Philippine holidays. 2026 dates are calculated and should be verified against official proclamation once published.';
-

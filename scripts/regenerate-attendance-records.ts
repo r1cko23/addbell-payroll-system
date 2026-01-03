@@ -196,4 +196,3 @@ regenerateAttendanceRecords()
     console.error("Script failed:", error);
     process.exit(1);
   });
-

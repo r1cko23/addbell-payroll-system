@@ -38,4 +38,3 @@ export function useEmployeeSession() {
   }
   return context;
 }
-

@@ -328,4 +328,3 @@ INSERT INTO public.holidays (holiday_date, holiday_name, holiday_type, year) VAL
   ('2025-12-24', 'Christmas Eve', 'non-working', 2025),
   ('2025-12-26', 'Additional Special Non-Working Day', 'non-working', 2025),
   ('2025-12-31', 'New Year''s Eve', 'non-working', 2025);
-

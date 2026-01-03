@@ -83,4 +83,3 @@ SELECT * FROM public.refresh_employee_leave_balances('employee-uuid-here');
 - Historical migration files still contain references to `offset_hours` - this is expected and fine
 - These are historical records and don't affect current functionality
 - The only active code referencing `offset_hours` is in migration 070, which handles the deprecation
-

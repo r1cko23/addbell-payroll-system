@@ -149,4 +149,3 @@ ON CONFLICT DO NOTHING;
 
 -- Add comment
 COMMENT ON FUNCTION public.is_location_allowed IS 'Checks if given coordinates are within allowed radius of any active office location. Returns nearest location info and distance.';
-

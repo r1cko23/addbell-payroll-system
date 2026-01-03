@@ -169,4 +169,3 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.replace_week_schedule(UUID, DATE, JSONB) TO anon, authenticated;
-

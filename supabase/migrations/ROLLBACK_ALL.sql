@@ -297,4 +297,3 @@ DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 -- All functions, triggers, views, tables, and policies have been dropped
 -- The database is now in its original state (empty)
 -- =====================================================
-

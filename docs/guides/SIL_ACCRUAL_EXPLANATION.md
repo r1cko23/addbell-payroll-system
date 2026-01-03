@@ -192,4 +192,3 @@ employees (
 
 - `get_employee_leave_credits(UUID)`: Returns current leave credits (calls refresh function)
 - `refresh_employee_leave_balances(UUID)`: Calculates and updates SIL accrual
-

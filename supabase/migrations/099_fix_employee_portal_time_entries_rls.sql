@@ -67,4 +67,3 @@ CREATE POLICY "Users can view leave requests" ON public.leave_requests
 DROP POLICY IF EXISTS "All authenticated users can view holidays" ON public.holidays;
 CREATE POLICY "All users can view holidays" ON public.holidays
   FOR SELECT USING (true); -- Holidays are public data, anyone can view
-

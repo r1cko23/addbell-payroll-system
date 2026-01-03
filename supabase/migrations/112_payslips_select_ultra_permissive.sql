@@ -34,4 +34,3 @@ COMMENT ON POLICY "All authenticated users can view payslips" ON public.payslips
 
 
 
-

@@ -11,4 +11,3 @@ COMMENT ON COLUMN public.employees.middle_initial IS 'Employee middle initial';
 
 -- Create index for sorting by last name
 CREATE INDEX IF NOT EXISTS idx_employees_last_name ON public.employees(last_name);
-

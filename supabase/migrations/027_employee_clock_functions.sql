@@ -138,4 +138,3 @@ GRANT EXECUTE ON FUNCTION public.employee_clock_in(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.employee_clock_in(UUID, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.employee_clock_out(UUID, UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.employee_clock_out(UUID, UUID, TEXT) TO anon;
-

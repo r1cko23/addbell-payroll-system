@@ -21,4 +21,3 @@ WHERE role = 'admin';
 UPDATE public.users
 SET can_access_salary = true
 WHERE email = 'anngammad@greenpasture.ph';
-

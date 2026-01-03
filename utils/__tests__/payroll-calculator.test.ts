@@ -411,4 +411,3 @@ describe("Payroll Calculator - Edge Cases and Error Handling", () => {
     expect(result.total).toBe(0);
   });
 });
-

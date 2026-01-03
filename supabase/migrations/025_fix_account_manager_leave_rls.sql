@@ -23,4 +23,3 @@ COMMENT ON POLICY "Account managers can view all leave requests" ON public.leave
   'Any account manager can view all leave requests.';
 COMMENT ON POLICY "Account managers can manage all leave requests" ON public.leave_requests IS
   'Any account manager can approve/reject all leave requests.';
-

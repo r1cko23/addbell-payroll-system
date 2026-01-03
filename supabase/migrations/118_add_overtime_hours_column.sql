@@ -19,4 +19,3 @@ COMMENT ON COLUMN public.time_clock_entries.overtime_hours IS
 
 
 
-

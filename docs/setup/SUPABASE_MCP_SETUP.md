@@ -261,4 +261,3 @@ After setting up Supabase MCP, you can:
 ---
 
 **Note**: MCP configuration format may vary depending on your Cursor version. If the above doesn't work, check Cursor's latest documentation for MCP setup instructions.
-

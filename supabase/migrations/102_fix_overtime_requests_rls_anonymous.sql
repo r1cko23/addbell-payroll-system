@@ -16,4 +16,3 @@ CREATE POLICY "Anonymous users can view own OT requests" ON public.overtime_requ
     OR
     (SELECT auth.role()) IS NULL
   );
-

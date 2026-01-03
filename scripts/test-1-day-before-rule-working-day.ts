@@ -179,4 +179,3 @@ console.log("- Does NOT verify if previous day is a regular working day");
 console.log("- ⚠️  May need update to check for regular working day specifically");
 console.log();
 console.log("=".repeat(80));
-

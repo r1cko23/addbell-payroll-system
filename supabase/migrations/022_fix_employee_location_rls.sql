@@ -66,4 +66,3 @@ COMMENT ON POLICY "All authenticated users can view location assignments" ON pub
   'Allows authenticated users to view location assignments for nested queries in employees table';
 COMMENT ON POLICY "All authenticated users can view office locations" ON public.office_locations IS 
   'Allows authenticated users to view office locations for nested queries';
-

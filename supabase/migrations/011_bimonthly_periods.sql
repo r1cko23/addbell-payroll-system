@@ -92,4 +92,3 @@ COMMENT ON COLUMN public.employee_deductions.period_type IS 'Type of period: wee
 COMMENT ON COLUMN public.payslips.period_start IS 'Start date of bi-monthly period';
 COMMENT ON COLUMN public.payslips.period_end IS 'End date of bi-monthly period';
 COMMENT ON COLUMN public.payslips.period_type IS 'Type of period: weekly or bimonthly';
-

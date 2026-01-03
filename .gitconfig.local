@@ -1,0 +1,5 @@
+[diff]
+    ignoreWhitespace = true
+[core]
+    autocrlf = false
+    whitespace = trailing-space,space-before-tab

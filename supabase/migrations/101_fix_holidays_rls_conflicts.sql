@@ -41,4 +41,3 @@ CREATE POLICY "Only Admins can manage holidays" ON public.holidays
       AND users.is_active = true
     )
   );
-

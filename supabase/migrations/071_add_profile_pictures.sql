@@ -16,4 +16,3 @@ ADD COLUMN IF NOT EXISTS profile_picture_url TEXT;
 
 COMMENT ON COLUMN public.users.profile_picture_url IS 'URL to the user profile picture stored in Supabase Storage (max 100KB)';
 COMMENT ON COLUMN public.employees.profile_picture_url IS 'URL to the employee profile picture stored in Supabase Storage (max 100KB)';
-

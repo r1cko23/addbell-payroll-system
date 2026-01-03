@@ -17,4 +17,3 @@ All historical guides, migration notes, and setup instructions now live under `d
 3. `npm run dev`
 
 For deployment steps and environment requirements, see `docs/deployment/DEPLOYMENT_GUIDE.md`.
-

@@ -105,4 +105,3 @@ Result: ~0.83 credits
 - **Maximum cap**: 10 credits per calendar year
 - **Reset timing**: Always January 1st, regardless of tenure
 - **Accrual timing**: Based on tenure status (hire date day vs 1st of month)
-

@@ -61,4 +61,3 @@ CREATE POLICY "Admin/HR can manage deductions" ON public.employee_deductions
 
 
 
-

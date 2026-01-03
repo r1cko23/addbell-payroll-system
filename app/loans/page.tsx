@@ -1727,4 +1727,3 @@ export default function LoansPage() {
   );
 }
 
-

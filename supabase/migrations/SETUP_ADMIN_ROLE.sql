@@ -21,4 +21,3 @@ SELECT id, email, role FROM users WHERE email = 'your-email@example.com';
 
 -- To switch back to HR role for testing:
 -- UPDATE users SET role = 'hr' WHERE email = 'your-email@example.com';
-

@@ -116,4 +116,3 @@ SELECT
 FROM public.office_locations
 ORDER BY created_at;
 ```
-

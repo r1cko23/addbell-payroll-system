@@ -107,4 +107,3 @@ Expected:
 - sil_credits = 0.8333 (accrued on Jan 1, 2026 - switched to 1st of month rule)
 - sil_last_accrual = 2026-01-01
 ```
-

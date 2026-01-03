@@ -184,4 +184,3 @@ COMMENT ON FUNCTION update_all_attendance_records_with_leave_days IS
 
 
 
-

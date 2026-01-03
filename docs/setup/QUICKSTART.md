@@ -220,4 +220,3 @@ Your payroll system is now:
 ---
 
 **Questions?** See detailed [SETUP.md](./SETUP.md) or check [README_V2.md](./README_V2.md) for features.
-

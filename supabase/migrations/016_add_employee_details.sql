@@ -7,4 +7,3 @@ ADD COLUMN IF NOT EXISTS sss_number TEXT,
 ADD COLUMN IF NOT EXISTS philhealth_number TEXT,
 ADD COLUMN IF NOT EXISTS pagibig_number TEXT,
 ADD COLUMN IF NOT EXISTS hmo_provider TEXT;
-

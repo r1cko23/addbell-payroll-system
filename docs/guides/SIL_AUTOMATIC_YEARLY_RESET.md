@@ -120,4 +120,3 @@ LIMIT 10;
 - The function is idempotent - safe to run multiple times
 - Individual employee errors don't stop the entire process
 - The reset happens automatically, but accrual still requires the `refresh_employee_leave_balances()` function to be called (which happens when employees access their leave credits)
-

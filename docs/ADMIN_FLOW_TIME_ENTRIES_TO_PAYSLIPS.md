@@ -304,4 +304,3 @@ Add job level filter to all three pages to help admins focus on specific employe
 - No job level restrictions are applied
 - Data flows consistently from time entries → attendance → payslips
 - Admin can view and manage all employees across all job levels
-

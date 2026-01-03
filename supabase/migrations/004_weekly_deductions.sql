@@ -45,4 +45,3 @@ WITH CHECK (
     AND users.role IN ('hr', 'admin')
   )
 );
-

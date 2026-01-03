@@ -86,4 +86,3 @@ $$;
 
 COMMENT ON FUNCTION get_leave_request_dates IS 
   'Returns all dates for a leave request. Uses selected_dates if available, otherwise uses date range.';
-

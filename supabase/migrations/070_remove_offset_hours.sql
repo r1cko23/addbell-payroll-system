@@ -251,4 +251,3 @@ GRANT EXECUTE ON FUNCTION public.get_offset_balance_rpc(UUID) TO anon;
 -- 5. Drop the offset_hours column from employees table
 ALTER TABLE public.employees
 DROP COLUMN IF EXISTS offset_hours;
-

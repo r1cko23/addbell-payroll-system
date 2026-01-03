@@ -144,4 +144,3 @@ WHERE is_active = true
 ON CONFLICT (employee_id, day_of_week) DO NOTHING;
 
 -- Sunday is typically off, so we don't add it to the schedule
-

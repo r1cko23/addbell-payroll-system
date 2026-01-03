@@ -84,4 +84,3 @@ DROP FUNCTION IF EXISTS auto_approve_regular_hours();
 UPDATE public.time_clock_entries
 SET status = 'auto_approved'
 WHERE status = 'clocked_out' AND clock_out_time IS NOT NULL;
-

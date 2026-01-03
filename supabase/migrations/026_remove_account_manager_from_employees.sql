@@ -17,4 +17,3 @@ DROP COLUMN IF EXISTS account_manager_id;
 -- =====================================================
 COMMENT ON TABLE public.employees IS
   'Employee information. Account managers are not assigned per employee - any account manager can handle any employee.';
-

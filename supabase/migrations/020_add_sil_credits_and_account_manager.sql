@@ -26,4 +26,3 @@ CREATE INDEX IF NOT EXISTS idx_employees_account_manager ON public.employees(acc
 -- =====================================================
 COMMENT ON COLUMN public.employees.sil_credits IS 'Service Incentive Leave credits available to employee';
 COMMENT ON COLUMN public.employees.account_manager_id IS 'Account manager assigned to this employee';
-

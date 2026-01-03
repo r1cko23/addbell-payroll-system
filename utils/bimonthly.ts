@@ -141,4 +141,3 @@ export function getBiMonthlyPeriodFromDate(date: Date = new Date()): {
     periodEnd,
   };
 }
-

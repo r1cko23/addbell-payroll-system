@@ -31,4 +31,3 @@ GRANT EXECUTE ON FUNCTION public.get_employee_sil_credits(UUID) TO authenticated
 
 COMMENT ON FUNCTION public.get_employee_sil_credits(UUID) IS
   'Returns SIL credits for an employee. Runs with elevated privileges to bypass RLS for employee portal access.';
-

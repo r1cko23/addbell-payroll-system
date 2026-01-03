@@ -107,4 +107,3 @@ export function resolveLocationDetails(
     isWithinAllowedArea: false,
   };
 }
-

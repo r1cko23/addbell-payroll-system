@@ -98,4 +98,3 @@ GRANT EXECUTE ON FUNCTION public.change_employee_password(TEXT, TEXT, TEXT) TO a
 -- Add comment
 COMMENT ON FUNCTION public.change_employee_password(TEXT, TEXT, TEXT) IS 
   'Changes employee portal password. Verifies current password before updating. Returns success status and error message if any.';
-

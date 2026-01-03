@@ -16,4 +16,3 @@ CREATE POLICY "Users can update own profile picture" ON public.users
 CREATE POLICY "Employees can update own profile picture" ON public.employees
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
-

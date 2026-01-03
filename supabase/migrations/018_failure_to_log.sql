@@ -110,4 +110,3 @@ COMMENT ON TABLE public.failure_to_log IS 'Tracks employee requests for failure 
 COMMENT ON COLUMN public.failure_to_log.missed_date IS 'The date when the employee forgot to clock in/out';
 COMMENT ON COLUMN public.failure_to_log.actual_clock_out_time IS 'The actual time the employee clocked out (if they forgot to clock in) or should have clocked out';
 COMMENT ON COLUMN public.failure_to_log.reason IS 'Employee-provided reason for failure to log';
-

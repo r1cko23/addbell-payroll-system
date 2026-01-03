@@ -177,4 +177,3 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     absenceDates,
   };
 }
-

@@ -189,4 +189,3 @@ COMMENT ON TABLE public.leave_requests IS 'Tracks employee leave requests (SIL o
 COMMENT ON COLUMN public.leave_requests.leave_type IS 'Type of leave: SIL (Service Incentive Leave) or LWOP (Leave Without Pay)';
 COMMENT ON COLUMN public.leave_requests.status IS 'Approval workflow: pending -> approved_by_manager -> approved_by_hr -> approved, or rejected/cancelled';
 COMMENT ON FUNCTION check_sil_credits IS 'Checks if employee has enough SIL credits for the requested days';
-

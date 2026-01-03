@@ -209,4 +209,3 @@ CREATE POLICY "HR/Admin can manage all leave requests" ON public.leave_requests
 -- =====================================================
 COMMENT ON FUNCTION public.get_user_role() IS 
   'Returns the role of the current authenticated user. Uses SECURITY DEFINER to bypass RLS and avoid infinite recursion.';
-

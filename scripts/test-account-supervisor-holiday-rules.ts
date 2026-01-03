@@ -274,4 +274,3 @@ console.log("   - Worked 8 hours day before → Get daily rate");
 console.log("   - Did NOT work 8 hours day before → NO pay");
 console.log();
 console.log("=".repeat(80));
-

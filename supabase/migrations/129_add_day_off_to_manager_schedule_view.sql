@@ -39,4 +39,3 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_week_schedule_for_manager(DATE, UUID, UUID) TO authenticated;
-

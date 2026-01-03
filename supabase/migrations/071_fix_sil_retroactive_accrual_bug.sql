@@ -151,4 +151,3 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.refresh_employee_leave_balances(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.refresh_employee_leave_balances(UUID) TO anon;
-

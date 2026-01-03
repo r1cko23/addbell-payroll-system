@@ -49,4 +49,3 @@ WHERE total_overtime_hours IS NOT NULL AND total_overtime_hours > 0;
 -- =====================================================
 COMMENT ON COLUMN public.time_clock_entries.overtime_hours IS 'Overtime hours (not used - always 0)';
 COMMENT ON COLUMN public.weekly_attendance.total_overtime_hours IS 'Total overtime hours (not used - always 0)';
-

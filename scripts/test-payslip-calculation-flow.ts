@@ -388,4 +388,3 @@ console.log();
 console.log("Note: Fixed allowances are added separately in payslip calculation");
 console.log("      and should appear in 'Other Pay' section");
 console.log("=".repeat(80));
-

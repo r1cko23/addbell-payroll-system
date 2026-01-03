@@ -75,4 +75,3 @@ GRANT EXECUTE ON FUNCTION public.is_employee_location_allowed(UUID, DOUBLE PRECI
 
 COMMENT ON FUNCTION public.is_employee_location_allowed(UUID, DOUBLE PRECISION, DOUBLE PRECISION) IS
   'Validates coordinates against the assigned office location of an employee.';
-

@@ -120,4 +120,3 @@
 - **Current Year**: 2025
 - **Employees should have**: Credits for calendar year 2025
 - **Next Reset**: January 1, 2026 (all credits reset to 0)
-

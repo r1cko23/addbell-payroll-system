@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React, { memo, useCallback, useState, useEffect } from "react";
+import React, { memo, useCallback, useState, useEffect, useMemo } from "react";
 import {
   Clock,
   User,
@@ -155,10 +155,12 @@ export function EmployeePortalSidebar({
     fetchEmployeeInfo();
   }, [employee?.id, supabase]);
 
-  const navGroups = getNavGroups(isAccountSupervisor);
-  const [openGroups, setOpenGroups] = useState<Set<string>>(
-    new Set(navGroups.filter((g) => g.defaultOpen).map((g) => g.label))
-  );
+  const navGroups = useMemo(() => getNavGroups(isAccountSupervisor), [isAccountSupervisor]);
+  
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    // Initialize with default open groups - use a stable set of groups
+    return new Set(["Time & Attendance", "Requests", "Information"]);
+  });
 
   const toggleGroup = useCallback((label: string) => {
     setOpenGroups((prev) => {

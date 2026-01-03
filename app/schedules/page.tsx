@@ -585,40 +585,32 @@ export default function SchedulesPage() {
                                           <Label className="text-sm font-semibold">
                                             {format(day, "EEEE, MMM d")}
                                           </Label>
-                                          <div className="flex items-center gap-2">
-                                            <Checkbox
-                                              id={`dayoff-${idx}`}
-                                              checked={dayEntry.day_off}
-                                              disabled={!isRestDayAllowed}
-                                              onCheckedChange={(checked) => {
-                                                if (!isRestDayAllowed && checked) {
-                                                  toast.error("Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday.");
-                                                  return;
-                                                }
-                                                const newSchedule = [...editingWeekSchedule];
-                                                newSchedule[idx] = {
-                                                  ...dayEntry,
-                                                  day_off: checked === true,
-                                                  start_time: checked ? "" : dayEntry.start_time,
-                                                  end_time: checked ? "" : dayEntry.end_time,
-                                                };
-                                                setEditingWeekSchedule(newSchedule);
-                                              }}
-                                              title={
-                                                !isRestDayAllowed 
-                                                  ? "Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday"
-                                                  : "Mark as rest day"
-                                              }
-                                            />
-                                            <Label
-                                              htmlFor={`dayoff-${idx}`}
-                                              className={`text-xs font-medium ${
-                                                isRestDayAllowed ? "cursor-pointer" : "cursor-not-allowed opacity-50"
-                                              }`}
-                                            >
-                                              Day Off
-                                            </Label>
-                                          </div>
+                                          {/* Hide "Day Off" checkbox for Thursday-Sunday for Account Supervisors */}
+                                          {isRestDayAllowed && (
+                                            <div className="flex items-center gap-2">
+                                              <Checkbox
+                                                id={`dayoff-${idx}`}
+                                                checked={dayEntry.day_off}
+                                                onCheckedChange={(checked) => {
+                                                  const newSchedule = [...editingWeekSchedule];
+                                                  newSchedule[idx] = {
+                                                    ...dayEntry,
+                                                    day_off: checked === true,
+                                                    start_time: checked ? "" : dayEntry.start_time,
+                                                    end_time: checked ? "" : dayEntry.end_time,
+                                                  };
+                                                  setEditingWeekSchedule(newSchedule);
+                                                }}
+                                                title="Mark as rest day"
+                                              />
+                                              <Label
+                                                htmlFor={`dayoff-${idx}`}
+                                                className="text-xs font-medium cursor-pointer"
+                                              >
+                                                Day Off
+                                              </Label>
+                                            </div>
+                                          )}
                                         </HStack>
                                   
                                   {dayEntry.day_off ? (

@@ -127,7 +127,6 @@ const dbColumns = [
   "sil_credits",
   "maternity_credits",
   "paternity_credits",
-  "offset_hours",
   "hire_date",
   "sil_balance_year",
   "sil_last_accrual",

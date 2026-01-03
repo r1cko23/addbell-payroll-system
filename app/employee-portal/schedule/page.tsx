@@ -703,71 +703,42 @@ export default function SchedulePage() {
                       >
                         <Icon name="X" size={IconSizes.xs} />
                       </Button>
-                      <label
-                        htmlFor={`dayoff-${idx}`}
-                        className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
-                          isClientBasedAccountSupervisor && 
-                          (() => {
-                            const dayDate = new Date(days[idx]?.schedule_date || "");
-                            const dayOfWeek = dayDate.getDay();
-                            const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
-                            return isRestDayAllowed 
-                              ? "text-muted-foreground cursor-pointer hover:text-foreground" 
-                              : "text-muted-foreground/50 cursor-not-allowed";
-                          })()
-                        } ${
-                          !isClientBasedAccountSupervisor 
-                            ? "text-muted-foreground cursor-pointer hover:text-foreground" 
-                            : ""
-                        }`}
-                      >
-                        <input
-                          id={`dayoff-${idx}`}
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
-                          checked={!!days[idx]?.day_off}
-                          disabled={
-                            isLocked || 
-                            (isClientBasedAccountSupervisor && 
-                             (() => {
-                               const dayDate = new Date(days[idx]?.schedule_date || "");
-                               const dayOfWeek = dayDate.getDay();
-                               return dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3;
-                             })())
+                      {(() => {
+                        // Hide "Day off" checkbox for Thursday-Sunday for Account Supervisors
+                        if (isClientBasedAccountSupervisor) {
+                          const dayDate = new Date(days[idx]?.schedule_date || "");
+                          const dayOfWeek = dayDate.getDay();
+                          const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
+                          if (!isRestDayAllowed) {
+                            return null; // Don't show checkbox for Thu-Sun
                           }
-                          onChange={(e) =>
-                            handleChange(
-                              idx,
-                              "day_off",
-                              e.target.checked as any
-                            )
-                          }
-                          title={
-                            isClientBasedAccountSupervisor && 
-                            (() => {
-                              const dayDate = new Date(days[idx]?.schedule_date || "");
-                              const dayOfWeek = dayDate.getDay();
-                              const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
-                              return isRestDayAllowed 
-                                ? "Mark as rest day" 
-                                : "Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday";
-                            })()
-                          }
-                        />
-                        <Label className={`whitespace-nowrap text-xs ${
-                          isClientBasedAccountSupervisor && 
-                          (() => {
-                            const dayDate = new Date(days[idx]?.schedule_date || "");
-                            const dayOfWeek = dayDate.getDay();
-                            const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
-                            return isRestDayAllowed ? "cursor-pointer" : "cursor-not-allowed";
-                          })()
-                        } ${
-                          !isClientBasedAccountSupervisor ? "cursor-pointer" : ""
-                        }`}>
-                          Day off
-                        </Label>
-                      </label>
+                        }
+                        return (
+                          <label
+                            htmlFor={`dayoff-${idx}`}
+                            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                          >
+                            <input
+                              id={`dayoff-${idx}`}
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
+                              checked={!!days[idx]?.day_off}
+                              disabled={isLocked}
+                              onChange={(e) =>
+                                handleChange(
+                                  idx,
+                                  "day_off",
+                                  e.target.checked as any
+                                )
+                              }
+                              title="Mark as rest day"
+                            />
+                            <Label className="cursor-pointer whitespace-nowrap text-xs">
+                              Day off
+                            </Label>
+                          </label>
+                        );
+                      })()}
                     </HStack>
                   </HStack>
 

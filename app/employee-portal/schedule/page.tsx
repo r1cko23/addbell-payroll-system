@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { addDays, startOfWeek, format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +38,7 @@ type DayEntry = {
 export default function SchedulePage() {
   const supabase = createClient();
   const { employee } = useEmployeeSession();
+  const router = useRouter();
   // Default to next week (Mon) but allow selecting any week (snaps to Monday)
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(addDays(new Date(), 7), { weekStartsOn: 1 })
@@ -44,15 +46,60 @@ export default function SchedulePage() {
   const [days, setDays] = useState<DayEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [employeeType, setEmployeeType] = useState<"office-based" | "client-based" | null>(null);
+  const [employeePosition, setEmployeePosition] = useState<string | null>(null);
+  const [checkingAccess, setCheckingAccess] = useState(true);
   const weekMonday = startOfWeek(weekStart, { weekStartsOn: 1 });
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   // Locked if the selected week is already past Monday (today > Monday of that week)
   const isLocked = today.getTime() > weekMonday.getTime();
+  
+  // Check if employee is client-based Account Supervisor
+  const isClientBasedAccountSupervisor = 
+    (employeeType === "client-based" || 
+     (employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
   }, [weekStart]);
+
+  // Fetch employee type and position and check access
+  useEffect(() => {
+    const fetchEmployeeInfo = async () => {
+      setCheckingAccess(true);
+      const { data, error } = await supabase
+        .from("employees")
+        .select("employee_type, position")
+        .eq("id", employee.id)
+        .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
+      
+      if (!error && data) {
+        setEmployeeType(data.employee_type);
+        setEmployeePosition(data.position);
+        
+        // Check if employee is client-based Account Supervisor
+        const isClientBasedAccountSupervisor =
+          data.employee_type === "client-based" ||
+          (data.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
+        
+        // Redirect if not an Account Supervisor
+        if (!isClientBasedAccountSupervisor) {
+          toast.error("Schedule access is restricted to Account Supervisors only.");
+          router.push("/employee-portal/bundy");
+          return;
+        }
+      } else {
+        // If error fetching, redirect to be safe
+        toast.error("Unable to verify access. Redirecting...");
+        router.push("/employee-portal/bundy");
+        return;
+      }
+      
+      setCheckingAccess(false);
+    };
+    fetchEmployeeInfo();
+  }, [employee.id, supabase, router]);
 
   useEffect(() => {
     const loadWeek = async () => {
@@ -109,9 +156,23 @@ export default function SchedulePage() {
   ) => {
     setDays((prev) => {
       const next = [...prev];
-      // If switching to day_off, clear times
+      // If switching to day_off, validate for Account Supervisors
       if (field === "day_off") {
         const isOff = value === true || value === "true";
+        
+        // For client-based Account Supervisors: Restrict rest days to Mon-Wed only
+        if (isClientBasedAccountSupervisor && isOff) {
+          const dayDate = new Date(next[idx].schedule_date);
+          const dayOfWeek = dayDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+          
+          // Only allow Monday (1), Tuesday (2), Wednesday (3)
+          if (dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3) {
+            const dayName = format(dayDate, "EEEE");
+            toast.error(`Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday. ${dayName} is not allowed.`);
+            return prev; // Don't update if invalid
+          }
+        }
+        
         next[idx] = {
           ...next[idx],
           day_off: isOff,
@@ -145,6 +206,25 @@ export default function SchedulePage() {
     if (isLocked) {
       toast.error("This week is locked. Edits are only allowed until Monday.");
       return;
+    }
+    
+    // For client-based Account Supervisors: Validate rest days are only Mon-Wed
+    if (isClientBasedAccountSupervisor) {
+      for (const day of days) {
+        if (day.day_off) {
+          const dayDate = new Date(day.schedule_date);
+          const dayOfWeek = dayDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+          
+          if (dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3) {
+            const dayName = format(dayDate, "EEEE, MMM d");
+            toast.error(
+              `Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday. ${dayName} is not allowed.`,
+              { duration: 6000 }
+            );
+            return;
+          }
+        }
+      }
     }
     
     // Client-side validation: check for invalid time ranges
@@ -435,6 +515,37 @@ export default function SchedulePage() {
     setLoading(false);
   };
 
+  // Show loading state while checking access
+  if (checkingAccess) {
+    return (
+      <VStack gap="6" className="w-full pb-24">
+        <CardSection>
+          <VStack gap="4" align="center" className="py-8">
+            <Icon name="ArrowsClockwise" size={IconSizes.lg} className="animate-spin text-muted-foreground" />
+            <BodySmall className="text-muted-foreground">Checking access...</BodySmall>
+          </VStack>
+        </CardSection>
+      </VStack>
+    );
+  }
+
+  // If not an Account Supervisor, don't render (should have been redirected)
+  if (!isClientBasedAccountSupervisor) {
+    return (
+      <VStack gap="6" className="w-full pb-24">
+        <CardSection>
+          <VStack gap="4" align="center" className="py-8">
+            <Icon name="WarningCircle" size={IconSizes.lg} className="text-destructive" />
+            <H1 className="text-lg">Access Restricted</H1>
+            <BodySmall className="text-muted-foreground text-center">
+              Schedule access is restricted to Account Supervisors only.
+            </BodySmall>
+          </VStack>
+        </CardSection>
+      </VStack>
+    );
+  }
+
   return (
     <VStack gap="6" className="w-full pb-24">
       <CardSection
@@ -444,7 +555,11 @@ export default function SchedulePage() {
             Weekly Schedule
           </HStack>
         }
-        description="Set your schedule for the selected week (Mon–Sun). Edits allowed until end of Monday of that week; after that, contact your Account Manager."
+        description={
+          isClientBasedAccountSupervisor
+            ? "Set your schedule for the selected week (Mon–Sun). Rest days can only be scheduled on Monday, Tuesday, or Wednesday. Edits allowed until end of Monday of that week; after that, contact your Account Manager."
+            : "Set your schedule for the selected week (Mon–Sun). Edits allowed until end of Monday of that week; after that, contact your Account Manager."
+        }
       >
         <VStack gap="4">
           <VStack gap="2" align="start">
@@ -523,6 +638,14 @@ export default function SchedulePage() {
               </Caption>
             </div>
           )}
+          {isClientBasedAccountSupervisor && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+              <Caption className="font-medium text-blue-900">
+                <Icon name="Info" size={IconSizes.xs} className="inline mr-1" />
+                Account Supervisor Restriction: Rest days can only be scheduled on Monday, Tuesday, or Wednesday.
+              </Caption>
+            </div>
+          )}
         </VStack>
       </CardSection>
 
@@ -582,14 +705,36 @@ export default function SchedulePage() {
                       </Button>
                       <label
                         htmlFor={`dayoff-${idx}`}
-                        className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                        className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${
+                          isClientBasedAccountSupervisor && 
+                          (() => {
+                            const dayDate = new Date(days[idx]?.schedule_date || "");
+                            const dayOfWeek = dayDate.getDay();
+                            const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
+                            return isRestDayAllowed 
+                              ? "text-muted-foreground cursor-pointer hover:text-foreground" 
+                              : "text-muted-foreground/50 cursor-not-allowed";
+                          })()
+                        } ${
+                          !isClientBasedAccountSupervisor 
+                            ? "text-muted-foreground cursor-pointer hover:text-foreground" 
+                            : ""
+                        }`}
                       >
                         <input
                           id={`dayoff-${idx}`}
                           type="checkbox"
                           className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 flex-shrink-0"
                           checked={!!days[idx]?.day_off}
-                          disabled={isLocked}
+                          disabled={
+                            isLocked || 
+                            (isClientBasedAccountSupervisor && 
+                             (() => {
+                               const dayDate = new Date(days[idx]?.schedule_date || "");
+                               const dayOfWeek = dayDate.getDay();
+                               return dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3;
+                             })())
+                          }
                           onChange={(e) =>
                             handleChange(
                               idx,
@@ -597,8 +742,29 @@ export default function SchedulePage() {
                               e.target.checked as any
                             )
                           }
+                          title={
+                            isClientBasedAccountSupervisor && 
+                            (() => {
+                              const dayDate = new Date(days[idx]?.schedule_date || "");
+                              const dayOfWeek = dayDate.getDay();
+                              const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
+                              return isRestDayAllowed 
+                                ? "Mark as rest day" 
+                                : "Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday";
+                            })()
+                          }
                         />
-                        <Label className="cursor-pointer whitespace-nowrap text-xs">
+                        <Label className={`whitespace-nowrap text-xs ${
+                          isClientBasedAccountSupervisor && 
+                          (() => {
+                            const dayDate = new Date(days[idx]?.schedule_date || "");
+                            const dayOfWeek = dayDate.getDay();
+                            const isRestDayAllowed = dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3;
+                            return isRestDayAllowed ? "cursor-pointer" : "cursor-not-allowed";
+                          })()
+                        } ${
+                          !isClientBasedAccountSupervisor ? "cursor-pointer" : ""
+                        }`}>
                           Day off
                         </Label>
                       </label>

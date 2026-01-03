@@ -12,7 +12,7 @@
   - **> 4 hours OT**: ₱500 (still fixed at ₱500)
   - **< 3 hours OT**: ₱0 (no allowance)
 - **Night Differential**: NO ND (they have OT allowance already)
-- **Holiday/Rest Day OT**: Fixed allowances (₱350 for ≥4 hours, ₱600 for ≥8 hours)
+- **Holiday/Rest Day OT**: Fixed allowances (₱350 for ≥4 hours, ₱700 for ≥8 hours)
 
 ### 2. Office-Based Supervisory Employees
 
@@ -29,7 +29,7 @@
   - **≥ 2 hours**: ₱200 + (hours - 2) × ₱100
   - **< 2 hours**: ₱0
 - **Night Differential**: NO ND (they have OT allowance already)
-- **Holiday/Rest Day OT**: Fixed allowances (₱350 for ≥4 hours, ₱600 for ≥8 hours)
+- **Holiday/Rest Day OT**: Fixed allowances (₱350 for ≥4 hours, ₱700 for ≥8 hours)
 
 ### 3. Office-Based Managerial Employees
 
@@ -40,7 +40,7 @@
   - **≥ 2 hours**: ₱200 + (hours - 2) × ₱100
   - **< 2 hours**: ₱0
 - **Night Differential**: NO ND (they have OT allowance already)
-- **Holiday/Rest Day OT**: Fixed allowances (₱350 for ≥4 hours, ₱600 for ≥8 hours)
+- **Holiday/Rest Day OT**: Fixed allowances (₱350 for ≥4 hours, ₱700 for ≥8 hours)
 
 ### 4. Office-Based Rank and File Employees
 
@@ -161,7 +161,7 @@
 
 - **Rank and File**: `OT Hours × Rate/Hour × 2.0 × 1.3 = OT Hours × Rate/Hour × 2.6`
 - **Client-Based/Supervisory/Managerial**: Fixed allowance
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Display**:
@@ -190,7 +190,7 @@
 
 - **Rank and File**: `OT Hours × Rate/Hour × 1.3 × 1.3 = OT Hours × Rate/Hour × 1.69`
 - **Client-Based/Supervisory/Managerial**: Fixed allowance
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Display**:
@@ -220,7 +220,7 @@
 
 - **Rank and File**: `OT Hours × Rate/Hour × 1.3 × 1.3 = OT Hours × Rate/Hour × 1.69`
 - **Client-Based/Supervisory/Managerial**: Fixed allowance
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Display**:
@@ -248,7 +248,7 @@
 
 - **Rank and File**: `OT Hours × Rate/Hour × 1.5 × 1.3 = OT Hours × Rate/Hour × 1.95`
 - **Client-Based/Supervisory/Managerial**: Fixed allowance
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Display**:
@@ -276,7 +276,7 @@
 
 - **Rank and File**: `OT Hours × Rate/Hour × 2.6 × 1.3 = OT Hours × Rate/Hour × 3.38`
 - **Client-Based/Supervisory/Managerial**: Fixed allowance
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Display**:
@@ -461,7 +461,7 @@
 
 2. **Holiday/Rest Day OT**:
 
-   - All: ₱600 if ≥ 8 hours, ₱350 if ≥ 4 hours, ₱0 if < 4 hours
+   - All: ₱700 if ≥ 8 hours, ₱350 if ≥ 4 hours, ₱0 if < 4 hours
    - **NO PRO-RATING**: Must meet exact hour thresholds
 
 3. **Night Differential**:

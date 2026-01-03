@@ -83,6 +83,8 @@ export default function SchedulesPage() {
   const [editingWeekSchedule, setEditingWeekSchedule] = useState<DayEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [editingEmployeeType, setEditingEmployeeType] = useState<"office-based" | "client-based" | null>(null);
+  const [editingEmployeePosition, setEditingEmployeePosition] = useState<string | null>(null);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)),
@@ -391,6 +393,8 @@ export default function SchedulesPage() {
               setEditingEmployeeId(null);
               setEditingWeekSchedule([]);
               setIsEditMode(false);
+              setEditingEmployeeType(null);
+              setEditingEmployeePosition(null);
             }
           }}
         >
@@ -482,6 +486,18 @@ export default function SchedulesPage() {
                         setEditingEmployeeId(selectedEntry.employee_id);
                         setEditingWeekSchedule([]);
                         
+                        // Fetch employee type and position
+                        const { data: empData } = await supabase
+                          .from("employees")
+                          .select("employee_type, position")
+                          .eq("id", selectedEntry.employee_id)
+                          .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
+                        
+                        if (empData) {
+                          setEditingEmployeeType(empData.employee_type);
+                          setEditingEmployeePosition(empData.position);
+                        }
+                        
                         const weekStartIso = format(weekStart, "yyyy-MM-dd");
                         const { data: weekData, error } = await supabase.rpc(
                           "get_week_schedule_for_manager",
@@ -533,47 +549,77 @@ export default function SchedulesPage() {
                 ) : (
                   // Edit form
                   <VStack gap="4" className="w-full">
-                        {weekDays.map((day, idx) => {
-                          const dayEntry = editingWeekSchedule[idx] || {
-                            schedule_date: format(day, "yyyy-MM-dd"),
-                            start_time: "",
-                            end_time: "",
-                            day_off: false,
-                            tasks: "",
-                          };
-                          const isCurrentDay = dayEntry.schedule_date === selectedEntry.schedule_date;
+                        {(() => {
+                          const isClientBasedAccountSupervisor = 
+                            (editingEmployeeType === "client-based" || 
+                             (editingEmployeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
                           
                           return (
-                            <Card key={dayEntry.schedule_date} className={`w-full ${isCurrentDay ? "border-2 border-primary" : ""}`}>
-                              <CardContent className="p-4">
-                                <VStack gap="3" className="w-full">
-                                  <HStack gap="2" align="center" justify="between" className="w-full">
-                                    <Label className="text-sm font-semibold">
-                                      {format(day, "EEEE, MMM d")}
-                                    </Label>
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        id={`dayoff-${idx}`}
-                                        checked={dayEntry.day_off}
-                                        onCheckedChange={(checked) => {
-                                          const newSchedule = [...editingWeekSchedule];
-                                          newSchedule[idx] = {
-                                            ...dayEntry,
-                                            day_off: checked === true,
-                                            start_time: checked ? "" : dayEntry.start_time,
-                                            end_time: checked ? "" : dayEntry.end_time,
-                                          };
-                                          setEditingWeekSchedule(newSchedule);
-                                        }}
-                                      />
-                                      <Label
-                                        htmlFor={`dayoff-${idx}`}
-                                        className="text-xs font-medium cursor-pointer"
-                                      >
-                                        Day Off
-                                      </Label>
-                                    </div>
-                                  </HStack>
+                            <>
+                              {isClientBasedAccountSupervisor && (
+                                <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+                                  <Caption className="font-medium text-blue-900">
+                                    <Icon name="Info" size={IconSizes.xs} className="inline mr-1" />
+                                    Account Supervisor Restriction: Rest days can only be scheduled on Monday, Tuesday, or Wednesday.
+                                  </Caption>
+                                </div>
+                              )}
+                              {weekDays.map((day, idx) => {
+                                const dayEntry = editingWeekSchedule[idx] || {
+                                  schedule_date: format(day, "yyyy-MM-dd"),
+                                  start_time: "",
+                                  end_time: "",
+                                  day_off: false,
+                                  tasks: "",
+                                };
+                                const isCurrentDay = dayEntry.schedule_date === selectedEntry.schedule_date;
+                                const dayDate = new Date(dayEntry.schedule_date);
+                                const dayOfWeek = dayDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+                                const isRestDayAllowed = !isClientBasedAccountSupervisor || (dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3);
+                                
+                                return (
+                                  <Card key={dayEntry.schedule_date} className={`w-full ${isCurrentDay ? "border-2 border-primary" : ""}`}>
+                                    <CardContent className="p-4">
+                                      <VStack gap="3" className="w-full">
+                                        <HStack gap="2" align="center" justify="between" className="w-full">
+                                          <Label className="text-sm font-semibold">
+                                            {format(day, "EEEE, MMM d")}
+                                          </Label>
+                                          <div className="flex items-center gap-2">
+                                            <Checkbox
+                                              id={`dayoff-${idx}`}
+                                              checked={dayEntry.day_off}
+                                              disabled={!isRestDayAllowed}
+                                              onCheckedChange={(checked) => {
+                                                if (!isRestDayAllowed && checked) {
+                                                  toast.error("Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday.");
+                                                  return;
+                                                }
+                                                const newSchedule = [...editingWeekSchedule];
+                                                newSchedule[idx] = {
+                                                  ...dayEntry,
+                                                  day_off: checked === true,
+                                                  start_time: checked ? "" : dayEntry.start_time,
+                                                  end_time: checked ? "" : dayEntry.end_time,
+                                                };
+                                                setEditingWeekSchedule(newSchedule);
+                                              }}
+                                              title={
+                                                !isRestDayAllowed 
+                                                  ? "Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday"
+                                                  : "Mark as rest day"
+                                              }
+                                            />
+                                            <Label
+                                              htmlFor={`dayoff-${idx}`}
+                                              className={`text-xs font-medium ${
+                                                isRestDayAllowed ? "cursor-pointer" : "cursor-not-allowed opacity-50"
+                                              }`}
+                                            >
+                                              Day Off
+                                            </Label>
+                                          </div>
+                                        </HStack>
                                   
                                   {dayEntry.day_off ? (
                                     <div className="p-2 rounded-md bg-muted/50 border border-dashed border-2">
@@ -644,6 +690,9 @@ export default function SchedulesPage() {
                             </Card>
                           );
                         })}
+                            </>
+                          );
+                        })()}
                         
                         <HStack gap="2" justify="end" className="w-full pt-2">
                           <Button
@@ -652,6 +701,8 @@ export default function SchedulesPage() {
                               setIsEditMode(false);
                               setEditingEmployeeId(null);
                               setEditingWeekSchedule([]);
+                              setEditingEmployeeType(null);
+                              setEditingEmployeePosition(null);
                             }}
                             disabled={saving}
                           >
@@ -659,6 +710,29 @@ export default function SchedulesPage() {
                           </Button>
                           <Button
                             onClick={async () => {
+                              // Check if employee is client-based Account Supervisor
+                              const isClientBasedAccountSupervisor = 
+                                (editingEmployeeType === "client-based" || 
+                                 (editingEmployeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
+                              
+                              // For Account Supervisors: Validate rest days are only Mon-Wed
+                              if (isClientBasedAccountSupervisor) {
+                                for (const day of editingWeekSchedule) {
+                                  if (day.day_off) {
+                                    const dayDate = new Date(day.schedule_date);
+                                    const dayOfWeek = dayDate.getDay();
+                                    
+                                    if (dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3) {
+                                      const dayName = format(dayDate, "EEEE, MMM d");
+                                      toast.error(
+                                        `Account Supervisors can only schedule rest days on Monday, Tuesday, or Wednesday. ${dayName} is not allowed.`
+                                      );
+                                      return;
+                                    }
+                                  }
+                                }
+                              }
+                              
                               // Validate time ranges
                               for (const day of editingWeekSchedule) {
                                 if (!day.day_off && day.start_time && day.end_time) {

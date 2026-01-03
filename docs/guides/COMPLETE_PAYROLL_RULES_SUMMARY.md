@@ -129,7 +129,7 @@
 | Employee Type                                 | Formula                                                                                                    | Display                                      |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
 | **Rank and File**                       | `OT Hours × Rate/Hour × 2.6`                                                                           | Earnings Breakdown Table → Legal Holiday OT |
-| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱600`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Legal Holiday OT Allowance      |
+| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱700`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Legal Holiday OT Allowance      |
 
 #### ND on Regular Holiday
 
@@ -159,7 +159,7 @@
 | Employee Type                                 | Formula                                                                                                    | Display                                        |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
 | **Rank and File**                       | `OT Hours × Rate/Hour × 1.69`                                                                          | Earnings Breakdown Table → Special Holiday OT |
-| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱600`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Special Holiday OT Allowance      |
+| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱700`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Special Holiday OT Allowance      |
 
 #### ND on Special Holiday
 
@@ -191,7 +191,7 @@
 | Employee Type                                 | Formula                                                                                                    | Display                                 |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------- |
 | **Rank and File**                       | `OT Hours × Rate/Hour × 1.69`                                                                          | Earnings Breakdown Table → Rest Day OT |
-| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱600`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Rest Day OT Allowance      |
+| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱700`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Rest Day OT Allowance      |
 
 #### ND on Rest Day
 
@@ -221,7 +221,7 @@
 | Employee Type                                 | Formula                                                                                                    | Display                                                    |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | **Rank and File**                       | `OT Hours × Rate/Hour × 1.95`                                                                          | Earnings Breakdown Table → Special Holiday on Rest Day OT |
-| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱600`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Special Holiday on Rest Day OT Allowance      |
+| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱700`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Special Holiday on Rest Day OT Allowance      |
 
 #### ND on Sunday + Special Holiday
 
@@ -251,7 +251,7 @@
 | Employee Type                                 | Formula                                                                                                    | Display                                                  |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | **Rank and File**                       | `OT Hours × Rate/Hour × 3.38`                                                                          | Earnings Breakdown Table → Legal Holiday on Rest Day OT |
-| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱600`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Legal Holiday on Rest Day OT Allowance      |
+| **Client-Based/Supervisory/Managerial** | Fixed allowance:`<br>`• ≥ 8 hours OT: ₱700`<br>`• ≥ 4 hours OT: ₱350`<br>`• < 4 hours OT: ₱0 | Other Pay → Legal Holiday on Rest Day OT Allowance      |
 
 #### ND on Sunday + Regular Holiday
 
@@ -405,7 +405,7 @@ Other Pay Total = Regular OT Allowance
    - Supervisory/Managerial: ₱200 + (hours - 2) × ₱100 if ≥ 2 hours
 2. **Holiday/Rest Day OT**:
 
-   - All: ₱600 if ≥ 8 hours, ₱350 if ≥ 4 hours, ₱0 if < 4 hours
+   - All: ₱700 if ≥ 8 hours, ₱350 if ≥ 4 hours, ₱0 if < 4 hours
    - **NO PRO-RATING**: Must meet exact hour thresholds
 3. **Night Differential**:
 
@@ -436,6 +436,7 @@ Other Pay Total = Regular OT Allowance
 8. **Supervisory Identification**: Based on position title matching specific supervisory roles
 9. **Managerial Identification**: Based on `job_level` field equal to "MANAGERIAL"
 10. **"1 Day Before" Rule**: Applies only to Supervisory/Managerial employees for holiday eligibility
+
 
 
 

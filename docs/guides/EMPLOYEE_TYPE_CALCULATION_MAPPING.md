@@ -43,7 +43,7 @@ This document maps each employee type to their specific payroll calculation rule
 
 **OT Allowance** (for all holiday/rest day types):
 
-- **≥ 8 hours OT**: ₱600
+- **≥ 8 hours OT**: ₱700
 - **≥ 4 hours OT**: ₱350
 - **< 4 hours OT**: ₱0
 - **Display**: Other Pay → [Holiday/Rest Day Type] OT Allowance
@@ -104,7 +104,7 @@ This document maps each employee type to their specific payroll calculation rule
 
 **OT Allowance** (for all holiday/rest day types):
 
-- **≥ 8 hours OT**: ₱600
+- **≥ 8 hours OT**: ₱700
 - **≥ 4 hours OT**: ₱350
 - **< 4 hours OT**: ₱0
 - **Display**: Other Pay → [Holiday/Rest Day Type] OT Allowance
@@ -159,7 +159,7 @@ This document maps each employee type to their specific payroll calculation rule
 
 **OT Allowance** (for all holiday/rest day types):
 
-- **≥ 8 hours OT**: ₱600
+- **≥ 8 hours OT**: ₱700
 - **≥ 4 hours OT**: ₱350
 - **< 4 hours OT**: ₱0
 - **Display**: Other Pay → [Holiday/Rest Day Type] OT Allowance
@@ -254,19 +254,19 @@ This document maps each employee type to their specific payroll calculation rule
 | **Regular OT**              | Fixed: ₱500 if ≥3h, ₱0 if <3h   | Fixed: ₱200 + (h-2)×₱100 if ≥2h | Fixed: ₱200 + (h-2)×₱100 if ≥2h | Calculated: Hours × Rate × 1.25      |
 | **Night Differential**      | NO ND                           | NO ND                           | NO ND                           | Calculated: Hours × Rate × 0.1       |
 | **Legal Holiday Regular**   | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 2.0x                                 |
-| **Legal Holiday OT**        | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Calculated: Hours × Rate × 2.6       |
+| **Legal Holiday OT**        | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Calculated: Hours × Rate × 2.6       |
 | **Legal Holiday ND**        | NO ND                           | NO ND                           | NO ND                           | Calculated: Hours × Rate × 0.1       |
 | **Special Holiday Regular** | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.3x                                 |
-| **Special Holiday OT**      | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Calculated: Hours × Rate × 1.69      |
+| **Special Holiday OT**      | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Calculated: Hours × Rate × 1.69      |
 | **Special Holiday ND**      | NO ND                           | NO ND                           | NO ND                           | Calculated: Hours × Rate × 0.1       |
 | **Rest Day Regular**        | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.3x                                 |
-| **Rest Day OT**             | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Calculated: Hours × Rate × 1.69      |
+| **Rest Day OT**             | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Calculated: Hours × Rate × 1.69      |
 | **Rest Day ND**             | NO ND                           | NO ND                           | NO ND                           | Calculated: Hours × Rate × 0.1       |
 | **Sunday+SH Regular**       | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.5x                                 |
-| **Sunday+SH OT**            | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Calculated: Hours × Rate × 1.95      |
+| **Sunday+SH OT**            | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Calculated: Hours × Rate × 1.95      |
 | **Sunday+SH ND**            | NO ND                           | NO ND                           | NO ND                           | Calculated: Hours × Rate × 0.1       |
 | **Sunday+LH Regular**       | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 1.0x (Daily rate)               | 2.6x                                 |
-| **Sunday+LH OT**            | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Fixed: ₱600/₱350/₱0             | Calculated: Hours × Rate × 3.38      |
+| **Sunday+LH OT**            | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Fixed: ₱700/₱350/₱0             | Calculated: Hours × Rate × 3.38      |
 | **Sunday+LH ND**            | NO ND                           | NO ND                           | NO ND                           | Calculated: Hours × Rate × 0.1       |
 | **NDOT**                    | NO NDOT                         | NO NDOT                         | NO NDOT                         | Calculated: min(OT, ND) × Rate × 0.1 |
 | **"1 Day Before" Rule**     | YES                             | YES                             | YES                             | YES                                  |
@@ -317,6 +317,7 @@ This document maps each employee type to their specific payroll calculation rule
 - ✅ Office-Based Supervisory
 - ✅ Office-Based Managerial
 - ❌ Office-Based Rank and File (uses multipliers: 2.0x, 1.3x, etc.)
+
 
 
 

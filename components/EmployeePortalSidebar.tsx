@@ -13,6 +13,8 @@ import {
   X,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
+import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { createClient } from "@/lib/supabase/client";
 
 type NavItem = {
   name: string;
@@ -27,18 +29,23 @@ type NavGroup = {
   defaultOpen?: boolean;
 };
 
-const navGroups: NavGroup[] = [
+// Note: Schedule link will be conditionally shown based on employee type
+const getNavGroups = (isAccountSupervisor: boolean): NavGroup[] => [
   {
     label: "Time & Attendance",
     icon: Clock,
     defaultOpen: true,
     items: [
       { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
-      {
-        name: "Schedule",
-        href: "/employee-portal/schedule",
-        icon: CalendarBlank,
-      },
+      ...(isAccountSupervisor
+        ? [
+            {
+              name: "Schedule",
+              href: "/employee-portal/schedule",
+              icon: CalendarBlank,
+            },
+          ]
+        : []),
     ],
   },
   {
@@ -114,10 +121,44 @@ export function EmployeePortalSidebar({
   onClose,
 }: EmployeePortalSidebarProps) {
   const pathname = usePathname();
+  const { employee } = useEmployeeSession();
+  const supabase = createClient();
+  const [isAccountSupervisor, setIsAccountSupervisor] = useState<boolean>(false);
+  const [loadingEmployeeType, setLoadingEmployeeType] = useState(true);
+  const FallbackIcon = WarningCircle;
+
+  // Fetch employee type and position to determine if they're an Account Supervisor
+  useEffect(() => {
+    const fetchEmployeeInfo = async () => {
+      if (!employee?.id) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from("employees")
+          .select("employee_type, position")
+          .eq("id", employee.id)
+          .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
+        
+        if (!error && data) {
+          const isClientBasedAccountSupervisor =
+            data.employee_type === "client-based" ||
+            (data.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
+          setIsAccountSupervisor(isClientBasedAccountSupervisor);
+        }
+      } catch (err) {
+        console.error("Failed to fetch employee info:", err);
+      } finally {
+        setLoadingEmployeeType(false);
+      }
+    };
+
+    fetchEmployeeInfo();
+  }, [employee?.id, supabase]);
+
+  const navGroups = getNavGroups(isAccountSupervisor);
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     new Set(navGroups.filter((g) => g.defaultOpen).map((g) => g.label))
   );
-  const FallbackIcon = WarningCircle;
 
   const toggleGroup = useCallback((label: string) => {
     setOpenGroups((prev) => {
@@ -133,6 +174,8 @@ export function EmployeePortalSidebar({
 
   // Auto-open the group that matches the current route
   useEffect(() => {
+    if (loadingEmployeeType) return; // Wait for employee type to load
+    
     let matchedGroup: string | null = null;
     let longest = 0;
     navGroups.forEach((group) => {
@@ -148,7 +191,7 @@ export function EmployeePortalSidebar({
     if (matchedGroup) {
       setOpenGroups((prev) => new Set([...prev, matchedGroup!]));
     }
-  }, [pathname]);
+  }, [pathname, navGroups, loadingEmployeeType]);
 
   return (
     <div

@@ -76,7 +76,7 @@ This document explains the calculations for different holiday work scenarios for
 
 - **OT Hours**: e.g., 5 hours
 - **OT Allowance**: Fixed allowance based on hours
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Example**: 5 hours OT = ₱350 (meets ≥4 hours threshold)
@@ -161,7 +161,7 @@ This document explains the calculations for different holiday work scenarios for
 
 - **OT Hours**: e.g., 5 hours
 - **OT Allowance**: Fixed allowance based on hours
-  - ≥ 8 hours OT: ₱600
+  - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
 - **Example**: 5 hours OT = ₱350 (meets ≥4 hours threshold)
@@ -200,7 +200,7 @@ This document explains the calculations for different holiday work scenarios for
 
 4. **OT Allowances**:
    - **Rank and File**: Calculated OT pay (2.6x for Legal Holiday OT)
-   - **Supervisory/Managerial**: Fixed allowances (₱350/₱600 based on OT hours)
+   - **Supervisory/Managerial**: Fixed allowances (₱350/₱700 based on OT hours)
 
 ---
 
@@ -239,6 +239,7 @@ This document explains the calculations for different holiday work scenarios for
 5. **For Partial Days**: If you work partial hours (e.g., 4 hours), you get paid for those hours at the appropriate rate:
    - Rank and File: `4 hours × Rate × 2.0 = ₱1,000` (Legal Holiday)
    - Supervisory/Managerial: `4 hours × Rate × 1.0 = ₱500` (Legal Holiday)
+
 
 
 

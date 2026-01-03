@@ -60,4 +60,3 @@ COMMENT ON POLICY "All authenticated users can update payslips" ON public.paysli
 
 
 
-

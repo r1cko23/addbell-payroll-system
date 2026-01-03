@@ -1726,4 +1726,3 @@ export default function LoansPage() {
     </DashboardLayout>
   );
 }
-

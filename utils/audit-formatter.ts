@@ -189,8 +189,3 @@ export function getTableDisplayConfig(tableName: string): {
     }
   );
 }
-
-
-
-
-

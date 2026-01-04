@@ -72,4 +72,3 @@ COMMENT ON FUNCTION get_leave_dates_for_period IS
 
 
 
-

@@ -205,4 +205,3 @@ IP addresses are captured from request headers (`x-forwarded-for`). In productio
 5. **Monitoring Dashboard**: Real-time alerts for suspicious activity
 6. **Retention Policy**: Automatic archival of old audit logs
 
-

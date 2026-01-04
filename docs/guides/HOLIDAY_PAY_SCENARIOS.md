@@ -241,4 +241,3 @@ This document explains the calculations for different holiday work scenarios for
    - Supervisory/Managerial: `4 hours × Rate × 1.0 = ₱500` (Legal Holiday)
 
 
-

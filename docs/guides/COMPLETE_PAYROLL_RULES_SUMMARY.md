@@ -438,4 +438,3 @@ Other Pay Total = Regular OT Allowance
 10. **"1 Day Before" Rule**: Applies only to Supervisory/Managerial employees for holiday eligibility
 
 
-

@@ -132,4 +132,3 @@ COMMENT ON FUNCTION public.get_employee_payslips(UUID) IS
   'Returns payslips for a specific employee. Used by employee portal to view own payslips. Runs with elevated privileges to bypass RLS.';
 
 
-

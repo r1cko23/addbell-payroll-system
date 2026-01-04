@@ -147,4 +147,3 @@ ANALYZE public.holidays;
 ANALYZE public.users;
 
 
-

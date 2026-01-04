@@ -24,4 +24,3 @@ CREATE POLICY "Admin/HR can view all payslips" ON public.payslips
 -- Actually, let's not add this - admin/hr should be the only ones who can view
 -- But if we need a fallback, we can add it later
 
-

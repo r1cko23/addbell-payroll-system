@@ -189,4 +189,3 @@ COMMENT ON POLICY "Admin/HR can update payslips via direct check" ON public.pays
   'Fallback policy: Allows admin and hr roles to update existing payslips using direct EXISTS query.';
 
 
-

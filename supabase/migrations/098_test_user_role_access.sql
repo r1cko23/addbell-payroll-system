@@ -47,4 +47,3 @@ ORDER BY cmd, policyname;
 -- SELECT id, payslip_number FROM public.payslips LIMIT 1;
 
 
-

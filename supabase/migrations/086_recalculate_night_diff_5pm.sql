@@ -79,4 +79,3 @@ WHERE clock_out_time IS NOT NULL AND clock_in_time IS NOT NULL;
 DROP FUNCTION IF EXISTS recalculate_night_diff(UUID);
 
 
-

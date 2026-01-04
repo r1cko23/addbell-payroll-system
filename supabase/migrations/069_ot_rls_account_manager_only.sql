@@ -21,4 +21,3 @@ CREATE POLICY "Account managers can manage OT requests" ON public.overtime_reque
     EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.role = 'account_manager')
   );
 
-

@@ -23,4 +23,3 @@ CREATE POLICY "All authenticated users can view payslips" ON public.payslips
 -- =====================================================
 COMMENT ON POLICY "All authenticated users can view payslips" ON public.payslips IS
   'Allows any authenticated user (auth.uid() IS NOT NULL) to view payslips. More reliable than checking auth.role().';
-

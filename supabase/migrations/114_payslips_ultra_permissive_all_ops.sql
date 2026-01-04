@@ -53,4 +53,3 @@ COMMENT ON POLICY "All authenticated users can create payslips" ON public.paysli
 
 COMMENT ON POLICY "All authenticated users can update payslips" ON public.payslips IS
   'Ultra-permissive: Allows any authenticated user to update payslips.';
-

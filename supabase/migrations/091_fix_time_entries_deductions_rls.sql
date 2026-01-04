@@ -53,4 +53,3 @@ CREATE POLICY "Admin/HR can manage deductions" ON public.employee_deductions
     public.get_user_role() IN ('admin', 'hr')
   );
 
-

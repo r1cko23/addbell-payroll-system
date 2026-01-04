@@ -23,4 +23,3 @@ CREATE POLICY "Account managers can manage OT requests" ON public.overtime_reque
 
 
 
-

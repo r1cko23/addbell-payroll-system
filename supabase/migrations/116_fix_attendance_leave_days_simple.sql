@@ -70,4 +70,3 @@ COMMENT ON FUNCTION get_leave_dates_for_period IS
   'Returns all leave dates for an employee within a period. Used by application code to update attendance_data with leave days.';
 
 
-

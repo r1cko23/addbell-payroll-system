@@ -239,4 +239,3 @@ This document explains the calculations for different holiday work scenarios for
 5. **For Partial Days**: If you work partial hours (e.g., 4 hours), you get paid for those hours at the appropriate rate:
    - Rank and File: `4 hours × Rate × 2.0 = ₱1,000` (Legal Holiday)
    - Supervisory/Managerial: `4 hours × Rate × 1.0 = ₱500` (Legal Holiday)
-

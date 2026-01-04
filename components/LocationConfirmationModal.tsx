@@ -385,7 +385,15 @@ export function LocationConfirmationModal({
                 </div>
                 {lastRefresh && (
                   <div className="col-span-2 text-xs text-gray-500">
-                    Last updated: {lastRefresh.toLocaleTimeString()}
+                    Last updated: {lastRefresh.toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    })}
                   </div>
                 )}
               </div>

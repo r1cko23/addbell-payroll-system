@@ -157,4 +157,3 @@ $$;
 -- =====================================================
 COMMENT ON FUNCTION calculate_time_clock_hours IS
   'Calculates regular hours and night differential for time clock entries. Night differential is ONLY calculated for office-based RANK AND FILE employees. Account Supervisors, SUPERVISORY, and MANAGERIAL employees get 0 night differential hours. OT hours are NOT auto-calculated - they must come from approved overtime_requests table.';
-

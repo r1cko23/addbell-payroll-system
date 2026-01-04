@@ -84,4 +84,3 @@ DROP FUNCTION IF EXISTS recalculate_night_diff(UUID);
 
 
 
-

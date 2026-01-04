@@ -69,4 +69,3 @@ CREATE POLICY "Only Admins can approve payslips" ON public.payslips
 
 
 
-

@@ -29,4 +29,3 @@ CREATE POLICY "Admin/HR can view all payslips" ON public.payslips
 
 
 
-

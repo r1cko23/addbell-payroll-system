@@ -1,10 +1,9 @@
 -- =====================================================
--- 117: Fix OT Calculation for Fixed Schedule Employees
+-- 133: Fix night_diff_hours Column Name in calculate_time_clock_hours
 -- =====================================================
--- For employees with fixed schedule (8am-5pm) who are NOT Account Supervisors:
--- - Hours worked after 5pm should be counted as OT
--- - ND is already calculated correctly (from 5pm onwards)
--- - OT and ND can overlap (hours after 5pm count as both OT and ND)
+-- Error: "record 'new' has no field 'night_diff_hours'"
+-- The trigger function should use total_night_diff_hours, not night_diff_hours
+-- This migration ensures the function uses the correct column name
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION public.calculate_time_clock_hours()
@@ -29,9 +28,7 @@ DECLARE
   night_start_time TIME := '17:00:00'; -- 5PM
   night_end_time TIME := '06:00:00';   -- 6AM next day
   night_hours DECIMAL(10,2);
-  overtime_hours DECIMAL(10,2);
   is_account_supervisor BOOLEAN;
-  fixed_schedule_end TIME := '17:00:00'; -- 5PM for fixed schedule employees
 BEGIN
   IF NEW.clock_out_time IS NOT NULL AND NEW.clock_in_time IS NOT NULL THEN
     -- Convert to Philippines timezone for accurate time comparisons
@@ -71,56 +68,15 @@ BEGIN
       break_hours := COALESCE(NEW.total_break_minutes, 0) / 60.0;
       expected_hours := shift_duration - break_hours;
       NEW.regular_hours := LEAST(NEW.total_hours, expected_hours);
-      
-      -- Calculate OT for fixed schedule employees (NOT Account Supervisors)
-      -- OT = hours worked after shift_end (typically 5pm)
-      IF NOT is_account_supervisor AND NEW.total_hours > expected_hours THEN
-        -- Calculate hours worked after shift_end
-        IF v_clock_out_time > shift_end THEN
-          -- Same day: OT = hours from shift_end to clock_out (using PH timezone)
-          IF v_clock_in_date = v_clock_out_date THEN
-            overtime_hours := EXTRACT(EPOCH FROM (v_clock_out_ph - (v_clock_in_date + shift_end))) / 3600.0;
-          ELSE
-            -- Crosses midnight: OT = hours from shift_end to midnight + hours from midnight to clock_out
-            overtime_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - (v_clock_in_date + shift_end))) / 3600.0;
-            overtime_hours := overtime_hours + EXTRACT(EPOCH FROM (v_clock_out_ph - v_clock_out_date)) / 3600.0;
-          END IF;
-          -- Ensure OT doesn't exceed total hours minus regular hours
-          overtime_hours := LEAST(overtime_hours, NEW.total_hours - NEW.regular_hours);
-        ELSE
-          overtime_hours := 0;
-        END IF;
-      ELSE
-        overtime_hours := 0;
-      END IF;
     ELSE
       -- No schedule defined, assume 8-hour fixed schedule (8am-5pm)
       NEW.regular_hours := LEAST(NEW.total_hours, 8);
-      
-      -- Calculate OT for fixed schedule employees (NOT Account Supervisors)
-      -- OT = hours worked after 5pm
-      IF NOT is_account_supervisor AND NEW.total_hours > 8 THEN
-        IF v_clock_out_time > fixed_schedule_end THEN
-          -- Same day: OT = hours from 5pm to clock_out (using PH timezone)
-          IF v_clock_in_date = v_clock_out_date THEN
-            overtime_hours := EXTRACT(EPOCH FROM (v_clock_out_ph - (v_clock_in_date + fixed_schedule_end))) / 3600.0;
-          ELSE
-            -- Crosses midnight: OT = hours from 5pm to midnight + hours from midnight to clock_out
-            overtime_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - (v_clock_in_date + fixed_schedule_end))) / 3600.0;
-            overtime_hours := overtime_hours + EXTRACT(EPOCH FROM (v_clock_out_ph - v_clock_out_date)) / 3600.0;
-          END IF;
-          -- Ensure OT doesn't exceed total hours minus regular hours
-          overtime_hours := LEAST(overtime_hours, NEW.total_hours - NEW.regular_hours);
-        ELSE
-          overtime_hours := 0;
-        END IF;
-      ELSE
-        overtime_hours := 0;
-      END IF;
     END IF;
 
-    -- Set overtime_hours (round to 2 decimal places)
-    NEW.overtime_hours := ROUND(GREATEST(0, overtime_hours), 2);
+    -- IMPORTANT: OT hours should NOT be auto-calculated
+    -- OT hours must come from approved overtime_requests table
+    -- Set overtime_hours to 0 - it will be populated from overtime_requests when generating timesheet
+    NEW.overtime_hours := 0;
 
     -- Calculate night differential hours (5PM - 6AM next day)
     -- Using Philippines timezone for accurate calculation
@@ -161,6 +117,7 @@ BEGIN
     
     -- Ensure night hours don't exceed total hours worked
     -- Only calculate ND for non-Account Supervisors (they have flexi time)
+    -- FIXED: Use total_night_diff_hours, not night_diff_hours
     IF is_account_supervisor THEN
       NEW.total_night_diff_hours := 0;
     ELSE
@@ -175,40 +132,8 @@ END;
 $$;
 
 -- =====================================================
--- Recalculate OT for existing entries
--- =====================================================
--- Temporarily disable trigger to prevent recalculation during update
-ALTER TABLE time_clock_entries DISABLE TRIGGER trigger_calculate_time_clock_hours;
-
--- Simple OT calculation: OT = total_hours - regular_hours when clocked out after 5pm
--- This matches the function logic for fixed schedule employees
-UPDATE public.time_clock_entries
-SET overtime_hours = CASE
-  WHEN EXISTS (
-    SELECT 1 FROM employees e
-    WHERE e.id = time_clock_entries.employee_id
-      AND UPPER(COALESCE(e.position, '')) LIKE '%ACCOUNT SUPERVISOR%'
-  ) THEN 0
-  WHEN (clock_out_time AT TIME ZONE 'Asia/Manila')::TIME > '17:00:00'
-    AND total_hours > regular_hours
-    AND clock_out_time IS NOT NULL
-    AND clock_in_time IS NOT NULL
-  THEN ROUND(GREATEST(0, total_hours - regular_hours), 2)
-  ELSE 0
-END
-WHERE clock_out_time IS NOT NULL AND clock_in_time IS NOT NULL;
-
--- Re-enable trigger
-ALTER TABLE time_clock_entries ENABLE TRIGGER trigger_calculate_time_clock_hours;
-
--- =====================================================
 -- COMMENTS
 -- =====================================================
 COMMENT ON FUNCTION calculate_time_clock_hours IS
-  'Calculates regular hours, overtime hours, and night differential for time clock entries. For fixed schedule employees (8am-5pm) who are NOT Account Supervisors, hours after 5pm are counted as OT and ND.';
-
-
-
-
-
+  'Calculates regular hours and night differential for time clock entries. Uses total_night_diff_hours column. OT hours are NOT auto-calculated - they must come from approved overtime_requests table.';
 

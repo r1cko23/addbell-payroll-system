@@ -243,4 +243,3 @@ This document explains the calculations for different holiday work scenarios for
 
 
 
-

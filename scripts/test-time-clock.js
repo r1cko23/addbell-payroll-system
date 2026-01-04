@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
  * Test Script: Auto Record 8-Hour Shift
- * 
+ *
  * This script automatically creates a complete time clock entry for testing:
  * - Clocks in an employee at a specified time
  * - Clocks out 8 hours later (or at specified time)
  * - Automatically calculates hours via database triggers
- * 
+ *
  * Usage:
  *   npm run test:clock -- --employee-id 2014-027
  *   npm run test:clock -- --employee-id 2014-027 --start-time "2025-01-15 08:00:00"
  *   npm run test:clock -- --employee-id 2014-027 --start-time "2025-01-15 08:00:00" --hours 8
  *   npm run test:clock -- --employee-id 2014-027 --start-time "2025-01-15 08:00:00" --end-time "2025-01-15 17:00:00"
- * 
+ *
  * Options:
  *   --employee-id    Employee ID (e.g., "2014-027") - REQUIRED
  *   --start-time     Clock in time (default: current time)
@@ -128,7 +128,7 @@ async function createTimeClockEntry(options) {
   }
 
   // Parse times
-  const clockInTime = options.startTime 
+  const clockInTime = options.startTime
     ? parseDateTime(options.startTime)
     : new Date();
 
@@ -196,7 +196,7 @@ async function createTimeClockEntry(options) {
   console.log('✅ Time clock entry created successfully!');
   console.log(`   Entry ID: ${data.id}`);
   console.log(`   Status: ${data.status}`);
-  
+
   // Wait a moment for triggers to calculate hours
   await new Promise(resolve => setTimeout(resolve, 1000));
 

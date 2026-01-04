@@ -155,10 +155,10 @@ export default function HRDashboard() {
             .from("payslips")
             .select(
               `
-              id, 
-              status, 
-              created_at, 
-              net_pay, 
+              id,
+              status,
+              created_at,
+              net_pay,
               employee_id,
               employees!payslips_employee_id_fkey(full_name, employee_id)
             `

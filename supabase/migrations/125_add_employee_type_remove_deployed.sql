@@ -11,7 +11,7 @@ ALTER TABLE public.employees
 ADD COLUMN IF NOT EXISTS employee_type TEXT CHECK (employee_type IN ('office-based', 'client-based'));
 
 -- Add comment for documentation
-COMMENT ON COLUMN public.employees.employee_type IS 
+COMMENT ON COLUMN public.employees.employee_type IS
   'Indicates if employee is office-based or client-based. Account Supervisors are client-based, all others are office-based.';
 
 -- Create index for filtering by employee type
@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_employees_employee_type ON public.employees(emplo
 -- Account Supervisors = client-based
 -- All others = office-based
 UPDATE public.employees
-SET employee_type = CASE 
+SET employee_type = CASE
   WHEN UPPER(position) LIKE '%ACCOUNT SUPERVISOR%' THEN 'client-based'
   ELSE 'office-based'
 END
@@ -35,6 +35,5 @@ ALTER COLUMN employee_type SET DEFAULT 'office-based';
 DROP INDEX IF EXISTS idx_employees_deployed;
 ALTER TABLE public.employees
 DROP COLUMN IF EXISTS deployed;
-
 
 

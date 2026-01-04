@@ -54,10 +54,10 @@ export default function SchedulePage() {
   today.setHours(0, 0, 0, 0);
   // Locked if the selected week is already past Monday (today > Monday of that week)
   const isLocked = today.getTime() > weekMonday.getTime();
-  
+
   // Check if employee is client-based Account Supervisor
-  const isClientBasedAccountSupervisor = 
-    (employeeType === "client-based" || 
+  const isClientBasedAccountSupervisor =
+    (employeeType === "client-based" ||
      (employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
 
   const weekDays = useMemo(() => {
@@ -73,16 +73,16 @@ export default function SchedulePage() {
         .select("employee_type, position")
         .eq("id", employee.id)
         .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
-      
+
       if (!error && data) {
         setEmployeeType(data.employee_type);
         setEmployeePosition(data.position);
-        
+
         // Check if employee is client-based Account Supervisor
         const isClientBasedAccountSupervisor =
           data.employee_type === "client-based" ||
           (data.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
-        
+
         // Redirect if not an Account Supervisor
         if (!isClientBasedAccountSupervisor) {
           toast.error("Schedule access is restricted to Account Supervisors only.");
@@ -95,7 +95,7 @@ export default function SchedulePage() {
         router.push("/employee-portal/bundy");
         return;
       }
-      
+
       setCheckingAccess(false);
     };
     fetchEmployeeInfo();
@@ -159,12 +159,12 @@ export default function SchedulePage() {
       // If switching to day_off, validate for Account Supervisors
       if (field === "day_off") {
         const isOff = value === true || value === "true";
-        
+
         // For client-based Account Supervisors: Restrict rest days to Mon-Wed only
         if (isClientBasedAccountSupervisor && isOff) {
           const dayDate = new Date(next[idx].schedule_date);
           const dayOfWeek = dayDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-          
+
           // Only allow Monday (1), Tuesday (2), Wednesday (3)
           if (dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3) {
             const dayName = format(dayDate, "EEEE");
@@ -172,7 +172,7 @@ export default function SchedulePage() {
             return prev; // Don't update if invalid
           }
         }
-        
+
         next[idx] = {
           ...next[idx],
           day_off: isOff,
@@ -207,14 +207,14 @@ export default function SchedulePage() {
       toast.error("This week is locked. Edits are only allowed until Monday.");
       return;
     }
-    
+
     // For client-based Account Supervisors: Validate rest days are only Mon-Wed
     if (isClientBasedAccountSupervisor) {
       for (const day of days) {
         if (day.day_off) {
           const dayDate = new Date(day.schedule_date);
           const dayOfWeek = dayDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
-          
+
           if (dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3) {
             const dayName = format(dayDate, "EEEE, MMM d");
             toast.error(
@@ -226,14 +226,14 @@ export default function SchedulePage() {
         }
       }
     }
-    
+
     // Client-side validation: check for invalid time ranges
     for (const day of days) {
       if (!day.day_off && day.start_time && day.end_time) {
         // Convert time strings to comparable format
         const startTime = day.start_time;
         const endTime = day.end_time;
-        
+
         // Compare times (HH:MM format)
         if (startTime >= endTime) {
           const dayName = format(new Date(day.schedule_date), "EEEE, MMM d");
@@ -245,7 +245,7 @@ export default function SchedulePage() {
         }
       }
     }
-    
+
     setLoading(true);
     setShowSaveConfirm(false);
     // Include all days: working days with times, and day off days
@@ -409,11 +409,11 @@ export default function SchedulePage() {
       }
     } catch (err: any) {
       console.error("Save failed:", err);
-      
+
       // Check for constraint violation or time validation errors
       const errorMessage = err?.message || "";
       let friendlyMessage = "Failed to save schedule. Please try again.";
-      
+
       if (
         errorMessage.includes("employee_week_schedules_time_check") ||
         errorMessage.includes("start_time must be before end_time") ||
@@ -424,7 +424,7 @@ export default function SchedulePage() {
       } else if (errorMessage) {
         friendlyMessage = errorMessage;
       }
-      
+
       toast.error(friendlyMessage);
     } finally {
       setLoading(false);
@@ -658,7 +658,7 @@ export default function SchedulePage() {
                 days[idx]?.start_time &&
                 days[idx]?.end_time &&
                 !isValidTimeRange(days[idx]);
-              
+
               return (
               <div
                 key={day.toISOString()}

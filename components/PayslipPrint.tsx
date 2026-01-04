@@ -318,7 +318,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           : rawOvertimeHours || 0;
 
       // Basic salary (regular working days ONLY - Mon-Fri)
-      // IMPORTANT: 
+      // IMPORTANT:
       // - Rest days (sunday) should NOT be included in basic salary (paid separately)
       // - Saturday company benefit should NOT be included in basic salary (shown separately)
       // - Holidays should NOT be included in basic salary (paid separately)
@@ -328,15 +328,15 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       if (dayType === "regular") {
         const dateObj = new Date(date);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-        
+
         // Check if this might be Account Supervisor's first rest day
         // The timesheet generator sets regularHours = 8 for first rest day even if not worked
         // If regularHours === 8 and no clockInTime, it's likely the first rest day (company benefit)
-        const isLikelyFirstRestDay = (isClientBased || isAccountSupervisor) && 
-          regularHours === 8 && 
-          !clockInTime && 
+        const isLikelyFirstRestDay = (isClientBased || isAccountSupervisor) &&
+          regularHours === 8 &&
+          !clockInTime &&
           dayOfWeek !== 6; // Not Saturday (Saturday is always company benefit, not first rest day)
-        
+
         // Only count Mon-Fri (exclude Saturday and Sunday)
         // BUT include Account Supervisor's first rest day (even if it's on Mon-Fri with 8 BH and no clock in)
         if (dayOfWeek !== 0 && dayOfWeek !== 6 && (regularHours > 0 || isLikelyFirstRestDay)) {
@@ -824,11 +824,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   // Total Salary should equal Gross Pay (they are the same thing)
   // Tardiness is currently 0, but can be deducted in the future if needed
   totalGrossPay = totalSalary - tardiness;
-  
+
   // Ensure Total Salary equals Total Gross Pay (they should be the same)
   // If they differ, use totalGrossPay as the source of truth
   totalSalary = totalGrossPay;
-  
+
   // Calculate Net Pay = Gross Pay - Deductions
   // Use calculated value instead of prop to ensure accuracy
   const netPay = totalGrossPay - totalDeductions;

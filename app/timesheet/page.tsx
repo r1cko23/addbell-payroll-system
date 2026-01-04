@@ -859,7 +859,7 @@ export default function TimesheetPage() {
           bh = 0;
         }
       }
-      
+
       // Saturday Company Benefit: Set BH = 8 even if employee didn't work
       // Saturday is a company benefit - paid even if not worked, and counts towards days worked and total hours
       if (bh === 0 && dayOfWeek === 6 && dayType === "regular" && status === "SAT") {
@@ -885,15 +885,15 @@ export default function TimesheetPage() {
             const checkDate = new Date(date);
             checkDate.setDate(checkDate.getDate() - daysBack);
             const checkDateStr = format(checkDate, "yyyy-MM-dd");
-            
+
             // Get schedule for this date to check if it's a rest day
             const checkSchedule = scheduleMap.get(checkDateStr);
             const isRestDay = checkSchedule?.day_off === true;
-            
+
             // Determine day type for this date
             const checkDayType = determineDayType(checkDateStr, holidays, isRestDay);
             const checkDayOfWeek = getDay(checkDate);
-            
+
             // Only check regular working days (Mon-Fri) and Saturdays (company benefit)
             // Skip Sundays (rest days) and holidays
             // Saturday is already dayType "regular", so we just check for regular days
@@ -902,7 +902,7 @@ export default function TimesheetPage() {
               const checkDayEntries = entriesByDate.get(checkDateStr) || [];
               const checkDayIncompleteEntries = incompleteByDate.get(checkDateStr) || [];
               const allCheckEntries = [...checkDayEntries, ...checkDayIncompleteEntries];
-              
+
               // Check if employee worked this day (has entry with regular_hours >= 8)
               const workedEntry = allCheckEntries.find((e: any) => {
                 // For complete entries, check if regular_hours >= 8

@@ -70,7 +70,7 @@ export function generateTimesheetFromClockEntries(
     const entryDate = `${parts.find((p) => p.type === "year")!.value}-${
       parts.find((p) => p.type === "month")!.value
     }-${parts.find((p) => p.type === "day")!.value}`;
-    
+
     if (!entriesByDate.has(entryDate)) {
       entriesByDate.set(entryDate, []);
     }
@@ -109,7 +109,7 @@ export function generateTimesheetFromClockEntries(
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday = 1
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
-      
+
       // Get all rest days in THIS WEEK (not the entire period)
       const restDaysInWeek = Array.from(restDays.keys())
         .filter(rd => {
@@ -117,7 +117,7 @@ export function generateTimesheetFromClockEntries(
           return rdDate >= weekStart && rdDate <= weekEnd;
         })
         .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
-      
+
       // Check if this is the first rest day of THIS WEEK (chronologically)
       if (restDaysInWeek.length >= 2 && dateStr === restDaysInWeek[0]) {
         // First rest day of the week: Treat as regular workday (like Mon-Sat for office-based)
@@ -126,7 +126,7 @@ export function generateTimesheetFromClockEntries(
       }
       // Second rest day of the week (restDaysInWeek[1]): Keep as rest day
     }
-    
+
     // Determine day type (regular, holiday, sunday/rest day, etc.)
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay);
 
@@ -174,7 +174,7 @@ export function generateTimesheetFromClockEntries(
     // - It's included in basic salary calculation
     // The SECOND rest day is the actual rest day (paid at rest day rate if worked, with allowances if worked ≥4 hours)
     // Rest days can be on any weekday - they often work Sat/Sun due to hotel peak days
-    
+
     // First rest day: Set regularHours = 8 even if not worked (like Saturday company benefit)
     // This is part of their 6-day work week, so they get 8 BH even without logging in
     if (isClientBasedAccountSupervisor && isRestDay && dayType === "regular" && regularHours === 0) {
@@ -182,7 +182,7 @@ export function generateTimesheetFromClockEntries(
       // Set 8 BH even if not worked - it's part of the 6-day work week
       regularHours = 8;
     }
-    
+
     // Note: The second rest day (dayType === "sunday") needs rest day pay logic, which is handled in payslip calculation
     // If rest day falls on holiday, dayType will be "sunday-regular-holiday" or "sunday-special-holiday"
     // and it will be handled by the holiday logic below

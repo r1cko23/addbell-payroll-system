@@ -12,10 +12,10 @@ DO $$
 DECLARE
     r RECORD;
 BEGIN
-    FOR r IN 
-        SELECT policyname 
-        FROM pg_policies 
-        WHERE schemaname = 'public' 
+    FOR r IN
+        SELECT policyname
+        FROM pg_policies
+        WHERE schemaname = 'public'
         AND tablename = 'payslips'
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS %I ON public.payslips', r.policyname);
@@ -161,7 +161,7 @@ BEGIN
     FROM pg_policies
     WHERE schemaname = 'public'
     AND tablename = 'payslips';
-    
+
     IF policy_count < 8 THEN
         RAISE WARNING 'Expected at least 8 policies on payslips table, but found %', policy_count;
     END IF;
@@ -187,7 +187,6 @@ COMMENT ON POLICY "Admin/HR can update payslips via function" ON public.payslips
 
 COMMENT ON POLICY "Admin/HR can update payslips via direct check" ON public.payslips IS
   'Fallback policy: Allows admin and hr roles to update existing payslips using direct EXISTS query.';
-
 
 
 

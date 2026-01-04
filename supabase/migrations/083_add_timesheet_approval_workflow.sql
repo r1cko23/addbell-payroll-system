@@ -13,7 +13,7 @@ BEGIN
       DROP CONSTRAINT IF EXISTS weekly_attendance_status_check;
 
     ALTER TABLE public.weekly_attendance
-      ADD CONSTRAINT weekly_attendance_status_check 
+      ADD CONSTRAINT weekly_attendance_status_check
       CHECK (status IN ('draft', 'finalized'));
 
     -- Add finalization tracking fields
@@ -28,10 +28,10 @@ BEGIN
 
     -- Create index for faster queries (handle both column name scenarios)
     IF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'weekly_attendance' AND column_name = 'period_start') THEN
-      CREATE INDEX IF NOT EXISTS idx_weekly_attendance_status 
+      CREATE INDEX IF NOT EXISTS idx_weekly_attendance_status
         ON public.weekly_attendance(status, period_start);
     ELSIF EXISTS (SELECT FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'weekly_attendance' AND column_name = 'week_start_date') THEN
-      CREATE INDEX IF NOT EXISTS idx_weekly_attendance_status 
+      CREATE INDEX IF NOT EXISTS idx_weekly_attendance_status
         ON public.weekly_attendance(status, week_start_date);
     END IF;
 
@@ -43,7 +43,6 @@ BEGIN
     -- Keep finalized records as finalized (no change needed)
   END IF;
 END $$;
-
 
 
 

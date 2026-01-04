@@ -19,8 +19,8 @@ CREATE POLICY "Admin/HR can view all payslips" ON public.payslips
     AND
     -- Check if user has admin or hr role
     EXISTS (
-      SELECT 1 
-      FROM public.users 
+      SELECT 1
+      FROM public.users
       WHERE users.id = auth.uid()
         AND users.role IN ('admin', 'hr')
         AND users.is_active = true
@@ -44,7 +44,6 @@ COMMENT ON POLICY "Admin/HR can view all payslips" ON public.payslips IS
 
 COMMENT ON POLICY "Authenticated users can view payslips" ON public.payslips IS
   'Fallback policy allowing any authenticated user to view payslips. Ensures access even if role lookup fails.';
-
 
 
 

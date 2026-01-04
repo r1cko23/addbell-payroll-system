@@ -25,7 +25,7 @@ DECLARE
   v_date DATE;
 BEGIN
   FOR v_leave IN
-    SELECT 
+    SELECT
       leave_type,
       start_date,
       end_date,
@@ -40,16 +40,16 @@ BEGIN
     -- Handle selected_dates if available
     IF v_leave.selected_dates IS NOT NULL THEN
       -- Process each selected date
-      FOR v_date IN 
+      FOR v_date IN
         SELECT (jsonb_array_elements_text(v_leave.selected_dates))::DATE
-        WHERE (jsonb_array_elements_text(v_leave.selected_dates))::DATE 
+        WHERE (jsonb_array_elements_text(v_leave.selected_dates))::DATE
           BETWEEN p_period_start AND p_period_end
       LOOP
         RETURN QUERY SELECT v_date, v_leave.leave_type, v_leave.status;
       END LOOP;
     ELSE
       -- Handle date range
-      FOR v_date IN 
+      FOR v_date IN
         SELECT generate_series(
           GREATEST(v_leave.start_date, p_period_start),
           LEAST(v_leave.end_date, p_period_end),
@@ -68,7 +68,6 @@ $$;
 -- =====================================================
 COMMENT ON FUNCTION get_leave_dates_for_period IS
   'Returns all leave dates for an employee within a period. Used by application code to update attendance_data with leave days.';
-
 
 
 

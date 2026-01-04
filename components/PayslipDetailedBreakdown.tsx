@@ -468,7 +468,7 @@ function PayslipDetailedBreakdownComponent({
       if (dayType === "regular") {
         const dateObj = new Date(date);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-        
+
         // Check if this is Account Supervisor's first rest day (treated as regular workday)
         // The first rest day gets 8 BH even if not worked (like Saturday company benefit)
         // The timesheet generator already sets regularHours = 8 for first rest day
@@ -479,7 +479,7 @@ function PayslipDetailedBreakdownComponent({
           const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Monday = 1
           const weekEnd = new Date(weekStart);
           weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
-          
+
           // Get all rest days in THIS WEEK (not the entire period)
           const restDaysInWeek = Array.from(restDays.keys())
             .filter(rd => {
@@ -487,13 +487,13 @@ function PayslipDetailedBreakdownComponent({
               return rdDate >= weekStart && rdDate <= weekEnd;
             })
             .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
-          
+
           // Check if this is the first rest day of THIS WEEK (chronologically)
           if (restDaysInWeek.length >= 1 && date === restDaysInWeek[0]) {
             isFirstRestDayChronologically = true;
           }
         }
-        
+
         if (dayOfWeek === 6 && finalRegularHours === 0) {
           // Saturday with no work - company benefit: 8 hours
           hoursToCount = 8;
@@ -809,7 +809,7 @@ function PayslipDetailedBreakdownComponent({
           const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Monday = 1
           const weekEnd = new Date(weekStart);
           weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
-          
+
           // Get all rest days in THIS WEEK (not the entire period)
           const restDaysInWeek = Array.from(restDays.keys())
             .filter(rd => {
@@ -817,13 +817,13 @@ function PayslipDetailedBreakdownComponent({
               return rdDate >= weekStart && rdDate <= weekEnd;
             })
             .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
-          
+
           // Check if this is the first rest day of THIS WEEK (chronologically)
           if (restDaysInWeek.length >= 1 && date === restDaysInWeek[0]) {
             isFirstRestDayChronologically = true;
           }
         }
-        
+
         // If this is the first rest day, it should NOT be processed here (should have dayType === "regular")
         // This is a safety check - if somehow the first rest day has dayType === "sunday", skip it
         if (isFirstRestDayChronologically) {
@@ -1158,7 +1158,7 @@ function PayslipDetailedBreakdownComponent({
       isUndefined: totalGrossPay === undefined,
       isNegative: totalGrossPay < 0,
     });
-    
+
     if (onTotalGrossPayChange && totalGrossPay !== undefined && totalGrossPay >= 0) {
       console.log('[PayslipDetailedBreakdown] Calling onTotalGrossPayChange with:', totalGrossPay);
       onTotalGrossPayChange(totalGrossPay);

@@ -1,11 +1,11 @@
 /**
  * Test Account Supervisor Holiday Rules
- * 
+ *
  * Verifies:
  * 1. Account Supervisors get daily rate only (NO multiplier) for holidays
  * 2. If they work on holiday → get daily rate
  * 3. If they DON'T work on holiday → check "1 Day Before" rule (worked full 8 hours the day before)
- * 
+ *
  * Run with: npx tsx scripts/test-account-supervisor-holiday-rules.ts
  */
 
@@ -101,13 +101,13 @@ if (dec25Day) {
   console.log(`\nDec 25 Holiday Entry:`);
   console.log(`  Regular Hours: ${dec25Day.regularHours}`);
   console.log(`  Expected: 8 hours (eligible via "1 Day Before" rule)`);
-  
+
   if (dec25Day.regularHours === 8) {
     console.log(`  ✓ PASS: Correctly granted 8 hours via "1 Day Before" rule`);
   } else {
     console.log(`  ✗ FAIL: Expected 8 hours, got ${dec25Day.regularHours}`);
   }
-  
+
   const expectedDayBefore = 8 * ratePerHour; // Daily rate only
   console.log(`  Expected Pay: ₱${expectedDayBefore.toFixed(2)} (Daily Rate Only - NO Multiplier)`);
   console.log(`  Rule: Didn't work on holiday BUT worked 8 hours on REGULAR WORKING DAY before → Get daily rate`);
@@ -155,13 +155,13 @@ if (dec25DayNoWork) {
   console.log(`\nDec 25 Holiday Entry:`);
   console.log(`  Regular Hours: ${dec25DayNoWork.regularHours}`);
   console.log(`  Expected: 0 hours (NOT eligible - didn't work 8 hours day before)`);
-  
+
   if (dec25DayNoWork.regularHours === 0) {
     console.log(`  ✓ PASS: Correctly NOT granted hours (didn't meet "1 Day Before" rule)`);
   } else {
     console.log(`  ✗ FAIL: Expected 0 hours, got ${dec25DayNoWork.regularHours}`);
   }
-  
+
   console.log(`  Expected Pay: ₱0.00 (No pay - didn't meet eligibility)`);
   console.log(`  Rule: Didn't work on holiday AND didn't work 8 hours day before → NO pay`);
 } else {
@@ -246,13 +246,13 @@ if (dec24Day) {
   console.log(`\nDec 24 Special Holiday Entry:`);
   console.log(`  Regular Hours: ${dec24Day.regularHours}`);
   console.log(`  Expected: 8 hours (eligible via "1 Day Before" rule)`);
-  
+
   if (dec24Day.regularHours === 8) {
     console.log(`  ✓ PASS: Correctly granted 8 hours via "1 Day Before" rule`);
   } else {
     console.log(`  ✗ FAIL: Expected 8 hours, got ${dec24Day.regularHours}`);
   }
-  
+
   const expectedDayBeforeSpecial = 8 * ratePerHour; // Daily rate only
   console.log(`  Expected Pay: ₱${expectedDayBeforeSpecial.toFixed(2)} (Daily Rate Only - NO Multiplier)`);
   console.log(`  Rule: Didn't work on special holiday BUT worked 8 hours day before → Get daily rate`);

@@ -104,7 +104,7 @@ async function regenerateAttendanceRecords() {
         const periodEnd = parseISO(record.period_end);
 
         // Check if employee is client-based Account Supervisor
-        const isClientBasedAccountSupervisor = 
+        const isClientBasedAccountSupervisor =
           employee.employee_type === "client-based" &&
           (employee.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
 

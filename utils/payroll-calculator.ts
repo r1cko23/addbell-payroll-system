@@ -72,7 +72,7 @@ function calculateOTWithBaseMultiplier(
  * Calculate Regular Overtime
  * Formula: HRS × RATE/HR × 1.25
  */
-export function calculateRegularOT(hours: number, ratePerHour: number): number {  
+export function calculateRegularOT(hours: number, ratePerHour: number): number {
   return calculatePayWithMultiplier(
     hours,
     ratePerHour,

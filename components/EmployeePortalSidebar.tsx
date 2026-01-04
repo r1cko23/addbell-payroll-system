@@ -131,14 +131,14 @@ export function EmployeePortalSidebar({
   useEffect(() => {
     const fetchEmployeeInfo = async () => {
       if (!employee?.id) return;
-      
+
       try {
         const { data, error } = await supabase
           .from("employees")
           .select("employee_type, position")
           .eq("id", employee.id)
           .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
-        
+
         if (!error && data) {
           const isClientBasedAccountSupervisor =
             data.employee_type === "client-based" ||
@@ -156,7 +156,7 @@ export function EmployeePortalSidebar({
   }, [employee?.id, supabase]);
 
   const navGroups = useMemo(() => getNavGroups(isAccountSupervisor), [isAccountSupervisor]);
-  
+
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     // Initialize with default open groups - use a stable set of groups
     return new Set(["Time & Attendance", "Requests", "Information"]);
@@ -177,7 +177,7 @@ export function EmployeePortalSidebar({
   // Auto-open the group that matches the current route
   useEffect(() => {
     if (loadingEmployeeType) return; // Wait for employee type to load
-    
+
     let matchedGroup: string | null = null;
     let longest = 0;
     navGroups.forEach((group) => {

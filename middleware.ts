@@ -53,14 +53,14 @@ export async function middleware(req: NextRequest) {
 
       if (userData) {
         const userRecord = userData as { role: string; can_access_salary: boolean | null };
-        
+
         // Redirect Account Managers
         if (userRecord.role === "account_manager") {
           const redirectUrl = req.nextUrl.clone();
           redirectUrl.pathname = "/dashboard";
           return NextResponse.redirect(redirectUrl);
         }
-        
+
         // Redirect HR users without salary access
         if (userRecord.role === "hr" && !userRecord.can_access_salary) {
           const redirectUrl = req.nextUrl.clone();

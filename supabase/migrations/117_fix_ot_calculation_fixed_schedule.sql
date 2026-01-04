@@ -41,7 +41,7 @@ BEGIN
     v_clock_out_time := v_clock_out_ph::TIME;
     v_clock_in_date := v_clock_in_ph::DATE;
     v_clock_out_date := v_clock_out_ph::DATE;
-    
+
     total_minutes := EXTRACT(EPOCH FROM (NEW.clock_out_time - NEW.clock_in_time)) / 60;
     work_minutes := total_minutes - COALESCE(NEW.total_break_minutes, 0);
     NEW.total_hours := ROUND(work_minutes / 60.0, 2);
@@ -49,7 +49,7 @@ BEGIN
     v_day_of_week := EXTRACT(DOW FROM v_clock_in_ph);
 
     -- Check if employee is Account Supervisor
-    SELECT 
+    SELECT
       UPPER(COALESCE(e.position, '')) LIKE '%ACCOUNT SUPERVISOR%'
     INTO is_account_supervisor
     FROM public.employees e
@@ -71,7 +71,7 @@ BEGIN
       break_hours := COALESCE(NEW.total_break_minutes, 0) / 60.0;
       expected_hours := shift_duration - break_hours;
       NEW.regular_hours := LEAST(NEW.total_hours, expected_hours);
-      
+
       -- Calculate OT for fixed schedule employees (NOT Account Supervisors)
       -- OT = hours worked after shift_end (typically 5pm)
       IF NOT is_account_supervisor AND NEW.total_hours > expected_hours THEN
@@ -96,7 +96,7 @@ BEGIN
     ELSE
       -- No schedule defined, assume 8-hour fixed schedule (8am-5pm)
       NEW.regular_hours := LEAST(NEW.total_hours, 8);
-      
+
       -- Calculate OT for fixed schedule employees (NOT Account Supervisors)
       -- OT = hours worked after 5pm
       IF NOT is_account_supervisor AND NEW.total_hours > 8 THEN
@@ -125,40 +125,40 @@ BEGIN
     -- Calculate night differential hours (5PM - 6AM next day)
     -- Using Philippines timezone for accurate calculation
     night_hours := 0;
-    
+
     -- Case 1: Clock in and out on the same day, both after 5PM
     IF v_clock_in_time >= night_start_time AND v_clock_out_time >= night_start_time AND v_clock_in_date = v_clock_out_date THEN
       night_hours := EXTRACT(EPOCH FROM (v_clock_out_ph - v_clock_in_ph)) / 3600.0;
-    
+
     -- Case 2: Clock in before 5PM, clock out after 5PM (SAME DAY)
     ELSIF v_clock_in_time < night_start_time AND v_clock_out_time >= night_start_time AND v_clock_in_date = v_clock_out_date THEN
       night_hours := EXTRACT(EPOCH FROM (v_clock_out_ph - (v_clock_in_date + night_start_time))) / 3600.0;
-    
+
     -- Case 3: Clock in after 5PM, clock out after midnight but before 6AM next day
     ELSIF v_clock_in_time >= night_start_time AND v_clock_out_time < night_end_time AND v_clock_out_date > v_clock_in_date THEN
       -- Hours from clock_in to midnight + hours from midnight to clock_out
       night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - v_clock_in_ph)) / 3600.0;
       night_hours := night_hours + EXTRACT(EPOCH FROM (v_clock_out_ph - v_clock_out_date)) / 3600.0;
-    
+
     -- Case 4: Clock in before 5PM, clock out after midnight but before 6AM next day
     ELSIF v_clock_in_time < night_start_time AND v_clock_out_time < night_end_time AND v_clock_out_date > v_clock_in_date THEN
       -- Hours from 5PM to midnight + hours from midnight to clock_out
       night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - (v_clock_in_date + night_start_time))) / 3600.0;
       night_hours := night_hours + EXTRACT(EPOCH FROM (v_clock_out_ph - v_clock_out_date)) / 3600.0;
-    
+
     -- Case 5: Clock in after 5PM, clock out after 6AM next day
     ELSIF v_clock_in_time >= night_start_time AND v_clock_out_time >= night_end_time AND v_clock_out_date > v_clock_in_date THEN
       -- Hours from clock_in to midnight + 6 hours (midnight to 6AM)
       night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - v_clock_in_ph)) / 3600.0;
       night_hours := night_hours + 6.0;
-    
+
     -- Case 6: Clock in before 5PM, clock out after 6AM next day
     ELSIF v_clock_in_time < night_start_time AND v_clock_out_time >= night_end_time AND v_clock_out_date > v_clock_in_date THEN
       -- Hours from 5PM to midnight + 6 hours (midnight to 6AM)
       night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - (v_clock_in_date + night_start_time))) / 3600.0;
       night_hours := night_hours + 6.0;
     END IF;
-    
+
     -- Ensure night hours don't exceed total hours worked
     -- Only calculate ND for non-Account Supervisors (they have flexi time)
     IF is_account_supervisor THEN
@@ -206,7 +206,6 @@ ALTER TABLE time_clock_entries ENABLE TRIGGER trigger_calculate_time_clock_hours
 -- =====================================================
 COMMENT ON FUNCTION calculate_time_clock_hours IS
   'Calculates regular hours, overtime hours, and night differential for time clock entries. For fixed schedule employees (8am-5pm) who are NOT Account Supervisors, hours after 5pm are counted as OT and ND.';
-
 
 
 

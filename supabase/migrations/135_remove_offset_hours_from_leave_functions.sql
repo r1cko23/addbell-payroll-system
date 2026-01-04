@@ -41,7 +41,7 @@ BEGIN
 
   -- Reset credits on year-end
   v_year_start := date_trunc('year', v_today)::date;
-  
+
   IF v_emp.sil_balance_year IS DISTINCT FROM v_current_year THEN
     v_emp.sil_credits := 0;
     v_emp.sil_last_accrual := NULL;
@@ -59,17 +59,17 @@ BEGIN
       IF v_emp.sil_last_accrual IS NULL THEN
         -- After reset: Start from hire date day in current year (if hasn't passed) or next month
         v_next_accrual_date := date_trunc('year', v_today)::date + (v_hire_day - 1) * INTERVAL '1 day';
-        
+
         -- If hire date day already passed this year, move to next month
         IF v_next_accrual_date < v_today THEN
           v_next_accrual_date := date_trunc('month', v_today)::date + INTERVAL '1 month' + (v_hire_day - 1) * INTERVAL '1 day';
         END IF;
-        
+
         -- Handle cases where hire day doesn't exist in the month
         IF EXTRACT(DAY FROM v_next_accrual_date) != v_hire_day THEN
           v_next_accrual_date := date_trunc('month', v_next_accrual_date)::date + INTERVAL '1 month - 1 day';
         END IF;
-        
+
         -- Ensure we don't go back to previous year
         IF v_next_accrual_date < v_year_start THEN
           v_next_accrual_date := v_year_start + (v_hire_day - 1) * INTERVAL '1 day';
@@ -87,8 +87,8 @@ BEGIN
       END IF;
 
       -- Accrue ONLY ONCE if the accrual date has arrived (and is in current year)
-      IF v_next_accrual_date <= v_today 
-        AND v_next_accrual_date < v_first_anniv 
+      IF v_next_accrual_date <= v_today
+        AND v_next_accrual_date < v_first_anniv
         AND v_next_accrual_date >= v_year_start THEN
         v_emp.sil_credits := LEAST(10, v_emp.sil_credits + v_month_accrual);
         v_emp.sil_last_accrual := v_next_accrual_date;
@@ -165,4 +165,3 @@ COMMENT ON FUNCTION refresh_employee_leave_balances IS
   'Calculates and updates employee leave balances (SIL, maternity, paternity). Returns only leave credits, offset_hours has been removed.';
 COMMENT ON FUNCTION get_employee_leave_credits IS
   'Returns employee leave credits (SIL, maternity, paternity). Updated to match refresh_employee_leave_balances return type after removing offset_hours.';
-

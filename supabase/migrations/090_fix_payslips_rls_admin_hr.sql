@@ -89,7 +89,7 @@ AS $$
 BEGIN
   -- Verify that the employee exists and is active
   IF NOT EXISTS (
-    SELECT 1 FROM public.employees 
+    SELECT 1 FROM public.employees
     WHERE id = p_employee_uuid AND is_active = true
   ) THEN
     RETURN;
@@ -130,7 +130,6 @@ GRANT EXECUTE ON FUNCTION public.get_employee_payslips(UUID) TO authenticated;
 
 COMMENT ON FUNCTION public.get_employee_payslips(UUID) IS
   'Returns payslips for a specific employee. Used by employee portal to view own payslips. Runs with elevated privileges to bypass RLS.';
-
 
 
 

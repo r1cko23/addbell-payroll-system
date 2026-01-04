@@ -148,7 +148,7 @@ export default function TimeEntriesPage() {
 
   const getDayType = (clockInTime: string): string => {
     const dateString = format(new Date(clockInTime), "yyyy-MM-dd");
-    
+
     // Ensure holidays are available
     if (!holidays || holidays.length === 0) {
       // If holidays not loaded yet, check if it's Sunday as fallback
@@ -158,7 +158,7 @@ export default function TimeEntriesPage() {
       }
       return "Regular Day";
     }
-    
+
     // Convert holidays to the format expected by determineDayType
     const normalizedHolidaysList: Holiday[] = normalizeHolidays(
       holidays.map((h) => ({
@@ -167,10 +167,10 @@ export default function TimeEntriesPage() {
         type: h.type,
       }))
     );
-    
+
     // Determine the actual day type (regular, holiday, sunday, etc.)
     const dayType = determineDayType(dateString, normalizedHolidaysList);
-    
+
     // Debug logging for December dates
     if (dateString.includes("12-24") || dateString.includes("12-25") || dateString.includes("12-26")) {
       console.log("Day type detection:", {
@@ -180,7 +180,7 @@ export default function TimeEntriesPage() {
         matchingHoliday: normalizedHolidaysList.find(h => h.date === dateString),
       });
     }
-    
+
     // Return the formatted label
     return getDayTypeLabel(dayType);
   };
@@ -251,7 +251,7 @@ export default function TimeEntriesPage() {
       holidaysStart.setDate(holidaysStart.getDate() - 7); // Include 7 days before
       const holidaysEnd = new Date(periodEnd);
       holidaysEnd.setDate(holidaysEnd.getDate() + 7); // Include 7 days after
-      
+
       const [entriesResult, holidaysResult] = await Promise.all([
         query,
         supabase
@@ -304,7 +304,7 @@ export default function TimeEntriesPage() {
           type: holiday.is_regular ? "regular" : "non-working",
         }))
       );
-      
+
       // Debug: Log holidays for December
       const decHolidays = formattedHolidays.filter(h => h.date.includes("12-"));
       if (decHolidays.length > 0) {
@@ -315,17 +315,17 @@ export default function TimeEntriesPage() {
       // This ensures entries appear on the correct dates
       const periodStartStr = format(periodStart, "yyyy-MM-dd");
       const periodEndStr = format(periodEnd, "yyyy-MM-dd");
-      
+
       const filteredData = (data || []).filter((entry: any) => {
         if (!entry.clock_in_time) return false;
-        
+
         const entryDate = new Date(entry.clock_in_time);
         // Convert to Asia/Manila timezone for date comparison
         const entryDatePH = new Date(
           entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
         );
         const entryDateStr = format(entryDatePH, "yyyy-MM-dd");
-        
+
         // Check if entry date falls within the period
         return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
       });

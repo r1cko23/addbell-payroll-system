@@ -50,40 +50,40 @@ BEGIN
     -- Calculate night differential hours (5PM - 6AM next day)
     -- Night diff applies from 5PM (17:00) onwards until 6AM (06:00) the next day
     night_hours := 0;
-    
+
     -- Case 1: Clock in and out on the same day, both after 5PM
     IF NEW.clock_in_time::TIME >= night_start_time AND NEW.clock_out_time::TIME >= night_start_time THEN
       night_hours := EXTRACT(EPOCH FROM (NEW.clock_out_time - NEW.clock_in_time)) / 3600.0;
-    
+
     -- Case 2: Clock in before 5PM, clock out after 5PM (same day)
     ELSIF NEW.clock_in_time::TIME < night_start_time AND NEW.clock_out_time::TIME >= night_start_time THEN
       night_hours := EXTRACT(EPOCH FROM (NEW.clock_out_time - (NEW.clock_in_time::DATE + night_start_time))) / 3600.0;
-    
+
     -- Case 3: Clock in after 5PM, clock out after midnight but before 6AM next day
     ELSIF NEW.clock_in_time::TIME >= night_start_time AND NEW.clock_out_time::TIME < night_end_time THEN
       -- Hours from clock_in to midnight + hours from midnight to clock_out
       night_hours := EXTRACT(EPOCH FROM ((NEW.clock_in_time::DATE + INTERVAL '1 day') - NEW.clock_in_time)) / 3600.0;
       night_hours := night_hours + EXTRACT(EPOCH FROM (NEW.clock_out_time - NEW.clock_out_time::DATE)) / 3600.0;
-    
+
     -- Case 4: Clock in before 5PM, clock out after midnight but before 6AM next day
     ELSIF NEW.clock_in_time::TIME < night_start_time AND NEW.clock_out_time::TIME < night_end_time THEN
       -- Hours from 5PM to midnight + hours from midnight to clock_out
       night_hours := EXTRACT(EPOCH FROM ((NEW.clock_in_time::DATE + INTERVAL '1 day') - (NEW.clock_in_time::DATE + night_start_time))) / 3600.0;
       night_hours := night_hours + EXTRACT(EPOCH FROM (NEW.clock_out_time - NEW.clock_out_time::DATE)) / 3600.0;
-    
+
     -- Case 5: Clock in after 5PM, clock out after 6AM next day
     ELSIF NEW.clock_in_time::TIME >= night_start_time AND NEW.clock_out_time::TIME >= night_end_time THEN
       -- Hours from clock_in to midnight + 6 hours (midnight to 6AM)
       night_hours := EXTRACT(EPOCH FROM ((NEW.clock_in_time::DATE + INTERVAL '1 day') - NEW.clock_in_time)) / 3600.0;
       night_hours := night_hours + 6.0;
-    
+
     -- Case 6: Clock in before 5PM, clock out after 6AM next day
     ELSIF NEW.clock_in_time::TIME < night_start_time AND NEW.clock_out_time::TIME >= night_end_time THEN
       -- Hours from 5PM to midnight + 6 hours (midnight to 6AM)
       night_hours := EXTRACT(EPOCH FROM ((NEW.clock_in_time::DATE + INTERVAL '1 day') - (NEW.clock_in_time::DATE + night_start_time))) / 3600.0;
       night_hours := night_hours + 6.0;
     END IF;
-    
+
     -- Ensure night hours don't exceed total hours worked
     NEW.total_night_diff_hours := ROUND(GREATEST(0, LEAST(night_hours, NEW.total_hours)), 2);
 
@@ -126,7 +126,6 @@ SET total_night_diff_hours = (
   )), 2)
 )
 WHERE clock_out_time IS NOT NULL AND clock_in_time IS NOT NULL;
-
 
 
 

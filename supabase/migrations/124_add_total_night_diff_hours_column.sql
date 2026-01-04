@@ -3,7 +3,7 @@
 -- =====================================================
 -- The trigger function calculate_time_clock_hours() tries to set NEW.total_night_diff_hours
 -- but the column doesn't exist in the table schema. This migration adds it.
--- 
+--
 -- Error: "record "new" has no field "night_diff_hours""
 -- This suggests the trigger is trying to access a column that doesn't exist.
 -- Migration 120 sets total_night_diff_hours, but the column was never added.
@@ -14,9 +14,9 @@
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_schema = 'public' 
-    AND table_name = 'time_clock_entries' 
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+    AND table_name = 'time_clock_entries'
     AND column_name = 'night_diff_hours'
   ) THEN
     ALTER TABLE public.time_clock_entries
@@ -40,6 +40,5 @@ COMMENT ON COLUMN public.time_clock_entries.night_diff_hours IS
 
 COMMENT ON COLUMN public.time_clock_entries.total_night_diff_hours IS
   'Night differential hours calculated from clock times (5PM-6AM). This column is used by the calculate_time_clock_hours() trigger function (migration 120+).';
-
 
 

@@ -25,10 +25,10 @@ DO $$
 DECLARE
     r RECORD;
 BEGIN
-    FOR r IN 
-        SELECT policyname 
-        FROM pg_policies 
-        WHERE schemaname = 'public' 
+    FOR r IN
+        SELECT policyname
+        FROM pg_policies
+        WHERE schemaname = 'public'
         AND tablename = 'payslips'
     LOOP
         EXECUTE format('DROP POLICY IF EXISTS %I ON public.payslips', r.policyname);
@@ -64,7 +64,7 @@ BEGIN
           WHERE id = auth.uid()
           LIMIT 1;
         $$;
-        
+
         GRANT EXECUTE ON FUNCTION public.get_user_role() TO authenticated;
         GRANT EXECUTE ON FUNCTION public.get_user_role() TO anon;
     END IF;
@@ -133,7 +133,7 @@ BEGIN
     FROM pg_policies
     WHERE schemaname = 'public'
     AND tablename = 'payslips';
-    
+
     IF policy_count < 5 THEN
         RAISE EXCEPTION 'Expected at least 5 policies on payslips table, but found %', policy_count;
     END IF;
@@ -153,7 +153,6 @@ COMMENT ON POLICY "Admin/HR can update payslips" ON public.payslips IS
 
 COMMENT ON POLICY "Only Admins can approve payslips" ON public.payslips IS
   'Allows only admin role to change payslip status to approved/paid. HR can still update draft payslips.';
-
 
 
 

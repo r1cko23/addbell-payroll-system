@@ -1,11 +1,11 @@
 /**
  * Test Client-Based Account Supervisor Rest Day Logic
- * 
+ *
  * Verifies:
  * 1. Client-based Account Supervisors can have 2 rest days (flexible)
  * 2. Only 1 rest day gets paid at regular rate (like Saturday for office-based)
  * 3. The other rest day only gets paid if worked (like Sunday for office-based)
- * 
+ *
  * Run with: npx tsx scripts/test-client-based-rest-days.ts
  */
 

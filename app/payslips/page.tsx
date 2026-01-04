@@ -123,12 +123,12 @@ export default function PayslipsPage() {
   const [holidays, setHolidays] = useState<Array<{ holiday_date: string }>>([]);
   const [restDaysMap, setRestDaysMap] = useState<Map<string, boolean>>(new Map());
   const [calculatedTotalGrossPay, setCalculatedTotalGrossPay] = useState<number | null>(null);
-  
+
   // Debug: Log when calculatedTotalGrossPay changes
   useEffect(() => {
     console.log('[PayslipsPage] calculatedTotalGrossPay state updated:', calculatedTotalGrossPay);
   }, [calculatedTotalGrossPay]);
-  
+
   // Debug: Log when calculatedTotalGrossPay changes
   useEffect(() => {
     console.log('[PayslipsPage] calculatedTotalGrossPay updated:', calculatedTotalGrossPay);
@@ -761,10 +761,10 @@ export default function PayslipsPage() {
           // Generate attendance data from mapped clock entries with rest days
           // Note: leaveDatesMap is already created above for existing attendance records
           // isAccountSupervisor and isEligibleForNightDiff are already defined above
-          const isClientBasedAccountSupervisor = 
+          const isClientBasedAccountSupervisor =
             selectedEmployee?.employee_type === "client-based" &&
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
-          
+
           const timesheetData = generateTimesheetFromClockEntries(
             mappedClockEntries as any,
             periodStart,
@@ -2152,9 +2152,9 @@ export default function PayslipsPage() {
   // If calculatedTotalGrossPay is null, it means PayslipDetailedBreakdown hasn't calculated it yet
   // In that case, show 0 temporarily - it will update automatically via useEffect callback
   const finalGrossPay = calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
-    ? calculatedTotalGrossPay 
+    ? calculatedTotalGrossPay
     : 0; // Show 0 until calculatedTotalGrossPay is set (don't use grossPay fallback - it's wrong)
-  
+
   // Debug: Log finalGrossPay calculation
   console.log('[PayslipsPage] finalGrossPay calculation:', {
     calculatedTotalGrossPay,
@@ -2162,7 +2162,7 @@ export default function PayslipsPage() {
     totalDed,
     netPay: finalGrossPay - totalDed + allowance,
   });
-  
+
   const netPay = finalGrossPay - totalDed + allowance;
 
   const periodEnd = getBiMonthlyPeriodEnd(periodStart);
@@ -2189,7 +2189,7 @@ export default function PayslipsPage() {
   function calculateWorkingDays() {
     if (!attendance || !attendance.attendance_data) return 0;
     const days = attendance.attendance_data as any[];
-    
+
     // Helper function to check "1 Day Before" rule for holidays
     const isEligibleForHolidayPay = (
       currentDate: string,

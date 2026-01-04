@@ -144,13 +144,13 @@ export default function SchedulesPage() {
   // Group by day and create a map for quick lookup
   const grouped = useMemo(() => {
     const dayMap = new Map<string, Map<string, ScheduleRow>>();
-    
+
     // Initialize map for all days
     weekDays.forEach((d) => {
       const iso = format(d, "yyyy-MM-dd");
       dayMap.set(iso, new Map());
     });
-    
+
     // Populate map with entries
     rows.forEach((row) => {
       const dayEntries = dayMap.get(row.schedule_date);
@@ -158,18 +158,18 @@ export default function SchedulesPage() {
         dayEntries.set(row.employee_id, row);
       }
     });
-    
+
     // Convert to array format with consistent ordering
     return weekDays.map((d) => {
       const iso = format(d, "yyyy-MM-dd");
       const dayEntries = dayMap.get(iso) || new Map();
-      
+
       // Create entries in alphabetical order, filling in missing employees
       const orderedEntries = allEmployees.map((emp) => {
         const entry = dayEntries.get(emp.id);
         return entry || null; // null means no schedule for this employee on this day
       });
-      
+
       return {
         date: iso,
         label: format(d, "EEE, MMM d"),
@@ -304,7 +304,7 @@ export default function SchedulesPage() {
                           />
                         );
                       }
-                      
+
                       const color = getColorStyleForEmployee(entry.employee_id);
                       const isDayOff = entry.day_off;
                       return (
@@ -333,8 +333,8 @@ export default function SchedulesPage() {
                                 {entry.employee_name}
                               </p>
                               {isDayOff && (
-                                <Badge 
-                                  variant="outline" 
+                                <Badge
+                                  variant="outline"
                                   className="text-[10px] font-semibold border-2 border-current shrink-0 opacity-80 px-1.5 py-0.5 h-5 flex items-center whitespace-nowrap"
                                 >
                                   <Icon name="CalendarX" size={16} className="mr-0.5 shrink-0" />
@@ -407,7 +407,7 @@ export default function SchedulesPage() {
                 Week of {format(weekStart, "MMM d, yyyy")}
               </DialogDescription>
             </DialogHeader>
-            
+
             {selectedEntry && !isEditMode && (
               // View Mode: Read-only display
               <VStack gap="4" className="min-w-0">
@@ -418,7 +418,7 @@ export default function SchedulesPage() {
                       (r) => r.employee_id === selectedEntry.employee_id && r.schedule_date === dayStr
                     );
                     const isCurrentDay = dayStr === selectedEntry.schedule_date;
-                    
+
                     return (
                       <Card
                         key={dayStr}
@@ -485,19 +485,19 @@ export default function SchedulesPage() {
                         setIsEditMode(true);
                         setEditingEmployeeId(selectedEntry.employee_id);
                         setEditingWeekSchedule([]);
-                        
+
                         // Fetch employee type and position
                         const { data: empData } = await supabase
                           .from("employees")
                           .select("employee_type, position")
                           .eq("id", selectedEntry.employee_id)
                           .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
-                        
+
                         if (empData) {
                           setEditingEmployeeType(empData.employee_type);
                           setEditingEmployeePosition(empData.position);
                         }
-                        
+
                         const weekStartIso = format(weekStart, "yyyy-MM-dd");
                         const { data: weekData, error } = await supabase.rpc(
                           "get_week_schedule_for_manager",
@@ -506,7 +506,7 @@ export default function SchedulesPage() {
                             p_employee_id: selectedEntry.employee_id,
                           } as any
                         );
-                        
+
                         if (!error && weekData) {
                           const scheduleMap = new Map(
                             (weekData as ScheduleRow[]).map((r) => [r.schedule_date, r])
@@ -533,7 +533,7 @@ export default function SchedulesPage() {
                 )}
               </VStack>
             )}
-            
+
             {selectedEntry && isEditMode && (
               // Edit Mode: Editable form
               <VStack gap="4" className="min-w-0">
@@ -550,10 +550,10 @@ export default function SchedulesPage() {
                   // Edit form
                   <VStack gap="4" className="w-full">
                         {(() => {
-                          const isClientBasedAccountSupervisor = 
-                            (editingEmployeeType === "client-based" || 
+                          const isClientBasedAccountSupervisor =
+                            (editingEmployeeType === "client-based" ||
                              (editingEmployeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
-                          
+
                           return (
                             <>
                               {isClientBasedAccountSupervisor && (
@@ -576,7 +576,7 @@ export default function SchedulesPage() {
                                 const dayDate = new Date(dayEntry.schedule_date);
                                 const dayOfWeek = dayDate.getDay(); // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
                                 const isRestDayAllowed = !isClientBasedAccountSupervisor || (dayOfWeek === 1 || dayOfWeek === 2 || dayOfWeek === 3);
-                                
+
                                 return (
                                   <Card key={dayEntry.schedule_date} className={`w-full ${isCurrentDay ? "border-2 border-primary" : ""}`}>
                                     <CardContent className="p-4">
@@ -612,7 +612,7 @@ export default function SchedulesPage() {
                                             </div>
                                           )}
                                         </HStack>
-                                  
+
                                   {dayEntry.day_off ? (
                                     <div className="p-2 rounded-md bg-muted/50 border border-dashed border-2">
                                       <HStack gap="2" align="center">
@@ -658,7 +658,7 @@ export default function SchedulesPage() {
                                       </div>
                                     </HStack>
                                   )}
-                                  
+
                                   {!dayEntry.day_off && (
                                     <div className="w-full">
                                       <Label className="text-xs font-medium mb-1 block">Tasks</Label>
@@ -685,7 +685,7 @@ export default function SchedulesPage() {
                             </>
                           );
                         })()}
-                        
+
                         <HStack gap="2" justify="end" className="w-full pt-2">
                           <Button
                             variant="outline"
@@ -703,17 +703,17 @@ export default function SchedulesPage() {
                           <Button
                             onClick={async () => {
                               // Check if employee is client-based Account Supervisor
-                              const isClientBasedAccountSupervisor = 
-                                (editingEmployeeType === "client-based" || 
+                              const isClientBasedAccountSupervisor =
+                                (editingEmployeeType === "client-based" ||
                                  (editingEmployeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
-                              
+
                               // For Account Supervisors: Validate rest days are only Mon-Wed
                               if (isClientBasedAccountSupervisor) {
                                 for (const day of editingWeekSchedule) {
                                   if (day.day_off) {
                                     const dayDate = new Date(day.schedule_date);
                                     const dayOfWeek = dayDate.getDay();
-                                    
+
                                     if (dayOfWeek !== 1 && dayOfWeek !== 2 && dayOfWeek !== 3) {
                                       const dayName = format(dayDate, "EEEE, MMM d");
                                       toast.error(
@@ -724,7 +724,7 @@ export default function SchedulesPage() {
                                   }
                                 }
                               }
-                              
+
                               // Validate time ranges
                               for (const day of editingWeekSchedule) {
                                 if (!day.day_off && day.start_time && day.end_time) {
@@ -736,7 +736,7 @@ export default function SchedulesPage() {
                                   }
                                 }
                               }
-                              
+
                               setSaving(true);
                               const weekStartIso = format(weekStart, "yyyy-MM-dd");
                               // Ensure we have exactly 7 days (one for each day of the week)
@@ -745,7 +745,7 @@ export default function SchedulesPage() {
                                 setSaving(false);
                                 return;
                               }
-                              
+
                               // Convert empty strings to empty string (not null) for JSON payload
                               // Database function expects empty strings '' which it converts to NULL
                               // IMPORTANT: Include ALL 7 days of the week, even if some have no schedule
@@ -754,7 +754,7 @@ export default function SchedulesPage() {
                                 // If day_off is false and times are empty, that's OK (both NULL is valid)
                                 const startTime = d.day_off ? '' : (d.start_time && d.start_time.trim() ? d.start_time : '');
                                 const endTime = d.day_off ? '' : (d.end_time && d.end_time.trim() ? d.end_time : '');
-                                
+
                                 return {
                                   schedule_date: d.schedule_date,
                                   start_time: startTime,
@@ -763,17 +763,17 @@ export default function SchedulesPage() {
                                   day_off: d.day_off || false,
                                 };
                               });
-                              
+
                               // Log the payload for debugging
                               console.log('Saving schedule entries:', JSON.stringify(entries, null, 2));
-                              
+
                               try {
                                 const { error } = await supabase.rpc("replace_week_schedule", {
                                   p_employee_id: selectedEntry.employee_id,
                                   p_week_start: weekStartIso,
                                   p_entries: entries,
                                 } as any);
-                                
+
                                 if (error) {
                                   console.error('Schedule save error:', error);
                                   toast.error(error.message || "Failed to save schedule");

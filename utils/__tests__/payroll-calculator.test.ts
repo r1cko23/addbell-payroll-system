@@ -323,7 +323,7 @@ describe("Holiday Detection - Edge Cases", () => {
       const date = new Date(h.date);
       return date.getDay() === 0 && h.type === "regular";
     });
-    
+
     if (sundayHoliday) {
       const dayType = determineDayType(sundayHoliday.date, holidays2025);
       expect(dayType).toBe("sunday-regular-holiday");
@@ -336,7 +336,7 @@ describe("Holiday Detection - Edge Cases", () => {
       const date = new Date(h.date);
       return date.getDay() === 0 && h.type === "non-working";
     });
-    
+
     if (sundaySpecialHoliday) {
       const dayType = determineDayType(sundaySpecialHoliday.date, holidays2025);
       expect(dayType).toBe("sunday-special-holiday");

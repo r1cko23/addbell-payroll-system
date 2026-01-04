@@ -1,6 +1,6 @@
 /**
  * Bi-Monthly (Semi-Monthly) Period Utilities
- * 
+ *
  * Handles 2 payout windows each month:
  *  - 1st period : 1 - 15
  *  - 2nd period : 16 - end of month (28/30/31 depending on month)
@@ -53,7 +53,7 @@ export function getBiMonthlyWorkingDays(periodStart: Date): Date[] {
     days.push(new Date(cursor));
     cursor = addDays(cursor, 1);
   }
-  
+
   return days;
 }
 
@@ -120,7 +120,7 @@ export function isDateInBiMonthlyPeriod(
   const dateTime = date.getTime();
   const startTime = periodStart.getTime();
   const endTime = periodEnd.getTime();
-  
+
   return dateTime >= startTime && dateTime <= endTime;
 }
 
@@ -135,7 +135,7 @@ export function getBiMonthlyPeriodFromDate(date: Date = new Date()): {
 } {
   const periodStart = getBiMonthlyPeriodStart(date);
   const periodEnd = getBiMonthlyPeriodEnd(periodStart);
-  
+
   return {
     periodStart,
     periodEnd,

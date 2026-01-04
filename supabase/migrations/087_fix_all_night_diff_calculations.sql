@@ -10,7 +10,7 @@ ALTER TABLE time_clock_entries DISABLE TRIGGER trigger_calculate_time_clock_hour
 UPDATE time_clock_entries
 SET total_night_diff_hours = (
   WITH ph_times AS (
-    SELECT 
+    SELECT
       clock_in_time AT TIME ZONE 'Asia/Manila' as ci_ph,
       clock_out_time AT TIME ZONE 'Asia/Manila' as co_ph,
       clock_in_time as ci_utc,
@@ -51,7 +51,6 @@ WHERE clock_out_time IS NOT NULL AND clock_in_time IS NOT NULL;
 
 -- Re-enable trigger
 ALTER TABLE time_clock_entries ENABLE TRIGGER trigger_calculate_time_clock_hours;
-
 
 
 

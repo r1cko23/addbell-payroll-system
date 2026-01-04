@@ -1,9 +1,9 @@
 /**
  * Test "1 Day Before" Rule - Must be a WORKING DAY
- * 
+ *
  * Verifies that the "1 Day Before" rule checks for a REGULAR WORKING DAY,
  * not just any day (holidays don't count as "working day before")
- * 
+ *
  * Run with: npx tsx scripts/test-1-day-before-rule-working-day.ts
  */
 

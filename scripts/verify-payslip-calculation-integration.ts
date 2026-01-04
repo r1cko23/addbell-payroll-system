@@ -1,9 +1,9 @@
 /**
  * Verify Payslip Calculation Integration
- * 
+ *
  * Verifies that time entries correctly flow through to payslip calculations
  * Tests edge cases and ensures calculations match expected business rules
- * 
+ *
  * Run with: npx tsx scripts/verify-payslip-calculation-integration.ts
  */
 

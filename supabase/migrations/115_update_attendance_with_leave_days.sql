@@ -33,7 +33,7 @@ BEGIN
 
   -- Get approved leave requests for this period
   FOR v_leave_data IN
-    SELECT 
+    SELECT
       leave_type,
       start_date,
       end_date,
@@ -51,7 +51,7 @@ BEGIN
       FOR v_leave_date IN SELECT jsonb_array_elements_text(v_leave_data.selected_dates)
       LOOP
         -- Only include dates within the attendance period
-        IF v_leave_date >= v_attendance.period_start::TEXT 
+        IF v_leave_date >= v_attendance.period_start::TEXT
            AND v_leave_date <= v_attendance.period_end::TEXT THEN
           v_leave_dates := v_leave_dates || jsonb_build_object(
             'date', v_leave_date,
@@ -62,7 +62,7 @@ BEGIN
       END LOOP;
     ELSE
       -- Handle date range (start_date to end_date)
-      FOR v_date_str IN 
+      FOR v_date_str IN
         SELECT generate_series(
           GREATEST(v_leave_data.start_date, v_attendance.period_start),
           LEAST(v_leave_data.end_date, v_attendance.period_end),
@@ -85,7 +85,7 @@ BEGIN
   FOR v_day IN SELECT * FROM jsonb_array_elements(v_attendance_data)
   LOOP
     v_date_str := v_day->>'date';
-    
+
     -- Check if this date has a leave request
     IF EXISTS (
       SELECT 1 FROM jsonb_array_elements(v_leave_dates) AS leave
@@ -105,7 +105,7 @@ BEGIN
 
   -- Recalculate total_regular_hours
   UPDATE weekly_attendance
-  SET 
+  SET
     attendance_data = v_attendance_data,
     total_regular_hours = (
       SELECT COALESCE(SUM((day->>'regularHours')::numeric), 0)
@@ -176,7 +176,6 @@ COMMENT ON FUNCTION update_all_attendance_with_leave_days IS
 
 COMMENT ON FUNCTION update_all_attendance_records_with_leave_days IS
   'Updates all attendance records in the database to include leave days. Use with caution.';
-
 
 
 

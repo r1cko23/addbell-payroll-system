@@ -26,7 +26,7 @@ $$;
 
 -- Increase White Plains location radius to 10000 meters (10km) for better coverage
 -- This helps account for GPS inaccuracies and ensures employees can clock in
-UPDATE office_locations 
+UPDATE office_locations
 SET radius_meters = 10000
 WHERE name = 'White Plains - Pinesville'
 RETURNING id, name, latitude, longitude, radius_meters;
@@ -36,4 +36,3 @@ RETURNING id, name, latitude, longitude, radius_meters;
 -- =====================================================
 COMMENT ON FUNCTION get_employee_leave_credits IS
   'Returns employee leave credits (SIL, maternity, paternity). Updated to match refresh_employee_leave_balances return type after removing offset_hours.';
-

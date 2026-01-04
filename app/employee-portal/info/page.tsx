@@ -41,7 +41,7 @@ export default function EmployeeInfoPage() {
   const [info, setInfo] = useState<EmployeeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
+
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");

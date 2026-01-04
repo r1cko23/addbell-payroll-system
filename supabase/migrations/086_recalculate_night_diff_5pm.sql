@@ -24,11 +24,11 @@ BEGIN
   INTO v_clock_in, v_clock_out, v_total_hours
   FROM time_clock_entries
   WHERE id = p_entry_id;
-  
+
   IF v_clock_in IS NULL OR v_clock_out IS NULL THEN
     RETURN 0;
   END IF;
-  
+
   -- Convert to Philippines timezone
   v_clock_in_ph := v_clock_in AT TIME ZONE 'Asia/Manila';
   v_clock_out_ph := v_clock_out AT TIME ZONE 'Asia/Manila';
@@ -36,36 +36,36 @@ BEGIN
   v_clock_out_time := v_clock_out_ph::TIME;
   v_clock_in_date := v_clock_in_ph::DATE;
   v_clock_out_date := v_clock_out_ph::DATE;
-  
+
   -- Case 1: Same day, both after 5PM
   IF v_clock_in_time >= '17:00:00' AND v_clock_out_time >= '17:00:00' AND v_clock_in_date = v_clock_out_date THEN
     night_hours := EXTRACT(EPOCH FROM (v_clock_out - v_clock_in)) / 3600.0;
-  
+
   -- Case 2: Same day, clock in before 5PM, clock out after 5PM
   ELSIF v_clock_in_time < '17:00:00' AND v_clock_out_time >= '17:00:00' AND v_clock_in_date = v_clock_out_date THEN
     night_hours := EXTRACT(EPOCH FROM (v_clock_out - (v_clock_in_date + TIME '17:00:00'))) / 3600.0;
-  
+
   -- Case 3: Clock in after 5PM, clock out after midnight but before 6AM next day
   ELSIF v_clock_in_time >= '17:00:00' AND v_clock_out_time < '06:00:00' AND v_clock_out_date > v_clock_in_date THEN
     night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - v_clock_in)) / 3600.0;
     night_hours := night_hours + EXTRACT(EPOCH FROM (v_clock_out - v_clock_out_date)) / 3600.0;
-  
+
   -- Case 4: Clock in before 5PM, clock out after midnight but before 6AM next day
   ELSIF v_clock_in_time < '17:00:00' AND v_clock_out_time < '06:00:00' AND v_clock_out_date > v_clock_in_date THEN
     night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - (v_clock_in_date + TIME '17:00:00'))) / 3600.0;
     night_hours := night_hours + EXTRACT(EPOCH FROM (v_clock_out - v_clock_out_date)) / 3600.0;
-  
+
   -- Case 5: Clock in after 5PM, clock out after 6AM next day
   ELSIF v_clock_in_time >= '17:00:00' AND v_clock_out_time >= '06:00:00' AND v_clock_out_date > v_clock_in_date THEN
     night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - v_clock_in)) / 3600.0;
     night_hours := night_hours + 6.0;
-  
+
   -- Case 6: Clock in before 5PM, clock out after 6AM next day
   ELSIF v_clock_in_time < '17:00:00' AND v_clock_out_time >= '06:00:00' AND v_clock_out_date > v_clock_in_date THEN
     night_hours := EXTRACT(EPOCH FROM ((v_clock_in_date + INTERVAL '1 day') - (v_clock_in_date + TIME '17:00:00'))) / 3600.0;
     night_hours := night_hours + 6.0;
   END IF;
-  
+
   RETURN ROUND(GREATEST(0, LEAST(night_hours, v_total_hours)), 2);
 END;
 $$;
@@ -77,7 +77,6 @@ WHERE clock_out_time IS NOT NULL AND clock_in_time IS NOT NULL;
 
 -- Drop the helper function
 DROP FUNCTION IF EXISTS recalculate_night_diff(UUID);
-
 
 
 

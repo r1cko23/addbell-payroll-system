@@ -75,7 +75,7 @@ function findHolidayByDate(
   holidays: Holiday[]
 ): Holiday | undefined {
   const normalizedDate = normalizeDateString(dateString);
-  
+
   // Try exact match first
   let holiday = holidays.find((h) => {
     const normalizedHolidayDate = normalizeDateString(h.date);

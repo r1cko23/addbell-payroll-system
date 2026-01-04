@@ -1,6 +1,6 @@
 /**
  * Comprehensive Payslip Calculation Flow Test
- * 
+ *
  * Tests the complete flow:
  * 1. Time Clock Entries → Weekly Attendance
  * 2. Weekly Attendance → Payslip Calculations
@@ -10,7 +10,7 @@
  *    - Account Supervisors (Office-based)
  *    - Supervisory (Office-based)
  *    - Managerial (Office-based)
- * 
+ *
  * Run with: npx tsx scripts/test-payslip-calculation-flow.ts
  */
 

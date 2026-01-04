@@ -11,7 +11,7 @@ export function LoadingSpinner({ size = 'md', className = '' }: LoadingSpinnerPr
     md: 'h-8 w-8',
     lg: 'h-12 w-12',
   };
-  
+
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <svg

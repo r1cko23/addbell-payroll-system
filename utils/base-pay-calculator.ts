@@ -1,6 +1,6 @@
 /**
  * Base Pay Calculator for Bi-Monthly Periods
- * 
+ *
  * Simplified calculation:
  * - Base: 104 hours (13 days × 8 hours) per bi-monthly period
  * - Deduct 8 hours for each absence (scheduled work day with no clock entry)

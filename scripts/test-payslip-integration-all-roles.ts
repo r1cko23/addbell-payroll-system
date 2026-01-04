@@ -1,17 +1,17 @@
 /**
  * Comprehensive Payslip Integration Test for All Employee Roles
- * 
+ *
  * Tests the complete flow from time entries to payslip calculations:
  * 1. Time Clock Entries → Weekly Attendance
  * 2. Weekly Attendance → Payslip Calculations
- * 
+ *
  * Tests all employee types:
  * - Rank and File (Office-based)
  * - Account Supervisors (Client-based)
  * - Account Supervisors (Office-based)
  * - Supervisory (Office-based)
  * - Managerial (Office-based)
- * 
+ *
  * Run with: npx tsx scripts/test-payslip-integration-all-roles.ts
  */
 

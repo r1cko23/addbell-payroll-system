@@ -437,4 +437,3 @@ Other Pay Total = Regular OT Allowance
 9. **Managerial Identification**: Based on `job_level` field equal to "MANAGERIAL"
 10. **"1 Day Before" Rule**: Applies only to Supervisory/Managerial employees for holiday eligibility
 
-

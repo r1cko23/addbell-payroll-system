@@ -240,4 +240,3 @@ This document explains the calculations for different holiday work scenarios for
    - Rank and File: `4 hours × Rate × 2.0 = ₱1,000` (Legal Holiday)
    - Supervisory/Managerial: `4 hours × Rate × 1.0 = ₱500` (Legal Holiday)
 
-

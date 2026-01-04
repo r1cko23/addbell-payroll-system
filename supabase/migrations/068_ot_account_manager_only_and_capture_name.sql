@@ -73,4 +73,3 @@ GRANT EXECUTE ON FUNCTION public.reject_overtime_request(UUID, TEXT) TO authenti
 
 
 
-

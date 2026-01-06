@@ -153,4 +153,3 @@ COMMENT ON POLICY "Admin/HR can update payslips" ON public.payslips IS
 
 COMMENT ON POLICY "Only Admins can approve payslips" ON public.payslips IS
   'Allows only admin role to change payslip status to approved/paid. HR can still update draft payslips.';
-

@@ -45,4 +45,3 @@ ORDER BY cmd, policyname;
 -- Test 6: Try to SELECT from payslips (this should work if policies are correct)
 -- Uncomment the line below to test:
 -- SELECT id, payslip_number FROM public.payslips LIMIT 1;
-

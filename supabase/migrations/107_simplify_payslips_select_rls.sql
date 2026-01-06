@@ -23,4 +23,3 @@ CREATE POLICY "Admin/HR can view all payslips" ON public.payslips
 -- Add a fallback policy for authenticated users (but this should only work if admin/hr check passes)
 -- Actually, let's not add this - admin/hr should be the only ones who can view
 -- But if we need a fallback, we can add it later
-

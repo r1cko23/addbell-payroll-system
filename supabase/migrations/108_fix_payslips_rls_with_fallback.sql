@@ -44,4 +44,3 @@ CREATE POLICY "Admin/HR can create payslips" ON public.payslips
     -- Fallback: Allow any authenticated user (temporary - for debugging)
     auth.role() = 'authenticated'
   );
-

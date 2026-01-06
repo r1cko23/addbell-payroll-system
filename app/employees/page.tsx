@@ -75,6 +75,7 @@ interface Employee {
   monthly_rate?: number | null;
   per_day?: number | null;
   eligible_for_ot?: boolean | null;
+  overtime_group_id?: string | null;
   is_active: boolean;
   created_at: string;
   employee_location_assignments?: {
@@ -86,6 +87,19 @@ interface Employee {
 interface Location {
   id: string;
   name: string;
+}
+
+interface User {
+  id: string;
+  full_name: string;
+  email: string;
+  role: string;
+}
+
+interface OvertimeGroup {
+  id: string;
+  name: string;
+  description: string | null;
 }
 
 type ScheduleRow = {
@@ -119,6 +133,7 @@ export default function EmployeesPage() {
   } = useUserRole();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"directory" | "schedules">(
@@ -149,6 +164,7 @@ export default function EmployeesPage() {
     monthly_rate: "",
     per_day: "",
     eligible_for_ot: false,
+    overtime_group_id: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -186,6 +202,7 @@ export default function EmployeesPage() {
   useEffect(() => {
     fetchEmployees();
     fetchLocations();
+    fetchOvertimeGroups();
   }, []);
 
   useEffect(() => {
@@ -239,6 +256,21 @@ export default function EmployeesPage() {
     }
   }
 
+  async function fetchOvertimeGroups() {
+    try {
+      const { data, error } = await supabase
+        .from("overtime_groups")
+        .select("id, name, description")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+      setOvertimeGroups(data || []);
+    } catch (error) {
+      console.error("Error fetching overtime groups:", error);
+    }
+  }
+
   async function loadWeek() {
     setScheduleLoading(true);
     const { data, error } = await supabase.rpc(
@@ -282,6 +314,7 @@ export default function EmployeesPage() {
       monthly_rate: "",
       per_day: "",
       eligible_for_ot: false,
+      overtime_group_id: "",
     });
     setShowModal(true);
   }
@@ -316,6 +349,7 @@ export default function EmployeesPage() {
       monthly_rate: employee.monthly_rate?.toString() || "",
       per_day: employee.per_day?.toString() || "",
       eligible_for_ot: employee.eligible_for_ot || false,
+      overtime_group_id: employee.overtime_group_id || "",
     });
     setShowModal(true);
   }
@@ -406,6 +440,7 @@ export default function EmployeesPage() {
           : null,
         per_day: formData.per_day ? parseFloat(formData.per_day) : null,
         eligible_for_ot: formData.eligible_for_ot,
+        overtime_group_id: formData.overtime_group_id || null,
         paternity_credits:
           formData.gender === "male"
             ? parseFloat(formData.paternity_days || "0") || 0
@@ -1492,6 +1527,36 @@ export default function EmployeesPage() {
                     <SelectItem value="NO">No</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="overtime-group">Overtime Group</Label>
+                <Select
+                  value={formData.overtime_group_id}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      overtime_group_id: value,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select group (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None (any account manager/admin)</SelectItem>
+                    {overtimeGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                        {group.description && ` - ${group.description}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Assign this employee to an overtime group. Group approvers/viewers will handle their OT requests.
+                  Manage groups in <a href="/overtime-groups" className="text-emerald-600 underline">OT Groups</a>.
+                </p>
               </div>
 
               <div className="rounded-lg border bg-muted/50 p-4 space-y-3">

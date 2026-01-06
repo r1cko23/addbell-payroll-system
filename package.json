@@ -15,7 +15,15 @@
     "test:debug": "playwright test --debug",
     "test:report": "playwright show-report",
     "test:clock": "node scripts/test-time-clock.js",
-    "import:employees": "node scripts/import-employees-from-excel.js"
+    "import:employees": "node scripts/import-employees-from-excel.js",
+    "import:ot-accounts": "node scripts/import-ot-accounts-from-excel.js",
+    "import:timelog-approvers": "node scripts/import-timelog-approvers-from-excel.js",
+    "assign:employee-ot-approvers": "node scripts/assign-employee-ot-approvers-from-excel.js",
+    "assign:employee-specific-ot": "node scripts/assign-employee-specific-ot-approvers.js",
+    "update:auth-display-names": "node scripts/update-auth-display-names.js",
+    "fix:ot-users-names": "node scripts/fix-ot-users-names.js",
+    "cleanup:old-ot-users": "node scripts/cleanup-old-ot-users.js",
+    "fix:january-1-attendance": "node scripts/fix-january-1-attendance.js"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -45,6 +53,7 @@
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",
+    "xlsx-js-style": "^1.2.0",
     "zustand": "^4.5.0"
   },
   "devDependencies": {

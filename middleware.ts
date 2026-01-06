@@ -34,11 +34,8 @@ export async function middleware(req: NextRequest) {
   }
 
   // Redirect Account Managers and HR users without salary access away from /employees and /payslips
-  if (
-    session &&
-    (req.nextUrl.pathname.startsWith("/employees") ||
-      req.nextUrl.pathname.startsWith("/payslips"))
-  ) {
+  // Redirect OT approvers/viewers to OT approval page only
+  if (session) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -54,15 +51,33 @@ export async function middleware(req: NextRequest) {
       if (userData) {
         const userRecord = userData as { role: string; can_access_salary: boolean | null };
 
-        // Redirect Account Managers
-        if (userRecord.role === "account_manager") {
+        // Redirect OT approvers/viewers to OT approval page only
+        if (userRecord.role === "ot_approver" || userRecord.role === "ot_viewer") {
+          if (!req.nextUrl.pathname.startsWith("/overtime-approval")) {
+            const redirectUrl = req.nextUrl.clone();
+            redirectUrl.pathname = "/overtime-approval";
+            return NextResponse.redirect(redirectUrl);
+          }
+        }
+
+        // Redirect Account Managers from /employees and /payslips
+        if (
+          userRecord.role === "account_manager" &&
+          (req.nextUrl.pathname.startsWith("/employees") ||
+            req.nextUrl.pathname.startsWith("/payslips"))
+        ) {
           const redirectUrl = req.nextUrl.clone();
           redirectUrl.pathname = "/dashboard";
           return NextResponse.redirect(redirectUrl);
         }
 
-        // Redirect HR users without salary access
-        if (userRecord.role === "hr" && !userRecord.can_access_salary) {
+        // Redirect HR users without salary access from /employees and /payslips
+        if (
+          userRecord.role === "hr" &&
+          !userRecord.can_access_salary &&
+          (req.nextUrl.pathname.startsWith("/employees") ||
+            req.nextUrl.pathname.startsWith("/payslips"))
+        ) {
           const redirectUrl = req.nextUrl.clone();
           redirectUrl.pathname = "/dashboard";
           return NextResponse.redirect(redirectUrl);

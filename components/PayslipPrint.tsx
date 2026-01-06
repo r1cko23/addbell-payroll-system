@@ -337,15 +337,27 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           !clockInTime &&
           dayOfWeek !== 6; // Not Saturday (Saturday is always company benefit, not first rest day)
 
-        // Only count Mon-Fri (exclude Saturday and Sunday)
+        // Count Mon-Sat (exclude Sunday - rest day)
+        // Saturday is a regular work day (paid 6 days/week per law)
         // BUT include Account Supervisor's first rest day (even if it's on Mon-Fri with 8 BH and no clock in)
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && (regularHours > 0 || isLikelyFirstRestDay)) {
-          // Regular work day (Mon-Fri) with hours worked OR first rest day with 8 BH
+        if (dayOfWeek !== 0 && (regularHours > 0 || isLikelyFirstRestDay || dayOfWeek === 6)) {
+          // Regular work day (Mon-Sat) with hours worked OR first rest day with 8 BH OR Saturday (regular work day)
           earningsBreakdown.basic.days++;
-          const dayAmount = (regularHours || (isLikelyFirstRestDay ? 8 : 0)) * ratePerHour;
+          // For Saturday: if no work (regularHours === 0), use 8 hours (regular work day per law)
+          // For first rest day: if no work, use 8 hours
+          // Otherwise: use actual regularHours
+          let hoursForBasic: number;
+          const regularHoursNum = Number(regularHours) || 0;
+          if (dayOfWeek === 6 && regularHoursNum === 0) {
+            hoursForBasic = 8; // Saturday regular work day
+          } else if (isLikelyFirstRestDay && regularHoursNum === 0) {
+            hoursForBasic = 8; // First rest day (regular workday for Account Supervisors)
+          } else {
+            hoursForBasic = regularHoursNum; // Use actual hours worked
+          }
+          const dayAmount = hoursForBasic * ratePerHour;
           earningsBreakdown.basic.amount += dayAmount;
         }
-        // Saturday (dayOfWeek === 6) is company benefit - NOT included in basic salary
         // Sunday (dayOfWeek === 0) is rest day - NOT included in basic salary
       }
 
@@ -566,9 +578,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.restDay.amount += standardAmount;
         } else {
           // Client-based Account Supervisors/Supervisory/Managerial:
-          // The FIRST rest day (chronologically) is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
+          // The FIRST rest day (chronologically) is the ACTUAL REST DAY (only paid if worked)
+          // - If worked: daily rate (hours × rate/hour × 1.0) + allowance (if worked ≥4 hours)
+          // The SECOND rest day is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
           // - It's NOT a rest day - it's already processed above as dayType === "regular" and included in basic salary
-          // This is the SECOND rest day (the actual rest day)
+          // This is the FIRST rest day (the actual rest day)
           // Only paid if they worked on it (regularHours > 0 means they worked)
           if (regularHours > 0) {
             // Supervisory/Managerial: Daily rate only (1x), no multiplier
@@ -584,7 +598,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }
             }
           }
-          // If regularHours === 0, it means they didn't work on the second rest day - no pay
+          // If regularHours === 0, it means they didn't work on the first rest day - no pay
         }
         if (overtimeHours > 0) {
           if (useFixedAllowances) {
@@ -733,7 +747,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         earningsBreakdown.legalHoliday.amount +
         earningsBreakdown.spHoliday.amount +
         earningsBreakdown.restDay.amount +
-        earningsBreakdown.workingDayoff.amount + // Working Dayoff (if applicable)
+        // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)
         fixedAllowances.regularOT.amount +
         fixedAllowances.legalHolidayOT.amount +
         fixedAllowances.specialHolidayOT.amount +
@@ -1473,37 +1487,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   </td>
                 </tr>
               )}
-              <tr>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "3px 5px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Working Dayoff
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "3px 5px",
-                    textAlign: "right",
-                  }}
-                >
-                  {earningsBreakdown.workingDayoff.days > 0
-                    ? earningsBreakdown.workingDayoff.days.toFixed(2)
-                    : "-"}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "3px 5px",
-                    textAlign: "right",
-                  }}
-                >
-                  {formatCurrencyOrDash(earningsBreakdown.workingDayoff.amount)}
-                </td>
-              </tr>
+              {/* Working Dayoff row removed - Saturday is now included in Basic Salary (regular work day per law) */}
             </tbody>
           </table>
 

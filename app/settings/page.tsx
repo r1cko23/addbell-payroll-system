@@ -50,11 +50,30 @@ interface User {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "hr" | "account_manager";
+  role: "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer";
   is_active: boolean;
   can_access_salary?: boolean | null;
   profile_picture_url: string | null;
   created_at: string;
+  assigned_ot_groups?: {
+    id: string;
+    name: string;
+    approver_id: string | null;
+    viewer_id: string | null;
+  }[];
+  employee_specific_assignments?: {
+    id: string;
+    employee_id: string;
+    full_name: string;
+    overtime_approver_id: string | null;
+    overtime_viewer_id: string | null;
+  }[];
+}
+
+interface OvertimeGroup {
+  id: string;
+  name: string;
+  description: string | null;
 }
 
 interface Holiday {
@@ -69,15 +88,20 @@ export default function SettingsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
+  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedOTGroups, setSelectedOTGroups] = useState<string[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showHolidayModal, setShowHolidayModal] = useState(false);
+  const [showOTDetailsModal, setShowOTDetailsModal] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [newUser, setNewUser] = useState({
     email: "",
     full_name: "",
     password: "",
-    role: "hr" as "admin" | "hr" | "account_manager",
+    role: "hr" as "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer",
+    ot_groups: [] as string[],
   });
   const [userToDeactivate, setUserToDeactivate] = useState<User | null>(null);
   const [userToActivate, setUserToActivate] = useState<User | null>(null);
@@ -111,24 +135,149 @@ export default function SettingsPage() {
         setCurrentUser(userData);
       }
 
-      // Load all users (admin only)
+      // Load all users (admin can see all, including inactive)
+      // First check current user to debug
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      console.log("Current auth user:", authUser?.id, authUser?.email);
+      
       const { data: usersData, error: usersError } = await supabase
         .from("users")
-        .select("*, can_access_salary")
-        .order("full_name");
+        .select("*")
+        .order("full_name", { ascending: true });
 
-      if (usersError) throw usersError;
-      setUsers(usersData || []);
+      if (usersError) {
+        console.error("Error loading users:", usersError);
+        console.error("Error details:", {
+          message: usersError.message,
+          details: usersError.details,
+          hint: usersError.hint,
+          code: usersError.code,
+        });
+        throw usersError;
+      }
+      
+      console.log(`Loaded ${usersData?.length || 0} users`);
+      console.log("Users data sample:", usersData?.slice(0, 3));
+      console.log("Full users data:", usersData);
+      
+      if (!usersData || usersData.length === 0) {
+        console.warn("No users returned from query - checking RLS policies");
+        setUsers([]);
+        // Don't return early - still load holidays and groups
+      }
 
-      // Load holidays
+      // Load holidays (filter by date range instead of year column)
+      const yearStart = new Date(2025, 0, 1).toISOString().split('T')[0];
+      const yearEnd = new Date(2025, 11, 31).toISOString().split('T')[0];
       const { data: holidaysData, error: holidaysError } = await supabase
         .from("holidays")
         .select("*")
-        .eq("year", 2025)
+        .gte("holiday_date", yearStart)
+        .lte("holiday_date", yearEnd)
         .order("holiday_date");
 
-      if (holidaysError) throw holidaysError;
-      setHolidays(holidaysData || []);
+      if (holidaysError) {
+        console.error("Error loading holidays:", holidaysError);
+        // Don't throw - just set empty array
+        setHolidays([]);
+      } else {
+        setHolidays(holidaysData || []);
+      }
+
+      // Load overtime groups (don't throw on error - just log it)
+      const { data: groupsData, error: groupsError } = await supabase
+        .from("overtime_groups")
+        .select("id, name, description")
+        .order("name");
+
+      if (groupsError) {
+        console.error("Error loading overtime groups:", groupsError);
+        // Don't throw - just set empty array so users can still be displayed
+        setOvertimeGroups([]);
+      } else {
+        setOvertimeGroups(groupsData || []);
+      }
+
+      // Load users with their assigned OT groups (after groups are loaded)
+      // IMPORTANT: Set users immediately, even if group loading fails
+      if (!usersData || usersData.length === 0) {
+        console.warn("No users data available - setting empty array");
+        setUsers([]);
+      } else {
+        console.log(`Processing ${usersData.length} users with OT groups...`);
+        // Set users immediately with empty groups as fallback
+        const usersWithEmptyGroups = usersData.map((user: any) => ({ ...user, assigned_ot_groups: [] }));
+        console.log(`✅ Setting ${usersWithEmptyGroups.length} users immediately`);
+        console.log("Sample user being set:", usersWithEmptyGroups[0]);
+        setUsers(usersWithEmptyGroups);
+        console.log("✅ setUsers() called successfully");
+        
+        try {
+          const usersWithGroups = await Promise.all(
+            usersData.map(async (user: any) => {
+              try {
+                // Find groups where this user is approver or viewer
+                const { data: approverGroups, error: approverError } = await supabase
+                  .from("overtime_groups")
+                  .select("id, name, approver_id, viewer_id")
+                  .eq("approver_id", user.id);
+
+                if (approverError) {
+                  console.warn(`Error loading approver groups for ${user.email}:`, approverError);
+                }
+
+                const { data: viewerGroups, error: viewerError } = await supabase
+                  .from("overtime_groups")
+                  .select("id, name, approver_id, viewer_id")
+                  .eq("viewer_id", user.id);
+
+                if (viewerError) {
+                  console.warn(`Error loading viewer groups for ${user.email}:`, viewerError);
+                }
+
+                const assignedGroups = [
+                  ...(approverGroups || []),
+                  ...(viewerGroups || []).filter(
+                    (vg: any) => !(approverGroups || []).some((ag: any) => ag.id === vg.id)
+                  ),
+                ];
+
+                // Also find employee-specific assignments (where this user is directly assigned as approver or viewer)
+                const { data: employeeAssignments, error: employeeError } = await supabase
+                  .from("employees")
+                  .select("id, employee_id, full_name, overtime_approver_id, overtime_viewer_id")
+                  .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
+
+                if (employeeError) {
+                  console.warn(`Error loading employee assignments for ${user.email}:`, employeeError);
+                }
+
+                return {
+                  ...user,
+                  assigned_ot_groups: assignedGroups,
+                  employee_specific_assignments: employeeAssignments || [],
+                };
+              } catch (userError) {
+                console.error(`Error processing user ${user.email}:`, userError);
+                // Return user without groups if there's an error
+                return {
+                  ...user,
+                  assigned_ot_groups: [],
+                  employee_specific_assignments: [],
+                };
+              }
+            })
+          );
+
+          console.log(`✅ Successfully processed ${usersWithGroups.length} users with groups`);
+          console.log("Updating users state with groups:", usersWithGroups.length);
+          setUsers(usersWithGroups);
+        } catch (groupError) {
+          console.error("❌ Error loading user groups:", groupError);
+          // Users are already set above, so this is just a warning
+          console.warn("Users displayed without OT group assignments");
+        }
+      }
     } catch (error) {
       console.error("Error loading settings:", error);
       toast.error("Failed to load settings");
@@ -138,6 +287,50 @@ export default function SettingsPage() {
   }
 
   const isAdmin = currentUser?.role === "admin";
+
+  // Helper function to format role names nicely
+  function formatRoleName(role: string): string {
+    const roleMap: Record<string, string> = {
+      admin: "Admin",
+      hr: "HR",
+      account_manager: "Account Manager",
+      ot_approver: "OT Approver",
+      ot_viewer: "OT Viewer",
+    };
+    return roleMap[role] || role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+  }
+
+  async function assignUserToOTGroups(
+    userId: string,
+    userRole: "ot_approver" | "ot_viewer",
+    groupIds: string[]
+  ) {
+    // First, remove user from all groups
+    if (userRole === "ot_approver") {
+      await (supabase.from("overtime_groups") as any)
+        .update({ approver_id: null })
+        .eq("approver_id", userId);
+    } else {
+      await (supabase.from("overtime_groups") as any)
+        .update({ viewer_id: null })
+        .eq("viewer_id", userId);
+    }
+
+    // Then assign to selected groups
+    for (const groupId of groupIds) {
+      const updateField = userRole === "ot_approver" ? "approver_id" : "viewer_id";
+      const updateData: any = {};
+      updateData[updateField] = userId;
+      
+      const { error } = await (supabase.from("overtime_groups") as any)
+        .update(updateData)
+        .eq("id", groupId);
+
+      if (error) {
+        throw new Error(`Failed to assign to group: ${error.message}`);
+      }
+    }
+  }
 
   async function handleCreateUser() {
     console.log("handleCreateUser called", {
@@ -219,6 +412,26 @@ export default function SettingsPage() {
         throw new Error(errorMessage);
       }
 
+      // If OT Approver/Viewer, assign to selected groups
+      if ((newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length > 0) {
+        try {
+          await assignUserToOTGroups(data.user.id, newUser.role, selectedOTGroups);
+        } catch (error: any) {
+          console.error("Error assigning OT groups:", error);
+          toast.error("User created but failed to assign OT groups: " + error.message);
+        }
+      }
+
+      // If editing user and role changed to OT Approver/Viewer, update groups
+      if (editingUser && (newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length > 0) {
+        try {
+          await assignUserToOTGroups(editingUser.id, newUser.role, selectedOTGroups);
+        } catch (error: any) {
+          console.error("Error updating OT groups:", error);
+          toast.error("Failed to update OT groups: " + error.message);
+        }
+      }
+
       toast.success(`User created successfully!`, {
         description: `${data.user.full_name} • ${data.user.email} • Role: ${data.user.role}`,
       });
@@ -228,7 +441,10 @@ export default function SettingsPage() {
         full_name: "",
         password: "",
         role: "hr",
+        ot_groups: [],
       });
+      setSelectedOTGroups([]);
+      setEditingUser(null);
       // Reload users list
       await loadData();
     } catch (error: any) {
@@ -411,7 +627,7 @@ export default function SettingsPage() {
                   <HStack gap="3" align="center">
                     <BodySmall className="w-16 text-left">Role:</BodySmall>
                     <Badge variant={isAdmin ? "default" : "secondary"}>
-                      {currentUser?.role?.toUpperCase()}
+                      {formatRoleName(currentUser?.role || "")}
                     </Badge>
                   </HStack>
                 </VStack>
@@ -451,13 +667,35 @@ export default function SettingsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                       Salary Access
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                      OT Groups
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
                       Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-card divide-y divide-gray-200">
-                  {users.map((user) => (
+                  {users.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                        {loading ? (
+                          <div className="flex items-center justify-center">
+                            <Icon name="ArrowsClockwise" size={IconSizes.sm} className="animate-spin mr-2" />
+                            Loading users...
+                          </div>
+                        ) : (
+                          <div>
+                            <Icon name="User" size={IconSizes.md} className="mx-auto mb-2 opacity-50" />
+                            <p>No users found.</p>
+                            <p className="text-xs mt-1">Check browser console for details.</p>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      {users.map((user) => (
                     <tr key={user.id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
                         {user.full_name}
@@ -475,9 +713,7 @@ export default function SettingsPage() {
                               : "secondary"
                           }
                         >
-                          {user.role === "account_manager"
-                            ? "ACCOUNT MANAGER"
-                            : user.role.toUpperCase()}
+                          {formatRoleName(user.role)}
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -494,6 +730,61 @@ export default function SettingsPage() {
                           <Badge variant="default">Yes</Badge>
                         ) : (
                           <Badge variant="secondary">No</Badge>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {user.role === "ot_approver" || user.role === "ot_viewer" || user.role === "admin" ? (
+                          <div className="flex items-center gap-2">
+                            {/* Summary badges */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {user.assigned_ot_groups && user.assigned_ot_groups.length > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-green-50 text-green-700 border-green-200"
+                                >
+                                  <Icon name="UsersThree" size={IconSizes.xs} className="mr-1" />
+                                  {user.assigned_ot_groups.length} {user.assigned_ot_groups.length === 1 ? 'group' : 'groups'}
+                                </Badge>
+                              )}
+                              {user.employee_specific_assignments && user.employee_specific_assignments.length > 0 && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-purple-50 text-purple-700 border-purple-200"
+                                >
+                                  <Icon name="User" size={IconSizes.xs} className="mr-1" />
+                                  {user.employee_specific_assignments.length} {user.employee_specific_assignments.length === 1 ? 'employee' : 'employees'}
+                                </Badge>
+                              )}
+                              {user.role === "admin" && 
+                               (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
+                               (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
+                                <Caption className="text-muted-foreground">Admin (all access)</Caption>
+                              )}
+                              {(user.role === "ot_approver" || user.role === "ot_viewer") &&
+                               (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
+                               (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
+                                <Caption className="text-muted-foreground">None</Caption>
+                              )}
+                            </div>
+                            {/* View details button */}
+                            {((user.assigned_ot_groups && user.assigned_ot_groups.length > 0) ||
+                              (user.employee_specific_assignments && user.employee_specific_assignments.length > 0)) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => {
+                                  setEditingUser(user);
+                                  setShowOTDetailsModal(true);
+                                }}
+                                title="View assignment details"
+                              >
+                                <Icon name="Info" size={IconSizes.sm} />
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -536,6 +827,24 @@ export default function SettingsPage() {
                                   className="mr-2"
                                 />
                                 Activate
+                              </DropdownMenuItem>
+                            )}
+                            {(user.role === "ot_approver" || user.role === "ot_viewer") && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setEditingUser(user);
+                                  // Get currently assigned groups
+                                  const assignedGroupIds = user.assigned_ot_groups?.map(g => g.id) || [];
+                                  setSelectedOTGroups(assignedGroupIds);
+                                  setShowUserModal(true);
+                                }}
+                              >
+                                <Icon
+                                  name="UsersThree"
+                                  size={IconSizes.sm}
+                                  className="mr-2"
+                                />
+                                Manage OT Groups
                               </DropdownMenuItem>
                             )}
                             {user.role !== "admin" && (
@@ -604,7 +913,9 @@ export default function SettingsPage() {
                         </DropdownMenu>
                       </td>
                     </tr>
-                  ))}
+                      ))}
+                    </>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -674,26 +985,77 @@ export default function SettingsPage() {
               full_name: "",
               password: "",
               role: "hr",
+              ot_groups: [],
             });
+            setSelectedOTGroups([]);
+            setEditingUser(null);
             setEmailError("");
             setPasswordError("");
+          } else if (editingUser) {
+            // Pre-populate form when editing
+            setNewUser({
+              email: editingUser.email,
+              full_name: editingUser.full_name,
+              password: "", // Don't pre-fill password
+              role: editingUser.role,
+              ot_groups: editingUser.assigned_ot_groups?.map(g => g.id) || [],
+            });
+            setSelectedOTGroups(editingUser.assigned_ot_groups?.map(g => g.id) || []);
           }
         }}
       >
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
               e.stopPropagation();
 
+              // Validate OT groups for OT Approver/Viewer roles
+              if ((newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length === 0) {
+                toast.error("Please select at least one OT group for OT Approver/Viewer roles");
+                return;
+              }
+
+              // If editing, update user without password
+              if (editingUser) {
+                setCreatingUser(true);
+                try {
+                  // Update user role if changed
+                  const { error: updateError } = await (supabase.from("users") as any)
+                    .update({ role: newUser.role })
+                    .eq("id", editingUser.id);
+
+                  if (updateError) throw updateError;
+
+                  // Update OT groups if OT Approver/Viewer
+                  if ((newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length > 0) {
+                    await assignUserToOTGroups(editingUser.id, newUser.role, selectedOTGroups);
+                  }
+
+                  toast.success("User updated successfully!");
+                  setShowUserModal(false);
+                  setEditingUser(null);
+                  setSelectedOTGroups([]);
+                  await loadData();
+                  return;
+                } catch (error: any) {
+                  console.error("Error updating user:", error);
+                  toast.error(error.message || "Failed to update user");
+                  return;
+                } finally {
+                  setCreatingUser(false);
+                }
+              }
+
               const formData = {
                 email: newUser.email,
                 full_name: newUser.full_name,
                 password: newUser.password,
                 role: newUser.role,
+                ot_groups: selectedOTGroups,
               };
 
               console.log("=== FORM SUBMIT TRIGGERED ===", {
@@ -762,35 +1124,37 @@ export default function SettingsPage() {
                 />
               </VStack>
 
-              <VStack gap="2" align="start" className="w-full">
-                <Label htmlFor="password">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Minimum 8 characters"
-                  value={newUser.password}
-                  onChange={(e) => {
-                    setNewUser({ ...newUser, password: e.target.value });
-                    if (e.target.value) {
-                      validatePassword(e.target.value);
-                    } else {
-                      setPasswordError("");
-                    }
-                  }}
-                  onBlur={(e) => validatePassword(e.target.value)}
-                  disabled={creatingUser}
-                  className={passwordError ? "border-destructive" : ""}
-                />
-                {passwordError ? (
-                  <Caption className="text-destructive">
-                    {passwordError}
-                  </Caption>
-                ) : (
-                  <Caption className="text-muted-foreground">
-                    Password must be at least 8 characters long
-                  </Caption>
-                )}
-              </VStack>
+              {!editingUser && (
+                <VStack gap="2" align="start" className="w-full">
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Minimum 8 characters"
+                    value={newUser.password}
+                    onChange={(e) => {
+                      setNewUser({ ...newUser, password: e.target.value });
+                      if (e.target.value) {
+                        validatePassword(e.target.value);
+                      } else {
+                        setPasswordError("");
+                      }
+                    }}
+                    onBlur={(e) => validatePassword(e.target.value)}
+                    disabled={creatingUser}
+                    className={passwordError ? "border-destructive" : ""}
+                  />
+                  {passwordError ? (
+                    <Caption className="text-destructive">
+                      {passwordError}
+                    </Caption>
+                  ) : (
+                    <Caption className="text-muted-foreground">
+                      Password must be at least 8 characters long
+                    </Caption>
+                  )}
+                </VStack>
+              )}
 
               <VStack gap="2" align="start" className="w-full">
                 <Label htmlFor="role">Role *</Label>
@@ -809,10 +1173,54 @@ export default function SettingsPage() {
                     <SelectItem value="account_manager">
                       Account Manager
                     </SelectItem>
+                    <SelectItem value="ot_approver">OT Approver</SelectItem>
+                    <SelectItem value="ot_viewer">OT Viewer</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </VStack>
+
+              {/* OT Groups Assignment (only for OT Approver/Viewer roles) */}
+              {(newUser.role === "ot_approver" || newUser.role === "ot_viewer" || editingUser) && (
+                <VStack gap="2" align="start" className="w-full">
+                  <Label htmlFor="ot_groups">
+                    OT Groups Assignment *
+                    <BodySmall className="text-muted-foreground mt-1">
+                      Select which employee groups this {newUser.role === "ot_approver" ? "approver" : "viewer"} can manage
+                    </BodySmall>
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2 w-full max-h-48 overflow-y-auto border rounded-md p-2">
+                    {overtimeGroups.map((group) => (
+                      <label
+                        key={group.id}
+                        className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedOTGroups.includes(group.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedOTGroups([...selectedOTGroups, group.id]);
+                            } else {
+                              setSelectedOTGroups(
+                                selectedOTGroups.filter((id) => id !== group.id)
+                              );
+                            }
+                          }}
+                          disabled={creatingUser}
+                          className="rounded border-gray-300"
+                        />
+                        <BodySmall className="text-sm">{group.name}</BodySmall>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedOTGroups.length === 0 && (
+                    <Caption className="text-destructive">
+                      Please select at least one OT group
+                    </Caption>
+                  )}
+                </VStack>
+              )}
             </VStack>
             <DialogFooter className="mt-6">
               <Button
@@ -825,7 +1233,10 @@ export default function SettingsPage() {
                     full_name: "",
                     password: "",
                     role: "hr",
+                    ot_groups: [],
                   });
+                  setSelectedOTGroups([]);
+                  setEditingUser(null);
                 }}
                 disabled={creatingUser}
               >
@@ -833,7 +1244,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={creatingUser}
+                disabled={creatingUser || (!editingUser && !newUser.password)}
                 className={creatingUser ? "opacity-50 cursor-not-allowed" : ""}
                 onClick={(e) => {
                   // Also handle click directly as fallback
@@ -841,6 +1252,7 @@ export default function SettingsPage() {
                     newUser,
                     creatingUser,
                     passwordLength: newUser.password?.length,
+                    editingUser: !!editingUser,
                   });
                   // Let form handle submission, but log for debugging
                 }}
@@ -852,8 +1264,10 @@ export default function SettingsPage() {
                       size={IconSizes.sm}
                       className="animate-spin mr-2"
                     />
-                    Creating...
+                    {editingUser ? "Updating..." : "Creating..."}
                   </>
+                ) : editingUser ? (
+                  "Update User"
                 ) : (
                   "Create User"
                 )}
@@ -1019,6 +1433,109 @@ export default function SettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* OT Assignment Details Modal */}
+      <Dialog open={showOTDetailsModal} onOpenChange={setShowOTDetailsModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              OT Assignments for {editingUser?.full_name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <VStack gap="6" className="mt-4">
+            {/* Group-based assignments */}
+            {editingUser?.assigned_ot_groups && editingUser.assigned_ot_groups.length > 0 && (
+              <div>
+                <H4 className="mb-3 flex items-center gap-2">
+                  <Icon name="UsersThree" size={IconSizes.md} className="text-green-600" />
+                  Group-Based Assignments ({editingUser.assigned_ot_groups.length})
+                </H4>
+                <div className="space-y-2">
+                  {editingUser.assigned_ot_groups.map((group) => (
+                    <Card key={group.id} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              group.approver_id === editingUser.id
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }
+                          >
+                            {group.approver_id === editingUser.id ? "Approver" : "Viewer"}
+                          </Badge>
+                          <BodySmall className="font-medium">{group.name}</BodySmall>
+                        </div>
+                        <Caption className="text-muted-foreground">
+                          {group.approver_id === editingUser.id
+                            ? "Can approve OT requests"
+                            : "Can view OT requests"}
+                        </Caption>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Employee-specific assignments */}
+            {editingUser?.employee_specific_assignments && editingUser.employee_specific_assignments.length > 0 && (
+              <div>
+                <H4 className="mb-3 flex items-center gap-2">
+                  <Icon name="User" size={IconSizes.md} className="text-purple-600" />
+                  Employee-Specific Assignments ({editingUser.employee_specific_assignments.length})
+                </H4>
+                <div className="space-y-2">
+                  {editingUser.employee_specific_assignments.map((emp) => (
+                    <Card key={emp.id} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              emp.overtime_approver_id === editingUser.id
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : "bg-orange-50 text-orange-700 border-orange-200"
+                            }
+                          >
+                            {emp.overtime_approver_id === editingUser.id ? "Approver" : "Viewer"}
+                          </Badge>
+                          <div>
+                            <BodySmall className="font-medium">{emp.full_name}</BodySmall>
+                            <Caption className="text-muted-foreground">ID: {emp.employee_id}</Caption>
+                          </div>
+                        </div>
+                        <Caption className="text-muted-foreground">
+                          {emp.overtime_approver_id === editingUser.id
+                            ? "Can approve OT requests"
+                            : "Can view OT requests"}
+                        </Caption>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* No assignments */}
+            {(!editingUser?.assigned_ot_groups || editingUser.assigned_ot_groups.length === 0) &&
+             (!editingUser?.employee_specific_assignments || editingUser.employee_specific_assignments.length === 0) && (
+              <div className="text-center py-8">
+                <Icon name="User" size={IconSizes.lg} className="mx-auto mb-2 opacity-50 text-muted-foreground" />
+                <BodySmall className="text-muted-foreground">No OT assignments</BodySmall>
+              </div>
+            )}
+          </VStack>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowOTDetailsModal(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

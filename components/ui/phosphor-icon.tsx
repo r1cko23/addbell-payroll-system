@@ -56,7 +56,11 @@ type PhosphorIconName =
   | "Lock"
   | "SignIn"
   | "CalendarX"
-  | "Moon";
+  | "Moon"
+  | "Download"
+  | "FileArrowDown"
+  | "ArrowDown"
+  | "FileCsv";
 
 interface PhosphorIconProps {
   name: PhosphorIconName;

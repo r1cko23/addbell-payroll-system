@@ -176,3 +176,6 @@ COMMENT ON FUNCTION update_all_attendance_with_leave_days IS
 
 COMMENT ON FUNCTION update_all_attendance_records_with_leave_days IS
   'Updates all attendance records in the database to include leave days. Use with caution.';
+
+
+

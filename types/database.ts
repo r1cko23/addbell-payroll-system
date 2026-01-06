@@ -14,7 +14,7 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          role: "admin" | "hr" | "account_manager";
+          role: "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer";
           is_active: boolean;
           can_access_salary: boolean | null;
           created_at: string;
@@ -24,7 +24,7 @@ export interface Database {
           id?: string;
           email: string;
           full_name: string;
-          role: "admin" | "hr" | "account_manager";
+          role: "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer";
           is_active?: boolean;
           can_access_salary?: boolean | null;
           created_at?: string;
@@ -71,6 +71,7 @@ export interface Database {
           job_level: string | null;
           monthly_rate: number | null;
           per_day: number | null;
+          overtime_group_id: string | null;
         };
         Insert: {
           id?: string;
@@ -128,6 +129,39 @@ export interface Database {
           job_level?: string | null;
           monthly_rate?: number | null;
           per_day?: number | null;
+          overtime_group_id?: string | null;
+        };
+      };
+      overtime_groups: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          approver_id: string | null;
+          viewer_id: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          approver_id?: string | null;
+          viewer_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+          approver_id?: string | null;
+          viewer_id?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
         };
       };
       employee_location_assignments: {

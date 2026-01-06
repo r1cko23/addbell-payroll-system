@@ -35,3 +35,5 @@ ALTER COLUMN employee_type SET DEFAULT 'office-based';
 DROP INDEX IF EXISTS idx_employees_deployed;
 ALTER TABLE public.employees
 DROP COLUMN IF EXISTS deployed;
+
+

@@ -40,13 +40,20 @@ type OTRequest = {
     full_name: string;
     employee_id: string;
     profile_picture_url?: string | null;
+    overtime_group_id?: string | null;
+    overtime_groups?: {
+      id: string;
+      name: string;
+      approver_id: string | null;
+      viewer_id: string | null;
+    } | null;
   };
 };
 
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
+  const { isAdmin, role, isHR, isOTApprover, isOTViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
 
   // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
@@ -64,6 +71,7 @@ export default function OvertimeApprovalPage() {
   );
 
   // Block HR users from accessing this page
+  // Allow ot_approver and ot_viewer roles
   useEffect(() => {
     if (!roleLoading && isHR) {
       router.push("/dashboard");
@@ -91,7 +99,14 @@ export default function OvertimeApprovalPage() {
         employees (
           full_name,
           employee_id,
-          profile_picture_url
+          profile_picture_url,
+          overtime_group_id,
+          overtime_groups (
+            id,
+            name,
+            approver_id,
+            viewer_id
+          )
         )
       `
       )
@@ -212,7 +227,7 @@ export default function OvertimeApprovalPage() {
   }
 
   useEffect(() => {
-    if (role === "account_manager" || role === "admin") {
+    if (role === "account_manager" || role === "admin" || role === "ot_approver" || role === "ot_viewer") {
       loadRequests();
     }
   }, [selectedWeek, statusFilter, selectedEmployee, role]);
@@ -270,13 +285,13 @@ export default function OvertimeApprovalPage() {
     return null;
   }
 
-  // Only allow account managers and admins
-  if (role !== "account_manager" && role !== "admin") {
+  // Only allow account managers, admins, ot_approvers, and ot_viewers
+  if (role !== "account_manager" && role !== "admin" && role !== "ot_approver" && role !== "ot_viewer") {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Account Managers and Admins can access OT approvals.
+            Only Account Managers, Admins, OT Approvers, and OT Viewers can access OT approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -494,7 +509,7 @@ export default function OvertimeApprovalPage() {
                       </Badge>
                     </HStack>
                     {req.status === "pending" &&
-                      (role === "account_manager" || role === "admin") && (
+                      (role === "account_manager" || role === "admin" || role === "ot_approver") && (
                         <HStack
                           gap="2"
                           align="center"
@@ -668,7 +683,7 @@ export default function OvertimeApprovalPage() {
                 Close
               </Button>
               {selected?.status === "pending" &&
-                (role === "account_manager" || role === "admin") && (
+                (role === "account_manager" || role === "admin" || role === "ot_approver") && (
                   <div className="flex gap-2">
                     <Button
                       variant="destructive"

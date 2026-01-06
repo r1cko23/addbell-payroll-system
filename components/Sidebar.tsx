@@ -6,6 +6,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import {
   ChartPieSlice,
   ChatCircleDots,
+  Users,
   ClockClockwise,
   CalendarCheck,
   CalendarBlank,
@@ -43,9 +44,12 @@ const HIDDEN_GROUPS = new Set(["Payroll", "Reports"]);
 
 const navGroups: NavGroup[] = [
   {
-    label: "Dashboard",
+    label: "Overview",
     icon: ChartPieSlice,
-    items: [{ name: "Overview", href: "/dashboard", icon: ChartPieSlice }],
+    items: [
+      { name: "Executive Dashboard", href: "/dashboard?type=executive", icon: ChartLineUp },
+      { name: "Workforce Overview", href: "/dashboard?type=workforce", icon: UsersThree },
+    ],
   },
   {
     label: "People",
@@ -80,7 +84,10 @@ const navGroups: NavGroup[] = [
   {
     label: "Admin",
     icon: ShieldCheck,
-    items: [{ name: "Audit Dashboard", href: "/audit", icon: FileText }],
+    items: [
+      { name: "Audit Dashboard", href: "/audit", icon: FileText },
+      { name: "BIR Reports", href: "/bir-reports", icon: FileText },
+    ],
   },
   {
     label: "Settings",
@@ -128,6 +135,8 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     isHR,
     isAdmin,
     isAccountManager,
+    isOTApprover,
+    isOTViewer,
     canAccessSalaryInfo,
     loading: roleLoading,
   } = useUserRole();
@@ -140,9 +149,24 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
 
   // Filter navigation items based on user role
   const filteredNavGroups = React.useMemo(() => {
+    const isRestrictedAccess = isOTApprover || isOTViewer;
+    
     return navGroups
       .map((group) => {
         if (!roleLoading) {
+          // Restricted access users (ot_approver/ot_viewer) only see OT Approvals
+          if (isRestrictedAccess) {
+            if (group.label === "Time & Attendance") {
+              return {
+                ...group,
+                items: group.items.filter(
+                  (item) => item.href === "/overtime-approval"
+                ),
+              };
+            }
+            return null; // Hide all other groups
+          }
+
           // Hide OT Approvals and Failure to Log for HR users only
           if (group.label === "Time & Attendance" && isHR) {
             return {
@@ -175,11 +199,34 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
           if (group.label === "Admin" && !isAdmin) {
             return null;
           }
+          // Filter Overview (Dashboard) items based on role
+          if (group.label === "Overview") {
+            if (isAdmin) {
+              // Admins see both Executive Dashboard and Workforce Overview
+              return group;
+            } else if (isAccountManager) {
+              // Account managers only see Workforce Overview
+              return {
+                ...group,
+                items: group.items.filter(
+                  (item) => item.href.includes("?type=workforce")
+                ),
+              };
+            } else {
+              // HR and others see Workforce Overview
+              return {
+                ...group,
+                items: group.items.filter(
+                  (item) => item.href.includes("?type=workforce")
+                ),
+              };
+            }
+          }
         }
         return group;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isHR, isAccountManager, isAdmin, canAccessSalaryInfo, roleLoading]);
+  }, [isHR, isAccountManager, isAdmin, isOTApprover, isOTViewer, canAccessSalaryInfo, roleLoading]);
 
   // Auto-open the group that matches the current route
   React.useEffect(() => {
@@ -239,6 +286,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
             const GroupIcon = group.icon || FallbackIcon;
             const isOpen = openGroup === group.label;
 
+            // Render all groups with collapsible structure
             return (
               <div key={group.label} className="space-y-1">
                 <button

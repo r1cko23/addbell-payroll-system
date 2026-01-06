@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse request body
-    const { email, full_name, password, role } = await req.json();
+    const { email, full_name, password, role, ot_groups } = await req.json();
 
     // Validate input - check for empty strings after trim
     const trimmedEmail = email?.trim();
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate role
-    const validRoles = ["admin", "hr", "account_manager"];
+    const validRoles = ["admin", "hr", "account_manager", "ot_approver", "ot_viewer"];
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: `Invalid role. Must be one of: ${validRoles.join(", ")}` },
@@ -155,6 +155,23 @@ export async function POST(req: NextRequest) {
         },
         { status: 500 }
       );
+    }
+
+    // Step 3: Assign to OT groups if OT Approver/Viewer
+    if ((role === "ot_approver" || role === "ot_viewer") && ot_groups && Array.isArray(ot_groups) && ot_groups.length > 0) {
+      const updateField = role === "ot_approver" ? "approver_id" : "viewer_id";
+      
+      for (const groupId of ot_groups) {
+        const { error: groupError } = await supabaseAdmin
+          .from("overtime_groups")
+          .update({ [updateField]: userData.id })
+          .eq("id", groupId);
+
+        if (groupError) {
+          console.error(`Error assigning user to group ${groupId}:`, groupError);
+          // Continue with other groups even if one fails
+        }
+      }
     }
 
     // Clear cache for new user

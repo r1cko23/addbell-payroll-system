@@ -360,11 +360,14 @@ function PayslipDetailedBreakdownComponent({
     let totalRegularHours = 0; // Total regular hours for "Days Work" calculation
     let basicSalary = 0; // Basic salary from REGULAR WORK DAYS ONLY (excludes holidays, rest days, OT, allowances)
 
-    // If using base pay method, use base pay hours for "Days Work" calculation
-    // But Basic Salary should still be calculated from actual regular work days rendered
+    // If using base pay method, start with base pay hours but add eligible holidays
+    // Base pay includes holidays as part of 13 days, but we need to verify eligibility
+    // Basic Salary should still be calculated from actual regular work days rendered
     if (useBasePayMethod) {
+      // Start with base pay hours (includes holidays as part of 13 days)
       totalRegularHours = basePayHours;
       totalHours = basePayHours; // For display purposes
+      // Eligible holidays will be added in the loop below if they're not already counted
       // basicSalary will be calculated from actual regular work days in the loop below
     }
 
@@ -495,34 +498,27 @@ function PayslipDetailedBreakdownComponent({
         }
 
         if (dayOfWeek === 6 && finalRegularHours === 0) {
-          // Saturday with no work - company benefit: 8 hours
+          // Saturday with no work - regular work day: 8 hours (paid 6 days/week per law)
           hoursToCount = 8;
-          // Saturday company benefit is NOT included in Basic Salary (it's shown separately)
-          // Basic Salary = only regular work days (Mon-Fri) that were actually worked
+          // Saturday is included in Basic Salary (regular work day, not a separate benefit)
+          basicSalary += 8 * ratePerHour;
         } else if (finalRegularHours > 0) {
           // Regular day or Saturday with work - count actual hours
           hoursToCount = finalRegularHours;
-          // Basic Salary = ONLY regular work days (Mon-Fri) that were actually worked
-          // Exclude Saturday (company benefit), holidays, rest days
+          // Basic Salary = Regular work days (Mon-Sat) that were actually worked
+          // Exclude holidays and rest days (Sundays)
           // BUT include Account Supervisor's first rest day (it's part of their 6-day work week)
-          if (dayOfWeek !== 6) {
-            // Regular work day (Mon-Fri) - add to basic salary
-            // This includes first rest day if it's Mon-Fri (timesheet generator already set regularHours = 8)
-            basicSalary += finalRegularHours * ratePerHour;
-          }
-          // Saturday worked: count hours but don't add to basic salary (it's company benefit, shown separately)
-          // Note: If first rest day falls on Saturday, it's treated same as Saturday company benefit (not in basic salary)
+          // Saturday is a regular work day - included in basic salary
+          basicSalary += finalRegularHours * ratePerHour;
+          // Note: If first rest day falls on Saturday, it's treated as regular work day (included in basic salary)
         } else if (isFirstRestDayChronologically && finalRegularHours === 0) {
-          // Account Supervisor's first rest day with no work - gets 8 BH (like Saturday company benefit)
+          // Account Supervisor's first rest day with no work - gets 8 BH (like Saturday regular work day)
           // This should not happen if timesheet generator is working correctly, but handle it just in case
           // This is part of their 6-day work week
           hoursToCount = 8;
           // Include in basic salary (it's a regular workday for them)
-          if (dayOfWeek !== 6) {
-            // First rest day on Mon-Fri - add to basic salary
-            basicSalary += 8 * ratePerHour;
-          }
-          // If first rest day falls on Saturday, don't add to basic salary (same as Saturday company benefit)
+          // Saturday is also a regular work day, so include it too
+          basicSalary += 8 * ratePerHour;
         }
       } else if (
         dayType === "regular-holiday" ||
@@ -547,20 +543,32 @@ function PayslipDetailedBreakdownComponent({
       // Sundays are excluded (dayType === "sunday") - they're paid separately
 
       // Add hours to both totals (they should match exactly)
-      // Skip regular days AND holidays if using base pay method (already included in 104-hour base)
-      // Holidays count toward the 13 days, so they're already in the base pay
+      // For base pay method: regular days are already included, but we need to ensure eligible holidays are counted
+      // For non-base pay method: count all eligible days including holidays
       // Rest days are separate and should still be counted for display purposes
-      if (
-        hoursToCount > 0 &&
-        !(
-          useBasePayMethod &&
-          (dayType === "regular" ||
+      if (hoursToCount > 0) {
+        if (useBasePayMethod) {
+          // Base pay method: regular days are already in basePayHours, but holidays need to be verified
+          // If this is an eligible holiday, add it (base pay assumes all holidays count, but we verify eligibility)
+          if (
             dayType === "regular-holiday" ||
-            dayType === "non-working-holiday")
-        )
-      ) {
-        totalRegularHours += hoursToCount;
-        totalHours += hoursToCount;
+            dayType === "non-working-holiday"
+          ) {
+            // Eligible holiday: add hours (base pay includes holidays, but we're verifying eligibility here)
+            // If holiday is eligible, it should already be in basePayHours, but we add it here to ensure it's counted
+            totalRegularHours += hoursToCount;
+            totalHours += hoursToCount;
+          } else if (dayType !== "regular") {
+            // Rest days and other non-regular days: add to totals
+            totalRegularHours += hoursToCount;
+            totalHours += hoursToCount;
+          }
+          // Regular days are already in basePayHours, don't double-count
+        } else {
+          // Non-base pay method: count all eligible days including holidays
+          totalRegularHours += hoursToCount;
+          totalHours += hoursToCount;
+        }
       }
 
       // Regular Overtime - Move to allowances or Other Pay based on employee type
@@ -791,19 +799,19 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Sunday/Rest Day (Sunday is the designated rest day for office-based employees)
-      // For client-based Account Supervisors: Rest days can be on any weekday (often Mon-Fri since hotels are busy Fri-Sun)
+      // For client-based Account Supervisors: Rest days can only be Monday, Tuesday, or Wednesday
       // Rest days that fall on holidays are treated as holidays (holiday takes priority)
-      // The FIRST rest day (chronologically) is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
-      // - It's NOT a rest day - it's just a regular workday (paid at regular rate, no rest day premium, no allowances)
-      // - It's already processed above as dayType === "regular" and included in basic salary
-      // The SECOND rest day is the actual rest day (paid at rest day rate if worked, with allowances if worked ≥4 hours)
+      // The FIRST rest day (chronologically) is the ACTUAL REST DAY (only paid if worked)
+      // - If worked: daily rate (hours × rate/hour × 1.0) + allowance (if worked ≥4 hours)
+      // The SECOND rest day is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
+      // - It's NOT a rest day - it's already processed above as dayType === "regular" and included in basic salary
       if (dayType === "sunday") {
-        // Verify this is NOT the first rest day for Account Supervisors
-        // The first rest day should have dayType === "regular" (set by timesheet generator)
-        // If dayType === "sunday", it should only be the second rest day
-        const isFirstRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
-        let isFirstRestDayChronologically = false;
-        if (isFirstRestDay && restDays) {
+        // Verify this is NOT the second rest day for Account Supervisors
+        // The second rest day should have dayType === "regular" (set by timesheet generator)
+        // If dayType === "sunday", it should only be the first rest day (actual rest day)
+        const isRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
+        let isSecondRestDayChronologically = false;
+        if (isRestDay && restDays) {
           // Get the week start (Monday) for this date
           const dateObj = new Date(date);
           const weekStart = startOfWeek(dateObj, { weekStartsOn: 1 }); // Monday = 1
@@ -818,16 +826,16 @@ function PayslipDetailedBreakdownComponent({
             })
             .sort((a, b) => a.localeCompare(b)); // Sort chronologically within the week
 
-          // Check if this is the first rest day of THIS WEEK (chronologically)
-          if (restDaysInWeek.length >= 1 && date === restDaysInWeek[0]) {
-            isFirstRestDayChronologically = true;
+          // Check if this is the second rest day of THIS WEEK (chronologically)
+          if (restDaysInWeek.length >= 2 && date === restDaysInWeek[1]) {
+            isSecondRestDayChronologically = true;
           }
         }
 
-        // If this is the first rest day, it should NOT be processed here (should have dayType === "regular")
-        // This is a safety check - if somehow the first rest day has dayType === "sunday", skip it
-        if (isFirstRestDayChronologically) {
-          // First rest day should not be here - skip rest day processing
+        // If this is the second rest day, it should NOT be processed here (should have dayType === "regular")
+        // This is a safety check - if somehow the second rest day has dayType === "sunday", skip it
+        if (isSecondRestDayChronologically) {
+          // Second rest day should not be here - skip rest day processing
           // It should have been processed as dayType === "regular" above
         } else {
           // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
@@ -842,7 +850,7 @@ function PayslipDetailedBreakdownComponent({
             breakdown.restDay.amount += standardAmount;
           } else {
             // Client-based Account Supervisors/Supervisory/Managerial:
-            // This is the SECOND rest day (the actual rest day)
+            // This is the FIRST rest day (the actual rest day)
             // Only paid if they worked on it (regularHours > 0 means they worked)
             if (regularHours > 0) {
               // Supervisory/Managerial: Daily rate only (1x), no multiplier
@@ -862,7 +870,7 @@ function PayslipDetailedBreakdownComponent({
                 }
               }
             }
-            // If regularHours === 0, it means they didn't work on the second rest day - no pay
+            // If regularHours === 0, it means they didn't work on the first rest day - no pay
           }
         }
 
@@ -1078,7 +1086,7 @@ function PayslipDetailedBreakdownComponent({
       breakdown.specialHoliday.amount +
       breakdown.restDay.amount +
       breakdown.restDayNightDiff.amount +
-      breakdown.workingDayoff.amount +
+      // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)
       // Add OT and ND items based on employee type
       (isClientBased || isEligibleForAllowances
         ? // Client-based/Supervisory/Managerial: All OT items in Other Pay
@@ -1424,18 +1432,7 @@ function PayslipDetailedBreakdownComponent({
                         true
                       )}
 
-                      {/* Working Dayoff */}
-                      {renderEarningRow(
-                        "7. Working Day Off",
-                        breakdown.workingDayoff.hours,
-                        // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
-                        // Rank and File: 1.3x multiplier
-                        isClientBased || isEligibleForAllowances
-                          ? 1.0
-                          : PAYROLL_MULTIPLIERS.REST_DAY,
-                        breakdown.workingDayoff.amount,
-                        true
-                      )}
+                      {/* Working Day Off removed - Saturday is now included in Basic Salary (regular work day per law) */}
 
                       {/* OT Items - Only show for regular employees (deployed) */}
                       {!isAccountSupervisor && !isOfficeBased && (
@@ -1547,7 +1544,7 @@ function PayslipDetailedBreakdownComponent({
                     breakdown.specialHoliday.amount +
                     breakdown.restDay.amount +
                     breakdown.restDayNightDiff.amount +
-                    breakdown.workingDayoff.amount +
+                    // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)
                     // Add OT items for regular employees
                     (isClientBased || isEligibleForAllowances
                       ? 0

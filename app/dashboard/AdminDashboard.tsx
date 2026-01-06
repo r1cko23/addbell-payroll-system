@@ -14,7 +14,6 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   Card,
   CardContent,
@@ -30,17 +29,25 @@ import { formatCurrency } from "@/utils/format";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { format, subWeeks, startOfYear } from "date-fns";
+import { format, startOfYear } from "date-fns";
+import {
+  getBiMonthlyPeriodStart,
+  getBiMonthlyPeriodEnd,
+  getPreviousBiMonthlyPeriod,
+  formatBiMonthlyPeriod,
+} from "@/utils/bimonthly";
 
 interface ExecutiveStats {
-  // Current Week
-  currentWeekGross: number;
-  currentWeekNet: number;
-  currentWeekEmployeeCount: number;
+  // Current Cutoff Period
+  currentCutoffGross: number;
+  currentCutoffNet: number;
+  currentCutoffEmployeeCount: number;
+  currentCutoffPeriod: string;
 
-  // Previous Week (for comparison)
-  previousWeekGross: number;
-  previousWeekNet: number;
+  // Previous Cutoff (for comparison)
+  previousCutoffGross: number;
+  previousCutoffNet: number;
+  previousCutoffPeriod: string;
 
   // Year to Date
   ytdGross: number;
@@ -54,7 +61,7 @@ interface ExecutiveStats {
 
   // Month to Date (current month)
   mtdGross: number;
-  mtdWeeks: number;
+  mtdCutoffs: number;
 
   // Alerts
   criticalAlerts: number;
@@ -70,11 +77,13 @@ interface DepartmentCost {
   percentage: number;
 }
 
-interface WeeklyTrend {
-  weekStart: string;
+interface CutoffTrend {
+  periodStart: string;
+  periodEnd: string;
   grossPay: number;
   netPay: number;
   employeeCount: number;
+  periodLabel: string;
 }
 
 interface CostBreakdown {
@@ -87,7 +96,7 @@ interface CostBreakdown {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<ExecutiveStats | null>(null);
   const [departments, setDepartments] = useState<DepartmentCost[]>([]);
-  const [weeklyTrends, setWeeklyTrends] = useState<WeeklyTrend[]>([]);
+  const [cutoffTrends, setCutoffTrends] = useState<CutoffTrend[]>([]);
   const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(
     null
   );
@@ -98,27 +107,36 @@ export default function AdminDashboardPage() {
     paid: 0,
     recentPayslips: [] as any[],
   });
+  const [birStats, setBirStats] = useState({
+    ytdTaxWithheld: 0,
+    ytdSSS: 0,
+    ytdPhilHealth: 0,
+    ytdPagIBIG: 0,
+    totalEmployeesWithPayslips: 0,
+  });
   const supabase = createClient();
 
   useEffect(() => {
     async function fetchExecutiveMetrics() {
       try {
         const today = new Date();
-        const currentWeekStart = new Date(today);
-        currentWeekStart.setDate(today.getDate() - ((today.getDay() + 4) % 7));
-        currentWeekStart.setHours(0, 0, 0, 0);
-
-        const currentWeekEnd = new Date(currentWeekStart);
-        currentWeekEnd.setDate(currentWeekStart.getDate() + 6);
-        currentWeekEnd.setHours(23, 59, 59, 999);
-
-        const previousWeekStart = subWeeks(currentWeekStart, 1);
-        const previousWeekEnd = new Date(previousWeekStart);
-        previousWeekEnd.setDate(previousWeekStart.getDate() + 6);
-        previousWeekEnd.setHours(23, 59, 59, 999);
+        
+        // Get current bi-monthly cutoff period
+        const currentCutoffStart = getBiMonthlyPeriodStart(today);
+        const currentCutoffEnd = getBiMonthlyPeriodEnd(currentCutoffStart);
+        currentCutoffEnd.setHours(23, 59, 59, 999);
+        
+        // Get previous bi-monthly cutoff period
+        const previousCutoffStart = getPreviousBiMonthlyPeriod(currentCutoffStart);
+        const previousCutoffEnd = getBiMonthlyPeriodEnd(previousCutoffStart);
+        previousCutoffEnd.setHours(23, 59, 59, 999);
 
         const yearStart = startOfYear(today);
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        
+        // Format period labels
+        const currentCutoffLabel = formatBiMonthlyPeriod(currentCutoffStart, currentCutoffEnd);
+        const previousCutoffLabel = formatBiMonthlyPeriod(previousCutoffStart, previousCutoffEnd);
 
         // 1. Workforce Stats
         const { count: totalEmployees, error: employeesError } = await supabase
@@ -145,196 +163,180 @@ export default function AdminDashboardPage() {
         const inactiveEmployees =
           (totalEmployees || 0) - (activeEmployees || 0);
 
-        // 2. Current Week Time Entries Stats
-        const { data: currentWeekEntries, error: currentWeekError } =
+        // 2. Current Cutoff Period Payslips (more accurate than time entries)
+        const { data: currentCutoffPayslips, error: currentCutoffError } =
           await supabase
-            .from("time_clock_entries")
-            .select("total_hours, regular_hours, employee_id")
-            .gte("clock_in_time", currentWeekStart.toISOString())
-            .lte("clock_in_time", currentWeekEnd.toISOString());
+            .from("payslips")
+            .select("gross_pay, net_pay, employee_id, period_start, period_end")
+            .gte("period_start", format(currentCutoffStart, "yyyy-MM-dd"))
+            .lte("period_end", format(currentCutoffEnd, "yyyy-MM-dd"))
+            .eq("status", "paid");
 
-        if (currentWeekError) {
+        if (currentCutoffError) {
           console.error(
-            "Error fetching current week entries:",
-            currentWeekError
+            "Error fetching current cutoff payslips:",
+            currentCutoffError
           );
         }
 
-        const currentWeekTotalHours =
-          (
-            currentWeekEntries as Array<{
-              total_hours: number | null;
-              regular_hours: number | null;
-              employee_id: string;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const currentWeekRegularHours =
-          (
-            currentWeekEntries as Array<{
-              total_hours: number | null;
-              regular_hours: number | null;
-              employee_id: string;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
-        const currentWeekEmployeeCount =
+        const currentCutoffGross =
+          (currentCutoffPayslips || []).reduce(
+            (sum, p) => sum + Number(p.gross_pay || 0),
+            0
+          ) || 0;
+        const currentCutoffNet =
+          (currentCutoffPayslips || []).reduce(
+            (sum, p) => sum + Number(p.net_pay || 0),
+            0
+          ) || 0;
+        const currentCutoffEmployeeCount =
           new Set(
-            (currentWeekEntries as Array<{ employee_id: string }> | null)?.map(
-              (e) => e.employee_id
-            )
+            (currentCutoffPayslips || []).map((p) => p.employee_id)
           ).size || 0;
 
-        // 3. Previous Week Time Entries Stats
-        const { data: previousWeekEntries } = await supabase
-          .from("time_clock_entries")
-          .select("total_hours, regular_hours")
-          .gte("clock_in_time", previousWeekStart.toISOString())
-          .lte("clock_in_time", previousWeekEnd.toISOString());
+        // 3. Previous Cutoff Period Payslips
+        const { data: previousCutoffPayslips } = await supabase
+          .from("payslips")
+          .select("gross_pay, net_pay")
+          .gte("period_start", format(previousCutoffStart, "yyyy-MM-dd"))
+          .lte("period_end", format(previousCutoffEnd, "yyyy-MM-dd"))
+          .eq("status", "paid");
 
-        const previousWeekTotalHours =
-          (
-            previousWeekEntries as Array<{
-              total_hours: number | null;
-              regular_hours: number | null;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const previousWeekRegularHours =
-          (
-            previousWeekEntries as Array<{
-              total_hours: number | null;
-              regular_hours: number | null;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+        const previousCutoffGross =
+          (previousCutoffPayslips || []).reduce(
+            (sum, p) => sum + Number(p.gross_pay || 0),
+            0
+          ) || 0;
+        const previousCutoffNet =
+          (previousCutoffPayslips || []).reduce(
+            (sum, p) => sum + Number(p.net_pay || 0),
+            0
+          ) || 0;
 
-        // 4. Year to Date Stats
-        const { data: ytdEntries } = await supabase
-          .from("time_clock_entries")
-          .select("total_hours, regular_hours")
-          .gte("clock_in_time", yearStart.toISOString());
+        // 4. Year to Date Stats from Payslips
+        const { data: ytdPayslips } = await supabase
+          .from("payslips")
+          .select("gross_pay, net_pay, deductions_breakdown")
+          .gte("period_start", format(yearStart, "yyyy-MM-dd"))
+          .eq("status", "paid");
 
-        const ytdTotalHours =
-          (
-            ytdEntries as Array<{
-              total_hours: number | null;
-              regular_hours: number | null;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const ytdRegularHours =
-          (
-            ytdEntries as Array<{
-              total_hours: number | null;
-              regular_hours: number | null;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.regular_hours || 0), 0) || 0;
+        const ytdGross =
+          (ytdPayslips || []).reduce(
+            (sum, p) => sum + Number(p.gross_pay || 0),
+            0
+          ) || 0;
+        const ytdNet =
+          (ytdPayslips || []).reduce(
+            (sum, p) => sum + Number(p.net_pay || 0),
+            0
+          ) || 0;
+        const ytdDeductions = ytdGross - ytdNet;
 
         // 5. Month to Date
-        const { data: mtdEntries } = await supabase
-          .from("time_clock_entries")
-          .select("total_hours, clock_in_time")
-          .gte("clock_in_time", monthStart.toISOString());
+        const { data: mtdPayslips } = await supabase
+          .from("payslips")
+          .select("gross_pay, period_start")
+          .gte("period_start", format(monthStart, "yyyy-MM-dd"))
+          .eq("status", "paid");
 
-        const mtdTotalHours =
-          (
-            mtdEntries as Array<{
-              total_hours: number | null;
-              clock_in_time: string;
-            }> | null
-          )?.reduce((sum, e) => sum + Number(e.total_hours || 0), 0) || 0;
-        const uniqueDays = new Set(
-          (mtdEntries as Array<{ clock_in_time: string }> | null)?.map((e) =>
-            format(new Date(e.clock_in_time), "yyyy-MM-dd")
-          )
+        const mtdGross =
+          (mtdPayslips || []).reduce(
+            (sum, p) => sum + Number(p.gross_pay || 0),
+            0
+          ) || 0;
+        const uniqueCutoffs = new Set(
+          (mtdPayslips || []).map((p) => p.period_start)
         );
-        const mtdDays = uniqueDays.size;
+        const mtdCutoffs = uniqueCutoffs.size;
 
-        // 6. Pending Approvals (time entries that need approval)
+        // 6. Pending Approvals (draft payslips)
         const { count: pendingApprovals } = await supabase
-          .from("time_clock_entries")
+          .from("payslips")
           .select("*", { count: "exact", head: true })
-          .in("status", ["clocked_in", "clocked_out"])
-          .is("approved_by", null);
-
-        // Calculate estimated costs (placeholder - would need employee rates)
-        // For now, using hours as proxy since we don't have payslips
-        const avgHourlyRate = 200; // Placeholder - would come from employees table
-        const currentWeekGross = currentWeekTotalHours * avgHourlyRate;
-        const previousWeekGross = previousWeekTotalHours * avgHourlyRate;
-        const ytdGross = ytdTotalHours * avgHourlyRate;
-        const mtdGross = mtdTotalHours * avgHourlyRate;
+          .eq("status", "draft");
 
         setStats({
-          currentWeekGross,
-          currentWeekNet: currentWeekGross * 0.85, // Estimate 15% deductions
-          currentWeekEmployeeCount,
-          previousWeekGross,
-          previousWeekNet: previousWeekGross * 0.85,
+          currentCutoffGross,
+          currentCutoffNet,
+          currentCutoffEmployeeCount,
+          currentCutoffPeriod: currentCutoffLabel,
+          previousCutoffGross,
+          previousCutoffNet,
+          previousCutoffPeriod: previousCutoffLabel,
           ytdGross,
-          ytdNet: ytdGross * 0.85,
-          ytdDeductions: ytdGross * 0.15,
+          ytdNet,
+          ytdDeductions,
           totalEmployees: totalEmployees || 0,
           activeEmployees: activeEmployees || 0,
           inactiveEmployees,
           mtdGross,
-          mtdWeeks: Math.ceil(mtdDays / 7),
+          mtdCutoffs,
           criticalAlerts: 0,
           warningAlerts: 0,
           pendingApprovals: pendingApprovals || 0,
         });
 
-        // 7. Weekly Trends (last 12 weeks) - using time entries
-        const twelveWeeksAgo = subWeeks(currentWeekStart, 12);
-        const { data: trendData } = await supabase
-          .from("time_clock_entries")
-          .select("clock_in_time, total_hours, employee_id")
-          .gte("clock_in_time", twelveWeeksAgo.toISOString())
-          .order("clock_in_time", { ascending: true });
+        // 7. Cutoff Trends (last 12 cutoffs) - using payslips
+        let trendPeriodStart = getPreviousBiMonthlyPeriod(currentCutoffStart);
+        const trendPeriods: CutoffTrend[] = [];
+        
+        for (let i = 0; i < 12; i++) {
+          const trendPeriodEnd = getBiMonthlyPeriodEnd(trendPeriodStart);
+          
+          const { data: trendPayslips } = await supabase
+            .from("payslips")
+            .select("gross_pay, net_pay, employee_id")
+            .gte("period_start", format(trendPeriodStart, "yyyy-MM-dd"))
+            .lte("period_end", format(trendPeriodEnd, "yyyy-MM-dd"))
+            .eq("status", "paid");
 
-        // Group by week
-        const weekGroups: { [key: string]: any[] } = {};
-        (
-          trendData as Array<{
-            clock_in_time: string;
-            total_hours: number | null;
-            employee_id: string;
-          }> | null
-        )?.forEach((record) => {
-          const weekStart = format(
-            new Date(record.clock_in_time),
-            "yyyy-MM-dd"
-          );
-          const weekKey = format(new Date(weekStart), "yyyy-'W'ww");
-          if (!weekGroups[weekKey]) {
-            weekGroups[weekKey] = [];
-          }
-          weekGroups[weekKey].push(record);
-        });
-
-        const trends: WeeklyTrend[] = Object.entries(weekGroups).map(
-          ([weekKey, records]) => {
-            const weekHours = records.reduce(
-              (sum, r) => sum + Number(r.total_hours || 0),
+          const trendGross =
+            (trendPayslips || []).reduce(
+              (sum, p) => sum + Number(p.gross_pay || 0),
               0
-            );
-            return {
-              weekStart: weekKey,
-              grossPay: weekHours * avgHourlyRate,
-              netPay: weekHours * avgHourlyRate * 0.85,
-              employeeCount: new Set(records.map((r) => r.employee_id)).size,
-            };
-          }
-        );
+            ) || 0;
+          const trendNet =
+            (trendPayslips || []).reduce(
+              (sum, p) => sum + Number(p.net_pay || 0),
+              0
+            ) || 0;
+          const trendEmployeeCount =
+            new Set((trendPayslips || []).map((p) => p.employee_id)).size || 0;
 
-        setWeeklyTrends(trends);
+          trendPeriods.push({
+            periodStart: trendPeriodStart.toISOString(),
+            periodEnd: trendPeriodEnd.toISOString(),
+            grossPay: trendGross,
+            netPay: trendNet,
+            employeeCount: trendEmployeeCount,
+            periodLabel: formatBiMonthlyPeriod(trendPeriodStart, trendPeriodEnd),
+          });
 
-        // 8. Cost Breakdown (current week) - simplified
-        if (currentWeekTotalHours > 0) {
+          trendPeriodStart = getPreviousBiMonthlyPeriod(trendPeriodStart);
+        }
+
+        setCutoffTrends(trendPeriods.reverse()); // Reverse to show oldest first
+
+        // 8. Cost Breakdown (current cutoff) - from payslips earnings breakdown
+        if (currentCutoffPayslips && currentCutoffPayslips.length > 0) {
+          let regularPay = 0;
+          let nightDiffPay = 0;
+          let holidayPay = 0;
+          let sundayPay = 0;
+
+          currentCutoffPayslips.forEach((payslip: any) => {
+            const earnings = payslip.earnings_breakdown || {};
+            regularPay += Number(earnings.regularPay || 0);
+            nightDiffPay += Number(earnings.nightDifferential || 0);
+            holidayPay += Number(earnings.holidayPay || 0);
+            sundayPay += Number(earnings.sundayPay || 0);
+          });
+
           setCostBreakdown({
-            regularPay: currentWeekRegularHours * avgHourlyRate,
-            nightDiffPay:
-              (currentWeekTotalHours - currentWeekRegularHours) *
-              avgHourlyRate *
-              0.1,
-            holidayPay: 0, // Would need holiday data
-            sundayPay: 0, // Would need day type data
+            regularPay,
+            nightDiffPay,
+            holidayPay,
+            sundayPay,
           });
         }
 
@@ -374,6 +376,39 @@ export default function AdminDashboardPage() {
           paid: paidPayslips || 0,
           recentPayslips: payslipData || [],
         });
+
+        // 10. BIR Statistics (YTD from paid payslips)
+        // Reuse yearStart from line 127
+        const { data: birPayslips } = await supabase
+          .from("payslips")
+          .select("deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount, employee_id")
+          .gte("period_start", yearStart.toISOString().split("T")[0])
+          .eq("status", "paid");
+
+        let ytdTaxWithheld = 0;
+        let ytdSSS = 0;
+        let ytdPhilHealth = 0;
+        let ytdPagIBIG = 0;
+        const employeesWithPayslips = new Set<string>();
+
+        (birPayslips || []).forEach((payslip: any) => {
+          const deductions = payslip.deductions_breakdown as any;
+          ytdTaxWithheld += Number(deductions?.tax || 0);
+          ytdSSS += Number(payslip.sss_amount || 0);
+          ytdPhilHealth += Number(payslip.philhealth_amount || 0);
+          ytdPagIBIG += Number(payslip.pagibig_amount || 0);
+          if (payslip.employee_id) {
+            employeesWithPayslips.add(payslip.employee_id);
+          }
+        });
+
+        setBirStats({
+          ytdTaxWithheld,
+          ytdSSS,
+          ytdPhilHealth,
+          ytdPagIBIG,
+          totalEmployeesWithPayslips: employeesWithPayslips.size,
+        });
       } catch (error: any) {
         console.error("Error fetching executive metrics:", error);
         console.error("Error details:", {
@@ -384,11 +419,13 @@ export default function AdminDashboardPage() {
         });
         // Set default stats on error so UI doesn't break
         setStats({
-          currentWeekGross: 0,
-          currentWeekNet: 0,
-          currentWeekEmployeeCount: 0,
-          previousWeekGross: 0,
-          previousWeekNet: 0,
+          currentCutoffGross: 0,
+          currentCutoffNet: 0,
+          currentCutoffEmployeeCount: 0,
+          currentCutoffPeriod: "",
+          previousCutoffGross: 0,
+          previousCutoffNet: 0,
+          previousCutoffPeriod: "",
           ytdGross: 0,
           ytdNet: 0,
           ytdDeductions: 0,
@@ -396,7 +433,7 @@ export default function AdminDashboardPage() {
           activeEmployees: 0,
           inactiveEmployees: 0,
           mtdGross: 0,
-          mtdWeeks: 0,
+          mtdCutoffs: 0,
           criticalAlerts: 0,
           warningAlerts: 0,
           pendingApprovals: 0,
@@ -406,6 +443,13 @@ export default function AdminDashboardPage() {
           pendingApprovals: 0,
           paid: 0,
           recentPayslips: [],
+        });
+        setBirStats({
+          ytdTaxWithheld: 0,
+          ytdSSS: 0,
+          ytdPhilHealth: 0,
+          ytdPagIBIG: 0,
+          totalEmployeesWithPayslips: 0,
         });
       } finally {
         setLoading(false);
@@ -417,51 +461,48 @@ export default function AdminDashboardPage() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Icon
-            name="ArrowsClockwise"
-            size={IconSizes.lg}
-            className="animate-spin text-muted-foreground"
-          />
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <Icon
+          name="ArrowsClockwise"
+          size={IconSizes.lg}
+          className="animate-spin text-muted-foreground"
+        />
+      </div>
     );
   }
 
   // Calculate percentage changes
-  const weekOverWeekChange = stats?.previousWeekGross
-    ? ((stats.currentWeekGross - stats.previousWeekGross) /
-        stats.previousWeekGross) *
+  const cutoffOverCutoffChange = stats?.previousCutoffGross
+    ? ((stats.currentCutoffGross - stats.previousCutoffGross) /
+        stats.previousCutoffGross) *
       100
     : 0;
 
   const avgCostPerEmployee =
-    stats && stats.currentWeekEmployeeCount > 0
-      ? stats.currentWeekGross / stats.currentWeekEmployeeCount
+    stats && stats.currentCutoffEmployeeCount > 0
+      ? stats.currentCutoffGross / stats.currentCutoffEmployeeCount
       : 0;
 
-  const isIncreasing = weekOverWeekChange > 0;
+  const isIncreasing = cutoffOverCutoffChange > 0;
 
   return (
-    <DashboardLayout>
-      <VStack gap="8" className="w-full">
+      <VStack gap="6" className="w-full max-w-[1400px] mx-auto px-4 py-6">
         {/* Header */}
-        <VStack gap="2" align="start">
+        <VStack gap="2" align="start" className="w-full">
           <H1>Executive Dashboard</H1>
-          <BodySmall>
-            Financial overview and key business metrics for week{" "}
-            {format(new Date(), "w, yyyy")}
+          <BodySmall className="text-muted-foreground">
+            Financial overview and key business metrics for{" "}
+            {stats?.currentCutoffPeriod || "current cutoff period"}
           </BodySmall>
         </VStack>
 
         {/* Key Metrics Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-stretch">
-          {/* Payroll This Week */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 items-stretch w-full">
+          {/* Payroll This Cutoff */}
           <Card className="h-full min-h-[150px]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Payroll This Week
+                Payroll This Cutoff
               </CardTitle>
               <Icon
                 name="CurrencyDollarSimple"
@@ -471,11 +512,11 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-foreground leading-tight">
-                {formatCurrency(stats?.currentWeekGross || 0)}
+                {formatCurrency(stats?.currentCutoffGross || 0)}
               </div>
               <HStack gap="2" align="center" className="mt-2">
                 <Icon
-                  name={isIncreasing ? "ChartLineUp" : "ChartLineUp"}
+                  name={isIncreasing ? "ChartLineUp" : "ArrowDown"}
                   size={IconSizes.xs}
                   className={
                     isIncreasing ? "text-emerald-600" : "text-destructive"
@@ -486,9 +527,9 @@ export default function AdminDashboardPage() {
                     isIncreasing ? "text-emerald-600" : "text-destructive"
                   }
                 >
-                  {Math.abs(weekOverWeekChange).toFixed(1)}%
+                  {Math.abs(cutoffOverCutoffChange).toFixed(1)}%
                 </Caption>
-                <Caption>vs last week</Caption>
+                <Caption>vs last cutoff</Caption>
               </HStack>
             </CardContent>
           </Card>
@@ -531,7 +572,7 @@ export default function AdminDashboardPage() {
               <div className="text-2xl font-bold text-foreground leading-tight">
                 {formatCurrency(avgCostPerEmployee)}
               </div>
-              <Caption className="mt-2">This week average</Caption>
+              <Caption className="mt-2">This cutoff average</Caption>
             </CardContent>
           </Card>
 
@@ -557,40 +598,55 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Financial Summary Row */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 w-full">
           {/* Cost Breakdown */}
           <CardSection
             title="Cost Breakdown"
-            description="Current week composition"
+            description="Current cutoff composition"
+            className="w-full"
           >
-            <VStack gap="3">
-              {costBreakdown && (
+            <VStack gap="3" className="w-full">
+              {costBreakdown ? (
                 <>
-                  <HStack justify="between" align="center">
-                    <BodySmall>Regular Hours</BodySmall>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(costBreakdown.regularPay)} (62%)
-                    </span>
-                  </HStack>
-                  <HStack justify="between" align="center">
-                    <BodySmall>Night Differential</BodySmall>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(costBreakdown.nightDiffPay)} (8%)
-                    </span>
-                  </HStack>
-                  <HStack justify="between" align="center">
-                    <BodySmall>Holiday Pay</BodySmall>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(costBreakdown.holidayPay)} (7%)
-                    </span>
-                  </HStack>
-                  <HStack justify="between" align="center">
-                    <BodySmall>Sunday/Rest Day</BodySmall>
-                    <span className="text-sm font-semibold text-foreground">
-                      {formatCurrency(costBreakdown.sundayPay)} (5%)
-                    </span>
-                  </HStack>
+                  {(() => {
+                    const total = costBreakdown.regularPay + costBreakdown.nightDiffPay + costBreakdown.holidayPay + costBreakdown.sundayPay;
+                    const regularPct = total > 0 ? ((costBreakdown.regularPay / total) * 100).toFixed(0) : "0";
+                    const nightDiffPct = total > 0 ? ((costBreakdown.nightDiffPay / total) * 100).toFixed(0) : "0";
+                    const holidayPct = total > 0 ? ((costBreakdown.holidayPay / total) * 100).toFixed(0) : "0";
+                    const sundayPct = total > 0 ? ((costBreakdown.sundayPay / total) * 100).toFixed(0) : "0";
+                    
+                    return (
+                      <>
+                        <HStack justify="between" align="center">
+                          <BodySmall>Regular Hours</BodySmall>
+                          <span className="text-sm font-semibold text-foreground">
+                            {formatCurrency(costBreakdown.regularPay)} ({regularPct}%)
+                          </span>
+                        </HStack>
+                        <HStack justify="between" align="center">
+                          <BodySmall>Night Differential</BodySmall>
+                          <span className="text-sm font-semibold text-foreground">
+                            {formatCurrency(costBreakdown.nightDiffPay)} ({nightDiffPct}%)
+                          </span>
+                        </HStack>
+                        <HStack justify="between" align="center">
+                          <BodySmall>Holiday Pay</BodySmall>
+                          <span className="text-sm font-semibold text-foreground">
+                            {formatCurrency(costBreakdown.holidayPay)} ({holidayPct}%)
+                          </span>
+                        </HStack>
+                        <HStack justify="between" align="center">
+                          <BodySmall>Sunday/Rest Day</BodySmall>
+                          <span className="text-sm font-semibold text-foreground">
+                            {formatCurrency(costBreakdown.sundayPay)} ({sundayPct}%)
+                          </span>
+                        </HStack>
+                      </>
+                    );
+                  })()}
                 </>
+              ) : (
+                <BodySmall className="text-muted-foreground">No data available</BodySmall>
               )}
             </VStack>
           </CardSection>
@@ -599,8 +655,9 @@ export default function AdminDashboardPage() {
           <CardSection
             title="Alerts & Actions"
             description="Items requiring attention"
+            className="w-full"
           >
-            <VStack gap="4">
+            <VStack gap="4" className="w-full">
               <HStack justify="between" align="center">
                 <HStack gap="2" align="center">
                   <Icon
@@ -650,24 +707,24 @@ export default function AdminDashboardPage() {
           </CardSection>
 
           {/* Cash Flow */}
-          <CardSection title="Cash Flow" description="Net payout amounts">
-            <VStack gap="3">
+          <CardSection title="Cash Flow" description="Net payout amounts" className="w-full">
+            <VStack gap="3" className="w-full">
               <HStack justify="between" align="center">
-                <BodySmall>This Week Net</BodySmall>
+                <BodySmall>This Cutoff Net</BodySmall>
                 <span className="text-sm font-semibold text-foreground">
-                  {formatCurrency(stats?.currentWeekNet || 0)}
+                  {formatCurrency(stats?.currentCutoffNet || 0)}
                 </span>
               </HStack>
               <HStack justify="between" align="center">
-                <BodySmall>Last Week Net</BodySmall>
+                <BodySmall>Last Cutoff Net</BodySmall>
                 <span className="text-sm font-semibold text-foreground">
-                  {formatCurrency(stats?.previousWeekNet || 0)}
+                  {formatCurrency(stats?.previousCutoffNet || 0)}
                 </span>
               </HStack>
               <HStack
                 justify="between"
                 align="center"
-                className="border-t border-border pt-3"
+                className="border-t border-border pt-3 mt-2"
               >
                 <span className="text-sm font-semibold text-foreground">
                   Month to Date
@@ -676,47 +733,133 @@ export default function AdminDashboardPage() {
                   {formatCurrency(stats?.mtdGross || 0)}
                 </span>
               </HStack>
-              <Caption>{stats?.mtdWeeks} weeks in current month</Caption>
+              <Caption>{stats?.mtdCutoffs} cutoff{stats?.mtdCutoffs !== 1 ? 's' : ''} in current month</Caption>
             </VStack>
           </CardSection>
         </div>
 
+        {/* BIR Tax & Contributions Summary */}
+        <CardSection
+          title="BIR Tax & Contributions (YTD)"
+          description={`Year ${format(new Date(), "yyyy")} summary from paid payslips - Ready for BIR submission`}
+          className="w-full"
+        >
+          <VStack gap="4" className="w-full">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 w-full">
+              <VStack gap="1" align="start" className="p-4 bg-muted/50 rounded-lg">
+                <Caption className="text-muted-foreground font-medium">Tax Withheld</Caption>
+                <BodySmall className="text-xl font-bold text-foreground">
+                  {formatCurrency(birStats.ytdTaxWithheld)}
+                </BodySmall>
+                <Caption className="text-xs text-muted-foreground">
+                  {stats?.ytdGross ? `${((birStats.ytdTaxWithheld / stats.ytdGross) * 100).toFixed(2)}% of gross` : ''}
+                </Caption>
+              </VStack>
+              <VStack gap="1" align="start" className="p-4 bg-muted/50 rounded-lg">
+                <Caption className="text-muted-foreground font-medium">SSS Contributions</Caption>
+                <BodySmall className="text-xl font-bold text-foreground">
+                  {formatCurrency(birStats.ytdSSS)}
+                </BodySmall>
+                <Caption className="text-xs text-muted-foreground">
+                  Employee + Employer
+                </Caption>
+              </VStack>
+              <VStack gap="1" align="start" className="p-4 bg-muted/50 rounded-lg">
+                <Caption className="text-muted-foreground font-medium">PhilHealth</Caption>
+                <BodySmall className="text-xl font-bold text-foreground">
+                  {formatCurrency(birStats.ytdPhilHealth)}
+                </BodySmall>
+                <Caption className="text-xs text-muted-foreground">
+                  Employee + Employer
+                </Caption>
+              </VStack>
+              <VStack gap="1" align="start" className="p-4 bg-muted/50 rounded-lg">
+                <Caption className="text-muted-foreground font-medium">Pag-IBIG</Caption>
+                <BodySmall className="text-xl font-bold text-foreground">
+                  {formatCurrency(birStats.ytdPagIBIG)}
+                </BodySmall>
+                <Caption className="text-xs text-muted-foreground">
+                  Employee + Employer
+                </Caption>
+              </VStack>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 w-full pt-3 border-t border-border">
+              <VStack gap="1" align="start">
+                <Caption className="text-muted-foreground font-medium">Total Contributions</Caption>
+                <BodySmall className="text-lg font-semibold text-foreground">
+                  {formatCurrency(birStats.ytdSSS + birStats.ytdPhilHealth + birStats.ytdPagIBIG)}
+                </BodySmall>
+              </VStack>
+              <VStack gap="1" align="start">
+                <Caption className="text-muted-foreground font-medium">Total Tax & Contributions</Caption>
+                <BodySmall className="text-lg font-semibold text-foreground">
+                  {formatCurrency(birStats.ytdTaxWithheld + birStats.ytdSSS + birStats.ytdPhilHealth + birStats.ytdPagIBIG)}
+                </BodySmall>
+              </VStack>
+            </div>
+            <HStack gap="2" align="center" justify="between" className="flex-col sm:flex-row w-full pt-2">
+              <Caption className="text-muted-foreground">
+                {birStats.totalEmployeesWithPayslips} employees with paid payslips this year · 
+                <Link href="/bir-reports" className="text-primary hover:underline ml-1">
+                  Generate BIR Reports →
+                </Link>
+              </Caption>
+              <Link href="/bir-reports">
+                <Button variant="default" className="w-full sm:w-auto">
+                  <Icon name="FileText" size={IconSizes.sm} />
+                  View BIR Reports
+                </Button>
+              </Link>
+            </HStack>
+          </VStack>
+        </CardSection>
+
         {/* Payroll Trend Chart */}
         <CardSection
           title="Payroll Cost Trend"
-          description="Last 12 weeks gross payroll"
+          description="Last 12 cutoff periods gross payroll"
+          className="w-full"
         >
-          <VStack gap="3">
-            {weeklyTrends.map((trend, index) => {
-              const maxValue = Math.max(...weeklyTrends.map((t) => t.grossPay));
-              const percentage = (trend.grossPay / maxValue) * 100;
+          <VStack gap="3" className="w-full">
+            {cutoffTrends.length > 0 ? (
+              cutoffTrends.map((trend, index) => {
+                const maxValue = Math.max(...cutoffTrends.map((t) => t.grossPay));
+                const percentage = maxValue > 0 ? (trend.grossPay / maxValue) * 100 : 0;
 
-              return (
-                <VStack key={index} gap="2" align="start">
-                  <HStack justify="between" align="center" className="w-full">
-                    <Caption>
-                      Week {format(new Date(trend.weekStart), "MMM d")}
+                return (
+                  <VStack key={index} gap="2" align="start" className="w-full">
+                    <HStack justify="between" align="center" className="w-full">
+                      <Caption className="font-medium">
+                        {trend.periodLabel}
+                      </Caption>
+                      <span className="text-xs font-semibold text-foreground">
+                        {formatCurrency(trend.grossPay)}
+                      </span>
+                    </HStack>
+                    <div className="w-full bg-muted rounded-full h-2.5">
+                      <div
+                        className="bg-primary h-2.5 rounded-full transition-all"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <Caption className="text-xs text-muted-foreground">
+                      {trend.employeeCount} employees
                     </Caption>
-                    <span className="text-xs font-medium text-foreground">
-                      {formatCurrency(trend.grossPay)}
-                    </span>
-                  </HStack>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                </VStack>
-              );
-            })}
+                  </VStack>
+                );
+              })
+            ) : (
+              <BodySmall className="text-muted-foreground py-4 text-center w-full">
+                No payroll data available for trend analysis
+              </BodySmall>
+            )}
           </VStack>
         </CardSection>
 
         {/* Recent Payslips */}
         {payslipStats.recentPayslips.length > 0 && (
-          <CardSection title="Recent Payslips">
-            <div className="space-y-3">
+          <CardSection title="Recent Payslips" className="w-full">
+            <div className="space-y-3 w-full">
               {payslipStats.recentPayslips.slice(0, 5).map((payslip: any) => (
                 <Link
                   key={payslip.id}
@@ -760,6 +903,5 @@ export default function AdminDashboardPage() {
           </CardSection>
         )}
       </VStack>
-    </DashboardLayout>
   );
 }

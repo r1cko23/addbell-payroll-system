@@ -9,6 +9,8 @@ This document outlines all pages, functionalities, and access permissions for ea
 - **Admin** - Full system access with executive-level privileges
 - **HR** - Human Resources staff with management capabilities
 - **Account Manager** - Department managers with limited approval and viewing rights
+- **OT Approver** - Can approve/reject OT requests for assigned employee groups only
+- **OT Viewer** - Can view OT requests for assigned employee groups only (read-only)
 
 ---
 
@@ -153,13 +155,22 @@ This document outlines all pages, functionalities, and access permissions for ea
 - **Account Manager**: ✅ Full access
   - View overtime requests for assigned employees
   - Approve/reject overtime requests
+- **OT Approver**: ✅ Limited access
+  - View OT requests for employees in assigned groups only
+  - Approve/reject OT requests for assigned groups only
+  - Cannot access other pages (restricted access)
+- **OT Viewer**: ✅ Read-only access
+  - View OT requests for employees in assigned groups only
+  - Cannot approve/reject (view only)
+  - Cannot access other pages (restricted access)
 
 **Features:**
 
 - View pending overtime requests
-- Approve/reject requests
+- Approve/reject requests (OT Approvers and above)
 - View overtime history
 - Filter by status, employee, date range
+- Group-based access control for OT Approvers/Viewers
 
 ### `/failure-to-log-approval` - Failure to Log Approvals
 
@@ -331,8 +342,8 @@ These pages are accessible via `/employee-portal/*` and use separate authenticat
 ### Overtime Requests Table
 
 - **View**: All authenticated users (own requests)
-- **View All**: Admin, Account Manager (assigned employees)
-- **Approve**: Admin, Account Manager (assigned employees)
+- **View All**: Admin, Account Manager (all), OT Approver/Viewer (assigned groups only)
+- **Approve**: Admin, Account Manager (all), OT Approver (assigned groups only)
 
 ### Failure to Log Table
 
@@ -423,6 +434,40 @@ These pages are accessible via `/employee-portal/*` and use separate authenticat
 - Can approve requests for assigned employees only
 - Can view time entries and attendance
 - Cannot manage employees or payroll
+
+### OT Approver Role
+
+**Restricted Access (OT Approvals Only):**
+
+- ✅ OT Approvals page (assigned groups only)
+- ❌ All other pages (redirected to OT approvals)
+- ✅ Approve/reject OT requests for assigned groups
+- ✅ View OT requests for assigned groups
+- ❌ Cannot view other groups' OT requests
+- ❌ Cannot access dashboard, employees, payslips, etc.
+
+**Unique Privileges:**
+
+- Can approve/reject OT requests for employees in assigned overtime groups
+- Group-based access control (e.g., Hotel, Non-Hotel, GP Heads, etc.)
+- Restricted to OT approval functionality only
+
+### OT Viewer Role
+
+**Restricted Access (OT Viewing Only):**
+
+- ✅ OT Approvals page (assigned groups only, read-only)
+- ❌ All other pages (redirected to OT approvals)
+- ✅ View OT requests for assigned groups
+- ❌ Cannot approve/reject OT requests
+- ❌ Cannot view other groups' OT requests
+- ❌ Cannot access dashboard, employees, payslips, etc.
+
+**Unique Privileges:**
+
+- Can view OT requests for employees in assigned overtime groups
+- Group-based access control (e.g., Hotel, Non-Hotel, GP Heads, etc.)
+- Read-only access to OT approval functionality
 
 ---
 

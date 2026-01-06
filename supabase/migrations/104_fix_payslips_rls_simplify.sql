@@ -92,3 +92,6 @@ CREATE POLICY "Admin/HR can delete payslips" ON public.payslips
       AND users.is_active = true
     )
   );
+
+
+

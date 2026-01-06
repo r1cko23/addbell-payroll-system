@@ -1599,6 +1599,48 @@ export default function PayslipsPage() {
         totalDeductions = 0; // Default to 0 if invalid
       }
 
+      // Calculate 13th month pay
+      // In the Philippines, 13th month pay = 1/12 of basic salary per month worked
+      // Usually paid in December, but can be prorated throughout the year
+      let thirteenthMonthPay = 0;
+      const currentMonth = periodStart.getMonth(); // 0-11 (Jan = 0, Dec = 11)
+      const currentYear = periodStart.getFullYear();
+      
+      // Check if this is December (month 11) or if HR wants to include it
+      // For now, auto-calculate only in December
+      if (currentMonth === 11) { // December
+        // Calculate months worked in the current year
+        const hireDate = selectedEmployee.hire_date 
+          ? new Date(selectedEmployee.hire_date) 
+          : null;
+        
+        let monthsWorked = 12; // Default to full year
+        
+        if (hireDate) {
+          const hireYear = hireDate.getFullYear();
+          const hireMonth = hireDate.getMonth();
+          
+          if (hireYear === currentYear) {
+            // Employee started this year - prorate from hire month
+            monthsWorked = 12 - hireMonth; // Months from hire month to December (inclusive)
+          } else if (hireYear < currentYear) {
+            // Employee started in a previous year - full year
+            monthsWorked = 12;
+          } else {
+            // Future hire date (shouldn't happen)
+            monthsWorked = 0;
+          }
+        }
+        
+        // 13th month = (monthly basic salary / 12) * months worked
+        // Only calculate if we have a valid monthly salary
+        if (validMonthlySalary > 0 && monthsWorked > 0) {
+          thirteenthMonthPay = (validMonthlySalary / 12) * monthsWorked;
+          // Round to 2 decimal places
+          thirteenthMonthPay = Math.round(thirteenthMonthPay * 100) / 100;
+        }
+      }
+
       const payslipData = {
         employee_id: selectedEmployee.id,
         payslip_number: payslipNumber,
@@ -1617,6 +1659,7 @@ export default function PayslipsPage() {
         sss_amount: isNaN(sssAmount) ? 0 : sssAmount,
         philhealth_amount: isNaN(philhealthAmount) ? 0 : philhealthAmount,
         pagibig_amount: isNaN(pagibigAmount) ? 0 : pagibigAmount,
+        thirteenth_month_pay: thirteenthMonthPay,
         adjustment_amount: 0,
         adjustment_reason: null,
         allowance_amount: 0,
@@ -1983,15 +2026,15 @@ export default function PayslipsPage() {
 
             if (dayType === "regular") {
               // Regular days: standard calculation
-              // Saturday Company Benefit: Pay 8 hours even if employee didn't work
-              // Saturday is NOT a rest day (Sunday is the designated rest day), but it's a company benefit
+              // Saturday Regular Work Day: Pay 8 hours even if employee didn't work (paid 6 days/week per law)
+              // Saturday is a regular work day, not a separate benefit
               const dateObj = new Date(date);
               const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
               if (dayOfWeek === 6 && regularHours === 0) {
-                // Saturday with no work - company benefit: pay 8 hours at regular rate
+                // Saturday with no work - regular work day: pay 8 hours at regular rate
                 basicPay += 8 * ratePerHour;
               } else {
-                // Regular day with work - pay actual hours
+                // Regular day with work - pay actual hours (includes Saturday if worked)
                 basicPay += regularHours * ratePerHour;
               }
             } else if (
@@ -2191,6 +2234,7 @@ export default function PayslipsPage() {
     const days = attendance.attendance_data as any[];
 
     // Helper function to check "1 Day Before" rule for holidays
+    // This matches the timesheet generator logic: search up to 7 days back to find the last REGULAR WORKING DAY
     const isEligibleForHolidayPay = (
       currentDate: string,
       currentRegularHours: number,
@@ -2201,20 +2245,31 @@ export default function PayslipsPage() {
         return true;
       }
 
-      // If they didn't work on the holiday, check if they worked the day before
+      // If they didn't work on the holiday, check if they worked a REGULAR WORKING DAY before
+      // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
+      // This matches the timesheet generation logic
       const currentDateObj = new Date(currentDate);
-      const previousDateObj = new Date(currentDateObj);
-      previousDateObj.setDate(previousDateObj.getDate() - 1);
-      const previousDateStr = previousDateObj.toISOString().split("T")[0];
+      for (let i = 1; i <= 7; i++) {
+        const checkDateObj = new Date(currentDateObj);
+        checkDateObj.setDate(checkDateObj.getDate() - i);
+        const checkDateStr = checkDateObj.toISOString().split("T")[0];
 
-      // Find the previous day in attendance data
-      const previousDay = attendanceData.find(
-        (day: any) => day.date === previousDateStr
-      );
+        // Find the day in attendance data
+        const checkDay = attendanceData.find(
+          (day: any) => day.date === checkDateStr
+        );
 
-      // Check if they worked the day before (regularHours >= 8)
-      if (previousDay && (previousDay.regularHours || 0) >= 8) {
-        return true;
+        if (checkDay) {
+          // Only count REGULAR WORKING DAYS (skip holidays and rest days)
+          // Check if it's a regular day (not holiday, not rest day) with 8+ hours
+          if (
+            checkDay.dayType === "regular" &&
+            (checkDay.regularHours || 0) >= 8
+          ) {
+            return true; // Found a regular working day with 8+ hours
+          }
+          // If it's a rest day or holiday, continue searching backwards
+        }
       }
 
       return false;

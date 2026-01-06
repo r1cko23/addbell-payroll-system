@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import {
   Card,
   CardContent,
@@ -160,7 +159,7 @@ export default function HRDashboard() {
               created_at,
               net_pay,
               employee_id,
-              employees!payslips_employee_id_fkey(full_name, employee_id)
+              employees(full_name, employee_id)
             `
             )
             .order("created_at", { ascending: false })
@@ -234,20 +233,17 @@ export default function HRDashboard() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Icon
-            name="ArrowsClockwise"
-            size={IconSizes.lg}
-            className="animate-spin text-muted-foreground"
-          />
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center h-64">
+        <Icon
+          name="ArrowsClockwise"
+          size={IconSizes.lg}
+          className="animate-spin text-muted-foreground"
+        />
+      </div>
     );
   }
 
   return (
-    <DashboardLayout>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
           <H1>Workforce Overview</H1>
@@ -702,6 +698,5 @@ export default function HRDashboard() {
           </CardSection>
         )}
       </VStack>
-    </DashboardLayout>
   );
 }

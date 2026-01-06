@@ -26,3 +26,6 @@ CREATE POLICY "All authenticated users can view payslips" ON public.payslips
 -- =====================================================
 COMMENT ON POLICY "All authenticated users can view payslips" ON public.payslips IS
   'Ultra-permissive policy for debugging 403 errors. Allows any authenticated user to view payslips.';
+
+
+

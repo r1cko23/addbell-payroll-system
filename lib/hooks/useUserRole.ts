@@ -24,6 +24,9 @@ interface UserRoleData {
   isAdmin: boolean;
   isHR: boolean;
   isAccountManager: boolean;
+  isOTApprover: boolean;
+  isOTViewer: boolean;
+  isRestrictedAccess: boolean; // ot_approver or ot_viewer
   canAccessSalaryInfo: boolean; // Admin or April Nina Gammad
   refetch: () => void;
 }
@@ -125,6 +128,9 @@ export function useUserRole(): UserRoleData {
       isAdmin: role === "admin",
       isHR: role === "hr",
       isAccountManager: role === "account_manager",
+      isOTApprover: role === "ot_approver",
+      isOTViewer: role === "ot_viewer",
+      isRestrictedAccess: role === "ot_approver" || role === "ot_viewer",
       canAccessSalaryInfo: role === "admin" || canAccessSalary === true,
       refetch: () => fetchUserRole(true),
     }),

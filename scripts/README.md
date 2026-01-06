@@ -4,10 +4,11 @@ Utility scripts for the GP-HRIS system.
 
 ## Available Scripts
 
-| Script           | Command                    | Description                 |
-| ---------------- | -------------------------- | --------------------------- |
-| Import Employees | `npm run import:employees` | Import employees from Excel |
-| Test Time Clock  | `npm run test:clock`       | Create test time entries    |
+| Script                    | Command                         | Description                      |
+| ------------------------- | ------------------------------- | -------------------------------- |
+| Import Employees          | `npm run import:employees`      | Import employees from Excel       |
+| Import OT Accounts        | `npm run import:ot-accounts`     | Import OT approver/viewer accounts from Excel |
+| Test Time Clock           | `npm run test:clock`            | Create test time entries         |
 
 ---
 
@@ -35,6 +36,44 @@ npm run import:employees
 - **BIRTH DATE**, **DATE HIRED** - Dates (YYYY-MM-DD)
 - **TIN**, **SSS**, **PHILHEALTH**, **PAGIBIG** - Government IDs
 - **STATUS** - Employee status
+
+---
+
+## OT Accounts Import
+
+Import OT approver and viewer accounts from an Excel file.
+
+### Usage
+
+```bash
+# Dry run (preview changes)
+npm run import:ot-accounts -- path/to/file.xlsx --dry-run
+
+# Actual import
+npm run import:ot-accounts -- path/to/file.xlsx
+
+# Use default location (data/ot-accounts.xlsx)
+npm run import:ot-accounts
+```
+
+### Excel Format
+
+| Full Name | Password | Role |
+|-----------|----------|------|
+| John Doe | password123 | ot_approver |
+| Jane Smith | password456 | ot_viewer |
+
+**Required columns:**
+- **Full Name** - User's full name (email auto-generated as `firstnamelastname@greenpasture.ph`)
+- **Password** - Minimum 8 characters
+- **Role** - `ot_approver` or `ot_viewer`
+
+**Email Format:**
+- Automatically generated from full name
+- Format: `firstnamelastname@greenpasture.ph` (all lowercase)
+- Example: "John Doe" → `johndoe@greenpasture.ph`
+
+See `scripts/README-ot-accounts.md` for detailed documentation.
 
 ---
 

@@ -11,3 +11,6 @@ ALTER TABLE public.time_clock_entries
 -- Add comment
 COMMENT ON COLUMN public.time_clock_entries.overtime_hours IS
   'Hours worked beyond regular shift (e.g., after 5pm for fixed schedule employees). Calculated automatically by calculate_time_clock_hours() function.';
+
+
+

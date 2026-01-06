@@ -102,4 +102,3 @@ COMMENT ON POLICY "Admin/HR can update payslips" ON public.payslips IS
   'Allows admin and hr roles to update existing payslips. This enables Admin HR to save payslip changes.';
 
 
-

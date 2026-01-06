@@ -160,4 +160,3 @@ if (clockInTime && clockOutTime && !isLeaveDayWithFullHours) {
 - **Days Work:** 11 days (excluding rest days Dec 1, 7, 14)
 
 - **Basic Salary:** 11 days × ₱1,600/day = ₱17,600
-

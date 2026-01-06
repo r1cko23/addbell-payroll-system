@@ -158,4 +158,3 @@ export async function getMacAddress(): Promise<string | null> {
   // The function exists for API compatibility but will always return null
   return null;
 }
-

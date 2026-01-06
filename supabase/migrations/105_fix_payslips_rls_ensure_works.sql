@@ -45,4 +45,3 @@ CREATE POLICY "Admin/HR can create payslips" ON public.payslips
     (auth.role() = 'authenticated' AND auth.uid() IS NOT NULL)
   );
 
-

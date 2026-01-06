@@ -75,4 +75,3 @@ CREATE TRIGGER update_employee_loans_updated_at
 BEFORE UPDATE ON public.employee_loans
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
-

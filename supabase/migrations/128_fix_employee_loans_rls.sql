@@ -68,4 +68,3 @@ USING (
     AND users.is_active = true
   )
 );
-

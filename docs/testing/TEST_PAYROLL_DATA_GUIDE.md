@@ -214,4 +214,3 @@ This document describes the comprehensive test data created to verify payroll ca
 | Jericko  | ₱17,600      | ₱2,340          | -          | -          | ~₱19,940       |
 
 _Note: Totals are approximate and depend on exact OT/ND calculations_
-

@@ -207,4 +207,3 @@ ALTER TABLE time_clock_entries ENABLE TRIGGER trigger_calculate_time_clock_hours
 COMMENT ON FUNCTION calculate_time_clock_hours IS
   'Calculates regular hours, overtime hours, and night differential for time clock entries. For fixed schedule employees (8am-5pm) who are NOT Account Supervisors, hours after 5pm are counted as OT and ND.';
 
-

@@ -148,4 +148,3 @@ ALTER TABLE time_clock_entries ENABLE TRIGGER trigger_calculate_time_clock_hours
 COMMENT ON FUNCTION calculate_time_clock_hours IS
   'Calculates regular hours and night differential for time clock entries. OT hours are NOT auto-calculated - they must come from approved overtime_requests table.';
 
-

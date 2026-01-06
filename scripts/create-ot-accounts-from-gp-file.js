@@ -51,14 +51,14 @@ const nameMap = {
 // Helper function to generate email from full name
 function generateEmail(fullName) {
   const nameParts = fullName.trim().split(/\s+/);
-  
+
   if (nameParts.length < 2) {
     throw new Error("Full name must contain at least first name and last name");
   }
-  
+
   const firstName = nameParts[0].toLowerCase().replace(/[^a-z]/g, '');
   const lastName = nameParts[nameParts.length - 1].toLowerCase().replace(/[^a-z]/g, '');
-  
+
   return `${firstName}${lastName}@greenpasture.ph`;
 }
 
@@ -68,7 +68,7 @@ function findFullNameFromCode(code, data) {
   if (nameMap[code]) {
     return nameMap[code];
   }
-  
+
   // Check if code is in email map and find matching name
   if (emailMap[code]) {
     const targetEmail = emailMap[code];
@@ -85,32 +85,32 @@ function findFullNameFromCode(code, data) {
       }
     }
   }
-  
+
   // Try fuzzy matching in employee list
   const codeUpper = code.toUpperCase();
   for (const row of data) {
     const lastName = row[1]?.toString().trim();
     const firstName = row[2]?.toString().trim();
-    
+
     if (firstName && lastName) {
       const fullName = `${firstName} ${lastName}`.trim();
       const fullNameUpper = fullName.toUpperCase();
       const lastNameUpper = lastName.toUpperCase();
       const firstNameUpper = firstName.toUpperCase();
-      
+
       // Check if code matches name patterns
       if (codeUpper === fullNameUpper ||
           codeUpper === `${firstNameUpper} ${lastNameUpper}` ||
           codeUpper.includes(lastNameUpper) ||
           codeUpper.includes(firstNameUpper) ||
           fullNameUpper.includes(codeUpper) ||
-          (codeUpper.split(' ').length > 1 && 
+          (codeUpper.split(' ').length > 1 &&
            codeUpper.split(' ').every(part => fullNameUpper.includes(part)))) {
         return fullName;
       }
     }
   }
-  
+
   return null;
 }
 
@@ -144,7 +144,7 @@ const viewerCodes = new Set();
 data.slice(1).forEach((row) => {
   const approver = row[5]?.toString().trim();
   const viewer = row[6]?.toString().trim();
-  
+
   if (approver && approver !== "APPROVER OF LEAVE") {
     approverCodes.add(approver);
   }
@@ -164,7 +164,7 @@ console.log("\nProcessing approvers...");
 for (const code of approverCodes) {
   let fullName = findFullNameFromCode(code, data.slice(1));
   let email;
-  
+
   if (emailMap[code]) {
     email = emailMap[code];
     if (!fullName) {
@@ -188,7 +188,7 @@ for (const code of approverCodes) {
     console.warn(`⚠️  Could not find full name for approver code: ${code}`);
     continue;
   }
-  
+
   if (email && fullName) {
     if (!accountsToCreate.has(email)) {
       accountsToCreate.set(email, { full_name: fullName, roles: new Set() });
@@ -203,7 +203,7 @@ console.log("\nProcessing viewers...");
 for (const code of viewerCodes) {
   let fullName = findFullNameFromCode(code, data.slice(1));
   let email;
-  
+
   if (emailMap[code]) {
     email = emailMap[code];
     if (!fullName) {
@@ -226,7 +226,7 @@ for (const code of viewerCodes) {
     console.warn(`⚠️  Could not find full name for viewer code: ${code}`);
     continue;
   }
-  
+
   if (email && fullName) {
     if (!accountsToCreate.has(email)) {
       accountsToCreate.set(email, { full_name: fullName, roles: new Set() });
@@ -242,11 +242,11 @@ console.log(`\nTotal unique accounts to create: ${accountsToCreate.size}`);
 async function createAccount(accountData) {
   // Determine role - if person is both approver and viewer, make them approver
   const role = accountData.roles.has("ot_approver") ? "ot_approver" : "ot_viewer";
-  
+
   // Generate password (use first 8 chars of email prefix + "123")
   const emailPrefix = accountData.email.split('@')[0];
   const password = `${emailPrefix}12345678`.substring(0, 16); // Ensure min 8 chars
-  
+
   // Step 1: Create user in Supabase Auth
   const { data: authData, error: createAuthError } =
     await supabase.auth.admin.createUser({
@@ -386,4 +386,3 @@ createAccounts(dryRun)
     console.error("Fatal error:", error);
     process.exit(1);
   });
-

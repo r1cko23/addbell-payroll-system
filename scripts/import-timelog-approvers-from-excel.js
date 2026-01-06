@@ -89,14 +89,14 @@ function normalizeEmail(email) {
 function determineOTGroup(location, position) {
   const locUpper = location?.toUpperCase() || '';
   const posUpper = position?.toUpperCase() || '';
-  
+
   // Client based employees
   if (locUpper === 'HOTEL' || locUpper.includes('HOTEL')) {
     return 'ACCOUNT SUPERVISOR FOR HOTEL';
   }
-  
+
   // Office based employees (HEAD OFFICE and NON HOTEL)
-  if (locUpper === 'HEAD OFFICE' || locUpper.includes('HEAD OFFICE') || 
+  if (locUpper === 'HEAD OFFICE' || locUpper.includes('HEAD OFFICE') ||
       locUpper === 'NON HOTEL' || locUpper.includes('NON HOTEL')) {
     // Determine sub-group based on position
     // Check RECRUITMENT first (before MANAGER check)
@@ -111,7 +111,7 @@ function determineOTGroup(location, position) {
       return 'HR & ADMIN';
     }
   }
-  
+
   return null;
 }
 
@@ -135,7 +135,7 @@ for (let i = 0; i < rows.length; i++) {
 
   // Column 6 = OT Approver email for this employee
   const approverEmail = normalizeEmail(row[5]);
-  
+
   // Columns 7-8 = OT Viewer emails for this employee
   const viewerEmail1 = normalizeEmail(row[6]);
   const viewerEmail2 = normalizeEmail(row[7]);
@@ -164,7 +164,7 @@ for (let i = 0; i < rows.length; i++) {
     const approver = userMap.get(approverEmail);
     approver.roles.add('ot_approver');
     approver.approver_groups.add(otGroupName);
-    
+
     // Count occurrences for this group
     if (!groupApproverCounts.has(otGroupName)) {
       groupApproverCounts.set(otGroupName, new Map());
@@ -188,7 +188,7 @@ for (let i = 0; i < rows.length; i++) {
       const viewer = userMap.get(viewerEmail);
       viewer.roles.add('ot_viewer');
       viewer.viewer_groups.add(otGroupName);
-      
+
       // Count occurrences for this group
       if (!groupViewerCounts.has(otGroupName)) {
         groupViewerCounts.set(otGroupName, new Map());
@@ -225,12 +225,12 @@ async function getOrCreateUser(email, fullName) {
     }
     return { user: existingUser, created: false };
   }
-  
+
   // Also check if user exists in Auth but not in users table (orphaned auth user)
   try {
     const { data: authUsers } = await supabase.auth.admin.listUsers();
     const authUser = authUsers?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    
+
     if (authUser) {
       // User exists in Auth but not in users table - create users table entry
       const { data: userData, error: userInsertError } = await supabase
@@ -248,7 +248,7 @@ async function getOrCreateUser(email, fullName) {
       if (userInsertError) {
         throw new Error(`User table insert failed: ${userInsertError.message}`);
       }
-      
+
       return { user: userData, created: false, wasOrphaned: true };
     }
   } catch (authError) {
@@ -340,7 +340,7 @@ async function assignUserToOTGroups(userId, userRole, groupNames, otGroups) {
     const updateField = userRole === 'ot_approver' ? 'approver_id' : 'viewer_id';
     const updateData = {};
     updateData[updateField] = userId;
-    
+
     const { error } = await supabase
       .from("overtime_groups")
       .update(updateData)
@@ -393,7 +393,7 @@ async function importUsers() {
         employeeEmailMap.set(emp.email.toLowerCase(), emp.full_name);
       }
     });
-    
+
     // Update userMap with better names from employees table
     for (const [email, userData] of userMap.entries()) {
       const empName = employeeEmailMap.get(email.toLowerCase());
@@ -413,11 +413,11 @@ async function importUsers() {
   // Since each group can only have one approver and one viewer, we'll pick the most frequent
   // Special case: GP HEADS should use mgrazal@greenpasture.ph if present
   const finalGroupAssignments = new Map();
-  
+
   for (const [groupName, approverCounts] of groupApproverCounts.entries()) {
     let maxCount = 0;
     let mostCommonApprover = null;
-    
+
     // Special handling for GP HEADS - prioritize mgrazal if present
     if (groupName === 'GP HEADS' && approverCounts.has('mgrazal@greenpasture.ph')) {
       mostCommonApprover = 'mgrazal@greenpasture.ph';
@@ -430,7 +430,7 @@ async function importUsers() {
         }
       }
     }
-    
+
     if (mostCommonApprover) {
       if (!finalGroupAssignments.has(groupName)) {
         finalGroupAssignments.set(groupName, { approver: null, viewer: null });
@@ -438,7 +438,7 @@ async function importUsers() {
       finalGroupAssignments.get(groupName).approver = mostCommonApprover;
     }
   }
-  
+
   for (const [groupName, viewerCounts] of groupViewerCounts.entries()) {
     let maxCount = 0;
     let mostCommonViewer = null;
@@ -455,14 +455,14 @@ async function importUsers() {
       finalGroupAssignments.get(groupName).viewer = mostCommonViewer;
     }
   }
-  
+
   // Update userMap to only include final assignments (most common approver/viewer per group)
   // First, clear all group assignments
   for (const [email, userData] of userMap.entries()) {
     userData.approver_groups.clear();
     userData.viewer_groups.clear();
   }
-  
+
   // Then assign based on most common
   for (const [groupName, assignments] of finalGroupAssignments.entries()) {
     if (assignments.approver) {
@@ -483,7 +483,7 @@ async function importUsers() {
       }
     }
   }
-  
+
   console.log("\nFinal group assignments (most common approver/viewer per group):");
   for (const [groupName, assignments] of finalGroupAssignments.entries()) {
     console.log(`  ${groupName}:`);
@@ -502,12 +502,12 @@ async function importUsers() {
   for (const [email, userData] of userMap.entries()) {
     try {
       const existingUser = existingUsersMap.get(email.toLowerCase());
-      
+
       // Determine primary role (approver takes precedence)
       // If user is approver for any group, make them ot_approver
       // Otherwise, make them ot_viewer
       const primaryRole = userData.roles.has('ot_approver') ? 'ot_approver' : 'ot_viewer';
-      
+
       if (existingUser) {
         // User exists - update role if needed
         if (existingUser.role !== primaryRole) {
@@ -533,7 +533,7 @@ async function importUsers() {
             }
             console.log(`  → Assigned as APPROVER to groups: ${approverGroups.join(', ')}`);
           }
-          
+
           // Also assign to viewer groups if they're viewer for other groups
           const viewerGroups = Array.from(userData.viewer_groups).filter(
             g => !userData.approver_groups.has(g)
@@ -559,7 +559,7 @@ async function importUsers() {
         if (!dryRun) {
           const result = await getOrCreateUser(email, userData.full_name);
           const newUser = result.user;
-          
+
           // Update role if not already set correctly
           if (newUser.role !== primaryRole) {
             await updateUserRole(newUser.id, primaryRole);
@@ -572,7 +572,7 @@ async function importUsers() {
               await assignUserToOTGroups(newUser.id, 'ot_approver', approverGroups, otGroups);
               console.log(`  → Assigned as APPROVER to groups: ${approverGroups.join(', ')}`);
             }
-            
+
             // Also assign to viewer groups if they're viewer for other groups
             const viewerGroups = Array.from(userData.viewer_groups).filter(
               g => !userData.approver_groups.has(g)
@@ -636,12 +636,12 @@ async function importUsers() {
   console.log(`Created: ${created}`);
   console.log(`Updated: ${updated}`);
   console.log(`Errors: ${errors}`);
-  
+
   if (errorDetails.length > 0) {
     console.log("\nErrors:");
     errorDetails.forEach(err => console.log(`  - ${err}`));
   }
-  
+
   console.log("\n" + "=".repeat(80));
 }
 

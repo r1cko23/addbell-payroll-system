@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     // Step 3: Assign to OT groups if OT Approver/Viewer
     if ((role === "ot_approver" || role === "ot_viewer") && ot_groups && Array.isArray(ot_groups) && ot_groups.length > 0) {
       const updateField = role === "ot_approver" ? "approver_id" : "viewer_id";
-      
+
       for (const groupId of ot_groups) {
         const { error: groupError } = await supabaseAdmin
           .from("overtime_groups")

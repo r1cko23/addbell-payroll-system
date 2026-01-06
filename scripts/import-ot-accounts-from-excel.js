@@ -67,7 +67,7 @@ const rows = data.slice(1);
 const findColumn = (name, alternatives) => {
   const lowerHeaders = headers.map(h => h?.toString().toLowerCase().trim());
   const target = name.toLowerCase();
-  const index = lowerHeaders.findIndex(h => 
+  const index = lowerHeaders.findIndex(h =>
     h === target || alternatives.some(alt => h === alt.toLowerCase())
   );
   return index >= 0 ? index : null;
@@ -86,15 +86,15 @@ const roleIndex = roleCol !== null ? roleCol : 2;
 function generateEmail(fullName) {
   // Split name into parts
   const nameParts = fullName.trim().split(/\s+/);
-  
+
   if (nameParts.length < 2) {
     throw new Error("Full name must contain at least first name and last name");
   }
-  
+
   // Get first name and last name
   const firstName = nameParts[0].toLowerCase().replace(/[^a-z]/g, '');
   const lastName = nameParts[nameParts.length - 1].toLowerCase().replace(/[^a-z]/g, '');
-  
+
   // Combine: firstnamelastname@greenpasture.ph
   return `${firstName}${lastName}@greenpasture.ph`;
 }
@@ -120,9 +120,9 @@ const excelAccounts = rows
     }
 
     // Validate role
-    const validRole = role === "ot_approver" || role === "ot_viewer" 
-      ? role 
-      : role === "approver" 
+    const validRole = role === "ot_approver" || role === "ot_viewer"
+      ? role
+      : role === "approver"
         ? "ot_approver"
         : role === "viewer"
           ? "ot_viewer"
@@ -308,4 +308,3 @@ importAccounts(dryRun)
     console.error("Fatal error:", error);
     process.exit(1);
   });
-

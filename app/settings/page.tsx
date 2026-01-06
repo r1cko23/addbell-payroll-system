@@ -139,7 +139,7 @@ export default function SettingsPage() {
       // First check current user to debug
       const { data: { user: authUser } } = await supabase.auth.getUser();
       console.log("Current auth user:", authUser?.id, authUser?.email);
-      
+
       const { data: usersData, error: usersError } = await supabase
         .from("users")
         .select("*")
@@ -155,11 +155,11 @@ export default function SettingsPage() {
         });
         throw usersError;
       }
-      
+
       console.log(`Loaded ${usersData?.length || 0} users`);
       console.log("Users data sample:", usersData?.slice(0, 3));
       console.log("Full users data:", usersData);
-      
+
       if (!usersData || usersData.length === 0) {
         console.warn("No users returned from query - checking RLS policies");
         setUsers([]);
@@ -211,7 +211,7 @@ export default function SettingsPage() {
         console.log("Sample user being set:", usersWithEmptyGroups[0]);
         setUsers(usersWithEmptyGroups);
         console.log("✅ setUsers() called successfully");
-        
+
         try {
           const usersWithGroups = await Promise.all(
             usersData.map(async (user: any) => {
@@ -321,7 +321,7 @@ export default function SettingsPage() {
       const updateField = userRole === "ot_approver" ? "approver_id" : "viewer_id";
       const updateData: any = {};
       updateData[updateField] = userId;
-      
+
       const { error } = await (supabase.from("overtime_groups") as any)
         .update(updateData)
         .eq("id", groupId);
@@ -755,7 +755,7 @@ export default function SettingsPage() {
                                   {user.employee_specific_assignments.length} {user.employee_specific_assignments.length === 1 ? 'employee' : 'employees'}
                                 </Badge>
                               )}
-                              {user.role === "admin" && 
+                              {user.role === "admin" &&
                                (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
                                (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
                                 <Caption className="text-muted-foreground">Admin (all access)</Caption>
@@ -1442,7 +1442,7 @@ export default function SettingsPage() {
               OT Assignments for {editingUser?.full_name}
             </DialogTitle>
           </DialogHeader>
-          
+
           <VStack gap="6" className="mt-4">
             {/* Group-based assignments */}
             {editingUser?.assigned_ot_groups && editingUser.assigned_ot_groups.length > 0 && (

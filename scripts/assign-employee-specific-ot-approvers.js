@@ -1,6 +1,6 @@
 /**
  * Assign Employee-Specific OT Approvers and Viewers from Excel
- * 
+ *
  * Reads timelog approver.xlsx and assigns individual approvers/viewers
  * to each employee based on the Excel file data.
  */
@@ -188,4 +188,3 @@ assignEmployeeSpecificApprovers(dryRun)
     console.error("\n❌ Script failed:", error);
     process.exit(1);
   });
-

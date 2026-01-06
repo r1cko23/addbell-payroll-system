@@ -2,7 +2,7 @@
 
 /**
  * BIR REPORTING PAGE
- * 
+ *
  * Generates BIR-compliant reports:
  * - BIR Form 2316 (Certificate of Compensation Payment/Tax Withheld) - Per Employee
  * - BIR Form 1604E (Annual Information Return) - Summary
@@ -719,4 +719,3 @@ export default function BIRReportsPage() {
     </DashboardLayout>
   );
 }
-

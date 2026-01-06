@@ -69,7 +69,7 @@ async function updateAuthDisplayNames() {
   for (const authUser of authUsers) {
     try {
       const user = usersByEmail.get(authUser.email?.toLowerCase());
-      
+
       if (!user || !user.full_name) {
         skipped++;
         console.log(`⊘ Skipped: ${authUser.email} - No full_name in users table`);
@@ -78,7 +78,7 @@ async function updateAuthDisplayNames() {
 
       // Check if display name needs updating
       const currentDisplayName = authUser.user_metadata?.full_name || authUser.user_metadata?.display_name || '';
-      
+
       if (currentDisplayName === user.full_name) {
         skipped++;
         console.log(`⊘ Already up to date: ${authUser.email} - ${user.full_name}`);
@@ -122,12 +122,12 @@ async function updateAuthDisplayNames() {
   console.log(`Updated: ${updated}`);
   console.log(`Skipped: ${skipped}`);
   console.log(`Errors: ${errors}`);
-  
+
   if (errorDetails.length > 0) {
     console.log("\nErrors:");
     errorDetails.forEach(err => console.log(`  - ${err}`));
   }
-  
+
   console.log("\n" + "=".repeat(80));
 }
 
@@ -141,4 +141,3 @@ updateAuthDisplayNames()
     console.error("\n❌ Update failed:", error);
     process.exit(1);
   });
-

@@ -101,7 +101,7 @@ export function generateTimesheetFromClockEntries(
       }))
     );
 
-    // For client-based Account Supervisors: 
+    // For client-based Account Supervisors:
     // Rest days can only be Monday, Tuesday, or Wednesday (enforced in schedule validation)
     // The FIRST rest day (chronologically) is the ACTUAL REST DAY (only paid if worked)
     // The SECOND rest day is treated as a REGULAR WORKDAY (paid even if not worked, gets 8 BH)
@@ -192,7 +192,7 @@ export function generateTimesheetFromClockEntries(
             return rdDate >= weekStart && rdDate <= weekEnd;
           })
           .sort((a, b) => a.localeCompare(b));
-        
+
         // Only set BH = 8 if this is the second rest day
         if (restDaysInWeek.length >= 2 && dateStr === restDaysInWeek[1]) {
           regularHours = 8; // Second rest day gets 8 BH even if not worked

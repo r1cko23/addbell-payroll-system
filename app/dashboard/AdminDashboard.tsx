@@ -120,12 +120,12 @@ export default function AdminDashboardPage() {
     async function fetchExecutiveMetrics() {
       try {
         const today = new Date();
-        
+
         // Get current bi-monthly cutoff period
         const currentCutoffStart = getBiMonthlyPeriodStart(today);
         const currentCutoffEnd = getBiMonthlyPeriodEnd(currentCutoffStart);
         currentCutoffEnd.setHours(23, 59, 59, 999);
-        
+
         // Get previous bi-monthly cutoff period
         const previousCutoffStart = getPreviousBiMonthlyPeriod(currentCutoffStart);
         const previousCutoffEnd = getBiMonthlyPeriodEnd(previousCutoffStart);
@@ -133,7 +133,7 @@ export default function AdminDashboardPage() {
 
         const yearStart = startOfYear(today);
         const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        
+
         // Format period labels
         const currentCutoffLabel = formatBiMonthlyPeriod(currentCutoffStart, currentCutoffEnd);
         const previousCutoffLabel = formatBiMonthlyPeriod(previousCutoffStart, previousCutoffEnd);
@@ -279,10 +279,10 @@ export default function AdminDashboardPage() {
         // 7. Cutoff Trends (last 12 cutoffs) - using payslips
         let trendPeriodStart = getPreviousBiMonthlyPeriod(currentCutoffStart);
         const trendPeriods: CutoffTrend[] = [];
-        
+
         for (let i = 0; i < 12; i++) {
           const trendPeriodEnd = getBiMonthlyPeriodEnd(trendPeriodStart);
-          
+
           const { data: trendPayslips } = await supabase
             .from("payslips")
             .select("gross_pay, net_pay, employee_id")
@@ -614,7 +614,7 @@ export default function AdminDashboardPage() {
                     const nightDiffPct = total > 0 ? ((costBreakdown.nightDiffPay / total) * 100).toFixed(0) : "0";
                     const holidayPct = total > 0 ? ((costBreakdown.holidayPay / total) * 100).toFixed(0) : "0";
                     const sundayPct = total > 0 ? ((costBreakdown.sundayPay / total) * 100).toFixed(0) : "0";
-                    
+
                     return (
                       <>
                         <HStack justify="between" align="center">
@@ -799,7 +799,7 @@ export default function AdminDashboardPage() {
             </div>
             <HStack gap="2" align="center" justify="between" className="flex-col sm:flex-row w-full pt-2">
               <Caption className="text-muted-foreground">
-                {birStats.totalEmployeesWithPayslips} employees with paid payslips this year · 
+                {birStats.totalEmployeesWithPayslips} employees with paid payslips this year ·
                 <Link href="/bir-reports" className="text-primary hover:underline ml-1">
                   Generate BIR Reports →
                 </Link>

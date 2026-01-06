@@ -16,4 +16,3 @@ export { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 // Services
 export { resolveLocationDetails, type OfficeLocation } from "@/lib/location";
 
-

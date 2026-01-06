@@ -66,7 +66,7 @@ async function fixJanuary1Attendance() {
 
   for (const record of attendanceRecords) {
     const attendanceData = record.attendance_data;
-    
+
     if (!Array.isArray(attendanceData)) {
       console.warn(`⚠️  Record ${record.id}: attendance_data is not an array, skipping`);
       skippedCount++;
@@ -85,10 +85,10 @@ async function fixJanuary1Attendance() {
     }
 
     const jan1Day = attendanceData[jan1Index];
-    
+
     // Check if January 1 is a holiday (regular-holiday or non-working-holiday)
-    const isHoliday = 
-      jan1Day.dayType === "regular-holiday" || 
+    const isHoliday =
+      jan1Day.dayType === "regular-holiday" ||
       jan1Day.dayType === "non-working-holiday";
 
     if (!isHoliday) {
@@ -176,7 +176,7 @@ async function fixJanuary1Attendance() {
       const employeeName = employee
         ? `${employee.full_name} (${employee.employee_id})`
         : `Employee ${update.employee_id}`;
-      
+
       console.log(
         `✓ ${employeeName.padEnd(40)} | BH: ${update.oldBH} → ${update.newBH} | Total Hours: ${update.oldTotalRegularHours} → ${update.newTotalRegularHours}`
       );
@@ -209,4 +209,3 @@ fixJanuary1Attendance()
     console.error("\n❌ Script failed:", error);
     process.exit(1);
   });
-

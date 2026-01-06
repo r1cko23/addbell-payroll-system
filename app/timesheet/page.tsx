@@ -1017,27 +1017,27 @@ export default function TimesheetPage() {
   // 4. Exclude non-working leave types (LWOP, CTO, OB)
   const todayForDaysWork = new Date();
   todayForDaysWork.setHours(0, 0, 0, 0);
-  
+
   let totalBH = 0;
   if (useBasePayMethod) {
     // For base pay method, count days with completed entries OR eligible holidays
     totalBH = attendanceDays.reduce((sum, d) => {
       const dayDate = new Date(d.date);
       dayDate.setHours(0, 0, 0, 0);
-      
+
       // Only count days that are today or earlier
       if (dayDate > todayForDaysWork) {
         return sum;
       }
-      
+
       // Exclude non-working leave types
       if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
         return sum;
       }
-      
+
       // Check if this is a holiday (RH, SH, or non-working holiday)
       const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
-      
+
       if (isHoliday) {
         // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
         if (d.bh > 0) {
@@ -1049,7 +1049,7 @@ export default function TimesheetPage() {
           return sum + d.bh;
         }
       }
-      
+
       return sum;
     }, 0);
   } else {
@@ -1057,20 +1057,20 @@ export default function TimesheetPage() {
     totalBH = attendanceDays.reduce((sum, d) => {
       const dayDate = new Date(d.date);
       dayDate.setHours(0, 0, 0, 0);
-      
+
       // Only count days that are today or earlier
       if (dayDate > todayForDaysWork) {
         return sum;
       }
-      
+
       // Exclude non-working leave types
       if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
         return sum;
       }
-      
+
       // Check if this is a holiday (RH, SH, or non-working holiday)
       const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
-      
+
       if (isHoliday) {
         // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
         if (d.bh > 0) {
@@ -1082,7 +1082,7 @@ export default function TimesheetPage() {
           return sum + d.bh;
         }
       }
-      
+
       return sum;
     }, 0);
   }

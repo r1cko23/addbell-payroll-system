@@ -42,12 +42,12 @@ function normalizeEmail(email) {
 function determineOTGroup(location, position) {
   const locUpper = location?.toUpperCase() || '';
   const posUpper = position?.toUpperCase() || '';
-  
+
   if (locUpper === 'HOTEL' || locUpper.includes('HOTEL')) {
     return 'ACCOUNT SUPERVISOR FOR HOTEL';
   }
-  
-  if (locUpper === 'HEAD OFFICE' || locUpper.includes('HEAD OFFICE') || 
+
+  if (locUpper === 'HEAD OFFICE' || locUpper.includes('HEAD OFFICE') ||
       locUpper === 'NON HOTEL' || locUpper.includes('NON HOTEL')) {
     if (posUpper.includes('RECRUIT')) {
       return 'RECRUITMENT';
@@ -59,13 +59,13 @@ function determineOTGroup(location, position) {
       return 'HR & ADMIN';
     }
   }
-  
+
   return null;
 }
 
 async function main() {
   console.log("Reading Excel file...\n");
-  
+
   const workbook = XLSX.readFile(excelFile);
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
@@ -76,7 +76,7 @@ async function main() {
   });
 
   const rows = data.slice(1).filter(row => row && row.length > 0 && row[0] != null && typeof row[0] === 'number');
-  
+
   console.log(`Found ${rows.length} employee rows\n`);
 
   // Get OT groups
@@ -118,7 +118,7 @@ async function main() {
     const firstName = row[2]?.toString().trim() || '';
     const position = row[3]?.toString().trim() || '';
     const location = row[4]?.toString().trim() || '';
-    
+
     // Column 6 = OT Approver email
     const approverEmail = normalizeEmail(row[5]);
     // Columns 7-8 = OT Viewer emails
@@ -303,7 +303,7 @@ async function main() {
   console.log(`Updated: ${updated}`);
   console.log(`Not found: ${notFound}`);
   console.log(`Errors: ${errors}`);
-  
+
   if (errorDetails.length > 0) {
     console.log("\nErrors:");
     errorDetails.forEach(err => console.log(`  - ${err}`));
@@ -319,4 +319,3 @@ main()
     console.error("\n❌ Process failed:", error);
     process.exit(1);
   });
-

@@ -24,7 +24,7 @@ function DashboardContent() {
 
   useEffect(() => {
     if (loading || initialized) return;
-    
+
     // Check URL parameter for dashboard type
     const type = searchParams.get('type');
     if (type === 'workforce' || type === 'executive') {

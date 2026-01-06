@@ -150,7 +150,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
   // Filter navigation items based on user role
   const filteredNavGroups = React.useMemo(() => {
     const isRestrictedAccess = isOTApprover || isOTViewer;
-    
+
     return navGroups
       .map((group) => {
         if (!roleLoading) {

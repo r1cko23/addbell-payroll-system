@@ -130,10 +130,10 @@ export default function OvertimeGroupsPage() {
   ) {
     setSaving(groupId);
     try {
-      const updateData = field === "approver_id" 
+      const updateData = field === "approver_id"
         ? { approver_id: value }
         : { viewer_id: value };
-      
+
       const { error } = await (supabase.from("overtime_groups") as any)
         .update(updateData)
         .eq("id", groupId);
@@ -432,4 +432,3 @@ export default function OvertimeGroupsPage() {
     </DashboardLayout>
   );
 }
-

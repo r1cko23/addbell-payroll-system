@@ -95,7 +95,7 @@ async function cleanupOldUsers() {
 
   // Ask for confirmation (in a real script, you might want to add a prompt)
   const dryRun = process.argv.includes("--dry-run");
-  
+
   if (dryRun) {
     console.log("⚠️  DRY RUN MODE - No users will be deleted\n");
   } else {
@@ -113,7 +113,7 @@ async function cleanupOldUsers() {
           .from("overtime_groups")
           .update({ approver_id: null })
           .eq("approver_id", user.id);
-        
+
         await supabase
           .from("overtime_groups")
           .update({ viewer_id: null })
@@ -137,11 +137,11 @@ async function cleanupOldUsers() {
 
       // Delete from Auth
       const authUser = authUsers.find(au => au.email?.toLowerCase() === user.email?.toLowerCase());
-      
+
       if (authUser) {
         if (!dryRun) {
           const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(authUser.id);
-          
+
           if (deleteAuthError) {
             throw new Error(`Failed to delete from Auth: ${deleteAuthError.message}`);
           }
@@ -171,12 +171,12 @@ async function cleanupOldUsers() {
   console.log(`Deleted from Auth: ${deletedFromAuth}`);
   console.log(`Skipped: ${skipped}`);
   console.log(`Errors: ${errors}`);
-  
+
   if (errorDetails.length > 0) {
     console.log("\nErrors:");
     errorDetails.forEach(err => console.log(`  - ${err}`));
   }
-  
+
   console.log("\n" + "=".repeat(80));
 }
 
@@ -191,4 +191,3 @@ cleanupOldUsers(dryRun)
     console.error("\n❌ Cleanup failed:", error);
     process.exit(1);
   });
-

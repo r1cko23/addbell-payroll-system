@@ -1,6 +1,6 @@
 /**
  * Fix OT Approver/Viewer User Names in Supabase Auth
- * 
+ *
  * Updates user names in both Supabase Auth and the users table
  * based on the correct names from the Excel file screenshots.
  */
@@ -194,4 +194,3 @@ fixUserNames()
     console.error("\n❌ Script failed:", error);
     process.exit(1);
   });
-

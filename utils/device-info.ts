@@ -159,4 +159,3 @@ export async function getMacAddress(): Promise<string | null> {
   return null;
 }
 
-

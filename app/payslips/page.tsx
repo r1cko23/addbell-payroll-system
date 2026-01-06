@@ -1605,21 +1605,21 @@ export default function PayslipsPage() {
       let thirteenthMonthPay = 0;
       const currentMonth = periodStart.getMonth(); // 0-11 (Jan = 0, Dec = 11)
       const currentYear = periodStart.getFullYear();
-      
+
       // Check if this is December (month 11) or if HR wants to include it
       // For now, auto-calculate only in December
       if (currentMonth === 11) { // December
         // Calculate months worked in the current year
-        const hireDate = selectedEmployee.hire_date 
-          ? new Date(selectedEmployee.hire_date) 
+        const hireDate = selectedEmployee.hire_date
+          ? new Date(selectedEmployee.hire_date)
           : null;
-        
+
         let monthsWorked = 12; // Default to full year
-        
+
         if (hireDate) {
           const hireYear = hireDate.getFullYear();
           const hireMonth = hireDate.getMonth();
-          
+
           if (hireYear === currentYear) {
             // Employee started this year - prorate from hire month
             monthsWorked = 12 - hireMonth; // Months from hire month to December (inclusive)
@@ -1631,7 +1631,7 @@ export default function PayslipsPage() {
             monthsWorked = 0;
           }
         }
-        
+
         // 13th month = (monthly basic salary / 12) * months worked
         // Only calculate if we have a valid monthly salary
         if (validMonthlySalary > 0 && monthsWorked > 0) {

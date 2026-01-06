@@ -112,4 +112,3 @@ Import completed!
 - All accounts are set to `is_active: true` by default
 - Passwords are stored securely in Supabase Auth
 - The script uses service role key to bypass RLS policies
-

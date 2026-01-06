@@ -232,24 +232,24 @@ position_approvers (
 -- Pseudocode for OT approval check
 FUNCTION can_approve_ot_request(request_id, user_id):
   user_role = get_user_role(user_id)
-  
+
   IF user_role = 'admin' OR user_role = 'account_manager':
     RETURN TRUE  -- Full access
-  
+
   IF user_role = 'ot_approver':
     employee = get_employee_for_request(request_id)
-    
+
     -- Check employee-specific approver (highest priority)
     IF employee.overtime_approver_id = user_id:
       RETURN TRUE
-    
+
     -- Check group-based approver (fallback)
     group = get_group_for_employee(employee.id)
     IF group.approver_id = user_id:
       RETURN TRUE
-    
+
     RETURN FALSE  -- Not authorized
-  
+
   RETURN FALSE  -- Invalid role
 ```
 
@@ -259,25 +259,25 @@ FUNCTION can_approve_ot_request(request_id, user_id):
 -- Pseudocode for OT view check
 FUNCTION can_view_ot_request(request_id, user_id):
   user_role = get_user_role(user_id)
-  
+
   IF user_role = 'admin' OR user_role = 'account_manager':
     RETURN TRUE  -- Full access
-  
+
   IF user_role IN ('ot_approver', 'ot_viewer'):
     employee = get_employee_for_request(request_id)
-    
+
     -- Check employee-specific approver/viewer
-    IF employee.overtime_approver_id = user_id OR 
+    IF employee.overtime_approver_id = user_id OR
        employee.overtime_viewer_id = user_id:
       RETURN TRUE
-    
+
     -- Check group-based approver/viewer
     group = get_group_for_employee(employee.id)
     IF group.approver_id = user_id OR group.viewer_id = user_id:
       RETURN TRUE
-    
+
     RETURN FALSE  -- Not authorized
-  
+
   RETURN FALSE  -- Invalid role
 ```
 
@@ -405,17 +405,17 @@ The current RBAC system with **employee-specific approvers taking precedence ove
 
 ### Key Strengths
 
-✅ Flexible - handles mixed approvers naturally  
-✅ Scalable - can add employee-specific overrides as needed  
-✅ Clear hierarchy - employee-specific > group-based  
-✅ Maintainable - easy to understand and modify  
+✅ Flexible - handles mixed approvers naturally
+✅ Scalable - can add employee-specific overrides as needed
+✅ Clear hierarchy - employee-specific > group-based
+✅ Maintainable - easy to understand and modify
 
 ### Areas for Improvement
 
-🔄 Assign approvers to 9 employees without approvers  
-🔄 Consider splitting groups with many different approvers  
-🔄 Add backup approver/delegation support  
-🔄 Document approval rationale for mixed groups  
+🔄 Assign approvers to 9 employees without approvers
+🔄 Consider splitting groups with many different approvers
+🔄 Add backup approver/delegation support
+🔄 Document approval rationale for mixed groups
 
 ---
 
@@ -429,4 +429,3 @@ The current RBAC system with **employee-specific approvers taking precedence ove
 ---
 
 _This document should be reviewed quarterly and updated as the organization structure evolves._
-

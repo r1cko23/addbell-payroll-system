@@ -553,7 +553,7 @@ function PayslipDetailedBreakdownComponent({
           finalRegularHours,
           attendanceData
         );
-        
+
         if (eligibleForHolidayPay) {
           // For Account Supervisors/Supervisory/Managerial: Always get full daily rate (8 hours) regardless of actual hours worked
           // For other employees: Use actual hours if worked, otherwise 8 hours
@@ -931,7 +931,7 @@ function PayslipDetailedBreakdownComponent({
           regularHours,
           attendanceData
         );
-        
+
         if (eligibleForHolidayPay) {
           // For Account Supervisors: Always get full daily rate (8 hours) regardless of actual hours worked
           // For other employees: Use actual hours if worked, otherwise 8 hours
@@ -947,11 +947,11 @@ function PayslipDetailedBreakdownComponent({
             }
           }
         }
-        
+
         // For Account Supervisors/Supervisory/Managerial: Always get full daily rate (8 hours) regardless of actual hours worked
         // For other employees: Use actual hours
         const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
-        
+
         // Track hours and amount for display purposes (informational breakdown)
         // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
         breakdown.specialHoliday.hours += hoursToDisplay;
@@ -1022,7 +1022,7 @@ function PayslipDetailedBreakdownComponent({
           regularHours,
           attendanceData
         );
-        
+
         if (eligibleForHolidayPay) {
           // For Account Supervisors: Always get full daily rate (8 hours) regardless of actual hours worked
           // For other employees: Use actual hours if worked, otherwise 8 hours
@@ -1038,11 +1038,11 @@ function PayslipDetailedBreakdownComponent({
             }
           }
         }
-        
+
         // For Account Supervisors/Supervisory/Managerial: Always get full daily rate (8 hours) regardless of actual hours worked
         // For other employees: Use actual hours
         const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
-        
+
         // Track hours and amount for display purposes (informational breakdown)
         // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
         breakdown.legalHoliday.hours += hoursToDisplay;

@@ -33,4 +33,3 @@ CREATE POLICY "Users can insert own OT docs" ON public.overtime_documents
 
 -- Keep the account manager/admin SELECT policy (they can view all)
 -- This policy already exists and allows account managers/admin to view all documents
-

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
@@ -111,6 +113,8 @@ export default function TimesheetPage() {
   const [loading, setLoading] = useState(true);
 
   const supabase = createClient();
+  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
   // Calculate period start/end based on month and cutoff
   const periodStart =
@@ -120,8 +124,10 @@ export default function TimesheetPage() {
   const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
   useEffect(() => {
-    loadInitialData();
-  }, [selectedMonth]); // Reload holidays when month changes
+    if (!groupsLoading && !roleLoading) {
+      loadInitialData();
+    }
+  }, [selectedMonth, assignedGroupIds, groupsLoading, roleLoading, isAdmin]); // Reload holidays when month changes
 
   useEffect(() => {
     if (selectedEmployee) {
@@ -174,12 +180,19 @@ export default function TimesheetPage() {
 
   async function loadInitialData() {
     try {
-      // Load employees
-      const { data: empData, error: empError } = await supabase
+      // Load employees with filtering by assigned groups for approvers/viewers
+      let query = supabase
         .from("employees")
-        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, hire_date")
+        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, hire_date, overtime_group_id")
         .eq("is_active", true)
         .order("full_name");
+
+      // Filter by assigned groups if user is approver/viewer (not admin)
+      if (!isAdmin && assignedGroupIds.length > 0) {
+        query = query.in("overtime_group_id", assignedGroupIds);
+      }
+
+      const { data: empData, error: empError } = await query;
 
       if (empError) throw empError;
       setEmployees(empData || []);

@@ -256,13 +256,20 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       data-testid="sidebar-container"
     >
       <div className="flex items-center justify-between h-16 px-4 border-b">
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-[64px]">
           <img
             src="/gp-logo.webp"
             alt="Green Pasture People Management Inc."
-            className="h-16 w-auto"
+            className="h-16 w-auto object-contain"
+            style={{
+              display: 'block',
+              visibility: 'visible',
+              opacity: 1,
+            }}
+            onLoad={() => console.log('Logo loaded successfully')}
             onError={(e) => {
-              e.currentTarget.style.display = "none";
+              console.error('Logo failed to load:', e);
+              e.currentTarget.style.display = 'none';
             }}
           />
         </div>

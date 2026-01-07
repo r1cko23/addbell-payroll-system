@@ -39,6 +39,8 @@ import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { determineDayType, normalizeHolidays } from "@/utils/holidays";
 import { getDayTypeLabel } from "@/utils/payroll-calculator";
+import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 
 interface TimeEntry {
   id: string;
@@ -83,6 +85,8 @@ type Holiday = HolidayEntry;
 
 export default function TimeEntriesPage() {
   const supabase = createClient();
+  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
@@ -108,15 +112,26 @@ export default function TimeEntriesPage() {
   const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
   useEffect(() => {
-    fetchTimeEntries();
-  }, [selectedMonth, cutoffPeriod, statusFilter, selectedEmployee]);
+    if (!groupsLoading) {
+      fetchTimeEntries();
+    }
+  }, [selectedMonth, cutoffPeriod, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin]);
 
   useEffect(() => {
     async function loadEmployees() {
-      const { data, error } = await supabase
+      if (groupsLoading) return;
+
+      let query = supabase
         .from("employees")
-        .select("id, employee_id, full_name")
+        .select("id, employee_id, full_name, overtime_group_id")
         .order("full_name", { ascending: true });
+
+      // Filter by assigned groups if user is approver/viewer (not admin)
+      if (!isAdmin && assignedGroupIds.length > 0) {
+        query = query.in("overtime_group_id", assignedGroupIds);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Failed to load employees", error);
@@ -127,7 +142,7 @@ export default function TimeEntriesPage() {
     }
 
     loadEmployees();
-  }, [supabase]);
+  }, [supabase, assignedGroupIds, groupsLoading, isAdmin]);
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -205,7 +220,7 @@ export default function TimeEntriesPage() {
       // Use single-line format to avoid any whitespace issues with Supabase PostgREST
       let query = supabase
         .from("time_clock_entries")
-        .select("*,employees(employee_id,full_name,profile_picture_url)");
+        .select("*,employees(employee_id,full_name,profile_picture_url,overtime_group_id)");
 
       // Apply date filters
       query = query
@@ -282,7 +297,16 @@ export default function TimeEntriesPage() {
         return;
       }
 
-      console.log("Fetched entries:", data?.length || 0, "entries");
+      // Filter by assigned groups if user is approver/viewer (not admin)
+      let filteredData = data;
+      if (!isAdmin && assignedGroupIds.length > 0 && data) {
+        filteredData = data.filter((entry: any) => {
+          const employeeGroupId = entry.employees?.overtime_group_id;
+          return employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+        });
+      }
+
+      console.log("Fetched entries:", filteredData?.length || 0, "entries");
 
       if (holidayError) {
         console.warn("Error loading holidays for period:", holidayError);
@@ -316,7 +340,7 @@ export default function TimeEntriesPage() {
       const periodStartStr = format(periodStart, "yyyy-MM-dd");
       const periodEndStr = format(periodEnd, "yyyy-MM-dd");
 
-      const filteredData = (data || []).filter((entry: any) => {
+      const dateFilteredData = (filteredData || []).filter((entry: any) => {
         if (!entry.clock_in_time) return false;
 
         const entryDate = new Date(entry.clock_in_time);
@@ -331,12 +355,12 @@ export default function TimeEntriesPage() {
       });
 
       console.log(
-        `Filtered ${filteredData.length} entries (from ${data?.length || 0} total) using Asia/Manila timezone`
+        `Filtered ${dateFilteredData.length} entries (from ${filteredData?.length || 0} total) using Asia/Manila timezone`
       );
 
       // Transform data to ensure employees is a single object, not an array
       const transformedEntries: TimeEntry[] =
-        filteredData.map((entry: any) => {
+        dateFilteredData.map((entry: any) => {
           // Handle employees relationship - could be array, object, or null
           let employeeData = {
             employee_id: "",
@@ -363,13 +387,14 @@ export default function TimeEntriesPage() {
       setHolidays(formattedHolidays);
       setEntries(transformedEntries);
 
-      // Log if no entries found to help debug
+        // Log if no entries found to help debug
       if (transformedEntries.length === 0) {
         console.warn("No time entries found for the selected period:", {
           periodStart: periodStart.toISOString(),
           periodEnd: periodEndInclusive.toISOString(),
           statusFilter,
           selectedEmployee,
+          assignedGroups: assignedGroupIds,
         });
 
         // Test query: Check if there are ANY entries in the database (for debugging)
@@ -462,6 +487,12 @@ export default function TimeEntriesPage() {
   }
 
   async function handleDelete(entryId: string) {
+    // Only admins can delete time entries
+    if (!isAdmin) {
+      toast.error("Only administrators can delete time entries");
+      return;
+    }
+
     if (!confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
       return;
     }
@@ -976,7 +1007,7 @@ export default function TimeEntriesPage() {
                                   </Button>
                                 </>
                               )}
-                              {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && (
+                              {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && isAdmin && (
                                 <Button
                                   size="sm"
                                   variant="ghost"
@@ -1201,15 +1232,17 @@ export default function TimeEntriesPage() {
                     <Icon name="X" size={IconSizes.sm} />
                     Reject
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() =>
-                      selectedEntry && handleDelete(selectedEntry.id)
-                    }
-                  >
-                    <Icon name="Trash" size={IconSizes.sm} />
-                    Delete
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="destructive"
+                      onClick={() =>
+                        selectedEntry && handleDelete(selectedEntry.id)
+                      }
+                    >
+                      <Icon name="Trash" size={IconSizes.sm} />
+                      Delete
+                    </Button>
+                  )}
                   <Button
                     onClick={() =>
                       selectedEntry && handleApprove(selectedEntry.id)

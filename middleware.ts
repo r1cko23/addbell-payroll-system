@@ -4,6 +4,15 @@ import type { NextRequest } from "next/server";
 import type { Database } from "@/types/database";
 
 export async function middleware(req: NextRequest) {
+  // Skip middleware for static files (images, fonts, etc.)
+  const pathname = req.nextUrl.pathname;
+  const staticFileExtensions = ['.ico', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.woff', '.woff2', '.ttf', '.eot'];
+  const isStaticFile = staticFileExtensions.some(ext => pathname.endsWith(ext));
+  
+  if (isStaticFile || pathname.startsWith('/_next/static') || pathname.startsWith('/_next/image') || pathname === '/favicon.ico') {
+    return NextResponse.next();
+  }
+
   const res = NextResponse.next();
   const supabase = createMiddlewareClient<Database>({ req, res });
 

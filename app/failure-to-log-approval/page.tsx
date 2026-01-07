@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import {
   Card,
   CardContent,
@@ -66,7 +67,8 @@ interface FailureToLog {
 export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { role, isHR, loading: roleLoading } = useUserRole();
+  const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
+  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
@@ -106,14 +108,25 @@ export default function FailureToLogApprovalPage() {
   };
 
   useEffect(() => {
-    loadEmployees();
-  }, []);
+    if (!groupsLoading) {
+      loadEmployees();
+    }
+  }, [assignedGroupIds, groupsLoading, isAdmin]);
 
   async function loadEmployees() {
-    const { data, error } = await supabase
+    if (groupsLoading) return;
+
+    let query = supabase
       .from("employees")
-      .select("id, employee_id, full_name")
+      .select("id, employee_id, full_name, overtime_group_id")
       .order("full_name", { ascending: true });
+
+    // Filter by assigned groups if user is approver/viewer (not admin)
+    if (!isAdmin && assignedGroupIds.length > 0) {
+      query = query.in("overtime_group_id", assignedGroupIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Failed to load employees", error);
@@ -124,8 +137,10 @@ export default function FailureToLogApprovalPage() {
   }
 
   useEffect(() => {
-    fetchRequests();
-  }, [statusFilter, selectedWeek, selectedEmployee]);
+    if (!groupsLoading) {
+      fetchRequests();
+    }
+  }, [statusFilter, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin]);
 
   async function fetchRequests() {
     setLoading(true);
@@ -175,7 +190,27 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    const requestsData = data as Array<{
+    // Filter by assigned groups if user is approver/viewer (not admin)
+    let filteredData = data;
+    if (!isAdmin && assignedGroupIds.length > 0 && data) {
+      // Need to fetch employee group IDs for filtering
+      const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
+      const { data: employeesData } = await supabase
+        .from("employees")
+        .select("id, overtime_group_id")
+        .in("id", employeeIds);
+
+      const employeeGroupMap = new Map(
+        (employeesData || []).map((emp: any) => [emp.id, emp.overtime_group_id])
+      );
+
+      filteredData = data.filter((req: any) => {
+        const employeeGroupId = employeeGroupMap.get(req.employee_id);
+        return employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+      });
+    }
+
+    const requestsData = filteredData as Array<{
       status: string;
       approved_by?: string | null;
       rejected_by?: string | null;

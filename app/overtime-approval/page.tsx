@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { toast } from "sonner";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
@@ -62,6 +63,7 @@ export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
+  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
   // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
@@ -184,52 +186,106 @@ export default function OvertimeApprovalPage() {
     }
 
     const { data, error } = await query;
+    
     if (error) {
       console.error("Error loading OT requests", error);
       toast.error("Failed to load OT requests");
-    } else {
-      console.log("OT Requests loaded:", {
-        count: data?.length || 0,
-        dateRange: `${weekStartStr} to ${weekEndStr}`,
-        statusFilter,
-        selectedEmployee,
-        requests: data || [],
+      setLoading(false);
+      return;
+    }
+    
+    // Filter by assigned groups if user is approver/viewer (not admin)
+    let filteredData = data;
+    if (!isAdmin && assignedGroupIds.length > 0 && data) {
+      console.log("Filtering requests for approver/viewer:", {
+        totalRequests: data.length,
+        assignedGroupIds: assignedGroupIds,
+        isAdmin: isAdmin,
       });
-      const requestsData = data as Array<{
-        status: string;
-        account_manager_id?: string | null;
-      }> | null;
+      
+      filteredData = data.filter((req: any) => {
+        // Handle both array and object formats for employees relationship
+        let employeeGroupId = null;
+        let employeeName = "Unknown";
+        
+        if (Array.isArray(req.employees)) {
+          employeeGroupId = req.employees[0]?.overtime_group_id;
+          employeeName = req.employees[0]?.full_name || "Unknown";
+        } else if (req.employees) {
+          employeeGroupId = req.employees.overtime_group_id;
+          employeeName = req.employees.full_name || "Unknown";
+        }
+        
+        const matches = employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+        
+        if (!matches) {
+          console.log(`Filtered out: ${employeeName} (group: ${employeeGroupId || "NULL"})`);
+        }
+        
+        return matches;
+      });
+      
+      console.log("Filtered requests:", {
+        before: data.length,
+        after: filteredData.length,
+        filteredOut: data.length - filteredData.length,
+      });
+    } else if (!isAdmin && assignedGroupIds.length === 0) {
+      console.warn("Approver/viewer has no assigned groups - showing no requests");
+      filteredData = [];
+    }
+    
+    console.log("OT Requests loaded:", {
+      count: filteredData?.length || 0,
+      dateRange: `${weekStartStr} to ${weekEndStr}`,
+      statusFilter,
+      selectedEmployee,
+      assignedGroups: assignedGroupIds,
+      isAdmin: isAdmin,
+    });
+    const requestsData = filteredData as Array<{
+      status: string;
+      account_manager_id?: string | null;
+    }> | null;
 
-      // Filter out cancelled requests to avoid flooding the UI
-      const cleaned = (requestsData || []).filter(
-        (r) => r.status !== "cancelled"
-      );
-      setRequests(cleaned as OTRequest[]);
+    // Filter out cancelled requests to avoid flooding the UI
+    const cleaned = (requestsData || []).filter(
+      (r) => r.status !== "cancelled"
+    );
+    setRequests(cleaned as OTRequest[]);
 
-      // Load approver names for approved requests
-      const approverIds = Array.from(
-        new Set(
-          cleaned
-            .map((r) => r.account_manager_id)
-            .filter((id): id is string => Boolean(id))
-        )
-      );
-      if (approverIds.length > 0) {
-        loadApproverNames(approverIds);
-      }
+    // Load approver names for approved requests
+    const approverIds = Array.from(
+      new Set(
+        cleaned
+          .map((r) => r.account_manager_id)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    if (approverIds.length > 0) {
+      loadApproverNames(approverIds);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    loadEmployees();
-  }, []);
+    if (!groupsLoading) {
+      loadEmployees();
+    }
+  }, [assignedGroupIds, groupsLoading, isAdmin]);
 
   async function loadEmployees() {
-    const { data, error } = await supabase
+    let query = supabase
       .from("employees")
-      .select("id, employee_id, full_name")
+      .select("id, employee_id, full_name, overtime_group_id")
       .order("full_name", { ascending: true });
+
+    // Filter by assigned groups if user is approver/viewer (not admin)
+    if (!isAdmin && assignedGroupIds.length > 0) {
+      query = query.in("overtime_group_id", assignedGroupIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Failed to load employees", error);
@@ -288,10 +344,16 @@ export default function OvertimeApprovalPage() {
   }
 
   useEffect(() => {
-    if (role === "admin" || role === "approver" || role === "viewer") {
+    if ((role === "admin" || role === "approver" || role === "viewer") && !groupsLoading) {
+      console.log("Loading requests with:", {
+        role,
+        isAdmin,
+        assignedGroupIds,
+        groupsLoading,
+      });
       loadRequests();
     }
-  }, [selectedWeek, statusFilter, selectedEmployee, role]);
+  }, [selectedWeek, statusFilter, selectedEmployee, role, assignedGroupIds, groupsLoading, isAdmin]);
 
   const handleApprove = async (id: string) => {
     setActioningId(id);
@@ -326,8 +388,8 @@ export default function OvertimeApprovalPage() {
     setActioningId(null);
   };
 
-  // Show loading state while checking role
-  if (roleLoading) {
+  // Show loading state while checking role or loading groups
+  if (roleLoading || groupsLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">

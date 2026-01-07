@@ -256,25 +256,48 @@ export default function BundyClockPage() {
   const [otRequests, setOtRequests] = useState<OvertimeRequest[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [employeePosition, setEmployeePosition] = useState<string | null>(null);
+  const [isRestDayToday, setIsRestDayToday] = useState<boolean>(false);
+  const [employeeType, setEmployeeType] = useState<string | null>(null);
 
-  // Fetch employee position
+  // Fetch employee position and type, and check if today is a rest day
   useEffect(() => {
-    const fetchEmployeePosition = async () => {
+    const fetchEmployeeInfo = async () => {
       if (!employee?.id) return;
       try {
         const { data, error } = await supabase
           .from("employees")
-          .select("position")
+          .select("position, employee_type")
           .eq("id", employee.id)
           .single();
         if (!error && data) {
           setEmployeePosition((data as { position: string | null }).position);
+          setEmployeeType((data as { employee_type: string | null }).employee_type);
+          
+          // Check if today is a rest day
+          const today = new Date();
+          const todayStr = getDateInManilaTimezone(today);
+          
+          if (data.employee_type === "client-based") {
+            // For client-based: Check employee_week_schedules for day_off flag
+            const { data: scheduleData } = await supabase
+              .from("employee_week_schedules")
+              .select("day_off")
+              .eq("employee_id", employee.id)
+              .eq("schedule_date", todayStr)
+              .maybeSingle();
+            
+            setIsRestDayToday(scheduleData?.day_off === true);
+          } else {
+            // For office-based: Sunday is the fixed rest day
+            const dayOfWeek = getDay(today);
+            setIsRestDayToday(dayOfWeek === 0); // 0 = Sunday
+          }
         }
       } catch (err) {
-        console.error("Failed to fetch employee position:", err);
+        console.error("Failed to fetch employee info:", err);
       }
     };
-    fetchEmployeePosition();
+    fetchEmployeeInfo();
   }, [employee?.id, supabase]);
 
   // Fetch client IP once for logging
@@ -1450,6 +1473,11 @@ export default function BundyClockPage() {
 
   // Show modal when time in/out is clicked
   function handleClock(event: "in" | "out") {
+    // Prevent clock in/out on rest days
+    if (isRestDayToday) {
+      toast.error("Cannot clock in/out on rest day");
+      return;
+    }
     setPendingClockAction(event);
     setShowLocationModal(true);
   }
@@ -1799,38 +1827,50 @@ export default function BundyClockPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Button
-              onClick={() => handleClock("in")}
-              disabled={!!currentEntry || !locationStatus?.isAllowed}
-              size="lg"
-              className={cn(
-                "w-full py-6 text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[64px]",
-                currentEntry || !locationStatus?.isAllowed
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                  : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
-              )}
-              aria-label={currentEntry ? "Already clocked in" : "Clock in"}
-            >
-              <Icon name="Clock" size={IconSizes.md} className="mr-2" />
-              Time In
-            </Button>
-            <Button
-              onClick={() => handleClock("out")}
-              disabled={!currentEntry || !locationStatus?.isAllowed}
-              size="lg"
-              className={cn(
-                "w-full py-6 text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[64px]",
-                !currentEntry || !locationStatus?.isAllowed
-                  ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                  : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
-              )}
-              aria-label={!currentEntry ? "No active clock in" : "Clock out"}
-            >
-              <Icon name="Clock" size={IconSizes.md} className="mr-2" />
-              Time Out
-            </Button>
-          </div>
+          {isRestDayToday ? (
+            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+              <BodySmall className="font-semibold mb-1 flex items-center gap-2">
+                <Icon name="WarningCircle" size={IconSizes.sm} />
+                Rest Day Today
+              </BodySmall>
+              <BodySmall>
+                You cannot clock in or out on your rest day. Please enjoy your day off!
+              </BodySmall>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Button
+                onClick={() => handleClock("in")}
+                disabled={!!currentEntry || !locationStatus?.isAllowed}
+                size="lg"
+                className={cn(
+                  "w-full py-6 text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[64px]",
+                  currentEntry || !locationStatus?.isAllowed
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                    : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
+                )}
+                aria-label={currentEntry ? "Already clocked in" : "Clock in"}
+              >
+                <Icon name="Clock" size={IconSizes.md} className="mr-2" />
+                Time In
+              </Button>
+              <Button
+                onClick={() => handleClock("out")}
+                disabled={!currentEntry || !locationStatus?.isAllowed}
+                size="lg"
+                className={cn(
+                  "w-full py-6 text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[64px]",
+                  !currentEntry || !locationStatus?.isAllowed
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                    : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
+                )}
+                aria-label={!currentEntry ? "No active clock in" : "Clock out"}
+              >
+                <Icon name="Clock" size={IconSizes.md} className="mr-2" />
+                Time Out
+              </Button>
+            </div>
+          )}
 
           <div>
             {location ? (

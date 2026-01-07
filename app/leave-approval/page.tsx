@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import {
   Card,
   CardContent,
@@ -91,6 +92,7 @@ export default function LeaveApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
+  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
@@ -132,14 +134,26 @@ export default function LeaveApprovalPage() {
 
   useEffect(() => {
     fetchUserRole();
-    loadEmployees();
   }, []);
 
+  useEffect(() => {
+    if (!groupsLoading) {
+      loadEmployees();
+    }
+  }, [assignedGroupIds, groupsLoading, isAdmin]);
+
   async function loadEmployees() {
-    const { data, error } = await supabase
+    let query = supabase
       .from("employees")
-      .select("id, employee_id, full_name")
+      .select("id, employee_id, full_name, overtime_group_id")
       .order("full_name", { ascending: true });
+
+    // Filter by assigned groups if user is approver/viewer (not admin)
+    if (!isAdmin && assignedGroupIds.length > 0) {
+      query = query.in("overtime_group_id", assignedGroupIds);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Failed to load employees", error);
@@ -271,7 +285,27 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    const requestsData = data as any[];
+    // Filter by assigned groups if user is approver/viewer (not admin)
+    let filteredData = data;
+    if (!isAdmin && assignedGroupIds.length > 0) {
+      // Need to fetch employee group IDs for filtering
+      const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
+      const { data: employeesData } = await supabase
+        .from("employees")
+        .select("id, overtime_group_id")
+        .in("id", employeeIds);
+
+      const employeeGroupMap = new Map(
+        (employeesData || []).map((emp: any) => [emp.id, emp.overtime_group_id])
+      );
+
+      filteredData = data.filter((req: any) => {
+        const employeeGroupId = employeeGroupMap.get(req.employee_id);
+        return employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+      });
+    }
+
+    const requestsData = filteredData as any[];
 
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
@@ -635,9 +669,9 @@ export default function LeaveApprovalPage() {
   }
 
   useEffect(() => {
-    if (!normalizedRole) return;
+    if (!normalizedRole || groupsLoading) return;
     fetchRequests();
-  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee]);
+  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin]);
 
   const stats = {
     total: requests.length,

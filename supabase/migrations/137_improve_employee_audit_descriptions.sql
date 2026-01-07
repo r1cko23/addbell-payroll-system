@@ -22,12 +22,12 @@ BEGIN
   IF OLD.is_active IS DISTINCT FROM NEW.is_active THEN
     -- Determine action description
     IF NEW.is_active = false THEN
-      v_action_description := format('Employee Deactivated: %s (%s)', 
-        COALESCE(v_full_name, 'Unknown'), 
+      v_action_description := format('Employee Deactivated: %s (%s)',
+        COALESCE(v_full_name, 'Unknown'),
         COALESCE(v_employee_id, 'Unknown'));
     ELSE
-      v_action_description := format('Employee Activated: %s (%s)', 
-        COALESCE(v_full_name, 'Unknown'), 
+      v_action_description := format('Employee Activated: %s (%s)',
+        COALESCE(v_full_name, 'Unknown'),
         COALESCE(v_employee_id, 'Unknown'));
     END IF;
 
@@ -79,4 +79,3 @@ CREATE TRIGGER trigger_log_employee_status_change
 -- COMMENTS
 -- =====================================================
 COMMENT ON FUNCTION log_employee_status_change() IS 'Creates descriptive audit logs when employee is_active status changes, including employee name and ID in the description';
-

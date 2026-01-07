@@ -66,37 +66,37 @@ function determineOTGroup(location, position) {
       locUpper === 'NON HOTEL' || locUpper.includes('NON HOTEL')) {
     // Determine sub-group based on position
     // Check for managers/supervisors/heads/directors first (GP HEADS)
-    if (posUpper.includes('MANAGER') || posUpper.includes('HEAD') || 
+    if (posUpper.includes('MANAGER') || posUpper.includes('HEAD') ||
         posUpper.includes('DIRECTOR') || posUpper.includes('SUPERVISOR')) {
       // But exclude ACCOUNT SUPERVISOR (already handled above)
       if (!posUpper.includes('ACCOUNT SUPERVISOR')) {
         return 'GP HEADS';
       }
     }
-    
+
     // Check RECRUITMENT
     if (posUpper.includes('RECRUIT')) {
       return 'RECRUITMENT';
     }
-    
+
     // Check ACCOUNTING (TIMEKEEPING, PAYROLL, BILLING, COLLECTION)
     // But exclude PAYROLL SUPERVISOR (should be GP HEADS)
-    if ((posUpper.includes('ACCOUNTING') || posUpper.includes('TIMEKEEPING') || 
-         posUpper.includes('PAYROLL') || posUpper.includes('BILLING') || 
+    if ((posUpper.includes('ACCOUNTING') || posUpper.includes('TIMEKEEPING') ||
+         posUpper.includes('PAYROLL') || posUpper.includes('BILLING') ||
          posUpper.includes('COLLECTION')) && !posUpper.includes('SUPERVISOR')) {
       return 'ACCOUNTING';
     }
-    
+
     // Check HR COMPENSATION & BENEFITS
     if (posUpper.includes('COMPENSATION') || posUpper.includes('BENEFITS')) {
       return 'HR COMPENSATION & BENEFITS';
     }
-    
+
     // Check DRIVERS
     if (posUpper.includes('DRIVER')) {
       return 'DRIVERS';
     }
-    
+
     // Default for office based employees
     return 'HR & ADMIN';
   }
@@ -564,7 +564,7 @@ async function main() {
 
     if (approverEmail) {
       let approverUser = userEmailMap.get(approverEmail);
-      
+
       // Always update role to 'approver' for assigned approvers (unless they're admin or hr)
       if (approverUser) {
         const currentRole = approverUser.role;
@@ -574,7 +574,7 @@ async function main() {
               .from("users")
               .update({ role: 'approver' })
               .eq("id", approverUser.id);
-            
+
             if (roleError) {
               console.warn(`⚠️  Failed to update role for ${approverEmail}: ${roleError.message}`);
             } else {
@@ -590,7 +590,7 @@ async function main() {
           console.log(`⊘ Role already set to approver: ${approverUser.full_name || approverEmail}`);
         }
       }
-      
+
       // If user doesn't exist, try to create them
       if (!approverUser) {
         // Try to find name from employees table
@@ -601,7 +601,7 @@ async function main() {
             approverName = emp.full_name;
           }
         }
-        
+
         if (!dryRun) {
           try {
             const result = await getOrCreateUser(approverEmail, approverName);
@@ -620,7 +620,7 @@ async function main() {
                   .from("users")
                   .update({ role: 'approver' })
                   .eq("id", approverUser.id);
-                
+
                 if (!roleError) {
                   approverUser.role = 'approver';
                   console.log(`  → Updated role to approver`);
@@ -636,7 +636,7 @@ async function main() {
           console.log(`[DRY RUN] Would create user: ${approverEmail} with role: approver`);
         }
       }
-      
+
       if (approverUser) {
         updateData.approver_id = approverUser.id;
       } else if (!dryRun) {
@@ -648,7 +648,7 @@ async function main() {
 
     if (viewerEmail) {
       let viewerUser = userEmailMap.get(viewerEmail);
-      
+
       // If user doesn't exist, try to create them
       if (!viewerUser) {
         // Try to find name from employees table
@@ -659,7 +659,7 @@ async function main() {
             viewerName = emp.full_name;
           }
         }
-        
+
         if (!dryRun) {
           try {
             const result = await getOrCreateUser(viewerEmail, viewerName);
@@ -680,7 +680,7 @@ async function main() {
           console.log(`[DRY RUN] Would create user: ${viewerEmail}`);
         }
       }
-      
+
       if (viewerUser) {
         updateData.viewer_id = viewerUser.id;
       } else if (!dryRun) {
@@ -740,7 +740,7 @@ async function main() {
   console.log("\n" + "=".repeat(80));
   console.log("ONE-TO-ONE MAPPING VERIFICATION");
   console.log("=".repeat(80));
-  
+
   // Final verification - check database state
   if (!dryRun) {
     const { data: finalGroups, error: finalError } = await supabase
@@ -790,4 +790,3 @@ main()
     console.error("\n❌ Process failed:", error);
     process.exit(1);
   });
-

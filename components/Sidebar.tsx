@@ -245,10 +245,10 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
         "flex h-full flex-col w-64 border-r bg-muted/10 flex-shrink-0",
         className
       )}
-      style={{ 
-        minWidth: '256px', 
+      style={{
+        minWidth: '256px',
         width: '256px',
-        position: 'relative', 
+        position: 'relative',
         zIndex: 10,
         display: 'flex',
         flexDirection: 'column'

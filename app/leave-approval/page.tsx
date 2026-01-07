@@ -1074,7 +1074,7 @@ export default function LeaveApprovalPage() {
                           e.stopPropagation();
                           // OT Approvers and Account Managers approve at "manager" level (first step)
                           // HR and Admin approve at "hr" level (second step)
-                          const approvalLevel = 
+                          const approvalLevel =
                             normalizedRole === "approver"
                               ? "manager"
                               : "hr";
@@ -1368,7 +1368,7 @@ export default function LeaveApprovalPage() {
                           onClick={() => {
                             // OT Approvers and Account Managers approve at "manager" level (first step)
                             // HR and Admin approve at "hr" level (second step)
-                            const approvalLevel = 
+                            const approvalLevel =
                               normalizedRole === "approver"
                                 ? "manager"
                                 : "hr";

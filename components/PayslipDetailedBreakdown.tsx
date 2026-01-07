@@ -295,13 +295,13 @@ function PayslipDetailedBreakdownComponent({
       const prevDateObj = new Date(currentDateObj);
       prevDateObj.setDate(prevDateObj.getDate() - 1);
       const prevDateStr = prevDateObj.toISOString().split("T")[0];
-      
+
       const prevDay = attendanceDataArray.find((day) => day.date === prevDateStr);
       const isPrevDayHoliday = prevDay && (
-        prevDay.dayType === "regular-holiday" || 
+        prevDay.dayType === "regular-holiday" ||
         prevDay.dayType === "non-working-holiday"
       );
-      
+
       // If previous day was a holiday and it was eligible (regularHours >= 8), this consecutive holiday is also eligible
       if (isPrevDayHoliday && prevDay && (prevDay.regularHours || 0) >= 8) {
         return true; // Consecutive holiday - eligible because previous holiday was eligible
@@ -358,8 +358,8 @@ function PayslipDetailedBreakdownComponent({
         periodEnd,
         clockEntries,
         restDays: restDays || new Map(),
-        holidays: holidays.map((h) => ({ 
-          holiday_date: h.holiday_date || (h as any).date 
+        holidays: holidays.map((h) => ({
+          holiday_date: h.holiday_date || (h as any).date
         })),
         isClientBased: isClientBased || false,
         hireDate: employee.hire_date ? parseISO(employee.hire_date) : undefined,
@@ -1053,11 +1053,11 @@ function PayslipDetailedBreakdownComponent({
     // "Days Work" = basePayHours / 8, where basePayHours = 104 - (absences × 8)
     // This represents the total days worked including holidays (holidays are part of 13 days)
     let daysWorked = basePayHours / 8; // Always use basePayHours, which is capped at 104
-    
+
     // Ensure daysWorked never exceeds 13 (104 hours / 8)
     // This prevents holidays from being double-counted
     daysWorked = Math.min(daysWorked, 13);
-    
+
     // Ensure basicSalary = daysWorked × daily rate (all days worked including holidays)
     // This ensures consistency: basicSalary should equal daysWorked × ratePerDay
     // The basicSalary was calculated by summing individual days, but we verify it matches daysWorked × ratePerDay
@@ -1068,7 +1068,7 @@ function PayslipDetailedBreakdownComponent({
       // If there's a significant difference, use the expected calculation
       basicSalary = expectedBasicSalary;
     }
-    
+
     // Debug logging to verify calculation
     if (periodStart && periodEnd) {
       const periodStartStr = format(periodStart, "yyyy-MM-dd");

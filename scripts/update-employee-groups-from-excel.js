@@ -55,35 +55,35 @@ function determineOTGroup(location, position) {
       locUpper === 'NON HOTEL' || locUpper.includes('NON HOTEL')) {
     // Determine sub-group based on position
     // Check for managers/supervisors/heads/directors first (GP HEADS)
-    if ((posUpper.includes('MANAGER') || posUpper.includes('HEAD') || 
+    if ((posUpper.includes('MANAGER') || posUpper.includes('HEAD') ||
          posUpper.includes('DIRECTOR') || posUpper.includes('SUPERVISOR')) &&
         !posUpper.includes('ACCOUNT SUPERVISOR')) {
       return 'GP HEADS';
     }
-    
+
     // Check RECRUITMENT
     if (posUpper.includes('RECRUIT')) {
       return 'RECRUITMENT';
     }
-    
+
     // Check ACCOUNTING (TIMEKEEPING, PAYROLL, BILLING, COLLECTION)
     // But exclude PAYROLL SUPERVISOR (should be GP HEADS)
-    if ((posUpper.includes('ACCOUNTING') || posUpper.includes('TIMEKEEPING') || 
-         posUpper.includes('PAYROLL') || posUpper.includes('BILLING') || 
+    if ((posUpper.includes('ACCOUNTING') || posUpper.includes('TIMEKEEPING') ||
+         posUpper.includes('PAYROLL') || posUpper.includes('BILLING') ||
          posUpper.includes('COLLECTION')) && !posUpper.includes('SUPERVISOR')) {
       return 'ACCOUNTING';
     }
-    
+
     // Check HR COMPENSATION & BENEFITS
     if (posUpper.includes('COMPENSATION') || posUpper.includes('BENEFITS')) {
       return 'HR COMPENSATION & BENEFITS';
     }
-    
+
     // Check DRIVERS
     if (posUpper.includes('DRIVER')) {
       return 'DRIVERS';
     }
-    
+
     // Default for office based employees
     return 'HR & ADMIN';
   }
@@ -231,4 +231,3 @@ main()
     console.error("\n❌ Process failed:", error);
     process.exit(1);
   });
-

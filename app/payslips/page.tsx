@@ -320,13 +320,13 @@ export default function PayslipsPage() {
         // Map employees to include computed rate fields
         const mappedEmployees = data.map((emp: any) => {
           // Calculate rate_per_day: monthly_rate / 26 if monthly_rate exists, otherwise use per_day
-          const ratePerDay = emp.monthly_rate 
-            ? emp.monthly_rate / 26 
+          const ratePerDay = emp.monthly_rate
+            ? emp.monthly_rate / 26
             : (emp.per_day || undefined);
-          const ratePerHour = ratePerDay 
-            ? ratePerDay / 8 
+          const ratePerHour = ratePerDay
+            ? ratePerDay / 8
             : undefined;
-          
+
           return {
             ...emp,
             rate_per_day: ratePerDay,
@@ -2249,7 +2249,7 @@ export default function PayslipsPage() {
     // Use base pay method: (104 hours - absences × 8) / 8
     // This matches both timesheet and PayslipDetailedBreakdown calculations
     // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
-    
+
     try {
       // Extract clock entries from attendance data
       const clockEntries = days

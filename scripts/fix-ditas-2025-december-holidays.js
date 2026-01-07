@@ -131,4 +131,3 @@ fixDitas2025DecemberHolidays()
     console.error("\n❌ Error:", error);
     process.exit(1);
   });
-

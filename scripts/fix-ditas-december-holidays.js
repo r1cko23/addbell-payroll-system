@@ -86,11 +86,11 @@ async function fixDitasDecemberHolidays() {
 
     if (dec30) {
       console.log(`Dec 30: status=${dec30.status || 'none'}, dayType=${dec30.dayType || 'none'}, regularHours=${dec30.regularHours || 0}, bh=${dec30.bh || 0}`);
-      
+
       // Check if it's marked as a holiday
       const isHoliday = dec30.dayType === "regular-holiday" || dec30.dayType === "non-working-holiday";
       const workedDec29 = dec29 && (dec29.regularHours || 0) >= 8 && dec29.dayType === "regular";
-      
+
       if (isHoliday && dec30.regularHours === 0 && workedDec29) {
         console.log("  ⚠️  Dec 30 is a holiday but regularHours=0. Should be 8 (eligible - worked Dec 29)");
         dec30.regularHours = 8;
@@ -107,11 +107,11 @@ async function fixDitasDecemberHolidays() {
 
     if (dec31) {
       console.log(`Dec 31: status=${dec31.status || 'none'}, dayType=${dec31.dayType || 'none'}, regularHours=${dec31.regularHours || 0}, bh=${dec31.bh || 0}`);
-      
+
       // Check if it's marked as a holiday
       const isHoliday = dec31.dayType === "regular-holiday" || dec31.dayType === "non-working-holiday";
       const workedDec30 = dec30 && (dec30.regularHours || 0) >= 8;
-      
+
       if (isHoliday && dec31.regularHours === 0 && workedDec30) {
         console.log("  ⚠️  Dec 31 is a holiday but regularHours=0. Should be 8 (eligible - worked Dec 30)");
         dec31.regularHours = 8;
@@ -155,4 +155,3 @@ fixDitasDecemberHolidays()
     console.error("\n❌ Error:", error);
     process.exit(1);
   });
-

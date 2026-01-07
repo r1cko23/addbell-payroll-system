@@ -69,7 +69,7 @@ async function regenerateDitasDecemberAttendance() {
     console.log("Found existing attendance record:");
     const dec30 = existingAtt.attendance_data?.find(d => d.date === "2024-12-30");
     const dec31 = existingAtt.attendance_data?.find(d => d.date === "2024-12-31");
-    
+
     if (dec30) {
       console.log(`  Dec 30: dayType=${dec30.dayType}, regularHours=${dec30.regularHours}, status=${dec30.status || 'none'}`);
     }

@@ -35,10 +35,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         }}
       />
       {/* Desktop Sidebar - Always render, only hide on mobile */}
-      <aside 
-        className="hidden lg:flex lg:flex-shrink-0" 
-        style={{ 
-          position: 'relative', 
+      <aside
+        className="hidden lg:flex lg:flex-shrink-0"
+        style={{
+          position: 'relative',
           zIndex: 10,
           minWidth: '256px',
           width: '256px'

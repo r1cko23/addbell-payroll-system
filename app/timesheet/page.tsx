@@ -658,7 +658,7 @@ export default function TimesheetPage() {
         const normalizedHolidayDate = h.date.split('T')[0]; // Remove time if present
         return normalizedHolidayDate === dateStr;
       });
-      
+
       // Debug logging for Dec 30-31
       if (dateStr === "2025-12-30" || dateStr === "2025-12-31") {
         console.log(`[Timesheet] Processing ${dateStr}:`, {
@@ -686,19 +686,19 @@ export default function TimesheetPage() {
       // Check for holidays FIRST (before everything else) to ensure they're always detected
       // This is critical - holidays should be detected even if there are no clock entries
       // Check both dayType and direct holiday lookup
-      const isHoliday = holidayForDate !== undefined || 
-                       dayType === "regular-holiday" || 
-                       dayType === "non-working-holiday" || 
+      const isHoliday = holidayForDate !== undefined ||
+                       dayType === "regular-holiday" ||
+                       dayType === "non-working-holiday" ||
                        dayType === "sunday-regular-holiday" ||
                        dayType === "sunday-special-holiday" ||
                        dayType.includes("holiday");
-      
+
       if (isHoliday) {
         // Holiday - check BEFORE checking entries to ensure holidays are always detected
         // Even if employee didn't work, it's still a holiday (not ABSENT)
         // Determine if regular or special holiday
-        const isRegularHoliday = holidayForDate?.type === "regular" || 
-                                 dayType.includes("regular") || 
+        const isRegularHoliday = holidayForDate?.type === "regular" ||
+                                 dayType.includes("regular") ||
                                  dayType === "regular-holiday" ||
                                  dayType === "sunday-regular-holiday";
         status = isRegularHoliday ? "RH" : "SH";
@@ -711,7 +711,7 @@ export default function TimesheetPage() {
           const checkDateStr = format(checkDate, "yyyy-MM-dd");
           const checkDayEntries = entriesByDate.get(checkDateStr) || [];
           const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true);
-          
+
           // Only check regular working days (skip holidays and rest days)
           if (checkDayType === "regular" && checkDayEntries.length > 0) {
             // Check if employee worked 8+ hours on this regular working day
@@ -1098,7 +1098,7 @@ export default function TimesheetPage() {
   // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
   let totalBH = 0;
   let daysWorked = 0;
-  
+
   if (useBasePayMethod) {
     // Use base pay method: 104 hours - (absences × 8)
     // This matches payslip calculation

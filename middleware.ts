@@ -62,7 +62,7 @@ export async function middleware(req: NextRequest) {
           const isAllowedPath = allowedPaths.some((path) =>
             req.nextUrl.pathname.startsWith(path)
           );
-          
+
           if (!isAllowedPath) {
             const redirectUrl = req.nextUrl.clone();
             redirectUrl.pathname = "/overtime-approval";

@@ -89,7 +89,7 @@ async function main() {
       console.log("⚠️  No employees found in ACCOUNTING group!");
       console.log();
       console.log("Checking employees with ACCOUNTING-related positions...");
-      
+
       // Check for employees that should be in ACCOUNTING but aren't
       const { data: accountingPositions, error: posError } = await supabase
         .from("employees")
@@ -151,4 +151,3 @@ async function main() {
 }
 
 main();
-

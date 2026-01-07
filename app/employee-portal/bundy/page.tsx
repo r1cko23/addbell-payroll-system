@@ -272,11 +272,11 @@ export default function BundyClockPage() {
         if (!error && data) {
           setEmployeePosition((data as { position: string | null }).position);
           setEmployeeType((data as { employee_type: string | null }).employee_type);
-          
+
           // Check if today is a rest day
           const today = new Date();
           const todayStr = getDateInManilaTimezone(today);
-          
+
           if (data.employee_type === "client-based") {
             // For client-based: Check employee_week_schedules for day_off flag
             const { data: scheduleData } = await supabase
@@ -285,7 +285,7 @@ export default function BundyClockPage() {
               .eq("employee_id", employee.id)
               .eq("schedule_date", todayStr)
               .maybeSingle();
-            
+
             setIsRestDayToday(scheduleData?.day_off === true);
           } else {
             // For office-based: Sunday is the fixed rest day

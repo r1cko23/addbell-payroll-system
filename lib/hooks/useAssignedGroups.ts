@@ -105,4 +105,3 @@ export function useAssignedGroups(): AssignedGroupsData {
     refetch: fetchAssignedGroups,
   };
 }
-

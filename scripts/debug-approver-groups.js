@@ -22,7 +22,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 async function main() {
   const approverEmail = process.argv[2] || "llvaldez@greenpasture.ph";
-  
+
   console.log("=".repeat(80));
   console.log(`DEBUGGING APPROVER GROUPS FOR: ${approverEmail}`);
   console.log("=".repeat(80));
@@ -130,4 +130,3 @@ async function main() {
 }
 
 main();
-

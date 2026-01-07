@@ -20,17 +20,17 @@ DECLARE
 BEGIN
   -- Get today's date in Asia/Manila timezone
   v_today_ph := (NOW() AT TIME ZONE 'Asia/Manila')::DATE;
-  
+
   -- Get employee type
   SELECT employee_type INTO v_employee_type
   FROM public.employees
   WHERE id = p_employee_id;
-  
+
   -- If employee not found, return false (allow clock in/out)
   IF v_employee_type IS NULL THEN
     RETURN FALSE;
   END IF;
-  
+
   -- For client-based employees: Check employee_week_schedules for day_off flag
   IF v_employee_type = 'client-based' THEN
     SELECT COALESCE(day_off, false) INTO v_is_rest_day
@@ -38,7 +38,7 @@ BEGIN
     WHERE employee_id = p_employee_id
       AND schedule_date = v_today_ph
     LIMIT 1;
-    
+
     -- If no schedule found, default to false (not a rest day)
     RETURN COALESCE(v_is_rest_day, FALSE);
   ELSE
@@ -72,7 +72,7 @@ DECLARE
 BEGIN
   -- Check if employee exists and is active
   IF NOT EXISTS (
-    SELECT 1 FROM public.employees 
+    SELECT 1 FROM public.employees
     WHERE id = p_employee_id AND is_active = true
   ) THEN
     RETURN QUERY SELECT FALSE, NULL::UUID, 'Employee not found or inactive'::TEXT;
@@ -151,7 +151,7 @@ DECLARE
 BEGIN
   -- Check if employee exists and is active
   IF NOT EXISTS (
-    SELECT 1 FROM public.employees 
+    SELECT 1 FROM public.employees
     WHERE id = p_employee_id AND is_active = true
   ) THEN
     RETURN QUERY SELECT FALSE, 'Employee not found or inactive'::TEXT;
@@ -179,7 +179,7 @@ BEGIN
 
   -- Update clock out
   UPDATE public.time_clock_entries
-  SET 
+  SET
     clock_out_time = NOW(),
     clock_out_location = p_location
   WHERE id = p_entry_id;
@@ -190,4 +190,3 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.employee_clock_out(UUID, UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.employee_clock_out(UUID, UUID, TEXT) TO anon;
-

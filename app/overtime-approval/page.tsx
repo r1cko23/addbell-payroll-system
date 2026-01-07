@@ -186,14 +186,14 @@ export default function OvertimeApprovalPage() {
     }
 
     const { data, error } = await query;
-    
+
     if (error) {
       console.error("Error loading OT requests", error);
       toast.error("Failed to load OT requests");
       setLoading(false);
       return;
     }
-    
+
     // Filter by assigned groups if user is approver/viewer (not admin)
     let filteredData = data;
     if (!isAdmin && assignedGroupIds.length > 0 && data) {
@@ -202,12 +202,12 @@ export default function OvertimeApprovalPage() {
         assignedGroupIds: assignedGroupIds,
         isAdmin: isAdmin,
       });
-      
+
       filteredData = data.filter((req: any) => {
         // Handle both array and object formats for employees relationship
         let employeeGroupId = null;
         let employeeName = "Unknown";
-        
+
         if (Array.isArray(req.employees)) {
           employeeGroupId = req.employees[0]?.overtime_group_id;
           employeeName = req.employees[0]?.full_name || "Unknown";
@@ -215,16 +215,16 @@ export default function OvertimeApprovalPage() {
           employeeGroupId = req.employees.overtime_group_id;
           employeeName = req.employees.full_name || "Unknown";
         }
-        
+
         const matches = employeeGroupId && assignedGroupIds.includes(employeeGroupId);
-        
+
         if (!matches) {
           console.log(`Filtered out: ${employeeName} (group: ${employeeGroupId || "NULL"})`);
         }
-        
+
         return matches;
       });
-      
+
       console.log("Filtered requests:", {
         before: data.length,
         after: filteredData.length,
@@ -234,7 +234,7 @@ export default function OvertimeApprovalPage() {
       console.warn("Approver/viewer has no assigned groups - showing no requests");
       filteredData = [];
     }
-    
+
     console.log("OT Requests loaded:", {
       count: filteredData?.length || 0,
       dateRange: `${weekStartStr} to ${weekEndStr}`,

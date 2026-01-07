@@ -115,7 +115,7 @@ async function main() {
     const approvers = Array.from(usersMap.values()).filter(
       (u) => u.role === "approver" || u.groups.some((g) => g.type === "Approver")
     );
-    
+
     if (approvers.length === 0) {
       console.log("No approvers found.");
     } else {
@@ -136,7 +136,7 @@ async function main() {
     const viewers = Array.from(usersMap.values()).filter(
       (u) => u.role === "viewer" || u.groups.some((g) => g.type === "Viewer")
     );
-    
+
     if (viewers.length === 0) {
       console.log("No viewers found.");
     } else {
@@ -162,4 +162,3 @@ async function main() {
 }
 
 main();
-

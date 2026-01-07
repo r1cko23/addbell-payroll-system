@@ -8,7 +8,7 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const staticFileExtensions = ['.ico', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.woff', '.woff2', '.ttf', '.eot'];
   const isStaticFile = staticFileExtensions.some(ext => pathname.endsWith(ext));
-  
+
   if (isStaticFile || pathname.startsWith('/_next/static') || pathname.startsWith('/_next/image') || pathname === '/favicon.ico') {
     return NextResponse.next();
   }

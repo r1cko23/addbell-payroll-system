@@ -154,13 +154,16 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     return navGroups
       .map((group) => {
         if (!roleLoading) {
-          // Restricted access users (ot_approver/ot_viewer) only see OT Approvals
+          // Restricted access users (ot_approver/ot_viewer) can see OT Approvals, Time Attendance, and Time Entries
           if (isRestrictedAccess) {
             if (group.label === "Time & Attendance") {
               return {
                 ...group,
                 items: group.items.filter(
-                  (item) => item.href === "/overtime-approval"
+                  (item) =>
+                    item.href === "/overtime-approval" ||
+                    item.href === "/timesheet" ||
+                    item.href === "/time-entries"
                 ),
               };
             }

@@ -51,9 +51,19 @@ export async function middleware(req: NextRequest) {
       if (userData) {
         const userRecord = userData as { role: string; can_access_salary: boolean | null };
 
-        // Redirect OT approvers/viewers to OT approval page only
+        // Redirect OT approvers/viewers to allowed pages only
+        // They can access: OT Approvals, Time Attendance, Time Entries
         if (userRecord.role === "ot_approver" || userRecord.role === "ot_viewer") {
-          if (!req.nextUrl.pathname.startsWith("/overtime-approval")) {
+          const allowedPaths = [
+            "/overtime-approval",
+            "/timesheet",
+            "/time-entries",
+          ];
+          const isAllowedPath = allowedPaths.some((path) =>
+            req.nextUrl.pathname.startsWith(path)
+          );
+          
+          if (!isAllowedPath) {
             const redirectUrl = req.nextUrl.clone();
             redirectUrl.pathname = "/overtime-approval";
             return NextResponse.redirect(redirectUrl);

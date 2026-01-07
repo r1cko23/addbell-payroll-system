@@ -1645,13 +1645,18 @@ export default function BundyClockPage() {
                 <Icon name="CaretRight" size={IconSizes.sm} />
               </Button>
             </div>
-            <div className="text-sm text-gray-500">
-              SIL Balance:{" "}
-              <span className="font-semibold text-gray-900">
-                {silCredits !== null
-                  ? `${silCredits.toFixed(1)} days`
-                  : "Loading..."}
-              </span>
+            <div className="text-sm text-gray-500 space-y-1">
+              <div>
+                Allotted SIL Credits: <span className="font-semibold text-gray-900">10</span>
+              </div>
+              <div>
+                Available SIL Credits:{" "}
+                <span className="font-semibold text-gray-900">
+                  {silCredits !== null
+                    ? `${silCredits.toFixed(1)} days`
+                    : "Loading..."}
+                </span>
+              </div>
             </div>
           </div>
 

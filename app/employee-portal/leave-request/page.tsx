@@ -26,6 +26,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
+import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
 
 interface EmployeeSession {
   id: string;
@@ -647,11 +648,14 @@ export default function LeaveRequestPage() {
                     className="text-blue-600"
                   />
                   <BodySmall className="font-medium text-muted-foreground">
-                    SIL Credits
+                    Available SIL Credits
                   </BodySmall>
                 </HStack>
                 <div className="text-3xl font-bold text-blue-600">
                   {silCredits !== null ? silCredits.toFixed(2) : "—"}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Allotted: 10
                 </div>
               </VStack>
             </CardContent>
@@ -772,6 +776,9 @@ export default function LeaveRequestPage() {
                     {leaveType === "SIL" && (
                       <>
                         <p>
+                          Allotted SIL Credits: <strong>10</strong>
+                        </p>
+                        <p>
                           Available SIL Credits:{" "}
                           <strong>
                             {silCredits !== null
@@ -817,12 +824,12 @@ export default function LeaveRequestPage() {
                   <MultiDatePicker
                     selectedDates={selectedDates}
                     onChange={setSelectedDates}
-                    minDate={new Date().toISOString().split("T")[0]}
+                    minDate={format(getBiMonthlyPeriodStart(new Date()), "yyyy-MM-dd")}
                     holidayDates={holidayDates}
                   />
                   <p className="text-xs text-muted-foreground">
                     Select multiple non-consecutive dates by clicking on
-                    them in the calendar. Weekends and holidays are
+                    them in the calendar. You can file leave requests for dates within the current cutoff period (even if they have passed). Weekends and holidays are
                     automatically excluded from the day count.
                   </p>
                 </div>

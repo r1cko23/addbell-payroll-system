@@ -426,7 +426,7 @@ export function LeaveRequestCard({
                   {request.leaveType === "SIL" &&
                     request.availableCredits !== undefined && (
                       <>
-                        Available Credits: {request.availableCredits}
+                        Available SIL Credits: {request.availableCredits} (Allotted: 10)
                         {(request.totalDays || 0) >
                           (request.availableCredits || 0) && (
                           <span className="ml-1">(Insufficient)</span>

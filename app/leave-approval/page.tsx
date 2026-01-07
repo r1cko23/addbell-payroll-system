@@ -908,7 +908,7 @@ export default function LeaveApprovalPage() {
                         </span>
                         {request.leave_type === "SIL" && request.employees && (
                           <Caption>
-                            Available Credits: {request.employees.sil_credits}
+                            Available SIL Credits: {request.employees.sil_credits} (Allotted: 10)
                           </Caption>
                         )}
                       </HStack>
@@ -1127,25 +1127,35 @@ export default function LeaveApprovalPage() {
 
                   {selectedRequest.leave_type === "SIL" &&
                     selectedRequest.employees && (
-                      <div>
-                        <div className="text-sm text-muted-foreground">
-                          Available SIL Credits
+                      <div className="space-y-2">
+                        <div>
+                          <div className="text-sm text-muted-foreground">
+                            Allotted SIL Credits
+                          </div>
+                          <div className="font-semibold text-gray-900">
+                            10 credits
+                          </div>
                         </div>
-                        <div
-                          className={`font-semibold ${
-                            selectedRequest.employees.sil_credits >=
-                            selectedRequest.total_days
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {selectedRequest.employees.sil_credits} credits
-                          {selectedRequest.employees.sil_credits <
-                            selectedRequest.total_days && (
-                            <span className="text-red-600 ml-2">
-                              (Insufficient)
-                            </span>
-                          )}
+                        <div>
+                          <div className="text-sm text-muted-foreground">
+                            Available SIL Credits
+                          </div>
+                          <div
+                            className={`font-semibold ${
+                              selectedRequest.employees.sil_credits >=
+                              selectedRequest.total_days
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {selectedRequest.employees.sil_credits} credits
+                            {selectedRequest.employees.sil_credits <
+                              selectedRequest.total_days && (
+                              <span className="text-red-600 ml-2">
+                                (Insufficient)
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}

@@ -121,7 +121,7 @@ export default function TimesheetPage() {
 
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, [selectedMonth]); // Reload holidays when month changes
 
   useEffect(() => {
     if (selectedEmployee) {
@@ -297,6 +297,19 @@ export default function TimesheetPage() {
         return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
       });
 
+      // Filter to only include entries with valid status (exclude rejected and pending)
+      // Include all statuses that indicate the entry is valid: auto_approved, approved, clocked_out, clocked_in
+      // This matches the employee portal logic to ensure consistent data
+      const validEntries = filteredClockData.filter(
+        (e: any) =>
+          e.status !== "rejected" &&
+          e.status !== "pending" &&
+          (e.status === "auto_approved" ||
+            e.status === "approved" ||
+            e.status === "clocked_out" ||
+            e.status === "clocked_in")
+      );
+
       console.log("Loaded ALL clock entries:", clockData?.length || 0);
       console.log(
         "Filtered clock entries (within period):",
@@ -386,13 +399,13 @@ export default function TimesheetPage() {
           );
         }
       }
-      setClockEntries(filteredClockData || []);
+      setClockEntries(validEntries || []);
 
-      // Separate complete and incomplete entries from all clock entries
-      const completeEntries = (clockData || []).filter(
+      // Separate complete and incomplete entries from valid clock entries only
+      const completeEntries = validEntries.filter(
         (entry: any) => entry.clock_out_time !== null
       );
-      const incompleteEntries = (clockData || []).filter(
+      const incompleteEntries = validEntries.filter(
         (entry: any) => entry.clock_out_time === null
       );
 
@@ -639,9 +652,28 @@ export default function TimesheetPage() {
       const dayLeaves = leavesByDate.get(dateStr) || [];
       const dayOTs = otByDate.get(dateStr) || [];
 
+      // Check if this date is a holiday by checking the holidays array directly
+      // This is a fallback in case determineDayType doesn't detect it
+      const holidayForDate = holidays.find(h => {
+        const normalizedHolidayDate = h.date.split('T')[0]; // Remove time if present
+        return normalizedHolidayDate === dateStr;
+      });
+      
+      // Debug logging for Dec 30-31
+      if (dateStr === "2025-12-30" || dateStr === "2025-12-31") {
+        console.log(`[Timesheet] Processing ${dateStr}:`, {
+          dayType,
+          holidaysCount: holidays.length,
+          holidaysForDate: holidays.filter(h => h.date === dateStr || h.date.split('T')[0] === dateStr),
+          holidayForDate,
+          dayEntries: dayEntries.length,
+          dayLeaves: dayLeaves.length,
+        });
+      }
+
       // Determine status based on priority:
-      // 1. Leave requests (LWOP, LEAVE, CTO, OB)
-      // 2. Holidays (check BEFORE checking entries/ABSENT to ensure holidays are detected)
+      // 1. Holidays (check FIRST - before everything else)
+      // 2. Leave requests (LWOP, LEAVE, CTO, OB)
       // 3. OT requests
       // 4. Complete time entries (LOG)
       // 5. Incomplete time entries (INC)
@@ -651,8 +683,56 @@ export default function TimesheetPage() {
       let status = "-";
       let bh = 0; // Basic Hours
 
-      if (dayLeaves.length > 0) {
-        // Check leave requests first
+      // Check for holidays FIRST (before everything else) to ensure they're always detected
+      // This is critical - holidays should be detected even if there are no clock entries
+      // Check both dayType and direct holiday lookup
+      const isHoliday = holidayForDate !== undefined || 
+                       dayType === "regular-holiday" || 
+                       dayType === "non-working-holiday" || 
+                       dayType === "sunday-regular-holiday" ||
+                       dayType === "sunday-special-holiday" ||
+                       dayType.includes("holiday");
+      
+      if (isHoliday) {
+        // Holiday - check BEFORE checking entries to ensure holidays are always detected
+        // Even if employee didn't work, it's still a holiday (not ABSENT)
+        // Determine if regular or special holiday
+        const isRegularHoliday = holidayForDate?.type === "regular" || 
+                                 dayType.includes("regular") || 
+                                 dayType === "regular-holiday" ||
+                                 dayType === "sunday-regular-holiday";
+        status = isRegularHoliday ? "RH" : "SH";
+        // Check if employee is eligible for holiday pay (worked day before)
+        // Search up to 7 days back to find the last regular working day
+        let eligibleForHoliday = false;
+        for (let i = 1; i <= 7; i++) {
+          const checkDate = new Date(date);
+          checkDate.setDate(checkDate.getDate() - i);
+          const checkDateStr = format(checkDate, "yyyy-MM-dd");
+          const checkDayEntries = entriesByDate.get(checkDateStr) || [];
+          const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true);
+          
+          // Only check regular working days (skip holidays and rest days)
+          if (checkDayType === "regular" && checkDayEntries.length > 0) {
+            // Check if employee worked 8+ hours on this regular working day
+            const workedHours = checkDayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+            if (workedHours >= 8) {
+              eligibleForHoliday = true;
+              break;
+            }
+          }
+        }
+        // BH will be set based on eligibility (8 if eligible, 0 if not)
+        // For consecutive holidays, if previous holiday was eligible, this one is too
+        if (!eligibleForHoliday && days.length > 0) {
+          const prevDay = days[days.length - 1];
+          if ((prevDay.status === "RH" || prevDay.status === "SH") && prevDay.bh >= 8) {
+            eligibleForHoliday = true;
+          }
+        }
+        bh = eligibleForHoliday ? 8 : 0;
+      } else if (dayLeaves.length > 0) {
+        // Check leave requests (but holidays take priority)
         const leave = dayLeaves[0];
         if (leave.leave_type === "LWOP") {
           status = "LWOP";
@@ -671,11 +751,6 @@ export default function TimesheetPage() {
           status = "LEAVE";
           bh = 8;
         }
-      } else if (dayType.includes("holiday")) {
-        // Holiday - check BEFORE checking entries to ensure holidays are always detected
-        // Even if employee didn't work, it's still a holiday (not ABSENT)
-        status = dayType.includes("regular") ? "RH" : "SH";
-        // BH will be set based on eligibility (8 if eligible, 0 if not)
       } else if (dayOTs.length > 0) {
         // OT request exists
         status = "OT";
@@ -1018,42 +1093,23 @@ export default function TimesheetPage() {
   const todayForDaysWork = new Date();
   todayForDaysWork.setHours(0, 0, 0, 0);
 
+  // Calculate "Days Work" using base pay method: (104 hours - absences × 8) / 8
+  // This matches the payslip calculation exactly
+  // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
   let totalBH = 0;
+  let daysWorked = 0;
+  
   if (useBasePayMethod) {
-    // For base pay method, count days with completed entries OR eligible holidays
-    totalBH = attendanceDays.reduce((sum, d) => {
-      const dayDate = new Date(d.date);
-      dayDate.setHours(0, 0, 0, 0);
-
-      // Only count days that are today or earlier
-      if (dayDate > todayForDaysWork) {
-        return sum;
-      }
-
-      // Exclude non-working leave types
-      if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
-        return sum;
-      }
-
-      // Check if this is a holiday (RH, SH, or non-working holiday)
-      const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
-
-      if (isHoliday) {
-        // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
-        if (d.bh > 0) {
-          return sum + d.bh;
-        }
-      } else {
-        // For regular days: only count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
-        if (d.timeIn && d.timeOut && d.bh > 0) {
-          return sum + d.bh;
-        }
-      }
-
-      return sum;
-    }, 0);
+    // Use base pay method: 104 hours - (absences × 8)
+    // This matches payslip calculation
+    totalBH = basePayHours; // basePayHours is already 104 - (absences × 8)
+    daysWorked = basePayHours / 8;
+    // Ensure daysWorked never exceeds 13 (104 hours / 8)
+    // Holidays are already included in the 104 hours base
+    daysWorked = Math.min(daysWorked, 13);
   } else {
-    // Fallback to old method: sum BH values, but include holidays
+    // Fallback: sum BH from attendance days (for display purposes)
+    // But Days Work should still match base pay method if possible
     totalBH = attendanceDays.reduce((sum, d) => {
       const dayDate = new Date(d.date);
       dayDate.setHours(0, 0, 0, 0);
@@ -1085,9 +1141,8 @@ export default function TimesheetPage() {
 
       return sum;
     }, 0);
+    daysWorked = totalBH / 8;
   }
-  // Days Work = Total Hours / 8 (fractional days)
-  const daysWorked = totalBH / 8;
   const totalOT = attendanceDays.reduce((sum, d) => sum + d.ot, 0);
   const totalUT = attendanceDays.reduce((sum, d) => sum + d.ut, 0);
   const totalND = attendanceDays.reduce((sum, d) => sum + d.nd, 0);

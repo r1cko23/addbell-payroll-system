@@ -277,6 +277,8 @@ function PayslipDetailedBreakdownComponent({
      * Returns true if employee is eligible for holiday daily rate:
      * - If they worked on the holiday itself (regularHours > 0), they get daily rate regardless
      * - If they didn't work on the holiday, they must have worked the day before (regularHours >= 8)
+     * - CONSECUTIVE HOLIDAYS RULE: If holidays are consecutive, once the first holiday is eligible,
+     *   all consecutive holidays are also eligible (they should still be paid and recorded as work/present)
      */
     const isEligibleForHolidayPay = (
       currentDate: string,
@@ -288,10 +290,26 @@ function PayslipDetailedBreakdownComponent({
         return true;
       }
 
-      // If they didn't work on the holiday, check if they worked the day before
-      // Search up to 7 days back to find the last working day (skip rest days and holidays)
-      // This matches the timesheet logic
+      // Check if this is a consecutive holiday (previous day was also a holiday)
       const currentDateObj = new Date(currentDate);
+      const prevDateObj = new Date(currentDateObj);
+      prevDateObj.setDate(prevDateObj.getDate() - 1);
+      const prevDateStr = prevDateObj.toISOString().split("T")[0];
+      
+      const prevDay = attendanceDataArray.find((day) => day.date === prevDateStr);
+      const isPrevDayHoliday = prevDay && (
+        prevDay.dayType === "regular-holiday" || 
+        prevDay.dayType === "non-working-holiday"
+      );
+      
+      // If previous day was a holiday and it was eligible (regularHours >= 8), this consecutive holiday is also eligible
+      if (isPrevDayHoliday && prevDay && (prevDay.regularHours || 0) >= 8) {
+        return true; // Consecutive holiday - eligible because previous holiday was eligible
+      }
+
+      // If they didn't work on the holiday, check if they worked a regular working day before
+      // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
+      // This matches the timesheet logic
       for (let i = 1; i <= 7; i++) {
         const checkDateObj = new Date(currentDateObj);
         checkDateObj.setDate(checkDateObj.getDate() - i);
@@ -303,28 +321,29 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (checkDay) {
-          // Skip rest days (Sunday) and holidays - only count regular working days
+          // Only count REGULAR WORKING DAYS (skip holidays and rest days)
           if (
             checkDay.dayType === "regular" &&
             (checkDay.regularHours || 0) >= 8
           ) {
-            return true; // Found a working day with 8+ hours
+            return true; // Found a regular working day with 8+ hours
           }
-          // If it's a rest day or holiday, continue searching
+          // If it's a rest day or holiday, continue searching backwards
         }
       }
 
       return false;
     };
 
-    // Calculate base pay using simplified 104-hour method (if period dates and rest days are available)
+    // Calculate base pay using simplified 104-hour method
+    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
     // This applies to both client-based and office-based employees
-    let basePayHours = 0;
+    let basePayHours = 104; // Start with 104 hours (13 days × 8 hours) per cutoff
     let basePayAmount = 0;
     let absences = 0;
-    let useBasePayMethod = false;
+    let useBasePayMethod = true; // Always use base pay method
 
-    if (periodStart && periodEnd && restDays !== undefined && holidays.length > 0) {
+    if (periodStart && periodEnd) {
       // Extract clock entries from attendance data
       const clockEntries = attendanceData
         .filter((day) => day.clockInTime && day.clockOutTime)
@@ -333,13 +352,15 @@ function PayslipDetailedBreakdownComponent({
           clock_out_time: day.clockOutTime!,
         }));
 
-      // Calculate base pay
+      // Calculate base pay (104 hours - absences × 8)
       const basePayResult = calculateBasePay({
         periodStart,
         periodEnd,
         clockEntries,
-        restDays,
-        holidays,
+        restDays: restDays || new Map(),
+        holidays: holidays.map((h) => ({ 
+          holiday_date: h.holiday_date || (h as any).date 
+        })),
         isClientBased: isClientBased || false,
         hireDate: employee.hire_date ? parseISO(employee.hire_date) : undefined,
         terminationDate: employee.termination_date
@@ -347,10 +368,12 @@ function PayslipDetailedBreakdownComponent({
           : undefined,
       });
 
-      basePayHours = basePayResult.finalBaseHours;
+      basePayHours = basePayResult.finalBaseHours; // This is 104 - (absences × 8)
+      // Ensure basePayHours never exceeds 104 (13 days × 8 hours)
+      // Holidays are already included in the 104 hours base, so they shouldn't add to it
+      basePayHours = Math.min(basePayHours, 104);
       basePayAmount = basePayHours * ratePerHour;
       absences = basePayResult.absences;
-      useBasePayMethod = true;
     }
 
     // Total hours for "Hours Work" - should match timesheet calculation exactly
@@ -527,6 +550,8 @@ function PayslipDetailedBreakdownComponent({
         if (finalRegularHours > 0) {
           // Employee worked on holiday - count actual hours
           hoursToCount = finalRegularHours;
+          // Include holiday hours in basic salary (all days worked)
+          basicSalary += finalRegularHours * ratePerHour;
         } else {
           // Check if eligible for holiday pay (worked day before)
           const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -537,33 +562,24 @@ function PayslipDetailedBreakdownComponent({
           if (eligibleForHolidayPay) {
             // Eligible holiday: 8 hours even if not worked
             hoursToCount = 8;
+            // Include eligible holiday in basic salary (all days worked)
+            basicSalary += 8 * ratePerHour;
           }
         }
       }
       // Sundays are excluded (dayType === "sunday") - they're paid separately
 
       // Add hours to both totals (they should match exactly)
-      // For base pay method: regular days are already included, but we need to ensure eligible holidays are counted
+      // For base pay method: basePayHours already includes all 13 days (104 hours) including holidays
+      // So we should NOT add any hours to totalRegularHours - it's already set to basePayHours
       // For non-base pay method: count all eligible days including holidays
       // Rest days are separate and should still be counted for display purposes
       if (hoursToCount > 0) {
         if (useBasePayMethod) {
-          // Base pay method: regular days are already in basePayHours, but holidays need to be verified
-          // If this is an eligible holiday, add it (base pay assumes all holidays count, but we verify eligibility)
-          if (
-            dayType === "regular-holiday" ||
-            dayType === "non-working-holiday"
-          ) {
-            // Eligible holiday: add hours (base pay includes holidays, but we're verifying eligibility here)
-            // If holiday is eligible, it should already be in basePayHours, but we add it here to ensure it's counted
-            totalRegularHours += hoursToCount;
-            totalHours += hoursToCount;
-          } else if (dayType !== "regular") {
-            // Rest days and other non-regular days: add to totals
-            totalRegularHours += hoursToCount;
-            totalHours += hoursToCount;
-          }
-          // Regular days are already in basePayHours, don't double-count
+          // Base pay method: basePayHours already includes all regular days AND holidays (13 days = 104 hours)
+          // Don't add any hours here - totalRegularHours is already set to basePayHours above
+          // The base pay calculation already accounts for holidays as part of the 13 days
+          // We only need to calculate basicSalary and other pay components here
         } else {
           // Non-base pay method: count all eligible days including holidays
           totalRegularHours += hoursToCount;
@@ -609,6 +625,9 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Legal Holiday (regular-holiday)
+      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
+      // Holiday pay is NOT added separately - it's already part of basicSalary
+      // Only OT allowances and ND are added separately
       if (dayType === "regular-holiday") {
         // All employees: Check "1 Day Before" rule
         const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -621,43 +640,23 @@ function PayslipDetailedBreakdownComponent({
           // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
           const hoursToPay = regularHours > 0 ? regularHours : 8;
 
-          if (isClientBased || isEligibleForAllowances) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            // If worked on holiday: pay for hours worked × 1.0 + allowance
-            // If didn't work but eligible: pay 8 hours × 1.0 (daily rate entitlement only, no allowance)
-            const dailyRateAmount = hoursToPay * ratePerHour;
-            breakdown.legalHoliday.hours += hoursToPay;
-            breakdown.legalHoliday.amount += dailyRateAmount;
+          // Track hours and amount for display purposes (informational breakdown)
+          // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
+          breakdown.legalHoliday.hours += hoursToPay;
+          // Calculate amount for display: (hours / 8) × daily rate = hours × hourly rate
+          // This ensures consistency with basic salary calculation
+          breakdown.legalHoliday.amount += (hoursToPay / 8) * ratePerDay;
 
-            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
-            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(
-                regularHours,
-                dayType
-              );
-              if (allowance > 0) {
-                otherPay.legalHolidayAllowance.hours += regularHours;
-                otherPay.legalHolidayAllowance.amount += allowance;
-              }
-            }
-          } else {
-            // Rank and File:
-            // If worked on holiday: 2.0x multiplier (Daily Rate 1.0x + Premium 1.0x)
-            // If didn't work but eligible: 1.0x multiplier (Daily Rate entitlement only)
-            if (regularHours > 0) {
-              // Worked on holiday: Premium pay (2.0x)
-              const standardAmount = calculateRegularHoliday(
-                regularHours,
-                ratePerHour
-              );
-              breakdown.legalHoliday.hours += regularHours;
-              breakdown.legalHoliday.amount += standardAmount;
-            } else {
-              // Didn't work but eligible: Daily rate entitlement (1.0x)
-              const dailyRateAmount = 8 * ratePerHour;
-              breakdown.legalHoliday.hours += 8;
-              breakdown.legalHoliday.amount += dailyRateAmount;
+          // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
+          // OT allowances are still added separately (not part of basic salary)
+          if (clockInTime && regularHours >= 4) {
+            const allowance = calculateHolidayRestDayAllowance(
+              regularHours,
+              dayType
+            );
+            if (allowance > 0) {
+              otherPay.legalHolidayAllowance.hours += regularHours;
+              otherPay.legalHolidayAllowance.amount += allowance;
             }
           }
         }
@@ -704,6 +703,9 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Special Holiday (non-working-holiday)
+      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
+      // Holiday pay is NOT added separately - it's already part of basicSalary
+      // Only OT allowances and ND are added separately
       if (dayType === "non-working-holiday") {
         // All employees: Check "1 Day Before" rule
         const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -716,43 +718,23 @@ function PayslipDetailedBreakdownComponent({
           // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
           const hoursToPay = regularHours > 0 ? regularHours : 8;
 
-          if (isClientBased || isEligibleForAllowances) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            // If worked on holiday: pay for hours worked × 1.0 + allowance
-            // If didn't work but eligible: pay 8 hours × 1.0 (daily rate entitlement only, no allowance)
-            const dailyRateAmount = hoursToPay * ratePerHour;
-            breakdown.specialHoliday.hours += hoursToPay;
-            breakdown.specialHoliday.amount += dailyRateAmount;
+          // Track hours and amount for display purposes (informational breakdown)
+          // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
+          breakdown.specialHoliday.hours += hoursToPay;
+          // Calculate amount for display: (hours / 8) × daily rate = hours × hourly rate
+          // This ensures consistency with basic salary calculation
+          breakdown.specialHoliday.amount += (hoursToPay / 8) * ratePerDay;
 
-            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
-            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(
-                regularHours,
-                dayType
-              );
-              if (allowance > 0) {
-                otherPay.specialHolidayAllowance.hours += regularHours;
-                otherPay.specialHolidayAllowance.amount += allowance;
-              }
-            }
-          } else {
-            // Rank and File:
-            // If worked on holiday: 1.3x multiplier (Daily Rate 1.0x + Premium 0.3x)
-            // If didn't work but eligible: 1.0x multiplier (Daily Rate entitlement only)
-            if (regularHours > 0) {
-              // Worked on holiday: Premium pay (1.3x)
-              const standardAmount = calculateNonWorkingHoliday(
-                regularHours,
-                ratePerHour
-              );
-              breakdown.specialHoliday.hours += regularHours;
-              breakdown.specialHoliday.amount += standardAmount;
-            } else {
-              // Didn't work but eligible: Daily rate entitlement (1.0x)
-              const dailyRateAmount = 8 * ratePerHour;
-              breakdown.specialHoliday.hours += 8;
-              breakdown.specialHoliday.amount += dailyRateAmount;
+          // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
+          // OT allowances are still added separately (not part of basic salary)
+          if (clockInTime && regularHours >= 4) {
+            const allowance = calculateHolidayRestDayAllowance(
+              regularHours,
+              dayType
+            );
+            if (allowance > 0) {
+              otherPay.specialHolidayAllowance.hours += regularHours;
+              otherPay.specialHolidayAllowance.amount += allowance;
             }
           }
         }
@@ -915,34 +897,28 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Sunday + Special Holiday
+      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
+      // Holiday pay is NOT added separately to gross pay - it's already part of basicSalary
+      // Only OT allowances and ND are added separately
       if (dayType === "sunday-special-holiday") {
-        // Supervisory/Managerial: Get daily rate (1x) + allowance (if worked)
-        // Rank and File: Get 1.5x multiplier
-        if (isClientBased || isEligibleForAllowances) {
-          // Supervisory/Managerial: Daily rate only (1x), no multiplier
-          const dailyRateAmount = regularHours * ratePerHour;
-          breakdown.specialHoliday.hours += regularHours;
-          breakdown.specialHoliday.amount += dailyRateAmount;
+        // Track hours and amount for display purposes (informational breakdown)
+        // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
+        breakdown.specialHoliday.hours += regularHours;
+        // Calculate amount for display: (hours / 8) × daily rate = hours × hourly rate
+        // This ensures consistency with basic salary calculation
+        breakdown.specialHoliday.amount += (regularHours / 8) * ratePerDay;
 
-          // Add allowance ONLY if they actually worked (clockInTime exists)
-          if (clockInTime && regularHours >= 4) {
-            const allowance = calculateHolidayRestDayAllowance(
-              regularHours,
-              dayType
-            );
-            if (allowance > 0) {
-              otherPay.specialHolidayOnRestDayAllowance.hours += regularHours;
-              otherPay.specialHolidayOnRestDayAllowance.amount += allowance;
-            }
-          }
-        } else {
-          // Rank and File: Standard multiplier calculation (1.5x)
-          const standardAmount = calculateSundaySpecialHoliday(
+        // Add allowance ONLY if they actually worked (clockInTime exists)
+        // OT allowances are still added separately (not part of basic salary)
+        if (clockInTime && regularHours >= 4) {
+          const allowance = calculateHolidayRestDayAllowance(
             regularHours,
-            ratePerHour
+            dayType
           );
-          breakdown.specialHoliday.hours += regularHours;
-          breakdown.specialHoliday.amount += standardAmount;
+          if (allowance > 0) {
+            otherPay.specialHolidayOnRestDayAllowance.hours += regularHours;
+            otherPay.specialHolidayOnRestDayAllowance.amount += allowance;
+          }
         }
 
         // Note: Fixed allowances for Account Supervisors and Office-based are NOT added here
@@ -986,34 +962,28 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Sunday + Regular Holiday
+      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
+      // Holiday pay is NOT added separately to gross pay - it's already part of basicSalary
+      // Only OT allowances and ND are added separately
       if (dayType === "sunday-regular-holiday") {
-        // Supervisory/Managerial: Get daily rate (1x) + allowance (if worked)
-        // Rank and File: Get 2.6x multiplier
-        if (isClientBased || isEligibleForAllowances) {
-          // Supervisory/Managerial: Daily rate only (1x), no multiplier
-          const dailyRateAmount = regularHours * ratePerHour;
-          breakdown.legalHoliday.hours += regularHours;
-          breakdown.legalHoliday.amount += dailyRateAmount;
+        // Track hours and amount for display purposes (informational breakdown)
+        // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
+        breakdown.legalHoliday.hours += regularHours;
+        // Calculate amount for display: (hours / 8) × daily rate = hours × hourly rate
+        // This ensures consistency with basic salary calculation
+        breakdown.legalHoliday.amount += (regularHours / 8) * ratePerDay;
 
-          // Add allowance ONLY if they actually worked (clockInTime exists)
-          if (clockInTime && regularHours >= 4) {
-            const allowance = calculateHolidayRestDayAllowance(
-              regularHours,
-              dayType
-            );
-            if (allowance > 0) {
-              otherPay.legalHolidayOnRestDayAllowance.hours += regularHours;
-              otherPay.legalHolidayOnRestDayAllowance.amount += allowance;
-            }
-          }
-        } else {
-          // Rank and File: Standard multiplier calculation (2.6x)
-          const standardAmount = calculateSundayRegularHoliday(
+        // Add allowance ONLY if they actually worked (clockInTime exists)
+        // OT allowances are still added separately (not part of basic salary)
+        if (clockInTime && regularHours >= 4) {
+          const allowance = calculateHolidayRestDayAllowance(
             regularHours,
-            ratePerHour
+            dayType
           );
-          breakdown.legalHoliday.hours += regularHours;
-          breakdown.legalHoliday.amount += standardAmount;
+          if (allowance > 0) {
+            otherPay.legalHolidayOnRestDayAllowance.hours += regularHours;
+            otherPay.legalHolidayOnRestDayAllowance.amount += allowance;
+          }
         }
 
         // Note: Fixed allowances for Account Supervisors and Office-based are NOT added here
@@ -1074,16 +1044,55 @@ function PayslipDetailedBreakdownComponent({
       }
     });
 
-    // Calculate "Days Work" as fractional days: totalRegularHours / 8
-    // totalHours and totalRegularHours are calculated together above, so they should match exactly
-    const daysWorked = totalRegularHours / 8;
+    // Calculate "Days Work" as: (104 hours - absence hours) / 8
+    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
+    // Each absence = 8 hours deduction
+    // IMPORTANT: "Days Work" should ALWAYS use basePayHours / 8, NOT totalRegularHours
+    // totalRegularHours includes holidays which are already part of the 104 hours base
+    // Basic Salary = Days Worked × Daily Rate (includes all days worked: regular days + holidays)
+    // "Days Work" = basePayHours / 8, where basePayHours = 104 - (absences × 8)
+    // This represents the total days worked including holidays (holidays are part of 13 days)
+    let daysWorked = basePayHours / 8; // Always use basePayHours, which is capped at 104
+    
+    // Ensure daysWorked never exceeds 13 (104 hours / 8)
+    // This prevents holidays from being double-counted
+    daysWorked = Math.min(daysWorked, 13);
+    
+    // Ensure basicSalary = daysWorked × daily rate (all days worked including holidays)
+    // This ensures consistency: basicSalary should equal daysWorked × ratePerDay
+    // The basicSalary was calculated by summing individual days, but we verify it matches daysWorked × ratePerDay
+    const expectedBasicSalary = daysWorked * ratePerDay;
+    // Use the calculated basicSalary if it's close to expected, otherwise use expected
+    // This handles any rounding differences
+    if (Math.abs(basicSalary - expectedBasicSalary) > 0.01) {
+      // If there's a significant difference, use the expected calculation
+      basicSalary = expectedBasicSalary;
+    }
+    
+    // Debug logging to verify calculation
+    if (periodStart && periodEnd) {
+      const periodStartStr = format(periodStart, "yyyy-MM-dd");
+      const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+      if (periodStartStr.includes("2025-12") || periodEndStr.includes("2025-12")) {
+        console.log("[PayslipDetailedBreakdown] Days Work calculation:", {
+          useBasePayMethod,
+          basePayHours,
+          absences,
+          daysWorked,
+          totalRegularHours,
+          employeeName: employee.full_name,
+        });
+      }
+    }
 
     // Calculate total gross pay (sum of all earnings)
+    // Basic Salary already includes all days worked (holidays and regular days) at daily rate
+    // Holiday amounts (breakdown.legalHoliday.amount and breakdown.specialHoliday.amount) are for display only
+    // They're already included in basicSalary, so we don't add them again to gross pay
     const totalGrossPay =
       basicSalary +
       breakdown.nightDifferential.amount +
-      breakdown.legalHoliday.amount +
-      breakdown.specialHoliday.amount +
+      // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount NOT added - already in basicSalary
       breakdown.restDay.amount +
       breakdown.restDayNightDiff.amount +
       // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)
@@ -1234,8 +1243,7 @@ function PayslipDetailedBreakdownComponent({
                     {formatCurrency(
                       basicSalary +
                         breakdown.nightDifferential.amount +
-                        breakdown.legalHoliday.amount +
-                        breakdown.specialHoliday.amount +
+                        // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount removed - already in basicSalary
                         breakdown.restDay.amount +
                         breakdown.restDayNightDiff.amount +
                         breakdown.workingDayoff.amount +
@@ -1540,8 +1548,7 @@ function PayslipDetailedBreakdownComponent({
               <span className="text-sm font-bold text-primary-700">
                 {formatCurrency(
                   breakdown.nightDifferential.amount +
-                    breakdown.legalHoliday.amount +
-                    breakdown.specialHoliday.amount +
+                    // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount removed - already in basicSalary
                     breakdown.restDay.amount +
                     breakdown.restDayNightDiff.amount +
                     // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)

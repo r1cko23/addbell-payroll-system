@@ -23,10 +23,9 @@ interface UserRoleData {
   error: string | null;
   isAdmin: boolean;
   isHR: boolean;
-  isAccountManager: boolean;
-  isOTApprover: boolean;
-  isOTViewer: boolean;
-  isRestrictedAccess: boolean; // ot_approver or ot_viewer
+  isApprover: boolean;
+  isViewer: boolean;
+  isRestrictedAccess: boolean; // approver or viewer
   canAccessSalaryInfo: boolean; // Admin or April Nina Gammad
   refetch: () => void;
 }
@@ -56,6 +55,7 @@ export function useUserRole(): UserRoleData {
         setEmail(cachedEmail);
         setCanAccessSalary(cachedCanAccessSalary);
         setLoading(false);
+        fetchedRef.current = false; // Reset ref after using cache
         return;
       }
 
@@ -109,13 +109,19 @@ export function useUserRole(): UserRoleData {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
         setLoading(false);
+        fetchedRef.current = false; // Reset ref after fetch completes
       }
     },
-    [supabase]
+    [] // Remove supabase dependency - it's a singleton and stable
   );
 
   useEffect(() => {
     fetchUserRole();
+  }, [fetchUserRole]);
+
+  // Memoize refetch function separately to prevent recreating it
+  const refetch = useCallback(() => {
+    fetchUserRole(true);
   }, [fetchUserRole]);
 
   // Memoize return value to prevent unnecessary re-renders
@@ -127,14 +133,13 @@ export function useUserRole(): UserRoleData {
       error,
       isAdmin: role === "admin",
       isHR: role === "hr",
-      isAccountManager: role === "account_manager",
-      isOTApprover: role === "ot_approver",
-      isOTViewer: role === "ot_viewer",
-      isRestrictedAccess: role === "ot_approver" || role === "ot_viewer",
+      isApprover: role === "approver",
+      isViewer: role === "viewer",
+      isRestrictedAccess: role === "approver" || role === "viewer",
       canAccessSalaryInfo: role === "admin" || canAccessSalary === true,
-      refetch: () => fetchUserRole(true),
+      refetch,
     }),
-    [role, email, canAccessSalary, loading, error, fetchUserRole]
+    [role, email, canAccessSalary, loading, error, refetch]
   );
 }
 

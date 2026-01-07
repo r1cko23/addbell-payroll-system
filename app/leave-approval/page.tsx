@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   Card,
   CardContent,
@@ -87,6 +89,8 @@ interface LeaveRequest {
 
 export default function LeaveApprovalPage() {
   const supabase = createClient();
+  const router = useRouter();
+  const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
@@ -218,7 +222,7 @@ export default function LeaveApprovalPage() {
           employee_id,
           full_name,
           profile_picture_url,
-          sil_credits,
+          sil_credits
         ),
         leave_request_documents (
           id,
@@ -490,9 +494,15 @@ export default function LeaveApprovalPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-
+    // Enforce 2-step approval: manager/OT approver first, then HR
     if (level === "hr" && request.status !== "approved_by_manager") {
-      toast.error("HR approval requires manager approval first");
+      toast.error("HR approval requires manager/OT approver approval first");
+      return;
+    }
+
+    // Enforce that manager/OT approver can only approve pending requests
+    if (level === "manager" && request.status !== "pending") {
+      toast.error("Manager/OT approver can only approve pending requests");
       return;
     }
 
@@ -501,10 +511,12 @@ export default function LeaveApprovalPage() {
     };
 
     if (level === "manager") {
+      // First step: OT Approver or Account Manager approves pending → approved_by_manager
       updateData.status = "approved_by_manager";
       updateData.account_manager_id = user.id;
       updateData.account_manager_approved_at = new Date().toISOString();
     } else {
+      // Second step: HR approves approved_by_manager → approved_by_hr
       updateData.status = "approved_by_hr";
       updateData.hr_approved_by = user.id;
       updateData.hr_approved_at = new Date().toISOString();
@@ -545,12 +557,12 @@ export default function LeaveApprovalPage() {
 
     toast.success(
       `Leave request ${
-        level === "manager" ? "approved by manager" : "approved by HR"
+        level === "manager" ? "approved by manager/OT approver" : "approved by HR"
       }!`,
       {
         description: `${request.leave_type} • ${
           request.total_days || 0
-        } day(s)`,
+        } day(s)${level === "manager" ? " - Awaiting HR approval" : ""}`,
       }
     );
     fetchRequests();
@@ -594,6 +606,34 @@ export default function LeaveApprovalPage() {
 
   const normalizedRole = userRole?.trim().toLowerCase() || "";
 
+  // Show loading state while checking role
+  if (roleLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Only allow admin, hr, approver, and viewer
+  if (role !== "admin" && role !== "hr" && role !== "approver" && role !== "viewer") {
+    return (
+      <DashboardLayout>
+        <VStack gap="4" className="p-8">
+          <BodySmall>
+            Only Admins, HR, Account Managers, Approvers, and Viewers can access leave approvals.
+          </BodySmall>
+        </VStack>
+      </DashboardLayout>
+    );
+  }
+
   useEffect(() => {
     if (!normalizedRole) return;
     fetchRequests();
@@ -616,10 +656,15 @@ export default function LeaveApprovalPage() {
       return false;
     }
 
-    if (normalizedRole === "account_manager") {
-      // Account managers approve pending requests
+    // Viewers can only view, not approve
+    if (normalizedRole === "viewer") {
+      return false;
+    }
+
+    if (normalizedRole === "approver") {
+      // Account managers and approvers approve pending requests
       const canApproveResult = request.status === "pending";
-      console.log("canApprove (account_manager on pending):", {
+      console.log(`canApprove (${normalizedRole} on pending):`, {
         status: request.status,
         canApprove: canApproveResult,
       });
@@ -1027,14 +1072,17 @@ export default function LeaveApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleApprove(
-                            request,
-                            userRole === "account_manager" ? "manager" : "hr"
-                          );
+                          // OT Approvers and Account Managers approve at "manager" level (first step)
+                          // HR and Admin approve at "hr" level (second step)
+                          const approvalLevel = 
+                            normalizedRole === "approver"
+                              ? "manager"
+                              : "hr";
+                          handleApprove(request, approvalLevel);
                         }}
                       >
                         <Icon name="Check" size={IconSizes.sm} />
-                        {userRole === "account_manager"
+                        {normalizedRole === "approver"
                           ? "Approve"
                           : "Approve (HR)"}
                       </Button>
@@ -1317,15 +1365,18 @@ export default function LeaveApprovalPage() {
                           Reject
                         </Button>
                         <Button
-                          onClick={() =>
-                            handleApprove(
-                              selectedRequest,
-                              userRole === "account_manager" ? "manager" : "hr"
-                            )
-                          }
+                          onClick={() => {
+                            // OT Approvers and Account Managers approve at "manager" level (first step)
+                            // HR and Admin approve at "hr" level (second step)
+                            const approvalLevel = 
+                              normalizedRole === "approver"
+                                ? "manager"
+                                : "hr";
+                            handleApprove(selectedRequest, approvalLevel);
+                          }}
                         >
                           <Icon name="Check" size={IconSizes.sm} />
-                          {userRole === "account_manager"
+                          {normalizedRole === "approver"
                             ? "Approve (Manager)"
                             : "Approve (HR)"}
                         </Button>

@@ -461,6 +461,30 @@ export default function TimeEntriesPage() {
     setHrNotes("");
   }
 
+  async function handleDelete(entryId: string) {
+    if (!confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from("time_clock_entries")
+      .delete()
+      .eq("id", entryId);
+
+    if (error) {
+      console.error("Error deleting entry:", error);
+      toast.error("Failed to delete entry");
+      return;
+    }
+
+    toast.success("Time entry deleted", {
+      description: "The entry has been permanently removed",
+    });
+    fetchTimeEntries();
+    setSelectedEntry(null);
+    setHrNotes("");
+  }
+
   async function exportToCSV() {
     const csv = [
       [
@@ -952,6 +976,23 @@ export default function TimeEntriesPage() {
                                   </Button>
                                 </>
                               )}
+                              {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
+                                      handleDelete(entry.id);
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Icon
+                                    name="Trash"
+                                    size={IconSizes.sm}
+                                  />
+                                </Button>
+                              )}
                               {(entry.status === "approved" ||
                                 entry.status === "auto_approved") && (
                                 <span className="text-xs text-green-600">
@@ -1159,6 +1200,15 @@ export default function TimeEntriesPage() {
                   >
                     <Icon name="X" size={IconSizes.sm} />
                     Reject
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() =>
+                      selectedEntry && handleDelete(selectedEntry.id)
+                    }
+                  >
+                    <Icon name="Trash" size={IconSizes.sm} />
+                    Delete
                   </Button>
                   <Button
                     onClick={() =>

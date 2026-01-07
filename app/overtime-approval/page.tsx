@@ -24,6 +24,13 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { toast } from "sonner";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 
+type OvertimeDocument = {
+  id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+};
+
 type OTRequest = {
   id: string;
   employee_id: string;
@@ -36,6 +43,7 @@ type OTRequest = {
   status: "pending" | "approved" | "rejected";
   account_manager_id?: string | null;
   created_at: string;
+  overtime_documents?: OvertimeDocument[];
   employees?: {
     full_name: string;
     employee_id: string;
@@ -53,11 +61,12 @@ type OTRequest = {
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { isAdmin, role, isHR, isOTApprover, isOTViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
+  const { isAdmin, role, isHR, isApprover, isViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
 
   // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<OTRequest[]>([]);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
   >([]);
@@ -71,7 +80,7 @@ export default function OvertimeApprovalPage() {
   );
 
   // Block HR users from accessing this page
-  // Allow ot_approver and ot_viewer roles
+  // Allow approver and viewer roles
   useEffect(() => {
     if (!roleLoading && isHR) {
       router.push("/dashboard");
@@ -80,6 +89,52 @@ export default function OvertimeApprovalPage() {
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
+
+  const base64ToBlob = (base64: string, type: string) => {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type });
+  };
+
+  async function downloadDocument(docId: string) {
+    setDownloadingDocId(docId);
+    const { data, error } = await supabase
+      .from("overtime_documents")
+      .select("file_base64, file_name, file_type")
+      .eq("id", docId)
+      .maybeSingle();
+
+    setDownloadingDocId(null);
+
+    if (error || !data) {
+      console.error("Error fetching document:", error);
+      toast.error("Unable to fetch document");
+      return;
+    }
+
+    const docData = data as {
+      file_base64: string;
+      file_name: string | null;
+      file_type: string | null;
+    };
+
+    const blob = base64ToBlob(
+      docData.file_base64,
+      docData.file_type || "application/octet-stream"
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = docData.file_name || "document";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   const loadRequests = async () => {
     setLoading(true);
@@ -107,6 +162,12 @@ export default function OvertimeApprovalPage() {
             approver_id,
             viewer_id
           )
+        ),
+        overtime_documents (
+          id,
+          file_name,
+          file_type,
+          file_size
         )
       `
       )
@@ -227,7 +288,7 @@ export default function OvertimeApprovalPage() {
   }
 
   useEffect(() => {
-    if (role === "account_manager" || role === "admin" || role === "ot_approver" || role === "ot_viewer") {
+    if (role === "admin" || role === "approver" || role === "viewer") {
       loadRequests();
     }
   }, [selectedWeek, statusFilter, selectedEmployee, role]);
@@ -285,8 +346,8 @@ export default function OvertimeApprovalPage() {
     return null;
   }
 
-  // Only allow account managers, admins, ot_approvers, and ot_viewers
-  if (role !== "account_manager" && role !== "admin" && role !== "ot_approver" && role !== "ot_viewer") {
+  // Only allow admins, approvers, and viewers
+  if (role !== "admin" && role !== "approver" && role !== "viewer") {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
@@ -468,7 +529,37 @@ export default function OvertimeApprovalPage() {
                             <strong>Reason:</strong> {req.reason}
                           </BodySmall>
                         )}
-                        {req.attachment_url && (
+                        {req.overtime_documents && req.overtime_documents.length > 0 ? (
+                          <VStack gap="2" align="start" className="mt-2">
+                            <HStack gap="2" align="center">
+                              <Icon name="FileText" size={IconSizes.sm} />
+                              <BodySmall className="font-semibold">
+                                Supporting Document{req.overtime_documents.length > 1 ? "s" : ""}
+                              </BodySmall>
+                            </HStack>
+                            <VStack gap="2">
+                              {req.overtime_documents.map((doc) => (
+                                <HStack key={doc.id} gap="2" align="center">
+                                  <Icon
+                                    name="Paperclip"
+                                    size={IconSizes.sm}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span className="truncate max-w-[160px] text-sm">
+                                    {doc.file_name}
+                                  </span>
+                                  {doc.file_size && (
+                                    <Caption>
+                                      (
+                                      {(doc.file_size / 1024).toFixed(1)} KB
+                                      )
+                                    </Caption>
+                                  )}
+                                </HStack>
+                              ))}
+                            </VStack>
+                          </VStack>
+                        ) : req.attachment_url ? (
                           <BodySmall className="mt-2">
                             <a
                               href={req.attachment_url}
@@ -479,7 +570,7 @@ export default function OvertimeApprovalPage() {
                               View Attachment
                             </a>
                           </BodySmall>
-                        )}
+                        ) : null}
                         {req.status === "approved" &&
                           req.account_manager_id && (
                             <Caption className="text-xs text-gray-600 mt-2">
@@ -509,7 +600,7 @@ export default function OvertimeApprovalPage() {
                       </Badge>
                     </HStack>
                     {req.status === "pending" &&
-                      (role === "account_manager" || role === "admin" || role === "ot_approver") && (
+                      (role === "admin" || role === "approver") && (
                         <HStack
                           gap="2"
                           align="center"
@@ -644,7 +735,53 @@ export default function OvertimeApprovalPage() {
                   </div>
                 )}
 
-                {selected.attachment_url && (
+                {selected.overtime_documents && selected.overtime_documents.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm">
+                      Supporting Document{selected.overtime_documents.length > 1 ? "s" : ""}
+                    </Label>
+                    <VStack gap="2">
+                      {selected.overtime_documents.map((doc) => (
+                        <HStack
+                          key={doc.id}
+                          gap="2"
+                          align="center"
+                          className="text-sm"
+                        >
+                          <Icon
+                            name="Receipt"
+                            size={IconSizes.sm}
+                            className="text-muted-foreground"
+                          />
+                          <div className="flex-1 truncate">
+                            {doc.file_name}
+                          </div>
+                          {doc.file_size && (
+                            <Caption>
+                              {(doc.file_size / 1024).toFixed(1)} KB
+                            </Caption>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadDocument(doc.id);
+                            }}
+                            disabled={downloadingDocId === doc.id}
+                          >
+                            <Icon
+                              name={downloadingDocId === doc.id ? "ArrowsClockwise" : "Eye"}
+                              size={IconSizes.sm}
+                              className={downloadingDocId === doc.id ? "animate-spin" : ""}
+                            />
+                            View
+                          </Button>
+                        </HStack>
+                      ))}
+                    </VStack>
+                  </div>
+                ) : selected.attachment_url ? (
                   <div className="space-y-2">
                     <Label className="text-sm">Attachment</Label>
                     <a
@@ -657,7 +794,7 @@ export default function OvertimeApprovalPage() {
                       View Attachment
                     </a>
                   </div>
-                )}
+                ) : null}
 
                 {selected.status === "approved" &&
                   selected.account_manager_id && (
@@ -683,7 +820,7 @@ export default function OvertimeApprovalPage() {
                 Close
               </Button>
               {selected?.status === "pending" &&
-                (role === "account_manager" || role === "admin" || role === "ot_approver") && (
+                (role === "admin" || role === "approver") && (
                   <div className="flex gap-2">
                     <Button
                       variant="destructive"

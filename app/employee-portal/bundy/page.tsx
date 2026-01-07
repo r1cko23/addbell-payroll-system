@@ -181,6 +181,7 @@ interface LeaveRequest {
 interface OvertimeRequest {
   id: string;
   ot_date: string;
+  end_date?: string | null;
   start_time: string;
   end_time: string;
   total_hours: number;
@@ -925,10 +926,9 @@ export default function BundyClockPage() {
         }
       );
 
-      setClockEntriesForAttendance(filteredClockData || []);
-
       // Filter to only include entries with valid status (exclude rejected and pending)
       // Include all statuses that indicate the entry is valid: auto_approved, approved, clocked_out, clocked_in
+      // This matches the admin/HR page logic
       const validEntries = filteredClockData.filter(
         (e) =>
           e.status !== "rejected" &&
@@ -938,6 +938,8 @@ export default function BundyClockPage() {
             e.status === "clocked_out" ||
             e.status === "clocked_in")
       );
+
+      setClockEntriesForAttendance(validEntries || []);
 
       // Debug: Log filtered entries for employee 23376
       if (employee?.id && filteredClockData.length !== validEntries.length) {
@@ -1140,17 +1142,27 @@ export default function BundyClockPage() {
         const dayLeaves = leavesByDate.get(dateStr) || [];
         const dayOTs = otByDate.get(dateStr) || [];
 
+        // Determine status based on priority (matching admin/HR page logic):
+        // 1. Leave requests (LWOP, LEAVE, CTO, OB)
+        // 2. Holidays (check BEFORE checking entries/ABSENT to ensure holidays are detected)
+        // 3. OT requests
+        // 4. Complete time entries (LOG)
+        // 5. Incomplete time entries (INC)
+        // 6. Rest days (Sunday)
+        // 7. Saturday (regular work day - paid 6 days/week)
+        // 8. No entry = ABSENT
         let status = "-";
-        let bh = 0;
+        let bh = 0; // Basic Hours
 
         if (dayLeaves.length > 0) {
+          // Check leave requests first
           const leave = dayLeaves[0];
           if (leave.leave_type === "LWOP") {
             status = "LWOP";
             bh = 0;
           } else if (leave.leave_type === "CTO") {
             status = "CTO";
-            bh = 8;
+            bh = 8; // CTO typically counts as 8 hours
           } else if (
             leave.leave_type === "OB" ||
             leave.leave_type === "Official Business"
@@ -1158,25 +1170,59 @@ export default function BundyClockPage() {
             status = "OB";
             bh = 8;
           } else {
+            // SIL or other leave types
             status = "LEAVE";
             bh = 8;
           }
+        } else if (dayType.includes("holiday")) {
+          // Holiday - check BEFORE checking entries to ensure holidays are always detected
+          // Even if employee didn't work, it's still a holiday (not ABSENT)
+          status = dayType.includes("regular") ? "RH" : "SH";
+          // BH will be set based on eligibility (8 if eligible, 0 if not)
         } else if (dayOTs.length > 0) {
+          // OT request exists
           status = "OT";
+          // BH will be calculated from time entries if they exist
         } else if (dayEntries.length > 0) {
+          // Complete time entries exist
           status = "LOG";
         } else if (incompleteDayEntries.length > 0) {
+          // Incomplete entry (clock_in but no clock_out)
           status = "INC";
-        } else if (dayType.includes("holiday")) {
-          status = dayType.includes("regular") ? "RH" : "SH";
-        } else if (dayOfWeek === 0 || dayOfWeek === 6) {
-          status = "-";
+        } else if (dayType === "sunday") {
+          // Rest day (Sunday is the designated rest day for office-based employees)
+          // If no work, still show as rest day (paid)
+          // If worked, show as LOG with rest day pay
+          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+            status = "LOG"; // Worked on rest day
+          } else {
+            status = "RD"; // Rest day - paid even if not worked
+          }
+        } else if (dayOfWeek === 6) {
+          // Saturday - regular work day (paid 6 days/week per law)
+          // Employees are paid for Saturday even if they don't work (regular rate, not rest day premium)
+          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+            status = "LOG"; // Worked on Saturday
+          } else {
+            status = "LOG"; // Saturday - paid as regular work day even if not worked
+          }
+        } else if (dayOfWeek === 0) {
+          // Sunday fallback (should be caught by dayType === "sunday" above)
+          status = "RD"; // Rest day
         } else {
+          // Check if the date is in the future (hasn't occurred yet)
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const currentDate = new Date(date);
           currentDate.setHours(0, 0, 0, 0);
-          status = currentDate > today ? "-" : "ABSENT";
+
+          if (currentDate > today) {
+            // Future date - don't mark as ABSENT, just show "-"
+            status = "-";
+          } else {
+            // Past or today date with no entry = ABSENT
+            status = "ABSENT";
+          }
         }
 
         // Debug: Log status determination for dates with entries or absences
@@ -1248,11 +1294,35 @@ export default function BundyClockPage() {
           otHours = dayOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
         }
 
+        // Calculate BH (Basic Hours)
+        // If status is already set from leave (CTO, LEAVE, OB), use that value
+        // Otherwise, sum regular hours from complete entries
+        // BH should always show regular hours (8), not OT hours
         if (bh === 0) {
           if (dayEntries.length > 0) {
             bh = dayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+          } else if (
+            status === "OT" &&
+            dayOTs.length > 0 &&
+            dayEntries.length === 0
+          ) {
+            // If OT status but no clock entries, BH can be 0 or 8 depending on context
+            // For pure OT days without clock entries, BH is typically 0
+            bh = 0;
           }
         }
+
+        // SPECIAL CASE: January 1, 2026 - Set BH = 8 if no time log entries exist
+        // This is because employees started using the system on January 6, 2026
+        // So January 1 should have BH = 8 unless they actually logged time
+        if (dateStr === "2026-01-01" && bh === 0 && dayEntries.length === 0) {
+          bh = 8;
+        }
+
+        // IMPORTANT: Only set BH based on actual completed time log entries
+        // Do NOT automatically set BH = 8 for rest days, holidays, or Saturday company benefit
+        // Days Work should only count days where employee has completed logging (clock in AND clock out)
+        // The payslip calculation will handle payment for rest days/holidays based on employee type and eligibility
 
         const lt = 0;
         // Calculate UT (Undertime) - only if BH < 8 hours
@@ -1277,15 +1347,84 @@ export default function BundyClockPage() {
         }
         // If BH >= 8, UT is automatically 0 (no undertime if they completed required hours)
 
+        // Calculate ND (Night Differential) from approved OT requests
+        // ND should come from overtime_requests, not from clock entries
         const isAccountSupervisor =
           employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ||
           false;
-        const nd = isAccountSupervisor
-          ? 0
-          : dayEntries.reduce(
-              (sum, e) => sum + (e.total_night_diff_hours || 0),
-              0
-            );
+        let ndHours = 0;
+
+        if (!isAccountSupervisor && dayOTs.length > 0) {
+          // Calculate ND from each approved OT request's start_time and end_time
+          dayOTs.forEach((ot) => {
+            if (ot.start_time && ot.end_time) {
+              const startTime = ot.start_time.includes("T")
+                ? ot.start_time.split("T")[1].substring(0, 8)
+                : ot.start_time.substring(0, 8);
+              const endTime = ot.end_time.includes("T")
+                ? ot.end_time.split("T")[1].substring(0, 8)
+                : ot.end_time.substring(0, 8);
+
+              const startHour = parseInt(startTime.split(":")[0]);
+              const startMin = parseInt(startTime.split(":")[1]);
+              const endHour = parseInt(endTime.split(":")[0]);
+              const endMin = parseInt(endTime.split(":")[1]);
+
+              // Check if end_date is different from ot_date (OT spans midnight)
+              const otDateStr =
+                typeof ot.ot_date === "string"
+                  ? ot.ot_date.split("T")[0]
+                  : formatDate(new Date(ot.ot_date), "yyyy-MM-dd");
+              const endDateStr = ot.end_date
+                ? typeof ot.end_date === "string"
+                  ? ot.end_date.split("T")[0]
+                  : formatDate(new Date(ot.end_date), "yyyy-MM-dd")
+                : otDateStr;
+              const spansMidnight = endDateStr !== otDateStr;
+
+              let ndFromThisOT = 0;
+              const nightStart = 17; // 5PM
+              const nightEnd = 6; // 6AM
+
+              // Convert times to minutes for easier calculation
+              const startTotalMin = startHour * 60 + startMin;
+              const endTotalMin = endHour * 60 + endMin;
+              const nightStartMin = nightStart * 60; // 5PM = 1020 minutes
+              const nightEndMin = nightEnd * 60; // 6AM = 360 minutes
+
+              if (spansMidnight) {
+                // OT spans midnight
+                // Calculate ND from max(start_time, 5PM) to midnight, plus midnight to min(end_time, 6AM)
+                const ndStartMin = Math.max(startTotalMin, nightStartMin);
+                const hoursToMidnight = (24 * 60 - ndStartMin) / 60;
+
+                let hoursFromMidnight = 0;
+                if (endTotalMin <= nightEndMin) {
+                  // Ends before or at 6AM
+                  hoursFromMidnight = endTotalMin / 60;
+                } else {
+                  // Ends after 6AM, cap at 6AM
+                  hoursFromMidnight = nightEndMin / 60;
+                }
+
+                ndFromThisOT = hoursToMidnight + hoursFromMidnight;
+              } else {
+                // OT doesn't span midnight
+                // Calculate ND from max(start_time, 5PM) to min(end_time, 6AM next day)
+                // But since it doesn't span midnight, end_time is same day, so cap at midnight
+                const ndStartMin = Math.max(startTotalMin, nightStartMin);
+                const ndEndMin = Math.min(endTotalMin, 24 * 60); // Cap at midnight
+                ndFromThisOT = Math.max(0, (ndEndMin - ndStartMin) / 60);
+              }
+
+              ndHours += ndFromThisOT;
+            }
+          });
+        }
+
+        // ND is already calculated from overtime_requests above
+        // No need to calculate from clock entries - ND must come from approved OT requests only
+        const nd = ndHours;
 
         days.push({
           date: dateStr,
@@ -1300,7 +1439,7 @@ export default function BundyClockPage() {
           ot: Math.round(otHours * 100) / 100,
           lt,
           ut,
-          nd: Math.round(nd * 100) / 100,
+          nd: Math.round(ndHours * 100) / 100,
         });
       });
 

@@ -50,7 +50,7 @@ interface User {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer";
+  role: "admin" | "hr" | "approver" | "viewer";
   is_active: boolean;
   can_access_salary?: boolean | null;
   profile_picture_url: string | null;
@@ -100,7 +100,7 @@ export default function SettingsPage() {
     email: "",
     full_name: "",
     password: "",
-    role: "hr" as "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer",
+    role: "hr" as "admin" | "hr" | "approver" | "viewer",
     ot_groups: [] as string[],
   });
   const [userToDeactivate, setUserToDeactivate] = useState<User | null>(null);
@@ -293,20 +293,19 @@ export default function SettingsPage() {
     const roleMap: Record<string, string> = {
       admin: "Admin",
       hr: "HR",
-      account_manager: "Account Manager",
-      ot_approver: "OT Approver",
-      ot_viewer: "OT Viewer",
+      approver: "Approver",
+      viewer: "Viewer",
     };
     return roleMap[role] || role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
   }
 
   async function assignUserToOTGroups(
     userId: string,
-    userRole: "ot_approver" | "ot_viewer",
+    userRole: "approver" | "viewer",
     groupIds: string[]
   ) {
     // First, remove user from all groups
-    if (userRole === "ot_approver") {
+    if (userRole === "approver") {
       await (supabase.from("overtime_groups") as any)
         .update({ approver_id: null })
         .eq("approver_id", userId);
@@ -318,7 +317,7 @@ export default function SettingsPage() {
 
     // Then assign to selected groups
     for (const groupId of groupIds) {
-      const updateField = userRole === "ot_approver" ? "approver_id" : "viewer_id";
+      const updateField = userRole === "approver" ? "approver_id" : "viewer_id";
       const updateData: any = {};
       updateData[updateField] = userId;
 
@@ -412,8 +411,8 @@ export default function SettingsPage() {
         throw new Error(errorMessage);
       }
 
-      // If OT Approver/Viewer, assign to selected groups
-      if ((newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length > 0) {
+      // If Approver/Viewer, assign to selected groups
+      if ((newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length > 0) {
         try {
           await assignUserToOTGroups(data.user.id, newUser.role, selectedOTGroups);
         } catch (error: any) {
@@ -422,8 +421,8 @@ export default function SettingsPage() {
         }
       }
 
-      // If editing user and role changed to OT Approver/Viewer, update groups
-      if (editingUser && (newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length > 0) {
+      // If editing user and role changed to Approver/Viewer, update groups
+      if (editingUser && (newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length > 0) {
         try {
           await assignUserToOTGroups(editingUser.id, newUser.role, selectedOTGroups);
         } catch (error: any) {
@@ -708,7 +707,7 @@ export default function SettingsPage() {
                           variant={
                             user.role === "admin"
                               ? "default"
-                              : user.role === "account_manager"
+                              : false
                               ? "default"
                               : "secondary"
                           }
@@ -733,7 +732,7 @@ export default function SettingsPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        {user.role === "ot_approver" || user.role === "ot_viewer" || user.role === "admin" ? (
+                        {user.role === "approver" || user.role === "viewer" || user.role === "admin" ? (
                           <div className="flex items-center gap-2">
                             {/* Summary badges */}
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -760,7 +759,7 @@ export default function SettingsPage() {
                                (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
                                 <Caption className="text-muted-foreground">Admin (all access)</Caption>
                               )}
-                              {(user.role === "ot_approver" || user.role === "ot_viewer") &&
+                              {(user.role === "approver" || user.role === "viewer") &&
                                (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
                                (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
                                 <Caption className="text-muted-foreground">None</Caption>
@@ -829,7 +828,7 @@ export default function SettingsPage() {
                                 Activate
                               </DropdownMenuItem>
                             )}
-                            {(user.role === "ot_approver" || user.role === "ot_viewer") && (
+                            {(user.role === "approver" || user.role === "viewer") && (
                               <DropdownMenuItem
                                 onClick={() => {
                                   setEditingUser(user);
@@ -1013,9 +1012,9 @@ export default function SettingsPage() {
               e.preventDefault();
               e.stopPropagation();
 
-              // Validate OT groups for OT Approver/Viewer roles
-              if ((newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length === 0) {
-                toast.error("Please select at least one OT group for OT Approver/Viewer roles");
+              // Validate OT groups for Approver/Viewer roles
+              if ((newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length === 0) {
+                toast.error("Please select at least one OT group for Approver/Viewer roles");
                 return;
               }
 
@@ -1030,8 +1029,8 @@ export default function SettingsPage() {
 
                   if (updateError) throw updateError;
 
-                  // Update OT groups if OT Approver/Viewer
-                  if ((newUser.role === "ot_approver" || newUser.role === "ot_viewer") && selectedOTGroups.length > 0) {
+                  // Update OT groups if Approver/Viewer
+                  if ((newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length > 0) {
                     await assignUserToOTGroups(editingUser.id, newUser.role, selectedOTGroups);
                   }
 
@@ -1160,7 +1159,7 @@ export default function SettingsPage() {
                 <Label htmlFor="role">Role *</Label>
                 <Select
                   value={newUser.role}
-                  onValueChange={(value: "admin" | "hr" | "account_manager") =>
+                  onValueChange={(value: "admin" | "hr" | "approver" | "viewer") =>
                     setNewUser({ ...newUser, role: value })
                   }
                   disabled={creatingUser}
@@ -1170,23 +1169,20 @@ export default function SettingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hr">HR</SelectItem>
-                    <SelectItem value="account_manager">
-                      Account Manager
-                    </SelectItem>
-                    <SelectItem value="ot_approver">OT Approver</SelectItem>
-                    <SelectItem value="ot_viewer">OT Viewer</SelectItem>
+                    <SelectItem value="approver">Approver</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </VStack>
 
-              {/* OT Groups Assignment (only for OT Approver/Viewer roles) */}
-              {(newUser.role === "ot_approver" || newUser.role === "ot_viewer" || editingUser) && (
+              {/* OT Groups Assignment (only for Approver/Viewer roles) */}
+              {(newUser.role === "approver" || newUser.role === "viewer" || editingUser) && (
                 <VStack gap="2" align="start" className="w-full">
                   <Label htmlFor="ot_groups">
                     OT Groups Assignment *
                     <BodySmall className="text-muted-foreground mt-1">
-                      Select which employee groups this {newUser.role === "ot_approver" ? "approver" : "viewer"} can manage
+                      Select which employee groups this {newUser.role === "approver" ? "approver" : "viewer"} can manage
                     </BodySmall>
                   </Label>
                   <div className="grid grid-cols-2 gap-2 w-full max-h-48 overflow-y-auto border rounded-md p-2">

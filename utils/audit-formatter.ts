@@ -61,6 +61,10 @@ export function formatAuditValue(
 
   // Format boolean fields
   if (typeof value === "boolean") {
+    // Special handling for is_active field - show as Active/Inactive
+    if (fieldName === "is_active") {
+      return value ? "Active" : "Inactive";
+    }
     return value ? "Yes" : "No";
   }
 
@@ -87,7 +91,7 @@ export function getFieldLabel(fieldName: string, tableName: string): string {
     rate_per_hour: "Rate per Hour",
     per_day: "Daily Rate",
     monthly_rate: "Monthly Rate",
-    is_active: "Status",
+    is_active: "Employee Status",
     loan_type: "Loan Type",
     original_balance: "Original Balance",
     current_balance: "Current Balance",
@@ -189,3 +193,4 @@ export function getTableDisplayConfig(tableName: string): {
     }
   );
 }
+

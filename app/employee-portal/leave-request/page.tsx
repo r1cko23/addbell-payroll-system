@@ -599,7 +599,7 @@ export default function LeaveRequestPage() {
         </VStack>
 
         {/* Stats */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
           <Card className="w-full h-full border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
@@ -648,14 +648,31 @@ export default function LeaveRequestPage() {
                     className="text-blue-600"
                   />
                   <BodySmall className="font-medium text-muted-foreground">
+                    Allotted SIL Credits
+                  </BodySmall>
+                </HStack>
+                <div className="text-3xl font-bold text-blue-600">10</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Available: {silCredits !== null ? silCredits.toFixed(2) : "—"}
+                </div>
+              </VStack>
+            </CardContent>
+          </Card>
+          <Card className="w-full h-full border-l-4 border-l-indigo-500 hover:shadow-md transition-shadow">
+            <CardContent className="w-full p-5">
+              <VStack gap="2" align="start" className="w-full">
+                <HStack gap="2" align="center">
+                  <Icon
+                    name="CalendarCheck"
+                    size={IconSizes.sm}
+                    className="text-indigo-600"
+                  />
+                  <BodySmall className="font-medium text-muted-foreground">
                     Available SIL Credits
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-blue-600">
+                <div className="text-3xl font-bold text-indigo-600">
                   {silCredits !== null ? silCredits.toFixed(2) : "—"}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Allotted: 10
                 </div>
               </VStack>
             </CardContent>

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
+import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
   H1,
   H2,
@@ -37,7 +38,7 @@ import {
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import { format, addDays, getWeek } from "date-fns";
+import { format, addDays, getWeek, parseISO } from "date-fns";
 import { formatCurrency, generatePayslipNumber } from "@/utils/format";
 import {
   calculateSSS,
@@ -317,11 +318,21 @@ export default function PayslipsPage() {
       if (data && data.length > 0) {
         console.log("Sample employee:", data[0]);
         // Map employees to include computed rate fields
-        const mappedEmployees = data.map((emp: any) => ({
-          ...emp,
-          rate_per_day: emp.per_day || undefined,
-          rate_per_hour: emp.per_day ? emp.per_day / 8 : undefined,
-        }));
+        const mappedEmployees = data.map((emp: any) => {
+          // Calculate rate_per_day: monthly_rate / 26 if monthly_rate exists, otherwise use per_day
+          const ratePerDay = emp.monthly_rate 
+            ? emp.monthly_rate / 26 
+            : (emp.per_day || undefined);
+          const ratePerHour = ratePerDay 
+            ? ratePerDay / 8 
+            : undefined;
+          
+          return {
+            ...emp,
+            rate_per_day: ratePerDay,
+            rate_per_hour: ratePerHour,
+          };
+        });
         setEmployees(mappedEmployees);
       } else {
         console.warn(
@@ -1385,7 +1396,9 @@ export default function PayslipsPage() {
       ) {
         const ratePerHour =
           selectedEmployee.rate_per_hour ||
-          (selectedEmployee.per_day
+          (selectedEmployee.monthly_rate
+            ? selectedEmployee.monthly_rate / 26 / 8
+            : selectedEmployee.per_day
             ? selectedEmployee.per_day / 8
             : selectedEmployee.rate_per_day
             ? selectedEmployee.rate_per_day / 8
@@ -2230,97 +2243,47 @@ export default function PayslipsPage() {
   }
 
   function calculateWorkingDays() {
-    if (!attendance || !attendance.attendance_data) return 0;
+    if (!attendance || !attendance.attendance_data || !selectedEmployee) return 0;
     const days = attendance.attendance_data as any[];
 
-    // Helper function to check "1 Day Before" rule for holidays
-    // This matches the timesheet generator logic: search up to 7 days back to find the last REGULAR WORKING DAY
-    const isEligibleForHolidayPay = (
-      currentDate: string,
-      currentRegularHours: number,
-      attendanceData: Array<any>
-    ): boolean => {
-      // If employee worked on the holiday itself, they get daily rate regardless
-      if (currentRegularHours > 0) {
-        return true;
-      }
+    // Use base pay method: (104 hours - absences × 8) / 8
+    // This matches both timesheet and PayslipDetailedBreakdown calculations
+    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
+    
+    try {
+      // Extract clock entries from attendance data
+      const clockEntries = days
+        .filter((day) => day.clockInTime && day.clockOutTime)
+        .map((day) => ({
+          clock_in_time: day.clockInTime!,
+          clock_out_time: day.clockOutTime!,
+        }));
 
-      // If they didn't work on the holiday, check if they worked a REGULAR WORKING DAY before
-      // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-      // This matches the timesheet generation logic
-      const currentDateObj = new Date(currentDate);
-      for (let i = 1; i <= 7; i++) {
-        const checkDateObj = new Date(currentDateObj);
-        checkDateObj.setDate(checkDateObj.getDate() - i);
-        const checkDateStr = checkDateObj.toISOString().split("T")[0];
+      // Get rest days and holidays
+      const restDaysMap = new Map<string, boolean>();
+      const holidaysList = holidays.map((h) => ({ holiday_date: h.holiday_date }));
 
-        // Find the day in attendance data
-        const checkDay = attendanceData.find(
-          (day: any) => day.date === checkDateStr
-        );
+      // Calculate base pay using the same method as PayslipDetailedBreakdown
+      const basePayResult = calculateBasePay({
+        periodStart,
+        periodEnd: getBiMonthlyPeriodEnd(periodStart),
+        clockEntries,
+        restDays: restDaysMap,
+        holidays: holidaysList,
+        isClientBased: selectedEmployee.employee_type === "client-based" || false,
+        hireDate: selectedEmployee.hire_date ? parseISO(selectedEmployee.hire_date) : undefined,
+        terminationDate: (selectedEmployee as any).termination_date
+          ? parseISO((selectedEmployee as any).termination_date)
+          : undefined,
+      });
 
-        if (checkDay) {
-          // Only count REGULAR WORKING DAYS (skip holidays and rest days)
-          // Check if it's a regular day (not holiday, not rest day) with 8+ hours
-          if (
-            checkDay.dayType === "regular" &&
-            (checkDay.regularHours || 0) >= 8
-          ) {
-            return true; // Found a regular working day with 8+ hours
-          }
-          // If it's a rest day or holiday, continue searching backwards
-        }
-      }
-
-      return false;
-    };
-
-    // Calculate "Days Work" as fractional days: total hours / 8
-    // Partial days (undertime/early out) contribute fractional days based on hours worked
-    // IMPORTANT: "Days Work" = Regular working days (Mon-Fri) AND Saturdays (company benefit) AND eligible holidays
-    // Exclude Sundays from "Days Work" count (they're paid separately)
-    // Eligible holidays (employee worked day before) count towards "Days Work"
-    let totalHours = 0;
-
-    days.forEach((day: any) => {
-      const regularHours = day.regularHours || 0;
-      const dayType = day.dayType || "regular";
-      const date = day.date || "";
-
-      // Count regular working days (Mon-Fri) and Saturdays towards "Days Work"
-      if (dayType === "regular") {
-        if (regularHours > 0) {
-          totalHours += regularHours;
-        } else {
-          // Check if it's a Saturday with no work (company benefit: 8 hours)
-          const dateObj = new Date(date);
-          const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-          if (dayOfWeek === 6) {
-            totalHours += 8; // Saturday company benefit: 8 hours even if not worked
-          }
-        }
-      }
-
-      // Count eligible holidays towards "Days Work"
-      // Eligible holidays get 8 hours even if employee didn't work (per "1 Day Before" rule)
-      if (
-        (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
-        regularHours === 0
-      ) {
-        if (isEligibleForHolidayPay(date, regularHours, days)) {
-          totalHours += 8; // Eligible holiday: 8 hours even if not worked
-        }
-      } else if (
-        (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
-        regularHours > 0
-      ) {
-        // Employee worked on holiday - count actual hours
-        totalHours += regularHours;
-      }
-    });
-
-    // Days Work = Total Hours / 8 (fractional days)
-    return totalHours / 8;
+      // Days Work = (104 - absences × 8) / 8
+      return basePayResult.finalBaseHours / 8;
+    } catch (error) {
+      console.error("Error calculating working days:", error);
+      // Fallback: return 0 if calculation fails
+      return 0;
+    }
   }
 
   return (
@@ -2441,12 +2404,16 @@ export default function PayslipsPage() {
                           employee_id: selectedEmployee.employee_id,
                           full_name: selectedEmployee.full_name,
                           rate_per_day:
-                            selectedEmployee.per_day ||
-                            selectedEmployee.rate_per_day ||
-                            0,
+                            selectedEmployee.monthly_rate
+                              ? selectedEmployee.monthly_rate / 26
+                              : selectedEmployee.per_day ||
+                                selectedEmployee.rate_per_day ||
+                                0,
                           rate_per_hour:
                             selectedEmployee.rate_per_hour ||
-                            (selectedEmployee.per_day
+                            (selectedEmployee.monthly_rate
+                              ? selectedEmployee.monthly_rate / 26 / 8
+                              : selectedEmployee.per_day
                               ? selectedEmployee.per_day / 8
                               : 0),
                           position: selectedEmployee.position || null,

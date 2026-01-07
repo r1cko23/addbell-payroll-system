@@ -212,6 +212,8 @@ export function generateTimesheetFromClockEntries(
 
     // Holidays: Set regularHours = 8 if employee is eligible (worked REGULAR WORKING DAY before) even if didn't work on holiday
     // Check "1 Day Before" rule for holidays - must be a REGULAR WORKING DAY (not a holiday or rest day)
+    // CONSECUTIVE HOLIDAYS RULE: If holidays are consecutive, once the first holiday is eligible,
+    // all consecutive holidays are also eligible (they should still be paid and recorded as work/present)
     // Eligible holidays count towards "Days Work" and "Hours Worked"
     // SPECIAL CASE: January 1, 2026 - Set regularHours = 8 if no time log entries exist
     // This is because employees started using the system on January 6, 2026
@@ -223,61 +225,72 @@ export function generateTimesheetFromClockEntries(
       if (dateStr === "2026-01-01") {
         regularHours = 8; // All employees present on first day of system
       } else {
-        // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-        // This matches the payslip calculation logic
         const dateObj = parseISO(dateStr);
         let foundRegularWorkingDay = false;
+        let isConsecutiveHoliday = false;
+        let previousHolidayEligible = false;
 
-        for (let i = 1; i <= 7; i++) {
-          const checkDateObj = new Date(dateObj);
-          checkDateObj.setDate(checkDateObj.getDate() - i);
-          const checkDateStr = format(checkDateObj, "yyyy-MM-dd");
+        // Check if this is a consecutive holiday (check if previous day was also a holiday)
+        const prevDateObj = new Date(dateObj);
+        prevDateObj.setDate(prevDateObj.getDate() - 1);
+        const prevDateStr = format(prevDateObj, "yyyy-MM-dd");
+        const normalizedHolidays = normalizeHolidays(
+          holidays.map((h) => ({
+            date: h.holiday_date,
+            name: "",
+            type: h.holiday_type as "regular" | "non-working",
+          }))
+        );
+        const prevDayType = determineDayType(prevDateStr, normalizedHolidays);
+        const isPrevDayHoliday = prevDayType === "regular-holiday" || prevDayType === "non-working-holiday";
 
-          // Check if this date is a regular working day (not a holiday or rest day)
-          const normalizedHolidays = normalizeHolidays(
-            holidays.map((h) => ({
-              date: h.holiday_date,
-              name: "",
-              type: h.holiday_type as "regular" | "non-working",
-            }))
-          );
-          const checkDayType = determineDayType(checkDateStr, normalizedHolidays);
-
-          // Only check regular working days (skip holidays and rest days)
-          if (checkDayType === "regular") {
-            // Check if employee worked this regular working day (has entry with regular_hours >= 8)
-            // Use Asia/Manila timezone for date comparison (same as timesheet page)
-            const checkDayEntry = clockEntries.find((entry) => {
-              const entryDateUTC = parseISO(entry.clock_in_time);
-              // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone
-              const formatter = new Intl.DateTimeFormat("en-US", {
-                timeZone: "Asia/Manila",
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-              });
-              const parts = formatter.formatToParts(entryDateUTC);
-              const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
-                parts.find((p) => p.type === "month")!.value
-              }-${parts.find((p) => p.type === "day")!.value}`;
-              return (
-                entryDateStr === checkDateStr &&
-                (entry.status === "approved" ||
-                  entry.status === "auto_approved" ||
-                  entry.status === "clocked_out") &&
-                (entry.regular_hours || 0) >= 8
-              );
-            });
-
-            if (checkDayEntry) {
-              foundRegularWorkingDay = true;
-              break; // Found the immediately preceding regular working day with 8+ hours
-            }
+        if (isPrevDayHoliday) {
+          // This is a consecutive holiday - check if previous holiday was already marked as eligible
+          // Look in attendance_data we've already processed
+          const prevDayInAttendance = attendance_data.find((d) => d.date === prevDateStr);
+          if (prevDayInAttendance && (prevDayInAttendance.regularHours || 0) >= 8) {
+            // Previous holiday is eligible, so this consecutive holiday is also eligible
+            isConsecutiveHoliday = true;
+            previousHolidayEligible = true;
           }
-          // If it's a holiday or rest day, continue searching backwards
         }
 
-        if (foundRegularWorkingDay) {
+        if (!isConsecutiveHoliday || !previousHolidayEligible) {
+          // Not a consecutive holiday, or previous holiday wasn't eligible - check "1 day before" rule
+          // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
+          // This matches the payslip calculation logic
+          for (let i = 1; i <= 7; i++) {
+            const checkDateObj = new Date(dateObj);
+            checkDateObj.setDate(checkDateObj.getDate() - i);
+            const checkDateStr = format(checkDateObj, "yyyy-MM-dd");
+
+            // Check if this date is a regular working day (not a holiday or rest day)
+            const checkDayType = determineDayType(checkDateStr, normalizedHolidays);
+
+            // Only check regular working days (skip holidays and rest days)
+            if (checkDayType === "regular") {
+              // Check if employee worked this regular working day (has entry with regular_hours >= 8)
+              // Use entriesByDate map for faster lookup (already grouped by date)
+              const checkDayEntries = entriesByDate.get(checkDateStr) || [];
+              const checkDayEntry = checkDayEntries.find((entry) => {
+                return (
+                  (entry.status === "approved" ||
+                    entry.status === "auto_approved" ||
+                    entry.status === "clocked_out") &&
+                  (entry.regular_hours || 0) >= 8
+                );
+              });
+
+              if (checkDayEntry) {
+                foundRegularWorkingDay = true;
+                break; // Found the immediately preceding regular working day with 8+ hours
+              }
+            }
+            // If it's a holiday or rest day, continue searching backwards
+          }
+        }
+
+        if (foundRegularWorkingDay || (isConsecutiveHoliday && previousHolidayEligible)) {
           regularHours = 8; // Eligible holiday: 8 hours even if not worked
         }
       }

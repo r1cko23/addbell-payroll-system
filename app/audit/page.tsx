@@ -621,21 +621,45 @@ export default function AuditDashboardPage() {
                       {log.action === "UPDATE" &&
                       log.old_values &&
                       log.new_values ? (
-                        <AuditChangesDisplay
-                          oldValues={log.old_values}
-                          newValues={log.new_values}
-                          tableName={log.table_name}
-                        />
+                        <>
+                          {/* Show action description if available (for employee deactivation) */}
+                          {log.new_values?.action_description && (
+                            <div className="text-sm font-semibold text-foreground mb-2 p-2 bg-muted rounded-md">
+                              {log.new_values.action_description}
+                            </div>
+                          )}
+                          <AuditChangesDisplay
+                            oldValues={log.old_values}
+                            newValues={log.new_values}
+                            tableName={log.table_name}
+                          />
+                        </>
                       ) : log.action === "INSERT" && log.new_values ? (
-                        <AuditInsertDisplay
-                          values={log.new_values}
-                          tableName={log.table_name}
-                        />
+                        <>
+                          {/* Show action description if available */}
+                          {log.new_values?.action_description && (
+                            <div className="text-sm font-semibold text-foreground mb-2 p-2 bg-muted rounded-md">
+                              {log.new_values.action_description}
+                            </div>
+                          )}
+                          <AuditInsertDisplay
+                            values={log.new_values}
+                            tableName={log.table_name}
+                          />
+                        </>
                       ) : log.action === "DELETE" && log.old_values ? (
-                        <AuditDeleteDisplay
-                          values={log.old_values}
-                          tableName={log.table_name}
-                        />
+                        <>
+                          {/* Show action description if available */}
+                          {log.old_values?.action_description && (
+                            <div className="text-sm font-semibold text-foreground mb-2 p-2 bg-muted rounded-md">
+                              {log.old_values.action_description}
+                            </div>
+                          )}
+                          <AuditDeleteDisplay
+                            values={log.old_values}
+                            tableName={log.table_name}
+                          />
+                        </>
                       ) : (
                         <div className="text-sm text-muted-foreground italic">
                           No change details available
@@ -749,3 +773,4 @@ export default function AuditDashboardPage() {
     </DashboardLayout>
   );
 }
+

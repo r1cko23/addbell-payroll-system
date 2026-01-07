@@ -11,12 +11,12 @@ import { Icon, IconSizes } from '@/components/ui/phosphor-icon';
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAdmin, isHR, isAccountManager, isRestrictedAccess, loading } = useUserRole();
+  const { isAdmin, isHR, isRestrictedAccess, loading } = useUserRole();
   const [dashboardType, setDashboardType] = useState<'executive' | 'workforce'>('executive');
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Redirect restricted access users (ot_approver/ot_viewer) to OT approval page
+    // Redirect restricted access users (approver/viewer) to OT approval page
     if (!loading && isRestrictedAccess) {
       router.push('/overtime-approval');
     }
@@ -82,7 +82,11 @@ function DashboardContent() {
     );
   }
 
-  return <HRDashboard />;
+  return (
+    <DashboardLayout>
+      <HRDashboard />
+    </DashboardLayout>
+  );
 }
 
 const LoadingFallback = () => (

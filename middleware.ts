@@ -33,7 +33,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect Account Managers and HR users without salary access away from /employees and /payslips
+  // Redirect HR users without salary access away from /employees and /payslips
   // Redirect OT approvers/viewers to OT approval page only
   if (session) {
     const {
@@ -51,13 +51,15 @@ export async function middleware(req: NextRequest) {
       if (userData) {
         const userRecord = userData as { role: string; can_access_salary: boolean | null };
 
-        // Redirect OT approvers/viewers to allowed pages only
-        // They can access: OT Approvals, Time Attendance, Time Entries
-        if (userRecord.role === "ot_approver" || userRecord.role === "ot_viewer") {
+        // Redirect approvers/viewers to allowed pages only
+        // They can access: All Time & Attendance pages (OT Approvals, Leave Approvals, Time Attendance, Time Entries, Failure to Log)
+        if (userRecord.role === "approver" || userRecord.role === "viewer") {
           const allowedPaths = [
             "/overtime-approval",
+            "/leave-approval",
             "/timesheet",
             "/time-entries",
+            "/failure-to-log-approval",
           ];
           const isAllowedPath = allowedPaths.some((path) =>
             req.nextUrl.pathname.startsWith(path)
@@ -70,16 +72,6 @@ export async function middleware(req: NextRequest) {
           }
         }
 
-        // Redirect Account Managers from /employees and /payslips
-        if (
-          userRecord.role === "account_manager" &&
-          (req.nextUrl.pathname.startsWith("/employees") ||
-            req.nextUrl.pathname.startsWith("/payslips"))
-        ) {
-          const redirectUrl = req.nextUrl.clone();
-          redirectUrl.pathname = "/dashboard";
-          return NextResponse.redirect(redirectUrl);
-        }
 
         // Redirect HR users without salary access from /employees and /payslips
         if (

@@ -197,7 +197,7 @@ export default function EmployeesPage() {
   );
 
   const scheduleAllowed =
-    isAdmin || role === "account_manager" || role === "hr";
+    isAdmin || role === "hr";
 
   useEffect(() => {
     fetchEmployees();
@@ -349,7 +349,7 @@ export default function EmployeesPage() {
       monthly_rate: employee.monthly_rate?.toString() || "",
       per_day: employee.per_day?.toString() || "",
       eligible_for_ot: employee.eligible_for_ot || false,
-      overtime_group_id: employee.overtime_group_id || "",
+      overtime_group_id: employee.overtime_group_id || "none",
     });
     setShowModal(true);
   }
@@ -440,7 +440,7 @@ export default function EmployeesPage() {
           : null,
         per_day: formData.per_day ? parseFloat(formData.per_day) : null,
         eligible_for_ot: formData.eligible_for_ot,
-        overtime_group_id: formData.overtime_group_id || null,
+        overtime_group_id: formData.overtime_group_id && formData.overtime_group_id !== "none" ? formData.overtime_group_id : null,
         paternity_credits:
           formData.gender === "male"
             ? parseFloat(formData.paternity_days || "0") || 0
@@ -1532,7 +1532,7 @@ export default function EmployeesPage() {
               <div className="space-y-2">
                 <Label htmlFor="overtime-group">Overtime Group</Label>
                 <Select
-                  value={formData.overtime_group_id}
+                  value={formData.overtime_group_id || "none"}
                   onValueChange={(value) =>
                     setFormData({
                       ...formData,
@@ -1544,7 +1544,7 @@ export default function EmployeesPage() {
                     <SelectValue placeholder="Select group (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None (any account manager/admin)</SelectItem>
+                    <SelectItem value="none">None (any account manager/admin)</SelectItem>
                     {overtimeGroups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
@@ -1555,7 +1555,7 @@ export default function EmployeesPage() {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Assign this employee to an overtime group. Group approvers/viewers will handle their OT requests.
-                  Manage groups in <a href="/overtime-groups" className="text-emerald-600 underline">OT Groups</a>.
+                  Manage groups in <a href="/settings" className="text-emerald-600 underline">User Management</a>.
                 </p>
               </div>
 

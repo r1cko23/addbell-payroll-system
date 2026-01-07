@@ -193,7 +193,7 @@ export default function SchedulesPage() {
     );
   }
 
-  if (!isAdmin && role !== "account_manager" && role !== "hr") {
+  if (!isAdmin && role !== "hr") {
     return (
       <DashboardLayout>
         <VStack gap="4" className="w-full">
@@ -468,7 +468,7 @@ export default function SchedulesPage() {
                     );
                   })}
                 </div>
-                {(isAdmin || role === "account_manager") && (
+                {isAdmin && (
                   <HStack justify="end" gap="2" className="w-full pt-2">
                     <Button
                       variant="outline"

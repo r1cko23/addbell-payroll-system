@@ -14,7 +14,7 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
-          role: "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer";
+          role: "admin" | "hr" | "approver" | "viewer";
           is_active: boolean;
           can_access_salary: boolean | null;
           created_at: string;
@@ -24,7 +24,7 @@ export interface Database {
           id?: string;
           email: string;
           full_name: string;
-          role: "admin" | "hr" | "account_manager" | "ot_approver" | "ot_viewer";
+          role: "admin" | "hr" | "approver" | "viewer";
           is_active?: boolean;
           can_access_salary?: boolean | null;
           created_at?: string;

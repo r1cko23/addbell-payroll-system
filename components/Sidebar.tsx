@@ -10,8 +10,6 @@ import {
   ClockClockwise,
   CalendarCheck,
   CalendarBlank,
-  CurrencyDollarSimple,
-  CurrencyDollar,
   ChartLineUp,
   Gear,
   UsersThree,
@@ -23,6 +21,7 @@ import {
   X,
   ShieldCheck,
   FileText,
+  ArrowsClockwise,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -57,7 +56,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: "Employees", href: "/employees", icon: UsersThree },
       { name: "Schedules", href: "/schedules", icon: CalendarBlank },
-      { name: "Loans", href: "/loans", icon: CurrencyDollar },
+      { name: "Loans", href: "/loans", icon: Receipt },
       { name: "Payslips", href: "/payslips", icon: Receipt },
     ],
   },
@@ -134,9 +133,8 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     role,
     isHR,
     isAdmin,
-    isAccountManager,
-    isOTApprover,
-    isOTViewer,
+    isApprover,
+    isViewer,
     canAccessSalaryInfo,
     loading: roleLoading,
   } = useUserRole();
@@ -149,87 +147,64 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
 
   // Filter navigation items based on user role
   const filteredNavGroups = React.useMemo(() => {
-    const isRestrictedAccess = isOTApprover || isOTViewer;
+    // If still loading, return all groups to prevent empty sidebar
+    if (roleLoading) {
+      return navGroups;
+    }
+
+    const isRestrictedAccess = isApprover || isViewer;
 
     return navGroups
       .map((group) => {
-        if (!roleLoading) {
-          // Restricted access users (ot_approver/ot_viewer) can see OT Approvals, Time Attendance, and Time Entries
-          if (isRestrictedAccess) {
-            if (group.label === "Time & Attendance") {
-              return {
-                ...group,
-                items: group.items.filter(
-                  (item) =>
-                    item.href === "/overtime-approval" ||
-                    item.href === "/timesheet" ||
-                    item.href === "/time-entries"
-                ),
-              };
-            }
-            return null; // Hide all other groups
+        // Restricted access users (approver/viewer) can see the entire Time & Attendance group
+        if (isRestrictedAccess) {
+          if (group.label === "Time & Attendance") {
+            return group; // Show all items in Time & Attendance group
           }
+          return null; // Hide all other groups
+        }
 
-          // Hide OT Approvals and Failure to Log for HR users only
-          if (group.label === "Time & Attendance" && isHR) {
+        // Hide OT Approvals and Failure to Log for HR users only
+        if (group.label === "Time & Attendance" && isHR) {
+          return {
+            ...group,
+            items: group.items.filter(
+              (item) =>
+                item.href !== "/overtime-approval" &&
+                item.href !== "/failure-to-log-approval"
+            ),
+          };
+        }
+        // Hide Payslips link from HR users without salary access
+        if (group.label === "People" && isHR && !canAccessSalaryInfo) {
+          return {
+            ...group,
+            items: group.items.filter((item) => item.href !== "/payslips"),
+          };
+        }
+        // Hide Admin group if not admin
+        if (group.label === "Admin" && !isAdmin) {
+          return null;
+        }
+        // Filter Overview (Dashboard) items based on role
+        if (group.label === "Overview") {
+          if (isAdmin) {
+            // Admins see both Executive Dashboard and Workforce Overview
+            return group;
+          } else {
+            // HR and others see Workforce Overview
             return {
               ...group,
               items: group.items.filter(
-                (item) =>
-                  item.href !== "/overtime-approval" &&
-                  item.href !== "/failure-to-log-approval"
+                (item) => item.href.includes("?type=workforce")
               ),
             };
-          }
-          // Hide Employees and Payslips links from Account Managers (to prevent seeing salary info)
-          if (group.label === "People" && isAccountManager) {
-            return {
-              ...group,
-              items: group.items.filter(
-                (item) =>
-                  item.href !== "/employees" && item.href !== "/payslips"
-              ),
-            };
-          }
-          // Hide Payslips link from HR users without salary access
-          if (group.label === "People" && isHR && !canAccessSalaryInfo) {
-            return {
-              ...group,
-              items: group.items.filter((item) => item.href !== "/payslips"),
-            };
-          }
-          // Hide Admin group if not admin
-          if (group.label === "Admin" && !isAdmin) {
-            return null;
-          }
-          // Filter Overview (Dashboard) items based on role
-          if (group.label === "Overview") {
-            if (isAdmin) {
-              // Admins see both Executive Dashboard and Workforce Overview
-              return group;
-            } else if (isAccountManager) {
-              // Account managers only see Workforce Overview
-              return {
-                ...group,
-                items: group.items.filter(
-                  (item) => item.href.includes("?type=workforce")
-                ),
-              };
-            } else {
-              // HR and others see Workforce Overview
-              return {
-                ...group,
-                items: group.items.filter(
-                  (item) => item.href.includes("?type=workforce")
-                ),
-              };
-            }
           }
         }
         return group;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isHR, isAccountManager, isAdmin, isOTApprover, isOTViewer, canAccessSalaryInfo, roleLoading]);
+  }, [isHR, isAdmin, isApprover, isViewer, canAccessSalaryInfo, roleLoading, role]);
 
   // Auto-open the group that matches the current route
   React.useEffect(() => {
@@ -250,12 +225,35 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     }
   }, [pathname]);
 
+  // Debug: Log filtered groups and render state
+  React.useEffect(() => {
+    console.log("Sidebar filteredNavGroups:", filteredNavGroups.length, filteredNavGroups);
+    console.log("Sidebar roleLoading:", roleLoading, "role:", role);
+    console.log("Sidebar component mounted/updated");
+  }, [filteredNavGroups, roleLoading, role]);
+
+  // Prevent sidebar from disappearing - ensure it always renders
+  if (!filteredNavGroups || filteredNavGroups.length === 0) {
+    console.warn("Sidebar: filteredNavGroups is empty!", { roleLoading, role, filteredNavGroups });
+  }
+
+  // Always render sidebar, even if no groups
+  // Force render with explicit styles to prevent disappearing
   return (
     <div
       className={cn(
-        "flex h-full flex-col w-64 border-r bg-muted/10",
+        "flex h-full flex-col w-64 border-r bg-muted/10 flex-shrink-0",
         className
       )}
+      style={{ 
+        minWidth: '256px', 
+        width: '256px',
+        position: 'relative', 
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+      data-testid="sidebar-container"
     >
       <div className="flex items-center justify-between h-16 px-4 border-b">
         <div className="flex-1 flex items-center justify-center">
@@ -281,10 +279,21 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {filteredNavGroups
-          .filter((group) => group !== null && !HIDDEN_GROUPS.has(group.label))
-          .map((group) => {
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        {roleLoading ? (
+          <div className="flex items-center justify-center h-32">
+            <ArrowsClockwise className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredNavGroups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-32 text-sm text-muted-foreground p-4">
+            <WarningCircle className="h-8 w-8 mb-2" />
+            <p>No navigation items available</p>
+            <p className="text-xs mt-1">Role: {role || 'loading...'}</p>
+          </div>
+        ) : (
+          filteredNavGroups
+            .filter((group) => group !== null && !HIDDEN_GROUPS.has(group.label))
+            .map((group) => {
             if (!group) return null;
             const GroupIcon = group.icon || FallbackIcon;
             const isOpen = openGroup === group.label;
@@ -328,7 +337,8 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
                 )}
               </div>
             );
-          })}
+          })
+        )}
       </nav>
 
       {/* Footer */}
@@ -351,5 +361,5 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
   );
 }
 
-// Export memoized Sidebar to prevent re-renders when parent updates
-export const Sidebar = memo(SidebarComponent);
+// Export Sidebar (removed memo to prevent rendering issues)
+export const Sidebar = SidebarComponent;

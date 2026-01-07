@@ -504,11 +504,7 @@ export default function AdminDashboardPage() {
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Payroll This Cutoff
               </CardTitle>
-              <Icon
-                name="CurrencyDollarSimple"
-                size={IconSizes.sm}
-                className="text-muted-foreground"
-              />
+              <span className="text-lg font-semibold text-muted-foreground">₱</span>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-foreground leading-tight">

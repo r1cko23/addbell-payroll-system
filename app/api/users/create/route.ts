@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate role
-    const validRoles = ["admin", "hr", "account_manager", "ot_approver", "ot_viewer"];
+    const validRoles = ["admin", "hr", "approver", "viewer"];
     if (!validRoles.includes(role)) {
       return NextResponse.json(
         { error: `Invalid role. Must be one of: ${validRoles.join(", ")}` },
@@ -158,8 +158,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: Assign to OT groups if OT Approver/Viewer
-    if ((role === "ot_approver" || role === "ot_viewer") && ot_groups && Array.isArray(ot_groups) && ot_groups.length > 0) {
-      const updateField = role === "ot_approver" ? "approver_id" : "viewer_id";
+    if ((role === "approver" || role === "viewer") && ot_groups && Array.isArray(ot_groups) && ot_groups.length > 0) {
+      const updateField = role === "approver" ? "approver_id" : "viewer_id";
 
       for (const groupId of ot_groups) {
         const { error: groupError } = await supabaseAdmin

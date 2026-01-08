@@ -360,7 +360,7 @@ export default function OvertimeApprovalPage() {
     // Get request details for toast message
     const request = requests.find((r) => r.id === id);
     const employeeName = request?.employees?.full_name || "Employee";
-    
+
     const { error } = await supabase.rpc("approve_overtime_request", {
       p_request_id: id,
     } as any);
@@ -382,7 +382,7 @@ export default function OvertimeApprovalPage() {
     // Get request details for toast message
     const request = requests.find((r) => r.id === id);
     const employeeName = request?.employees?.full_name || "Employee";
-    
+
     const { error } = await supabase.rpc("reject_overtime_request", {
       p_request_id: id,
       p_reason: null,

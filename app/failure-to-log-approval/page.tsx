@@ -359,7 +359,8 @@ export default function FailureToLogApprovalPage() {
     }
 
     // Get employee name for toast message
-    const employeeName = request?.employees?.full_name || "Employee";
+    const approvedRequest = requests.find((r) => r.id === requestId);
+    const employeeName = approvedRequest?.employees?.full_name || "Employee";
     toast.success("Failure to log request approved!", {
       description: `${employeeName}'s time entry has been updated successfully`,
     });

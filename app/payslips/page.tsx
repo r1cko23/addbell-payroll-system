@@ -38,7 +38,7 @@ import {
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import { format, addDays, getWeek, parseISO } from "date-fns";
+import { format, addDays, getWeek, parseISO, startOfYear, endOfYear } from "date-fns";
 import { formatCurrency, generatePayslipNumber } from "@/utils/format";
 import {
   calculateSSS,
@@ -1614,6 +1614,7 @@ export default function PayslipsPage() {
 
       // Calculate 13th month pay
       // In the Philippines, 13th month pay = 1/12 of basic salary per month worked
+      // Per DOLE ruling (COCLA vs San Miguel), SIL (Service Incentive Leave) should NOT be included
       // Usually paid in December, but can be prorated throughout the year
       let thirteenthMonthPay = 0;
       const currentMonth = periodStart.getMonth(); // 0-11 (Jan = 0, Dec = 11)
@@ -1645,10 +1646,61 @@ export default function PayslipsPage() {
           }
         }
 
-        // 13th month = (monthly basic salary / 12) * months worked
-        // Only calculate if we have a valid monthly salary
+        // Calculate 13th month pay based on monthly basic salary, excluding SIL days
+        // Per DOLE ruling COCLA vs San Miguel: SIL should NOT be included in 13th month calculation
         if (validMonthlySalary > 0 && monthsWorked > 0) {
-          thirteenthMonthPay = (validMonthlySalary / 12) * monthsWorked;
+          // Get all approved SIL leave requests for the current year
+          const yearStart = startOfYear(new Date(currentYear, 0, 1));
+          const yearEnd = endOfYear(new Date(currentYear, 11, 31));
+          
+          const { data: yearLeaves } = await supabase
+            .from("leave_requests")
+            .select("start_date, end_date, selected_dates, total_days, leave_type, status")
+            .eq("employee_id", selectedEmployee.id)
+            .eq("status", "approved")
+            .eq("leave_type", "SIL")
+            .gte("start_date", format(yearStart, "yyyy-MM-dd"))
+            .lte("end_date", format(yearEnd, "yyyy-MM-dd"));
+
+          // Count total SIL days used in the year (only count days within the year)
+          let totalSILDays = 0;
+          if (yearLeaves && yearLeaves.length > 0) {
+            yearLeaves.forEach((leave: any) => {
+              if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
+                // Count only dates within the year
+                leave.selected_dates.forEach((dateStr: string) => {
+                  if (dateStr >= format(yearStart, "yyyy-MM-dd") && dateStr <= format(yearEnd, "yyyy-MM-dd")) {
+                    totalSILDays += 1;
+                  }
+                });
+              } else if (leave.start_date && leave.end_date) {
+                // Count days within the year range
+                const start = parseISO(leave.start_date);
+                const end = parseISO(leave.end_date);
+                const actualStart = start > yearStart ? start : yearStart;
+                const actualEnd = end < yearEnd ? end : yearEnd;
+                if (actualStart <= actualEnd) {
+                  const daysDiff = Math.ceil((actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  totalSILDays += daysDiff;
+                }
+              } else if (leave.total_days) {
+                // Fallback: use total_days if available (assumes it's already within year)
+                totalSILDays += Number(leave.total_days);
+              }
+            });
+          }
+
+          // Calculate daily rate
+          const workingDaysPerMonth = 22;
+          const dailyRate = validMonthlySalary / workingDaysPerMonth;
+
+          // Calculate 13th month pay
+          // Formula: (monthly basic salary / 12) × months worked - (SIL days × daily rate / 12)
+          // This excludes SIL from 13th month calculation per DOLE ruling
+          const baseThirteenthMonth = (validMonthlySalary / 12) * monthsWorked;
+          const silDeduction = (totalSILDays * dailyRate) / 12;
+          thirteenthMonthPay = Math.max(0, baseThirteenthMonth - silDeduction);
+
           // Round to 2 decimal places
           thirteenthMonthPay = Math.round(thirteenthMonthPay * 100) / 100;
         }

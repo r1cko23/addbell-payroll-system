@@ -17,9 +17,7 @@ export const createClient = () => {
     supabaseClient = createClientComponentClient<Database>();
   }
   return supabaseClient;
-};
-
-/**
+};/**
  * Reset the client (useful for testing or logout)
  */
 export const resetClient = () => {

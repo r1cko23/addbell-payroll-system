@@ -82,12 +82,12 @@ export async function middleware(req: NextRequest) {
         }
 
 
-        // Redirect HR users without salary access from /employees and /payslips
+        // Redirect HR users without salary access from /payslips only
+        // HR can always view employees (as per role access matrix)
         if (
           userRecord.role === "hr" &&
           !userRecord.can_access_salary &&
-          (req.nextUrl.pathname.startsWith("/employees") ||
-            req.nextUrl.pathname.startsWith("/payslips"))
+          req.nextUrl.pathname.startsWith("/payslips")
         ) {
           const redirectUrl = req.nextUrl.clone();
           redirectUrl.pathname = "/dashboard";

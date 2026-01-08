@@ -1225,18 +1225,47 @@ export default function LoansPage() {
                     type="number"
                     step="0.01"
                     value={formData.current_balance}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        current_balance: e.target.value,
-                      })
-                    }
+                    onChange={(e) => {
+                      const newCurrentBalance = parseFloat(e.target.value) || 0;
+                      const originalBalance = parseFloat(formData.original_balance) || 0;
+                      const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
+                      const totalTerms = parseInt(formData.total_terms) || 1;
+                      
+                      // If monthly payment is set, calculate remaining terms from current balance
+                      if (monthlyPayment > 0 && originalBalance > 0) {
+                        // Calculate how much has been paid
+                        const amountPaid = originalBalance - newCurrentBalance;
+                        
+                        // Calculate terms paid (round to nearest integer)
+                        const termsPaid = Math.round(amountPaid / monthlyPayment);
+                        
+                        // Calculate remaining terms
+                        const newRemainingTerms = Math.max(
+                          0,
+                          Math.min(totalTerms, totalTerms - termsPaid)
+                        );
+                        
+                        setFormData({
+                          ...formData,
+                          current_balance: e.target.value,
+                          remaining_terms: newRemainingTerms.toString(),
+                        });
+                      } else {
+                        // If monthly payment not set yet, just update current balance
+                        setFormData({
+                          ...formData,
+                          current_balance: e.target.value,
+                        });
+                      }
+                    }}
                     placeholder="0.00"
                   />
                   <Caption className="text-xs text-gray-500 mt-1">
-                    Auto-calculated as: Original Balance - (Monthly Payment × Terms Paid)
+                    Auto-calculates Remaining Terms when you set Current Balance
                     <br />
-                    Terms Paid = Total Terms - Remaining Terms
+                    Or auto-calculates Current Balance when you set Remaining Terms
+                    <br />
+                    Formula: Current Balance = Original Balance - (Monthly Payment × Terms Paid)
                   </Caption>
                 </div>
               </div>

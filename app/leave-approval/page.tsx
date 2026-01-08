@@ -718,7 +718,7 @@ export default function LeaveApprovalPage() {
       });
       return canApproveResult;
     }
-    
+
     if (normalizedRole === "hr") {
       // HR approve only after manager approval
       const canApproveResult = request.status === "approved_by_manager";
@@ -728,7 +728,7 @@ export default function LeaveApprovalPage() {
       });
       return canApproveResult;
     }
-    
+
     console.log(
       "canApprove: userRole does not match any condition:",
       normalizedRole

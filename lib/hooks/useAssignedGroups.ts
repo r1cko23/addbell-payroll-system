@@ -40,7 +40,7 @@ export function useAssignedGroups(): AssignedGroupsData {
         return;
       }
 
-      // Get user role to check if they're admin (admins see all)
+      // Get user role to check if they're admin or HR (both see all)
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("role")
@@ -51,8 +51,10 @@ export function useAssignedGroups(): AssignedGroupsData {
         throw userError;
       }
 
-      // Admins see all groups (return empty array means no filtering)
-      if (userData?.role === "admin") {
+      // Admins and HR see all groups (return empty array means no filtering)
+      // HR users can still be assigned to groups for organizational purposes,
+      // but they bypass group filtering and see everything
+      if (userData?.role === "admin" || userData?.role === "hr") {
         setGroupIds([]);
         setLoading(false);
         return;

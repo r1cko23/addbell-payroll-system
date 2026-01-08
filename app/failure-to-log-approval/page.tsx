@@ -286,7 +286,9 @@ export default function FailureToLogApprovalPage() {
   async function handleApprove(requestId: string) {
     // Block HR users from approving
     if (isHR) {
-      toast.error("HR users cannot approve failure to log requests");
+      toast.error("Access denied", {
+        description: "HR users cannot approve failure to log requests",
+      });
       return;
     }
 
@@ -318,7 +320,9 @@ export default function FailureToLogApprovalPage() {
 
     if (fetchError || !request) {
       console.error("Error fetching request:", fetchError);
-      toast.error("Failed to fetch request details");
+      toast.error("Failed to fetch request details", {
+        description: fetchError?.message || "Unable to load request information",
+      });
       setApproveLoading(false);
       return;
     }
@@ -338,7 +342,9 @@ export default function FailureToLogApprovalPage() {
         (!requestData.actual_clock_in_time ||
           !requestData.actual_clock_out_time))
     ) {
-      toast.error("Missing actual clock time(s) for this request");
+      toast.error("Missing clock times", {
+        description: "Please ensure all required clock times are provided for this request",
+      });
       setApproveLoading(false);
       return;
     }
@@ -358,13 +364,17 @@ export default function FailureToLogApprovalPage() {
 
     if (error) {
       console.error("Error approving request:", error);
-      toast.error("Failed to approve request");
+      toast.error("Failed to approve failure to log request", {
+        description: error.message || "An error occurred while approving the request",
+      });
       setApproveLoading(false);
       return;
     }
 
+    // Get employee name for toast message
+    const employeeName = request?.employees?.full_name || "Employee";
     toast.success("Failure to log request approved!", {
-      description: "Time entry has been updated successfully",
+      description: `${employeeName}'s time entry has been updated successfully`,
     });
     fetchRequests();
     setSelectedRequest(null);
@@ -374,7 +384,9 @@ export default function FailureToLogApprovalPage() {
   async function handleReject(requestId: string) {
     // Block HR users from rejecting
     if (isHR) {
-      toast.error("HR users cannot reject failure to log requests");
+      toast.error("Access denied", {
+        description: "HR users cannot reject failure to log requests",
+      });
       return;
     }
 
@@ -382,6 +394,10 @@ export default function FailureToLogApprovalPage() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Get request details for toast message
+    const request = requests.find((r) => r.id === requestId);
+    const employeeName = request?.employees?.full_name || "Employee";
 
     const { error } = await (supabase.from("failure_to_log") as any)
       .update({
@@ -395,12 +411,14 @@ export default function FailureToLogApprovalPage() {
 
     if (error) {
       console.error("Error rejecting request:", error);
-      toast.error("Failed to reject request");
+      toast.error("Failed to reject failure to log request", {
+        description: error.message || "An error occurred while rejecting the request",
+      });
       return;
     }
 
     toast.success("Failure to log request rejected", {
-      description: "The request has been declined",
+      description: `${employeeName}'s request has been declined`,
     });
     fetchRequests();
     setSelectedRequest(null);

@@ -534,13 +534,17 @@ export default function LeaveApprovalPage() {
 
     // Enforce 2-step approval: manager/OT approver first, then HR
     if (level === "hr" && request.status !== "approved_by_manager") {
-      toast.error("HR approval requires manager/OT approver approval first");
+      toast.error("Approval workflow error", {
+        description: "HR approval requires manager/OT approver approval first",
+      });
       return;
     }
 
     // Enforce that manager/OT approver can only approve pending requests
     if (level === "manager" && request.status !== "pending") {
-      toast.error("Manager/OT approver can only approve pending requests");
+      toast.error("Invalid request status", {
+        description: "Manager/OT approver can only approve pending requests",
+      });
       return;
     }
 
@@ -567,7 +571,9 @@ export default function LeaveApprovalPage() {
 
     if (error) {
       console.error("Error approving request:", error);
-      toast.error("Failed to approve request");
+      toast.error("Failed to approve leave request", {
+        description: error.message || "An error occurred while approving the request",
+      });
       return;
     }
 
@@ -593,14 +599,13 @@ export default function LeaveApprovalPage() {
       }
     }
 
+    const employeeName = request.employees?.full_name || "Employee";
     toast.success(
-      `Leave request ${
-        level === "manager" ? "approved by manager/OT approver" : "approved by HR"
-      }!`,
+      `Leave request ${level === "manager" ? "approved by manager" : "approved by HR"}!`,
       {
-        description: `${request.leave_type} • ${
+        description: `${employeeName}'s ${request.leave_type} request for ${
           request.total_days || 0
-        } day(s)${level === "manager" ? " - Awaiting HR approval" : ""}`,
+        } day(s) has been ${level === "manager" ? "approved. Awaiting HR approval." : "fully approved."}`,
       }
     );
     fetchRequests();
@@ -610,7 +615,9 @@ export default function LeaveApprovalPage() {
 
   async function handleReject(requestId: string) {
     if (!rejectionReason.trim()) {
-      toast.error("Please provide a rejection reason");
+      toast.error("Rejection reason required", {
+        description: "Please provide a reason for rejecting this leave request",
+      });
       return;
     }
 
@@ -618,6 +625,10 @@ export default function LeaveApprovalPage() {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Get request details for toast message
+    const request = requests.find((r) => r.id === requestId);
+    const employeeName = request?.employees?.full_name || "Employee";
 
     const { error } = await (supabase.from("leave_requests") as any)
       .update({
@@ -630,12 +641,14 @@ export default function LeaveApprovalPage() {
 
     if (error) {
       console.error("Error rejecting request:", error);
-      toast.error("Failed to reject request");
+      toast.error("Failed to reject leave request", {
+        description: error.message || "An error occurred while rejecting the request",
+      });
       return;
     }
 
     toast.success("Leave request rejected", {
-      description: "The request has been declined",
+      description: `${employeeName}'s ${request?.leave_type || "leave"} request has been declined`,
     });
     fetchRequests();
     setSelectedRequest(null);

@@ -357,14 +357,20 @@ export default function OvertimeApprovalPage() {
 
   const handleApprove = async (id: string) => {
     setActioningId(id);
+    // Get request details for toast message
+    const request = requests.find((r) => r.id === id);
+    const employeeName = request?.employees?.full_name || "Employee";
+    
     const { error } = await supabase.rpc("approve_overtime_request", {
       p_request_id: id,
     } as any);
     if (error) {
-      toast.error(error.message || "Failed to approve OT");
+      toast.error("Failed to approve overtime request", {
+        description: error.message || "An error occurred while approving the request",
+      });
     } else {
-      toast.success("Overtime request approved successfully!", {
-        description: "Offset hours have been added to employee balance",
+      toast.success("Overtime request approved!", {
+        description: `${employeeName}'s overtime request has been approved successfully`,
       });
       loadRequests();
     }
@@ -373,15 +379,21 @@ export default function OvertimeApprovalPage() {
 
   const handleReject = async (id: string) => {
     setActioningId(id);
+    // Get request details for toast message
+    const request = requests.find((r) => r.id === id);
+    const employeeName = request?.employees?.full_name || "Employee";
+    
     const { error } = await supabase.rpc("reject_overtime_request", {
       p_request_id: id,
       p_reason: null,
     } as any);
     if (error) {
-      toast.error(error.message || "Failed to reject OT");
+      toast.error("Failed to reject overtime request", {
+        description: error.message || "An error occurred while rejecting the request",
+      });
     } else {
       toast.success("Overtime request rejected", {
-        description: "The request has been declined",
+        description: `${employeeName}'s overtime request has been declined`,
       });
       loadRequests();
     }

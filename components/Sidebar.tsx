@@ -152,11 +152,13 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       return navGroups;
     }
 
-    const isRestrictedAccess = isApprover || isViewer;
+    // Restricted access users are approver/viewer roles (but NOT HR, even though HR has isApprover: true)
+    // HR users should see all groups like admin (except Admin group if not admin)
+    const isRestrictedAccess = (isApprover && !isHR) || isViewer;
 
     return navGroups
       .map((group) => {
-        // Restricted access users (approver/viewer) can see the entire Time & Attendance group
+        // Restricted access users (approver/viewer, but not HR) can see the entire Time & Attendance group
         if (isRestrictedAccess) {
           if (group.label === "Time & Attendance") {
             return group; // Show all items in Time & Attendance group
@@ -164,17 +166,8 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
           return null; // Hide all other groups
         }
 
-        // Hide OT Approvals and Failure to Log for HR users only
-        if (group.label === "Time & Attendance" && isHR) {
-          return {
-            ...group,
-            items: group.items.filter(
-              (item) =>
-                item.href !== "/overtime-approval" &&
-                item.href !== "/failure-to-log-approval"
-            ),
-          };
-        }
+        // HR users can now see all Time & Attendance items (OT Approvals, Failure to Log, etc.)
+        // No filtering needed for HR users in Time & Attendance group
         // Hide Payslips link from HR users without salary access
         if (group.label === "People" && isHR && !canAccessSalaryInfo) {
           return {

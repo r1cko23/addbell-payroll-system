@@ -1652,7 +1652,7 @@ export default function PayslipsPage() {
           // Get all approved SIL leave requests for the current year
           const yearStart = startOfYear(new Date(currentYear, 0, 1));
           const yearEnd = endOfYear(new Date(currentYear, 11, 31));
-          
+
           const { data: yearLeaves } = await supabase
             .from("leave_requests")
             .select("start_date, end_date, selected_dates, total_days, leave_type, status")

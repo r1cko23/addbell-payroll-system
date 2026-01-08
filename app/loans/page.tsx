@@ -1230,21 +1230,21 @@ export default function LoansPage() {
                       const originalBalance = parseFloat(formData.original_balance) || 0;
                       const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
                       const totalTerms = parseInt(formData.total_terms) || 1;
-                      
+
                       // If monthly payment is set, calculate remaining terms from current balance
                       if (monthlyPayment > 0 && originalBalance > 0) {
                         // Calculate how much has been paid
                         const amountPaid = originalBalance - newCurrentBalance;
-                        
+
                         // Calculate terms paid (round to nearest integer)
                         const termsPaid = Math.round(amountPaid / monthlyPayment);
-                        
+
                         // Calculate remaining terms
                         const newRemainingTerms = Math.max(
                           0,
                           Math.min(totalTerms, totalTerms - termsPaid)
                         );
-                        
+
                         setFormData({
                           ...formData,
                           current_balance: e.target.value,

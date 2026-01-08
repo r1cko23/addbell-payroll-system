@@ -1,6 +1,6 @@
 # Remaining Supabase Issues - Notes
 
-**Date:** January 2025  
+**Date:** January 2025
 **Current Status:** 66 issues remaining (5 Security, 61 Performance)
 
 ---
@@ -42,7 +42,7 @@ These are mostly "Auth RLS Initialization Plan" warnings - policies that re-eval
 
 **Tables with remaining warnings:**
 - `users` - Multiple policies
-- `employees` - Multiple policies  
+- `employees` - Multiple policies
 - `overtime_documents` - Multiple policies
 - `employee_week_schedules` - Multiple policies
 - `overtime_groups` - Multiple policies
@@ -59,7 +59,7 @@ These are mostly "Auth RLS Initialization Plan" warnings - policies that re-eval
 
 ### 2. RLS Performance Warnings
 - **Status:** Many policies already optimized
-- **Why still showing:** 
+- **Why still showing:**
   - Policies using helper functions (get_user_role, can_user_*) are flagged because those functions call auth.uid()
   - These are SECURITY DEFINER functions which are optimized differently
   - May require optimizing the helper functions themselves
@@ -88,7 +88,7 @@ After all fixes:
 1. **Wait 10-15 minutes** for Supabase advisors to refresh
 2. **Check actual query performance** - warnings may not reflect real performance impact
 3. **Consider optimizing helper functions** if performance is actually slow:
-   - `get_user_role()` 
+   - `get_user_role()`
    - `can_user_view_*()` functions
    - `can_user_manage_*()` functions
 4. **Enable leaked password protection** in dashboard (Authentication → Policies → Password)

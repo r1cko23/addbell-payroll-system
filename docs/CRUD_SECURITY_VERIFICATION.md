@@ -1,7 +1,7 @@
 # CRUD, SECURITY DEFINER, and RLS Verification Report
 
-**Date:** January 2025  
-**User Role:** Admin (jericko.razal@greenpasture.ph)  
+**Date:** January 2025
+**User Role:** Admin (jericko.razal@greenpasture.ph)
 **Status:** ✅ All Operations Verified Working
 
 ---

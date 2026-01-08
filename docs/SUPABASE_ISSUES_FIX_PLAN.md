@@ -1,6 +1,6 @@
 # Supabase Issues Fix Plan - Complete Analysis
 
-**Date:** January 2025  
+**Date:** January 2025
 **Total Issues:** 145 (Security: 22, Performance: 123)
 
 ---
@@ -146,13 +146,13 @@ USING ((SELECT auth.uid()) = user_id);
 
 **Example:**
 ```sql
-CREATE INDEX idx_employee_deductions_updated_by 
+CREATE INDEX idx_employee_deductions_updated_by
 ON public.employee_deductions(updated_by);
 
-CREATE INDEX idx_employee_loans_created_by 
+CREATE INDEX idx_employee_loans_created_by
 ON public.employee_loans(created_by);
 
-CREATE INDEX idx_employee_loans_updated_by 
+CREATE INDEX idx_employee_loans_updated_by
 ON public.employee_loans(updated_by);
 
 -- Continue for all affected tables...
@@ -176,7 +176,7 @@ ON public.employee_loans(updated_by);
 **Example:**
 ```sql
 -- Check index usage first:
-SELECT 
+SELECT
     schemaname,
     tablename,
     indexname,
@@ -246,40 +246,40 @@ USING (
 ### Migration 2: Add Foreign Key Indexes
 ```sql
 -- Add indexes for foreign keys
-CREATE INDEX IF NOT EXISTS idx_employee_deductions_updated_by 
+CREATE INDEX IF NOT EXISTS idx_employee_deductions_updated_by
 ON public.employee_deductions(updated_by);
 
-CREATE INDEX IF NOT EXISTS idx_employee_loans_created_by 
+CREATE INDEX IF NOT EXISTS idx_employee_loans_created_by
 ON public.employee_loans(created_by);
 
-CREATE INDEX IF NOT EXISTS idx_employee_loans_updated_by 
+CREATE INDEX IF NOT EXISTS idx_employee_loans_updated_by
 ON public.employee_loans(updated_by);
 
-CREATE INDEX IF NOT EXISTS idx_employee_location_assignments_updated_by 
+CREATE INDEX IF NOT EXISTS idx_employee_location_assignments_updated_by
 ON public.employee_location_assignments(updated_by);
 
-CREATE INDEX IF NOT EXISTS idx_employee_week_schedules_updated_by 
+CREATE INDEX IF NOT EXISTS idx_employee_week_schedules_updated_by
 ON public.employee_week_schedules(updated_by);
 
-CREATE INDEX IF NOT EXISTS idx_employees_updated_by 
+CREATE INDEX IF NOT EXISTS idx_employees_updated_by
 ON public.employees(updated_by);
 
-CREATE INDEX IF NOT EXISTS idx_overtime_documents_employee_id 
+CREATE INDEX IF NOT EXISTS idx_overtime_documents_employee_id
 ON public.overtime_documents(employee_id);
 
-CREATE INDEX IF NOT EXISTS idx_overtime_documents_overtime_request_id 
+CREATE INDEX IF NOT EXISTS idx_overtime_documents_overtime_request_id
 ON public.overtime_documents(overtime_request_id);
 
-CREATE INDEX IF NOT EXISTS idx_overtime_requests_account_manager_id 
+CREATE INDEX IF NOT EXISTS idx_overtime_requests_account_manager_id
 ON public.overtime_requests(account_manager_id);
 
-CREATE INDEX IF NOT EXISTS idx_overtime_requests_approved_by 
+CREATE INDEX IF NOT EXISTS idx_overtime_requests_approved_by
 ON public.overtime_requests(approved_by);
 
-CREATE INDEX IF NOT EXISTS idx_weekly_attendance_created_by 
+CREATE INDEX IF NOT EXISTS idx_weekly_attendance_created_by
 ON public.weekly_attendance(created_by);
 
-CREATE INDEX IF NOT EXISTS idx_weekly_attendance_finalized_by 
+CREATE INDEX IF NOT EXISTS idx_weekly_attendance_finalized_by
 ON public.weekly_attendance(finalized_by);
 ```
 

@@ -1,8 +1,8 @@
 # April Gammad - Quick Access Reference
 
-**User:** April Nina Gammad (anngammad@greenpasture.ph)  
-**Role:** HR  
-**Can Access Salary:** ✅ Yes  
+**User:** April Nina Gammad (anngammad@greenpasture.ph)
+**Role:** HR
+**Can Access Salary:** ✅ Yes
 **Group Assignment:** Approver for "HR COMPENSATION & BENEFITS"
 
 ---

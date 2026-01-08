@@ -1,6 +1,6 @@
 # CRUD Access Matrix - Complete Role-Based Access Control
 
-**Date:** January 2025  
+**Date:** January 2025
 **System:** Green Pasture HRIS
 
 ---

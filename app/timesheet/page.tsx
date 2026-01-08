@@ -1134,15 +1134,16 @@ export default function TimesheetPage() {
       }
 
       // Rest days: Only exclude if NOT worked
-      // If employee works on rest day, it counts toward the 13 days AND they get rest day premium pay
+      // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
+      // Days Work can exceed 13 if employee works on rest days (e.g., 13 regular days + 2 rest days = 15 days)
       // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
       const isRestDay = d.dayType === "sunday" || d.status === "RD";
       if (isRestDay) {
         // If rest day was worked (has BH > 0), count it toward Days Work
-        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay)
+        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay for rank/file)
         if (d.bh > 0) {
-          // Rest day was worked - count it toward the 13 days
+          // Rest day was worked - count it toward Days Work (no cap, can exceed 13 days)
           return sum + d.bh;
         } else {
           // Rest day was NOT worked - exclude from Days Work (paid separately)
@@ -1165,7 +1166,7 @@ export default function TimesheetPage() {
         const dateObj = new Date(d.date);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
         const isSaturday = dayOfWeek === 6;
-        
+
         if (isSaturday && d.bh > 0) {
           // Saturday with BH > 0 (either worked or gets 8 BH automatically per law)
           // Saturday counts toward the 13 days (regular work day per law)
@@ -1179,7 +1180,7 @@ export default function TimesheetPage() {
 
       return sum;
     }, 0);
-    
+
     // Use the maximum of basePayHours and actualTotalBH to ensure holidays with BH are counted
     totalBH = Math.max(basePayHours, actualTotalBH);
     daysWorked = totalBH / 8;
@@ -1204,15 +1205,16 @@ export default function TimesheetPage() {
       }
 
       // Rest days: Only exclude if NOT worked
-      // If employee works on rest day, it counts toward the 13 days AND they get rest day premium pay
+      // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
+      // Days Work can exceed 13 if employee works on rest days (e.g., 13 regular days + 2 rest days = 15 days)
       // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
       const isRestDay = d.dayType === "sunday" || d.status === "RD";
       if (isRestDay) {
         // If rest day was worked (has BH > 0), count it toward Days Work
-        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay)
+        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay for rank/file)
         if (d.bh > 0) {
-          // Rest day was worked - count it toward the 13 days
+          // Rest day was worked - count it toward Days Work (no cap, can exceed 13 days)
           return sum + d.bh;
         } else {
           // Rest day was NOT worked - exclude from Days Work (paid separately)
@@ -1235,7 +1237,7 @@ export default function TimesheetPage() {
         const dateObj = new Date(d.date);
         const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
         const isSaturday = dayOfWeek === 6;
-        
+
         if (isSaturday && d.bh > 0) {
           // Saturday with BH > 0 (either worked or gets 8 BH automatically per law)
           // Saturday counts toward the 13 days (regular work day per law)

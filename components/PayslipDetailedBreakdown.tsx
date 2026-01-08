@@ -1133,29 +1133,30 @@ function PayslipDetailedBreakdownComponent({
     // This matches the time attendance calculation which only shows days up to today
     const todayForDaysWork = new Date();
     todayForDaysWork.setHours(0, 0, 0, 0);
-    
+
     const actualTotalBH = attendanceData.reduce((sum, day) => {
       const dayDate = new Date(day.date);
       dayDate.setHours(0, 0, 0, 0);
-      
+
       // Only count days that are today or earlier (not future dates)
       if (dayDate > todayForDaysWork) {
         return sum;
       }
-      
+
       const { dayType, regularHours } = day;
 
       // Rest days: Only exclude if NOT worked
-      // If employee works on rest day, it counts toward the 13 days AND they get rest day premium pay
+      // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
+      // Days Work can exceed 13 if employee works on rest days (e.g., 13 regular days + 2 rest days = 15 days)
       // Office-based: Sunday is rest day (dayType === "sunday")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from restDays map)
-      const isRestDay = dayType === "sunday" || 
+      const isRestDay = dayType === "sunday" ||
         (restDays && restDays.get(day.date) === true);
       if (isRestDay) {
         // If rest day was worked (has regularHours > 0), count it toward Days Work
-        // If rest day was NOT worked (regularHours === 0), exclude it (paid separately as rest day pay)
+        // If rest day was NOT worked (regularHours === 0), exclude it (paid separately as rest day pay for rank/file)
         if (regularHours > 0) {
-          // Rest day was worked - count it toward the 13 days
+          // Rest day was worked - count it toward Days Work (no cap, can exceed 13 days)
           return sum + regularHours;
         } else {
           // Rest day was NOT worked - exclude from Days Work (paid separately)

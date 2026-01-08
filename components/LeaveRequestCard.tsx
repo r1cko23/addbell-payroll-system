@@ -196,7 +196,7 @@ function calculateDuration(
     } else {
       display = `${totalDays} ${totalDays === 1 ? "day" : "days"}`;
     }
-    
+
     return {
       value: totalDays,
       unit: totalDays === 1 ? "day" : "days",

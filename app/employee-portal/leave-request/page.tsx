@@ -197,7 +197,7 @@ export default function LeaveRequestPage() {
       const sortedDates = [...selectedDates].sort();
       setStartDate(sortedDates[0]);
       setEndDate(sortedDates[sortedDates.length - 1]);
-      
+
       // Remove half-day flags for dates that are no longer selected
       const newHalfDayDates = new Set(halfDayDates);
       halfDayDates.forEach((dateStr) => {
@@ -868,7 +868,7 @@ export default function LeaveRequestPage() {
                     them in the calendar. You can file leave requests for dates within the current cutoff period (even if they have passed). Weekends and holidays are
                     automatically excluded from the day count.
                   </p>
-                  
+
                   {/* Half-day option for SIL */}
                   {leaveType === "SIL" && selectedDates.length > 0 && (
                     <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">

@@ -444,7 +444,7 @@ export default function PayslipsPage() {
               halfDayDatesSet.add(dateStr);
             });
           }
-          
+
           // Handle selected_dates if available (for multi-day leaves)
           if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
             leave.selected_dates.forEach((dateStr: string) => {
@@ -1686,7 +1686,7 @@ export default function PayslipsPage() {
                   halfDayDatesSet.add(dateStr);
                 });
               }
-              
+
               if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
                 // Count only dates within the year, accounting for half-day
                 leave.selected_dates.forEach((dateStr: string) => {

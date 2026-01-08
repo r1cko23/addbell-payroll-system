@@ -774,8 +774,9 @@ export default function TimesheetPage() {
       } else if (incompleteDayEntries.length > 0) {
         // Incomplete entry (clock_in but no clock_out)
         status = "INC";
-      } else if (dayType === "sunday") {
+      } else if (dayType === "sunday" || isRestDay) {
         // Rest day (Sunday is the designated rest day for office-based employees)
+        // OR rest day from employee schedule (for Account Supervisors: Mon/Tue/Wed, or any day marked as rest day)
         // If no work, still show as rest day (paid)
         // If worked, show as LOG with rest day pay
         if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
@@ -785,6 +786,7 @@ export default function TimesheetPage() {
         }
       } else if (dayOfWeek === 6) {
         // Saturday - regular work day (paid 6 days/week per law)
+        // Only applies if Saturday is NOT marked as a rest day in employee schedule
         // Employees are paid for Saturday even if they don't work (regular rate, not rest day premium)
         if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
           status = "LOG"; // Worked on Saturday
@@ -792,7 +794,7 @@ export default function TimesheetPage() {
           status = "LOG"; // Saturday - paid as regular work day even if not worked
         }
       } else if (dayOfWeek === 0) {
-        // Sunday fallback (should be caught by dayType === "sunday" above)
+        // Sunday fallback (should be caught by dayType === "sunday" or isRestDay above)
         status = "RD"; // Rest day
       } else {
         // Check if the date is in the future (hasn't occurred yet)

@@ -85,7 +85,7 @@ type Holiday = HolidayEntry;
 
 export default function TimeEntriesPage() {
   const supabase = createClient();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isAdmin, isHR, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [employees, setEmployees] = useState<
@@ -115,7 +115,7 @@ export default function TimeEntriesPage() {
     if (!groupsLoading) {
       fetchTimeEntries();
     }
-  }, [selectedMonth, cutoffPeriod, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin]);
+  }, [selectedMonth, cutoffPeriod, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   useEffect(() => {
     async function loadEmployees() {
@@ -126,8 +126,9 @@ export default function TimeEntriesPage() {
         .select("id, employee_id, full_name, overtime_group_id")
         .order("full_name", { ascending: true });
 
-      // Filter by assigned groups if user is approver/viewer (not admin)
-      if (!isAdmin && assignedGroupIds.length > 0) {
+      // Filter by assigned groups if user is approver/viewer (not admin or HR)
+      // Admin and HR should see all employees
+      if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
         query = query.in("overtime_group_id", assignedGroupIds);
       }
 
@@ -142,7 +143,7 @@ export default function TimeEntriesPage() {
     }
 
     loadEmployees();
-  }, [supabase, assignedGroupIds, groupsLoading, isAdmin]);
+  }, [supabase, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   useEffect(() => {
     const fetchLocations = async () => {

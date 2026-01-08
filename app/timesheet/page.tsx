@@ -113,7 +113,7 @@ export default function TimesheetPage() {
   const [loading, setLoading] = useState(true);
 
   const supabase = createClient();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isAdmin, isHR, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
   // Calculate period start/end based on month and cutoff
@@ -187,8 +187,9 @@ export default function TimesheetPage() {
         .eq("is_active", true)
         .order("full_name");
 
-      // Filter by assigned groups if user is approver/viewer (not admin)
-      if (!isAdmin && assignedGroupIds.length > 0) {
+      // Filter by assigned groups if user is approver/viewer (not admin or HR)
+      // Admin and HR should see all employees
+      if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
         query = query.in("overtime_group_id", assignedGroupIds);
       }
 
@@ -848,10 +849,13 @@ export default function TimesheetPage() {
       }
 
       // Calculate OT hours from approved OT filings
+      // This should include ALL approved OT requests for this date, regardless of clock entries
       let otHours = 0;
       if (dayOTs.length > 0) {
         // Sum all approved OT hours for this date
-        otHours = dayOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
+        // Filter to only approved requests (status = "approved")
+        const approvedOTs = dayOTs.filter(ot => ot.status === "approved");
+        otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
       }
 
       // Calculate ND (Night Differential) from approved OT requests
@@ -864,7 +868,9 @@ export default function TimesheetPage() {
 
       if (!isAccountSupervisor && dayOTs.length > 0) {
         // Calculate ND from each approved OT request's start_time and end_time
-        dayOTs.forEach((ot) => {
+        // Only process approved OT requests
+        const approvedOTs = dayOTs.filter(ot => ot.status === "approved");
+        approvedOTs.forEach((ot) => {
           if (ot.start_time && ot.end_time) {
             const startTime = ot.start_time.includes("T")
               ? ot.start_time.split("T")[1].substring(0, 8)
@@ -1163,19 +1169,14 @@ export default function TimesheetPage() {
           return sum + d.bh;
         }
       } else {
-        // For regular days: count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
-        // OR if it's Saturday (regular work day per law) - Saturday gets 8 BH even if not worked
-        const dateObj = new Date(d.date);
-        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-        const isSaturday = dayOfWeek === 6;
-
-        if (isSaturday && d.bh > 0) {
-          // Saturday with BH > 0 (either worked or gets 8 BH automatically per law)
-          // Saturday counts toward the 13 days (regular work day per law)
-          return sum + d.bh;
-        } else if (!isSaturday && d.timeIn && d.timeOut && d.bh > 0) {
-          // Regular days (Mon-Fri): only count if completed logging AND BH > 0
-          // Regular work days count toward the 13 days
+        // For regular days: count if BH > 0
+        // This matches payslip calculation which counts regular days with regularHours > 0
+        // Saturday (regular work day per law) gets 8 BH even if not worked, so it will be counted
+        // Regular days (Mon-Fri) with BH > 0 are also counted (whether from clock entries or other sources)
+        // Note: BH can come from clock entries, approved OT requests, or other sources
+        if (d.bh > 0) {
+          // Regular day with BH > 0 counts toward the 13 days
+          // This matches payslip logic: dayType === "regular" && regularHours > 0
           return sum + d.bh;
         }
       }
@@ -1234,19 +1235,14 @@ export default function TimesheetPage() {
           return sum + d.bh;
         }
       } else {
-        // For regular days: count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
-        // OR if it's Saturday (regular work day per law) - Saturday gets 8 BH even if not worked
-        const dateObj = new Date(d.date);
-        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-        const isSaturday = dayOfWeek === 6;
-
-        if (isSaturday && d.bh > 0) {
-          // Saturday with BH > 0 (either worked or gets 8 BH automatically per law)
-          // Saturday counts toward the 13 days (regular work day per law)
-          return sum + d.bh;
-        } else if (!isSaturday && d.timeIn && d.timeOut && d.bh > 0) {
-          // Regular days (Mon-Fri): only count if completed logging AND BH > 0
-          // Regular work days count toward the 13 days
+        // For regular days: count if BH > 0
+        // This matches payslip calculation which counts regular days with regularHours > 0
+        // Saturday (regular work day per law) gets 8 BH even if not worked, so it will be counted
+        // Regular days (Mon-Fri) with BH > 0 are also counted (whether from clock entries or other sources)
+        // Note: BH can come from clock entries, approved OT requests, or other sources
+        if (d.bh > 0) {
+          // Regular day with BH > 0 counts toward the 13 days
+          // This matches payslip logic: dayType === "regular" && regularHours > 0
           return sum + d.bh;
         }
       }

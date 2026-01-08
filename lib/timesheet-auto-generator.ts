@@ -43,7 +43,9 @@ export function generateTimesheetFromClockEntries(
   restDays?: Map<string, boolean>, // Map of date string to isRestDay boolean
   eligibleForOT: boolean = true, // Whether employee is eligible for overtime
   eligibleForNightDiff: boolean = true, // Whether employee is eligible for night differential (Account Supervisors have flexi time, so no night diff)
-  isClientBasedAccountSupervisor: boolean = false // Whether employee is client-based Account Supervisor (for rest day logic)
+  isClientBasedAccountSupervisor: boolean = false, // Whether employee is client-based Account Supervisor (for rest day logic)
+  approvedOTByDate?: Map<string, number>, // Map of date string to approved OT hours (for dates without clock entries)
+  approvedNDByDate?: Map<string, number> // Map of date string to approved ND hours (for dates without clock entries)
 ): {
   attendance_data: DailyAttendance[];
   total_regular_hours: number;
@@ -146,6 +148,8 @@ export function generateTimesheetFromClockEntries(
       ) {
         regularHours += entry.regular_hours || 0;
         // Only count overtime if employee is eligible for OT
+        // Note: OT hours from clock entries are already set from approved OT requests in payslip
+        // But we still add them here for consistency
         if (eligibleForOT) {
           overtimeHours += entry.overtime_hours || 0;
         }
@@ -155,6 +159,43 @@ export function generateTimesheetFromClockEntries(
         }
       }
     });
+
+    // Add approved OT hours from approved OT requests
+    // This ensures approved OT requests are included even when employee didn't clock in/out
+    // Clock entries already have OT hours mapped from approved requests (in payslip)
+    // But if there are no clock entries for a date, we need to add OT hours here
+    if (eligibleForOT && approvedOTByDate) {
+      const otFromRequest = approvedOTByDate.get(dateStr) || 0;
+      if (otFromRequest > 0) {
+        // If there are no clock entries, add OT hours from approved requests
+        // If there are clock entries, they already have OT hours mapped (don't double-count)
+        if (dayEntries.length === 0) {
+          overtimeHours = otFromRequest;
+        } else {
+          // Clock entries already have OT hours from approved requests (mapped in payslip)
+          // But ensure we're using the approved request hours (they're the source of truth)
+          // Sum all OT hours: from clock entries (which are from approved requests) + any additional from approved requests
+          // Actually, clock entries already have OT hours from approved requests, so just use them
+          // But if approved requests have more hours than clock entries, use approved requests
+          const otFromClockEntries = overtimeHours;
+          overtimeHours = Math.max(otFromClockEntries, otFromRequest);
+        }
+      }
+    }
+
+    // Add approved ND hours from approved OT requests
+    // Same logic as OT hours
+    if (eligibleForNightDiff && approvedNDByDate) {
+      const ndFromRequest = approvedNDByDate.get(dateStr) || 0;
+      if (ndFromRequest > 0) {
+        if (dayEntries.length === 0) {
+          nightDiffHours = ndFromRequest;
+        } else {
+          const ndFromClockEntries = nightDiffHours;
+          nightDiffHours = Math.max(ndFromClockEntries, ndFromRequest);
+        }
+      }
+    }
 
     // Saturday Regular Work Day: Set regularHours = 8 even if employee didn't work
     // Per Philippine labor law, employees are paid 6 days/week (Mon-Sat)
@@ -293,6 +334,23 @@ export function generateTimesheetFromClockEntries(
         if (foundRegularWorkingDay || (isConsecutiveHoliday && previousHolidayEligible)) {
           regularHours = 8; // Eligible holiday: 8 hours even if not worked
         }
+      }
+    }
+
+    // Add approved OT hours even if there are no clock entries for this date
+    // This ensures approved OT requests are included even when employee didn't clock in/out
+    if (eligibleForOT && approvedOTByDate) {
+      const otFromRequest = approvedOTByDate.get(dateStr) || 0;
+      if (otFromRequest > 0) {
+        overtimeHours += otFromRequest;
+      }
+    }
+
+    // Add approved ND hours even if there are no clock entries for this date
+    if (eligibleForNightDiff && approvedNDByDate) {
+      const ndFromRequest = approvedNDByDate.get(dateStr) || 0;
+      if (ndFromRequest > 0) {
+        nightDiffHours += ndFromRequest;
       }
     }
 

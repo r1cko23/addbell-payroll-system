@@ -794,7 +794,9 @@ export default function PayslipsPage() {
             restDaysMap,
             isEligibleForOT,
             isEligibleForNightDiff,
-            isClientBasedAccountSupervisor
+            isClientBasedAccountSupervisor,
+            approvedOTByDate, // Pass approved OT hours map
+            approvedNDByDate // Pass approved ND hours map
           );
 
           // Update attendance_data to include leave days

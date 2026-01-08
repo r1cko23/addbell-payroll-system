@@ -253,6 +253,7 @@ export default function LeaveApprovalPage() {
       .order("created_at", { ascending: false });
 
     // HR should only see requests that have already passed manager review
+    // Admin can see all requests (no filtering)
     const hrVisibleStatuses = [
       "approved_by_manager",
       "approved_by_hr",
@@ -263,8 +264,11 @@ export default function LeaveApprovalPage() {
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
     } else if (normalizedRole === "hr") {
+      // HR should only see requests that have already passed manager review
+      // Admin can see all requests (no filtering)
       query = query.in("status", hrVisibleStatuses);
     }
+    // Admin sees all requests regardless of status (no filtering)
 
     if (selectedEmployee !== "all") {
       query = query.eq("employee_id", selectedEmployee);
@@ -695,6 +699,16 @@ export default function LeaveApprovalPage() {
       return false;
     }
 
+    // Admin can approve any pending or manager-approved request
+    if (normalizedRole === "admin") {
+      const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
+      console.log(`canApprove (admin):`, {
+        status: request.status,
+        canApprove: canApproveResult,
+      });
+      return canApproveResult;
+    }
+
     if (normalizedRole === "approver") {
       // Account managers and approvers approve pending requests
       const canApproveResult = request.status === "pending";
@@ -704,15 +718,17 @@ export default function LeaveApprovalPage() {
       });
       return canApproveResult;
     }
-    if (normalizedRole === "hr" || normalizedRole === "admin") {
-      // HR/Admin approve only after manager approval
+    
+    if (normalizedRole === "hr") {
+      // HR approve only after manager approval
       const canApproveResult = request.status === "approved_by_manager";
-      console.log("canApprove (hr/admin on approved_by_manager):", {
+      console.log("canApprove (hr on approved_by_manager):", {
         status: request.status,
         canApprove: canApproveResult,
       });
       return canApproveResult;
     }
+    
     console.log(
       "canApprove: userRole does not match any condition:",
       normalizedRole

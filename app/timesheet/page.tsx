@@ -1133,29 +1133,59 @@ export default function TimesheetPage() {
         return sum;
       }
 
+      // Rest days: Only exclude if NOT worked
+      // If employee works on rest day, it counts toward the 13 days AND they get rest day premium pay
+      // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
+      // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
+      const isRestDay = d.dayType === "sunday" || d.status === "RD";
+      if (isRestDay) {
+        // If rest day was worked (has BH > 0), count it toward Days Work
+        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay)
+        if (d.bh > 0) {
+          // Rest day was worked - count it toward the 13 days
+          return sum + d.bh;
+        } else {
+          // Rest day was NOT worked - exclude from Days Work (paid separately)
+          return sum;
+        }
+      }
+
       // Check if this is a holiday (RH, SH, or non-working holiday)
       const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
 
       if (isHoliday) {
         // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
+        // Holidays count toward the 13 days (they're included in the 104-hour base)
         if (d.bh > 0) {
           return sum + d.bh;
         }
       } else {
-        // For regular days: only count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
-        if (d.timeIn && d.timeOut && d.bh > 0) {
+        // For regular days: count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
+        // OR if it's Saturday (regular work day per law) - Saturday gets 8 BH even if not worked
+        const dateObj = new Date(d.date);
+        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        const isSaturday = dayOfWeek === 6;
+        
+        if (isSaturday && d.bh > 0) {
+          // Saturday with BH > 0 (either worked or gets 8 BH automatically per law)
+          // Saturday counts toward the 13 days (regular work day per law)
+          return sum + d.bh;
+        } else if (!isSaturday && d.timeIn && d.timeOut && d.bh > 0) {
+          // Regular days (Mon-Fri): only count if completed logging AND BH > 0
+          // Regular work days count toward the 13 days
           return sum + d.bh;
         }
       }
 
       return sum;
     }, 0);
-
+    
     // Use the maximum of basePayHours and actualTotalBH to ensure holidays with BH are counted
     totalBH = Math.max(basePayHours, actualTotalBH);
     daysWorked = totalBH / 8;
-    // Ensure daysWorked never exceeds 13 (104 hours / 8)
-    daysWorked = Math.min(daysWorked, 13);
+    // NOTE: Days Work can exceed 13 if employee works on rest days
+    // Rest day work counts toward Days Work AND gets premium pay separately
+    // Maximum is not capped at 13 to allow for rest day work
   } else {
     // Fallback: sum BH from attendance days (for display purposes)
     // But Days Work should still match base pay method if possible
@@ -1173,17 +1203,46 @@ export default function TimesheetPage() {
         return sum;
       }
 
+      // Rest days: Only exclude if NOT worked
+      // If employee works on rest day, it counts toward the 13 days AND they get rest day premium pay
+      // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
+      // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
+      const isRestDay = d.dayType === "sunday" || d.status === "RD";
+      if (isRestDay) {
+        // If rest day was worked (has BH > 0), count it toward Days Work
+        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay)
+        if (d.bh > 0) {
+          // Rest day was worked - count it toward the 13 days
+          return sum + d.bh;
+        } else {
+          // Rest day was NOT worked - exclude from Days Work (paid separately)
+          return sum;
+        }
+      }
+
       // Check if this is a holiday (RH, SH, or non-working holiday)
       const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
 
       if (isHoliday) {
         // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
+        // Holidays count toward the 13 days (they're included in the 104-hour base)
         if (d.bh > 0) {
           return sum + d.bh;
         }
       } else {
-        // For regular days: only count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
-        if (d.timeIn && d.timeOut && d.bh > 0) {
+        // For regular days: count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
+        // OR if it's Saturday (regular work day per law) - Saturday gets 8 BH even if not worked
+        const dateObj = new Date(d.date);
+        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+        const isSaturday = dayOfWeek === 6;
+        
+        if (isSaturday && d.bh > 0) {
+          // Saturday with BH > 0 (either worked or gets 8 BH automatically per law)
+          // Saturday counts toward the 13 days (regular work day per law)
+          return sum + d.bh;
+        } else if (!isSaturday && d.timeIn && d.timeOut && d.bh > 0) {
+          // Regular days (Mon-Fri): only count if completed logging AND BH > 0
+          // Regular work days count toward the 13 days
           return sum + d.bh;
         }
       }

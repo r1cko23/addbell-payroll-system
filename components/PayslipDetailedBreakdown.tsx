@@ -1129,15 +1129,48 @@ function PayslipDetailedBreakdownComponent({
     // Basic Salary = Days Worked × Daily Rate (includes all days worked: regular days + holidays)
 
     // Calculate actual total BH from attendance data (includes eligible holidays with BH > 0)
+    // IMPORTANT: Only count days that are today or earlier (exclude future dates)
+    // This matches the time attendance calculation which only shows days up to today
+    const todayForDaysWork = new Date();
+    todayForDaysWork.setHours(0, 0, 0, 0);
+    
     const actualTotalBH = attendanceData.reduce((sum, day) => {
+      const dayDate = new Date(day.date);
+      dayDate.setHours(0, 0, 0, 0);
+      
+      // Only count days that are today or earlier (not future dates)
+      if (dayDate > todayForDaysWork) {
+        return sum;
+      }
+      
       const { dayType, regularHours } = day;
 
+      // Rest days: Only exclude if NOT worked
+      // If employee works on rest day, it counts toward the 13 days AND they get rest day premium pay
+      // Office-based: Sunday is rest day (dayType === "sunday")
+      // Account Supervisors: Rest days are Mon/Tue/Wed (from restDays map)
+      const isRestDay = dayType === "sunday" || 
+        (restDays && restDays.get(day.date) === true);
+      if (isRestDay) {
+        // If rest day was worked (has regularHours > 0), count it toward Days Work
+        // If rest day was NOT worked (regularHours === 0), exclude it (paid separately as rest day pay)
+        if (regularHours > 0) {
+          // Rest day was worked - count it toward the 13 days
+          return sum + regularHours;
+        } else {
+          // Rest day was NOT worked - exclude from Days Work (paid separately)
+          return sum;
+        }
+      }
+
       // Count regular days with hours
+      // Regular work days (Mon-Sat for office-based, or excluding rest days for account supervisors) count toward the 13 days
       if (dayType === "regular" && regularHours > 0) {
         return sum + regularHours;
       }
 
       // Count eligible holidays with BH > 0
+      // Holidays count toward the 13 days (they're included in the 104-hour base)
       if (
         (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
         regularHours > 0
@@ -1161,9 +1194,9 @@ function PayslipDetailedBreakdownComponent({
     const totalBHForDaysWork = Math.max(basePayHours, actualTotalBH);
     let daysWorked = totalBHForDaysWork / 8;
 
-    // Ensure daysWorked never exceeds 13 (104 hours / 8)
-    // This prevents holidays from being double-counted
-    daysWorked = Math.min(daysWorked, 13);
+    // NOTE: Days Work can exceed 13 if employee works on rest days
+    // Rest day work counts toward Days Work AND gets premium pay separately
+    // Maximum is not capped at 13 to allow for rest day work (e.g., 13 regular days + 1 rest day = 14 days)
 
     // Ensure basicSalary = daysWorked × daily rate (all days worked including holidays)
     // This ensures consistency: basicSalary should equal daysWorked × ratePerDay

@@ -1115,10 +1115,46 @@ export default function TimesheetPage() {
   if (useBasePayMethod) {
     // Use base pay method: 104 hours - (absences × 8)
     // This matches payslip calculation
-    totalBH = basePayHours; // basePayHours is already 104 - (absences × 8)
-    daysWorked = basePayHours / 8;
+    // However, we need to count actual BH including holidays with BH > 0
+    // Base pay method gives us the minimum, but holidays with BH should also count
+    
+    // Calculate total BH from actual attendance data (includes holidays with BH > 0)
+    const actualTotalBH = attendanceDays.reduce((sum, d) => {
+      const dayDate = new Date(d.date);
+      dayDate.setHours(0, 0, 0, 0);
+
+      // Only count days that are today or earlier
+      if (dayDate > todayForDaysWork) {
+        return sum;
+      }
+
+      // Exclude non-working leave types
+      if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
+        return sum;
+      }
+
+      // Check if this is a holiday (RH, SH, or non-working holiday)
+      const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
+
+      if (isHoliday) {
+        // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
+        if (d.bh > 0) {
+          return sum + d.bh;
+        }
+      } else {
+        // For regular days: only count if employee has completed logging (both timeIn and timeOut exist) AND BH > 0
+        if (d.timeIn && d.timeOut && d.bh > 0) {
+          return sum + d.bh;
+        }
+      }
+
+      return sum;
+    }, 0);
+    
+    // Use the maximum of basePayHours and actualTotalBH to ensure holidays with BH are counted
+    totalBH = Math.max(basePayHours, actualTotalBH);
+    daysWorked = totalBH / 8;
     // Ensure daysWorked never exceeds 13 (104 hours / 8)
-    // Holidays are already included in the 104 hours base
     daysWorked = Math.min(daysWorked, 13);
   } else {
     // Fallback: sum BH from attendance days (for display purposes)

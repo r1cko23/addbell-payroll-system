@@ -1123,12 +1123,43 @@ function PayslipDetailedBreakdownComponent({
     // Calculate "Days Work" as: (104 hours - absence hours) / 8
     // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
     // Each absence = 8 hours deduction
-    // IMPORTANT: "Days Work" should ALWAYS use basePayHours / 8, NOT totalRegularHours
-    // totalRegularHours includes holidays which are already part of the 104 hours base
+    // IMPORTANT: "Days Work" should count actual BH including eligible holidays with BH > 0
+    // basePayHours = 104 - (absences × 8), but this doesn't account for eligible holidays
+    // Eligible holidays (with BH > 0) should also count toward "Days Work"
     // Basic Salary = Days Worked × Daily Rate (includes all days worked: regular days + holidays)
-    // "Days Work" = basePayHours / 8, where basePayHours = 104 - (absences × 8)
-    // This represents the total days worked including holidays (holidays are part of 13 days)
-    let daysWorked = basePayHours / 8; // Always use basePayHours, which is capped at 104
+    
+    // Calculate actual total BH from attendance data (includes eligible holidays with BH > 0)
+    const actualTotalBH = attendanceData.reduce((sum, day) => {
+      const { dayType, regularHours } = day;
+      
+      // Count regular days with hours
+      if (dayType === "regular" && regularHours > 0) {
+        return sum + regularHours;
+      }
+      
+      // Count eligible holidays with BH > 0
+      if (
+        (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
+        regularHours > 0
+      ) {
+        // Check if eligible for holiday pay
+        const eligibleForHolidayPay = isEligibleForHolidayPay(
+          day.date,
+          regularHours,
+          attendanceData
+        );
+        if (eligibleForHolidayPay) {
+          return sum + regularHours;
+        }
+      }
+      
+      return sum;
+    }, 0);
+    
+    // Use the maximum of basePayHours and actualTotalBH to ensure eligible holidays are counted
+    // basePayHours represents the minimum (104 - absences), but eligible holidays add to it
+    const totalBHForDaysWork = Math.max(basePayHours, actualTotalBH);
+    let daysWorked = totalBHForDaysWork / 8;
 
     // Ensure daysWorked never exceeds 13 (104 hours / 8)
     // This prevents holidays from being double-counted

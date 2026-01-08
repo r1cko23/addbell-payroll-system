@@ -1182,37 +1182,37 @@ export default function LoansPage() {
                     onChange={(e) => {
                       const newOriginalBalance =
                         parseFloat(e.target.value) || 0;
-                      const oldOriginalBalance =
-                        parseFloat(formData.original_balance) || 0;
-                      const currentBalance =
-                        parseFloat(formData.current_balance) || 0;
                       const totalTerms = parseInt(formData.total_terms) || 1;
+                      const remainingTerms = parseInt(formData.remaining_terms) || 0;
+                      const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
 
-                      // Calculate difference in original balance
-                      const balanceDifference =
-                        newOriginalBalance - oldOriginalBalance;
+                      // Calculate terms paid
+                      const termsPaid = totalTerms - remainingTerms;
 
-                      // Update current balance by adding the difference
-                      // This ensures if original increases by 1k, current also increases by 1k
+                      // Recalculate monthly payment based on new original balance (if not manually set)
+                      // Only auto-calculate if monthly payment is currently 0 or matches the old calculation
+                      const oldOriginalBalance = parseFloat(formData.original_balance) || 0;
+                      const expectedMonthlyPayment = oldOriginalBalance > 0 && totalTerms > 0
+                        ? oldOriginalBalance / totalTerms
+                        : 0;
+                      const isAutoCalculated = Math.abs(monthlyPayment - expectedMonthlyPayment) < 0.01 || monthlyPayment === 0;
+                      
+                      const newMonthlyPayment = isAutoCalculated && newOriginalBalance > 0 && totalTerms > 0
+                        ? newOriginalBalance / totalTerms
+                        : monthlyPayment; // Keep manual monthly payment if it was set
+
+                      // Recalculate current balance based on new original balance and terms paid
+                      // current_balance = original_balance - (monthly_payment * terms_paid)
                       const newCurrentBalance = Math.max(
                         0,
-                        currentBalance + balanceDifference
+                        newOriginalBalance - (newMonthlyPayment * termsPaid)
                       );
-
-                      // Recalculate monthly payment based on new original balance
-                      const newMonthlyPayment =
-                        newOriginalBalance > 0 && totalTerms > 0
-                          ? newOriginalBalance / totalTerms
-                          : 0;
 
                       setFormData({
                         ...formData,
                         original_balance: e.target.value,
                         current_balance: newCurrentBalance.toFixed(2),
-                        monthly_payment:
-                          newMonthlyPayment > 0
-                            ? newMonthlyPayment.toFixed(2)
-                            : formData.monthly_payment,
+                        monthly_payment: newMonthlyPayment.toFixed(2),
                       });
                     }}
                     placeholder="0.00"
@@ -1234,33 +1234,48 @@ export default function LoansPage() {
                     placeholder="0.00"
                   />
                   <Caption className="text-xs text-gray-500 mt-1">
-                    Auto-updates when Original Balance changes
+                    Auto-calculated as: Original Balance - (Monthly Payment × Terms Paid)
+                    <br />
+                    Terms Paid = Total Terms - Remaining Terms
                   </Caption>
                 </div>
               </div>
 
               <div>
                 <Label htmlFor="monthly_payment">
-                  Monthly Payment * (Auto-calculated)
+                  Monthly Payment *
                 </Label>
                 <Input
                   id="monthly_payment"
                   type="number"
                   step="0.01"
                   value={formData.monthly_payment}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const newMonthlyPayment = parseFloat(e.target.value) || 0;
+                    const originalBalance = parseFloat(formData.original_balance) || 0;
+                    const totalTerms = parseInt(formData.total_terms) || 1;
+                    const remainingTerms = parseInt(formData.remaining_terms) || 0;
+                    
+                    // Calculate terms paid
+                    const termsPaid = totalTerms - remainingTerms;
+                    
+                    // Recalculate current balance based on new monthly payment
+                    // current_balance = original_balance - (monthly_payment * terms_paid)
+                    const newCurrentBalance = Math.max(
+                      0,
+                      originalBalance - (newMonthlyPayment * termsPaid)
+                    );
+                    
                     setFormData({
                       ...formData,
                       monthly_payment: e.target.value,
-                    })
-                  }
+                      current_balance: newCurrentBalance.toFixed(2),
+                    });
+                  }}
                   placeholder="0.00"
-                  readOnly
-                  className="bg-gray-50 cursor-not-allowed"
-                  title="Automatically calculated as Original Balance ÷ Total Terms"
                 />
                 <Caption className="text-xs text-gray-500 mt-1">
-                  Calculated as: Original Balance ÷ Total Terms
+                  Auto-calculated as Original Balance ÷ Total Terms (can be manually adjusted)
                 </Caption>
               </div>
 
@@ -1289,12 +1304,22 @@ export default function LoansPage() {
                       const newTotalTerms = parseInt(e.target.value) || 1;
                       const originalBalance =
                         parseFloat(formData.original_balance) || 0;
+                      const remainingTerms = parseInt(formData.remaining_terms) || 0;
 
                       // Recalculate monthly payment when total terms changes
                       const newMonthlyPayment =
                         originalBalance > 0 && newTotalTerms > 0
                           ? originalBalance / newTotalTerms
                           : 0;
+
+                      // Calculate terms paid with new total terms
+                      const termsPaid = newTotalTerms - remainingTerms;
+
+                      // Recalculate current balance based on new total terms
+                      const newCurrentBalance = Math.max(
+                        0,
+                        originalBalance - (newMonthlyPayment * termsPaid)
+                      );
 
                       setFormData({
                         ...formData,
@@ -1303,6 +1328,7 @@ export default function LoansPage() {
                           newMonthlyPayment > 0
                             ? newMonthlyPayment.toFixed(2)
                             : formData.monthly_payment,
+                        current_balance: newCurrentBalance.toFixed(2),
                       });
                     }}
                     placeholder="6"
@@ -1320,9 +1346,25 @@ export default function LoansPage() {
                       const value = e.target.value;
                       // Prevent negative values
                       if (value === "" || parseInt(value) >= 0) {
+                        const newRemainingTerms = parseInt(value) || 0;
+                        const totalTerms = parseInt(formData.total_terms) || 1;
+                        const originalBalance = parseFloat(formData.original_balance) || 0;
+                        const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
+                        
+                        // Calculate terms paid
+                        const termsPaid = totalTerms - newRemainingTerms;
+                        
+                        // Recalculate current balance when remaining terms changes
+                        // current_balance = original_balance - (monthly_payment * terms_paid)
+                        const newCurrentBalance = Math.max(
+                          0,
+                          originalBalance - (monthlyPayment * termsPaid)
+                        );
+                        
                         setFormData({
                           ...formData,
                           remaining_terms: value,
+                          current_balance: newCurrentBalance.toFixed(2),
                         });
                       }
                     }}

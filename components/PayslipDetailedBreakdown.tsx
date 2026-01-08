@@ -1127,16 +1127,16 @@ function PayslipDetailedBreakdownComponent({
     // basePayHours = 104 - (absences × 8), but this doesn't account for eligible holidays
     // Eligible holidays (with BH > 0) should also count toward "Days Work"
     // Basic Salary = Days Worked × Daily Rate (includes all days worked: regular days + holidays)
-    
+
     // Calculate actual total BH from attendance data (includes eligible holidays with BH > 0)
     const actualTotalBH = attendanceData.reduce((sum, day) => {
       const { dayType, regularHours } = day;
-      
+
       // Count regular days with hours
       if (dayType === "regular" && regularHours > 0) {
         return sum + regularHours;
       }
-      
+
       // Count eligible holidays with BH > 0
       if (
         (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
@@ -1152,10 +1152,10 @@ function PayslipDetailedBreakdownComponent({
           return sum + regularHours;
         }
       }
-      
+
       return sum;
     }, 0);
-    
+
     // Use the maximum of basePayHours and actualTotalBH to ensure eligible holidays are counted
     // basePayHours represents the minimum (104 - absences), but eligible holidays add to it
     const totalBHForDaysWork = Math.max(basePayHours, actualTotalBH);

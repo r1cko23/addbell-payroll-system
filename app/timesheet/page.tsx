@@ -1117,7 +1117,7 @@ export default function TimesheetPage() {
     // This matches payslip calculation
     // However, we need to count actual BH including holidays with BH > 0
     // Base pay method gives us the minimum, but holidays with BH should also count
-    
+
     // Calculate total BH from actual attendance data (includes holidays with BH > 0)
     const actualTotalBH = attendanceDays.reduce((sum, d) => {
       const dayDate = new Date(d.date);
@@ -1150,7 +1150,7 @@ export default function TimesheetPage() {
 
       return sum;
     }, 0);
-    
+
     // Use the maximum of basePayHours and actualTotalBH to ensure holidays with BH are counted
     totalBH = Math.max(basePayHours, actualTotalBH);
     daysWorked = totalBH / 8;

@@ -52,6 +52,7 @@ interface LeaveRequest {
   start_date: string;
   end_date: string;
   selected_dates?: string[] | null;
+  half_day_dates?: string[] | null; // Array of dates that are half-day
   start_time?: string | null;
   end_time?: string | null;
   total_days: number;
@@ -92,6 +93,7 @@ export default function LeaveRequestPage() {
     "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave"
   >("SIL");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [halfDayDates, setHalfDayDates] = useState<Set<string>>(new Set()); // Track which dates are half-day
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -195,14 +197,25 @@ export default function LeaveRequestPage() {
       const sortedDates = [...selectedDates].sort();
       setStartDate(sortedDates[0]);
       setEndDate(sortedDates[sortedDates.length - 1]);
+      
+      // Remove half-day flags for dates that are no longer selected
+      const newHalfDayDates = new Set(halfDayDates);
+      halfDayDates.forEach((dateStr) => {
+        if (!selectedDates.includes(dateStr)) {
+          newHalfDayDates.delete(dateStr);
+        }
+      });
+      setHalfDayDates(newHalfDayDates);
     } else {
       setStartDate("");
       setEndDate("");
+      setHalfDayDates(new Set()); // Clear half-day dates when no dates selected
     }
   }, [selectedDates]);
 
   useEffect(() => {
     // Calculate days from selected dates array
+    // Half-day dates count as 0.5, full-day dates count as 1.0
     if (selectedDates.length > 0) {
       let days = 0;
       selectedDates.forEach((dateStr) => {
@@ -211,7 +224,12 @@ export default function LeaveRequestPage() {
         const isWeekend = dow === 0 || dow === 6;
         const isHoliday = holidayDates.has(dateStr);
         if (!isWeekend && !isHoliday) {
-          days += 1;
+          // Check if this date is marked as half-day
+          if (halfDayDates.has(dateStr)) {
+            days += 0.5;
+          } else {
+            days += 1;
+          }
         }
       });
       setCalculatedDays(days);
@@ -219,7 +237,7 @@ export default function LeaveRequestPage() {
       setCalculatedDays(0);
     }
     setCalculatedHours(0);
-  }, [selectedDates, holidayDates]);
+  }, [selectedDates, halfDayDates, holidayDates]);
 
   async function fetchEmployeeInfo(employeeId: string) {
     try {
@@ -353,7 +371,7 @@ export default function LeaveRequestPage() {
         const proceedAsLwop = window.confirm(
           `You only have ${silCredits.toFixed(
             2
-          )} SIL credits but filed for ${calculatedDays} day(s).\n\n` +
+          )} SIL credits but filed for ${calculatedDays.toFixed(2)} day(s).\n\n` +
             `Click OK to switch this request to LWOP, or Cancel to adjust dates.`
         );
         if (!proceedAsLwop) return;
@@ -401,10 +419,11 @@ export default function LeaveRequestPage() {
       start_date: startDate,
       end_date: endDate,
       selected_dates: selectedDates.length > 0 ? selectedDates : null,
-      total_days: calculatedDays,
+      total_days: calculatedDays, // Can be decimal (0.5 for half-day)
       total_hours: 0,
       reason: reason.trim(),
       status: "pending",
+      half_day_dates: Array.from(halfDayDates), // Store half-day dates as JSON array
     };
 
     const { data: inserted, error } = await (
@@ -849,20 +868,77 @@ export default function LeaveRequestPage() {
                     them in the calendar. You can file leave requests for dates within the current cutoff period (even if they have passed). Weekends and holidays are
                     automatically excluded from the day count.
                   </p>
+                  
+                  {/* Half-day option for SIL */}
+                  {leaveType === "SIL" && selectedDates.length > 0 && (
+                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                      <Label className="text-sm font-medium text-amber-900 mb-2 block">
+                        Half-Day Leave Options
+                      </Label>
+                      <p className="text-xs text-amber-700 mb-3">
+                        Mark dates as half-day to consume only 0.5 SIL credits per day (4 hours instead of 8 hours).
+                      </p>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {selectedDates
+                          .filter((dateStr) => {
+                            const date = new Date(dateStr);
+                            const dow = date.getDay();
+                            const isWeekend = dow === 0 || dow === 6;
+                            const isHoliday = holidayDates.has(dateStr);
+                            return !isWeekend && !isHoliday;
+                          })
+                          .map((dateStr) => (
+                            <label
+                              key={dateStr}
+                              className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-amber-100 p-2 rounded"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={halfDayDates.has(dateStr)}
+                                onChange={(e) => {
+                                  const newHalfDayDates = new Set(halfDayDates);
+                                  if (e.target.checked) {
+                                    newHalfDayDates.add(dateStr);
+                                  } else {
+                                    newHalfDayDates.delete(dateStr);
+                                  }
+                                  setHalfDayDates(newHalfDayDates);
+                                }}
+                                className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
+                              />
+                              <span className="text-amber-900">
+                                {format(new Date(dateStr), "MMM dd, yyyy (EEE)")}
+                                {halfDayDates.has(dateStr) && (
+                                  <Badge className="ml-2 bg-amber-200 text-amber-900">
+                                    Half-Day
+                                  </Badge>
+                                )}
+                              </span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {calculatedDays > 0 && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                     <div className="text-sm font-semibold text-blue-900">
                       Calculated Days:{" "}
-                      <span className="text-lg">{calculatedDays}</span>
+                      <span className="text-lg">{calculatedDays.toFixed(2)}</span>
                       {selectedDates.length > 0 && (
                         <span className="text-xs font-normal text-blue-700 ml-2">
                           ({selectedDates.length} date
-                          {selectedDates.length !== 1 ? "s" : ""} selected)
+                          {selectedDates.length !== 1 ? "s" : ""} selected
+                          {halfDayDates.size > 0 && `, ${halfDayDates.size} half-day`})
                         </span>
                       )}
                     </div>
+                    {leaveType === "SIL" && (
+                      <div className="text-xs text-blue-700 mt-1">
+                        SIL Credits Required: {calculatedDays.toFixed(2)} credits
+                      </div>
+                    )}
                   </div>
                 )}
 

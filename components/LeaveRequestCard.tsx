@@ -37,6 +37,7 @@ export interface LeaveRequestCardData {
     | "Paternity Leave"
   totalDays?: number;
   totalHours?: number;
+  halfDayDates?: string[] | null; // Array of dates that are half-day
   reason?: string | null;
   department?: string;
   location?: string;
@@ -177,14 +178,29 @@ function calculateDuration(
   endDate: string,
   leaveType: LeaveRequestCardData["leaveType"],
   totalDays?: number,
-  totalHours?: number
+  totalHours?: number,
+  halfDayDates?: string[] | null
 ) {
 
   if (totalDays !== undefined) {
+    // Format display to show half-day if applicable
+    let display = "";
+    if (totalDays % 1 === 0.5) {
+      // Has half-day
+      const fullDays = Math.floor(totalDays);
+      if (fullDays > 0) {
+        display = `${fullDays} ${fullDays === 1 ? "day" : "days"}, 0.5 day`;
+      } else {
+        display = "0.5 day (half-day)";
+      }
+    } else {
+      display = `${totalDays} ${totalDays === 1 ? "day" : "days"}`;
+    }
+    
     return {
       value: totalDays,
       unit: totalDays === 1 ? "day" : "days",
-      display: `${totalDays} ${totalDays === 1 ? "day" : "days"}`,
+      display: display,
     };
   }
 
@@ -253,7 +269,8 @@ export function LeaveRequestCard({
     request.endDate,
     request.leaveType,
     request.totalDays,
-    request.totalHours
+    request.totalHours,
+    request.halfDayDates
   );
   const isOverdue = isLeaveRequestOverdue(request.startDate);
   const actions = getAvailableActions(request, userRole, showActions);

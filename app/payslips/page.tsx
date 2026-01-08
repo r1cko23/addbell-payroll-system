@@ -429,14 +429,22 @@ export default function PayslipsPage() {
         console.warn("Error loading leave requests:", leaveError);
       }
 
-      // Create a map of leave dates with their leave types
+      // Create a map of leave dates with their leave types and half-day status
       // Prioritize SIL over other leave types when multiple leaves exist on the same date
       const leaveDatesMap = new Map<
         string,
-        { leaveType: string; status: string }
+        { leaveType: string; status: string; isHalfDay?: boolean }
       >();
       if (leaveData) {
         leaveData.forEach((leave: any) => {
+          // Get half-day dates from the leave request
+          const halfDayDatesSet = new Set<string>();
+          if (leave.half_day_dates && Array.isArray(leave.half_day_dates)) {
+            leave.half_day_dates.forEach((dateStr: string) => {
+              halfDayDatesSet.add(dateStr);
+            });
+          }
+          
           // Handle selected_dates if available (for multi-day leaves)
           if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
             leave.selected_dates.forEach((dateStr: string) => {
@@ -447,6 +455,7 @@ export default function PayslipsPage() {
                   leaveDatesMap.set(dateStr, {
                     leaveType: leave.leave_type,
                     status: leave.status,
+                    isHalfDay: halfDayDatesSet.has(dateStr),
                   });
                 }
               }
@@ -465,6 +474,7 @@ export default function PayslipsPage() {
                   leaveDatesMap.set(dateStr, {
                     leaveType: leave.leave_type,
                     status: leave.status,
+                    isHalfDay: halfDayDatesSet.has(dateStr),
                   });
                 }
               }
@@ -788,7 +798,7 @@ export default function PayslipsPage() {
           );
 
           // Update attendance_data to include leave days
-          // Only SIL (Sick Leave) counts as a working day (8 hours)
+          // Only SIL (Sick Leave) counts as a working day (8 hours for full-day, 4 hours for half-day)
           // All other leaves are not paid and not recorded as a working day
           timesheetData.attendance_data = timesheetData.attendance_data.map(
             (day: any) => {
@@ -796,12 +806,14 @@ export default function PayslipsPage() {
               if (leaveInfo) {
                 // If this day has an approved leave request
                 if (leaveInfo.leaveType === "SIL") {
-                  // SIL (Sick Leave) counts as 8 hours working day
-                  // Set regularHours to 8 and dayType to "regular" for SIL leaves
+                  // SIL (Sick Leave) counts as working day
+                  // Full-day: 8 hours, Half-day: 4 hours
+                  const silHours = leaveInfo.isHalfDay ? 4 : 8;
+                  // Set regularHours and dayType to "regular" for SIL leaves
                   // This ensures they count as working days even if there are no clock entries
                   return {
                     ...day,
-                    regularHours: 8, // Always set to 8 for SIL leaves
+                    regularHours: silHours, // 8 hours for full-day, 4 hours for half-day
                     dayType: "regular", // Set dayType to "regular" so it counts in basic earnings
                   };
                 }
@@ -1655,7 +1667,7 @@ export default function PayslipsPage() {
 
           const { data: yearLeaves } = await supabase
             .from("leave_requests")
-            .select("start_date, end_date, selected_dates, total_days, leave_type, status")
+            .select("start_date, end_date, selected_dates, total_days, half_day_dates, leave_type, status")
             .eq("employee_id", selectedEmployee.id)
             .eq("status", "approved")
             .eq("leave_type", "SIL")
@@ -1663,28 +1675,50 @@ export default function PayslipsPage() {
             .lte("end_date", format(yearEnd, "yyyy-MM-dd"));
 
           // Count total SIL days used in the year (only count days within the year)
+          // Half-day leaves count as 0.5 days, full-day leaves count as 1.0 day
           let totalSILDays = 0;
           if (yearLeaves && yearLeaves.length > 0) {
             yearLeaves.forEach((leave: any) => {
+              // Get half-day dates set
+              const halfDayDatesSet = new Set<string>();
+              if (leave.half_day_dates && Array.isArray(leave.half_day_dates)) {
+                leave.half_day_dates.forEach((dateStr: string) => {
+                  halfDayDatesSet.add(dateStr);
+                });
+              }
+              
               if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
-                // Count only dates within the year
+                // Count only dates within the year, accounting for half-day
                 leave.selected_dates.forEach((dateStr: string) => {
                   if (dateStr >= format(yearStart, "yyyy-MM-dd") && dateStr <= format(yearEnd, "yyyy-MM-dd")) {
-                    totalSILDays += 1;
+                    // Check if this date is half-day (0.5) or full-day (1.0)
+                    if (halfDayDatesSet.has(dateStr)) {
+                      totalSILDays += 0.5;
+                    } else {
+                      totalSILDays += 1.0;
+                    }
                   }
                 });
               } else if (leave.start_date && leave.end_date) {
-                // Count days within the year range
+                // Count days within the year range, accounting for half-day
                 const start = parseISO(leave.start_date);
                 const end = parseISO(leave.end_date);
                 const actualStart = start > yearStart ? start : yearStart;
                 const actualEnd = end < yearEnd ? end : yearEnd;
                 if (actualStart <= actualEnd) {
-                  const daysDiff = Math.ceil((actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-                  totalSILDays += daysDiff;
+                  let currentDate = new Date(actualStart);
+                  while (currentDate <= actualEnd) {
+                    const dateStr = format(currentDate, "yyyy-MM-dd");
+                    if (halfDayDatesSet.has(dateStr)) {
+                      totalSILDays += 0.5;
+                    } else {
+                      totalSILDays += 1.0;
+                    }
+                    currentDate.setDate(currentDate.getDate() + 1);
+                  }
                 }
               } else if (leave.total_days) {
-                // Fallback: use total_days if available (assumes it's already within year)
+                // Fallback: use total_days if available (already accounts for half-day)
                 totalSILDays += Number(leave.total_days);
               }
             });

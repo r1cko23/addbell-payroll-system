@@ -104,11 +104,12 @@ export default function OvertimeGroupsPage() {
       if (groupsError) throw groupsError;
 
       // Load users for dropdowns (include all roles that can be approvers/viewers)
+      // HR users can also be assigned as approvers/viewers for groups
       const { data: usersData, error: usersError } = await supabase
         .from("users")
         .select("id, full_name, email, role")
         .eq("is_active", true)
-        .in("role", ["admin", "account_manager", "ot_approver", "ot_viewer"])
+        .in("role", ["admin", "hr", "account_manager", "ot_approver", "ot_viewer"])
         .order("full_name");
 
       if (usersError) throw usersError;

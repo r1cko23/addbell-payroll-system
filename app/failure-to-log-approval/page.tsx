@@ -185,9 +185,13 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups if user is approver/viewer (not admin or HR)
+    // Filter by assigned groups:
+    // - Admin: See all (no filtering)
+    // - HR: If has assigned groups, filter by those groups; if no assigned groups, see all
+    // - Approver/Viewer: Filter by assigned groups only
     let filteredData = data;
-    if (!isAdmin && !isHR && assignedGroupIds.length > 0 && data) {
+    if (!isAdmin && assignedGroupIds.length > 0 && data) {
+      // HR users with assigned groups OR approver/viewer users filter by groups
       // Need to fetch employee group IDs for filtering
       const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
       const { data: employeesData } = await supabase
@@ -203,7 +207,11 @@ export default function FailureToLogApprovalPage() {
         const employeeGroupId = employeeGroupMap.get(req.employee_id);
         return employeeGroupId && assignedGroupIds.includes(employeeGroupId);
       });
+    } else if (!isAdmin && !isHR && assignedGroupIds.length === 0) {
+      // Approver/viewer with no assigned groups see nothing
+      filteredData = [];
     }
+    // HR users with no assigned groups see all (filteredData remains as data)
 
     const requestsData = filteredData as Array<{
       status: string;

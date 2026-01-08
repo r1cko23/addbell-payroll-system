@@ -189,13 +189,19 @@ export default function OvertimeApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups if user is approver/viewer (not admin or HR)
+    // Filter by assigned groups:
+    // - Admin: See all (no filtering)
+    // - HR: If has assigned groups, filter by those groups; if no assigned groups, see all
+    // - Approver/Viewer: Filter by assigned groups only
     let filteredData = data;
-    if (!isAdmin && !isHR && assignedGroupIds.length > 0 && data) {
-      console.log("Filtering requests for approver/viewer:", {
+    if (!isAdmin && assignedGroupIds.length > 0 && data) {
+      // HR users with assigned groups OR approver/viewer users filter by groups
+      console.log("Filtering requests by assigned groups:", {
         totalRequests: data.length,
         assignedGroupIds: assignedGroupIds,
         isAdmin: isAdmin,
+        isHR: isHR,
+        role: isHR ? "HR (with assigned groups)" : "Approver/Viewer",
       });
 
       filteredData = data.filter((req: any) => {
@@ -226,9 +232,11 @@ export default function OvertimeApprovalPage() {
         filteredOut: data.length - filteredData.length,
       });
     } else if (!isAdmin && !isHR && assignedGroupIds.length === 0) {
+      // Approver/viewer with no assigned groups see nothing
       console.warn("Approver/viewer has no assigned groups - showing no requests");
       filteredData = [];
     }
+    // HR users with no assigned groups see all (filteredData remains as data)
 
     console.log("OT Requests loaded:", {
       count: filteredData?.length || 0,

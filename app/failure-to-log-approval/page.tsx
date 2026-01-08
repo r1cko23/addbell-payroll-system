@@ -88,12 +88,7 @@ export default function FailureToLogApprovalPage() {
     {}
   );
 
-  // Block HR users from accessing this page
-  useEffect(() => {
-    if (!roleLoading && isHR) {
-      router.push("/dashboard");
-    }
-  }, [roleLoading, isHR, router]);
+  // HR users also have approver permissions, so they can access this page
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
@@ -121,8 +116,8 @@ export default function FailureToLogApprovalPage() {
       .select("id, employee_id, full_name, overtime_group_id")
       .order("full_name", { ascending: true });
 
-    // Filter by assigned groups if user is approver/viewer (not admin)
-    if (!isAdmin && assignedGroupIds.length > 0) {
+    // Filter by assigned groups if user is approver/viewer (not admin or HR)
+    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
       query = query.in("overtime_group_id", assignedGroupIds);
     }
 
@@ -140,7 +135,7 @@ export default function FailureToLogApprovalPage() {
     if (!groupsLoading) {
       fetchRequests();
     }
-  }, [statusFilter, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin]);
+  }, [statusFilter, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   async function fetchRequests() {
     setLoading(true);
@@ -190,9 +185,9 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups if user is approver/viewer (not admin)
+    // Filter by assigned groups if user is approver/viewer (not admin or HR)
     let filteredData = data;
-    if (!isAdmin && assignedGroupIds.length > 0 && data) {
+    if (!isAdmin && !isHR && assignedGroupIds.length > 0 && data) {
       // Need to fetch employee group IDs for filtering
       const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
       const { data: employeesData } = await supabase
@@ -284,14 +279,6 @@ export default function FailureToLogApprovalPage() {
   }
 
   async function handleApprove(requestId: string) {
-    // Block HR users from approving
-    if (isHR) {
-      toast.error("Access denied", {
-        description: "HR users cannot approve failure to log requests",
-      });
-      return;
-    }
-
     setApproveLoading(true);
     const {
       data: { user },
@@ -382,14 +369,6 @@ export default function FailureToLogApprovalPage() {
   }
 
   async function handleReject(requestId: string) {
-    // Block HR users from rejecting
-    if (isHR) {
-      toast.error("Access denied", {
-        description: "HR users cannot reject failure to log requests",
-      });
-      return;
-    }
-
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -691,7 +670,7 @@ export default function FailureToLogApprovalPage() {
                       {request.status.toUpperCase()}
                     </Badge>
                   </HStack>
-                  {request.status === "pending" && !isHR && (
+                  {request.status === "pending" && (
                     <HStack
                       gap="2"
                       align="center"
@@ -882,7 +861,7 @@ export default function FailureToLogApprovalPage() {
               >
                 Close
               </Button>
-              {selectedRequest?.status === "pending" && !isHR && (
+              {selectedRequest?.status === "pending" && (
                 <div className="flex gap-2">
                   <Button
                     variant="destructive"

@@ -132,7 +132,7 @@ export function useUserRole(): UserRoleData {
       error,
       isAdmin: role === "admin",
       isHR: role === "hr",
-      isApprover: role === "approver",
+      isApprover: role === "approver" || role === "hr",
       isViewer: role === "viewer",
       isRestrictedAccess: role === "approver" || role === "viewer",
       canAccessSalaryInfo: role === "admin" || canAccessSalary === true,

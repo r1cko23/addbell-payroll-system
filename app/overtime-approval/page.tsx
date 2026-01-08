@@ -81,13 +81,8 @@ export default function OvertimeApprovalPage() {
     {}
   );
 
-  // Block HR users from accessing this page
-  // Allow approver and viewer roles
-  useEffect(() => {
-    if (!roleLoading && isHR) {
-      router.push("/dashboard");
-    }
-  }, [roleLoading, isHR, router]);
+  // HR users also have approver permissions, so they can access this page
+  // Allow approver, HR, and viewer roles
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
@@ -194,9 +189,9 @@ export default function OvertimeApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups if user is approver/viewer (not admin)
+    // Filter by assigned groups if user is approver/viewer (not admin or HR)
     let filteredData = data;
-    if (!isAdmin && assignedGroupIds.length > 0 && data) {
+    if (!isAdmin && !isHR && assignedGroupIds.length > 0 && data) {
       console.log("Filtering requests for approver/viewer:", {
         totalRequests: data.length,
         assignedGroupIds: assignedGroupIds,
@@ -230,7 +225,7 @@ export default function OvertimeApprovalPage() {
         after: filteredData.length,
         filteredOut: data.length - filteredData.length,
       });
-    } else if (!isAdmin && assignedGroupIds.length === 0) {
+    } else if (!isAdmin && !isHR && assignedGroupIds.length === 0) {
       console.warn("Approver/viewer has no assigned groups - showing no requests");
       filteredData = [];
     }
@@ -280,8 +275,8 @@ export default function OvertimeApprovalPage() {
       .select("id, employee_id, full_name, overtime_group_id")
       .order("full_name", { ascending: true });
 
-    // Filter by assigned groups if user is approver/viewer (not admin)
-    if (!isAdmin && assignedGroupIds.length > 0) {
+    // Filter by assigned groups if user is approver/viewer (not admin or HR)
+    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
       query = query.in("overtime_group_id", assignedGroupIds);
     }
 
@@ -344,16 +339,17 @@ export default function OvertimeApprovalPage() {
   }
 
   useEffect(() => {
-    if ((role === "admin" || role === "approver" || role === "viewer") && !groupsLoading) {
+    if ((role === "admin" || role === "approver" || role === "hr" || role === "viewer") && !groupsLoading) {
       console.log("Loading requests with:", {
         role,
         isAdmin,
+        isHR,
         assignedGroupIds,
         groupsLoading,
       });
       loadRequests();
     }
-  }, [selectedWeek, statusFilter, selectedEmployee, role, assignedGroupIds, groupsLoading, isAdmin]);
+  }, [selectedWeek, statusFilter, selectedEmployee, role, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   const handleApprove = async (id: string) => {
     setActioningId(id);
@@ -415,13 +411,8 @@ export default function OvertimeApprovalPage() {
     );
   }
 
-  // Block HR users - redirect handled by useEffect above
-  if (isHR) {
-    return null;
-  }
-
-  // Only allow admins, approvers, and viewers
-  if (role !== "admin" && role !== "approver" && role !== "viewer") {
+  // Only allow admins, HR, approvers, and viewers
+  if (role !== "admin" && role !== "hr" && role !== "approver" && role !== "viewer") {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
@@ -674,7 +665,7 @@ export default function OvertimeApprovalPage() {
                       </Badge>
                     </HStack>
                     {req.status === "pending" &&
-                      (role === "admin" || role === "approver") && (
+                      (role === "admin" || role === "hr" || role === "approver") && (
                         <HStack
                           gap="2"
                           align="center"
@@ -894,7 +885,7 @@ export default function OvertimeApprovalPage() {
                 Close
               </Button>
               {selected?.status === "pending" &&
-                (role === "admin" || role === "approver") && (
+                (role === "admin" || role === "hr" || role === "approver") && (
                   <div className="flex gap-2">
                     <Button
                       variant="destructive"

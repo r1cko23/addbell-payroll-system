@@ -148,8 +148,8 @@ export default function LeaveApprovalPage() {
       .select("id, employee_id, full_name, overtime_group_id")
       .order("full_name", { ascending: true });
 
-    // Filter by assigned groups if user is approver/viewer (not admin)
-    if (!isAdmin && assignedGroupIds.length > 0) {
+    // Filter by assigned groups if user is approver/viewer (not admin or HR)
+    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
       query = query.in("overtime_group_id", assignedGroupIds);
     }
 
@@ -252,23 +252,12 @@ export default function LeaveApprovalPage() {
       .gte("end_date", weekStartStr)
       .order("created_at", { ascending: false });
 
-    // HR should only see requests that have already passed manager review
+    // HR can see all requests (pending, approved_by_manager, approved_by_hr, rejected)
     // Admin can see all requests (no filtering)
-    const hrVisibleStatuses = [
-      "approved_by_manager",
-      "approved_by_hr",
-      "rejected",
-      "cancelled",
-    ];
-
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
-    } else if (normalizedRole === "hr") {
-      // HR should only see requests that have already passed manager review
-      // Admin can see all requests (no filtering)
-      query = query.in("status", hrVisibleStatuses);
     }
-    // Admin sees all requests regardless of status (no filtering)
+    // Admin and HR see all requests regardless of status (no filtering)
 
     if (selectedEmployee !== "all") {
       query = query.eq("employee_id", selectedEmployee);
@@ -289,9 +278,9 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups if user is approver/viewer (not admin)
+    // Filter by assigned groups if user is approver/viewer (not admin or HR)
     let filteredData = data;
-    if (!isAdmin && assignedGroupIds.length > 0) {
+    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
       // Need to fetch employee group IDs for filtering
       const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
       const { data: employeesData } = await supabase
@@ -533,9 +522,10 @@ export default function LeaveApprovalPage() {
     if (!user) return;
 
     // Enforce 2-step approval: manager/OT approver first, then HR
-    if (level === "hr" && request.status !== "approved_by_manager") {
+    // However, HR can also approve pending requests directly (acting as manager)
+    if (level === "hr" && request.status !== "approved_by_manager" && request.status !== "pending") {
       toast.error("Approval workflow error", {
-        description: "HR approval requires manager/OT approver approval first",
+        description: "HR can only approve pending requests or requests already approved by manager",
       });
       return;
     }
@@ -688,7 +678,7 @@ export default function LeaveApprovalPage() {
   useEffect(() => {
     if (!normalizedRole || groupsLoading) return;
     fetchRequests();
-  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin]);
+  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   const stats = {
     total: requests.length,
@@ -733,9 +723,9 @@ export default function LeaveApprovalPage() {
     }
 
     if (normalizedRole === "hr") {
-      // HR approve only after manager approval
-      const canApproveResult = request.status === "approved_by_manager";
-      console.log("canApprove (hr on approved_by_manager):", {
+      // HR can approve pending requests and requests already approved by manager
+      const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
+      console.log("canApprove (hr):", {
         status: request.status,
         canApprove: canApproveResult,
       });
@@ -1135,17 +1125,18 @@ export default function LeaveApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // OT Approvers and Account Managers approve at "manager" level (first step)
-                          // HR and Admin approve at "hr" level (second step)
+                          // OT Approvers approve at "manager" level (first step)
+                          // HR and Admin can approve at either level based on request status
+                          // If pending, HR approves at "manager" level; if approved_by_manager, HR approves at "hr" level
                           const approvalLevel =
-                            normalizedRole === "approver"
+                            normalizedRole === "approver" || (normalizedRole === "hr" && request.status === "pending")
                               ? "manager"
                               : "hr";
                           handleApprove(request, approvalLevel);
                         }}
                       >
                         <Icon name="Check" size={IconSizes.sm} />
-                        {normalizedRole === "approver"
+                        {normalizedRole === "approver" || (normalizedRole === "hr" && request.status === "pending")
                           ? "Approve"
                           : "Approve (HR)"}
                       </Button>
@@ -1429,17 +1420,18 @@ export default function LeaveApprovalPage() {
                         </Button>
                         <Button
                           onClick={() => {
-                            // OT Approvers and Account Managers approve at "manager" level (first step)
-                            // HR and Admin approve at "hr" level (second step)
+                            // OT Approvers approve at "manager" level (first step)
+                            // HR and Admin can approve at either level based on request status
+                            // If pending, HR approves at "manager" level; if approved_by_manager, HR approves at "hr" level
                             const approvalLevel =
-                              normalizedRole === "approver"
+                              normalizedRole === "approver" || (normalizedRole === "hr" && selectedRequest.status === "pending")
                                 ? "manager"
                                 : "hr";
                             handleApprove(selectedRequest, approvalLevel);
                           }}
                         >
                           <Icon name="Check" size={IconSizes.sm} />
-                          {normalizedRole === "approver"
+                          {normalizedRole === "approver" || (normalizedRole === "hr" && selectedRequest.status === "pending")
                             ? "Approve (Manager)"
                             : "Approve (HR)"}
                         </Button>

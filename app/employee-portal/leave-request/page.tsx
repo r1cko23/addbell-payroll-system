@@ -356,6 +356,12 @@ export default function LeaveRequestPage() {
     }
 
     // Check SIL credits if SIL type
+    // Employees cannot file leaves if they don't have sufficient leave credits
+    // Rule: calculatedDays must be <= silCredits (strict validation, NO rounding up)
+    // Examples:
+    // - 0.83 credits can file 0.83 days (half day) but NOT 1.0 day
+    // - 2.76 credits can file 2.76 days (2 full days + half day) but NOT 3.0 days
+    // - No rounding up: if you have less than 1 credit, you cannot file a full day
     if (leaveType === "SIL") {
       if (silCredits === null) {
         toast.error("Unable to verify SIL credits. Please try again.");
@@ -367,18 +373,14 @@ export default function LeaveRequestPage() {
         );
         return;
       }
-      if (silCredits < calculatedDays) {
-        const proceedAsLwop = window.confirm(
-          `You only have ${silCredits.toFixed(
-            2
-          )} SIL credits but filed for ${calculatedDays.toFixed(2)} day(s).\n\n` +
-            `Click OK to switch this request to LWOP, or Cancel to adjust dates.`
+      // Strict validation: calculatedDays must be <= silCredits (no rounding up)
+      // This ensures employees cannot file more days than their available credits
+      // Example: 0.83 credits cannot file 1.0 day, 2.76 credits cannot file 3.0 days
+      if (calculatedDays > silCredits) {
+        toast.error(
+          `Insufficient SIL credits. You have ${silCredits.toFixed(2)} credit(s) but filed for ${calculatedDays.toFixed(2)} day(s). Please adjust your dates or select LWOP instead.`
         );
-        if (!proceedAsLwop) return;
-        setLeaveType("LWOP");
-        toast.warning(
-          "Converted to LWOP because filed SIL exceeds available credits."
-        );
+        return;
       }
     }
 

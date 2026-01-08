@@ -175,8 +175,9 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
             items: group.items.filter((item) => item.href !== "/payslips"),
           };
         }
-        // Hide Admin group if not admin
-        if (group.label === "Admin" && !isAdmin) {
+        // Show Admin group to admin and HR users
+        // HR users can access BIR Reports, and potentially Audit Dashboard
+        if (group.label === "Admin" && !isAdmin && !isHR) {
           return null;
         }
         // Filter Overview (Dashboard) items based on role

@@ -1,6 +1,6 @@
 # RBAC/ACL Matrix - Complete Role-Based Access Control
 
-**Last Updated:** January 2025  
+**Last Updated:** January 2025
 **System:** Green Pasture HRIS Admin/HR Dashboard
 
 ## Role Definitions

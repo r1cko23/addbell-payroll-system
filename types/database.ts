@@ -34,7 +34,7 @@ export interface Database {
           id?: string;
           email?: string;
           full_name?: string;
-          role?: "admin" | "hr" | "account_manager";
+          role?: "admin" | "hr" | "approver" | "viewer";
           is_active?: boolean;
           can_access_salary?: boolean | null;
           created_at?: string;

@@ -13,8 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
 
 type UserRole =
-  | Database["public"]["Tables"]["users"]["Row"]["role"]
-  | "account_manager";
+  | Database["public"]["Tables"]["users"]["Row"]["role"];
 
 interface UserRoleData {
   role: UserRole | null;

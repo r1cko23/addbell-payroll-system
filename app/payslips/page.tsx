@@ -1915,7 +1915,423 @@ export default function PayslipsPage() {
     }
   }
 
-  // Show loading or access denied
+  // Memoize periodEnd calculation
+  const periodEnd = useMemo(() => getBiMonthlyPeriodEnd(periodStart), [periodStart]);
+
+  // Memoize working days calculation to ensure it recalculates when holidays are loaded
+  // This fixes the issue where on first load, holidays might be empty [], causing incorrect calculation
+  // The calculation will automatically re-run when holidays state updates
+  // IMPORTANT: This hook MUST be called before any conditional returns to follow React Rules of Hooks
+  const workingDays = useMemo(() => {
+    if (!attendance || !attendance.attendance_data || !selectedEmployee) return 0;
+    const days = attendance.attendance_data as any[];
+
+    // Use base pay method: (104 hours - absences × 8) / 8
+    // This matches both timesheet and PayslipDetailedBreakdown calculations
+    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
+
+    try {
+      // Extract clock entries from attendance data
+      const clockEntries = days
+        .filter((day) => day.clockInTime && day.clockOutTime)
+        .map((day) => ({
+          clock_in_time: day.clockInTime!,
+          clock_out_time: day.clockOutTime!,
+        }));
+
+      // Get rest days and holidays - use state restDaysMap if available, otherwise create empty map
+      const restDaysForCalculation = restDaysMap.size > 0 ? restDaysMap : new Map<string, boolean>();
+      const holidaysList = holidays.map((h) => ({ holiday_date: h.holiday_date }));
+
+      // Calculate base pay using the same method as PayslipDetailedBreakdown
+      const basePayResult = calculateBasePay({
+        periodStart,
+        periodEnd: periodEnd,
+        clockEntries,
+        restDays: restDaysForCalculation,
+        holidays: holidaysList,
+        isClientBased: selectedEmployee.employee_type === "client-based" || false,
+        hireDate: selectedEmployee.hire_date ? parseISO(selectedEmployee.hire_date) : undefined,
+        terminationDate: undefined, // termination_date doesn't exist in employees table
+      });
+
+      // Days Work = (104 - absences × 8) / 8
+      return basePayResult.finalBaseHours / 8;
+    } catch (error) {
+      console.error("Error calculating working days:", error);
+      // Fallback: return 0 if calculation fails
+      return 0;
+    }
+  }, [attendance, selectedEmployee, periodStart, periodEnd, holidays, restDaysMap]);
+
+  // Memoize expensive gross pay calculation
+  const grossPay = useMemo(() => {
+    let calculatedGrossPay = attendance?.gross_pay || 0;
+
+    // If we have attendance_data, recalculate to ensure accuracy (especially for AS/Office-based)
+    if (
+      attendance?.attendance_data &&
+      Array.isArray(attendance.attendance_data) &&
+      selectedEmployee
+    ) {
+      const ratePerHour =
+        selectedEmployee.rate_per_hour ||
+        (selectedEmployee.per_day
+          ? selectedEmployee.per_day / 8
+          : selectedEmployee.rate_per_day
+          ? selectedEmployee.rate_per_day / 8
+          : 0);
+
+      if (ratePerHour > 0) {
+        try {
+          // Use calculateWeeklyPayroll as base calculation
+          const payrollResult = calculateWeeklyPayroll(
+            attendance.attendance_data,
+            ratePerHour
+          );
+
+          // Check if employee is Account Supervisor or eligible for allowances
+          const isAccountSupervisor =
+            selectedEmployee.position
+              ?.toUpperCase()
+              .includes("ACCOUNT SUPERVISOR") || false;
+          const isClientBased = selectedEmployee.employee_type === "client-based";
+          const supervisoryPositions = [
+            "PAYROLL SUPERVISOR",
+            "ACCOUNT RECEIVABLE SUPERVISOR",
+            "HR OPERATIONS SUPERVISOR",
+            "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
+            "HR SUPERVISOR - LABOR RELATIONS",
+            "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
+          ];
+          const isSupervisory =
+            selectedEmployee.employee_type === "office-based" &&
+            supervisoryPositions.some((pos) =>
+              selectedEmployee.position?.toUpperCase().includes(pos)
+            );
+          const isManagerial =
+            selectedEmployee.employee_type === "office-based" &&
+            selectedEmployee.job_level?.toUpperCase() === "MANAGERIAL";
+          const isEligibleForAllowances =
+            isAccountSupervisor || isSupervisory || isManagerial;
+          const useFixedAllowances = isClientBased || isEligibleForAllowances;
+
+          // Calculate base gross pay from standard calculations
+          let grossPayValue = Math.round(payrollResult.grossPay * 100) / 100;
+
+          // For Account Supervisors/Office-based employees, add fixed allowances
+          if (useFixedAllowances) {
+            let totalFixedAllowances = 0;
+
+            // Calculate fixed allowances from attendance data
+            attendance.attendance_data.forEach((day: any) => {
+              const dayType = day.dayType || "regular";
+              const overtimeHours =
+                typeof day.overtimeHours === "string"
+                  ? parseFloat(day.overtimeHours)
+                  : day.overtimeHours || 0;
+
+              // Regular OT allowance
+              if (dayType === "regular" && overtimeHours > 0) {
+                // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
+                if (isClientBased || isAccountSupervisor || isEligibleForAllowances) {
+                  if (overtimeHours >= 2) {
+                    // First 2 hours = ₱200, then ₱100 per succeeding hour
+                    totalFixedAllowances += 200 + Math.max(0, overtimeHours - 2) * 100;
+                  }
+                }
+              }
+
+              // Holiday/Rest Day OT allowance
+              const isHolidayOrRestDay =
+                dayType === "sunday" ||
+                dayType === "regular-holiday" ||
+                dayType === "non-working-holiday" ||
+                dayType === "sunday-special-holiday" ||
+                dayType === "sunday-regular-holiday";
+
+              if (isHolidayOrRestDay && overtimeHours > 0) {
+                if (overtimeHours >= 8) {
+                  totalFixedAllowances += 700;
+                } else if (overtimeHours >= 4) {
+                  totalFixedAllowances += 350;
+                }
+              }
+
+              // Holiday/Rest Day allowance for REGULAR HOURS worked (not OT)
+              // This applies if employee worked regular hours on holiday/rest day
+              const regularHours = day.regularHours || 0;
+              if (isHolidayOrRestDay && regularHours > 0) {
+                // Allowance for regular hours worked on holiday/rest day: ₱700 for ≥8 hours, ₱350 for ≥4 hours
+                if (regularHours >= 8) {
+                  totalFixedAllowances += 700;
+                } else if (regularHours >= 4) {
+                  totalFixedAllowances += 350;
+                }
+              }
+            });
+
+            // Helper function to check "1 Day Before" rule for holidays
+            const isEligibleForHolidayPay = (
+              currentDate: string,
+              currentRegularHours: number,
+              attendanceData: Array<any>
+            ): boolean => {
+              // If employee worked on the holiday itself, they get daily rate regardless
+              if (currentRegularHours > 0) {
+                return true;
+              }
+
+              // If they didn't work on the holiday, check if they worked a REGULAR WORKING DAY before
+              // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
+              const currentDateObj = new Date(currentDate);
+              for (let i = 1; i <= 7; i++) {
+                const checkDateObj = new Date(currentDateObj);
+                checkDateObj.setDate(checkDateObj.getDate() - i);
+                const checkDateStr = checkDateObj.toISOString().split("T")[0];
+
+                // Find the day in attendance data
+                const checkDay = attendanceData.find(
+                  (day: any) => day.date === checkDateStr
+                );
+
+                if (checkDay) {
+                  // Only count REGULAR WORKING DAYS (skip holidays and rest days)
+                  if (
+                    checkDay.dayType === "regular" &&
+                    (checkDay.regularHours || 0) >= 8
+                  ) {
+                    return true; // Found a regular working day with 8+ hours
+                  }
+                }
+              }
+
+              return false;
+            };
+
+            // Calculate basic pay (regular days only, excluding holidays)
+            let basicPay = 0;
+            let holidayRestDayPay = 0;
+            attendance.attendance_data.forEach((day: any) => {
+              const dayType = day.dayType || "regular";
+              const regularHours = day.regularHours || 0;
+              const date = day.date || "";
+              const ratePerHour =
+                selectedEmployee.rate_per_hour ||
+                (selectedEmployee.per_day
+                  ? selectedEmployee.per_day / 8
+                  : selectedEmployee.rate_per_day
+                  ? selectedEmployee.rate_per_day / 8
+                  : 0);
+
+              if (dayType === "regular") {
+                // Regular days: standard calculation
+                // Saturday Regular Work Day: Pay 8 hours even if employee didn't work (paid 6 days/week per law)
+                const dateObj = new Date(date);
+                const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+                if (dayOfWeek === 6 && regularHours === 0) {
+                  // Saturday with no work - regular work day: pay 8 hours at regular rate
+                  basicPay += 8 * ratePerHour;
+                } else {
+                  // Regular day with work - pay actual hours (includes Saturday if worked)
+                  basicPay += regularHours * ratePerHour;
+                }
+              } else if (
+                dayType === "regular-holiday" ||
+                dayType === "non-working-holiday"
+              ) {
+                // For holidays: Check "1 Day Before" rule
+                const eligibleForHolidayPay = isEligibleForHolidayPay(
+                  date,
+                  regularHours,
+                  attendance.attendance_data
+                );
+
+                if (eligibleForHolidayPay) {
+                  // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
+                  const hoursToPay = regularHours > 0 ? regularHours : 8;
+                  // For Account Supervisors: Holidays are paid at 1.0x (daily rate, no multiplier)
+                  holidayRestDayPay += hoursToPay * ratePerHour;
+                }
+              } else if (
+                dayType === "sunday" ||
+                dayType === "sunday-special-holiday" ||
+                dayType === "sunday-regular-holiday"
+              ) {
+                // For Rest Days (Sunday is the designated rest day for office-based employees):
+                // Account Supervisors/Supervisory: Only pay if they actually worked on rest day (no automatic 8 hours)
+                if (regularHours > 0) {
+                  // For Account Supervisors: Rest Days are paid at 1.0x (daily rate, no multiplier) only if worked
+                  holidayRestDayPay += regularHours * ratePerHour;
+                }
+              }
+            });
+
+            // Gross Pay = Basic Pay (regular days) + Holiday/Rest Day Pay (at 1.0x) + Fixed Allowances
+            grossPayValue = basicPay + holidayRestDayPay + totalFixedAllowances;
+          }
+
+          calculatedGrossPay = Math.round(grossPayValue * 100) / 100;
+
+          // If the recalculated value differs significantly from stored value, use recalculated
+          // This handles cases where attendance.gross_pay might be stale
+          if (
+            attendance.gross_pay &&
+            Math.abs(calculatedGrossPay - attendance.gross_pay) > 0.01
+          ) {
+            // Use recalculated value if it's more accurate
+            calculatedGrossPay = Math.round(grossPayValue * 100) / 100;
+          }
+        } catch (calcError) {
+          console.error("Error recalculating gross pay:", calcError);
+          // Fallback to stored value
+          calculatedGrossPay = attendance?.gross_pay || 0;
+        }
+      }
+    }
+
+    return calculatedGrossPay;
+  }, [attendance, selectedEmployee]);
+
+  // Memoize deductions calculations
+  const weeklyDed = useMemo(() => {
+    return (
+      (deductions?.vale_amount || 0) +
+      (deductions?.sss_salary_loan || 0) +
+      (deductions?.sss_calamity_loan || 0) +
+      (deductions?.pagibig_salary_loan || 0) +
+      (deductions?.pagibig_calamity_loan || 0) +
+      // Include loans for both cutoffs based on their cutoff_assignment
+      (isFirstCutoff()
+        ? (monthlyLoans.sssLoan || 0) +
+          (monthlyLoans.pagibigLoan || 0) +
+          (monthlyLoans.companyLoan || 0) +
+          (monthlyLoans.emergencyLoan || 0) +
+          (monthlyLoans.otherLoan || 0)
+        : isSecondCutoff()
+        ? (monthlyLoans.pagibigLoan || 0) +
+          (monthlyLoans.companyLoan || 0) +
+          (monthlyLoans.emergencyLoan || 0) +
+          (monthlyLoans.otherLoan || 0) +
+          (monthlyLoans.sssLoan || 0)
+        : 0)
+    );
+  }, [deductions, monthlyLoans, periodStart]);
+
+  // Memoize government deductions
+  const govDed = useMemo(() => {
+    const workingDaysPerMonth = 22;
+    let monthlyBasicSalary = 0;
+
+    if (selectedEmployee?.monthly_rate) {
+      monthlyBasicSalary = selectedEmployee.monthly_rate;
+    } else if (selectedEmployee?.per_day) {
+      monthlyBasicSalary = calculateMonthlySalary(
+        selectedEmployee.per_day,
+        workingDaysPerMonth
+      );
+    } else if (selectedEmployee?.rate_per_day) {
+      monthlyBasicSalary = calculateMonthlySalary(
+        selectedEmployee.rate_per_day,
+        workingDaysPerMonth
+      );
+    } else if (grossPay > 0) {
+      monthlyBasicSalary = grossPay * 2;
+    }
+
+    const applyMonthlyDeductions = isSecondCutoff();
+
+    if (monthlyBasicSalary > 0 && applyMonthlyDeductions) {
+      const validMonthlySalary =
+        monthlyBasicSalary && monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
+      const sssContribution = calculateSSS(validMonthlySalary);
+      const philhealthContribution = calculatePhilHealth(validMonthlySalary);
+      const pagibigContribution = calculatePagIBIG(validMonthlySalary);
+
+      const sssAmt = isNaN(sssContribution?.employeeShare)
+        ? 0
+        : Math.round(sssContribution.employeeShare * 100) / 100;
+      const philhealthAmt = isNaN(philhealthContribution?.employeeShare)
+        ? 0
+        : Math.round(philhealthContribution.employeeShare * 100) / 100;
+      const pagibigAmt = isNaN(pagibigContribution?.employeeShare)
+        ? 0
+        : Math.round(pagibigContribution.employeeShare * 100) / 100;
+
+      return sssAmt + philhealthAmt + pagibigAmt;
+    }
+    return 0;
+  }, [selectedEmployee, grossPay, periodStart]);
+
+  // Memoize withholding tax calculation
+  const tax = useMemo(() => {
+    const workingDaysPerMonth = 22;
+    let monthlyBasicSalary = 0;
+
+    if (selectedEmployee?.monthly_rate) {
+      monthlyBasicSalary = selectedEmployee.monthly_rate;
+    } else if (selectedEmployee?.per_day) {
+      monthlyBasicSalary = calculateMonthlySalary(
+        selectedEmployee.per_day,
+        workingDaysPerMonth
+      );
+    } else if (selectedEmployee?.rate_per_day) {
+      monthlyBasicSalary = calculateMonthlySalary(
+        selectedEmployee.rate_per_day,
+        workingDaysPerMonth
+      );
+    } else if (grossPay > 0) {
+      monthlyBasicSalary = grossPay * 2;
+    }
+
+    if (monthlyBasicSalary > 0) {
+      const taxFromDeductions = deductions?.withholding_tax || 0;
+      if (taxFromDeductions === 0) {
+        const sss = calculateSSS(monthlyBasicSalary);
+        const philhealth = calculatePhilHealth(monthlyBasicSalary);
+        const pagibig = calculatePagIBIG(monthlyBasicSalary);
+
+        // Taxable income = gross salary minus mandatory contributions
+        const monthlyContributions =
+          sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
+        const monthlyTaxableIncome = monthlyBasicSalary - monthlyContributions;
+
+        // Calculate monthly withholding tax, then split in half for bi-monthly deduction
+        const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
+        return Math.round((monthlyTax / 2) * 100) / 100;
+      }
+      return taxFromDeductions;
+    }
+    return 0;
+  }, [selectedEmployee, grossPay, deductions]);
+
+  // Adjustment and Allowance removed - always 0
+  const adjustment = 0;
+  const allowance = 0;
+
+  // Memoize total deductions
+  const totalDed = useMemo(() => {
+    return weeklyDed + govDed + tax + adjustment;
+  }, [weeklyDed, govDed, tax]);
+
+  // Memoize final gross pay
+  const finalGrossPay = useMemo(() => {
+    // ALWAYS use calculatedTotalGrossPay from PayslipDetailedBreakdown (it's the authoritative source)
+    // This should match the Gross Pay shown in the Basic Earning(s) table
+    // If calculatedTotalGrossPay is null, it means PayslipDetailedBreakdown hasn't calculated it yet
+    // In that case, show 0 temporarily - it will update automatically via useEffect callback
+    return calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
+      ? calculatedTotalGrossPay
+      : 0; // Show 0 until calculatedTotalGrossPay is set (don't use grossPay fallback - it's wrong)
+  }, [calculatedTotalGrossPay]);
+
+  // Memoize net pay
+  const netPay = useMemo(() => {
+    const allowance = 0;
+    return finalGrossPay - totalDed + allowance;
+  }, [finalGrossPay, totalDed]);
+
+  // Show loading or access denied - MUST be after all hooks
   if (roleLoading || loading) {
     return (
       <DashboardLayout>
@@ -1959,358 +2375,13 @@ export default function PayslipsPage() {
     );
   }
 
-  // Calculate preview - Recalculate grossPay from attendance_data to ensure it includes all earnings
-  // This ensures AS/Office-based employees' Other Pay items are included
-  let grossPay = attendance?.gross_pay || 0;
-
-  // If we have attendance_data, recalculate to ensure accuracy (especially for AS/Office-based)
-  if (
-    attendance?.attendance_data &&
-    Array.isArray(attendance.attendance_data) &&
-    selectedEmployee
-  ) {
-    const ratePerHour =
-      selectedEmployee.rate_per_hour ||
-      (selectedEmployee.per_day
-        ? selectedEmployee.per_day / 8
-        : selectedEmployee.rate_per_day
-        ? selectedEmployee.rate_per_day / 8
-        : 0);
-
-    if (ratePerHour > 0) {
-      try {
-        // Use calculateWeeklyPayroll as base calculation
-        const payrollResult = calculateWeeklyPayroll(
-          attendance.attendance_data,
-          ratePerHour
-        );
-
-        // Check if employee is Account Supervisor or eligible for allowances
-        const isAccountSupervisor =
-          selectedEmployee.position
-            ?.toUpperCase()
-            .includes("ACCOUNT SUPERVISOR") || false;
-        const isClientBased = selectedEmployee.employee_type === "client-based";
-        const supervisoryPositions = [
-          "PAYROLL SUPERVISOR",
-          "ACCOUNT RECEIVABLE SUPERVISOR",
-          "HR OPERATIONS SUPERVISOR",
-          "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
-          "HR SUPERVISOR - LABOR RELATIONS",
-          "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
-        ];
-        const isSupervisory =
-          selectedEmployee.employee_type === "office-based" &&
-          supervisoryPositions.some((pos) =>
-            selectedEmployee.position?.toUpperCase().includes(pos)
-          );
-        const isManagerial =
-          selectedEmployee.employee_type === "office-based" &&
-          selectedEmployee.job_level?.toUpperCase() === "MANAGERIAL";
-        const isEligibleForAllowances =
-          isAccountSupervisor || isSupervisory || isManagerial;
-        const useFixedAllowances = isClientBased || isEligibleForAllowances;
-
-        // Calculate base gross pay from standard calculations
-        let calculatedGrossPay = Math.round(payrollResult.grossPay * 100) / 100;
-
-        // For Account Supervisors/Office-based employees, add fixed allowances
-        if (useFixedAllowances) {
-          let totalFixedAllowances = 0;
-
-          // Calculate fixed allowances from attendance data
-          attendance.attendance_data.forEach((day: any) => {
-            const dayType = day.dayType || "regular";
-            const overtimeHours =
-              typeof day.overtimeHours === "string"
-                ? parseFloat(day.overtimeHours)
-                : day.overtimeHours || 0;
-
-            // Regular OT allowance
-            if (dayType === "regular" && overtimeHours > 0) {
-              // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
-              if (isClientBased || isAccountSupervisor || isEligibleForAllowances) {
-                if (overtimeHours >= 2) {
-                  // First 2 hours = ₱200, then ₱100 per succeeding hour
-                  totalFixedAllowances += 200 + Math.max(0, overtimeHours - 2) * 100;
-                }
-              }
-            }
-
-            // Holiday/Rest Day OT allowance
-            const isHolidayOrRestDay =
-              dayType === "sunday" ||
-              dayType === "regular-holiday" ||
-              dayType === "non-working-holiday" ||
-              dayType === "sunday-special-holiday" ||
-              dayType === "sunday-regular-holiday";
-
-            if (isHolidayOrRestDay && overtimeHours > 0) {
-              if (overtimeHours >= 8) {
-                totalFixedAllowances += 700;
-              } else if (overtimeHours >= 4) {
-                totalFixedAllowances += 350;
-              }
-            }
-
-            // Holiday/Rest Day allowance for REGULAR HOURS worked (not OT)
-            // This applies if employee worked regular hours on holiday/rest day
-            const regularHours = day.regularHours || 0;
-            if (isHolidayOrRestDay && regularHours > 0) {
-              // Allowance for regular hours worked on holiday/rest day: ₱700 for ≥8 hours, ₱350 for ≥4 hours
-              if (regularHours >= 8) {
-                totalFixedAllowances += 700;
-              } else if (regularHours >= 4) {
-                totalFixedAllowances += 350;
-              }
-            }
-          });
-
-          // For Account Supervisors/Office-based: Gross Pay = Basic + Holidays/Rest Days + Fixed Allowances
-          // calculateWeeklyPayroll includes standard OT/ND calculations and holiday multipliers (2.0x, 1.3x),
-          // but Account Supervisors get holidays at 1.0x (daily rate, no multiplier)
-          // So we need to: Basic Pay (regular days only) + Holiday/Rest Day Pay (at 1.0x) + Fixed Allowances
-
-          // Helper function to check "1 Day Before" rule for holidays (same logic as PayslipPrint.tsx)
-          const isEligibleForHolidayPay = (
-            currentDate: string,
-            currentRegularHours: number,
-            attendanceData: Array<any>
-          ): boolean => {
-            // If employee worked on the holiday itself, they get daily rate regardless
-            if (currentRegularHours > 0) {
-              return true;
-            }
-
-            // If they didn't work on the holiday, check if they worked a REGULAR WORKING DAY before
-            // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-            // This matches the timesheet generation logic
-            const currentDateObj = new Date(currentDate);
-            for (let i = 1; i <= 7; i++) {
-              const checkDateObj = new Date(currentDateObj);
-              checkDateObj.setDate(checkDateObj.getDate() - i);
-              const checkDateStr = checkDateObj.toISOString().split("T")[0];
-
-              // Find the day in attendance data
-              const checkDay = attendanceData.find(
-                (day: any) => day.date === checkDateStr
-              );
-
-              if (checkDay) {
-                // Only count REGULAR WORKING DAYS (skip holidays and rest days)
-                if (
-                  checkDay.dayType === "regular" &&
-                  (checkDay.regularHours || 0) >= 8
-                ) {
-                  return true; // Found a regular working day with 8+ hours
-                }
-                // If it's a rest day or holiday, continue searching backwards
-              }
-            }
-
-            return false;
-          };
-
-          // Calculate basic pay (regular days only, excluding holidays)
-          let basicPay = 0;
-          let holidayRestDayPay = 0;
-          attendance.attendance_data.forEach((day: any) => {
-            const dayType = day.dayType || "regular";
-            const regularHours = day.regularHours || 0;
-            const date = day.date || "";
-            const ratePerHour =
-              selectedEmployee.rate_per_hour ||
-              (selectedEmployee.per_day
-                ? selectedEmployee.per_day / 8
-                : selectedEmployee.rate_per_day
-                ? selectedEmployee.rate_per_day / 8
-                : 0);
-
-            if (dayType === "regular") {
-              // Regular days: standard calculation
-              // Saturday Regular Work Day: Pay 8 hours even if employee didn't work (paid 6 days/week per law)
-              // Saturday is a regular work day, not a separate benefit
-              const dateObj = new Date(date);
-              const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-              if (dayOfWeek === 6 && regularHours === 0) {
-                // Saturday with no work - regular work day: pay 8 hours at regular rate
-                basicPay += 8 * ratePerHour;
-              } else {
-                // Regular day with work - pay actual hours (includes Saturday if worked)
-                basicPay += regularHours * ratePerHour;
-              }
-            } else if (
-              dayType === "regular-holiday" ||
-              dayType === "non-working-holiday"
-            ) {
-              // For holidays: Check "1 Day Before" rule
-              const eligibleForHolidayPay = isEligibleForHolidayPay(
-                date,
-                regularHours,
-                attendance.attendance_data
-              );
-
-              if (eligibleForHolidayPay) {
-                // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
-                const hoursToPay = regularHours > 0 ? regularHours : 8;
-                // For Account Supervisors: Holidays are paid at 1.0x (daily rate, no multiplier)
-                holidayRestDayPay += hoursToPay * ratePerHour;
-              }
-            } else if (
-              dayType === "sunday" ||
-              dayType === "sunday-special-holiday" ||
-              dayType === "sunday-regular-holiday"
-            ) {
-              // For Rest Days (Sunday is the designated rest day for office-based employees):
-              // Account Supervisors/Supervisory: Only pay if they actually worked on rest day (no automatic 8 hours)
-              // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
-              if (regularHours > 0) {
-                // For Account Supervisors: Rest Days are paid at 1.0x (daily rate, no multiplier) only if worked
-                holidayRestDayPay += regularHours * ratePerHour;
-              }
-              // If didn't work: no rest day pay for Account Supervisors
-            }
-          });
-
-          // Gross Pay = Basic Pay (regular days) + Holiday/Rest Day Pay (at 1.0x) + Fixed Allowances
-          calculatedGrossPay =
-            basicPay + holidayRestDayPay + totalFixedAllowances;
-        }
-
-        grossPay = Math.round(calculatedGrossPay * 100) / 100;
-
-        // If the recalculated value differs significantly from stored value, use recalculated
-        // This handles cases where attendance.gross_pay might be stale
-        if (
-          attendance.gross_pay &&
-          Math.abs(grossPay - attendance.gross_pay) > 0.01
-        ) {
-          // Use recalculated value if it's more accurate
-          grossPay = Math.round(calculatedGrossPay * 100) / 100;
-        }
-      } catch (calcError) {
-        console.error("Error recalculating gross pay:", calcError);
-        // Fallback to stored value
-        grossPay = attendance?.gross_pay || 0;
-      }
-    }
-  }
-  const weeklyDed =
-    (deductions?.vale_amount || 0) +
-    (deductions?.sss_salary_loan || 0) +
-    (deductions?.sss_calamity_loan || 0) +
-    (deductions?.pagibig_salary_loan || 0) +
-    (deductions?.pagibig_calamity_loan || 0) +
-    // Include loans for both cutoffs based on their cutoff_assignment
-    (isFirstCutoff()
-      ? (monthlyLoans.sssLoan || 0) +
-        (monthlyLoans.pagibigLoan || 0) +
-        (monthlyLoans.companyLoan || 0) +
-        (monthlyLoans.emergencyLoan || 0) +
-        (monthlyLoans.otherLoan || 0)
-      : isSecondCutoff()
-      ? (monthlyLoans.pagibigLoan || 0) +
-        (monthlyLoans.companyLoan || 0) +
-        (monthlyLoans.emergencyLoan || 0) +
-        (monthlyLoans.otherLoan || 0) +
-        (monthlyLoans.sssLoan || 0)
-      : 0);
-
-  // Calculate mandatory government contributions based on monthly basic salary
-  let govDed = 0;
-  const workingDaysPerMonth = 22;
-  let monthlyBasicSalary = 0;
-
-  if (selectedEmployee?.monthly_rate) {
-    // Use monthly_rate directly if available
-    monthlyBasicSalary = selectedEmployee.monthly_rate;
-  } else if (selectedEmployee?.per_day) {
-    // Calculate from per_day if monthly_rate not available
-    monthlyBasicSalary = calculateMonthlySalary(
-      selectedEmployee.per_day,
-      workingDaysPerMonth
-    );
-  } else if (selectedEmployee?.rate_per_day) {
-    // Backward compatibility
-    monthlyBasicSalary = calculateMonthlySalary(
-      selectedEmployee.rate_per_day,
-      workingDaysPerMonth
-    );
-  } else if (grossPay > 0) {
-    // Estimate from bi-monthly gross pay as last resort
-    monthlyBasicSalary = grossPay * 2;
-  }
-
-  // Deductions are applied monthly, so only deduct during second cutoff (day 16+)
-  const applyMonthlyDeductions = isSecondCutoff();
-
-  if (monthlyBasicSalary > 0 && applyMonthlyDeductions) {
-    const validMonthlySalary =
-      monthlyBasicSalary && monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
-    const sssContribution = calculateSSS(validMonthlySalary);
-    const philhealthContribution = calculatePhilHealth(validMonthlySalary);
-    const pagibigContribution = calculatePagIBIG(validMonthlySalary);
-
-    // Since deductions are applied once per month (not bi-monthly), use FULL monthly amounts
-    // Note: Only employee shares are deducted
-    // Ensure values are valid numbers (not NaN or undefined)
-    const sssAmt = isNaN(sssContribution?.employeeShare)
-      ? 0
-      : Math.round(sssContribution.employeeShare * 100) / 100;
-    const philhealthAmt = isNaN(philhealthContribution?.employeeShare)
-      ? 0
-      : Math.round(philhealthContribution.employeeShare * 100) / 100;
-    const pagibigAmt = isNaN(pagibigContribution?.employeeShare)
-      ? 0
-      : Math.round(pagibigContribution.employeeShare * 100) / 100;
-
-    govDed = sssAmt + philhealthAmt + pagibigAmt;
-  } else {
-    govDed = 0;
-  }
-  // Auto-calculate withholding tax if monthly salary is available
-  // Tax is now split between both cutoffs (half in 1st cutoff, half in 2nd cutoff)
-  let tax = 0;
-  if (monthlyBasicSalary > 0) {
-    tax = deductions?.withholding_tax || 0;
-    if (tax === 0) {
-      const sss = calculateSSS(monthlyBasicSalary);
-      const philhealth = calculatePhilHealth(monthlyBasicSalary);
-      const pagibig = calculatePagIBIG(monthlyBasicSalary);
-
-      // Taxable income = gross salary minus mandatory contributions
-      const monthlyContributions =
-        sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
-      const monthlyTaxableIncome = monthlyBasicSalary - monthlyContributions;
-
-      // Calculate monthly withholding tax, then split in half for bi-monthly deduction
-      const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-      tax = Math.round((monthlyTax / 2) * 100) / 100;
-    }
-  }
-  // Adjustment and Allowance removed - always 0
-  const adjustment = 0;
-  const allowance = 0;
-  const totalDed = weeklyDed + govDed + tax + adjustment;
-  // ALWAYS use calculatedTotalGrossPay from PayslipDetailedBreakdown (it's the authoritative source)
-  // This should match the Gross Pay shown in the Basic Earning(s) table
-  // If calculatedTotalGrossPay is null, it means PayslipDetailedBreakdown hasn't calculated it yet
-  // In that case, show 0 temporarily - it will update automatically via useEffect callback
-  const finalGrossPay = calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
-    ? calculatedTotalGrossPay
-    : 0; // Show 0 until calculatedTotalGrossPay is set (don't use grossPay fallback - it's wrong)
-
   // Debug: Log finalGrossPay calculation
   console.log('[PayslipsPage] finalGrossPay calculation:', {
     calculatedTotalGrossPay,
     finalGrossPay,
     totalDed,
-    netPay: finalGrossPay - totalDed + allowance,
+    netPay: finalGrossPay - totalDed,
   });
-
-  const netPay = finalGrossPay - totalDed + allowance;
-
-  const periodEnd = getBiMonthlyPeriodEnd(periodStart);
 
   // Helper function to calculate earnings breakdown from attendance data
   function calculateEarningsBreakdown() {
@@ -2329,67 +2400,6 @@ export default function PayslipsPage() {
       regularHolidayHours: 0,
       grossIncome: attendance?.gross_pay || 0,
     };
-  }
-
-  // Memoize working days calculation to ensure it recalculates when holidays are loaded
-  // This fixes the issue where on first load, holidays might be empty [], causing incorrect calculation
-  // The calculation will automatically re-run when holidays state updates
-  // IMPORTANT: This hook MUST be called before any conditional returns to follow React Rules of Hooks
-  const workingDays = useMemo(() => {
-    if (!attendance || !attendance.attendance_data || !selectedEmployee) return 0;
-    const days = attendance.attendance_data as any[];
-
-    // Use base pay method: (104 hours - absences × 8) / 8
-    // This matches both timesheet and PayslipDetailedBreakdown calculations
-    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
-
-    try {
-      // Extract clock entries from attendance data
-      const clockEntries = days
-        .filter((day) => day.clockInTime && day.clockOutTime)
-        .map((day) => ({
-          clock_in_time: day.clockInTime!,
-          clock_out_time: day.clockOutTime!,
-        }));
-
-      // Get rest days and holidays - use state restDaysMap if available, otherwise create empty map
-      const restDaysForCalculation = restDaysMap.size > 0 ? restDaysMap : new Map<string, boolean>();
-      const holidaysList = holidays.map((h) => ({ holiday_date: h.holiday_date }));
-
-      // Calculate base pay using the same method as PayslipDetailedBreakdown
-      const basePayResult = calculateBasePay({
-        periodStart,
-        periodEnd: getBiMonthlyPeriodEnd(periodStart),
-        clockEntries,
-        restDays: restDaysForCalculation,
-        holidays: holidaysList,
-        isClientBased: selectedEmployee.employee_type === "client-based" || false,
-        hireDate: selectedEmployee.hire_date ? parseISO(selectedEmployee.hire_date) : undefined,
-        terminationDate: undefined, // termination_date doesn't exist in employees table
-      });
-
-      // Days Work = (104 - absences × 8) / 8
-      return basePayResult.finalBaseHours / 8;
-    } catch (error) {
-      console.error("Error calculating working days:", error);
-      // Fallback: return 0 if calculation fails
-      return 0;
-    }
-  }, [attendance, selectedEmployee, periodStart, holidays, restDaysMap]);
-
-  // Show loading or access denied - MUST be after all hooks
-  if (roleLoading || loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Icon
-            name="ArrowsClockwise"
-            size={IconSizes.lg}
-            className="animate-spin text-muted-foreground"
-          />
-        </div>
-      </DashboardLayout>
-    );
   }
 
   // Show access denied message if user doesn't have permission - MUST be after all hooks

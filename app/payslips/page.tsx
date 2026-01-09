@@ -58,6 +58,7 @@ import {
 } from "@/utils/bimonthly";
 import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 
 interface Employee {
   id: string;
@@ -128,11 +129,6 @@ export default function PayslipsPage() {
   // Debug: Log when calculatedTotalGrossPay changes
   useEffect(() => {
     console.log('[PayslipsPage] calculatedTotalGrossPay state updated:', calculatedTotalGrossPay);
-  }, [calculatedTotalGrossPay]);
-
-  // Debug: Log when calculatedTotalGrossPay changes
-  useEffect(() => {
-    console.log('[PayslipsPage] calculatedTotalGrossPay updated:', calculatedTotalGrossPay);
   }, [calculatedTotalGrossPay]);
 
   // Redirect HR users without salary access
@@ -1781,7 +1777,6 @@ export default function PayslipsPage() {
       // Use safe session utility to prevent rate limits
       let authSession = null;
       try {
-        const { getSessionSafe, refreshSessionSafe } = await import("@/lib/session-utils");
         authSession = await getSessionSafe();
 
         // Only attempt refresh if no session (safe utility handles rate limits)
@@ -2485,9 +2480,10 @@ export default function PayslipsPage() {
               {/* Detailed Earnings Breakdown - Left Side (60% width on large screens, 66% on medium) */}
               {selectedEmployee &&
                 attendance &&
+                Array.isArray(attendance.attendance_data) &&
+                attendance.attendance_data.length > 0 &&
                 (selectedEmployee.per_day || selectedEmployee.rate_per_day) &&
-                (selectedEmployee.rate_per_hour || selectedEmployee.per_day) &&
-                attendance.attendance_data && (
+                (selectedEmployee.rate_per_hour || selectedEmployee.per_day) && (
                   <CardSection
                     title="Earnings Breakdown"
                     className="compact md:col-span-2 lg:col-span-3"
@@ -2526,65 +2522,65 @@ export default function PayslipsPage() {
                           console.log('[PayslipsPage] onTotalGrossPayChange callback called with:', value);
                           setCalculatedTotalGrossPay(value);
                         }}
-                        attendanceData={(
-                          attendance.attendance_data as any[]
-                        ).map((day: any) => {
-                          const dayDate =
-                            day.date || day.clock_in_time?.split("T")[0] || "";
+                        attendanceData={Array.isArray(attendance.attendance_data) 
+                          ? (attendance.attendance_data as any[]).map((day: any) => {
+                              const dayDate =
+                                day.date || day.clock_in_time?.split("T")[0] || "";
 
-                          // Find matching clock entry for this date (use Asia/Manila timezone)
-                          const matchingEntry = clockEntries.find((entry) => {
-                            if (!entry.clock_in_time) return false;
-                            const entryDateUTC = new Date(entry.clock_in_time);
-                            const formatter = new Intl.DateTimeFormat("en-US", {
-                              timeZone: "Asia/Manila",
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                            });
-                            const parts = formatter.formatToParts(entryDateUTC);
-                            const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
-                              parts.find((p) => p.type === "month")!.value
-                            }-${parts.find((p) => p.type === "day")!.value}`;
-                            return entryDateStr === dayDate;
-                          });
+                              // Find matching clock entry for this date (use Asia/Manila timezone)
+                              const matchingEntry = clockEntries.find((entry) => {
+                                if (!entry.clock_in_time) return false;
+                                const entryDateUTC = new Date(entry.clock_in_time);
+                                const formatter = new Intl.DateTimeFormat("en-US", {
+                                  timeZone: "Asia/Manila",
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                });
+                                const parts = formatter.formatToParts(entryDateUTC);
+                                const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
+                                  parts.find((p) => p.type === "month")!.value
+                                }-${parts.find((p) => p.type === "day")!.value}`;
+                                return entryDateStr === dayDate;
+                              });
 
-                          // Account Supervisors have flexi time, so they should not have night differential
-                          const isAccountSupervisor =
-                            selectedEmployee?.position
-                              ?.toUpperCase()
-                              .includes("ACCOUNT SUPERVISOR") || false;
+                              // Account Supervisors have flexi time, so they should not have night differential
+                              const isAccountSupervisor =
+                                selectedEmployee?.position
+                                  ?.toUpperCase()
+                                  .includes("ACCOUNT SUPERVISOR") || false;
 
-                          // If day.regularHours is >= 8, it's likely a leave day - prioritize it over clock entry hours
-                          // This ensures leave days with BH = 8 are counted correctly
-                          const isLeaveDayWithFullHours =
-                            (day.regularHours || 0) >= 8;
-                          const regularHours = isLeaveDayWithFullHours
-                            ? day.regularHours
-                            : matchingEntry?.regular_hours ||
-                              day.regularHours ||
-                              0;
+                              // If day.regularHours is >= 8, it's likely a leave day - prioritize it over clock entry hours
+                              // This ensures leave days with BH = 8 are counted correctly
+                              const isLeaveDayWithFullHours =
+                                (day.regularHours || 0) >= 8;
+                              const regularHours = isLeaveDayWithFullHours
+                                ? day.regularHours
+                                : matchingEntry?.regular_hours ||
+                                  day.regularHours ||
+                                  0;
 
-                          return {
-                            date: dayDate,
-                            dayType: day.dayType || "regular",
-                            regularHours: regularHours,
-                            overtimeHours: day.overtimeHours || 0,
-                            nightDiffHours: isAccountSupervisor
-                              ? 0
-                              : matchingEntry?.total_night_diff_hours ||
-                                day.nightDiffHours ||
-                                0,
-                            clockInTime:
-                              matchingEntry?.clock_in_time ||
-                              day.clockInTime ||
-                              day.clock_in_time,
-                            clockOutTime:
-                              matchingEntry?.clock_out_time ||
-                              day.clockOutTime ||
-                              day.clock_out_time,
-                          };
-                        })}
+                              return {
+                                date: dayDate,
+                                dayType: day.dayType || "regular",
+                                regularHours: regularHours,
+                                overtimeHours: day.overtimeHours || 0,
+                                nightDiffHours: isAccountSupervisor
+                                  ? 0
+                                  : matchingEntry?.total_night_diff_hours ||
+                                    day.nightDiffHours ||
+                                    0,
+                                clockInTime:
+                                  matchingEntry?.clock_in_time ||
+                                  day.clockInTime ||
+                                  day.clock_in_time,
+                                clockOutTime:
+                                  matchingEntry?.clock_out_time ||
+                                  day.clockOutTime ||
+                                  day.clock_out_time,
+                              };
+                            })
+                          : []}
                       />
                     </div>
                   </CardSection>

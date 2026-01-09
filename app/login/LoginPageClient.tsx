@@ -38,7 +38,7 @@ export function LoginPageClient() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -50,11 +50,39 @@ export function LoginPageClient() {
         throw new Error(msg);
       }
 
-      toast.success("Login successful!");
-      router.push("/dashboard");
-      router.refresh();
+      // Wait for session to be confirmed and persisted
+      // This ensures the session cookie is set before redirecting
+      if (data?.session) {
+        // Verify session is accessible (this also ensures cookies are set)
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          throw new Error("Session not saved. Please try again.");
+        }
+        
+        if (sessionData?.session) {
+          toast.success("Login successful!");
+          // Small delay to ensure toast is visible, then redirect with full page reload
+          // This ensures cookies are properly set and persisted
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 500);
+        } else {
+          // Fallback: try router.push if session exists but getSession fails
+          // This might happen in edge cases
+          console.warn("Session exists but getSession returned null, attempting redirect anyway");
+          toast.success("Login successful!");
+          setTimeout(() => {
+            router.push("/dashboard");
+            router.refresh();
+          }, 500);
+        }
+      } else {
+        throw new Error("Login failed. Please try again.");
+      }
     } catch (error: any) {
-      const msg = "Invalid credentials. Please try again.";
+      const msg = error.message || "Invalid credentials. Please try again.";
       setAdminError(msg);
       toast.error(msg);
     } finally {

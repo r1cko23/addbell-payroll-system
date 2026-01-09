@@ -2522,7 +2522,7 @@ export default function PayslipsPage() {
                           console.log('[PayslipsPage] onTotalGrossPayChange callback called with:', value);
                           setCalculatedTotalGrossPay(value);
                         }}
-                        attendanceData={Array.isArray(attendance.attendance_data) 
+                        attendanceData={Array.isArray(attendance.attendance_data)
                           ? (attendance.attendance_data as any[]).map((day: any) => {
                               const dayDate =
                                 day.date || day.clock_in_time?.split("T")[0] || "";

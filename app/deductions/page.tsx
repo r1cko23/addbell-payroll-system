@@ -26,12 +26,14 @@ import {
   getPreviousBiMonthlyPeriod,
   formatBiMonthlyPeriod,
 } from "@/utils/bimonthly";
-// import { calculateAllContributions } from '@/utils/ph-deductions';
+import { calculateSSS, calculateMonthlySalary } from "@/utils/ph-deductions";
 
 interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
+  monthly_rate?: number | null;
+  per_day?: number | null;
 }
 
 interface Deductions {
@@ -48,6 +50,8 @@ interface Deductions {
   philhealth_contribution: number;
   pagibig_contribution: number;
   withholding_tax: number;
+  other_deduction: number;
+  sss_pro: number;
 }
 
 export default function DeductionsPage() {
@@ -70,6 +74,8 @@ export default function DeductionsPage() {
     philhealth_contribution: "0",
     pagibig_contribution: "0",
     withholding_tax: "0",
+    other_deduction: "0",
+    sss_pro: "0",
   });
 
   const supabase = createClient();
@@ -79,18 +85,16 @@ export default function DeductionsPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedEmployeeId) {
+    if (selectedEmployeeId && employees.length > 0) {
       loadDeductions();
-      // Auto-calculation disabled as rate_per_day is removed
-      // autoCalculateContributions();
     }
-  }, [selectedEmployeeId, periodStart]);
+  }, [selectedEmployeeId, periodStart, employees]);
 
   async function loadEmployees() {
     try {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_id, full_name")
+        .select("id, employee_id, full_name, monthly_rate, per_day")
         .eq("is_active", true)
         .order("last_name", { nullsFirst: false })
         .order("first_name", { nullsFirst: false });
@@ -147,8 +151,30 @@ export default function DeductionsPage() {
           philhealth_contribution: number;
           pagibig_contribution: number;
           withholding_tax: number;
+          other_deduction: number;
+          sss_pro: number;
         };
         setDeductions(data);
+        
+        // Auto-calculate SSS PRO (WISP) if not set or 0
+        let sssProValue = deductionData.sss_pro || 0;
+        if (sssProValue === 0) {
+          const employee = employees.find(emp => emp.id === selectedEmployeeId);
+          if (employee) {
+            let monthlySalary = 0;
+            if (employee.monthly_rate) {
+              monthlySalary = employee.monthly_rate;
+            } else if (employee.per_day) {
+              monthlySalary = calculateMonthlySalary(employee.per_day, 22);
+            }
+            
+            if (monthlySalary > 0) {
+              const sssCalculation = calculateSSS(monthlySalary);
+              sssProValue = sssCalculation.wispEmployeeShare || 0;
+            }
+          }
+        }
+        
         setFormData({
           vale_amount: deductionData.vale_amount.toString(),
           sss_salary_loan: deductionData.sss_salary_loan.toString(),
@@ -160,12 +186,32 @@ export default function DeductionsPage() {
             deductionData.philhealth_contribution.toString(),
           pagibig_contribution: deductionData.pagibig_contribution.toString(),
           withholding_tax: deductionData.withholding_tax.toString(),
+          other_deduction: (deductionData.other_deduction || 0).toString(),
+          sss_pro: sssProValue.toString(),
         });
       } else {
         setDeductions(null);
         resetForm();
-        // Auto-calculate contributions for new record
-        // autoCalculateContributions();
+        
+        // Auto-calculate SSS PRO (WISP) for new record
+        const employee = employees.find(emp => emp.id === selectedEmployeeId);
+        if (employee) {
+          let monthlySalary = 0;
+          if (employee.monthly_rate) {
+            monthlySalary = employee.monthly_rate;
+          } else if (employee.per_day) {
+            monthlySalary = calculateMonthlySalary(employee.per_day, 22);
+          }
+          
+          if (monthlySalary > 0) {
+            const sssCalculation = calculateSSS(monthlySalary);
+            const wispAmount = sssCalculation.wispEmployeeShare || 0;
+            setFormData(prev => ({
+              ...prev,
+              sss_pro: wispAmount.toString(),
+            }));
+          }
+        }
       }
     } catch (error) {
       console.error("Error loading deductions:", error);
@@ -184,6 +230,8 @@ export default function DeductionsPage() {
       philhealth_contribution: "0",
       pagibig_contribution: "0",
       withholding_tax: "0",
+      other_deduction: "0",
+      sss_pro: "0",
     });
   }
 
@@ -215,6 +263,8 @@ export default function DeductionsPage() {
           parseFloat(formData.philhealth_contribution) || 0,
         pagibig_contribution: parseFloat(formData.pagibig_contribution) || 0,
         withholding_tax: parseFloat(formData.withholding_tax) || 0,
+        other_deduction: parseFloat(formData.other_deduction) || 0,
+        sss_pro: parseFloat(formData.sss_pro) || 0,
       };
 
       if (deductions?.id) {
@@ -514,6 +564,42 @@ export default function DeductionsPage() {
                     }
                   />
                   <Caption>Income tax withheld</Caption>
+                </VStack>
+
+                <VStack gap="2" align="start">
+                  <Label>SSS PRO (WISP - Workers' Investment and Savings Program)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.sss_pro}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        sss_pro: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>
+                    WISP contribution (auto-calculated for MSC &gt; ₱20,000). 
+                    Mandatory for employees with monthly salary credit above ₱20,000. 
+                    You can manually override if needed.
+                  </Caption>
+                </VStack>
+
+                <VStack gap="2" align="start">
+                  <Label>Other Deduction</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={formData.other_deduction}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        other_deduction: e.target.value,
+                      })
+                    }
+                  />
+                  <Caption>Other manual deductions for this cutoff</Caption>
                 </VStack>
               </div>
 

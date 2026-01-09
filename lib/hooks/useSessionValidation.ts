@@ -30,12 +30,12 @@ export function useSessionValidation(options: UseSessionValidationOptions = {}) 
       try {
         // Check Supabase session
         const session = await getSessionSafe();
-        
+
         if (!session || !isSessionValid(session)) {
           if (isMounted) {
             setIsValid(false);
             clearSessionCache();
-            
+
             if (redirectOnInvalid) {
               // Sign out to clear any stale cookies
               await supabase.auth.signOut();
@@ -83,7 +83,7 @@ export function useEmployeeSessionValidation() {
 
   useEffect(() => {
     const stored = localStorage.getItem("employee_session");
-    
+
     if (!stored) {
       setIsValid(false);
       setIsValidating(false);

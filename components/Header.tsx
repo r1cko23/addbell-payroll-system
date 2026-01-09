@@ -40,7 +40,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         // Use safe session utility to prevent rate limits
         const { getUserSafe } = await import("@/lib/session-utils");
         const user = await getUserSafe();
-        
+
         if (!user || !isMounted) return;
 
         setUser(user);
@@ -129,7 +129,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     // Clear session cache on logout
     const { clearSessionCache } = await import("@/lib/session-utils");
     clearSessionCache();
-    
+
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();

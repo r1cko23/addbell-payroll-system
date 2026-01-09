@@ -1783,7 +1783,7 @@ export default function PayslipsPage() {
       try {
         const { getSessionSafe, refreshSessionSafe } = await import("@/lib/session-utils");
         authSession = await getSessionSafe();
-        
+
         // Only attempt refresh if no session (safe utility handles rate limits)
         if (!authSession) {
           console.warn("⚠️ No session found, attempting to refresh...");

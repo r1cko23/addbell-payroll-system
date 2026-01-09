@@ -168,7 +168,7 @@ export function LoginPageClient() {
 
       // Set session with 8-hour expiration (same as typical work day)
       const expiresAt = Date.now() + 8 * 60 * 60 * 1000; // 8 hours from now
-      
+
       localStorage.setItem(
         "employee_session",
         JSON.stringify({

@@ -51,7 +51,7 @@ export async function middleware(req: NextRequest) {
     // The app will handle authentication at the page level
     // This prevents middleware from creating a feedback loop
     console.error("Middleware auth check error:", error?.message || error);
-    
+
     // For protected paths, redirect to login on error
     // For login path, allow access (user can try logging in)
     if (isProtectedPath) {
@@ -61,7 +61,7 @@ export async function middleware(req: NextRequest) {
       redirectUrl.searchParams.set("error", "session_check_failed");
       return NextResponse.redirect(redirectUrl);
     }
-    
+
     return res;
   }
 

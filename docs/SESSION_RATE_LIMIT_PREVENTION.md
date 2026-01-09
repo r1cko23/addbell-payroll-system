@@ -17,7 +17,7 @@ Implemented comprehensive rate limit prevention mechanisms to prevent hitting Su
 **Key Functions:**
 ```typescript
 getSessionSafe()      // Get session with rate limit protection
-getUserSafe()         // Get user with rate limit protection  
+getUserSafe()         // Get user with rate limit protection
 refreshSessionSafe()  // Refresh session safely
 clearSessionCache()   // Clear cache on logout
 isSessionValid()      // Check if session is expired
@@ -116,10 +116,10 @@ function MyComponent() {
     redirectOnInvalid: true,
     redirectPath: "/login"
   });
-  
+
   if (isValidating) return <Loading />;
   if (!isValid) return null; // Will redirect
-  
+
   return <YourContent />;
 }
 ```

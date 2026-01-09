@@ -193,10 +193,10 @@ export function clearSessionCache() {
  */
 export function isSessionValid(session: Session | null): boolean {
   if (!session) return false;
-  
+
   const expiresAt = session.expires_at;
   if (!expiresAt) return true; // No expiration set
-  
+
   const now = Math.floor(Date.now() / 1000);
   return expiresAt > now;
 }
@@ -206,7 +206,7 @@ export function isSessionValid(session: Session | null): boolean {
  */
 export function getSessionTimeRemaining(session: Session | null): number {
   if (!session || !session.expires_at) return Infinity;
-  
+
   const now = Math.floor(Date.now() / 1000);
   return Math.max(0, session.expires_at - now);
 }

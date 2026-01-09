@@ -7,9 +7,9 @@ export async function POST() {
   const supabase = createServerComponentClient<Database>({ cookies });
 
   await supabase.auth.signOut();
-  
+
   // Clear session cache on server side
   // Note: Client-side cache will be cleared by the client component
-  
+
   return NextResponse.json({ success: true });
 }

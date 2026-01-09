@@ -55,12 +55,12 @@ export function LoginPageClient() {
       if (data?.session) {
         // Verify session is accessible (this also ensures cookies are set)
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError) {
           console.error("Session error:", sessionError);
           throw new Error("Session not saved. Please try again.");
         }
-        
+
         if (sessionData?.session) {
           toast.success("Login successful!");
           // Small delay to ensure toast is visible, then redirect with full page reload

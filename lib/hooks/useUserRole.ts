@@ -65,14 +65,24 @@ export function useUserRole(): UserRoleData {
       try {
         setLoading(true);
 
-        // Get current authenticated user
-        const {
-          data: { user },
-          error: authError,
-        } = await supabase.auth.getUser();
+        // Get current authenticated user using safe utility
+        const { getUserSafe } = await import("@/lib/session-utils");
+        const user = await getUserSafe();
 
-        if (authError) {
-          throw authError;
+        if (!user) {
+          // Handle rate limit or auth errors gracefully
+          if (cachedRole) {
+            // Use cached data if available
+            setRole(cachedRole);
+            setEmail(cachedEmail);
+            setCanAccessSalary(cachedCanAccessSalary ?? false);
+            setLoading(false);
+            fetchedRef.current = false;
+            return;
+          }
+          setError("No authenticated user");
+          setLoading(false);
+          return;
         }
 
         if (!user) {

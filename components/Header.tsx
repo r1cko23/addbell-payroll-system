@@ -32,12 +32,17 @@ export function Header({ onMenuClick }: HeaderProps) {
   );
 
   useEffect(() => {
-    async function getUser() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let userSubscription: ReturnType<typeof supabase.channel> | null = null;
+    let isMounted = true;
 
-      if (user) {
+    async function getUser() {
+      try {
+        // Use safe session utility to prevent rate limits
+        const { getUserSafe } = await import("@/lib/session-utils");
+        const user = await getUserSafe();
+        
+        if (!user || !isMounted) return;
+
         setUser(user);
 
         // Get user role and profile picture from public.users table
@@ -47,7 +52,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           .eq("id", user.id)
           .single();
 
-        if (userData) {
+        if (userData && isMounted) {
           const userRecord = userData as {
             role: string;
             full_name: string | null;
@@ -56,56 +61,63 @@ export function Header({ onMenuClick }: HeaderProps) {
           setUserRole(userRecord.role);
           setUserFullName(userRecord.full_name || "");
           setProfilePictureUrl(userRecord.profile_picture_url);
+
+          // Set up real-time subscription for user profile changes
+          // Only subscribe once when we have a user
+          if (!userSubscription) {
+            userSubscription = supabase
+              .channel(`user-profile-${user.id}`)
+              .on(
+                "postgres_changes",
+                {
+                  event: "UPDATE",
+                  schema: "public",
+                  table: "users",
+                  filter: `id=eq.${user.id}`,
+                },
+                (payload) => {
+                  if (!isMounted) return;
+                  const newData = payload.new as {
+                    profile_picture_url?: string | null;
+                    full_name?: string;
+                    role?: string;
+                  };
+                  if (newData.profile_picture_url !== undefined) {
+                    setProfilePictureUrl(newData.profile_picture_url);
+                  }
+                  if (newData.full_name !== undefined) {
+                    setUserFullName(newData.full_name || "");
+                  }
+                  if (newData.role !== undefined) {
+                    setUserRole(newData.role);
+                  }
+                }
+              )
+              .subscribe();
+          }
         }
+      } catch (error) {
+        console.error("Error fetching user in Header:", error);
       }
     }
 
+    // Initial fetch
     getUser();
 
     // Listen for auth state changes to refresh user data
+    // Only refresh on SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED events
+    // This prevents excessive calls on every auth state change
     const {
       data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      getUser();
-    });
-
-    // Listen for changes to the user's profile picture in real-time
-    let userSubscription: ReturnType<typeof supabase.channel> | null = null;
-
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        userSubscription = supabase
-          .channel(`user-profile-${user.id}`)
-          .on(
-            "postgres_changes",
-            {
-              event: "UPDATE",
-              schema: "public",
-              table: "users",
-              filter: `id=eq.${user.id}`,
-            },
-            (payload) => {
-              const newData = payload.new as {
-                profile_picture_url?: string | null;
-                full_name?: string;
-                role?: string;
-              };
-              if (newData.profile_picture_url !== undefined) {
-                setProfilePictureUrl(newData.profile_picture_url);
-              }
-              if (newData.full_name !== undefined) {
-                setUserFullName(newData.full_name || "");
-              }
-              if (newData.role !== undefined) {
-                setUserRole(newData.role);
-              }
-            }
-          )
-          .subscribe();
+    } = supabase.auth.onAuthStateChange((event) => {
+      // Only refresh on meaningful auth events
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+        getUser();
       }
     });
 
     return () => {
+      isMounted = false;
       authSubscription.unsubscribe();
       if (userSubscription) {
         userSubscription.unsubscribe();
@@ -114,6 +126,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, [supabase]);
 
   const handleLogout = async () => {
+    // Clear session cache on logout
+    const { clearSessionCache } = await import("@/lib/session-utils");
+    clearSessionCache();
+    
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();

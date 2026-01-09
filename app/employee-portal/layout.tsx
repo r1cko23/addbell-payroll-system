@@ -38,6 +38,14 @@ export default function EmployeePortalLayout({
 
     try {
       const parsed = JSON.parse(stored) as EmployeeSession;
+      
+      // Check expiration if exists
+      if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+        localStorage.removeItem("employee_session");
+        router.replace("/login?mode=employee&reason=expired");
+        return;
+      }
+      
       setEmployee(parsed);
     } catch {
       localStorage.removeItem("employee_session");

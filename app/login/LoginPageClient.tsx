@@ -166,6 +166,9 @@ export function LoginPageClient() {
         console.error("Failed to record first login:", error);
       }
 
+      // Set session with 8-hour expiration (same as typical work day)
+      const expiresAt = Date.now() + 8 * 60 * 60 * 1000; // 8 hours from now
+      
       localStorage.setItem(
         "employee_session",
         JSON.stringify({
@@ -173,6 +176,7 @@ export function LoginPageClient() {
           employee_id: employeeData.employee_id,
           full_name: employeeData.full_name,
           loginTime: new Date().toISOString(),
+          expiresAt: expiresAt,
         })
       );
 

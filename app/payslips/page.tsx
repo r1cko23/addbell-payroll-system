@@ -1778,23 +1778,26 @@ export default function PayslipsPage() {
       });
 
       // Check authentication status before querying
-      // Refresh session to ensure it's current
-      const {
-        data: { session: authSession },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      // If no session, try to refresh
-      if (!authSession) {
-        console.warn("⚠️ No session found, attempting to refresh...");
-        await supabase.auth.refreshSession();
+      // Use safe session utility to prevent rate limits
+      let authSession = null;
+      try {
+        const { getSessionSafe, refreshSessionSafe } = await import("@/lib/session-utils");
+        authSession = await getSessionSafe();
+        
+        // Only attempt refresh if no session (safe utility handles rate limits)
+        if (!authSession) {
+          console.warn("⚠️ No session found, attempting to refresh...");
+          authSession = await refreshSessionSafe();
+        }
+      } catch (error: any) {
+        // Handle errors gracefully (safe utilities already handle rate limits)
+        console.error("Session check error:", error?.message || error);
       }
 
       console.log("🔐 Payslip Save - Auth Status:", {
         hasSession: !!authSession,
         userId: authSession?.user?.id || null,
         userEmail: authSession?.user?.email || null,
-        sessionError: sessionError?.message || null,
       });
 
       // Verify user role

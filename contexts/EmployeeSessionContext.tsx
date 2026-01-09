@@ -7,6 +7,7 @@ export interface EmployeeSession {
   employee_id: string;
   full_name: string;
   loginTime: string;
+  expiresAt: number; // Unix timestamp in milliseconds
 }
 
 interface EmployeeSessionContextValue {

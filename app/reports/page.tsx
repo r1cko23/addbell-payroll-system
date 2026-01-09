@@ -207,7 +207,7 @@ export default function ReportsPage() {
       if (attendanceError) {
         console.warn("Error loading attendance data:", attendanceError);
       }
-      
+
       // Store attendance data in a map for quick lookup
       const attendanceDataMap = new Map();
       (attendanceData || []).forEach((att: any) => {
@@ -405,10 +405,10 @@ export default function ReportsPage() {
           daysWorked = roundTo2Decimals(totalRegularHours / 8);
           regOTHours = totalOvertimeHours;
           nightDiffHours = totalNightDiffHours;
-          
+
           // Basic salary from regular hours
           basicSalary = roundTo2Decimals(totalRegularHours * ratePerHour);
-          
+
           // Night differential amount (10% of hourly rate)
           nightDiffAmount = roundTo2Decimals(totalNightDiffHours * ratePerHour * 0.1);
         }
@@ -416,7 +416,7 @@ export default function ReportsPage() {
         // Extract detailed breakdown from attendance_data
         if (payslip && payslip.earnings_breakdown && Array.isArray(payslip.earnings_breakdown)) {
           const breakdown = payslip.earnings_breakdown;
-          
+
           breakdown.forEach((day: any) => {
             const regularHours = Number(day.regularHours) || 0;
             const overtimeHours = Number(day.overtimeHours) || 0;
@@ -476,8 +476,8 @@ export default function ReportsPage() {
         // Total salary = basic salary + all OT amounts
         // Use payslip's gross_pay if available, otherwise calculate
         const calculatedTotalSalary = roundTo2Decimals(basicSalary + totalOTAmount);
-        const totalSalary = payslip?.gross_pay 
-          ? roundTo2Decimals(payslip.gross_pay) 
+        const totalSalary = payslip?.gross_pay
+          ? roundTo2Decimals(payslip.gross_pay)
           : calculatedTotalSalary;
         const serviceIncentiveLeaveAmount = roundTo2Decimals(
           calculateSILCutoff(payslip?.earnings_breakdown, dailyRate)
@@ -514,7 +514,7 @@ export default function ReportsPage() {
         }
 
         const otherDeduction = roundTo2Decimals(deduction.other_deduction || 0);
-        
+
         // Calculate total deduction by summing all individual deductions
         // This ensures we don't double-count and includes all manual deductions
         const totalDeduction = roundTo2Decimals(

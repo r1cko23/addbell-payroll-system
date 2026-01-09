@@ -86,6 +86,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: "Audit Dashboard", href: "/audit", icon: FileText },
       { name: "BIR Reports", href: "/bir-reports", icon: FileText },
+      { name: "Payroll Register", href: "/reports", icon: Receipt },
     ],
   },
   {
@@ -176,9 +177,18 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
           };
         }
         // Show Admin group to admin and HR users
-        // HR users can access BIR Reports, and potentially Audit Dashboard
-        if (group.label === "Admin" && !isAdmin && !isHR) {
-          return null;
+        // HR users can access BIR Reports, Audit Dashboard, and Payroll Register (if they have salary access)
+        if (group.label === "Admin") {
+          if (!isAdmin && !isHR) {
+            return null;
+          }
+          // Filter Payroll Register for HR users without salary access
+          if (isHR && !canAccessSalaryInfo) {
+            return {
+              ...group,
+              items: group.items.filter((item) => item.href !== "/reports"),
+            };
+          }
         }
         // Filter Overview (Dashboard) items based on role
         if (group.label === "Overview") {

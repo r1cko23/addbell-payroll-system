@@ -1512,14 +1512,15 @@ export default function PayslipsPage() {
       // Note: sssAmount already includes WISP if applicable (MSC > PHP 20,000)
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
 
-      // Calculate withholding tax automatically if not in deductions (only during second cutoff)
-      // Since deductions are applied once per month, use FULL monthly tax amount
+      // Calculate withholding tax automatically if not in deductions
+      // Tax is now split between both cutoffs (half in 1st cutoff, half in 2nd cutoff)
       // IMPORTANT: Allowances (OT allowances, ND allowances, holiday allowances) for supervisors/managers
       // are NON-TAXABLE per Philippine Labor Code. Taxable income = Basic Salary ONLY (excludes allowances)
       let withholdingTax = 0;
-      if (applyMonthlyDeductions) {
+      // Calculate tax for both cutoffs (split monthly tax in half)
+      if (validMonthlySalary > 0) {
         withholdingTax = deductions?.withholding_tax || 0;
-        if (withholdingTax === 0 && validMonthlySalary > 0) {
+        if (withholdingTax === 0) {
           // validMonthlySalary is already basic salary only (monthly_rate or per_day × 22)
           // It does NOT include allowances, which is correct per labor code
           const monthlyContributions =
@@ -1532,15 +1533,16 @@ export default function PayslipsPage() {
           const monthlyTaxableIncome =
             validMonthlySalary - monthlyContributions;
           const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-          withholdingTax = Math.round(monthlyTax * 100) / 100;
+          // Split monthly tax in half for bi-monthly deduction
+          withholdingTax = Math.round((monthlyTax / 2) * 100) / 100;
 
           console.log("Withholding tax calculation:", {
             monthlyBasicSalary: validMonthlySalary, // Basic salary only (excludes allowances)
             contributions: monthlyContributions,
             taxableIncome: monthlyTaxableIncome, // Basic salary - contributions (allowances excluded)
-            calculatedTax: monthlyTax,
-            finalTax: withholdingTax,
-            note: "Allowances are non-taxable and excluded from taxable income",
+            calculatedMonthlyTax: monthlyTax,
+            biMonthlyTax: withholdingTax, // Half of monthly tax
+            note: "Tax is split between both cutoffs (half per cutoff)",
           });
         }
       }
@@ -2266,10 +2268,10 @@ export default function PayslipsPage() {
   } else {
     govDed = 0;
   }
-  // Auto-calculate withholding tax if monthly salary is available (only during second cutoff)
-  // Since deductions are applied once per month, use FULL monthly tax amount
+  // Auto-calculate withholding tax if monthly salary is available
+  // Tax is now split between both cutoffs (half in 1st cutoff, half in 2nd cutoff)
   let tax = 0;
-  if (applyMonthlyDeductions && monthlyBasicSalary > 0) {
+  if (monthlyBasicSalary > 0) {
     tax = deductions?.withholding_tax || 0;
     if (tax === 0) {
       const sss = calculateSSS(monthlyBasicSalary);
@@ -2281,9 +2283,9 @@ export default function PayslipsPage() {
         sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
       const monthlyTaxableIncome = monthlyBasicSalary - monthlyContributions;
 
-      // Calculate monthly withholding tax (full amount, not divided)
+      // Calculate monthly withholding tax, then split in half for bi-monthly deduction
       const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-      tax = Math.round(monthlyTax * 100) / 100;
+      tax = Math.round((monthlyTax / 2) * 100) / 100;
     }
   }
   // Adjustment and Allowance removed - always 0
@@ -2982,11 +2984,9 @@ export default function PayslipsPage() {
                           );
                         }
 
-                        // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
-                        const applyMonthlyDeductions = isSecondCutoff();
-
+                        // Calculate withholding tax for both cutoffs (split monthly tax in half)
                         let withholdingTaxAmount = 0;
-                        if (monthlyBasicSalary > 0 && applyMonthlyDeductions) {
+                        if (monthlyBasicSalary > 0) {
                           // Calculate mandatory contributions
                           const sss = calculateSSS(monthlyBasicSalary);
                           const philhealth =
@@ -3001,12 +3001,12 @@ export default function PayslipsPage() {
                           const monthlyTaxableIncome =
                             monthlyBasicSalary - monthlyContributions;
 
-                          // Calculate monthly withholding tax
+                          // Calculate monthly withholding tax, then split in half for bi-monthly deduction
                           const monthlyTax =
                             calculateWithholdingTax(monthlyTaxableIncome);
-                          // Since deductions are applied once per month, use FULL monthly tax amount
+                          // Split monthly tax in half (half per cutoff)
                           withholdingTaxAmount =
-                            Math.round(monthlyTax * 100) / 100;
+                            Math.round((monthlyTax / 2) * 100) / 100;
                         }
 
                         // Use calculated tax if available, otherwise use from deductions
@@ -3374,8 +3374,8 @@ export default function PayslipsPage() {
                               monthlyBasicSalary - monthlyContributions;
                             const monthlyTax =
                               calculateWithholdingTax(monthlyTaxableIncome);
-                            // Since deductions are applied once per month, use FULL monthly tax amount
-                            return Math.round(monthlyTax * 100) / 100;
+                            // Split monthly tax in half for bi-monthly deduction (half per cutoff)
+                            return Math.round((monthlyTax / 2) * 100) / 100;
                           }
                           return deductions?.withholding_tax || 0;
                         })(),

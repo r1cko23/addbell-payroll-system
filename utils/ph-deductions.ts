@@ -270,7 +270,8 @@ export function calculatePhilHealth(monthlyBasicSalary: number): {
  * - Taxable income = Monthly BASIC salary - Mandatory contributions (SSS, PhilHealth, Pag-IBIG)
  * - IMPORTANT: Allowances (OT allowances, ND allowances, holiday allowances) for supervisors/managers
  *   are NON-TAXABLE and must be EXCLUDED from taxable income calculation
- * - Tax is deducted MONTHLY (typically on the 2nd cutoff/16-31 period)
+ * - This function returns the MONTHLY tax amount. For bi-monthly payroll, the tax is split in half
+ *   and deducted in both cutoffs (half in 1st cutoff, half in 2nd cutoff)
  *
  * Tax Brackets (Monthly):
  * - 0 – 20,833: 0% (No tax)

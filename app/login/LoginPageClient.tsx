@@ -53,30 +53,33 @@ export function LoginPageClient() {
       // Wait for session to be confirmed and persisted
       // This ensures the session cookie is set before redirecting
       if (data?.session) {
+        // Explicitly set the session to ensure it's persisted
+        // This helps ensure cookies are properly set
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+
+        // Wait a moment for cookies to be written
+        await new Promise(resolve => setTimeout(resolve, 200));
+
         // Verify session is accessible (this also ensures cookies are set)
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-
+        
         if (sessionError) {
           console.error("Session error:", sessionError);
           throw new Error("Session not saved. Please try again.");
         }
-
+        
         if (sessionData?.session) {
           toast.success("Login successful!");
-          // Small delay to ensure toast is visible, then redirect with full page reload
-          // This ensures cookies are properly set and persisted
+          // Use window.location for full page reload to ensure cookies are read
+          // This is more reliable than router.push() for auth state persistence
           setTimeout(() => {
             window.location.href = "/dashboard";
           }, 500);
         } else {
-          // Fallback: try router.push if session exists but getSession fails
-          // This might happen in edge cases
-          console.warn("Session exists but getSession returned null, attempting redirect anyway");
-          toast.success("Login successful!");
-          setTimeout(() => {
-            router.push("/dashboard");
-            router.refresh();
-          }, 500);
+          throw new Error("Session not found after login. Please try again.");
         }
       } else {
         throw new Error("Login failed. Please try again.");

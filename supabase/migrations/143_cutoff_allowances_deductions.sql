@@ -8,17 +8,17 @@ CREATE TABLE IF NOT EXISTS public.cutoff_allowances (
   employee_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
-  
+
   -- Manual allowances
   transpo_allowance DECIMAL(10, 2) DEFAULT 0,
   load_allowance DECIMAL(10, 2) DEFAULT 0,
   allowance DECIMAL(10, 2) DEFAULT 0, -- General allowance
   refund DECIMAL(10, 2) DEFAULT 0,
-  
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_by UUID REFERENCES public.users(id),
-  
+
   -- One record per employee per cutoff period
   UNIQUE(employee_id, period_start)
 );

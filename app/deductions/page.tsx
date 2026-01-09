@@ -155,7 +155,7 @@ export default function DeductionsPage() {
           sss_pro: number;
         };
         setDeductions(data);
-        
+
         // Auto-calculate SSS PRO (WISP) if not set or 0
         let sssProValue = deductionData.sss_pro || 0;
         if (sssProValue === 0) {
@@ -167,14 +167,14 @@ export default function DeductionsPage() {
             } else if (employee.per_day) {
               monthlySalary = calculateMonthlySalary(employee.per_day, 22);
             }
-            
+
             if (monthlySalary > 0) {
               const sssCalculation = calculateSSS(monthlySalary);
               sssProValue = sssCalculation.wispEmployeeShare || 0;
             }
           }
         }
-        
+
         setFormData({
           vale_amount: deductionData.vale_amount.toString(),
           sss_salary_loan: deductionData.sss_salary_loan.toString(),
@@ -192,7 +192,7 @@ export default function DeductionsPage() {
       } else {
         setDeductions(null);
         resetForm();
-        
+
         // Auto-calculate SSS PRO (WISP) for new record
         const employee = employees.find(emp => emp.id === selectedEmployeeId);
         if (employee) {
@@ -202,7 +202,7 @@ export default function DeductionsPage() {
           } else if (employee.per_day) {
             monthlySalary = calculateMonthlySalary(employee.per_day, 22);
           }
-          
+
           if (monthlySalary > 0) {
             const sssCalculation = calculateSSS(monthlySalary);
             const wispAmount = sssCalculation.wispEmployeeShare || 0;
@@ -580,8 +580,8 @@ export default function DeductionsPage() {
                     }
                   />
                   <Caption>
-                    WISP contribution (auto-calculated for MSC &gt; ₱20,000). 
-                    Mandatory for employees with monthly salary credit above ₱20,000. 
+                    WISP contribution (auto-calculated for MSC &gt; ₱20,000).
+                    Mandatory for employees with monthly salary credit above ₱20,000.
                     You can manually override if needed.
                   </Caption>
                 </VStack>

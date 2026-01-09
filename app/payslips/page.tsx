@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -2330,7 +2330,10 @@ export default function PayslipsPage() {
     };
   }
 
-  function calculateWorkingDays() {
+  // Memoize working days calculation to ensure it recalculates when holidays are loaded
+  // This fixes the issue where on first load, holidays might be empty [], causing incorrect calculation
+  // The calculation will automatically re-run when holidays state updates
+  const workingDays = useMemo(() => {
     if (!attendance || !attendance.attendance_data || !selectedEmployee) return 0;
     const days = attendance.attendance_data as any[];
 
@@ -2372,7 +2375,7 @@ export default function PayslipsPage() {
       // Fallback: return 0 if calculation fails
       return 0;
     }
-  }
+  }, [attendance, selectedEmployee, periodStart, holidays, restDaysMap]);
 
   return (
     <>
@@ -3337,7 +3340,7 @@ export default function PayslipsPage() {
                       }}
                       adjustment={adjustment}
                       netPay={netPay}
-                      workingDays={calculateWorkingDays()}
+                      workingDays={workingDays}
                       absentDays={0}
                       preparedBy={preparedBy}
                     />

@@ -192,7 +192,9 @@ Days Work = Total BH / 8 (fractional days)
 - **Rule 2.2.1.6**: Includes: Regular work days (Mon-Sat) that were actually worked
 - **Rule 2.2.1.7**: Includes: Saturday even if not worked (8 hours × ratePerHour)
 - **Rule 2.2.1.8**: Includes: Account Supervisor's first rest day (if Mon-Fri) if not worked (8 hours × ratePerHour)
-- **Rule 2.2.1.9**: Excludes: Holidays (paid separately)
+- **Rule 2.2.1.9**: Includes: Holidays (if eligible via "1 Day Before" rule) - paid at daily rate (1.0x) in basic salary
+  - If employee worked on holiday: Supervisory/Managerial get allowance on top; Rank and File get multiplier applied (see Holiday Pay rules)
+  - If employee didn't work but eligible: All employees get daily rate (1.0x) in basic salary
 - **Rule 2.2.1.10**: Excludes: Sundays (rest days - paid separately)
 
 ---
@@ -256,46 +258,50 @@ Days Work = Total BH / 8 (fractional days)
 #### 2.5.1 Regular Holiday (Legal Holiday)
 
 **Regular Hours Pay:**
-- **Rule 2.5.1.1**: Supervisory/Managerial: `Hours × Rate/Hour × 1.0` (Daily rate, no multiplier)
-  - Condition: Employee must have worked the day before the holiday (per "1 Day Before" rule)
-- **Rule 2.5.1.2**: Rank and File: `Hours × Rate/Hour × 2.0`
-- **Rule 2.5.1.3**: Display: Earnings Breakdown Table → Legal Holiday
+- **Rule 2.5.1.1**: All employees eligible for holiday pay (via "1 Day Before" rule) get daily rate (1.0x) included in Basic Salary
+  - If employee DID NOT work on holiday but eligible: Gets 8 hours × Rate/Hour × 1.0 in basic salary
+  - If employee WORKED on holiday (time in/out rendered):
+    - **Supervisory/Managerial**: Gets daily rate (1.0x) in basic salary + allowance on top (₱350 for ≥4 hours, ₱700 for ≥8 hours)
+    - **Rank and File**: Gets multiplier applied: `Hours × Rate/Hour × 2.0` (double pay) instead of 1.0x
+- **Rule 2.5.1.2**: Display: Earnings Breakdown Table → Legal Holiday
 
 **OT on Regular Holiday:**
-- **Rule 2.5.1.4**: Rank and File: `OT Hours × Rate/Hour × 2.6` (2.0 × 1.3)
-- **Rule 2.5.1.5**: Client-Based/Supervisory/Managerial: Fixed allowance
+- **Rule 2.5.1.3**: Rank and File: `OT Hours × Rate/Hour × 2.6` (2.0 × 1.3)
+- **Rule 2.5.1.4**: Client-Based/Supervisory/Managerial: Fixed allowance
   - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
-- **Rule 2.5.1.6**: Display: Rank and File → Earnings Breakdown Table → Legal Holiday OT
-- **Rule 2.5.1.7**: Display: Client-Based/Supervisory/Managerial → Other Pay → Legal Holiday OT Allowance
+- **Rule 2.5.1.5**: Display: Rank and File → Earnings Breakdown Table → Legal Holiday OT
+- **Rule 2.5.1.6**: Display: Client-Based/Supervisory/Managerial → Other Pay → Legal Holiday OT Allowance
 
 **ND on Regular Holiday:**
-- **Rule 2.5.1.8**: Rank and File Only: `ND Hours × Rate/Hour × 0.1`
-- **Rule 2.5.1.9**: Display: Earnings Breakdown Table → Legal Holiday ND
-- **Rule 2.5.1.10**: Client-Based/Supervisory/Managerial: NO ND
+- **Rule 2.5.1.7**: Rank and File Only: `ND Hours × Rate/Hour × 0.1`
+- **Rule 2.5.1.8**: Display: Earnings Breakdown Table → Legal Holiday ND
+- **Rule 2.5.1.9**: Client-Based/Supervisory/Managerial: NO ND
 
 #### 2.5.2 Special Holiday (Non-Working Holiday)
 
 **Regular Hours Pay:**
-- **Rule 2.5.2.1**: Supervisory/Managerial: `Hours × Rate/Hour × 1.0` (Daily rate, no multiplier)
-  - Condition: Employee must have worked the day before the holiday (per "1 Day Before" rule)
-- **Rule 2.5.2.2**: Rank and File: `Hours × Rate/Hour × 1.3`
-- **Rule 2.5.2.3**: Display: Earnings Breakdown Table → Special Holiday
+- **Rule 2.5.2.1**: All employees eligible for holiday pay (via "1 Day Before" rule) get daily rate (1.0x) included in Basic Salary
+  - If employee DID NOT work on holiday but eligible: Gets 8 hours × Rate/Hour × 1.0 in basic salary
+  - If employee WORKED on holiday (time in/out rendered):
+    - **Supervisory/Managerial**: Gets daily rate (1.0x) in basic salary + allowance on top (₱350 for ≥4 hours, ₱700 for ≥8 hours)
+    - **Rank and File**: Gets multiplier applied: `Hours × Rate/Hour × 1.3` instead of 1.0x
+- **Rule 2.5.2.2**: Display: Earnings Breakdown Table → Special Holiday
 
 **OT on Special Holiday:**
-- **Rule 2.5.2.4**: Rank and File: `OT Hours × Rate/Hour × 1.69` (1.3 × 1.3)
-- **Rule 2.5.2.5**: Client-Based/Supervisory/Managerial: Fixed allowance
+- **Rule 2.5.2.3**: Rank and File: `OT Hours × Rate/Hour × 1.69` (1.3 × 1.3)
+- **Rule 2.5.2.4**: Client-Based/Supervisory/Managerial: Fixed allowance
   - ≥ 8 hours OT: ₱700
   - ≥ 4 hours OT: ₱350
   - < 4 hours OT: ₱0
-- **Rule 2.5.2.6**: Display: Rank and File → Earnings Breakdown Table → Special Holiday OT
-- **Rule 2.5.2.7**: Display: Client-Based/Supervisory/Managerial → Other Pay → Special Holiday OT Allowance
+- **Rule 2.5.2.5**: Display: Rank and File → Earnings Breakdown Table → Special Holiday OT
+- **Rule 2.5.2.6**: Display: Client-Based/Supervisory/Managerial → Other Pay → Special Holiday OT Allowance
 
 **ND on Special Holiday:**
-- **Rule 2.5.2.8**: Rank and File Only: `ND Hours × Rate/Hour × 0.1`
-- **Rule 2.5.2.9**: Display: Earnings Breakdown Table → Special Holiday ND
-- **Rule 2.5.2.10**: Client-Based/Supervisory/Managerial: NO ND
+- **Rule 2.5.2.7**: Rank and File Only: `ND Hours × Rate/Hour × 0.1`
+- **Rule 2.5.2.8**: Display: Earnings Breakdown Table → Special Holiday ND
+- **Rule 2.5.2.9**: Client-Based/Supervisory/Managerial: NO ND
 
 ---
 
@@ -504,18 +510,23 @@ Net Pay = Gross Pay - Total Deductions + Allowances
 
 ## 6. IMPORTANT NOTES
 
-1. **Night Differential Source**: Always calculated from approved OT requests, NOT from clock entries
-2. **No Pro-Rating**: Fixed allowances require exact hour thresholds (4 or 8 hours)
-3. **Rest Days for Account Supervisors**: Determined by weekly schedule submission (`day_off: true`)
-4. **Leave Days**: Only SIL (Sick Leave) counts as 8 hours regular day; other leaves don't count
-5. **Deductions**: Applied monthly, only during 2nd cutoff (day 16+)
-6. **Gross Pay Recalculation**: System recalculates from attendance_data if stored value seems incorrect
-7. **Employee Type Field**: `employee_type` field determines if employee is "office-based" or "client-based"
-8. **Supervisory Identification**: Based on position title matching specific supervisory roles
-9. **Managerial Identification**: Based on `job_level` field equal to "MANAGERIAL"
-10. **"1 Day Before" Rule**: Applies to ALL employee types for holiday eligibility
-11. **Saturday Regular Work Day**: Paid 6 days/week per Philippine labor law (Saturday gets 8 BH even if not worked)
-12. **Account Supervisor Rest Days**: First rest day is actual rest day (only paid if worked), second rest day is regular workday (gets 8 BH even if not worked)
+1. **Holiday Pay in Basic Salary**: Holidays ARE included in Basic Salary (not paid separately). If eligible via "1 Day Before" rule:
+   - **Didn't work on holiday**: All employees get daily rate (1.0x) in basic salary
+   - **Worked on holiday (time in/out rendered)**:
+     - **Supervisory/Managerial**: Get daily rate (1.0x) in basic salary + allowance on top (₱350/₱700)
+     - **Rank and File**: Get multiplier applied (2.0x for Legal Holiday, 1.3x for Special Holiday) instead of 1.0x
+2. **Night Differential Source**: Always calculated from approved OT requests, NOT from clock entries
+3. **No Pro-Rating**: Fixed allowances require exact hour thresholds (4 or 8 hours)
+4. **Rest Days for Account Supervisors**: Determined by weekly schedule submission (`day_off: true`)
+5. **Leave Days**: Only SIL (Sick Leave) counts as 8 hours regular day; other leaves don't count
+6. **Deductions**: Applied monthly, only during 2nd cutoff (day 16+)
+7. **Gross Pay Recalculation**: System recalculates from attendance_data if stored value seems incorrect
+8. **Employee Type Field**: `employee_type` field determines if employee is "office-based" or "client-based"
+9. **Supervisory Identification**: Based on position title matching specific supervisory roles
+10. **Managerial Identification**: Based on `job_level` field equal to "MANAGERIAL"
+11. **"1 Day Before" Rule**: Applies to ALL employee types for holiday eligibility
+12. **Saturday Regular Work Day**: Paid 6 days/week per Philippine labor law (Saturday gets 8 BH even if not worked)
+13. **Account Supervisor Rest Days**: First rest day is actual rest day (only paid if worked), second rest day is regular workday (gets 8 BH even if not worked)
 
 ---
 

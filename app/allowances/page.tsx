@@ -89,9 +89,10 @@ export default function AllowancesPage() {
     try {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_id, full_name")
+        .select("id, employee_id, full_name, last_name, first_name")
         .eq("is_active", true)
-        .order("full_name");
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       setEmployees(data || []);
@@ -156,14 +157,17 @@ export default function AllowancesPage() {
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
       const periodEndStr = format(periodEnd, "yyyy-MM-dd");
 
+      // Helper function to round to 2 decimal places
+      const roundTo2Decimals = (value: number) => Math.round(value * 100) / 100;
+
       const allowanceData = {
         employee_id: selectedEmployeeId,
         period_start: periodStartStr,
         period_end: periodEndStr,
-        transpo_allowance: parseFloat(formData.transpo_allowance) || 0,
-        load_allowance: parseFloat(formData.load_allowance) || 0,
-        allowance: parseFloat(formData.allowance) || 0,
-        refund: parseFloat(formData.refund) || 0,
+        transpo_allowance: roundTo2Decimals(parseFloat(formData.transpo_allowance) || 0),
+        load_allowance: roundTo2Decimals(parseFloat(formData.load_allowance) || 0),
+        allowance: roundTo2Decimals(parseFloat(formData.allowance) || 0),
+        refund: roundTo2Decimals(parseFloat(formData.refund) || 0),
       };
 
       if (allowance?.id) {
@@ -324,10 +328,13 @@ export default function AllowancesPage() {
                     </span>
                     <span className="text-xl font-bold text-blue-900">
                       {formatCurrency(
-                        parseFloat(formData.transpo_allowance || "0") +
-                          parseFloat(formData.load_allowance || "0") +
-                          parseFloat(formData.allowance || "0") +
-                          parseFloat(formData.refund || "0")
+                        Math.round(
+                          (parseFloat(formData.transpo_allowance || "0") +
+                            parseFloat(formData.load_allowance || "0") +
+                            parseFloat(formData.allowance || "0") +
+                            parseFloat(formData.refund || "0")) *
+                            100
+                        ) / 100
                       )}
                     </span>
                   </HStack>

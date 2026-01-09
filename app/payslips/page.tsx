@@ -294,10 +294,11 @@ export default function PayslipsPage() {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot, assigned_hotel, employee_type, job_level, hire_date"
+          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot, assigned_hotel, employee_type, job_level, hire_date, last_name, first_name"
         )
         .eq("is_active", true)
-        .order("full_name");
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
       if (error) {
         console.error("Error loading employees:", error);
@@ -2331,6 +2332,7 @@ export default function PayslipsPage() {
   // Memoize working days calculation to ensure it recalculates when holidays are loaded
   // This fixes the issue where on first load, holidays might be empty [], causing incorrect calculation
   // The calculation will automatically re-run when holidays state updates
+  // IMPORTANT: This hook MUST be called before any conditional returns to follow React Rules of Hooks
   const workingDays = useMemo(() => {
     if (!attendance || !attendance.attendance_data || !selectedEmployee) return 0;
     const days = attendance.attendance_data as any[];
@@ -2348,8 +2350,8 @@ export default function PayslipsPage() {
           clock_out_time: day.clockOutTime!,
         }));
 
-      // Get rest days and holidays
-      const restDaysMap = new Map<string, boolean>();
+      // Get rest days and holidays - use state restDaysMap if available, otherwise create empty map
+      const restDaysForCalculation = restDaysMap.size > 0 ? restDaysMap : new Map<string, boolean>();
       const holidaysList = holidays.map((h) => ({ holiday_date: h.holiday_date }));
 
       // Calculate base pay using the same method as PayslipDetailedBreakdown
@@ -2357,13 +2359,11 @@ export default function PayslipsPage() {
         periodStart,
         periodEnd: getBiMonthlyPeriodEnd(periodStart),
         clockEntries,
-        restDays: restDaysMap,
+        restDays: restDaysForCalculation,
         holidays: holidaysList,
         isClientBased: selectedEmployee.employee_type === "client-based" || false,
         hireDate: selectedEmployee.hire_date ? parseISO(selectedEmployee.hire_date) : undefined,
-        terminationDate: (selectedEmployee as any).termination_date
-          ? parseISO((selectedEmployee as any).termination_date)
-          : undefined,
+        terminationDate: undefined, // termination_date doesn't exist in employees table
       });
 
       // Days Work = (104 - absences × 8) / 8
@@ -2374,6 +2374,50 @@ export default function PayslipsPage() {
       return 0;
     }
   }, [attendance, selectedEmployee, periodStart, holidays, restDaysMap]);
+
+  // Show loading or access denied - MUST be after all hooks
+  if (roleLoading || loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show access denied message if user doesn't have permission - MUST be after all hooks
+  if (!canAccessSalaryInfo) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Card className="max-w-md">
+            <CardContent className="pt-6">
+              <VStack gap="4" align="center">
+                <Icon
+                  name="Lock"
+                  size={IconSizes.xl}
+                  className="text-destructive"
+                />
+                <H3>Access Denied</H3>
+                <BodySmall className="text-center text-muted-foreground">
+                  You do not have permission to access the payslip management
+                  page. Please contact your administrator if you need access.
+                </BodySmall>
+                <Button onClick={() => router.push("/dashboard")}>
+                  Go to Dashboard
+                </Button>
+              </VStack>
+            </CardContent>
+          </Card>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <>

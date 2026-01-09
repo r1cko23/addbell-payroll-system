@@ -94,10 +94,10 @@ export default function DeductionsPage() {
     try {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_id, full_name, monthly_rate, per_day")
+        .select("id, employee_id, full_name, monthly_rate, per_day, last_name, first_name")
         .eq("is_active", true)
-        .order("last_name", { nullsFirst: false })
-        .order("first_name", { nullsFirst: false });
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       setEmployees(data || []);
@@ -248,23 +248,27 @@ export default function DeductionsPage() {
       const periodEnd = getBiMonthlyPeriodEnd(periodStart);
       const periodEndStr = format(periodEnd, "yyyy-MM-dd");
 
+      // Helper function to round to 2 decimal places
+      const roundTo2Decimals = (value: number) => Math.round(value * 100) / 100;
+
       const deductionData = {
         employee_id: selectedEmployeeId,
         period_start: periodStartStr,
         period_end: periodEndStr,
         period_type: "bimonthly",
-        vale_amount: parseFloat(formData.vale_amount) || 0,
-        sss_salary_loan: parseFloat(formData.sss_salary_loan) || 0,
-        sss_calamity_loan: parseFloat(formData.sss_calamity_loan) || 0,
-        pagibig_salary_loan: parseFloat(formData.pagibig_salary_loan) || 0,
-        pagibig_calamity_loan: parseFloat(formData.pagibig_calamity_loan) || 0,
-        sss_contribution: parseFloat(formData.sss_contribution) || 0,
-        philhealth_contribution:
-          parseFloat(formData.philhealth_contribution) || 0,
-        pagibig_contribution: parseFloat(formData.pagibig_contribution) || 0,
-        withholding_tax: parseFloat(formData.withholding_tax) || 0,
-        other_deduction: parseFloat(formData.other_deduction) || 0,
-        sss_pro: parseFloat(formData.sss_pro) || 0,
+        vale_amount: roundTo2Decimals(parseFloat(formData.vale_amount) || 0),
+        sss_salary_loan: roundTo2Decimals(parseFloat(formData.sss_salary_loan) || 0),
+        sss_calamity_loan: roundTo2Decimals(parseFloat(formData.sss_calamity_loan) || 0),
+        pagibig_salary_loan: roundTo2Decimals(parseFloat(formData.pagibig_salary_loan) || 0),
+        pagibig_calamity_loan: roundTo2Decimals(parseFloat(formData.pagibig_calamity_loan) || 0),
+        sss_contribution: roundTo2Decimals(parseFloat(formData.sss_contribution) || 0),
+        philhealth_contribution: roundTo2Decimals(
+          parseFloat(formData.philhealth_contribution) || 0
+        ),
+        pagibig_contribution: roundTo2Decimals(parseFloat(formData.pagibig_contribution) || 0),
+        withholding_tax: roundTo2Decimals(parseFloat(formData.withholding_tax) || 0),
+        other_deduction: roundTo2Decimals(parseFloat(formData.other_deduction) || 0),
+        sss_pro: roundTo2Decimals(parseFloat(formData.sss_pro) || 0),
       };
 
       if (deductions?.id) {

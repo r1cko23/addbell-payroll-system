@@ -95,8 +95,9 @@ export default function SchedulesPage() {
     const loadMeta = async () => {
       const { data: emps } = await supabase
         .from("employees")
-        .select("id, full_name")
-        .order("full_name");
+        .select("id, full_name, last_name, first_name")
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
       setEmployees(emps || []);
     };
     loadMeta();

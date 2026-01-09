@@ -183,9 +183,10 @@ export default function TimesheetPage() {
       // Load employees with filtering by assigned groups for approvers/viewers
       let query = supabase
         .from("employees")
-        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, hire_date, overtime_group_id")
+        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, hire_date, overtime_group_id, last_name, first_name")
         .eq("is_active", true)
-        .order("full_name");
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
       // Filter by assigned groups if user is approver/viewer (not admin or HR)
       // Admin and HR should see all employees

@@ -145,8 +145,9 @@ export default function LeaveApprovalPage() {
   async function loadEmployees() {
     let query = supabase
       .from("employees")
-      .select("id, employee_id, full_name, overtime_group_id")
-      .order("full_name", { ascending: true });
+      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
+      .order("last_name", { ascending: true, nullsFirst: false })
+      .order("first_name", { ascending: true, nullsFirst: false });
 
     // Filter by assigned groups if user is approver/viewer (not admin or HR)
     if (!isAdmin && !isHR && assignedGroupIds.length > 0) {

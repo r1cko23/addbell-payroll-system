@@ -149,9 +149,10 @@ export default function LoansPage() {
     try {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, employee_id, full_name")
+        .select("id, employee_id, full_name, last_name, first_name")
         .eq("is_active", true)
-        .order("full_name");
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       setEmployees(data || []);

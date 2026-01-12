@@ -156,6 +156,7 @@ export async function refreshSessionSafe(): Promise<Session | null> {
     const { data, error } = await supabase.auth.refreshSession();
 
     if (error) {
+      // Handle rate limit errors
       if (
         error.message?.includes("rate limit") ||
         error.message?.includes("429") ||
@@ -164,7 +165,29 @@ export async function refreshSessionSafe(): Promise<Session | null> {
         consecutiveFailures++;
         return cachedSession;
       }
-      throw error;
+
+      // Handle refresh token not found/expired errors
+      // This happens when refresh token has expired (30 days) or was revoked
+      if (
+        error.code === "refresh_token_not_found" ||
+        error.message?.includes("refresh_token_not_found") ||
+        error.message?.includes("Refresh Token Not Found") ||
+        error.message?.includes("Invalid Refresh Token")
+      ) {
+        console.warn("Refresh token expired or not found - clearing session cache");
+        // Clear cached session since refresh token is invalid
+        cachedSession = null;
+        sessionCacheTimestamp = 0;
+        // Don't increment failure counter for expired tokens - this is expected
+        return null;
+      }
+
+      // For other errors, log and return cached session if available
+      console.error("Refresh session error:", error?.message || error, {
+        code: error.code,
+        status: error.status,
+      });
+      return cachedSession;
     }
 
     consecutiveFailures = 0;
@@ -172,6 +195,18 @@ export async function refreshSessionSafe(): Promise<Session | null> {
     sessionCacheTimestamp = now;
     return data.session;
   } catch (error: any) {
+    // Handle refresh token errors in catch block as well
+    if (
+      error?.code === "refresh_token_not_found" ||
+      error?.message?.includes("refresh_token_not_found") ||
+      error?.message?.includes("Refresh Token Not Found")
+    ) {
+      console.warn("Refresh token expired or not found - clearing session cache");
+      cachedSession = null;
+      sessionCacheTimestamp = 0;
+      return null;
+    }
+
     consecutiveFailures++;
     console.error("Refresh session error:", error?.message || error);
     return cachedSession;

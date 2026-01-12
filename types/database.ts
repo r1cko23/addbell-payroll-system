@@ -17,6 +17,7 @@ export interface Database {
           role: "admin" | "hr" | "approver" | "viewer";
           is_active: boolean;
           can_access_salary: boolean | null;
+          profile_picture_url: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -27,6 +28,7 @@ export interface Database {
           role: "admin" | "hr" | "approver" | "viewer";
           is_active?: boolean;
           can_access_salary?: boolean | null;
+          profile_picture_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -37,6 +39,7 @@ export interface Database {
           role?: "admin" | "hr" | "approver" | "viewer";
           is_active?: boolean;
           can_access_salary?: boolean | null;
+          profile_picture_url?: string | null;
           created_at?: string;
           updated_at?: string;
         };

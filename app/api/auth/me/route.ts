@@ -30,11 +30,11 @@ export async function GET(request: NextRequest) {
 
     // Get full user data (role is already cached, but we need other fields)
     type UserRow = Database["public"]["Tables"]["users"]["Row"];
-    type UserSelect = Pick<UserRow, "id" | "email" | "full_name" | "role">;
+    type UserSelect = Pick<UserRow, "id" | "email" | "full_name" | "role" | "profile_picture_url" | "can_access_salary">;
 
     const { data: userData, error: userError } = await supabase
       .from("users")
-      .select("id, email, full_name, role")
+      .select("id, email, full_name, role, profile_picture_url, can_access_salary")
       .eq("id", authUser.id)
       .eq("is_active", true)
       .single<UserSelect>();
@@ -51,6 +51,8 @@ export async function GET(request: NextRequest) {
           email: userData.email,
           full_name: userData.full_name,
           role: userData.role,
+          profile_picture_url: userData.profile_picture_url,
+          can_access_salary: userData.can_access_salary ?? false,
         },
       },
       { cache: 30, staleWhileRevalidate: 60 }

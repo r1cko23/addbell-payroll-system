@@ -37,43 +37,44 @@ export function Header({ onMenuClick }: HeaderProps) {
 
     async function getUser() {
       try {
-        // Use safe session utility to prevent rate limits
-        const { getUserSafe } = await import("@/lib/session-utils");
-        const user = await getUserSafe();
+        // Use optimized hook that uses /api/auth/me endpoint
+        const { useCurrentUser } = await import("@/lib/hooks/useCurrentUser");
+        // Note: We can't use hooks conditionally, so we'll fetch directly
+        const response = await fetch("/api/auth/me", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
-        if (!user || !isMounted) return;
+        if (!response.ok || !isMounted) return;
 
-        setUser(user);
-
-        // Get user role and profile picture from public.users table
-        const { data: userData } = await supabase
-          .from("users")
-          .select("role, full_name, profile_picture_url")
-          .eq("id", user.id)
-          .single();
+        const data = await response.json();
+        const userData = data.user;
 
         if (userData && isMounted) {
-          const userRecord = userData as {
-            role: string;
-            full_name: string | null;
-            profile_picture_url: string | null;
-          };
-          setUserRole(userRecord.role);
-          setUserFullName(userRecord.full_name || "");
-          setProfilePictureUrl(userRecord.profile_picture_url);
+          // Set auth user for compatibility
+          setUser({
+            id: userData.id,
+            email: userData.email,
+          } as User);
+
+          setUserRole(userData.role);
+          setUserFullName(userData.full_name || "");
+          setProfilePictureUrl(userData.profile_picture_url);
 
           // Set up real-time subscription for user profile changes
           // Only subscribe once when we have a user
-          if (!userSubscription) {
+          if (!userSubscription && userData.id) {
             userSubscription = supabase
-              .channel(`user-profile-${user.id}`)
+              .channel(`user-profile-${userData.id}`)
               .on(
                 "postgres_changes",
                 {
                   event: "UPDATE",
                   schema: "public",
                   table: "users",
-                  filter: `id=eq.${user.id}`,
+                  filter: `id=eq.${userData.id}`,
                 },
                 (payload) => {
                   if (!isMounted) return;
@@ -129,6 +130,10 @@ export function Header({ onMenuClick }: HeaderProps) {
     // Clear session cache on logout
     const { clearSessionCache } = await import("@/lib/session-utils");
     clearSessionCache();
+    
+    // Clear current user cache
+    const { clearCurrentUserCache } = await import("@/lib/hooks/useCurrentUser");
+    clearCurrentUserCache();
 
     await supabase.auth.signOut();
     router.push("/login");

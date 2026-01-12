@@ -278,7 +278,7 @@ export default function FailureToLogApprovalPage() {
         filteredData = data.filter((req: any) => {
           const employeeGroupId = employeeGroupMap.get(req.employee_id);
           const employeeId = req.employee_id;
-          
+
           // Check if employee is in assigned groups OR has user as individual approver/viewer
           const matchesGroup =
             employeeGroupId && assignedGroupIds.includes(employeeGroupId);

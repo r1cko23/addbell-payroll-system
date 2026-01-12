@@ -24,25 +24,25 @@ DECLARE
   v_is_client_based_account_supervisor BOOLEAN;
 BEGIN
   -- Get employee type and position
-  SELECT 
+  SELECT
     e.employee_type,
     e.position
-  INTO 
+  INTO
     v_employee_type,
     v_employee_position
   FROM public.employees e
   WHERE e.id = p_employee_id;
-  
+
   -- Check if employee is client-based AND Account Supervisor
   v_is_client_based_account_supervisor := (
     v_employee_type = 'client-based' AND v_employee_position ILIKE '%ACCOUNT SUPERVISOR%'
   );
-  
+
   -- Only allow client-based Account Supervisors to access their schedules
   IF NOT v_is_client_based_account_supervisor THEN
     RAISE EXCEPTION 'Schedule access is restricted to client-based Account Supervisors only';
   END IF;
-  
+
   -- Return schedule data
   RETURN QUERY
   SELECT

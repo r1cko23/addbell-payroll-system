@@ -141,7 +141,7 @@ export function EmployeePortalSidebar({
           uuid: employee.id,
           employeeId: employee.employee_id,
         });
-        
+
         // Use RPC function to bypass RLS (same approach as get_employee_profile)
         const { data, error } = await supabase.rpc("get_employee_type_and_position", {
           p_employee_uuid: employee.id,
@@ -171,11 +171,11 @@ export function EmployeePortalSidebar({
         // Normalize position for comparison (trim and uppercase)
         const normalizedPosition = (employeeData.position || "").trim().toUpperCase();
         const hasAccountSupervisor = normalizedPosition.includes("ACCOUNT SUPERVISOR");
-        
+
         // Check if employee is client-based AND Account Supervisor
         const isClientBasedAccountSupervisor =
           employeeData.employee_type === "client-based" && hasAccountSupervisor;
-        
+
         console.log("EmployeePortalSidebar - Employee check:", {
           employeeId: employee.id,
           employeeIdFromSession: employee.employee_id,
@@ -186,7 +186,7 @@ export function EmployeePortalSidebar({
           hasAccountSupervisor,
           isClientBasedAccountSupervisor,
         });
-        
+
         setIsAccountSupervisor(isClientBasedAccountSupervisor);
       } catch (err) {
         console.error("EmployeePortalSidebar - Exception fetching employee info:", err);

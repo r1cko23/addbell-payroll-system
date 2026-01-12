@@ -69,6 +69,9 @@ export default function FailureToLogApprovalPage() {
   const router = useRouter();
   const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
+  
+  // Check if HR user is a group approver (HR users need to be group approvers to approve)
+  const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
 
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
@@ -345,18 +348,12 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    // Update failure_to_log; time entry upsert is handled by DB trigger
-    const { error } = await (supabase.from("failure_to_log") as any)
-      .update({
-        status: "approved",
-        approved_at: new Date().toISOString(),
-        account_manager_id: user.id,
-        correct_clock_in_time: requestData.actual_clock_in_time,
-        correct_clock_out_time: requestData.actual_clock_out_time,
-      })
-      .eq("id", requestId)
-      .select()
-      .single();
+    // Use RPC function for approval (handles authorization and time entry update)
+    const { error } = await supabase.rpc("approve_failure_to_log", {
+      p_request_id: requestId,
+      p_correct_clock_in_time: requestData.actual_clock_in_time || null,
+      p_correct_clock_out_time: requestData.actual_clock_out_time || null,
+    });
 
     if (error) {
       console.error("Error approving request:", error);
@@ -388,15 +385,11 @@ export default function FailureToLogApprovalPage() {
     const request = requests.find((r) => r.id === requestId);
     const employeeName = request?.employees?.full_name || "Employee";
 
-    const { error } = await (supabase.from("failure_to_log") as any)
-      .update({
-        status: "rejected",
-        rejection_reason: rejectionReason.trim() || null,
-        account_manager_id: user.id,
-      })
-      .eq("id", requestId)
-      .select()
-      .single();
+    // Use RPC function for rejection (handles authorization)
+    const { error } = await supabase.rpc("reject_failure_to_log", {
+      p_request_id: requestId,
+      p_reason: rejectionReason.trim() || null,
+    });
 
     if (error) {
       console.error("Error rejecting request:", error);
@@ -680,7 +673,8 @@ export default function FailureToLogApprovalPage() {
                       {request.status.toUpperCase()}
                     </Badge>
                   </HStack>
-                  {request.status === "pending" && (
+                  {request.status === "pending" &&
+                    (role === "admin" || (role === "hr" && isHRGroupApprover) || role === "approver") && (
                     <HStack
                       gap="2"
                       align="center"
@@ -871,7 +865,8 @@ export default function FailureToLogApprovalPage() {
               >
                 Close
               </Button>
-              {selectedRequest?.status === "pending" && (
+              {selectedRequest?.status === "pending" &&
+                (role === "admin" || (role === "hr" && isHRGroupApprover) || role === "approver") && (
                 <div className="flex gap-2">
                   <Button
                     variant="destructive"

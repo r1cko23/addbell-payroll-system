@@ -51,16 +51,17 @@ export function useAssignedGroups(): AssignedGroupsData {
         throw userError;
       }
 
-      // Admins and HR see all groups (return empty array means no filtering)
-      // HR users can still be assigned to groups for organizational purposes,
-      // but they bypass group filtering and see everything
-      if (userData?.role === "admin" || userData?.role === "hr") {
+      // Admins see all groups (return empty array means no filtering)
+      // HR users need to have group assignments returned to check if they're group approvers
+      // (HR users bypass group filtering for viewing, but need group approver status for approval)
+      if (userData?.role === "admin") {
         setGroupIds([]);
         setLoading(false);
         return;
       }
 
       // Find groups where this user is approver or viewer
+      // This applies to both HR and approver/viewer roles
       const { data: approverGroups, error: approverError } = await supabase
         .from("overtime_groups")
         .select("id")

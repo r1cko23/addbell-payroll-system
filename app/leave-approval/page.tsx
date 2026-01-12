@@ -93,6 +93,9 @@ export default function LeaveApprovalPage() {
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
+  
+  // Check if HR user is a group approver (HR users need to be group approvers to approve)
+  const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string }[]
@@ -531,10 +534,10 @@ export default function LeaveApprovalPage() {
     if (!user) return;
 
     // Enforce 2-step approval: manager/OT approver first, then HR
-    // However, HR can also approve pending requests directly (acting as manager)
-    if (level === "hr" && request.status !== "approved_by_manager" && request.status !== "pending") {
+    // HR group approvers can ONLY approve at HR level (approved_by_manager → approved_by_hr)
+    if (level === "hr" && request.status !== "approved_by_manager") {
       toast.error("Approval workflow error", {
-        description: "HR can only approve pending requests or requests already approved by manager",
+        description: "HR can only approve requests that have been approved by manager first",
       });
       return;
     }
@@ -547,26 +550,11 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    const updateData: any = {
-      account_manager_notes: notes.trim() || null,
-    };
-
-    if (level === "manager") {
-      // First step: OT Approver or Account Manager approves pending → approved_by_manager
-      updateData.status = "approved_by_manager";
-      updateData.account_manager_id = user.id;
-      updateData.account_manager_approved_at = new Date().toISOString();
-    } else {
-      // Second step: HR approves approved_by_manager → approved_by_hr
-      updateData.status = "approved_by_hr";
-      updateData.hr_approved_by = user.id;
-      updateData.hr_approved_at = new Date().toISOString();
-      updateData.hr_notes = notes.trim() || null;
-    }
-
-    const { error } = await (supabase.from("leave_requests") as any)
-      .update(updateData)
-      .eq("id", request.id);
+    // Use RPC function for approval (handles authorization and SIL credit deduction)
+    const { error } = await supabase.rpc("approve_leave_request", {
+      p_request_id: request.id,
+      p_level: level,
+    });
 
     if (error) {
       console.error("Error approving request:", error);
@@ -574,28 +562,6 @@ export default function LeaveApprovalPage() {
         description: error.message || "An error occurred while approving the request",
       });
       return;
-    }
-
-    // Deduct SIL credits on HR approval
-    if (
-      level === "hr" &&
-      request.leave_type === "SIL" &&
-      request.employees &&
-      typeof request.employees.sil_credits === "number"
-    ) {
-      const remaining = Math.max(
-        0,
-        request.employees.sil_credits - (request.total_days || 0)
-      );
-      const { error: creditError } = await (supabase.from("employees") as any)
-        .update({ sil_credits: remaining })
-        .eq("id", request.employee_id);
-
-      if (creditError) {
-        console.error("Error deducting SIL credits:", creditError);
-        toast.error("Approved but failed to deduct SIL credits");
-        // continue, since approval succeeded
-      }
     }
 
     const employeeName = request.employees?.full_name || "Employee";
@@ -629,14 +595,11 @@ export default function LeaveApprovalPage() {
     const request = requests.find((r) => r.id === requestId);
     const employeeName = request?.employees?.full_name || "Employee";
 
-    const { error } = await (supabase.from("leave_requests") as any)
-      .update({
-        status: "rejected",
-        rejection_reason: rejectionReason.trim(),
-        rejected_by: user.id,
-        rejected_at: new Date().toISOString(),
-      })
-      .eq("id", requestId);
+    // Use RPC function for rejection (handles authorization)
+    const { error } = await supabase.rpc("reject_leave_request", {
+      p_request_id: requestId,
+      p_reason: rejectionReason.trim(),
+    });
 
     if (error) {
       console.error("Error rejecting request:", error);
@@ -732,9 +695,14 @@ export default function LeaveApprovalPage() {
     }
 
     if (normalizedRole === "hr") {
-      // HR can approve pending requests and requests already approved by manager
-      const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
-      console.log("canApprove (hr):", {
+      // HR can only approve if they are group approvers
+      if (!isHRGroupApprover) {
+        return false;
+      }
+      // HR group approvers can ONLY approve requests already approved by manager (2nd step)
+      // They cannot approve pending requests - only approvers can do that
+      const canApproveResult = request.status === "approved_by_manager";
+      console.log("canApprove (hr group approver - 2nd step only):", {
         status: request.status,
         canApprove: canApproveResult,
       });
@@ -1134,19 +1102,19 @@ export default function LeaveApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // OT Approvers approve at "manager" level (first step)
-                          // HR and Admin can approve at either level based on request status
-                          // If pending, HR approves at "manager" level; if approved_by_manager, HR approves at "hr" level
+                          // OT Approvers approve at "manager" level (first step: pending → approved_by_manager)
+                          // HR group approvers approve at "hr" level (second step: approved_by_manager → approved_by_hr)
+                          // Admin can approve at either level based on request status
                           const approvalLevel =
-                            normalizedRole === "approver" || (normalizedRole === "hr" && request.status === "pending")
+                            normalizedRole === "approver" || (normalizedRole === "admin" && request.status === "pending")
                               ? "manager"
                               : "hr";
                           handleApprove(request, approvalLevel);
                         }}
                       >
                         <Icon name="Check" size={IconSizes.sm} />
-                        {normalizedRole === "approver" || (normalizedRole === "hr" && request.status === "pending")
-                          ? "Approve"
+                        {normalizedRole === "approver" || (normalizedRole === "admin" && request.status === "pending")
+                          ? "Approve (Manager)"
                           : "Approve (HR)"}
                       </Button>
                     </HStack>
@@ -1429,18 +1397,18 @@ export default function LeaveApprovalPage() {
                         </Button>
                         <Button
                           onClick={() => {
-                            // OT Approvers approve at "manager" level (first step)
-                            // HR and Admin can approve at either level based on request status
-                            // If pending, HR approves at "manager" level; if approved_by_manager, HR approves at "hr" level
+                            // OT Approvers approve at "manager" level (first step: pending → approved_by_manager)
+                            // HR group approvers approve at "hr" level (second step: approved_by_manager → approved_by_hr)
+                            // Admin can approve at either level based on request status
                             const approvalLevel =
-                              normalizedRole === "approver" || (normalizedRole === "hr" && selectedRequest.status === "pending")
+                              normalizedRole === "approver" || (normalizedRole === "admin" && selectedRequest.status === "pending")
                                 ? "manager"
                                 : "hr";
                             handleApprove(selectedRequest, approvalLevel);
                           }}
                         >
                           <Icon name="Check" size={IconSizes.sm} />
-                          {normalizedRole === "approver" || (normalizedRole === "hr" && selectedRequest.status === "pending")
+                          {normalizedRole === "approver" || (normalizedRole === "admin" && selectedRequest.status === "pending")
                             ? "Approve (Manager)"
                             : "Approve (HR)"}
                         </Button>

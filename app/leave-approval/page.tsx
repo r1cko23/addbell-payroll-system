@@ -93,7 +93,7 @@ export default function LeaveApprovalPage() {
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-  
+
   // Check if HR user is a group approver (HR users need to be group approvers to approve)
   const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
   const [requests, setRequests] = useState<LeaveRequest[]>([]);

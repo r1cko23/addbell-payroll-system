@@ -64,7 +64,7 @@ export default function OvertimeApprovalPage() {
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-  
+
   // Check if HR user is a group approver (HR users need to be group approvers to approve OT)
   const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
 

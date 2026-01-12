@@ -69,7 +69,7 @@ export default function FailureToLogApprovalPage() {
   const router = useRouter();
   const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-  
+
   // Check if HR user is a group approver (HR users need to be group approvers to approve)
   const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
 

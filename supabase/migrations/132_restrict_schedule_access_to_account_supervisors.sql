@@ -33,14 +33,14 @@ BEGIN
   FROM public.employees e
   WHERE e.id = p_employee_id;
   
-  -- Check if employee is client-based Account Supervisor
+  -- Check if employee is client-based AND Account Supervisor
   v_is_client_based_account_supervisor := (
-    (v_employee_type = 'client-based' OR v_employee_position ILIKE '%ACCOUNT SUPERVISOR%')
+    v_employee_type = 'client-based' AND v_employee_position ILIKE '%ACCOUNT SUPERVISOR%'
   );
   
   -- Only allow client-based Account Supervisors to access their schedules
   IF NOT v_is_client_based_account_supervisor THEN
-    RAISE EXCEPTION 'Schedule access is restricted to Account Supervisors only';
+    RAISE EXCEPTION 'Schedule access is restricted to client-based Account Supervisors only';
   END IF;
   
   -- Return schedule data

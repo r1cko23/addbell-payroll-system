@@ -130,32 +130,78 @@ export function EmployeePortalSidebar({
   // Fetch employee type and position to determine if they're an Account Supervisor
   useEffect(() => {
     const fetchEmployeeInfo = async () => {
-      if (!employee?.id) return;
+      if (!employee?.id) {
+        console.log("EmployeePortalSidebar - No employee ID available");
+        setLoadingEmployeeType(false);
+        return;
+      }
 
       try {
-        const { data, error } = await supabase
-          .from("employees")
-          .select("employee_type, position")
-          .eq("id", employee.id)
-          .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
+        console.log("EmployeePortalSidebar - Fetching employee info via RPC:", {
+          uuid: employee.id,
+          employeeId: employee.employee_id,
+        });
+        
+        // Use RPC function to bypass RLS (same approach as get_employee_profile)
+        const { data, error } = await supabase.rpc("get_employee_type_and_position", {
+          p_employee_uuid: employee.id,
+        } as any);
 
-        if (!error && data) {
-          const isClientBasedAccountSupervisor =
-            data.employee_type === "client-based" ||
-            (data.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
-          setIsAccountSupervisor(isClientBasedAccountSupervisor);
+        if (error) {
+          console.error("EmployeePortalSidebar - Error fetching employee via RPC:", {
+            error,
+            uuid: employee.id,
+            employeeId: employee.employee_id,
+            errorCode: error.code,
+            errorMessage: error.message,
+          });
+          setLoadingEmployeeType(false);
+          return;
         }
+
+        // RPC returns array, get first result
+        const employeeData = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+        if (!employeeData) {
+          console.warn("EmployeePortalSidebar - No employee data returned from RPC");
+          setLoadingEmployeeType(false);
+          return;
+        }
+
+        // Normalize position for comparison (trim and uppercase)
+        const normalizedPosition = (employeeData.position || "").trim().toUpperCase();
+        const hasAccountSupervisor = normalizedPosition.includes("ACCOUNT SUPERVISOR");
+        
+        // Check if employee is client-based AND Account Supervisor
+        const isClientBasedAccountSupervisor =
+          employeeData.employee_type === "client-based" && hasAccountSupervisor;
+        
+        console.log("EmployeePortalSidebar - Employee check:", {
+          employeeId: employee.id,
+          employeeIdFromSession: employee.employee_id,
+          employeeName: employeeData.full_name,
+          employeeType: employeeData.employee_type,
+          position: employeeData.position,
+          normalizedPosition,
+          hasAccountSupervisor,
+          isClientBasedAccountSupervisor,
+        });
+        
+        setIsAccountSupervisor(isClientBasedAccountSupervisor);
       } catch (err) {
-        console.error("Failed to fetch employee info:", err);
+        console.error("EmployeePortalSidebar - Exception fetching employee info:", err);
       } finally {
         setLoadingEmployeeType(false);
       }
     };
 
     fetchEmployeeInfo();
-  }, [employee?.id, supabase]);
+  }, [employee?.id, employee?.employee_id, supabase]);
 
-  const navGroups = useMemo(() => getNavGroups(isAccountSupervisor), [isAccountSupervisor]);
+  const navGroups = useMemo(() => {
+    console.log("EmployeePortalSidebar - Rendering nav groups, isAccountSupervisor:", isAccountSupervisor);
+    return getNavGroups(isAccountSupervisor);
+  }, [isAccountSupervisor]);
 
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
     // Initialize with default open groups - use a stable set of groups

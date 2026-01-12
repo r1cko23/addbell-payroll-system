@@ -55,10 +55,10 @@ export default function SchedulePage() {
   // Locked if the selected week is already past Monday (today > Monday of that week)
   const isLocked = today.getTime() > weekMonday.getTime();
 
-  // Check if employee is client-based Account Supervisor
+  // Check if employee is client-based AND Account Supervisor
   const isClientBasedAccountSupervisor =
-    (employeeType === "client-based" ||
-     (employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false));
+    employeeType === "client-based" &&
+    (employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
@@ -78,9 +78,9 @@ export default function SchedulePage() {
         setEmployeeType(data.employee_type);
         setEmployeePosition(data.position);
 
-        // Check if employee is client-based Account Supervisor
+        // Check if employee is client-based AND Account Supervisor
         const isClientBasedAccountSupervisor =
-          data.employee_type === "client-based" ||
+          data.employee_type === "client-based" &&
           (data.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
 
         // Redirect if not an Account Supervisor

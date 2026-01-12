@@ -415,25 +415,16 @@ export default function LeaveRequestPage() {
 
     setSubmitting(true);
 
-    const payload = {
-      employee_id: employee.id,
-      leave_type: leaveType,
-      start_date: startDate,
-      end_date: endDate,
-      selected_dates: selectedDates.length > 0 ? selectedDates : null,
-      total_days: calculatedDays, // Can be decimal (0.5 for half-day)
-      total_hours: 0,
-      reason: reason.trim(),
-      status: "pending",
-      half_day_dates: Array.from(halfDayDates), // Store half-day dates as JSON array
-    };
-
-    const { data: inserted, error } = await (
-      supabase.from("leave_requests") as any
-    )
-      .insert(payload)
-      .select()
-      .single();
+    // Use RPC function to bypass RLS issues with anonymous users
+    const { data: inserted, error } = await supabase.rpc("create_leave_request", {
+      p_employee_id: employee.id,
+      p_leave_type: leaveType,
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_total_days: calculatedDays,
+      p_selected_dates: selectedDates.length > 0 ? selectedDates : null,
+      p_reason: reason.trim() || null,
+    } as any);
 
     if (error || !inserted) {
       setSubmitting(false);

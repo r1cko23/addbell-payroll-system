@@ -39,6 +39,14 @@ export default function SchedulePage() {
   const supabase = createClient();
   const { employee } = useEmployeeSession();
   const router = useRouter();
+
+  // Safety check - redirect if employee is not available
+  useEffect(() => {
+    if (!employee?.id) {
+      router.push("/employee-portal/bundy");
+      return;
+    }
+  }, [employee?.id, router]);
   // Default to next week (Mon) but allow selecting any week (snaps to Monday)
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(addDays(new Date(), 7), { weekStartsOn: 1 })
@@ -66,22 +74,58 @@ export default function SchedulePage() {
 
   // Fetch employee type and position and check access
   useEffect(() => {
+    if (!employee?.id) {
+      setCheckingAccess(false);
+      return;
+    }
+
     const fetchEmployeeInfo = async () => {
       setCheckingAccess(true);
-      const { data, error } = await supabase
-        .from("employees")
-        .select("employee_type, position")
-        .eq("id", employee.id)
-        .single<{ employee_type: "office-based" | "client-based" | null; position: string | null }>();
+      try {
+        // Use RPC function to bypass RLS (same approach as sidebar and other pages)
+        const { data, error } = await supabase.rpc("get_employee_type_and_position", {
+          p_employee_uuid: employee.id,
+        } as any);
 
-      if (!error && data) {
-        setEmployeeType(data.employee_type);
-        setEmployeePosition(data.position);
+        if (error) {
+          console.error("Error fetching employee info:", error);
+          let errorMessage = "Unknown error";
+          
+          if (error.code === "PGRST116") {
+            errorMessage = "Employee not found";
+          } else if (error.message?.includes("Cannot coerce")) {
+            errorMessage = "Invalid response format from server";
+          } else if (error.message?.includes("406") || error.code === "406") {
+            errorMessage = "Access denied. Please contact your administrator.";
+          } else {
+            errorMessage = error.message || "Unknown error";
+          }
+          
+          toast.error(`Unable to verify access: ${errorMessage}. Redirecting...`);
+          router.push("/employee-portal/bundy");
+          return;
+        }
+
+        // RPC returns an array, get first result
+        const employeeData = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+        if (!employeeData) {
+          console.error("Employee data not found");
+          toast.error("Unable to verify access: Employee not found. Redirecting...");
+          router.push("/employee-portal/bundy");
+          return;
+        }
+
+        const employeeTypeValue = employeeData.employee_type as "office-based" | "client-based" | null;
+        const positionValue = employeeData.position as string | null;
+
+        setEmployeeType(employeeTypeValue);
+        setEmployeePosition(positionValue);
 
         // Check if employee is client-based AND Account Supervisor
         const isClientBasedAccountSupervisor =
-          data.employee_type === "client-based" &&
-          (data.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
+          employeeTypeValue === "client-based" &&
+          (positionValue?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false);
 
         // Redirect if not an Account Supervisor
         if (!isClientBasedAccountSupervisor) {
@@ -89,29 +133,38 @@ export default function SchedulePage() {
           router.push("/employee-portal/bundy");
           return;
         }
-      } else {
-        // If error fetching, redirect to be safe
-        toast.error("Unable to verify access. Redirecting...");
+      } catch (err: any) {
+        console.error("Error fetching employee info:", err);
+        toast.error(`Unable to verify access: ${err?.message || "Unknown error"}. Redirecting...`);
         router.push("/employee-portal/bundy");
         return;
+      } finally {
+        setCheckingAccess(false);
       }
-
-      setCheckingAccess(false);
     };
     fetchEmployeeInfo();
-  }, [employee.id, supabase, router]);
+  }, [employee?.id, supabase, router]);
 
   useEffect(() => {
+    if (!employee?.id) {
+      return;
+    }
+
     const loadWeek = async () => {
       setLoading(true);
-      const monday = startOfWeek(weekStart, { weekStartsOn: 1 });
-      const { data, error } = await supabase.rpc("get_my_week_schedule", {
-        p_employee_id: employee.id,
-        p_week_start: format(monday, "yyyy-MM-dd"),
-      } as any);
-      if (error) {
-        console.error("Failed to load week schedule", error);
-      } else {
+      try {
+        const monday = startOfWeek(weekStart, { weekStartsOn: 1 });
+        const { data, error } = await supabase.rpc("get_my_week_schedule", {
+          p_employee_id: employee.id,
+          p_week_start: format(monday, "yyyy-MM-dd"),
+        } as any);
+        
+        if (error) {
+          console.error("Failed to load week schedule", error);
+          toast.error(`Failed to load schedule: ${error.message || "Unknown error"}`);
+          return;
+        }
+
         const scheduleData = data as Array<{
           schedule_date: string;
           start_time: string | null;
@@ -135,11 +188,15 @@ export default function SchedulePage() {
             };
           })
         );
+      } catch (err: any) {
+        console.error("Error loading week schedule:", err);
+        toast.error(`Failed to load schedule: ${err?.message || "Unknown error"}`);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     loadWeek();
-  }, [employee.id, supabase, weekDays, weekStart]);
+  }, [employee?.id, supabase, weekDays, weekStart]);
 
   // Helper function to validate time range for a day
   const isValidTimeRange = (day: DayEntry): boolean => {
@@ -203,6 +260,12 @@ export default function SchedulePage() {
   };
 
   const handleSaveWeek = async () => {
+    if (!employee?.id) {
+      toast.error("Employee session not found. Please log in again.");
+      router.push("/login?mode=employee");
+      return;
+    }
+
     if (isLocked) {
       toast.error("This week is locked. Edits are only allowed until Monday.");
       return;

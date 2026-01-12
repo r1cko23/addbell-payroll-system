@@ -833,7 +833,7 @@ export default function TimesheetPage() {
       // Get scheduled times
       let schedIn: string | null = null;
       let schedOut: string | null = null;
-      if (schedule) {
+      if (schedule && schedule.start_time && schedule.end_time) {
         try {
           // Handle TIME format (HH:mm:ss) or full timestamp
           const startTimeStr = schedule.start_time.includes("T")
@@ -981,7 +981,7 @@ export default function TimesheetPage() {
       // Calculate UT (Undertime) - only if BH < 8 hours
       // If employee already worked 8 hours (BH >= 8), there's no undertime
       let ut = 0;
-      if (bh < 8 && firstEntry?.clock_out_time && schedule) {
+      if (bh < 8 && firstEntry?.clock_out_time && schedule && schedule.end_time) {
         try {
           const endTimeStr = schedule.end_time.includes("T")
             ? schedule.end_time.split("T")[1].split(".")[0]

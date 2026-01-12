@@ -268,10 +268,18 @@ export default function BundyClockPage() {
           .from("employees")
           .select("position, employee_type")
           .eq("id", employee.id)
-          .single();
-        if (!error && data) {
-          setEmployeePosition((data as { position: string | null }).position);
-          setEmployeeType((data as { employee_type: string | null }).employee_type);
+          .maybeSingle<{ position: string | null; employee_type: string | null }>();
+        
+        if (error) {
+          console.error("Failed to fetch employee info:", error);
+          // Don't show toast here as this is a background fetch
+          // The schedule page will handle its own errors
+          return;
+        }
+
+        if (data) {
+          setEmployeePosition(data.position);
+          setEmployeeType(data.employee_type);
 
           // Check if today is a rest day
           const today = new Date();
@@ -1291,7 +1299,7 @@ export default function BundyClockPage() {
 
         let schedIn: string | null = null;
         let schedOut: string | null = null;
-        if (schedule) {
+        if (schedule && schedule.start_time && schedule.end_time) {
           try {
             const startTimeStr = schedule.start_time.includes("T")
               ? schedule.start_time.split("T")[1].split(".")[0]
@@ -1351,7 +1359,7 @@ export default function BundyClockPage() {
         // Calculate UT (Undertime) - only if BH < 8 hours
         // If employee already worked 8 hours (BH >= 8), there's no undertime
         let ut = 0;
-        if (bh < 8 && firstEntry?.clock_out_time && schedule) {
+        if (bh < 8 && firstEntry?.clock_out_time && schedule && schedule.end_time) {
           try {
             const endTimeStr = schedule.end_time.includes("T")
               ? schedule.end_time.split("T")[1].split(".")[0]
@@ -1559,7 +1567,7 @@ export default function BundyClockPage() {
           .from("time_clock_entries")
           .select("*")
           .eq("id", entryId)
-          .single();
+          .maybeSingle();
 
         // Update device/IP details (best effort)
         await (supabase.from("time_clock_entries") as any)

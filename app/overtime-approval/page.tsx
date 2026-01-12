@@ -192,51 +192,112 @@ export default function OvertimeApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups:
+    // Filter by assigned groups AND individual approver assignments:
     // - Admin: See all (no filtering)
     // - HR: Always see all (bypass group filtering, even if assigned to groups)
-    // - Approver/Viewer: Filter by assigned groups only
+    // - Approver/Viewer: Filter by assigned groups AND individual employee assignments
     let filteredData = data;
-    if (!isAdmin && !isHR && assignedGroupIds.length > 0 && data) {
-      // Only approver/viewer users filter by groups (HR always sees all)
-      console.log("Filtering requests for approver/viewer:", {
-        totalRequests: data.length,
-        assignedGroupIds: assignedGroupIds,
-        isAdmin: isAdmin,
-        isHR: isHR,
-      });
+    if (!isAdmin && !isHR && data) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      filteredData = data.filter((req: any) => {
-        // Handle both array and object formats for employees relationship
-        let employeeGroupId = null;
-        let employeeName = "Unknown";
+      if (!user) {
+        filteredData = [];
+      } else {
+        // Get employee IDs where user is assigned as individual approver or viewer
+        const { data: individualEmployees } = await supabase
+          .from("employees")
+          .select("id")
+          .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
 
-        if (Array.isArray(req.employees)) {
-          employeeGroupId = req.employees[0]?.overtime_group_id;
-          employeeName = req.employees[0]?.full_name || "Unknown";
-        } else if (req.employees) {
-          employeeGroupId = req.employees.overtime_group_id;
-          employeeName = req.employees.full_name || "Unknown";
-        }
+        const individualEmployeeIds = new Set(
+          (individualEmployees || []).map((e) => e.id)
+        );
 
-        const matches = employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+        console.log("Filtering requests for approver/viewer:", {
+          totalRequests: data.length,
+          assignedGroupIds: assignedGroupIds,
+          individualEmployeeIds: Array.from(individualEmployeeIds),
+          isAdmin: isAdmin,
+          isHR: isHR,
+        });
 
-        if (!matches) {
-          console.log(`Filtered out: ${employeeName} (group: ${employeeGroupId || "NULL"})`);
-        }
+        filteredData = data.filter((req: any) => {
+          // Handle both array and object formats for employees relationship
+          let employeeGroupId = null;
+          let employeeId = null;
+          let employeeName = "Unknown";
 
-        return matches;
-      });
+          if (Array.isArray(req.employees)) {
+            employeeGroupId = req.employees[0]?.overtime_group_id;
+            employeeId = req.employees[0]?.id;
+            employeeName = req.employees[0]?.full_name || "Unknown";
+          } else if (req.employees) {
+            employeeGroupId = req.employees.overtime_group_id;
+            employeeId = req.employees.id;
+            employeeName = req.employees.full_name || "Unknown";
+          }
 
-      console.log("Filtered requests:", {
-        before: data.length,
-        after: filteredData.length,
-        filteredOut: data.length - filteredData.length,
-      });
+          // Check if employee is in assigned groups OR has user as individual approver/viewer
+          const matchesGroup =
+            employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+          const matchesIndividual =
+            employeeId && individualEmployeeIds.has(employeeId);
+
+          const matches = matchesGroup || matchesIndividual;
+
+          if (!matches) {
+            console.log(
+              `Filtered out: ${employeeName} (group: ${employeeGroupId || "NULL"}, individual: ${matchesIndividual})`
+            );
+          }
+
+          return matches;
+        });
+
+        console.log("Filtered requests:", {
+          before: data.length,
+          after: filteredData.length,
+          filteredOut: data.length - filteredData.length,
+        });
+      }
     } else if (!isAdmin && !isHR && assignedGroupIds.length === 0) {
-      // Approver/viewer with no assigned groups see nothing
-      console.warn("Approver/viewer has no assigned groups - showing no requests");
-      filteredData = [];
+      // Check if user has individual assignments
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: individualEmployees } = await supabase
+          .from("employees")
+          .select("id")
+          .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
+
+        if (!individualEmployees || individualEmployees.length === 0) {
+          // Approver/viewer with no assigned groups and no individual assignments see nothing
+          console.warn(
+            "Approver/viewer has no assigned groups or individual assignments - showing no requests"
+          );
+          filteredData = [];
+        } else {
+          // Filter by individual assignments only
+          const individualEmployeeIds = new Set(
+            individualEmployees.map((e) => e.id)
+          );
+          filteredData = data.filter((req: any) => {
+            let employeeId = null;
+            if (Array.isArray(req.employees)) {
+              employeeId = req.employees[0]?.id;
+            } else if (req.employees) {
+              employeeId = req.employees.id;
+            }
+            return employeeId && individualEmployeeIds.has(employeeId);
+          });
+        }
+      } else {
+        filteredData = [];
+      }
     }
     // Admin and HR always see all (filteredData remains as data)
 
@@ -280,18 +341,71 @@ export default function OvertimeApprovalPage() {
   }, [assignedGroupIds, groupsLoading, isAdmin]);
 
   async function loadEmployees() {
-    let query = supabase
-      .from("employees")
-      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-      .order("last_name", { ascending: true, nullsFirst: false })
-      .order("first_name", { ascending: true, nullsFirst: false });
+    // Admin and HR see all employees
+    if (isAdmin || isHR) {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
-    // Filter by assigned groups if user is approver/viewer (not admin or HR)
-    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
-      query = query.in("overtime_group_id", assignedGroupIds);
+      if (error) {
+        console.error("Failed to load employees", error);
+        return;
+      }
+
+      setEmployees(data || []);
+      return;
     }
 
-    const { data, error } = await query;
+    // For approvers/viewers: get employees from assigned groups AND individual assignments
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setEmployees([]);
+      return;
+    }
+
+    // Get employees from assigned groups
+    let groupEmployeeIds: string[] = [];
+    if (assignedGroupIds.length > 0) {
+      const { data: groupEmployees, error: groupError } = await supabase
+        .from("employees")
+        .select("id")
+        .in("overtime_group_id", assignedGroupIds);
+
+      if (!groupError && groupEmployees) {
+        groupEmployeeIds = groupEmployees.map((e) => e.id);
+      }
+    }
+
+    // Get employees where user is assigned as individual approver or viewer
+    const { data: individualEmployees, error: individualError } = await supabase
+      .from("employees")
+      .select("id")
+      .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
+
+    const individualEmployeeIds = (individualEmployees || []).map((e) => e.id);
+
+    // Combine and deduplicate employee IDs
+    const allEmployeeIds = Array.from(
+      new Set([...groupEmployeeIds, ...individualEmployeeIds])
+    );
+
+    if (allEmployeeIds.length === 0) {
+      setEmployees([]);
+      return;
+    }
+
+    // Fetch full employee data
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
+      .in("id", allEmployeeIds)
+      .order("last_name", { ascending: true, nullsFirst: false })
+      .order("first_name", { ascending: true, nullsFirst: false });
 
     if (error) {
       console.error("Failed to load employees", error);

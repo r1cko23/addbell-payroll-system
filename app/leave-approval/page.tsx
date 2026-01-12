@@ -146,18 +146,71 @@ export default function LeaveApprovalPage() {
   }, [assignedGroupIds, groupsLoading, isAdmin]);
 
   async function loadEmployees() {
-    let query = supabase
-      .from("employees")
-      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-      .order("last_name", { ascending: true, nullsFirst: false })
-      .order("first_name", { ascending: true, nullsFirst: false });
+    // Admin and HR see all employees
+    if (isAdmin || isHR) {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
 
-    // Filter by assigned groups if user is approver/viewer (not admin or HR)
-    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
-      query = query.in("overtime_group_id", assignedGroupIds);
+      if (error) {
+        console.error("Failed to load employees", error);
+        return;
+      }
+
+      setEmployees(data || []);
+      return;
     }
 
-    const { data, error } = await query;
+    // For approvers/viewers: get employees from assigned groups AND individual assignments
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setEmployees([]);
+      return;
+    }
+
+    // Get employees from assigned groups
+    let groupEmployeeIds: string[] = [];
+    if (assignedGroupIds.length > 0) {
+      const { data: groupEmployees, error: groupError } = await supabase
+        .from("employees")
+        .select("id")
+        .in("overtime_group_id", assignedGroupIds);
+
+      if (!groupError && groupEmployees) {
+        groupEmployeeIds = groupEmployees.map((e) => e.id);
+      }
+    }
+
+    // Get employees where user is assigned as individual approver or viewer
+    const { data: individualEmployees, error: individualError } = await supabase
+      .from("employees")
+      .select("id")
+      .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
+
+    const individualEmployeeIds = (individualEmployees || []).map((e) => e.id);
+
+    // Combine and deduplicate employee IDs
+    const allEmployeeIds = Array.from(
+      new Set([...groupEmployeeIds, ...individualEmployeeIds])
+    );
+
+    if (allEmployeeIds.length === 0) {
+      setEmployees([]);
+      return;
+    }
+
+    // Fetch full employee data
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
+      .in("id", allEmployeeIds)
+      .order("last_name", { ascending: true, nullsFirst: false })
+      .order("first_name", { ascending: true, nullsFirst: false });
 
     if (error) {
       console.error("Failed to load employees", error);
@@ -287,26 +340,49 @@ export default function LeaveApprovalPage() {
     // - HR: Always see all (bypass group filtering, even if assigned to groups)
     // - Approver/Viewer: Filter by assigned groups only
     let filteredData = data;
-    if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
-      // Only approver/viewer users filter by groups (HR always sees all)
-      // Need to fetch employee group IDs for filtering
-      const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
-      const { data: employeesData } = await supabase
-        .from("employees")
-        .select("id, overtime_group_id")
-        .in("id", employeeIds);
+    if (!isAdmin && !isHR) {
+      // Only approver/viewer users filter by groups AND individual assignments
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-      const employeeGroupMap = new Map(
-        (employeesData || []).map((emp: any) => [emp.id, emp.overtime_group_id])
-      );
+      if (user) {
+        // Get employee IDs where user is assigned as individual approver or viewer
+        const { data: individualEmployees } = await supabase
+          .from("employees")
+          .select("id")
+          .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
 
-      filteredData = data.filter((req: any) => {
-        const employeeGroupId = employeeGroupMap.get(req.employee_id);
-        return employeeGroupId && assignedGroupIds.includes(employeeGroupId);
-      });
-    } else if (!isAdmin && !isHR && assignedGroupIds.length === 0) {
-      // Approver/viewer with no assigned groups see nothing
-      filteredData = [];
+        const individualEmployeeIds = new Set(
+          (individualEmployees || []).map((e) => e.id)
+        );
+
+        // Need to fetch employee group IDs and individual assignments for filtering
+        const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
+        const { data: employeesData } = await supabase
+          .from("employees")
+          .select("id, overtime_group_id, overtime_approver_id, overtime_viewer_id")
+          .in("id", employeeIds);
+
+        const employeeGroupMap = new Map(
+          (employeesData || []).map((emp: any) => [emp.id, emp.overtime_group_id])
+        );
+
+        filteredData = data.filter((req: any) => {
+          const employeeGroupId = employeeGroupMap.get(req.employee_id);
+          const employeeId = req.employee_id;
+          
+          // Check if employee is in assigned groups OR has user as individual approver/viewer
+          const matchesGroup =
+            employeeGroupId && assignedGroupIds.includes(employeeGroupId);
+          const matchesIndividual =
+            employeeId && individualEmployeeIds.has(employeeId);
+
+          return matchesGroup || matchesIndividual;
+        });
+      } else {
+        filteredData = [];
+      }
     }
     // Admin and HR always see all (filteredData remains as data)
 
@@ -619,6 +695,12 @@ export default function LeaveApprovalPage() {
 
   const normalizedRole = userRole?.trim().toLowerCase() || "";
 
+  // This useEffect must be called before any conditional returns (React hooks rule)
+  useEffect(() => {
+    if (!normalizedRole || groupsLoading) return;
+    fetchRequests();
+  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+
   // Show loading state while checking role
   if (roleLoading) {
     return (
@@ -646,11 +728,6 @@ export default function LeaveApprovalPage() {
       </DashboardLayout>
     );
   }
-
-  useEffect(() => {
-    if (!normalizedRole || groupsLoading) return;
-    fetchRequests();
-  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   const stats = {
     total: requests.length,

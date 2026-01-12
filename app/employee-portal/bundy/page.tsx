@@ -269,7 +269,7 @@ export default function BundyClockPage() {
           .select("position, employee_type")
           .eq("id", employee.id)
           .maybeSingle<{ position: string | null; employee_type: string | null }>();
-        
+
         if (error) {
           console.error("Failed to fetch employee info:", error);
           // Don't show toast here as this is a background fetch

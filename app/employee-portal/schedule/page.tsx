@@ -90,7 +90,7 @@ export default function SchedulePage() {
         if (error) {
           console.error("Error fetching employee info:", error);
           let errorMessage = "Unknown error";
-          
+
           if (error.code === "PGRST116") {
             errorMessage = "Employee not found";
           } else if (error.message?.includes("Cannot coerce")) {
@@ -100,7 +100,7 @@ export default function SchedulePage() {
           } else {
             errorMessage = error.message || "Unknown error";
           }
-          
+
           toast.error(`Unable to verify access: ${errorMessage}. Redirecting...`);
           router.push("/employee-portal/bundy");
           return;
@@ -158,7 +158,7 @@ export default function SchedulePage() {
           p_employee_id: employee.id,
           p_week_start: format(monday, "yyyy-MM-dd"),
         } as any);
-        
+
         if (error) {
           console.error("Failed to load week schedule", error);
           toast.error(`Failed to load schedule: ${error.message || "Unknown error"}`);

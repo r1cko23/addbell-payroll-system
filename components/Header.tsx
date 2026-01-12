@@ -130,7 +130,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     // Clear session cache on logout
     const { clearSessionCache } = await import("@/lib/session-utils");
     clearSessionCache();
-    
+
     // Clear current user cache
     const { clearCurrentUserCache } = await import("@/lib/hooks/useCurrentUser");
     clearCurrentUserCache();

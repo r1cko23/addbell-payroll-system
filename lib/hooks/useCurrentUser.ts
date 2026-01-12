@@ -1,7 +1,7 @@
 /**
  * Optimized hook to fetch current user data using /api/auth/me endpoint
  * This combines auth.getUser() and users table query into a single server-side call
- * 
+ *
  * PERFORMANCE BENEFITS:
  * - Single API call instead of sequential client-side calls
  * - Server-side execution is faster

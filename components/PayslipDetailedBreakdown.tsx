@@ -1284,7 +1284,7 @@ function PayslipDetailedBreakdownComponent({
           earningsOT.lhOnRDOT.amount +
           earningsOT.restDayOT.amount +
           earningsOT.regularNightdiffOT.amount);
-    
+
     // Round all breakdown amounts to 2 decimals before summing
     const roundTo2Decimals = (val: number) => Math.round(val * 100) / 100;
     const roundedBreakdown = {
@@ -1292,7 +1292,7 @@ function PayslipDetailedBreakdownComponent({
       restDay: roundTo2Decimals(breakdown.restDay.amount),
       restDayNightDiff: roundTo2Decimals(breakdown.restDayNightDiff.amount),
     };
-    
+
     const roundedOtherPay = isClientBased || isEligibleForAllowances ? {
       regularOT: roundTo2Decimals(otherPay.regularOT.amount),
       legalHolidayOT: roundTo2Decimals(otherPay.legalHolidayOT.amount),
@@ -1310,7 +1310,7 @@ function PayslipDetailedBreakdownComponent({
       specialHolidayOnRestDayAllowance: roundTo2Decimals(otherPay.specialHolidayOnRestDayAllowance.amount),
       legalHolidayOnRestDayAllowance: roundTo2Decimals(otherPay.legalHolidayOnRestDayAllowance.amount),
     } : null;
-    
+
     const roundedEarningsOT = !(isClientBased || isEligibleForAllowances) ? {
       regularOvertime: roundTo2Decimals(earningsOT.regularOvertime.amount),
       legalHolidayOT: roundTo2Decimals(earningsOT.legalHolidayOT.amount),
@@ -1322,7 +1322,7 @@ function PayslipDetailedBreakdownComponent({
       restDayOT: roundTo2Decimals(earningsOT.restDayOT.amount),
       regularNightdiffOT: roundTo2Decimals(earningsOT.regularNightdiffOT.amount),
     } : null;
-    
+
     // Calculate total gross pay using rounded values
     const totalGrossPayUnroundedRounded = basicSalary +
       roundedBreakdown.nightDifferential +

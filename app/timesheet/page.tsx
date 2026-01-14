@@ -866,9 +866,9 @@ export default function TimesheetPage() {
       if (dayOTs.length > 0) {
         // Sum all approved OT hours for this date
         // Filter to only approved requests (status = "approved", "approved_by_manager", or "approved_by_hr")
-        const approvedOTs = dayOTs.filter(ot => 
-          ot.status === "approved" || 
-          ot.status === "approved_by_manager" || 
+        const approvedOTs = dayOTs.filter(ot =>
+          ot.status === "approved" ||
+          ot.status === "approved_by_manager" ||
           ot.status === "approved_by_hr"
         );
         otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
@@ -885,9 +885,9 @@ export default function TimesheetPage() {
       if (!isAccountSupervisor && dayOTs.length > 0) {
         // Calculate ND from each approved OT request's start_time and end_time
         // Only process approved OT requests
-        const approvedOTs = dayOTs.filter(ot => 
-          ot.status === "approved" || 
-          ot.status === "approved_by_manager" || 
+        const approvedOTs = dayOTs.filter(ot =>
+          ot.status === "approved" ||
+          ot.status === "approved_by_manager" ||
           ot.status === "approved_by_hr"
         );
         approvedOTs.forEach((ot) => {
@@ -1418,7 +1418,7 @@ export default function TimesheetPage() {
                   const lastName = emp.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
                   const firstName = emp.first_name || (nameParts.length > 0 ? nameParts[0] : "");
                   const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                  const displayName = lastName && firstName 
+                  const displayName = lastName && firstName
                     ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
                     : emp.full_name || "";
                   return (

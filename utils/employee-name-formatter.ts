@@ -21,13 +21,13 @@ export function formatEmployeeNameForDisplay(
   // If we have separate name fields, use them for more accurate formatting
   if (lastName && firstName) {
     const parts: string[] = [];
-    
+
     // Add last name first
     parts.push(lastName.trim().toUpperCase());
-    
+
     // Add first name
     parts.push(firstName.trim().toUpperCase());
-    
+
     // Add middle initial if available
     if (middleInitial) {
       parts.push(middleInitial.trim().toUpperCase());
@@ -40,29 +40,29 @@ export function formatEmployeeNameForDisplay(
         parts.push(...middleParts.map(p => p.toUpperCase()));
       }
     }
-    
+
     return parts.join(" ");
   }
 
   // Fallback: Parse from full name string
   const nameParts = fullName.trim().split(/\s+/);
-  
+
   if (nameParts.length === 0) return fullName;
   if (nameParts.length === 1) return nameParts[0].toUpperCase();
-  
+
   // Last name is the last part
   const lastNamePart = nameParts[nameParts.length - 1];
   // First name is the first part
   const firstNamePart = nameParts[0];
   // Middle parts are everything in between
   const middleParts = nameParts.slice(1, -1);
-  
+
   const parts: string[] = [
     lastNamePart.toUpperCase(),
     firstNamePart.toUpperCase(),
     ...middleParts.map(p => p.toUpperCase())
   ];
-  
+
   return parts.join(" ");
 }
 
@@ -88,6 +88,6 @@ export function formatEmployeeNameWithId(
     firstName,
     middleInitial
   );
-  
+
   return `${formattedName} (${employeeId})`;
 }

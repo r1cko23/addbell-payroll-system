@@ -198,7 +198,7 @@ export default function TimeEntriesPage() {
     // Get employee info if available
     let isRestDay: boolean | undefined = undefined;
     let isClientBased = false;
-    
+
     if (employeeId) {
       const empInfo = employeeInfoMap.get(employeeId);
       if (empInfo) {
@@ -497,7 +497,7 @@ export default function TimeEntriesPage() {
         .map(emp => emp.id);
 
       const restDaysMap = new Map<string, Map<string, boolean>>();
-      
+
       if (clientBasedEmployeeIds.length > 0) {
         // Get date range from entries
         const dates = new Set<string>();
@@ -914,7 +914,7 @@ export default function TimeEntriesPage() {
                     const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
                     const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
                     const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                    const displayName = lastName && firstName 
+                    const displayName = lastName && firstName
                       ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
                       : employee.full_name || "";
                     return (

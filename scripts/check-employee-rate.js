@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Check Employee Rate
- * 
+ *
  * Checks an employee's current daily rate and job level
  */
 
@@ -26,7 +26,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 
 async function checkEmployeeRate() {
   const employeeId = process.argv[2] || '23318'; // Default to Shyna's employee ID
-  
+
   console.log("================================================================================");
   console.log("CHECKING EMPLOYEE RATE");
   console.log("================================================================================");
@@ -59,7 +59,7 @@ async function checkEmployeeRate() {
   console.log("Rate Information:");
   console.log(`  Monthly Rate: ${employee.monthly_rate ? `₱${employee.monthly_rate.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'N/A'}`);
   console.log(`  Daily Rate (per_day): ${employee.per_day ? `₱${employee.per_day.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'N/A'}`);
-  
+
   if (employee.per_day) {
     const hourlyRate = employee.per_day / 8;
     console.log(`  Hourly Rate (calculated): ₱${hourlyRate.toLocaleString('en-US', {minimumFractionDigits: 3, maximumFractionDigits: 3})}`);
@@ -73,7 +73,7 @@ async function checkEmployeeRate() {
   }
 
   console.log("");
-  
+
   // Check if job level matches rate
   if (employee.job_level && employee.job_level.toUpperCase() === 'SUPERVISORY') {
     console.log("⚠️  WARNING: Employee has SUPERVISORY job level");

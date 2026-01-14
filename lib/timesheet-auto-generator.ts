@@ -155,9 +155,6 @@ export function generateTimesheetFromClockEntries(
         // Note: OT hours from clock entries are already set from approved OT requests in payslip
         // But we still add them here for consistency
         if (eligibleForOT) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:157',message:'Adding OT from clock entry',data:{dateStr,entryId:entry.id,entryOTHours,beforeOTHours:overtimeHours,afterOTHours:overtimeHours+entryOTHours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
           overtimeHours += entryOTHours;
         }
         // Only count night differential if employee is eligible (Account Supervisors have flexi time, so no night diff)
@@ -173,30 +170,18 @@ export function generateTimesheetFromClockEntries(
     // But if there are no clock entries for a date, we need to add OT hours here
     if (eligibleForOT && approvedOTByDate) {
       const otFromRequest = approvedOTByDate.get(dateStr) || 0;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:171',message:'Checking approved OT requests',data:{dateStr,otFromRequest,dayEntriesCount:dayEntries.length,otFromClockEntries:overtimeHours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       if (otFromRequest > 0) {
         // If there are no clock entries, add OT hours from approved requests
         // If there are clock entries, they already have OT hours mapped (don't double-count)
         if (dayEntries.length === 0) {
           overtimeHours = otFromRequest;
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:176',message:'OT from request (no entries)',data:{dateStr,otFromRequest,finalOTHours:overtimeHours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
         } else {
           // Clock entries already have OT hours from approved requests (mapped in payslip)
           // But ensure we're using the approved request hours (they're the source of truth)
           // IMPORTANT: Clock entries should have overtime_hours = 0 (reset in payslip mapping)
           // So we should ONLY use otFromRequest, not sum them
           const otFromClockEntries = overtimeHours;
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:183',message:'OT max calculation',data:{dateStr,otFromClockEntries,otFromRequest,beforeMax:overtimeHours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
           overtimeHours = Math.max(otFromClockEntries, otFromRequest);
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:185',message:'OT max result',data:{dateStr,finalOTHours:overtimeHours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
         }
       }
     }
@@ -368,9 +353,6 @@ export function generateTimesheetFromClockEntries(
     }
 
     // Floor down hours (round down to full hours only, matching database trigger)
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:376',message:'Pushing attendance day',data:{dateStr,dayType,regularHours,overtimeHours,nightDiffHours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-    // #endregion
     attendance_data.push({
       date: dateStr,
       dayType: dayType as any,
@@ -394,11 +376,6 @@ export function generateTimesheetFromClockEntries(
   const total_night_diff_hours = Math.floor(
     attendance_data.reduce((sum, day) => sum + day.nightDiffHours, 0)
   );
-  // #region agent log
-  const datesWithOT = attendance_data.filter(d => d.overtimeHours > 0);
-  const duplicateDates = Array.from(new Set(datesWithOT.map(d=>d.date))).filter(date=>datesWithOT.filter(d=>d.date===date).length>1);
-  fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'timesheet-auto-generator.ts:395',message:'Generator completed',data:{totalDays:attendance_data.length,totalOTHours:total_overtime_hours,datesWithOT:datesWithOT.map(d=>({date:d.date,overtimeHours:d.overtimeHours})),duplicateDates,hasDuplicates:duplicateDates.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-  // #endregion
 
   return {
     attendance_data,

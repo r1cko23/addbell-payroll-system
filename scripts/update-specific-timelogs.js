@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Update Specific Time Logs
- * 
+ *
  * Updates specific employee time entries:
  * - Mae and Xhalcy: Half day, clock out at 13:00
  * - Nicole C.: Clock out at 14:18
@@ -37,7 +37,7 @@ function excelDateToJSDate(serial) {
     const excelEpoch = new Date(1899, 11, 30);
     return new Date(excelEpoch.getTime() + serial * 86400000);
   }
-  
+
   // Correct for day/month/year format issue
   if (dateObj.y === 2026 && dateObj.m === 2) {
     const datePart = Math.floor(serial);
@@ -46,22 +46,22 @@ function excelDateToJSDate(serial) {
     const correctedDateObj = XLSX.SSF.parse_date_code(correctedDateSerial);
     if (correctedDateObj && correctedDateObj.y === 2026 && correctedDateObj.m === 1) {
       return new Date(
-        correctedDateObj.y, 
-        correctedDateObj.m - 1, 
-        correctedDateObj.d, 
-        correctedDateObj.H || 0, 
-        correctedDateObj.M || 0, 
+        correctedDateObj.y,
+        correctedDateObj.m - 1,
+        correctedDateObj.d,
+        correctedDateObj.H || 0,
+        correctedDateObj.M || 0,
         correctedDateObj.S || 0
       );
     }
   }
-  
+
   return new Date(
-    dateObj.y, 
-    dateObj.m - 1, 
-    dateObj.d, 
-    dateObj.H || 0, 
-    dateObj.M || 0, 
+    dateObj.y,
+    dateObj.m - 1,
+    dateObj.d,
+    dateObj.H || 0,
+    dateObj.M || 0,
     dateObj.S || 0
   );
 }
@@ -87,13 +87,13 @@ async function findEmployeeByName(name) {
   }
 
   const normalizedSearch = name.toLowerCase().trim();
-  
+
   // Try exact match first
-  let match = employees.find(emp => 
+  let match = employees.find(emp =>
     emp.full_name.toLowerCase() === normalizedSearch ||
-    (emp.first_name && emp.last_name && 
+    (emp.first_name && emp.last_name &&
      `${emp.first_name} ${emp.last_name}`.toLowerCase() === normalizedSearch) ||
-    (emp.last_name && emp.first_name && 
+    (emp.last_name && emp.first_name &&
      `${emp.last_name}, ${emp.first_name}`.toLowerCase() === normalizedSearch)
   );
 
@@ -227,7 +227,7 @@ async function updateTimeLogs() {
 
     // Find matching update rule
     const normalizedName = employeeName.toLowerCase().trim();
-    const rule = updateRules.find(r => 
+    const rule = updateRules.find(r =>
       r.namePatterns.some(pattern => {
         // Support regex patterns or simple string matching
         if (pattern.includes('.*') || pattern.includes('|')) {
@@ -278,11 +278,11 @@ async function updateTimeLogs() {
 
     if (!existingEntries || existingEntries.length === 0) {
       console.log(`  ⚠️  No entries found for this date`);
-      
+
       // Check if Excel has clock in/out data
       const excelClockIn = clockInTime !== null && clockInTime !== undefined;
       const excelClockOut = clockOutTime !== null && clockOutTime !== undefined;
-      
+
       // For OB employees, create entry if none exists
       if (rule.isOB) {
         // Use Excel clock in if available, otherwise default to 8 AM
@@ -293,11 +293,11 @@ async function updateTimeLogs() {
         } else {
           clockInDate = new Date(dateStr + "T08:00:00+08:00"); // Default 8 AM Manila time
         }
-        
+
         // Clock out is 8 hours after clock in
         const clockOutDate = new Date(clockInDate);
         clockOutDate.setHours(clockInDate.getHours() + rule.fullHours);
-        
+
         if (!dryRun) {
           const { error: insertError } = await supabase
             .from("time_clock_entries")
@@ -337,11 +337,11 @@ async function updateTimeLogs() {
           const manilaTimeStr = `${dateStr}T${String(clockInHours).padStart(2, '0')}:${String(clockOutTimeObj.minutes).padStart(2, '0')}:00+08:00`;
           clockInDate = new Date(manilaTimeStr);
         }
-        
+
         // Set clock out time based on rule (Manila timezone)
         const manilaClockOutStr = `${dateStr}T${String(rule.clockOutTime.hours).padStart(2, '0')}:${String(rule.clockOutTime.minutes).padStart(2, '0')}:00+08:00`;
         const clockOutDate = new Date(manilaClockOutStr);
-        
+
         if (!dryRun) {
           const { error: insertError } = await supabase
             .from("time_clock_entries")
@@ -373,7 +373,7 @@ async function updateTimeLogs() {
     // Update each entry for this date
     for (const entry of existingEntries) {
       const clockInDate = new Date(entry.clock_in_time);
-      
+
       if (rule.isOB) {
         // OB: Set clock out to 8 hours after clock in (preserve date)
         const clockOutDate = new Date(clockInDate);
@@ -391,8 +391,8 @@ async function updateTimeLogs() {
             .from("time_clock_entries")
             .update({
               clock_out_time: clockOutDate.toISOString(),
-              employee_notes: entry.employee_notes ? 
-                `${entry.employee_notes}; OB - Official Business (8 hours)` : 
+              employee_notes: entry.employee_notes ?
+                `${entry.employee_notes}; OB - Official Business (8 hours)` :
                 "OB - Official Business (8 hours)",
               is_manual_entry: true
             })

@@ -26,7 +26,7 @@ async function checkOTRequests() {
   const employeeId = process.argv[2] || '23318';
   const periodStart = process.argv[3] || '2026-01-01';
   const periodEnd = process.argv[4] || '2026-01-15';
-  
+
   console.log("================================================================================");
   console.log("CHECKING OT REQUESTS");
   console.log("================================================================================");
@@ -68,7 +68,7 @@ async function checkOTRequests() {
   } else {
     console.log(`Found ${otRequests.length} approved OT request(s):\n`);
     let totalOTHours = 0;
-    
+
     otRequests.forEach((ot, idx) => {
       console.log(`${idx + 1}. Date: ${ot.ot_date}`);
       console.log(`   Start Time: ${ot.start_time || 'N/A'}`);
@@ -78,7 +78,7 @@ async function checkOTRequests() {
       console.log("");
       totalOTHours += parseFloat(ot.total_hours || 0);
     });
-    
+
     console.log(`Total OT Hours: ${totalOTHours.toFixed(2)}`);
     console.log("");
     console.log(`Expected OT Allowance (Supervisory):`);

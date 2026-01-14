@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Check Employee Attendance and Payslip
- * 
+ *
  * Checks an employee's time attendance vs payslip rest day calculations
  */
 
@@ -28,7 +28,7 @@ async function checkEmployeeAttendance() {
   const employeeId = process.argv[2] || '23318'; // Default to Shyna's employee ID
   const periodStart = process.argv[3] || '2026-01-01';
   const periodEnd = process.argv[4] || '2026-01-15';
-  
+
   console.log("================================================================================");
   console.log("CHECKING EMPLOYEE ATTENDANCE vs PAYSLIP");
   console.log("================================================================================");
@@ -74,7 +74,7 @@ async function checkEmployeeAttendance() {
       const clockOut = entry.clock_out_time ? new Date(entry.clock_out_time) : null;
       const dayOfWeek = clockIn.toLocaleDateString('en-US', { weekday: 'long' });
       const dateStr = clockIn.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-      
+
       console.log(`${idx + 1}. ${dateStr} (${dayOfWeek})`);
       console.log(`   Clock In: ${clockIn.toLocaleTimeString('en-US', { hour12: true, timeZone: 'Asia/Manila' })}`);
       if (clockOut) {
@@ -111,15 +111,15 @@ async function checkEmployeeAttendance() {
       console.log(`${idx + 1}. Period: ${record.period_start} to ${record.period_end}`);
       console.log(`   Total Regular Hours: ${record.total_regular_hours || 0}`);
       console.log(`   Total OT Hours: ${record.total_overtime_hours || 0}`);
-      
+
       if (record.attendance_data && Array.isArray(record.attendance_data)) {
-        const restDays = record.attendance_data.filter((day) => 
-          day.dayType === 'sunday' || 
+        const restDays = record.attendance_data.filter((day) =>
+          day.dayType === 'sunday' ||
           day.dayType === 'sunday-regular-holiday' ||
           day.dayType === 'sunday-special-holiday' ||
           (day.isRestDay && day.regularHours > 0)
         );
-        
+
         if (restDays.length > 0) {
           console.log(`   Rest Day/Sunday Work Days:`);
           restDays.forEach((day) => {
@@ -156,10 +156,10 @@ async function checkEmployeeAttendance() {
       console.log(`${idx + 1}. Payslip #${payslip.payslip_number}`);
       console.log(`   Period: ${payslip.period_start} to ${payslip.period_end}`);
       console.log(`   Gross Pay: ₱${payslip.gross_pay?.toLocaleString('en-US', {minimumFractionDigits: 2}) || '0.00'}`);
-      
+
       if (payslip.earnings_breakdown) {
         const breakdown = payslip.earnings_breakdown;
-        
+
         // Check for rest day earnings
         if (breakdown.restDay) {
           console.log(`   Rest Day Earnings: ₱${breakdown.restDay.toLocaleString('en-US', {minimumFractionDigits: 2})}`);
@@ -167,16 +167,16 @@ async function checkEmployeeAttendance() {
         if (breakdown.restDayHours) {
           console.log(`   Rest Day Hours: ${breakdown.restDayHours}`);
         }
-        
+
         // Check earnings breakdown table
         if (breakdown.earnings && Array.isArray(breakdown.earnings)) {
-          const restDayEarnings = breakdown.earnings.filter((e) => 
-            e.type === 'rest-day' || 
+          const restDayEarnings = breakdown.earnings.filter((e) =>
+            e.type === 'rest-day' ||
             e.type === 'sunday' ||
             (e.description && e.description.toLowerCase().includes('rest day')) ||
             (e.description && e.description.toLowerCase().includes('sunday'))
           );
-          
+
           if (restDayEarnings.length > 0) {
             console.log(`   Rest Day Items in Earnings Breakdown:`);
             restDayEarnings.forEach((e) => {
@@ -184,14 +184,14 @@ async function checkEmployeeAttendance() {
             });
           }
         }
-        
+
         // Check other pay section
         if (breakdown.otherPay && Array.isArray(breakdown.otherPay)) {
-          const restDayOtherPay = breakdown.otherPay.filter((p) => 
+          const restDayOtherPay = breakdown.otherPay.filter((p) =>
             (p.type && p.type.toLowerCase().includes('rest')) ||
             (p.description && p.description.toLowerCase().includes('rest'))
           );
-          
+
           if (restDayOtherPay.length > 0) {
             console.log(`   Rest Day Items in Other Pay:`);
             restDayOtherPay.forEach((p) => {

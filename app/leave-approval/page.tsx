@@ -948,7 +948,7 @@ export default function LeaveApprovalPage() {
                       const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
                       const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
                       const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                      const displayName = lastName && firstName 
+                      const displayName = lastName && firstName
                         ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
                         : employee.full_name || "";
                       return (

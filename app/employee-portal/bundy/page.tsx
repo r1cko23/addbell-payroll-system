@@ -1332,9 +1332,9 @@ export default function BundyClockPage() {
         let otHours = 0;
         if (dayOTs.length > 0) {
           // Filter to only approved requests (status = "approved", "approved_by_manager", or "approved_by_hr")
-          const approvedOTs = dayOTs.filter(ot => 
-            ot.status === "approved" || 
-            ot.status === "approved_by_manager" || 
+          const approvedOTs = dayOTs.filter(ot =>
+            ot.status === "approved" ||
+            ot.status === "approved_by_manager" ||
             ot.status === "approved_by_hr"
           );
           otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
@@ -1403,9 +1403,9 @@ export default function BundyClockPage() {
         if (!isAccountSupervisor && dayOTs.length > 0) {
           // Calculate ND from each approved OT request's start_time and end_time
           // Only process approved OT requests
-          const approvedOTs = dayOTs.filter(ot => 
-            ot.status === "approved" || 
-            ot.status === "approved_by_manager" || 
+          const approvedOTs = dayOTs.filter(ot =>
+            ot.status === "approved" ||
+            ot.status === "approved_by_manager" ||
             ot.status === "approved_by_hr"
           );
           approvedOTs.forEach((ot) => {

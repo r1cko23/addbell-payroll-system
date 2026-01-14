@@ -371,7 +371,7 @@ describe("Payroll Calculator - Utility Functions", () => {
     expect(getDayTypeLabel("regular-holiday")).toBe("Regular Holiday");
     expect(getDayTypeLabel("sunday-special-holiday")).toBe("Sunday + Special Holiday");
     expect(getDayTypeLabel("sunday-regular-holiday")).toBe("Sunday + Regular Holiday");
-    
+
     // Client-based employees (rest days not necessarily on Sunday)
     expect(getDayTypeLabel("sunday", true)).toBe("Rest Day");
     expect(getDayTypeLabel("sunday-special-holiday", true)).toBe("Rest Day + Special Holiday");

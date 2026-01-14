@@ -603,18 +603,12 @@ function PayslipDetailedBreakdownComponent({
           ? parseFloat(overtimeHours)
           : overtimeHours || 0;
       if (dayType === "regular" && otHours > 0) {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PayslipDetailedBreakdown.tsx:605',message:'Processing regular OT',data:{date,dayType,otHours,isClientBased,isEligibleForAllowances,beforeHours:otherPay.regularOT.hours,beforeAmount:otherPay.regularOT.amount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-        // #endregion
         if (isClientBased || isEligibleForAllowances) {
           // Client-based or Office-based Supervisory/Managerial: Fixed amounts - goes to Other Pay
           const allowance = calculateOTAllowance(otHours);
           if (allowance > 0) {
             otherPay.regularOT.hours += otHours;
             otherPay.regularOT.amount += allowance;
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PayslipDetailedBreakdown.tsx:610',message:'Added OT to otherPay',data:{date,otHours,allowance,afterHours:otherPay.regularOT.hours,afterAmount:otherPay.regularOT.amount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-            // #endregion
           }
         } else {
           // Office-based Rank and File: Standard calculation (1.25x hourly rate) - goes to earnings breakdown table
@@ -830,7 +824,7 @@ function PayslipDetailedBreakdownComponent({
             return; // Skip this iteration in forEach
           }
         }
-        
+
         // Verify this is NOT the second rest day for Account Supervisors
         // The second rest day should have dayType === "regular" (set by timesheet generator)
         // If dayType === "sunday", it should only be the first rest day (actual rest day)

@@ -640,9 +640,6 @@ export default function PayslipsPage() {
               .in("status", ["approved", "approved_by_manager", "approved_by_hr"])
               .gte("ot_date", periodStartStr)
               .lte("ot_date", periodEndStr);
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:636',message:'OT requests fetched',data:{otRequestsCount:otRequests?.length||0,otRequests:otRequests?.map(ot=>({ot_date:ot.ot_date,total_hours:ot.total_hours,status:ot.status}))||[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-            // #endregion
 
             if (otError) {
               console.warn("Error loading OT requests:", otError);
@@ -658,9 +655,6 @@ export default function PayslipsPage() {
                 const existingOT = approvedOTByDate.get(dateStr) || 0;
                 const newOT = existingOT + (ot.total_hours || 0);
                 approvedOTByDate.set(dateStr, newOT);
-                // #region agent log
-                fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:655',message:'Adding OT to map',data:{dateStr,otTotalHours:ot.total_hours,existingOT,newOT},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-                // #endregion
 
                 // Calculate night differential from start_time and end_time
                 // ND applies from 5PM (17:00) to 6AM (06:00) next day
@@ -755,9 +749,6 @@ export default function PayslipsPage() {
           // when multiple entries exist for the same date. The generator will handle OT/ND from
           // approvedOTByDate/approvedNDByDate maps directly.
           const mappedClockEntries = filteredClockEntries.map((entry: any) => {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:753',message:'Mapping clock entry',data:{entryId:entry.id,clockInTime:entry.clock_in_time,originalOTHours:entry.overtime_hours,originalNDHours:entry.total_night_diff_hours},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-            // #endregion
             return {
               ...entry,
               // Keep original overtime_hours and total_night_diff_hours from database (usually 0)
@@ -766,9 +757,6 @@ export default function PayslipsPage() {
               total_night_diff_hours: 0, // Reset to 0 - generator will use approvedNDByDate
             };
           });
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:761',message:'Clock entries mapped',data:{totalEntries:mappedClockEntries.length,approvedOTByDateSize:approvedOTByDate.size,approvedOTByDateEntries:Array.from(approvedOTByDate.entries())},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
 
           // Generate attendance data from mapped clock entries with rest days
           // Note: leaveDatesMap is already created above for existing attendance records
@@ -867,14 +855,7 @@ export default function PayslipsPage() {
             period_start: periodStartStr,
             period_end: periodEndStr,
             period_type: "bimonthly",
-            attendance_data: (() => {
-              // #region agent log
-              const datesWithOT = timesheetData.attendance_data.filter((d:any) => (d.overtimeHours || 0) > 0);
-              const duplicateDates = Array.from(new Set(datesWithOT.map((d:any)=>d.date))).filter((date:string)=>datesWithOT.filter((d:any)=>d.date===date).length>1);
-              fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:870',message:'Saving attendance_data to state',data:{totalDays:timesheetData.attendance_data.length,totalOTHours:timesheetData.total_overtime_hours,datesWithOT:datesWithOT.map((d:any)=>({date:d.date,overtimeHours:d.overtimeHours})),duplicateDates,hasDuplicates:duplicateDates.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-              // #endregion
-              return timesheetData.attendance_data;
-            })(),
+            attendance_data: timesheetData.attendance_data,
             total_regular_hours: timesheetData.total_regular_hours,
             total_overtime_hours: timesheetData.total_overtime_hours,
             total_night_diff_hours: timesheetData.total_night_diff_hours,
@@ -2036,18 +2017,12 @@ export default function PayslipsPage() {
 
               // Regular OT allowance
               if (dayType === "regular" && overtimeHours > 0) {
-                // #region agent log
-                fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:2025',message:'Calculating OT allowance in grossPay',data:{date:day.date,dayType,overtimeHours,isClientBased,isAccountSupervisor,isEligibleForAllowances,beforeAllowances:totalFixedAllowances},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-                // #endregion
                 // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
                 if (isClientBased || isAccountSupervisor || isEligibleForAllowances) {
                   if (overtimeHours >= 2) {
                     // First 2 hours = ₱200, then ₱100 per succeeding hour
                     const allowance = 200 + Math.max(0, overtimeHours - 2) * 100;
                     totalFixedAllowances += allowance;
-                    // #region agent log
-                    fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:2036',message:'Added OT allowance to grossPay',data:{date:day.date,overtimeHours,allowance,afterAllowances:totalFixedAllowances},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
-                    // #endregion
                   }
                 }
               }
@@ -2505,7 +2480,7 @@ export default function PayslipsPage() {
                         const lastName = emp.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
                         const firstName = emp.first_name || (nameParts.length > 0 ? nameParts[0] : "");
                         const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                        const displayName = lastName && firstName 
+                        const displayName = lastName && firstName
                           ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
                           : emp.full_name || "";
                         return (
@@ -2598,12 +2573,7 @@ export default function PayslipsPage() {
                           setCalculatedTotalGrossPay(value);
                         }}
                         attendanceData={Array.isArray(attendance.attendance_data)
-                          ? (() => {
-                              // #region agent log
-                              const datesWithOT = (attendance.attendance_data as any[]).filter(d => (d.overtimeHours || 0) > 0);
-                              fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'payslips/page.tsx:2594',message:'attendance_data before map',data:{totalDays:(attendance.attendance_data as any[]).length,datesWithOT:datesWithOT.map(d=>({date:d.date,overtimeHours:d.overtimeHours})),duplicateDates:Array.from(new Set(datesWithOT.map(d=>d.date))).filter(date=>datesWithOT.filter(d=>d.date===date).length>1)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'M'})}).catch(()=>{});
-                              // #endregion
-                              return (attendance.attendance_data as any[]).map((day: any) => {
+                          ? (attendance.attendance_data as any[]).map((day: any) => {
                               const dayDate =
                                 day.date || day.clock_in_time?.split("T")[0] || "";
 
@@ -2659,8 +2629,7 @@ export default function PayslipsPage() {
                                   day.clockOutTime ||
                                   day.clock_out_time,
                               };
-                            });
-                            })()
+                            })
                           : []}
                       />
                     </div>

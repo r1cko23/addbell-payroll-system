@@ -1217,13 +1217,17 @@ function PayslipDetailedBreakdownComponent({
     // Ensure basicSalary = daysWorked × daily rate (all days worked including holidays)
     // This ensures consistency: basicSalary should equal daysWorked × ratePerDay
     // The basicSalary was calculated by summing individual days, but we verify it matches daysWorked × ratePerDay
-    const expectedBasicSalary = daysWorked * ratePerDay;
+    // IMPORTANT: Use rounded daily rate to match displayed value (ensures Daily Rate × Days = Basic Salary)
+    const roundedRatePerDay = Math.round(ratePerDay * 100) / 100;
+    const expectedBasicSalary = daysWorked * roundedRatePerDay;
     // Use the calculated basicSalary if it's close to expected, otherwise use expected
     // This handles any rounding differences
     if (Math.abs(basicSalary - expectedBasicSalary) > 0.01) {
       // If there's a significant difference, use the expected calculation
       basicSalary = expectedBasicSalary;
     }
+    // Round basicSalary to 2 decimal places before using in further calculations
+    basicSalary = Math.round(basicSalary * 100) / 100;
 
     // Debug logging to verify calculation
     if (periodStart && periodEnd) {
@@ -1245,7 +1249,7 @@ function PayslipDetailedBreakdownComponent({
     // Basic Salary already includes all days worked (holidays and regular days) at daily rate
     // Holiday amounts (breakdown.legalHoliday.amount and breakdown.specialHoliday.amount) are for display only
     // They're already included in basicSalary, so we don't add them again to gross pay
-    const totalGrossPay =
+    const totalGrossPayUnrounded =
       basicSalary +
       breakdown.nightDifferential.amount +
       // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount NOT added - already in basicSalary
@@ -1280,6 +1284,76 @@ function PayslipDetailedBreakdownComponent({
           earningsOT.lhOnRDOT.amount +
           earningsOT.restDayOT.amount +
           earningsOT.regularNightdiffOT.amount);
+    
+    // Round all breakdown amounts to 2 decimals before summing
+    const roundTo2Decimals = (val: number) => Math.round(val * 100) / 100;
+    const roundedBreakdown = {
+      nightDifferential: roundTo2Decimals(breakdown.nightDifferential.amount),
+      restDay: roundTo2Decimals(breakdown.restDay.amount),
+      restDayNightDiff: roundTo2Decimals(breakdown.restDayNightDiff.amount),
+    };
+    
+    const roundedOtherPay = isClientBased || isEligibleForAllowances ? {
+      regularOT: roundTo2Decimals(otherPay.regularOT.amount),
+      legalHolidayOT: roundTo2Decimals(otherPay.legalHolidayOT.amount),
+      legalHolidayND: roundTo2Decimals(otherPay.legalHolidayND.amount),
+      specialHolidayOT: roundTo2Decimals(otherPay.specialHolidayOT.amount),
+      specialHolidayND: roundTo2Decimals(otherPay.specialHolidayND.amount),
+      restDayOT: roundTo2Decimals(otherPay.restDayOT.amount),
+      restDayND: roundTo2Decimals(otherPay.restDayND.amount),
+      specialHolidayOnRestDayOT: roundTo2Decimals(otherPay.specialHolidayOnRestDayOT.amount),
+      legalHolidayOnRestDayOT: roundTo2Decimals(otherPay.legalHolidayOnRestDayOT.amount),
+      regularNightdiffOT: roundTo2Decimals(otherPay.regularNightdiffOT.amount),
+      legalHolidayAllowance: roundTo2Decimals(otherPay.legalHolidayAllowance.amount),
+      specialHolidayAllowance: roundTo2Decimals(otherPay.specialHolidayAllowance.amount),
+      restDayAllowance: roundTo2Decimals(otherPay.restDayAllowance.amount),
+      specialHolidayOnRestDayAllowance: roundTo2Decimals(otherPay.specialHolidayOnRestDayAllowance.amount),
+      legalHolidayOnRestDayAllowance: roundTo2Decimals(otherPay.legalHolidayOnRestDayAllowance.amount),
+    } : null;
+    
+    const roundedEarningsOT = !(isClientBased || isEligibleForAllowances) ? {
+      regularOvertime: roundTo2Decimals(earningsOT.regularOvertime.amount),
+      legalHolidayOT: roundTo2Decimals(earningsOT.legalHolidayOT.amount),
+      legalHolidayND: roundTo2Decimals(earningsOT.legalHolidayND.amount),
+      shOT: roundTo2Decimals(earningsOT.shOT.amount),
+      shNightDiff: roundTo2Decimals(earningsOT.shNightDiff.amount),
+      shOnRDOT: roundTo2Decimals(earningsOT.shOnRDOT.amount),
+      lhOnRDOT: roundTo2Decimals(earningsOT.lhOnRDOT.amount),
+      restDayOT: roundTo2Decimals(earningsOT.restDayOT.amount),
+      regularNightdiffOT: roundTo2Decimals(earningsOT.regularNightdiffOT.amount),
+    } : null;
+    
+    // Calculate total gross pay using rounded values
+    const totalGrossPayUnroundedRounded = basicSalary +
+      roundedBreakdown.nightDifferential +
+      roundedBreakdown.restDay +
+      roundedBreakdown.restDayNightDiff +
+      (isClientBased || isEligibleForAllowances
+        ? roundedOtherPay!.regularOT +
+          roundedOtherPay!.legalHolidayOT +
+          roundedOtherPay!.legalHolidayND +
+          roundedOtherPay!.specialHolidayOT +
+          roundedOtherPay!.specialHolidayND +
+          roundedOtherPay!.restDayOT +
+          roundedOtherPay!.restDayND +
+          roundedOtherPay!.specialHolidayOnRestDayOT +
+          roundedOtherPay!.legalHolidayOnRestDayOT +
+          roundedOtherPay!.regularNightdiffOT +
+          roundedOtherPay!.legalHolidayAllowance +
+          roundedOtherPay!.specialHolidayAllowance +
+          roundedOtherPay!.restDayAllowance +
+          roundedOtherPay!.specialHolidayOnRestDayAllowance +
+          roundedOtherPay!.legalHolidayOnRestDayAllowance
+        : roundedEarningsOT!.regularOvertime +
+          roundedEarningsOT!.legalHolidayOT +
+          roundedEarningsOT!.legalHolidayND +
+          roundedEarningsOT!.shOT +
+          roundedEarningsOT!.shNightDiff +
+          roundedEarningsOT!.shOnRDOT +
+          roundedEarningsOT!.lhOnRDOT +
+          roundedEarningsOT!.restDayOT +
+          roundedEarningsOT!.regularNightdiffOT);
+    const totalGrossPay = Math.round(totalGrossPayUnroundedRounded * 100) / 100;
 
     return {
       totalHours,
@@ -1390,48 +1464,13 @@ function PayslipDetailedBreakdownComponent({
                     {formatCurrency(ratePerDay)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-mono text-gray-700">
-                    {ratePerHour.toFixed(3)}
+                    {(Math.round(ratePerHour * 100) / 100).toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-semibold text-gray-900">
                     {formatCurrency(basicSalary)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-bold text-primary-700">
-                    {formatCurrency(
-                      basicSalary +
-                        breakdown.nightDifferential.amount +
-                        // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount removed - already in basicSalary
-                        breakdown.restDay.amount +
-                        breakdown.restDayNightDiff.amount +
-                        breakdown.workingDayoff.amount +
-                        // Add OT and ND items based on employee type
-                        (isClientBased || isEligibleForAllowances
-                          ? // Client-based/Supervisory/Managerial: All OT items in Other Pay (no ND)
-                            otherPay.regularOT.amount +
-                            otherPay.legalHolidayOT.amount +
-                            otherPay.legalHolidayND.amount +
-                            otherPay.specialHolidayOT.amount +
-                            otherPay.specialHolidayND.amount +
-                            otherPay.restDayOT.amount +
-                            otherPay.restDayND.amount +
-                            otherPay.specialHolidayOnRestDayOT.amount +
-                            otherPay.legalHolidayOnRestDayOT.amount +
-                            otherPay.regularNightdiffOT.amount +
-                            otherPay.legalHolidayAllowance.amount +
-                            otherPay.specialHolidayAllowance.amount +
-                            otherPay.restDayAllowance.amount +
-                            otherPay.specialHolidayOnRestDayAllowance.amount +
-                            otherPay.legalHolidayOnRestDayAllowance.amount
-                          : // Regular employees: OT and ND items in earnings breakdown table
-                            earningsOT.regularOvertime.amount +
-                            earningsOT.legalHolidayOT.amount +
-                            earningsOT.legalHolidayND.amount +
-                            earningsOT.shOT.amount +
-                            earningsOT.shNightDiff.amount +
-                            earningsOT.shOnRDOT.amount +
-                            earningsOT.lhOnRDOT.amount +
-                            earningsOT.restDayOT.amount +
-                            earningsOT.regularNightdiffOT.amount)
-                    )}
+                    {formatCurrency(totalGrossPay)}
                   </td>
                 </tr>
               </tbody>

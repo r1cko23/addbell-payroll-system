@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
-type EmployeeOption = { id: string; full_name: string };
+type EmployeeOption = { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null };
 type ScheduleRow = {
   id: string;
   employee_id: string;
@@ -95,7 +95,7 @@ export default function SchedulesPage() {
     const loadMeta = async () => {
       const { data: emps } = await supabase
         .from("employees")
-        .select("id, full_name, last_name, first_name")
+        .select("id, employee_id, full_name, last_name, first_name")
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
       setEmployees(emps || []);
@@ -256,11 +256,20 @@ export default function SchedulesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All employees</SelectItem>
-                      {employees.map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.full_name}
-                        </SelectItem>
-                      ))}
+                      {employees.map((emp) => {
+                        const nameParts = emp.full_name?.trim().split(/\s+/) || [];
+                        const lastName = emp.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
+                        const firstName = emp.first_name || (nameParts.length > 0 ? nameParts[0] : "");
+                        const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
+                        const displayName = lastName && firstName 
+                          ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
+                          : emp.full_name || "";
+                        return (
+                          <SelectItem key={emp.id} value={emp.id}>
+                            {displayName}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>

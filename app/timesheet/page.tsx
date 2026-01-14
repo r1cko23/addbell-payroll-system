@@ -37,6 +37,8 @@ interface Employee {
   id: string;
   employee_id: string;
   full_name: string;
+  last_name?: string | null;
+  first_name?: string | null;
   eligible_for_ot?: boolean | null;
   position?: string | null;
   employee_type?: "office-based" | "client-based" | null;
@@ -452,25 +454,25 @@ export default function TimesheetPage() {
       }
       setLeaveRequests(leaveData || []);
 
-      // Load OT requests for the period (only if employee is eligible for OT)
-      const isEligibleForOT = selectedEmployee?.eligible_for_ot !== false;
-      let otData: any[] = [];
-      if (isEligibleForOT) {
-        const { data: otRequests, error: otError } = await supabase
-          .from("overtime_requests")
-          .select(
-            "id, ot_date, end_date, start_time, end_time, total_hours, status"
-          )
-          .eq("employee_id", selectedEmployee.id)
-          .gte("ot_date", periodStartStr)
-          .lte("ot_date", periodEndStr)
-          .eq("status", "approved");
+      // Load OT requests for the period
+      // IMPORTANT: Always fetch approved OT requests for display purposes, regardless of eligible_for_ot flag
+      // The eligible_for_ot flag controls whether employees can FILE new OT requests, not whether
+      // existing approved OT requests should be displayed in time attendance
+      const { data: otRequests, error: otError } = await supabase
+        .from("overtime_requests")
+        .select(
+          "id, ot_date, end_date, start_time, end_time, total_hours, status"
+        )
+        .eq("employee_id", selectedEmployee.id)
+        .gte("ot_date", periodStartStr)
+        .lte("ot_date", periodEndStr)
+        .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
 
-        if (otError) {
-          console.warn("Error loading OT requests:", otError);
-        } else {
-          otData = otRequests || [];
-        }
+      let otData: any[] = [];
+      if (otError) {
+        console.warn("Error loading OT requests:", otError);
+      } else {
+        otData = otRequests || [];
       }
 
       console.log("Loaded OT requests:", otData.length);
@@ -542,7 +544,8 @@ export default function TimesheetPage() {
         incompleteEntries,
         leaveData || [],
         otData || [],
-        scheduleMap
+        scheduleMap,
+        selectedEmployee?.employee_type
       );
     } catch (error: any) {
       console.error("Error loading attendance data:", error);
@@ -568,7 +571,8 @@ export default function TimesheetPage() {
     incompleteEntries: ClockEntry[],
     leaveRequests: LeaveRequest[],
     otRequests: OvertimeRequest[],
-    scheduleMap: Map<string, Schedule>
+    scheduleMap: Map<string, Schedule>,
+    employeeType?: "office-based" | "client-based" | null
   ) {
     const workingDays = getBiMonthlyWorkingDays(periodStart);
     const days: AttendanceDay[] = [];
@@ -642,11 +646,15 @@ export default function TimesheetPage() {
     // Group OT requests by date
     const otByDate = new Map<string, OvertimeRequest[]>();
     otRequests.forEach((ot) => {
-      const dateStr = ot.ot_date;
-      if (!otByDate.has(dateStr)) {
-        otByDate.set(dateStr, []);
+      // Normalize ot_date to just the date part (yyyy-MM-dd) to match dateStr format used in workingDays loop
+      // ot_date might be a full timestamp (e.g., "2026-01-02T00:00:00") or just a date string
+      const otDateStr = typeof ot.ot_date === "string"
+        ? ot.ot_date.split("T")[0]
+        : format(new Date(ot.ot_date), "yyyy-MM-dd");
+      if (!otByDate.has(otDateStr)) {
+        otByDate.set(otDateStr, []);
       }
-      otByDate.get(dateStr)!.push(ot);
+      otByDate.get(otDateStr)!.push(ot);
     });
 
     console.log("Entries grouped by date:", entriesByDate.size);
@@ -660,7 +668,9 @@ export default function TimesheetPage() {
       // Check if this is a rest day from employee schedule (day_off flag)
       // For Account Supervisors and others with custom rest days
       const isRestDay = schedule?.day_off === true;
-      const dayType = determineDayType(dateStr, holidays, isRestDay);
+      // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
+      const isClientBased = employeeType === "client-based";
+      const dayType = determineDayType(dateStr, holidays, isRestDay, isClientBased);
       const dayOfWeek = getDay(date);
       const dayEntries = entriesByDate.get(dateStr) || [];
       const incompleteDayEntries = incompleteByDate.get(dateStr) || [];
@@ -725,7 +735,8 @@ export default function TimesheetPage() {
           checkDate.setDate(checkDate.getDate() - i);
           const checkDateStr = format(checkDate, "yyyy-MM-dd");
           const checkDayEntries = entriesByDate.get(checkDateStr) || [];
-          const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true);
+          const isClientBased = employeeType === "client-based";
+          const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
 
           // Only check regular working days (skip holidays and rest days)
           if (checkDayType === "regular" && checkDayEntries.length > 0) {
@@ -854,8 +865,12 @@ export default function TimesheetPage() {
       let otHours = 0;
       if (dayOTs.length > 0) {
         // Sum all approved OT hours for this date
-        // Filter to only approved requests (status = "approved")
-        const approvedOTs = dayOTs.filter(ot => ot.status === "approved");
+        // Filter to only approved requests (status = "approved", "approved_by_manager", or "approved_by_hr")
+        const approvedOTs = dayOTs.filter(ot => 
+          ot.status === "approved" || 
+          ot.status === "approved_by_manager" || 
+          ot.status === "approved_by_hr"
+        );
         otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
       }
 
@@ -870,7 +885,11 @@ export default function TimesheetPage() {
       if (!isAccountSupervisor && dayOTs.length > 0) {
         // Calculate ND from each approved OT request's start_time and end_time
         // Only process approved OT requests
-        const approvedOTs = dayOTs.filter(ot => ot.status === "approved");
+        const approvedOTs = dayOTs.filter(ot => 
+          ot.status === "approved" || 
+          ot.status === "approved_by_manager" || 
+          ot.status === "approved_by_hr"
+        );
         approvedOTs.forEach((ot) => {
           if (ot.start_time && ot.end_time) {
             const startTime = ot.start_time.includes("T")
@@ -970,10 +989,20 @@ export default function TimesheetPage() {
         bh = 8;
       }
 
-      // IMPORTANT: Only set BH based on actual completed time log entries
-      // Do NOT automatically set BH = 8 for rest days, holidays, or Saturday company benefit
-      // Days Work should only count days where employee has completed logging (clock in AND clock out)
-      // The payslip calculation will handle payment for rest days/holidays based on employee type and eligibility
+      // Saturday Regular Work Day: Set BH = 8 even if employee didn't work
+      // Per Philippine labor law, employees are paid 6 days/week (Mon-Sat)
+      // Saturday is a regular work day - paid even if not worked, and counts towards days worked and total hours
+      // This matches the payslip calculation logic in timesheet-auto-generator.ts
+      // dayOfWeek from getDay(): 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6) {
+        bh = 8; // Regular work day: 8 hours even if not worked (paid 6 days/week)
+      }
+
+      // IMPORTANT: BH is set based on:
+      // 1. Actual completed time log entries (regular_hours from clock entries)
+      // 2. Saturday company benefit (8 BH even if not worked) - matches payslip calculation
+      // 3. Leave types (CTO, SIL, etc.) - handled above
+      // The payslip calculation uses the same logic, ensuring consistency between timesheet and payslip
 
       // LT (Late) - Not applicable for flexible hours, always 0
       const lt = 0;
@@ -1384,11 +1413,20 @@ export default function TimesheetPage() {
                 <SelectValue placeholder="-- Select Employee --" />
               </SelectTrigger>
               <SelectContent>
-                {employees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    {emp.full_name} ({emp.employee_id})
-                  </SelectItem>
-                ))}
+                {employees.map((emp) => {
+                  const nameParts = emp.full_name?.trim().split(/\s+/) || [];
+                  const lastName = emp.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
+                  const firstName = emp.first_name || (nameParts.length > 0 ? nameParts[0] : "");
+                  const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
+                  const displayName = lastName && firstName 
+                    ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
+                    : emp.full_name || "";
+                  return (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {displayName} ({emp.employee_id})
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </VStack>

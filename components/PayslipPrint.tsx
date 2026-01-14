@@ -108,12 +108,14 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     "HR OPERATIONS SUPERVISOR",
     "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
     "HR SUPERVISOR - LABOR RELATIONS",
+    "HR SUPERVISOR-LABOR RELATIONS", // Also match without spaces around hyphen
     "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
+    "HR SUPERVISOR-EMPLOYEE ENGAGEMENT", // Also match without spaces around hyphen
   ];
   const isSupervisory =
     isOfficeBased &&
     supervisoryPositions.some((pos) =>
-      employee.position?.toUpperCase().includes(pos)
+      employee.position?.toUpperCase().includes(pos.toUpperCase())
     );
 
   // Check if employee is managerial (office-based)
@@ -565,6 +567,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       // Rest days that fall on holidays are treated as holidays (holiday takes priority)
       // Only the FIRST rest day (chronologically) gets paid if they didn't work (like Saturday for office-based)
       // The second rest day only gets paid if they worked on it
+      // NOTE: Attendance data should already have correct dayType from timesheet generator
+      // If dayType === "sunday" for client-based employees, it means it's their actual rest day
       if (dayType === "sunday") {
         // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
         if (!useFixedAllowances) {

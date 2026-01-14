@@ -60,7 +60,8 @@ type PhosphorIconName =
   | "Download"
   | "FileArrowDown"
   | "ArrowDown"
-  | "FileCsv";
+  | "FileCsv"
+  | "FilePdf";
 
 interface PhosphorIconProps {
   name: PhosphorIconName;

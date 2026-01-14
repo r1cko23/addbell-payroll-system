@@ -107,11 +107,14 @@ function findHolidayByDate(
  *                    However, if a rest day falls on a holiday, it should be treated as a holiday (holiday takes priority).
  *                    Rest days on regular workdays are still treated as rest days for dayType, but payment logic
  *                    in timesheet generator handles which rest day gets paid.
+ * @param isClientBased - Optional: whether the employee is client-based (default: false)
+ *                        For client-based employees, Sunday is NOT automatically a rest day unless explicitly marked
  */
 export function determineDayType(
   dateString: string,
   holidays: Holiday[],
-  isRestDay?: boolean
+  isRestDay?: boolean,
+  isClientBased?: boolean
 ): DayType {
   try {
     // Normalize the input date string
@@ -120,10 +123,21 @@ export function determineDayType(
     // Check if it's a rest day:
     // 1. From employee schedule (isRestDay parameter) - for client-based employees with custom schedules
     // 2. Sunday (default rest day for office-based employees per Labor Code)
+    //    IMPORTANT: For client-based employees, Sunday is NOT automatically a rest day unless explicitly marked
     // Note: Saturday is NOT automatically a rest day - it's a company benefit (paid regular day)
     // For client-based Account Supervisors: rest days can be on any weekday (Mon-Fri)
-    const isRestDayDate =
-      isRestDay !== undefined ? isRestDay : isDateSunday(normalizedDate);
+    let isRestDayDate: boolean;
+    if (isRestDay !== undefined) {
+      // Explicitly provided - use it
+      isRestDayDate = isRestDay;
+    } else if (isClientBased === true) {
+      // Client-based employee: Sunday is NOT automatically a rest day
+      // Only treat as rest day if explicitly marked in schedule
+      isRestDayDate = false;
+    } else {
+      // Office-based employee: Sunday is the default rest day
+      isRestDayDate = isDateSunday(normalizedDate);
+    }
 
     // Find holiday with normalized date comparison
     const holiday = findHolidayByDate(normalizedDate, holidays);

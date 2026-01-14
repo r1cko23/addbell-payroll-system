@@ -410,8 +410,26 @@ export function calculateNetPay(
 
 /**
  * Get day type label
+ * @param dayType - The day type to get label for
+ * @param isClientBased - Optional: whether employee is client-based (affects rest day labeling)
  */
-export function getDayTypeLabel(dayType: DayType): string {
+export function getDayTypeLabel(dayType: DayType, isClientBased?: boolean): string {
+  // For client-based employees, rest days are not necessarily on Sunday
+  // So we label them as "Rest Day" instead of "Sunday/Rest Day"
+  if (dayType === "sunday" && isClientBased === true) {
+    return "Rest Day";
+  }
+  
+  // For "sunday-special-holiday" and "sunday-regular-holiday", check if it's client-based
+  if (dayType === "sunday-special-holiday" && isClientBased === true) {
+    return "Rest Day + Special Holiday";
+  }
+  
+  if (dayType === "sunday-regular-holiday" && isClientBased === true) {
+    return "Rest Day + Regular Holiday";
+  }
+  
+  // Default labels (for office-based employees or when isClientBased is not provided)
   const labels: Record<DayType, string> = {
     regular: "Regular Day",
     sunday: "Sunday/Rest Day",

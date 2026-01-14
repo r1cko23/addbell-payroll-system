@@ -364,12 +364,21 @@ describe("Holiday Detection - Edge Cases", () => {
 
 describe("Payroll Calculator - Utility Functions", () => {
   test("should return correct day type labels", () => {
+    // Office-based employees (default)
     expect(getDayTypeLabel("regular")).toBe("Regular Day");
     expect(getDayTypeLabel("sunday")).toBe("Sunday/Rest Day");
     expect(getDayTypeLabel("non-working-holiday")).toBe("Non-Working Holiday");
     expect(getDayTypeLabel("regular-holiday")).toBe("Regular Holiday");
     expect(getDayTypeLabel("sunday-special-holiday")).toBe("Sunday + Special Holiday");
     expect(getDayTypeLabel("sunday-regular-holiday")).toBe("Sunday + Regular Holiday");
+    
+    // Client-based employees (rest days not necessarily on Sunday)
+    expect(getDayTypeLabel("sunday", true)).toBe("Rest Day");
+    expect(getDayTypeLabel("sunday-special-holiday", true)).toBe("Rest Day + Special Holiday");
+    expect(getDayTypeLabel("sunday-regular-holiday", true)).toBe("Rest Day + Regular Holiday");
+    // Other day types should remain the same
+    expect(getDayTypeLabel("regular", true)).toBe("Regular Day");
+    expect(getDayTypeLabel("regular-holiday", true)).toBe("Regular Holiday");
   });
 
   test("should return correct multipliers", () => {

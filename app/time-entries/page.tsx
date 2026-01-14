@@ -89,7 +89,7 @@ export default function TimeEntriesPage() {
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [employees, setEmployees] = useState<
-    { id: string; employee_id: string; full_name: string }[]
+    { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
   >([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -103,6 +103,7 @@ export default function TimeEntriesPage() {
   const [hrNotes, setHrNotes] = useState("");
   const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
   const [holidays, setHolidays] = useState<HolidayEntry[]>([]);
+  const [employeeInfoMap, setEmployeeInfoMap] = useState<Map<string, { employee_type: string | null; restDays: Map<string, boolean> }>>(new Map());
 
   // Calculate bi-monthly period start and end
   const periodStart =
@@ -163,14 +164,23 @@ export default function TimeEntriesPage() {
     fetchLocations();
   }, [supabase]);
 
-  const getDayType = (clockInTime: string): string => {
+  const getDayType = (clockInTime: string, employeeId?: string): string => {
     const dateString = format(new Date(clockInTime), "yyyy-MM-dd");
 
     // Ensure holidays are available
     if (!holidays || holidays.length === 0) {
       // If holidays not loaded yet, check if it's Sunday as fallback
+      // But only for office-based employees
       const dayOfWeek = new Date(clockInTime).getDay();
       if (dayOfWeek === 0) {
+        // Check if employee is client-based
+        if (employeeId) {
+          const empInfo = employeeInfoMap.get(employeeId);
+          if (empInfo?.employee_type === "client-based") {
+            // Client-based: Sunday is NOT automatically a rest day
+            return "Regular Day";
+          }
+        }
         return "Sunday/Rest Day";
       }
       return "Regular Day";
@@ -185,8 +195,21 @@ export default function TimeEntriesPage() {
       }))
     );
 
+    // Get employee info if available
+    let isRestDay: boolean | undefined = undefined;
+    let isClientBased = false;
+    
+    if (employeeId) {
+      const empInfo = employeeInfoMap.get(employeeId);
+      if (empInfo) {
+        isClientBased = empInfo.employee_type === "client-based";
+        // Check if this date is a rest day for this employee
+        isRestDay = empInfo.restDays.get(dateString) || false;
+      }
+    }
+
     // Determine the actual day type (regular, holiday, sunday, etc.)
-    const dayType = determineDayType(dateString, normalizedHolidaysList);
+    const dayType = determineDayType(dateString, normalizedHolidaysList, isRestDay, isClientBased);
 
     // Debug logging for December dates
     if (dateString.includes("12-24") || dateString.includes("12-25") || dateString.includes("12-26")) {
@@ -199,7 +222,8 @@ export default function TimeEntriesPage() {
     }
 
     // Return the formatted label
-    return getDayTypeLabel(dayType);
+    // Pass isClientBased so client-based employees see "Rest Day" instead of "Sunday/Rest Day"
+    return getDayTypeLabel(dayType, isClientBased);
   };
 
   async function fetchTimeEntries() {
@@ -222,7 +246,7 @@ export default function TimeEntriesPage() {
       // Use single-line format to avoid any whitespace issues with Supabase PostgREST
       let query = supabase
         .from("time_clock_entries")
-        .select("*,employees(employee_id,full_name,profile_picture_url,overtime_group_id)");
+        .select("*,employees(employee_id,full_name,profile_picture_url,overtime_group_id,employee_type)");
 
       // Apply date filters
       query = query
@@ -389,6 +413,11 @@ export default function TimeEntriesPage() {
       setHolidays(formattedHolidays);
       setEntries(transformedEntries);
 
+      // Fetch employee info and schedules for rest day determination
+      if (transformedEntries.length > 0) {
+        await fetchEmployeeInfoAndSchedules(transformedEntries);
+      }
+
         // Log if no entries found to help debug
       if (transformedEntries.length === 0) {
         console.warn("No time entries found for the selected period:", {
@@ -436,6 +465,85 @@ export default function TimeEntriesPage() {
       setEntries([]); // Clear entries on error
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchEmployeeInfoAndSchedules(entries: TimeEntry[]) {
+    try {
+      // Get unique employee IDs
+      const employeeIds = Array.from(new Set(entries.map(e => e.employee_id)));
+      if (employeeIds.length === 0) return;
+
+      // Fetch employee types
+      const { data: employeesData, error: empError } = await supabase
+        .from("employees")
+        .select("id, employee_type")
+        .in("id", employeeIds);
+
+      if (empError) {
+        console.error("Error fetching employee info:", empError);
+        return;
+      }
+
+      // Create employee type map
+      const employeeTypeMap = new Map<string, string | null>();
+      (employeesData || []).forEach(emp => {
+        employeeTypeMap.set(emp.id, emp.employee_type);
+      });
+
+      // Fetch schedules for client-based employees
+      const clientBasedEmployeeIds = (employeesData || [])
+        .filter(emp => emp.employee_type === "client-based")
+        .map(emp => emp.id);
+
+      const restDaysMap = new Map<string, Map<string, boolean>>();
+      
+      if (clientBasedEmployeeIds.length > 0) {
+        // Get date range from entries
+        const dates = new Set<string>();
+        entries.forEach(entry => {
+          const dateStr = format(new Date(entry.clock_in_time), "yyyy-MM-dd");
+          dates.add(dateStr);
+        });
+
+        const dateArray = Array.from(dates);
+        if (dateArray.length > 0) {
+          const sortedDates = dateArray.sort();
+          const minDate = sortedDates[0];
+          const maxDate = sortedDates[sortedDates.length - 1];
+
+          // Fetch schedules for the date range
+          const { data: schedulesData, error: schedError } = await supabase
+            .from("employee_week_schedules")
+            .select("employee_id, schedule_date, day_off")
+            .in("employee_id", clientBasedEmployeeIds)
+            .gte("schedule_date", minDate)
+            .lte("schedule_date", maxDate);
+
+          if (!schedError && schedulesData) {
+            schedulesData.forEach(sched => {
+              if (!restDaysMap.has(sched.employee_id)) {
+                restDaysMap.set(sched.employee_id, new Map());
+              }
+              const dateStr = sched.schedule_date.split('T')[0];
+              restDaysMap.get(sched.employee_id)!.set(dateStr, sched.day_off === true);
+            });
+          }
+        }
+      }
+
+      // Create combined map
+      const combinedMap = new Map<string, { employee_type: string | null; restDays: Map<string, boolean> }>();
+      employeeIds.forEach(empId => {
+        combinedMap.set(empId, {
+          employee_type: employeeTypeMap.get(empId) || null,
+          restDays: restDaysMap.get(empId) || new Map()
+        });
+      });
+
+      setEmployeeInfoMap(combinedMap);
+    } catch (error) {
+      console.error("Error fetching employee info and schedules:", error);
     }
   }
 
@@ -801,11 +909,20 @@ export default function TimeEntriesPage() {
                   className="flex h-10 w-full sm:w-[200px] lg:w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="all">All Employees</option>
-                  {employees.map((employee) => (
-                    <option key={employee.id} value={employee.id}>
-                      {employee.full_name} ({employee.employee_id})
-                    </option>
-                  ))}
+                  {employees.map((employee) => {
+                    const nameParts = employee.full_name?.trim().split(/\s+/) || [];
+                    const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
+                    const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
+                    const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
+                    const displayName = lastName && firstName 
+                      ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
+                      : employee.full_name || "";
+                    return (
+                      <option key={employee.id} value={employee.id}>
+                        {displayName} ({employee.employee_id})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>
@@ -881,7 +998,7 @@ export default function TimeEntriesPage() {
                         entry.clock_out_location,
                         officeLocations
                       );
-                      const dayTypeLabel = getDayType(entry.clock_in_time);
+                      const dayTypeLabel = getDayType(entry.clock_in_time, entry.employee_id);
                       const isHoliday = dayTypeLabel.includes("Holiday") || dayTypeLabel.includes("Special");
 
                       return (

@@ -5,6 +5,8 @@ import { addDays, format, startOfWeek } from "date-fns";
 import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   Card,
   CardContent,
@@ -57,8 +59,8 @@ interface Employee {
   profile_picture_url?: string | null;
   gender?: "male" | "female" | null;
   sil_credits?: number;
-  last_name?: string;
-  first_name?: string;
+  last_name?: string | null;
+  first_name?: string | null;
   middle_initial?: string;
   assigned_hotel?: string;
   address?: string | null;
@@ -184,6 +186,7 @@ export default function EmployeesPage() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [selectedScheduleEntry, setSelectedScheduleEntry] =
     useState<ScheduleRow | null>(null);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
 
   const locationMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -651,6 +654,189 @@ export default function EmployeesPage() {
     };
   });
 
+  // Helper function to clean position field (remove salary info)
+  const cleanPosition = (position: string | null | undefined): string => {
+    if (!position) return "";
+    // Remove salary information in parentheses like "(22,000)" or "(18,070.00)"
+    return position.replace(/\s*\([^)]*\)/g, "").trim();
+  };
+
+  // Export employee masterlist to PDF
+  async function exportEmployeeMasterlistToPDF() {
+    setGeneratingPDF(true);
+    try {
+      const doc = new jsPDF("landscape", "mm", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPos = 15;
+
+      // Load and add logo
+      try {
+        const logoResponse = await fetch("/gp-logo.webp");
+        if (logoResponse.ok) {
+          const logoBlob = await logoResponse.blob();
+          const logoDataUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(logoBlob);
+          });
+
+          // Logo dimensions: 500x185 original, scale to fit
+          const logoWidth = 50; // mm
+          const logoHeight = (logoWidth * 185) / 500; // Maintain aspect ratio
+          const logoX = 15; // Left align
+
+          doc.addImage(logoDataUrl, "WEBP", logoX, yPos, logoWidth, logoHeight);
+          yPos += logoHeight + 8;
+        }
+      } catch (error) {
+        console.warn("Logo could not be loaded, continuing without logo", error);
+      }
+
+      // Company name
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("GREEN PASTURE", 15, yPos);
+      yPos += 6;
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text("PEOPLE MANAGEMENT INC.", 15, yPos);
+      yPos += 8;
+
+      // Document title
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "normal");
+      doc.text("Active List/Master Employees", 15, yPos);
+      yPos += 6;
+
+      // Client name and date
+      doc.setFontSize(10);
+      doc.text("Client Name: GREEN PASTURE PEOPLE I", 15, yPos);
+      yPos += 5;
+      doc.text(`As of ${format(new Date(), "MM/dd/yyyy")}`, 15, yPos);
+      yPos += 10;
+
+      // Prepare table data - use all employees for masterlist
+      const tableData = employees.map((emp, index) => {
+        // Get department from assigned locations or assigned_hotel
+        const department =
+          emp.employee_location_assignments
+            ?.map((a) => a.office_locations?.name || locationMap.get(a.location_id) || null)
+            .filter((name): name is string => Boolean(name))
+            .join(", ") || emp.assigned_hotel || "";
+
+        // Clean position to remove salary info
+        const cleanPos = cleanPosition(emp.position);
+
+        return [
+          (index + 1).toString(), // #
+          emp.employee_id || "", // EMPID
+          emp.last_name || "", // Last Name
+          emp.first_name || "", // First Name
+          emp.middle_initial || "", // Middle Name
+          emp.address || "", // Address
+          "", // Contact No (not in schema)
+          department, // Department
+          cleanPos, // Position (without salary)
+          emp.birth_date ? format(new Date(emp.birth_date), "MM/dd/yyyy") : "", // Birth Date
+          emp.hire_date ? format(new Date(emp.hire_date), "MM/dd/yyyy") : "", // Date Hired
+          emp.tin_number || "", // Tin #
+          emp.sss_number || "", // SSS #
+          emp.philhealth_number || "", // Phil Health
+          emp.pagibig_number || "", // Pagibig
+          emp.is_active ? "Regular" : "Inactive", // Status
+          "", // NBIno (not in schema)
+          "", // Police Clr (not in schema)
+          "", // Brgy (not in schema)
+        ];
+      });
+
+      // Define table columns
+      const columns = [
+        "#",
+        "EMPID",
+        "Last Name",
+        "First Name",
+        "Middle Name",
+        "Address",
+        "Contact No",
+        "Department",
+        "Position",
+        "Birth Date",
+        "Date Hired",
+        "Tin #",
+        "SSS #",
+        "Phil Health",
+        "Pagibig",
+        "Status",
+        "NBIno",
+        "Police Clr",
+        "Brgy",
+      ];
+
+      // Add table using autoTable
+      // Landscape A4: 297mm wide, with 5mm margins = 287mm available
+      const availableWidth = pageWidth - 10; // 297 - 10 = 287mm
+      autoTable(doc, {
+        head: [columns],
+        body: tableData,
+        startY: yPos,
+        styles: {
+          fontSize: 5,
+          cellPadding: 1,
+          overflow: "linebreak",
+          lineWidth: 0.1,
+          textColor: [0, 0, 0],
+        },
+        headStyles: {
+          fillColor: [34, 139, 34], // Green color
+          textColor: 255,
+          fontStyle: "bold",
+          fontSize: 5,
+          cellPadding: 1,
+        },
+        columnStyles: {
+          0: { cellWidth: 4 }, // #
+          1: { cellWidth: 13 }, // EMPID
+          2: { cellWidth: 17 }, // Last Name
+          3: { cellWidth: 17 }, // First Name
+          4: { cellWidth: 9 }, // Middle Name
+          5: { cellWidth: 26 }, // Address
+          6: { cellWidth: 15 }, // Contact No
+          7: { cellWidth: 20 }, // Department
+          8: { cellWidth: 19 }, // Position
+          9: { cellWidth: 13 }, // Birth Date
+          10: { cellWidth: 13 }, // Date Hired
+          11: { cellWidth: 13 }, // Tin #
+          12: { cellWidth: 13 }, // SSS #
+          13: { cellWidth: 13 }, // Phil Health
+          14: { cellWidth: 13 }, // Pagibig
+          15: { cellWidth: 11 }, // Status
+          16: { cellWidth: 11 }, // NBIno
+          17: { cellWidth: 11 }, // Police Clr
+          18: { cellWidth: 11 }, // Brgy
+        },
+        margin: { left: 5, right: 5 },
+        tableWidth: availableWidth,
+        showHead: "everyPage",
+        horizontalPageBreak: false,
+      });
+
+      // Save PDF
+      const fileName = `Employee_Masterlist_${format(new Date(), "yyyy-MM-dd")}.pdf`;
+      doc.save(fileName);
+      toast.success("Employee masterlist exported successfully!");
+    } catch (error: any) {
+      console.error("Error exporting PDF:", error);
+      toast.error("Failed to export employee masterlist", {
+        description: error.message || "An error occurred while generating the PDF",
+      });
+    } finally {
+      setGeneratingPDF(false);
+    }
+  }
+
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
@@ -697,12 +883,29 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <HStack gap="2" align="center">
-                  <Icon
-                    name="User"
-                    size={IconSizes.sm}
-                    className="text-muted-foreground"
-                  />
-                  <Caption>{filteredEmployees.length} employees</Caption>
+                  {(isAdmin || role === "hr") && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={exportEmployeeMasterlistToPDF}
+                      disabled={generatingPDF || employees.length === 0}
+                    >
+                      <Icon
+                        name={generatingPDF ? "ArrowsClockwise" : "FilePdf"}
+                        size={IconSizes.sm}
+                        className={generatingPDF ? "animate-spin" : ""}
+                      />
+                      {generatingPDF ? "Generating..." : "Download Masterlist"}
+                    </Button>
+                  )}
+                  <HStack gap="2" align="center">
+                    <Icon
+                      name="User"
+                      size={IconSizes.sm}
+                      className="text-muted-foreground"
+                    />
+                    <Caption>{filteredEmployees.length} employees</Caption>
+                  </HStack>
                 </HStack>
               </HStack>
 

@@ -73,7 +73,7 @@ export default function OvertimeApprovalPage() {
   const [requests, setRequests] = useState<OTRequest[]>([]);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [employees, setEmployees] = useState<
-    { id: string; employee_id: string; full_name: string }[]
+    { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
   >([]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
@@ -555,8 +555,7 @@ export default function OvertimeApprovalPage() {
         <VStack gap="2" align="start">
           <H1>OT Approvals</H1>
           <BodySmall>
-            Approve or reject employee-filed OT. Approved hours convert 1:1 to
-            off-setting credits.
+            Approve or reject employee-filed OT.
           </BodySmall>
         </VStack>
 
@@ -635,11 +634,20 @@ export default function OvertimeApprovalPage() {
                     className="flex h-10 w-full sm:w-[200px] lg:w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <option value="all">All Employees</option>
-                    {employees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.full_name} ({employee.employee_id})
-                      </option>
-                    ))}
+                    {employees.map((employee) => {
+                      const nameParts = employee.full_name?.trim().split(/\s+/) || [];
+                      const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
+                      const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
+                      const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
+                      const displayName = lastName && firstName 
+                        ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
+                        : employee.full_name || "";
+                      return (
+                        <option key={employee.id} value={employee.id}>
+                          {displayName} ({employee.employee_id})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>

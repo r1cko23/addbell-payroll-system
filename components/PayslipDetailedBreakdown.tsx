@@ -79,12 +79,14 @@ function PayslipDetailedBreakdownComponent({
     "HR OPERATIONS SUPERVISOR",
     "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
     "HR SUPERVISOR - LABOR RELATIONS",
+    "HR SUPERVISOR-LABOR RELATIONS", // Also match without spaces around hyphen
     "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
+    "HR SUPERVISOR-EMPLOYEE ENGAGEMENT", // Also match without spaces around hyphen
   ];
   const isSupervisory =
     isOfficeBased &&
     supervisoryPositions.some((pos) =>
-      employee.position?.toUpperCase().includes(pos)
+      employee.position?.toUpperCase().includes(pos.toUpperCase())
     );
 
   // Check if employee is managerial (office-based)
@@ -111,7 +113,8 @@ function PayslipDetailedBreakdownComponent({
         return 0;
       }
       // First 2 hours = ₱200, then ₱100 per succeeding hour
-      return 200 + Math.max(0, hours - 2) * 100;
+      const allowance = 200 + Math.max(0, hours - 2) * 100;
+      return allowance;
     }
     // Office-based Rank and File: Standard calculation (1.25x hourly rate)
     return calculateRegularOT(hours, ratePerHour);
@@ -600,12 +603,18 @@ function PayslipDetailedBreakdownComponent({
           ? parseFloat(overtimeHours)
           : overtimeHours || 0;
       if (dayType === "regular" && otHours > 0) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PayslipDetailedBreakdown.tsx:605',message:'Processing regular OT',data:{date,dayType,otHours,isClientBased,isEligibleForAllowances,beforeHours:otherPay.regularOT.hours,beforeAmount:otherPay.regularOT.amount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+        // #endregion
         if (isClientBased || isEligibleForAllowances) {
           // Client-based or Office-based Supervisory/Managerial: Fixed amounts - goes to Other Pay
           const allowance = calculateOTAllowance(otHours);
           if (allowance > 0) {
             otherPay.regularOT.hours += otHours;
             otherPay.regularOT.amount += allowance;
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PayslipDetailedBreakdown.tsx:610',message:'Added OT to otherPay',data:{date,otHours,allowance,afterHours:otherPay.regularOT.hours,afterAmount:otherPay.regularOT.amount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
+            // #endregion
           }
         } else {
           // Office-based Rank and File: Standard calculation (1.25x hourly rate) - goes to earnings breakdown table
@@ -810,6 +819,18 @@ function PayslipDetailedBreakdownComponent({
       // The SECOND rest day is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
       // - It's NOT a rest day - it's already processed above as dayType === "regular" and included in basic salary
       if (dayType === "sunday") {
+        // IMPORTANT: For client-based employees, verify this is actually their rest day
+        // Sunday should NOT be treated as rest day for client-based employees unless explicitly marked
+        if (isClientBased || isAccountSupervisor) {
+          // Check if this date is actually marked as a rest day in their schedule
+          const isActuallyRestDay = restDays?.get(date) === true;
+          if (!isActuallyRestDay) {
+            // This is Sunday but NOT the employee's rest day - skip rest day processing
+            // It should be treated as a regular work day (already processed above)
+            return; // Skip this iteration in forEach
+          }
+        }
+        
         // Verify this is NOT the second rest day for Account Supervisors
         // The second rest day should have dayType === "regular" (set by timesheet generator)
         // If dayType === "sunday", it should only be the first rest day (actual rest day)

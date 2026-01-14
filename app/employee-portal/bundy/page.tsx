@@ -853,7 +853,7 @@ export default function BundyClockPage() {
           .eq("employee_id", employee.id)
           .gte("ot_date", periodStartStr)
           .lte("ot_date", periodEndStr)
-          .eq("status", "approved"),
+          .in("status", ["approved", "approved_by_manager", "approved_by_hr"]),
         supabase
           .from("employee_week_schedules")
           .select("schedule_date, start_time, end_time, day_off")
@@ -1037,7 +1037,8 @@ export default function BundyClockPage() {
         leaveData || [],
         otData || [],
         scheduleMap,
-        formattedHolidays
+        formattedHolidays,
+        employeeType === "client-based"
       );
     } catch (error) {
       console.error("Error loading attendance data:", error);
@@ -1059,7 +1060,8 @@ export default function BundyClockPage() {
       leaveRequests: LeaveRequest[],
       otRequests: OvertimeRequest[],
       scheduleMap: Map<string, Schedule>,
-      holidays: Holiday[]
+      holidays: Holiday[],
+      isClientBased?: boolean
     ) => {
       const workingDays = getBiMonthlyWorkingDays(periodStart);
       const days: AttendanceDay[] = [];
@@ -1153,11 +1155,15 @@ export default function BundyClockPage() {
       // Group OT requests by date
       const otByDate = new Map<string, OvertimeRequest[]>();
       otRequests.forEach((ot) => {
-        const dateStr = ot.ot_date;
-        if (!otByDate.has(dateStr)) {
-          otByDate.set(dateStr, []);
+        // Normalize ot_date to just the date part (yyyy-MM-dd) to match dateStr format used in workingDays loop
+        // ot_date might be a full timestamp (e.g., "2026-01-02T00:00:00") or just a date string
+        const otDateStr = typeof ot.ot_date === "string"
+          ? ot.ot_date.split("T")[0]
+          : formatDate(new Date(ot.ot_date), "yyyy-MM-dd");
+        if (!otByDate.has(otDateStr)) {
+          otByDate.set(otDateStr, []);
         }
-        otByDate.get(dateStr)!.push(ot);
+        otByDate.get(otDateStr)!.push(ot);
       });
 
       workingDays.forEach((date) => {
@@ -1166,7 +1172,8 @@ export default function BundyClockPage() {
         const dateStr = getDateInManilaTimezone(date);
         const schedule = scheduleMap.get(dateStr);
         const isRestDay = schedule?.day_off === true;
-        const dayType = determineDayType(dateStr, holidays, isRestDay);
+        // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
+        const dayType = determineDayType(dateStr, holidays, isRestDay, isClientBased);
         const dayOfWeek = getDay(date);
         const dayEntries = entriesByDate.get(dateStr) || [];
         const incompleteDayEntries = incompleteByDate.get(dateStr) || [];
@@ -1320,9 +1327,17 @@ export default function BundyClockPage() {
           }
         }
 
+        // Calculate OT hours from approved OT requests
+        // This should include ALL approved OT requests for this date, regardless of clock entries
         let otHours = 0;
         if (dayOTs.length > 0) {
-          otHours = dayOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
+          // Filter to only approved requests (status = "approved", "approved_by_manager", or "approved_by_hr")
+          const approvedOTs = dayOTs.filter(ot => 
+            ot.status === "approved" || 
+            ot.status === "approved_by_manager" || 
+            ot.status === "approved_by_hr"
+          );
+          otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
         }
 
         // Calculate BH (Basic Hours)
@@ -1387,7 +1402,13 @@ export default function BundyClockPage() {
 
         if (!isAccountSupervisor && dayOTs.length > 0) {
           // Calculate ND from each approved OT request's start_time and end_time
-          dayOTs.forEach((ot) => {
+          // Only process approved OT requests
+          const approvedOTs = dayOTs.filter(ot => 
+            ot.status === "approved" || 
+            ot.status === "approved_by_manager" || 
+            ot.status === "approved_by_hr"
+          );
+          approvedOTs.forEach((ot) => {
             if (ot.start_time && ot.end_time) {
               const startTime = ot.start_time.includes("T")
                 ? ot.start_time.split("T")[1].substring(0, 8)

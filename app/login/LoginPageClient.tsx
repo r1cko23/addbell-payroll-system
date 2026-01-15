@@ -31,7 +31,26 @@ export function LoginPageClient() {
     setMode(modeFromQuery);
     setAdminError("");
     setEmployeeError("");
-  }, [modeFromQuery]);
+
+    // Check for password reset errors in URL hash (Supabase redirects here with errors)
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash || "";
+      if (hash.startsWith("#")) {
+        const params = new URLSearchParams(hash.slice(1));
+        const error = params.get("error");
+        const errorCode = params.get("error_code");
+        const errorDescription = params.get("error_description");
+
+        // If there's a password reset error, redirect to reset password page with error
+        if (error && (errorCode === "otp_expired" || error === "access_denied")) {
+          const resetUrl = new URL("/reset-password", window.location.origin);
+          resetUrl.hash = hash; // Preserve error parameters
+          router.replace(resetUrl.pathname + resetUrl.hash);
+          return;
+        }
+      }
+    }
+  }, [modeFromQuery, router]);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();

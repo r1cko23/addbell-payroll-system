@@ -87,6 +87,32 @@ function ResetPasswordClient() {
         });
     }
 
+    // Check for error parameters in hash or query string (Supabase redirects with errors)
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash || "";
+      const hashParams = hash.startsWith("#") ? new URLSearchParams(hash.slice(1)) : null;
+      const error = hashParams?.get("error") || searchParams?.get("error");
+      const errorCode = hashParams?.get("error_code") || searchParams?.get("error_code");
+      const errorDescription = hashParams?.get("error_description") || searchParams?.get("error_description");
+
+      if (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:90',message:'Error detected in URL',data:{error,errorCode,errorDescription},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        
+        let errorMessage = "This reset link is invalid or has expired. Request a new one.";
+        if (errorCode === "otp_expired" || error === "access_denied") {
+          errorMessage = errorDescription 
+            ? decodeURIComponent(errorDescription.replace(/\+/g, " "))
+            : "This reset link has expired. Please request a new password reset email.";
+        }
+        setLinkError(errorMessage);
+        setCanReset(false);
+        setSessionAttempted(true);
+        return;
+      }
+    }
+
     // Handle hash-based recovery links (#access_token=...&refresh_token=...&type=recovery)
     if (!sessionAttempted && typeof window !== "undefined") {
       const hash = window.location.hash || "";
@@ -95,13 +121,27 @@ function ResetPasswordClient() {
         const accessToken = params.get("access_token");
         const refreshToken = params.get("refresh_token");
         const typeParam = params.get("type");
+        const error = params.get("error");
+        
+        // Skip if there's an error in the hash
+        if (error) {
+          setSessionAttempted(true);
+          return;
+        }
+        
         if (accessToken && refreshToken && typeParam === "recovery") {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:98',message:'Processing hash-based recovery link',data:{hasTokens:!!accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           supabase.auth
             .setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             })
             .then(({ error }) => {
+              // #region agent log
+              fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:104',message:'Hash session set result',data:{hasError:!!error,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+              // #endregion
               if (error) {
                 setLinkError(
                   error.message ||
@@ -114,6 +154,9 @@ function ResetPasswordClient() {
               }
             })
             .catch((err) => {
+              // #region agent log
+              fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:116',message:'Hash session set exception',data:{errorMessage:err?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+              // #endregion
               setLinkError(
                 err?.message ||
                   "This reset link is invalid or has expired. Request a new one."

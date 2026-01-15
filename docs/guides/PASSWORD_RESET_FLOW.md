@@ -47,13 +47,13 @@ When user clicks "Forgot Password" and enters their email:
 ```typescript
 const handleForgotPassword = async () => {
   // ... validation ...
-  
+
   const res = await fetch("/api/auth/reset-request", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: email.trim() }),
   });
-  
+
   toast.success("If that email exists, a reset link was sent.");
 };
 ```

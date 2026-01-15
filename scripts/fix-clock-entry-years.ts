@@ -1,9 +1,9 @@
 /**
  * Script to fix clock entry years in Supabase
- * 
+ *
  * This script identifies clock entries with incorrect years (e.g., 2024 instead of 2025/2026)
  * and updates them to the correct year based on the entry's date pattern.
- * 
+ *
  * Usage:
  *   npx tsx scripts/fix-clock-entry-years.ts [--dry-run] [--year=2025]
  */

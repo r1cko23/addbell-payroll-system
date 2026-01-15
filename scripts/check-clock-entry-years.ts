@@ -1,8 +1,8 @@
 /**
  * Script to check clock entry years in Supabase
- * 
+ *
  * This script analyzes clock entries to identify entries with incorrect years.
- * 
+ *
  * Usage:
  *   npx tsx scripts/check-clock-entry-years.ts
  */

@@ -41,7 +41,7 @@ async function checkTimezoneIssues() {
 
   // Group by actual date in Asia/Manila timezone
   const entriesByDate = new Map<string, any[]>();
-  
+
   entries?.forEach((entry) => {
     const clockInDate = parseISO(entry.clock_in_time);
     const formatter = new Intl.DateTimeFormat("en-US", {
@@ -66,7 +66,7 @@ async function checkTimezoneIssues() {
     .sort()
     .forEach(([date, entries]) => {
       console.log(`  ${date}: ${entries.length} entries`);
-      
+
       // Show sample entries for Jan 4, 5, 6
       if (date >= "2026-01-04" && date <= "2026-01-06") {
         entries.slice(0, 3).forEach((e: any) => {
@@ -80,19 +80,19 @@ async function checkTimezoneIssues() {
   // Check specifically for entries that should be Jan 5
   const jan5Entries = entriesByDate.get("2026-01-05") || [];
   console.log(`\n📊 Jan 5, 2026 entries: ${jan5Entries.length}`);
-  
+
   if (jan5Entries.length > 0) {
     // Get unique employees
     const employees = new Set(jan5Entries.map((e: any) => e.employee_id));
     console.log(`   Unique employees: ${employees.size}`);
-    
+
     // Get employee names
     const employeeIds = Array.from(employees);
     const { data: employeeData } = await supabase
       .from("employees")
       .select("id, full_name, employee_id")
       .in("id", employeeIds);
-    
+
     console.log(`\n   Employees with Jan 5 entries:`);
     employeeData?.forEach((emp) => {
       const empEntries = jan5Entries.filter((e: any) => e.employee_id === emp.id);
@@ -103,7 +103,7 @@ async function checkTimezoneIssues() {
   // Check for entries that might be Jan 5 but grouped elsewhere
   const jan4Entries = entriesByDate.get("2026-01-04") || [];
   const jan6Entries = entriesByDate.get("2026-01-06") || [];
-  
+
   console.log(`\n📊 Nearby dates:`);
   console.log(`   Jan 4: ${jan4Entries.length} entries`);
   console.log(`   Jan 5: ${jan5Entries.length} entries`);
@@ -115,7 +115,7 @@ async function checkTimezoneIssues() {
     const clockInManila = new Date(clockInUTC.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
     const hour = clockInManila.getHours();
     const dateStr = format(clockInManila, "yyyy-MM-dd");
-    
+
     // Check if it's actually Jan 5 but grouped to Jan 4 (late night) or Jan 6 (early morning)
     return dateStr === "2026-01-05" && (hour >= 0 && hour <= 8 || hour >= 20);
   });

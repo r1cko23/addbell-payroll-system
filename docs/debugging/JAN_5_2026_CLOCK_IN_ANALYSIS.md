@@ -1,7 +1,7 @@
 # Jan 5, 2026 Clock-In Issue Analysis
 
-**Date:** January 5, 2026  
-**Issue:** 43 out of 57 active employees missing clock-in entries  
+**Date:** January 5, 2026
+**Issue:** 43 out of 57 active employees missing clock-in entries
 **Status:** Under Investigation
 
 ## Summary
@@ -157,5 +157,5 @@ Based on the analysis, possible causes include:
 
 ---
 
-**Last Updated:** 2026-01-14  
+**Last Updated:** 2026-01-14
 **Next Review:** After checking Supabase logs

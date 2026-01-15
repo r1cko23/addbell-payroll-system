@@ -38,7 +38,7 @@ async function checkAuditLogs() {
     console.log("   (This might be expected if RLS restricts access)\n");
   } else {
     console.log(`Found ${auditLogs?.length || 0} audit log entries for Jan 5, 2026\n`);
-    
+
     if (auditLogs && auditLogs.length > 0) {
       console.log("Sample entries:");
       auditLogs.slice(0, 10).forEach((log, idx) => {
@@ -70,7 +70,7 @@ async function checkAuditLogs() {
     console.error("Error fetching failure to log requests:", ftlError);
   } else {
     console.log(`Found ${failureToLogRequests?.length || 0} failure-to-log requests for Jan 5\n`);
-    
+
     if (failureToLogRequests && failureToLogRequests.length > 0) {
       // Get employee names
       const employeeIds = [...new Set(failureToLogRequests.map(r => r.employee_id))];

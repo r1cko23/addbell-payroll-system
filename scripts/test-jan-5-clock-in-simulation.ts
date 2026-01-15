@@ -38,11 +38,11 @@ async function testJan5ClockIn() {
   for (const emp of employeesWithoutEntries) {
     // Test the is_rest_day_today function with a simulated date of Jan 5, 2026
     // We can't directly test with a past date, but we can check the logic
-    
+
     // Check if Jan 5 was Sunday (rest day for office-based)
     const jan5Date = new Date("2026-01-05");
     const dayOfWeek = jan5Date.getDay();
-    
+
     let wouldBeRestDay = false;
     let reason = "";
 
@@ -60,7 +60,7 @@ async function testJan5ClockIn() {
         .maybeSingle();
 
       wouldBeRestDay = schedule?.day_off === true;
-      reason = schedule 
+      reason = schedule
         ? (schedule.day_off ? "Marked as rest day in schedule" : "Not marked as rest day")
         : "No schedule found (defaults to NOT rest day)";
     }
@@ -75,7 +75,7 @@ async function testJan5ClockIn() {
   const jan5Date = new Date("2026-01-05");
   const dayOfWeek = jan5Date.getDay();
   const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek];
-  
+
   console.log(`\n📋 Summary:`);
   console.log(`   Jan 5, 2026 was a ${dayName} (day ${dayOfWeek})`);
   console.log(`   Office-based employees: Should NOT be blocked (${dayName} is not Sunday)`);

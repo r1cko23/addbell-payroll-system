@@ -37,14 +37,14 @@ async function analyzeJan5Errors() {
     console.error("Error fetching created entries:", createdError);
   } else {
     console.log(`   Found ${jan5CreatedEntries?.length || 0} entries created on Jan 5\n`);
-    
+
     if (jan5CreatedEntries && jan5CreatedEntries.length > 0) {
       const mismatchedDates = jan5CreatedEntries.filter(entry => {
         const clockInDate = new Date(entry.clock_in_time);
         const clockInDateStr = clockInDate.toISOString().split('T')[0];
         return clockInDateStr !== targetDate;
       });
-      
+
       if (mismatchedDates.length > 0) {
         console.log(`   ⚠️  Found ${mismatchedDates.length} entries with date mismatches:`);
         mismatchedDates.slice(0, 5).forEach(entry => {
@@ -69,7 +69,7 @@ async function analyzeJan5Errors() {
     console.error("Error fetching incomplete entries:", incompleteError);
   } else {
     console.log(`   Found ${incompleteEntries?.length || 0} incomplete entries from Jan 4 or earlier\n`);
-    
+
     if (incompleteEntries && incompleteEntries.length > 0) {
       // Get employee names
       const employeeIds = [...new Set(incompleteEntries.map(e => e.employee_id))];
@@ -98,7 +98,7 @@ async function analyzeJan5Errors() {
   console.log("3️⃣ Checking activity patterns around Jan 5 (Jan 4-6)...");
   const jan4Start = "2026-01-04T00:00:00+08:00";
   const jan6End = "2026-01-06T23:59:59+08:00";
-  
+
   const { data: surroundingEntries, error: surroundingError } = await supabase
     .from("time_clock_entries")
     .select("id, employee_id, clock_in_time, created_at")

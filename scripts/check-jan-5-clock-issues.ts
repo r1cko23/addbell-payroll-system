@@ -1,12 +1,12 @@
 /**
  * Script to check for clock-in issues on January 5, 2026
- * 
+ *
  * This script analyzes:
  * 1. How many employees should have clocked in on Jan 5
  * 2. How many actually have clock entries
  * 3. Whether Jan 5 was marked as a rest day for any employees
  * 4. Whether there were incomplete entries blocking clock-ins
- * 
+ *
  * Usage:
  *   npx tsx scripts/check-jan-5-clock-issues.ts
  */
@@ -135,7 +135,7 @@ async function checkJan5Issues() {
       console.log(`  ${idx + 1}. ${emp.full_name} (${emp.employee_id})`);
       console.log(`     Type: ${emp.employee_type || "N/A"}`);
       console.log(`     Position: ${emp.position || "N/A"}`);
-      
+
       // Check if they have incomplete entries from before Jan 5
       const employeeEntries = entriesByEmployee.get(emp.id) || [];
       const incompleteEntries = employeeEntries.filter(
@@ -175,7 +175,7 @@ async function checkJan5Issues() {
   console.log(`- Employees with clock entries: ${jan5EntriesByEmployee.size}`);
   console.log(`- Employees with rest day: ${restDayEmployees.size}`);
   console.log(`- Missing entries: ${employeesWithoutEntries.length}`);
-  
+
   if (wrongYearEntries.length > 0) {
     console.log(`- Entries with wrong year: ${wrongYearEntries.length}`);
     console.log(`\n💡 Run fix-clock-entry-years.ts to fix year issues`);

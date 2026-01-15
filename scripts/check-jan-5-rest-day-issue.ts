@@ -83,9 +83,9 @@ async function checkRestDayIssue() {
   const jan5Date = new Date("2026-01-05");
   const dayOfWeek = jan5Date.getDay(); // 0 = Sunday, 1 = Monday, etc.
   const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  
+
   console.log(`\n📅 Jan 5, 2026 was a ${dayNames[dayOfWeek]}`);
-  
+
   if (dayOfWeek === 0) {
     console.log(`   ⚠️  This is Sunday - office-based employees CANNOT clock in on Sunday (rest day)`);
     console.log(`   This explains why office-based employees don't have entries!\n`);

@@ -130,6 +130,7 @@ export default function EmployeesPage() {
   const {
     role,
     isAdmin,
+    isHR,
     canAccessSalaryInfo,
     loading: roleLoading,
   } = useUserRole();
@@ -458,19 +459,56 @@ export default function EmployeesPage() {
           data: { user: authUser },
         } = await supabase.auth.getUser();
 
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:460',message:'Starting employee update',data:{isAdmin,role,isHR,hasAuthUser:!!authUser,authUserId:authUser?.id,employeeId:editingEmployee.id,editingEmployeeId:editingEmployee.employee_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+        // #endregion
+
         if (!authUser) {
           toast.error("Authentication error. Please log in again.");
           return;
         }
 
-        const { error } = await (supabase.from("employees") as any)
-          .update({
-            ...employeeData,
-            updated_by: authUser.id,
-          })
-          .eq("id", editingEmployee.id);
+        // For HR users: Always exclude hire_date from update
+        // (Database trigger prevents HR from updating hire_date, and UI field is disabled)
+        const updateData: any = {
+          ...employeeData,
+          updated_by: authUser.id,
+        };
 
-        if (error) throw error;
+        // If user is HR (not admin), always exclude hire_date from updates
+        // HR cannot change hire_date - it's disabled in the UI and blocked by database trigger
+        if (!isAdmin && (isHR || role === "hr")) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:480',message:'HR employee update - excluding hire_date',data:{isAdmin,role,isHR,employeeId:editingEmployee.id,originalHireDate:editingEmployee.hire_date},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+
+          // Always exclude hire_date for HR users (they cannot change it)
+          delete updateData.hire_date;
+        }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:505',message:'Employee update attempt',data:{isAdmin,role,employeeId:editingEmployee.id,hasHireDate:!!updateData.hire_date,updateFields:Object.keys(updateData)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:489',message:'About to execute employee update',data:{isAdmin,role,isHR,employeeId:editingEmployee.id,updateDataKeys:Object.keys(updateData),hasHireDate:!!updateData.hire_date,authUserId:authUser.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+
+        const { error, data } = await (supabase.from("employees") as any)
+          .update(updateData)
+          .eq("id", editingEmployee.id)
+          .select();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:496',message:'Employee update response',data:{isAdmin,role,isHR,hasError:!!error,errorMessage:error?.message,errorCode:error?.code,errorDetails:error?.details,errorHint:error?.hint,hasData:!!data,dataCount:data?.length,employeeId:editingEmployee.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+
+        if (error) {
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:503',message:'Employee update error - throwing',data:{isAdmin,role,isHR,error:error.message,errorCode:error.code,errorDetails:error.details,errorHint:error.hint,fullError:JSON.stringify(error),employeeId:editingEmployee.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+          // #endregion
+          throw error;
+        }
         await saveEmployeeLocations(editingEmployee.id, formData.locations);
         toast.success("Employee updated successfully!", {
           description: `${full_name} • ${formData.employee_id}`,

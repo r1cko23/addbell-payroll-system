@@ -304,12 +304,18 @@ export default function TimesheetPage() {
 
       // Filter entries by date in Asia/Manila timezone to ensure accuracy
       const filteredClockData = (clockData || []).filter((entry: any) => {
-        const entryDate = new Date(entry.clock_in_time);
-        // Convert to Asia/Manila timezone for date comparison
-        const entryDatePH = new Date(
-          entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-        );
-        const entryDateStr = format(entryDatePH, "yyyy-MM-dd");
+        const entryDateUTC = parseISO(entry.clock_in_time);
+        // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone (same as timesheet generator)
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const parts = formatter.formatToParts(entryDateUTC);
+        const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
+          parts.find((p) => p.type === "month")!.value
+        }-${parts.find((p) => p.type === "day")!.value}`;
         // Check if entry date falls within the period
         return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
       });
@@ -326,6 +332,7 @@ export default function TimesheetPage() {
             e.status === "clocked_out" ||
             e.status === "clocked_in")
       );
+
 
       console.log("Loaded ALL clock entries:", clockData?.length || 0);
       console.log(
@@ -397,6 +404,7 @@ export default function TimesheetPage() {
       const incompleteEntries = validEntries.filter(
         (entry: any) => entry.clock_out_time === null
       );
+
 
       console.log("Loaded complete entries:", completeEntries.length);
       console.log("Loaded incomplete entries:", incompleteEntries.length);
@@ -563,12 +571,19 @@ export default function TimesheetPage() {
     const entriesByDate = new Map<string, ClockEntry[]>();
     entries.forEach((entry) => {
       if (!entry.clock_out_time) return;
-      const entryDate = new Date(entry.clock_in_time);
-      // Convert to Asia/Manila timezone for date grouping
-      const entryDatePH = new Date(
-        entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-      );
-      const dateStr = format(entryDatePH, "yyyy-MM-dd");
+      const entryDateUTC = parseISO(entry.clock_in_time);
+      // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone (same as timesheet generator)
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const parts = formatter.formatToParts(entryDateUTC);
+      const dateStr = `${parts.find((p) => p.type === "year")!.value}-${
+        parts.find((p) => p.type === "month")!.value
+      }-${parts.find((p) => p.type === "day")!.value}`;
+      
       if (!entriesByDate.has(dateStr)) {
         entriesByDate.set(dateStr, []);
       }
@@ -578,12 +593,19 @@ export default function TimesheetPage() {
     // Group incomplete entries by date (using Asia/Manila timezone)
     const incompleteByDate = new Map<string, ClockEntry[]>();
     incompleteEntries.forEach((entry) => {
-      const entryDate = new Date(entry.clock_in_time);
-      // Convert to Asia/Manila timezone for date grouping
-      const entryDatePH = new Date(
-        entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-      );
-      const dateStr = format(entryDatePH, "yyyy-MM-dd");
+      const entryDateUTC = parseISO(entry.clock_in_time);
+      // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone (same as timesheet generator)
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const parts = formatter.formatToParts(entryDateUTC);
+      const dateStr = `${parts.find((p) => p.type === "year")!.value}-${
+        parts.find((p) => p.type === "month")!.value
+      }-${parts.find((p) => p.type === "day")!.value}`;
+      
       if (!incompleteByDate.has(dateStr)) {
         incompleteByDate.set(dateStr, []);
       }
@@ -745,7 +767,13 @@ export default function TimesheetPage() {
         }
       } else if (dayOTs.length > 0) {
         // OT request exists
-        status = "OT";
+        // If there are also clock entries, show OT status but display the clock times
+        // If no clock entries, just show OT status (OT-only day)
+        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+          status = "OT"; // OT request + clock entries = OT status with times
+        } else {
+          status = "OT"; // OT request only (no clock entries) = OT status without times
+        }
         // BH will be calculated from time entries if they exist
       } else if (dayEntries.length > 0) {
         // Complete time entries exist
@@ -833,18 +861,23 @@ export default function TimesheetPage() {
       }
 
       // Get clock times (use first entry for the day, or incomplete entry)
+      // Only show times if there are actual clock entries
       // For LWOP and LEAVE, don't show clock times
+      // For OT-only days (no clock entries), don't show clock times
+      // For Saturday LOG (office-based, no entries), don't show clock times
       const firstEntry = dayEntries[0] || incompleteDayEntries[0];
+      const hasActualClockEntry = firstEntry !== undefined && firstEntry !== null;
+      
       const timeIn =
         status === "LWOP" || status === "LEAVE"
           ? null
-          : firstEntry
+          : hasActualClockEntry && firstEntry?.clock_in_time
           ? format(parseISO(firstEntry.clock_in_time), "hh:mm a")
           : null;
       const timeOut =
         status === "LWOP" || status === "LEAVE"
           ? null
-          : firstEntry?.clock_out_time
+          : hasActualClockEntry && firstEntry?.clock_out_time
           ? format(parseISO(firstEntry.clock_out_time), "hh:mm a")
           : null;
 

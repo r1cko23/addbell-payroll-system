@@ -528,13 +528,25 @@ function PayslipDetailedBreakdownComponent({
           hoursToCount = 8;
           // Saturday is included in Basic Salary (regular work day, not a separate benefit)
           basicSalary += 8 * ratePerHour;
+        } else if (dayOfWeek === 0 && (isClientBased || isAccountSupervisor) && finalRegularHours === 0) {
+          // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
+          // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
+          // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
+          const isSundayRestDay = restDays?.get(date) === true;
+          if (!isSundayRestDay) {
+            // Sunday is NOT their rest day - treat like Saturday (regular workday)
+            hoursToCount = 8;
+            // Sunday is included in Basic Salary (regular work day, like Saturday)
+            basicSalary += 8 * ratePerHour;
+          }
         } else if (finalRegularHours > 0) {
-          // Regular day or Saturday with work - count actual hours
+          // Regular day or Saturday/Sunday with work - count actual hours
           hoursToCount = finalRegularHours;
-          // Basic Salary = Regular work days (Mon-Sat) that were actually worked
-          // Exclude holidays and rest days (Sundays)
+          // Basic Salary = Regular work days (Mon-Sat, and Sun for client-based if not rest day) that were actually worked
+          // Exclude holidays and rest days (Sundays for office-based, or marked rest days for client-based)
           // BUT include Account Supervisor's first rest day (it's part of their 6-day work week)
           // Saturday is a regular work day - included in basic salary
+          // Sunday is also a regular work day for client-based account supervisors if not their rest day
           basicSalary += finalRegularHours * ratePerHour;
           // Note: If first rest day falls on Saturday, it's treated as regular work day (included in basic salary)
         } else if (isFirstRestDayChronologically && finalRegularHours === 0) {

@@ -167,8 +167,10 @@ export default function SettingsPage() {
       }
 
       // Load holidays (filter by date range instead of year column)
-      const yearStart = new Date(2025, 0, 1).toISOString().split('T')[0];
-      const yearEnd = new Date(2025, 11, 31).toISOString().split('T')[0];
+      // Use current year dynamically
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1).toISOString().split('T')[0];
+      const yearEnd = new Date(currentYear, 11, 31).toISOString().split('T')[0];
       const { data: holidaysData, error: holidaysError } = await supabase
         .from("holidays")
         .select("*")

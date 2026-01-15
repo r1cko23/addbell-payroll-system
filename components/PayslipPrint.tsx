@@ -339,19 +339,26 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           !clockInTime &&
           dayOfWeek !== 6; // Not Saturday (Saturday is always company benefit, not first rest day)
 
-        // Count Mon-Sat (exclude Sunday - rest day)
+        // Count Mon-Sat (exclude Sunday - rest day for office-based)
         // Saturday is a regular work day (paid 6 days/week per law)
         // BUT include Account Supervisor's first rest day (even if it's on Mon-Fri with 8 BH and no clock in)
-        if (dayOfWeek !== 0 && (regularHours > 0 || isLikelyFirstRestDay || dayOfWeek === 6)) {
-          // Regular work day (Mon-Sat) with hours worked OR first rest day with 8 BH OR Saturday (regular work day)
+        // For hotel client-based account supervisors: Sunday is also a regular workday if NOT their rest day
+        const isSundayRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
+        const isSundayRegularWorkday = dayOfWeek === 0 && (isClientBased || isAccountSupervisor) && !isSundayRestDay;
+        
+        if ((dayOfWeek !== 0 || isSundayRegularWorkday) && (regularHours > 0 || isLikelyFirstRestDay || dayOfWeek === 6 || isSundayRegularWorkday)) {
+          // Regular work day (Mon-Sat, or Sun for client-based if not rest day) with hours worked OR first rest day with 8 BH OR Saturday (regular work day) OR Sunday (regular workday for client-based)
           earningsBreakdown.basic.days++;
           // For Saturday: if no work (regularHours === 0), use 8 hours (regular work day per law)
+          // For Sunday (client-based, not rest day): if no work, use 8 hours (like Saturday)
           // For first rest day: if no work, use 8 hours
           // Otherwise: use actual regularHours
           let hoursForBasic: number;
           const regularHoursNum = Number(regularHours) || 0;
           if (dayOfWeek === 6 && regularHoursNum === 0) {
             hoursForBasic = 8; // Saturday regular work day
+          } else if (isSundayRegularWorkday && regularHoursNum === 0) {
+            hoursForBasic = 8; // Sunday regular work day for client-based account supervisors (like Saturday)
           } else if (isLikelyFirstRestDay && regularHoursNum === 0) {
             hoursForBasic = 8; // First rest day (regular workday for Account Supervisors)
           } else {
@@ -360,7 +367,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const dayAmount = hoursForBasic * ratePerHour;
           earningsBreakdown.basic.amount += dayAmount;
         }
-        // Sunday (dayOfWeek === 0) is rest day - NOT included in basic salary
+        // Sunday (dayOfWeek === 0) is rest day for office-based - NOT included in basic salary
+        // But for client-based account supervisors, Sunday is included if NOT their rest day
       }
 
       // Regular Overtime

@@ -353,34 +353,6 @@ export default function TimesheetPage() {
           datesFound
         );
 
-        // Check specifically for Dec 16
-        const dec16Entries = filteredClockData.filter((entry: any) => {
-          const entryDate = new Date(entry.clock_in_time);
-          const entryDatePH = new Date(
-            entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-          );
-          const date = format(entryDatePH, "yyyy-MM-dd");
-          return date === "2025-12-16";
-        });
-        if (dec16Entries.length > 0) {
-          console.log("Found Dec 16 entries:", dec16Entries);
-        } else {
-          console.warn(
-            "No entries found for 2025-12-16. Checking all entries around that date..."
-          );
-          const nearbyEntries = filteredClockData.filter((entry: any) => {
-            const entryDate = new Date(entry.clock_in_time);
-            const entryDatePH = new Date(
-              entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-            );
-            const dec16 = new Date("2025-12-16");
-            const diffDays = Math.abs(
-              (entryDatePH.getTime() - dec16.getTime()) / (1000 * 60 * 60 * 24)
-            );
-            return diffDays <= 2; // Within 2 days
-          });
-          console.log("Entries within 2 days of Dec 16:", nearbyEntries);
-        }
       } else {
         console.warn(
           "No clock entries found for period. Checking if employee has any entries..."
@@ -574,6 +546,10 @@ export default function TimesheetPage() {
     scheduleMap: Map<string, Schedule>,
     employeeType?: "office-based" | "client-based" | null
   ) {
+    // Check if employee is account supervisor
+    const isAccountSupervisor = selectedEmployee?.position
+      ?.toUpperCase()
+      .includes("ACCOUNT SUPERVISOR") || false;
     const workingDays = getBiMonthlyWorkingDays(periodStart);
     const days: AttendanceDay[] = [];
 
@@ -670,6 +646,7 @@ export default function TimesheetPage() {
       const isRestDay = schedule?.day_off === true;
       // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
       const isClientBased = employeeType === "client-based";
+      const isClientBasedAccountSupervisor = isAccountSupervisor && isClientBased;
       const dayType = determineDayType(dateStr, holidays, isRestDay, isClientBased);
       const dayOfWeek = getDay(date);
       const dayEntries = entriesByDate.get(dateStr) || [];
@@ -684,17 +661,6 @@ export default function TimesheetPage() {
         return normalizedHolidayDate === dateStr;
       });
 
-      // Debug logging for Dec 30-31
-      if (dateStr === "2025-12-30" || dateStr === "2025-12-31") {
-        console.log(`[Timesheet] Processing ${dateStr}:`, {
-          dayType,
-          holidaysCount: holidays.length,
-          holidaysForDate: holidays.filter(h => h.date === dateStr || h.date.split('T')[0] === dateStr),
-          holidayForDate,
-          dayEntries: dayEntries.length,
-          dayLeaves: dayLeaves.length,
-        });
-      }
 
       // Determine status based on priority:
       // 1. Holidays (check FIRST - before everything else)
@@ -807,8 +773,21 @@ export default function TimesheetPage() {
           status = "LOG"; // Saturday - paid as regular work day even if not worked
         }
       } else if (dayOfWeek === 0) {
-        // Sunday fallback (should be caught by dayType === "sunday" or isRestDay above)
-        status = "RD"; // Rest day
+        // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
+        // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
+        // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
+        const isSundayRestDay = isRestDay; // Already checked above
+        if (isClientBasedAccountSupervisor && !isSundayRestDay) {
+          // Sunday is NOT their rest day - treat like Saturday (regular workday)
+          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+            status = "LOG"; // Worked on Sunday
+          } else {
+            status = "LOG"; // Sunday - paid as regular work day even if not worked (like Saturday)
+          }
+        } else {
+          // Sunday fallback (for office-based or if Sunday IS rest day for client-based)
+          status = "RD"; // Rest day
+        }
       } else {
         // Check if the date is in the future (hasn't occurred yet)
         const today = new Date();
@@ -876,10 +855,7 @@ export default function TimesheetPage() {
 
       // Calculate ND (Night Differential) from approved OT requests
       // ND should come from overtime_requests, not from clock entries
-      const isAccountSupervisor =
-        selectedEmployee?.position
-          ?.toUpperCase()
-          .includes("ACCOUNT SUPERVISOR") || false;
+      // Note: isAccountSupervisor is already defined at function level (line 550)
       let ndHours = 0;
 
       if (!isAccountSupervisor && dayOTs.length > 0) {
@@ -996,6 +972,15 @@ export default function TimesheetPage() {
       // dayOfWeek from getDay(): 0 = Sunday, 1 = Monday, ..., 6 = Saturday
       if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6) {
         bh = 8; // Regular work day: 8 hours even if not worked (paid 6 days/week)
+      }
+
+      // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
+      // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
+      // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
+      // Set BH = 8 even if employee didn't work (like Saturday)
+      const isSundayRestDay = isRestDay; // Already checked above
+      if (isClientBasedAccountSupervisor && dayOfWeek === 0 && !isSundayRestDay && bh === 0 && dayEntries.length === 0) {
+        bh = 8; // Sunday regular work day: 8 hours even if not worked (like Saturday)
       }
 
       // IMPORTANT: BH is set based on:
@@ -1318,7 +1303,7 @@ export default function TimesheetPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Array.from({ length: 2 }, (_, i) => {
+                {Array.from({ length: 5 }, (_, i) => {
                   const year = today.getFullYear() - i;
                   return (
                     <SelectItem key={year} value={year.toString()}>

@@ -845,7 +845,7 @@ export default function TimeEntriesPage() {
                     className="flex h-10 w-full sm:w-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     style={{ minWidth: "100px" }}
                   >
-                    {Array.from({ length: 2 }, (_, i) => {
+                    {Array.from({ length: 5 }, (_, i) => {
                       const year = today.getFullYear() - i;
                       return (
                         <option key={year} value={year}>

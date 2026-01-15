@@ -212,6 +212,25 @@ export function generateTimesheetFromClockEntries(
       }
     }
 
+    // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
+    // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
+    // If Sunday is NOT their rest day, it should be treated like Saturday for office-based employees
+    // - Gets 8 BH even if not worked (like Saturday)
+    // - Included in Basic Salary
+    // - Paid at regular rate (no rest day premium)
+    if (isClientBasedAccountSupervisor && dayType === "regular" && regularHours === 0) {
+      const dateObj = parseISO(dateStr);
+      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek === 0) {
+        // Check if Sunday is NOT their rest day
+        const isSundayRestDay = restDays?.get(dateStr) === true;
+        if (!isSundayRestDay) {
+          // Sunday is NOT their rest day - treat like Saturday (regular workday)
+          regularHours = 8; // Regular work day: 8 hours even if not worked (like Saturday)
+        }
+      }
+    }
+
     // Client-based Account Supervisor Rest Day Logic:
     // They can mark rest days as Monday, Tuesday, or Wednesday only (enforced in schedule validation)
     // Rest days that fall on holidays are treated as holidays (handled by determineDayType)

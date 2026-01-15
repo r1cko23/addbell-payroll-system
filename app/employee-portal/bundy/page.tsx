@@ -1166,10 +1166,15 @@ export default function BundyClockPage() {
         otByDate.get(otDateStr)!.push(ot);
       });
 
+      // Check if employee is account supervisor (defined once at function level)
+      const isAccountSupervisor =
+        employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
+      const isClientBasedAccountSupervisor = isAccountSupervisor && (isClientBased === true);
+
       workingDays.forEach((date) => {
-        // Convert date to Manila timezone string to match entry grouping
-        // This ensures dates match correctly regardless of user's local timezone
-        const dateStr = getDateInManilaTimezone(date);
+        // Use consistent date formatting to match admin/HR dashboard
+        // Format date as yyyy-MM-dd to ensure consistency across both pages
+        const dateStr = formatDate(date, "yyyy-MM-dd");
         const schedule = scheduleMap.get(dateStr);
         const isRestDay = schedule?.day_off === true;
         // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
@@ -1227,8 +1232,9 @@ export default function BundyClockPage() {
         } else if (incompleteDayEntries.length > 0) {
           // Incomplete entry (clock_in but no clock_out)
           status = "INC";
-        } else if (dayType === "sunday") {
+        } else if (dayType === "sunday" || isRestDay) {
           // Rest day (Sunday is the designated rest day for office-based employees)
+          // OR rest day from employee schedule (for Account Supervisors: Mon/Tue/Wed, or any day marked as rest day)
           // If no work, still show as rest day (paid)
           // If worked, show as LOG with rest day pay
           if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
@@ -1238,6 +1244,7 @@ export default function BundyClockPage() {
           }
         } else if (dayOfWeek === 6) {
           // Saturday - regular work day (paid 6 days/week per law)
+          // Only applies if Saturday is NOT marked as a rest day in employee schedule
           // Employees are paid for Saturday even if they don't work (regular rate, not rest day premium)
           if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
             status = "LOG"; // Worked on Saturday
@@ -1245,8 +1252,21 @@ export default function BundyClockPage() {
             status = "LOG"; // Saturday - paid as regular work day even if not worked
           }
         } else if (dayOfWeek === 0) {
-          // Sunday fallback (should be caught by dayType === "sunday" above)
-          status = "RD"; // Rest day
+          // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
+          // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
+          // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
+          const isSundayRestDay = isRestDay; // Already checked above
+          if (isClientBasedAccountSupervisor && !isSundayRestDay) {
+            // Sunday is NOT their rest day - treat like Saturday (regular workday)
+            if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+              status = "LOG"; // Worked on Sunday
+            } else {
+              status = "LOG"; // Sunday - paid as regular work day even if not worked (like Saturday)
+            }
+          } else {
+            // Sunday fallback (for office-based or if Sunday IS rest day for client-based)
+            status = "RD"; // Rest day
+          }
         } else {
           // Check if the date is in the future (hasn't occurred yet)
           const today = new Date();
@@ -1267,8 +1287,7 @@ export default function BundyClockPage() {
         if (
           employee?.id &&
           (dayEntries.length > 0 ||
-            incompleteDayEntries.length > 0 ||
-            (dateStr >= "2025-12-15" && dateStr <= "2025-12-18"))
+            incompleteDayEntries.length > 0)
         ) {
           console.log(`Employee ${employee.id} - Date ${dateStr}:`, {
             dayEntries: dayEntries.length,
@@ -1365,10 +1384,22 @@ export default function BundyClockPage() {
           bh = 8;
         }
 
-        // IMPORTANT: Only set BH based on actual completed time log entries
-        // Do NOT automatically set BH = 8 for rest days, holidays, or Saturday company benefit
-        // Days Work should only count days where employee has completed logging (clock in AND clock out)
-        // The payslip calculation will handle payment for rest days/holidays based on employee type and eligibility
+        // Saturday Regular Work Day: Set BH = 8 even if employee didn't work
+        // Per Philippine labor law, employees are paid 6 days/week (Mon-Sat)
+        // Saturday is a regular work day - paid even if not worked, and counts towards days worked and total hours
+        // This matches the payslip calculation logic in timesheet-auto-generator.ts
+        if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6) {
+          bh = 8; // Regular work day: 8 hours even if not worked (paid 6 days/week)
+        }
+
+        // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
+        // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
+        // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
+        // Set BH = 8 even if employee didn't work (like Saturday)
+        const isSundayRestDay = isRestDay; // Already checked above
+        if (isClientBasedAccountSupervisor && dayOfWeek === 0 && !isSundayRestDay && bh === 0 && dayEntries.length === 0) {
+          bh = 8; // Sunday regular work day: 8 hours even if not worked (like Saturday)
+        }
 
         const lt = 0;
         // Calculate UT (Undertime) - only if BH < 8 hours
@@ -1395,9 +1426,7 @@ export default function BundyClockPage() {
 
         // Calculate ND (Night Differential) from approved OT requests
         // ND should come from overtime_requests, not from clock entries
-        const isAccountSupervisor =
-          employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") ||
-          false;
+        // Note: isAccountSupervisor is already defined at function level (above the loop)
         let ndHours = 0;
 
         if (!isAccountSupervisor && dayOTs.length > 0) {

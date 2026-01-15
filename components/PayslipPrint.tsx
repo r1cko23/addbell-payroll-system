@@ -345,7 +345,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         // For hotel client-based account supervisors: Sunday is also a regular workday if NOT their rest day
         const isSundayRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
         const isSundayRegularWorkday = dayOfWeek === 0 && (isClientBased || isAccountSupervisor) && !isSundayRestDay;
-        
+
         if ((dayOfWeek !== 0 || isSundayRegularWorkday) && (regularHours > 0 || isLikelyFirstRestDay || dayOfWeek === 6 || isSundayRegularWorkday)) {
           // Regular work day (Mon-Sat, or Sun for client-based if not rest day) with hours worked OR first rest day with 8 BH OR Saturday (regular work day) OR Sunday (regular workday for client-based)
           earningsBreakdown.basic.days++;

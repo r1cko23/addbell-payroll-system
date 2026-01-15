@@ -583,7 +583,7 @@ export default function TimesheetPage() {
       const dateStr = `${parts.find((p) => p.type === "year")!.value}-${
         parts.find((p) => p.type === "month")!.value
       }-${parts.find((p) => p.type === "day")!.value}`;
-      
+
       if (!entriesByDate.has(dateStr)) {
         entriesByDate.set(dateStr, []);
       }
@@ -605,7 +605,7 @@ export default function TimesheetPage() {
       const dateStr = `${parts.find((p) => p.type === "year")!.value}-${
         parts.find((p) => p.type === "month")!.value
       }-${parts.find((p) => p.type === "day")!.value}`;
-      
+
       if (!incompleteByDate.has(dateStr)) {
         incompleteByDate.set(dateStr, []);
       }
@@ -867,7 +867,7 @@ export default function TimesheetPage() {
       // For Saturday LOG (office-based, no entries), don't show clock times
       const firstEntry = dayEntries[0] || incompleteDayEntries[0];
       const hasActualClockEntry = firstEntry !== undefined && firstEntry !== null;
-      
+
       const timeIn =
         status === "LWOP" || status === "LEAVE"
           ? null

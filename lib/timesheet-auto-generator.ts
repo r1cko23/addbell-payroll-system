@@ -45,7 +45,8 @@ export function generateTimesheetFromClockEntries(
   eligibleForNightDiff: boolean = true, // Whether employee is eligible for night differential (Account Supervisors have flexi time, so no night diff)
   isClientBasedAccountSupervisor: boolean = false, // Whether employee is client-based Account Supervisor (for rest day logic)
   approvedOTByDate?: Map<string, number>, // Map of date string to approved OT hours (for dates without clock entries)
-  approvedNDByDate?: Map<string, number> // Map of date string to approved ND hours (for dates without clock entries)
+  approvedNDByDate?: Map<string, number>, // Map of date string to approved ND hours (for dates without clock entries)
+  isClientBased: boolean = false // Whether employee is client-based (for Saturday/Sunday logic)
 ): {
   attendance_data: DailyAttendance[];
   total_regular_hours: number;
@@ -201,35 +202,19 @@ export function generateTimesheetFromClockEntries(
     }
 
     // Saturday Regular Work Day: Set regularHours = 8 even if employee didn't work
-    // Per Philippine labor law, employees are paid 6 days/week (Mon-Sat)
-    // Saturday is a regular work day - paid even if not worked, and counts towards days worked and total hours
-    // This applies to ALL employees (office-based)
+    // Per Philippine labor law, office-based employees are paid 6 days/week (Mon-Sat)
+    // For office-based: Saturday is a regular work day - paid even if not worked
+    // For client-based: Saturday is a normal workday - must have logs (no automatic regularHours = 8)
     if (dayType === "regular" && regularHours === 0) {
       const dateObj = parseISO(dateStr);
       const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-      if (dayOfWeek === 6) {
-        regularHours = 8; // Regular work day: 8 hours even if not worked (paid 6 days/week)
+      if (dayOfWeek === 6 && !isClientBased) {
+        regularHours = 8; // Office-based: Regular work day: 8 hours even if not worked (paid 6 days/week)
       }
     }
 
-    // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
-    // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
-    // If Sunday is NOT their rest day, it should be treated like Saturday for office-based employees
-    // - Gets 8 BH even if not worked (like Saturday)
-    // - Included in Basic Salary
-    // - Paid at regular rate (no rest day premium)
-    if (isClientBasedAccountSupervisor && dayType === "regular" && regularHours === 0) {
-      const dateObj = parseISO(dateStr);
-      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-      if (dayOfWeek === 0) {
-        // Check if Sunday is NOT their rest day
-        const isSundayRestDay = restDays?.get(dateStr) === true;
-        if (!isSundayRestDay) {
-          // Sunday is NOT their rest day - treat like Saturday (regular workday)
-          regularHours = 8; // Regular work day: 8 hours even if not worked (like Saturday)
-        }
-      }
-    }
+    // Note: Client-based employees do NOT get automatic regularHours = 8 for Saturday or Sunday
+    // They must log time on all 6 workdays (non-rest days) or be marked as ABSENT in the timesheet display
 
     // Client-based Account Supervisor Rest Day Logic:
     // They can mark rest days as Monday, Tuesday, or Wednesday only (enforced in schedule validation)

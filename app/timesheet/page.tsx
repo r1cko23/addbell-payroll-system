@@ -764,31 +764,59 @@ export default function TimesheetPage() {
           status = "RD"; // Rest day - paid even if not worked
         }
       } else if (dayOfWeek === 6) {
-        // Saturday - regular work day (paid 6 days/week per law)
-        // Only applies if Saturday is NOT marked as a rest day in employee schedule
-        // Employees are paid for Saturday even if they don't work (regular rate, not rest day premium)
-        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-          status = "LOG"; // Worked on Saturday
-        } else {
-          status = "LOG"; // Saturday - paid as regular work day even if not worked
-        }
-      } else if (dayOfWeek === 0) {
-        // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
-        // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
-        // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
-        const isSundayRestDay = isRestDay; // Already checked above
-        if (isClientBasedAccountSupervisor && !isSundayRestDay) {
-          // Sunday is NOT their rest day - treat like Saturday (regular workday)
+        // Saturday handling:
+        // - Office-based: Saturday is a regular work day (paid 6 days/week per law) - shows LOG even if no logs
+        // - Client-based: Saturday is a normal workday - shows ABSENT if no logs (unless it's their rest day, which is handled above)
+        if (isClientBased) {
+          // Client-based: Saturday is a normal workday - must have logs or be ABSENT
           if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-            status = "LOG"; // Worked on Sunday
+            status = "LOG"; // Worked on Saturday
           } else {
-            status = "LOG"; // Sunday - paid as regular work day even if not worked (like Saturday)
+            // No logs = ABSENT (unless it's a rest day, which is already handled above)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const currentDate = new Date(date);
+            currentDate.setHours(0, 0, 0, 0);
+            status = currentDate > today ? "-" : "ABSENT";
           }
         } else {
-          // Sunday fallback (for office-based or if Sunday IS rest day for client-based)
-          status = "RD"; // Rest day
+          // Office-based: Saturday is a regular work day (paid even if not worked)
+          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+            status = "LOG"; // Worked on Saturday
+          } else {
+            status = "LOG"; // Saturday - paid as regular work day even if not worked
+          }
+        }
+      } else if (dayOfWeek === 0) {
+        // Sunday handling:
+        // - Office-based: Sunday is rest day (handled above)
+        // - Client-based: Sunday is a normal workday if NOT their rest day - shows ABSENT if no logs
+        if (isClientBased) {
+          const isSundayRestDay = isRestDay; // Already checked above
+          if (isSundayRestDay) {
+            // Sunday IS their rest day - already handled above (should show RD)
+            status = "RD";
+          } else {
+            // Sunday is NOT their rest day - it's a normal workday, must have logs or be ABSENT
+            if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+              status = "LOG"; // Worked on Sunday
+            } else {
+              // No logs = ABSENT
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const currentDate = new Date(date);
+              currentDate.setHours(0, 0, 0, 0);
+              status = currentDate > today ? "-" : "ABSENT";
+            }
+          }
+        } else {
+          // Office-based: Sunday is rest day (already handled above, but fallback)
+          status = "RD";
         }
       } else {
+        // Monday-Friday: Normal workdays
+        // - Office-based: Must have logs or be ABSENT
+        // - Client-based: Must have logs or be ABSENT (unless it's their rest day, which is handled above)
         // Check if the date is in the future (hasn't occurred yet)
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -966,22 +994,16 @@ export default function TimesheetPage() {
       }
 
       // Saturday Regular Work Day: Set BH = 8 even if employee didn't work
-      // Per Philippine labor law, employees are paid 6 days/week (Mon-Sat)
-      // Saturday is a regular work day - paid even if not worked, and counts towards days worked and total hours
-      // This matches the payslip calculation logic in timesheet-auto-generator.ts
+      // Per Philippine labor law, office-based employees are paid 6 days/week (Mon-Sat)
+      // For office-based: Saturday is a regular work day - paid even if not worked
+      // For client-based: Saturday is a normal workday - must have logs (no automatic BH = 8)
       // dayOfWeek from getDay(): 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-      if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6) {
-        bh = 8; // Regular work day: 8 hours even if not worked (paid 6 days/week)
+      if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6 && !isClientBased) {
+        bh = 8; // Office-based: Regular work day: 8 hours even if not worked (paid 6 days/week)
       }
 
-      // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
-      // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
-      // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
-      // Set BH = 8 even if employee didn't work (like Saturday)
-      const isSundayRestDay = isRestDay; // Already checked above
-      if (isClientBasedAccountSupervisor && dayOfWeek === 0 && !isSundayRestDay && bh === 0 && dayEntries.length === 0) {
-        bh = 8; // Sunday regular work day: 8 hours even if not worked (like Saturday)
-      }
+      // Note: Client-based employees do NOT get automatic BH = 8 for Saturday or Sunday
+      // They must log time on all 6 workdays (non-rest days) or be marked as ABSENT
 
       // IMPORTANT: BH is set based on:
       // 1. Actual completed time log entries (regular_hours from clock entries)
@@ -1514,9 +1536,9 @@ export default function TimesheetPage() {
                           {day.status === "LWOP"
                             ? "-"
                             : day.status === "LEAVE"
-                            ? "8"
+                            ? "8.0"
                             : day.bh > 0
-                            ? day.bh
+                            ? day.bh.toFixed(1)
                             : "-"}
                         </td>
                         <td className="px-4 py-2 text-sm text-right">

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     // Gross pay is calculated from weekly_attendance or time clock entries
     let employeesQuery = supabase
       .from("employees")
-      .select("id, employee_id, full_name, last_name, first_name")
+      .select("id, employee_id, full_name, last_name, first_name, employee_type, position")
       .eq("is_active", true)
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
@@ -197,8 +197,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate timesheet data
-        // Note: API route doesn't have employee type info, so pass default values
-        // Rest day logic for client-based Account Supervisors is handled in payslips page
+        // Determine employee type flags
+        const isClientBased = employee.employee_type === "client-based" || false;
+        const isClientBasedAccountSupervisor =
+          isClientBased &&
+          (employee.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
+
         const timesheetData = generateTimesheetFromClockEntries(
           clockEntries as any,
           periodStart,
@@ -207,7 +211,10 @@ export async function POST(request: NextRequest) {
           undefined, // restDays - not available in API route
           true, // eligibleForOT - default to true
           true, // eligibleForNightDiff - default to true
-          false // isClientBasedAccountSupervisor - API route doesn't have employee type info
+          isClientBasedAccountSupervisor,
+          undefined, // approvedOTByDate - not available in API route
+          undefined, // approvedNDByDate - not available in API route
+          isClientBased // Pass client-based flag for Saturday/Sunday logic
         );
 
         // Calculate gross pay from attendance data

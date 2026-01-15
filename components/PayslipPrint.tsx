@@ -327,10 +327,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       // - Account Supervisor's first rest day IS included in basic salary (it's part of their 6-day work week)
       // Basic Salary = ONLY regular work days (Mon-Fri) that were actually worked
       // PLUS Account Supervisor's first rest day (even if not worked, gets 8 BH from timesheet generator)
-      if (dayType === "regular") {
-        const dateObj = new Date(date);
-        const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+      const dateObj = new Date(date);
+      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
 
+      if (dayType === "regular") {
         // Check if this might be Account Supervisor's first rest day
         // The timesheet generator sets regularHours = 8 for first rest day even if not worked
         // If regularHours === 8 and no clockInTime, it's likely the first rest day (company benefit)
@@ -343,8 +343,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         // Saturday is a regular work day (paid 6 days/week per law)
         // BUT include Account Supervisor's first rest day (even if it's on Mon-Fri with 8 BH and no clock in)
         // For hotel client-based account supervisors: Sunday is also a regular workday if NOT their rest day
-        const isSundayRestDay = (isClientBased || isAccountSupervisor) && restDays?.get(date) === true;
-        const isSundayRegularWorkday = dayOfWeek === 0 && (isClientBased || isAccountSupervisor) && !isSundayRestDay;
+        // Note: If dayType === "regular" and dayOfWeek === 0, it means Sunday is NOT a rest day for client-based account supervisors
+        const isSundayRegularWorkday = dayOfWeek === 0 && (isClientBased || isAccountSupervisor);
 
         if ((dayOfWeek !== 0 || isSundayRegularWorkday) && (regularHours > 0 || isLikelyFirstRestDay || dayOfWeek === 6 || isSundayRegularWorkday)) {
           // Regular work day (Mon-Sat, or Sun for client-based if not rest day) with hours worked OR first rest day with 8 BH OR Saturday (regular work day) OR Sunday (regular workday for client-based)

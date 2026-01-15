@@ -1186,8 +1186,8 @@ export default function BundyClockPage() {
         const dayOTs = otByDate.get(dateStr) || [];
 
         // Determine status based on priority (matching admin/HR page logic):
-        // 1. Leave requests (LWOP, LEAVE, CTO, OB)
-        // 2. Holidays (check BEFORE checking entries/ABSENT to ensure holidays are detected)
+        // 1. Holidays (check FIRST - before everything else)
+        // 2. Leave requests (LWOP, LEAVE, CTO, OB)
         // 3. OT requests
         // 4. Complete time entries (LOG)
         // 5. Incomplete time entries (INC)
@@ -1197,8 +1197,60 @@ export default function BundyClockPage() {
         let status = "-";
         let bh = 0; // Basic Hours
 
-        if (dayLeaves.length > 0) {
-          // Check leave requests first
+        // Check for holidays FIRST (before everything else) to ensure they're always detected
+        // This is critical - holidays should be detected even if there are no clock entries
+        // Check both dayType and direct holiday lookup
+        const holidayForDate = holidays.find(h => {
+          const normalizedHolidayDate = h.date.split('T')[0]; // Remove time if present
+          return normalizedHolidayDate === dateStr;
+        });
+        const isHoliday = holidayForDate !== undefined ||
+                         dayType === "regular-holiday" ||
+                         dayType === "non-working-holiday" ||
+                         dayType === "sunday-regular-holiday" ||
+                         dayType === "sunday-special-holiday" ||
+                         dayType.includes("holiday");
+
+        if (isHoliday) {
+          // Holiday - check BEFORE checking entries to ensure holidays are always detected
+          // Even if employee didn't work, it's still a holiday (not ABSENT)
+          // Determine if regular or special holiday
+          const isRegularHoliday = holidayForDate?.type === "regular" ||
+                                   dayType.includes("regular") ||
+                                   dayType === "regular-holiday" ||
+                                   dayType === "sunday-regular-holiday";
+          status = isRegularHoliday ? "RH" : "SH";
+          // Check if employee is eligible for holiday pay (worked day before)
+          // Search up to 7 days back to find the last regular working day
+          let eligibleForHoliday = false;
+          for (let i = 1; i <= 7; i++) {
+            const checkDate = new Date(date);
+            checkDate.setDate(checkDate.getDate() - i);
+            const checkDateStr = formatDate(checkDate, "yyyy-MM-dd");
+            const checkDayEntries = entriesByDate.get(checkDateStr) || [];
+            const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
+
+            // Only check regular working days (skip holidays and rest days)
+            if (checkDayType === "regular" && checkDayEntries.length > 0) {
+              // Check if employee worked 8+ hours on this regular working day
+              const workedHours = checkDayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+              if (workedHours >= 8) {
+                eligibleForHoliday = true;
+                break;
+              }
+            }
+          }
+          // BH will be set based on eligibility (8 if eligible, 0 if not)
+          // For consecutive holidays, if previous holiday was eligible, this one is too
+          if (!eligibleForHoliday && days.length > 0) {
+            const prevDay = days[days.length - 1];
+            if ((prevDay.status === "RH" || prevDay.status === "SH") && prevDay.bh >= 8) {
+              eligibleForHoliday = true;
+            }
+          }
+          bh = eligibleForHoliday ? 8 : 0;
+        } else if (dayLeaves.length > 0) {
+          // Check leave requests (but holidays take priority)
           const leave = dayLeaves[0];
           if (leave.leave_type === "LWOP") {
             status = "LWOP";
@@ -1217,11 +1269,6 @@ export default function BundyClockPage() {
             status = "LEAVE";
             bh = 8;
           }
-        } else if (dayType.includes("holiday")) {
-          // Holiday - check BEFORE checking entries to ensure holidays are always detected
-          // Even if employee didn't work, it's still a holiday (not ABSENT)
-          status = dayType.includes("regular") ? "RH" : "SH";
-          // BH will be set based on eligibility (8 if eligible, 0 if not)
         } else if (dayOTs.length > 0) {
           // OT request exists
           status = "OT";
@@ -1243,31 +1290,59 @@ export default function BundyClockPage() {
             status = "RD"; // Rest day - paid even if not worked
           }
         } else if (dayOfWeek === 6) {
-          // Saturday - regular work day (paid 6 days/week per law)
-          // Only applies if Saturday is NOT marked as a rest day in employee schedule
-          // Employees are paid for Saturday even if they don't work (regular rate, not rest day premium)
-          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-            status = "LOG"; // Worked on Saturday
-          } else {
-            status = "LOG"; // Saturday - paid as regular work day even if not worked
-          }
-        } else if (dayOfWeek === 0) {
-          // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
-          // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
-          // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
-          const isSundayRestDay = isRestDay; // Already checked above
-          if (isClientBasedAccountSupervisor && !isSundayRestDay) {
-            // Sunday is NOT their rest day - treat like Saturday (regular workday)
+          // Saturday handling:
+          // - Office-based: Saturday is a regular work day (paid 6 days/week per law) - shows LOG even if no logs
+          // - Client-based: Saturday is a normal workday - shows ABSENT if no logs (unless it's their rest day, which is handled above)
+          if (isClientBased) {
+            // Client-based: Saturday is a normal workday - must have logs or be ABSENT
             if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-              status = "LOG"; // Worked on Sunday
+              status = "LOG"; // Worked on Saturday
             } else {
-              status = "LOG"; // Sunday - paid as regular work day even if not worked (like Saturday)
+              // No logs = ABSENT (unless it's a rest day, which is already handled above)
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const currentDate = new Date(date);
+              currentDate.setHours(0, 0, 0, 0);
+              status = currentDate > today ? "-" : "ABSENT";
             }
           } else {
-            // Sunday fallback (for office-based or if Sunday IS rest day for client-based)
-            status = "RD"; // Rest day
+            // Office-based: Saturday is a regular work day (paid even if not worked)
+            if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+              status = "LOG"; // Worked on Saturday
+            } else {
+              status = "LOG"; // Saturday - paid as regular work day even if not worked
+            }
+          }
+        } else if (dayOfWeek === 0) {
+          // Sunday handling:
+          // - Office-based: Sunday is rest day (handled above)
+          // - Client-based: Sunday is a normal workday if NOT their rest day - shows ABSENT if no logs
+          if (isClientBased) {
+            const isSundayRestDay = isRestDay; // Already checked above
+            if (isSundayRestDay) {
+              // Sunday IS their rest day - already handled above (should show RD)
+              status = "RD";
+            } else {
+              // Sunday is NOT their rest day - it's a normal workday, must have logs or be ABSENT
+              if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+                status = "LOG"; // Worked on Sunday
+              } else {
+                // No logs = ABSENT
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const currentDate = new Date(date);
+                currentDate.setHours(0, 0, 0, 0);
+                status = currentDate > today ? "-" : "ABSENT";
+              }
+            }
+          } else {
+            // Office-based: Sunday is rest day (already handled above, but fallback)
+            status = "RD";
           }
         } else {
+          // Monday-Friday: Normal workdays
+          // - Office-based: Must have logs or be ABSENT
+          // - Client-based: Must have logs or be ABSENT (unless it's their rest day, which is handled above)
           // Check if the date is in the future (hasn't occurred yet)
           const today = new Date();
           today.setHours(0, 0, 0, 0);
@@ -1385,21 +1460,15 @@ export default function BundyClockPage() {
         }
 
         // Saturday Regular Work Day: Set BH = 8 even if employee didn't work
-        // Per Philippine labor law, employees are paid 6 days/week (Mon-Sat)
-        // Saturday is a regular work day - paid even if not worked, and counts towards days worked and total hours
-        // This matches the payslip calculation logic in timesheet-auto-generator.ts
-        if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6) {
-          bh = 8; // Regular work day: 8 hours even if not worked (paid 6 days/week)
+        // Per Philippine labor law, office-based employees are paid 6 days/week (Mon-Sat)
+        // For office-based: Saturday is a regular work day - paid even if not worked
+        // For client-based: Saturday is a normal workday - must have logs (no automatic BH = 8)
+        if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6 && !isClientBased) {
+          bh = 8; // Office-based: Regular work day: 8 hours even if not worked (paid 6 days/week)
         }
 
-        // Sunday Regular Work Day for Hotel Client-Based Account Supervisors:
-        // For hotel client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
-        // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
-        // Set BH = 8 even if employee didn't work (like Saturday)
-        const isSundayRestDay = isRestDay; // Already checked above
-        if (isClientBasedAccountSupervisor && dayOfWeek === 0 && !isSundayRestDay && bh === 0 && dayEntries.length === 0) {
-          bh = 8; // Sunday regular work day: 8 hours even if not worked (like Saturday)
-        }
+        // Note: Client-based employees do NOT get automatic BH = 8 for Saturday or Sunday
+        // They must log time on all 6 workdays (non-rest days) or be marked as ABSENT
 
         const lt = 0;
         // Calculate UT (Undertime) - only if BH < 8 hours
@@ -2100,7 +2169,7 @@ export default function BundyClockPage() {
                           {day.ot > 0 ? day.ot.toFixed(2) : "-"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
-                          {day.ut > 0 ? day.ut : "0"}
+                          {day.ut > 0 ? (day.ut / 60).toFixed(2) : "0"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
                           {day.nd > 0 ? day.nd.toFixed(2) : "0"}

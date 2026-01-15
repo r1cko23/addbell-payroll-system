@@ -764,6 +764,7 @@ export default function PayslipsPage() {
           const isClientBasedAccountSupervisor =
             selectedEmployee?.employee_type === "client-based" &&
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
+          const isClientBased = selectedEmployee?.employee_type === "client-based" || false;
 
           const timesheetData = generateTimesheetFromClockEntries(
             mappedClockEntries as any,
@@ -775,7 +776,8 @@ export default function PayslipsPage() {
             isEligibleForNightDiff,
             isClientBasedAccountSupervisor,
             approvedOTByDate, // Pass approved OT hours map
-            approvedNDByDate // Pass approved ND hours map
+            approvedNDByDate, // Pass approved ND hours map
+            isClientBased // Pass general client-based flag for Saturday/Sunday logic
           );
 
           // Update attendance_data to include leave days

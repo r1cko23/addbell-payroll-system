@@ -99,10 +99,10 @@ function ResetPasswordClient() {
         // #region agent log
         fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:90',message:'Error detected in URL',data:{error,errorCode,errorDescription},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
         // #endregion
-        
+
         let errorMessage = "This reset link is invalid or has expired. Request a new one.";
         if (errorCode === "otp_expired" || error === "access_denied") {
-          errorMessage = errorDescription 
+          errorMessage = errorDescription
             ? decodeURIComponent(errorDescription.replace(/\+/g, " "))
             : "This reset link has expired. Please request a new password reset email.";
         }
@@ -122,13 +122,13 @@ function ResetPasswordClient() {
         const refreshToken = params.get("refresh_token");
         const typeParam = params.get("type");
         const error = params.get("error");
-        
+
         // Skip if there's an error in the hash
         if (error) {
           setSessionAttempted(true);
           return;
         }
-        
+
         if (accessToken && refreshToken && typeParam === "recovery") {
           // #region agent log
           fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:98',message:'Processing hash-based recovery link',data:{hasTokens:!!accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});

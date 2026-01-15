@@ -31,10 +31,17 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith(path)
   );
   const isLoginPath = pathname === "/login";
+  const isResetPasswordPath = pathname === "/reset-password";
 
+  // Allow reset-password page without session check (needed for password recovery flow)
   // Only check session for protected routes or login page
   // This prevents unnecessary refresh attempts on public routes
-  if (!isProtectedPath && !isLoginPath) {
+  if (!isProtectedPath && !isLoginPath && !isResetPasswordPath) {
+    return NextResponse.next();
+  }
+
+  // Skip session check for reset-password page (token exchange happens client-side)
+  if (isResetPasswordPath) {
     return NextResponse.next();
   }
 

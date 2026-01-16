@@ -1018,8 +1018,8 @@ export default function PayslipsPage() {
               // Calculate payment amount based on deduct_bi_monthly flag
               // If deduct_bi_monthly is true: divide by 2 for bi-monthly deductions (e.g., 1,000/month = 500 per cutoff)
               // If deduct_bi_monthly is false: use full monthly payment per cutoff
-              const paymentAmount = loan.deduct_bi_monthly !== false 
-                ? loan.monthly_payment / 2 
+              const paymentAmount = loan.deduct_bi_monthly !== false
+                ? loan.monthly_payment / 2
                 : loan.monthly_payment;
 
               // Store loan detail for display

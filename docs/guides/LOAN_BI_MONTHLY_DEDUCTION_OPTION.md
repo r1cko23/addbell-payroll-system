@@ -41,8 +41,8 @@ A checkbox has been added to the loan creation/edit form:
 The payslip generation logic checks the `deduct_bi_monthly` flag:
 
 ```typescript
-const paymentAmount = loan.deduct_bi_monthly !== false 
-  ? loan.monthly_payment / 2 
+const paymentAmount = loan.deduct_bi_monthly !== false
+  ? loan.monthly_payment / 2
   : loan.monthly_payment;
 ```
 

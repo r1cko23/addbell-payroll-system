@@ -765,8 +765,8 @@ export default function LoansPage() {
           const deductBiMonthly = loan.deduct_bi_monthly !== false;
           const expectedPayment =
             loan.cutoff_assignment === "both"
-              ? (deductBiMonthly 
-                  ? parseFloat(loan.monthly_payment.toString()) / 2 
+              ? (deductBiMonthly
+                  ? parseFloat(loan.monthly_payment.toString()) / 2
                   : parseFloat(loan.monthly_payment.toString()))
               : (deductBiMonthly
                   ? parseFloat(loan.monthly_payment.toString()) / 2

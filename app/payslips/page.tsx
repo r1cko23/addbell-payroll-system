@@ -995,6 +995,11 @@ export default function PayslipsPage() {
 
           loansData.forEach((loan: any) => {
             // Check if loan should be deducted in this cutoff
+            // cutoff_assignment controls which cutoff(s) to deduct in:
+            // - "first": deducts in first cutoff only (500 if monthly payment is 1,000)
+            // - "second": deducts in second cutoff only (500 if monthly payment is 1,000)
+            // - "both": deducts in both cutoffs (500 + 500 = 1,000/month total)
+            // All loans are deducted bi-monthly (monthly_payment / 2 per cutoff)
             const shouldDeduct =
               loan.cutoff_assignment === "both" ||
               loan.cutoff_assignment === currentCutoff;
@@ -1008,11 +1013,10 @@ export default function PayslipsPage() {
             });
 
             if (shouldDeduct) {
-              // Calculate payment amount (monthly payment / 2 if both cutoffs, full if single cutoff)
-              const paymentAmount =
-                loan.cutoff_assignment === "both"
-                  ? loan.monthly_payment / 2
-                  : loan.monthly_payment;
+              // Calculate payment amount - always divide by 2 for bi-monthly deductions
+              // Monthly payment is split across two cutoffs (e.g., 1,000/month = 500 per cutoff)
+              // This applies regardless of cutoff_assignment - all loans are deducted bi-monthly
+              const paymentAmount = loan.monthly_payment / 2;
 
               // Store loan detail for display
               loanDetails.push({
@@ -1281,11 +1285,9 @@ export default function PayslipsPage() {
           continue;
         }
 
-        // Calculate deduction amount based on cutoff assignment
-        const deductionAmount =
-          (loanRecord as any).cutoff_assignment === "both"
-            ? parseFloat((loanRecord as any).monthly_payment) / 2
-            : parseFloat((loanRecord as any).monthly_payment);
+        // Calculate deduction amount - always divide by 2 for bi-monthly deductions
+        // Monthly payment is split across two cutoffs (e.g., 1,000/month = 500 per cutoff)
+        const deductionAmount = parseFloat((loanRecord as any).monthly_payment) / 2;
 
         console.log(`Processing loan ${(loanRecord as any).id}:`, {
           loan_type: (loanRecord as any).loan_type,
@@ -1305,10 +1307,9 @@ export default function PayslipsPage() {
         const newBalance = Math.max(0, currentBalance - deductionAmount);
 
         // Calculate terms reduction
-        // If "both" cutoff, reduce by 0.5 terms per cutoff (full term after both cutoffs)
-        // If single cutoff, reduce by 1 term per cutoff
-        const termsReduction =
-          (loanRecord as any).cutoff_assignment === "both" ? 0.5 : 1.0;
+        // Always reduce by 0.5 terms per cutoff since we're doing bi-monthly deductions
+        // (full term is completed after both cutoffs in a month)
+        const termsReduction = 0.5;
         const newRemainingTerms = Math.max(
           0,
           currentRemainingTerms - termsReduction

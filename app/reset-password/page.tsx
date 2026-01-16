@@ -23,24 +23,14 @@ function ResetPasswordClient() {
   const [sessionAttempted, setSessionAttempted] = useState(false);
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:25',message:'Reset password page mounted',data:{hasCode:!!searchParams?.get('code'),hasType:!!searchParams?.get('type'),hash:typeof window !== 'undefined' ? window.location.hash : 'N/A'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     // Mark the page ready when the recovery link has been used
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:28',message:'Auth state change',data:{event},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       if (event === "PASSWORD_RECOVERY") {
         setCanReset(true);
       }
     });
 
     supabase.auth.getSession().then(({ data: sessionData }) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:33',message:'Session check result',data:{hasSession:!!sessionData.session},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       if (sessionData.session) {
         setCanReset(true);
       }
@@ -55,15 +45,9 @@ function ResetPasswordClient() {
     const code = searchParams?.get("code");
     const type = searchParams?.get("type");
     if (code && type === "recovery") {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:47',message:'Starting PKCE code exchange',data:{codeLength:code.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       supabase.auth
         .exchangeCodeForSession(code)
         .then(({ error }) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:50',message:'PKCE code exchange result',data:{hasError:!!error,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           if (error) {
             setLinkError(
               error.message ||
@@ -76,9 +60,6 @@ function ResetPasswordClient() {
           }
         })
         .catch((err) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:62',message:'PKCE code exchange exception',data:{errorMessage:err?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           setLinkError(
             err?.message ||
               "This reset link is invalid or has expired. Request a new one."
@@ -96,10 +77,6 @@ function ResetPasswordClient() {
       const errorDescription = hashParams?.get("error_description") || searchParams?.get("error_description");
 
       if (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:90',message:'Error detected in URL',data:{error,errorCode,errorDescription},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-
         let errorMessage = "This reset link is invalid or has expired. Request a new one.";
         if (errorCode === "otp_expired" || error === "access_denied") {
           errorMessage = errorDescription
@@ -130,18 +107,12 @@ function ResetPasswordClient() {
         }
 
         if (accessToken && refreshToken && typeParam === "recovery") {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:98',message:'Processing hash-based recovery link',data:{hasTokens:!!accessToken},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
           supabase.auth
             .setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             })
             .then(({ error }) => {
-              // #region agent log
-              fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:104',message:'Hash session set result',data:{hasError:!!error,errorMessage:error?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-              // #endregion
               if (error) {
                 setLinkError(
                   error.message ||
@@ -154,9 +125,6 @@ function ResetPasswordClient() {
               }
             })
             .catch((err) => {
-              // #region agent log
-              fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reset-password/page.tsx:116',message:'Hash session set exception',data:{errorMessage:err?.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-              // #endregion
               setLinkError(
                 err?.message ||
                   "This reset link is invalid or has expired. Request a new one."

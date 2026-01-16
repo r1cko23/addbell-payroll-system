@@ -33,8 +33,8 @@ import {
   H4,
   BodySmall,
   Caption,
-  Label,
 } from "@/components/ui/typography";
+import { Label } from "@/components/ui/label";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -186,6 +186,8 @@ export default function PayslipsPage() {
   const [applyPagibig] = useState(true); // Always true - mandatory
   const [preparedBy, setPreparedBy] = useState("Melanie R. Sapinoso");
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [adjustmentAmount, setAdjustmentAmount] = useState<string>("0");
+  const [adjustmentReason, setAdjustmentReason] = useState<string>("");
 
   const supabase = createClient();
 
@@ -1013,10 +1015,12 @@ export default function PayslipsPage() {
             });
 
             if (shouldDeduct) {
-              // Calculate payment amount - always divide by 2 for bi-monthly deductions
-              // Monthly payment is split across two cutoffs (e.g., 1,000/month = 500 per cutoff)
-              // This applies regardless of cutoff_assignment - all loans are deducted bi-monthly
-              const paymentAmount = loan.monthly_payment / 2;
+              // Calculate payment amount based on deduct_bi_monthly flag
+              // If deduct_bi_monthly is true: divide by 2 for bi-monthly deductions (e.g., 1,000/month = 500 per cutoff)
+              // If deduct_bi_monthly is false: use full monthly payment per cutoff
+              const paymentAmount = loan.deduct_bi_monthly !== false 
+                ? loan.monthly_payment / 2 
+                : loan.monthly_payment;
 
               // Store loan detail for display
               loanDetails.push({
@@ -1285,9 +1289,13 @@ export default function PayslipsPage() {
           continue;
         }
 
-        // Calculate deduction amount - always divide by 2 for bi-monthly deductions
-        // Monthly payment is split across two cutoffs (e.g., 1,000/month = 500 per cutoff)
-        const deductionAmount = parseFloat((loanRecord as any).monthly_payment) / 2;
+        // Calculate deduction amount based on deduct_bi_monthly flag
+        // If deduct_bi_monthly is true: divide by 2 for bi-monthly deductions (e.g., 1,000/month = 500 per cutoff)
+        // If deduct_bi_monthly is false: use full monthly payment per cutoff
+        const deductBiMonthly = (loanRecord as any).deduct_bi_monthly !== false;
+        const deductionAmount = deductBiMonthly
+          ? parseFloat((loanRecord as any).monthly_payment) / 2
+          : parseFloat((loanRecord as any).monthly_payment);
 
         console.log(`Processing loan ${(loanRecord as any).id}:`, {
           loan_type: (loanRecord as any).loan_type,
@@ -1306,10 +1314,10 @@ export default function PayslipsPage() {
         // Calculate new balance (ensure it doesn't go below 0)
         const newBalance = Math.max(0, currentBalance - deductionAmount);
 
-        // Calculate terms reduction
-        // Always reduce by 0.5 terms per cutoff since we're doing bi-monthly deductions
-        // (full term is completed after both cutoffs in a month)
-        const termsReduction = 0.5;
+        // Calculate terms reduction based on deduct_bi_monthly flag
+        // If deduct_bi_monthly is true: reduce by 0.5 terms per cutoff (full term completed after both cutoffs)
+        // If deduct_bi_monthly is false: reduce by 1.0 term per cutoff (full term completed in one cutoff)
+        const termsReduction = deductBiMonthly ? 0.5 : 1.0;
         const newRemainingTerms = Math.max(
           0,
           currentRemainingTerms - termsReduction
@@ -1533,12 +1541,13 @@ export default function PayslipsPage() {
       }
       totalDeductions += withholdingTax;
 
-      // Adjustment and Allowance removed - always 0
-      const adjustment = 0;
+      // Adjustment - can be positive (addition) or negative (deduction)
+      const adjustment = parseFloat(adjustmentAmount) || 0;
       const allowance = 0;
 
-      // Net pay
-      const netPay = grossPay - totalDeductions + allowance;
+      // Net pay = Gross Pay - Total Deductions + Adjustment
+      // Adjustment can be positive (add to net pay) or negative (subtract from net pay)
+      const netPay = grossPay - totalDeductions + adjustment;
 
       // Create deductions breakdown - default all to 0 if no deduction record
       const deductionsBreakdown: any = {
@@ -1745,8 +1754,8 @@ export default function PayslipsPage() {
         philhealth_amount: isNaN(philhealthAmount) ? 0 : philhealthAmount,
         pagibig_amount: isNaN(pagibigAmount) ? 0 : pagibigAmount,
         thirteenth_month_pay: thirteenthMonthPay,
-        adjustment_amount: 0,
-        adjustment_reason: null,
+        adjustment_amount: adjustment,
+        adjustment_reason: adjustmentReason || null,
         allowance_amount: 0,
         net_pay: netPay,
         status: "draft",
@@ -1804,10 +1813,10 @@ export default function PayslipsPage() {
         });
       }
 
-      // Check if payslip already exists
+      // Check if payslip already exists and load adjustments if present
       const { data: existing, error: checkError } = await supabase
         .from("payslips")
-        .select("id, payslip_number")
+        .select("id, payslip_number, adjustment_amount, adjustment_reason")
         .eq("payslip_number", payslipNumber)
         .maybeSingle();
 
@@ -1827,9 +1836,18 @@ export default function PayslipsPage() {
       const existingPayslip = existing as {
         id: string;
         payslip_number: string;
+        adjustment_amount?: number | null;
+        adjustment_reason?: string | null;
       } | null;
 
+      // Load adjustments from existing payslip if present
       if (existingPayslip) {
+        if (existingPayslip.adjustment_amount !== null && existingPayslip.adjustment_amount !== undefined) {
+          setAdjustmentAmount(existingPayslip.adjustment_amount.toString());
+        }
+        if (existingPayslip.adjustment_reason) {
+          setAdjustmentReason(existingPayslip.adjustment_reason);
+        }
         console.log("Updating existing payslip:", existingPayslip.id);
         // Update
         const { error, data: updatedData } = await (
@@ -2293,13 +2311,14 @@ export default function PayslipsPage() {
     return 0;
   }, [selectedEmployee, grossPay, deductions]);
 
-  // Adjustment and Allowance removed - always 0
-  const adjustment = 0;
+  // Adjustment - can be positive (addition) or negative (deduction)
+  const adjustment = parseFloat(adjustmentAmount) || 0;
   const allowance = 0;
 
   // Memoize total deductions
   const totalDed = useMemo(() => {
-    return weeklyDed + govDed + tax + adjustment;
+    // Total deductions (excludes adjustments - they're handled separately in net pay calculation)
+    return weeklyDed + govDed + tax;
   }, [weeklyDed, govDed, tax]);
 
   // Memoize final gross pay
@@ -2804,6 +2823,70 @@ export default function PayslipsPage() {
                     </VStack>
                   </VStack>
 
+                  {/* Adjustments */}
+                  <VStack gap="2" align="start">
+                    <H4 className="text-sm font-medium text-muted-foreground">
+                      Adjustments
+                    </H4>
+                    <VStack
+                      gap="2"
+                      className="bg-gray-50 p-3 rounded-lg w-full"
+                    >
+                      <div className="w-full">
+                        <Label htmlFor="adjustment_amount" className="text-sm">
+                          Adjustment Amount
+                        </Label>
+                        <Input
+                          id="adjustment_amount"
+                          type="number"
+                          step="0.01"
+                          value={adjustmentAmount}
+                          onChange={(e) => setAdjustmentAmount(e.target.value)}
+                          placeholder="0.00"
+                          className="mt-1"
+                        />
+                        <Caption className="text-xs text-gray-500 mt-1">
+                          Enter positive amount to add to net pay, negative amount to deduct from net pay
+                        </Caption>
+                      </div>
+                      <div className="w-full">
+                        <Label htmlFor="adjustment_reason" className="text-sm">
+                          Reason (Optional)
+                        </Label>
+                        <Input
+                          id="adjustment_reason"
+                          type="text"
+                          value={adjustmentReason}
+                          onChange={(e) => setAdjustmentReason(e.target.value)}
+                          placeholder="e.g., Correction for previous period, Bonus, etc."
+                          className="mt-1"
+                        />
+                      </div>
+                      {(parseFloat(adjustmentAmount) || 0) !== 0 && (
+                        <div className="border-t pt-2 mt-2 w-full">
+                          <HStack
+                            justify="between"
+                            align="center"
+                            className="w-full"
+                          >
+                            <BodySmall className="font-medium">
+                              Adjustment:
+                            </BodySmall>
+                            <span
+                              className={`font-semibold text-sm ${
+                                (parseFloat(adjustmentAmount) || 0) >= 0
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {formatCurrency(parseFloat(adjustmentAmount) || 0)}
+                            </span>
+                          </HStack>
+                        </div>
+                      )}
+                    </VStack>
+                  </VStack>
+
                   {/* Government Contributions */}
                   <VStack gap="2" align="start">
                     <H4 className="text-sm font-medium text-muted-foreground">
@@ -3075,6 +3158,22 @@ export default function PayslipsPage() {
                     ({formatCurrency(totalDed)})
                   </span>
                 </HStack>
+                {(parseFloat(adjustmentAmount) || 0) !== 0 && (
+                  <HStack
+                    justify="between"
+                    align="center"
+                    className={`text-sm w-full p-2 bg-gray-50 rounded ${
+                      (parseFloat(adjustmentAmount) || 0) >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    <span className="font-medium">Adjustments:</span>
+                    <span className="font-semibold">
+                      {formatCurrency(parseFloat(adjustmentAmount) || 0)}
+                    </span>
+                  </HStack>
+                )}
                 <div className="border-t-2 pt-2 w-full">
                   <HStack
                     justify="between"
@@ -3083,7 +3182,9 @@ export default function PayslipsPage() {
                   >
                     <span className="font-bold">NET PAY:</span>
                     <span className="font-bold text-primary-700">
-                      {formatCurrency(finalGrossPay - totalDed)}
+                      {formatCurrency(
+                        finalGrossPay - totalDed + (parseFloat(adjustmentAmount) || 0)
+                      )}
                     </span>
                   </HStack>
                 </div>

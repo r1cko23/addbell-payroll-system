@@ -73,6 +73,7 @@ interface EmployeeLoan {
   remaining_terms: number;
   effectivity_date: string;
   cutoff_assignment: "first" | "second" | "both";
+  deduct_bi_monthly: boolean;
   is_active: boolean;
   notes?: string;
   created_by?: string;
@@ -125,6 +126,7 @@ export default function LoansPage() {
     remaining_terms: "",
     effectivity_date: "",
     cutoff_assignment: "first" as "first" | "second" | "both",
+    deduct_bi_monthly: true,
     notes: "",
   });
 
@@ -202,6 +204,7 @@ export default function LoansPage() {
       remaining_terms: defaultTerms.toString(),
       effectivity_date: "",
       cutoff_assignment: "first",
+      deduct_bi_monthly: true,
       notes: "",
     });
     setShowModal(true);
@@ -219,6 +222,7 @@ export default function LoansPage() {
       remaining_terms: loan.remaining_terms.toString(),
       effectivity_date: loan.effectivity_date,
       cutoff_assignment: loan.cutoff_assignment,
+      deduct_bi_monthly: loan.deduct_bi_monthly ?? true,
       notes: loan.notes || "",
     });
     setShowModal(true);
@@ -487,6 +491,7 @@ export default function LoansPage() {
         remaining_terms: remainingTerms,
         effectivity_date: formData.effectivity_date,
         cutoff_assignment: formData.cutoff_assignment,
+        deduct_bi_monthly: formData.deduct_bi_monthly,
         notes: formData.notes || null,
         // Don't update is_active during regular edit - it's managed separately via toggle
       };
@@ -756,11 +761,16 @@ export default function LoansPage() {
 
           if (!shouldHavePayment) continue;
 
-          // Calculate expected payment amount
+          // Calculate expected payment amount based on deduct_bi_monthly flag
+          const deductBiMonthly = loan.deduct_bi_monthly !== false;
           const expectedPayment =
             loan.cutoff_assignment === "both"
-              ? parseFloat(loan.monthly_payment.toString()) / 2
-              : parseFloat(loan.monthly_payment.toString());
+              ? (deductBiMonthly 
+                  ? parseFloat(loan.monthly_payment.toString()) / 2 
+                  : parseFloat(loan.monthly_payment.toString()))
+              : (deductBiMonthly
+                  ? parseFloat(loan.monthly_payment.toString()) / 2
+                  : parseFloat(loan.monthly_payment.toString()));
 
           let paymentAmount = 0;
 
@@ -1450,6 +1460,28 @@ export default function LoansPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="deduct_bi_monthly"
+                  checked={formData.deduct_bi_monthly}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      deduct_bi_monthly: e.target.checked,
+                    })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="deduct_bi_monthly" className="font-normal cursor-pointer">
+                  Deduct Bi-Monthly (Divide by 2)
+                </Label>
+                <Caption className="text-xs text-gray-500 ml-2">
+                  If checked, monthly payment is divided by 2 per cutoff (e.g., ₱1,000/month = ₱500 per cutoff).
+                  If unchecked, full monthly payment is deducted per cutoff.
+                </Caption>
               </div>
 
               <div>

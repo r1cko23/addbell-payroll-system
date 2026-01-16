@@ -104,7 +104,7 @@ async function checkRestDayPay() {
     console.error("Error fetching attendance:", attendanceError);
   } else if (attendance?.attendance_data) {
     const attendanceData = attendance.attendance_data as any;
-    
+
     // Find all Sundays in the period (office-based employees have Sunday as rest day)
     const sundays: string[] = [];
     const currentDate = new Date(periodStart);

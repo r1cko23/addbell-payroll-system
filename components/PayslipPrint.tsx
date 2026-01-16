@@ -596,7 +596,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           }
         }
         // If regularHours === 0, no rest day pay (rest day is not paid if not worked)
-        
+
         // Rest Day Overtime
         if (overtimeHours > 0) {
           if (useFixedAllowances) {
@@ -612,7 +612,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             );
           }
         }
-        
+
         // Rest Day Night Differential
         if (nightDiffHours > 0) {
           // Supervisory roles and client-based don't have ND

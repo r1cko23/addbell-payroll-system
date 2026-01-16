@@ -219,34 +219,8 @@ export function generateTimesheetFromClockEntries(
     // Client-based Account Supervisor Rest Day Logic:
     // They can mark rest days as Monday, Tuesday, or Wednesday only (enforced in schedule validation)
     // Rest days that fall on holidays are treated as holidays (handled by determineDayType)
-    // The FIRST rest day (chronologically) is the ACTUAL REST DAY (only paid if worked)
-    // - If worked: daily rate (hours × rate/hour × 1.0) + allowance (if worked ≥4 hours)
-    // The SECOND rest day is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
-    // - It's NOT a rest day - it's just a regular workday (paid at regular rate, no rest day premium, no allowances)
-    // - It gets 8 BH even if not worked (like Saturday company benefit) - part of 6-day work week
-    // - It's included in basic salary calculation
-
-    // Second rest day: Set regularHours = 8 even if not worked (like Saturday company benefit)
-    // This is part of their 6-day work week, so they get 8 BH even without logging in
-    if (isClientBasedAccountSupervisor && isRestDay && dayType === "regular" && regularHours === 0) {
-      // Check if this is the second rest day (treated as regular workday)
-      if (restDays && restDays.size > 0) {
-        const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekEnd.getDate() + 6);
-        const restDaysInWeek = Array.from(restDays.keys())
-          .filter(rd => {
-            const rdDate = parseISO(rd);
-            return rdDate >= weekStart && rdDate <= weekEnd;
-          })
-          .sort((a, b) => a.localeCompare(b));
-
-        // Only set BH = 8 if this is the second rest day
-        if (restDaysInWeek.length >= 2 && dateStr === restDaysInWeek[1]) {
-          regularHours = 8; // Second rest day gets 8 BH even if not worked
-        }
-      }
-    }
+    // Rest day is NOT PAID if not worked - only paid if employee has clock entries
+    // The other 6 days (non-rest days) are paid IF they have clock entries based on their submitted schedule
 
     // Note: The second rest day (dayType === "sunday") needs rest day pay logic, which is handled in payslip calculation
     // If rest day falls on holiday, dayType will be "sunday-regular-holiday" or "sunday-special-holiday"

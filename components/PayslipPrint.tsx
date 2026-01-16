@@ -331,36 +331,25 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
 
       if (dayType === "regular") {
-        // Check if this might be Account Supervisor's first rest day
-        // The timesheet generator sets regularHours = 8 for first rest day even if not worked
-        // If regularHours === 8 and no clockInTime, it's likely the first rest day (company benefit)
-        const isLikelyFirstRestDay = (isClientBased || isAccountSupervisor) &&
-          regularHours === 8 &&
-          !clockInTime &&
-          dayOfWeek !== 6; // Not Saturday (Saturday is always company benefit, not first rest day)
+        // REST DAY RULES:
+        // - Office-based: Sunday is rest day - NOT PAID if not worked
+        // - Client-based: Rest day (Mon/Tue/Wed) - NOT PAID if not worked
+        // - Only paid if employee actually worked (regularHours > 0)
+        // - Saturday: Office-based gets 8 BH even if not worked (regular work day per law)
+        // - Client-based: Saturday is normal workday - must have clock entries to be paid
 
-        // Count Mon-Sat (exclude Sunday - rest day for office-based)
-        // Saturday is a regular work day (paid 6 days/week per law)
-        // BUT include Account Supervisor's first rest day (even if it's on Mon-Fri with 8 BH and no clock in)
         // For hotel client-based account supervisors: Sunday is also a regular workday if NOT their rest day
         // Note: If dayType === "regular" and dayOfWeek === 0, it means Sunday is NOT a rest day for client-based account supervisors
         const isSundayRegularWorkday = dayOfWeek === 0 && (isClientBased || isAccountSupervisor);
 
-        if ((dayOfWeek !== 0 || isSundayRegularWorkday) && (regularHours > 0 || isLikelyFirstRestDay || dayOfWeek === 6 || isSundayRegularWorkday)) {
-          // Regular work day (Mon-Sat, or Sun for client-based if not rest day) with hours worked OR first rest day with 8 BH OR Saturday (regular work day) OR Sunday (regular workday for client-based)
+        // Count regular work days (Mon-Sat for office-based, or Mon-Sat + Sun for client-based if not rest day)
+        // Only include days with actual work OR Saturday (office-based only) with no work
+        if ((dayOfWeek !== 0 || isSundayRegularWorkday) && (regularHours > 0 || (dayOfWeek === 6 && !isClientBased && regularHours === 0))) {
           earningsBreakdown.basic.days++;
-          // For Saturday: if no work (regularHours === 0), use 8 hours (regular work day per law)
-          // For Sunday (client-based, not rest day): if no work, use 8 hours (like Saturday)
-          // For first rest day: if no work, use 8 hours
-          // Otherwise: use actual regularHours
           let hoursForBasic: number;
           const regularHoursNum = Number(regularHours) || 0;
-          if (dayOfWeek === 6 && regularHoursNum === 0) {
-            hoursForBasic = 8; // Saturday regular work day
-          } else if (isSundayRegularWorkday && regularHoursNum === 0) {
-            hoursForBasic = 8; // Sunday regular work day for client-based account supervisors (like Saturday)
-          } else if (isLikelyFirstRestDay && regularHoursNum === 0) {
-            hoursForBasic = 8; // First rest day (regular workday for Account Supervisors)
+          if (dayOfWeek === 6 && regularHoursNum === 0 && !isClientBased) {
+            hoursForBasic = 8; // Saturday regular work day (office-based only) - paid even if not worked
           } else {
             hoursForBasic = regularHoursNum; // Use actual hours worked
           }
@@ -368,7 +357,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.basic.amount += dayAmount;
         }
         // Sunday (dayOfWeek === 0) is rest day for office-based - NOT included in basic salary
-        // But for client-based account supervisors, Sunday is included if NOT their rest day
+        // But for client-based account supervisors, Sunday is included if NOT their rest day AND they worked
       }
 
       // Regular Overtime
@@ -571,33 +560,28 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Rest Day (Sunday) - Sunday is the designated rest day for office-based employees
-      // For client-based Account Supervisors: Rest days can be on any weekday (often Mon-Fri since hotels are busy Fri-Sun)
+      // For client-based Account Supervisors: Rest days are Monday, Tuesday, or Wednesday only
       // Rest days that fall on holidays are treated as holidays (holiday takes priority)
-      // Only the FIRST rest day (chronologically) gets paid if they didn't work (like Saturday for office-based)
-      // The second rest day only gets paid if they worked on it
+      // REST DAY PAY RULES:
+      // - Office-based: Sunday is rest day - NOT PAID if not worked
+      // - Client-based: Rest day (Mon/Tue/Wed) - NOT PAID if not worked
+      // - Only paid if employee actually worked on rest day (regularHours > 0)
       // NOTE: Attendance data should already have correct dayType from timesheet generator
       // If dayType === "sunday" for client-based employees, it means it's their actual rest day
       if (dayType === "sunday") {
-        // Rank and File: Always paid, even if didn't work (8 hours if didn't work)
-        if (!useFixedAllowances) {
-          const hoursToPay = regularHours > 0 ? regularHours : 8;
-          // Rank and File: Standard multiplier calculation (1.3x)
-          const standardAmount = calculateSundayRestDay(
-            hoursToPay,
-            ratePerHour
-          );
-          earningsBreakdown.restDay.days++;
-          earningsBreakdown.restDay.amount += standardAmount;
-        } else {
-          // Client-based Account Supervisors/Supervisory/Managerial:
-          // The FIRST rest day (chronologically) is the ACTUAL REST DAY (only paid if worked)
-          // - If worked: daily rate (hours × rate/hour × 1.0) + allowance (if worked ≥4 hours)
-          // The SECOND rest day is treated as a REGULAR WORKDAY (like Mon-Sat for office-based)
-          // - It's NOT a rest day - it's already processed above as dayType === "regular" and included in basic salary
-          // This is the FIRST rest day (the actual rest day)
-          // Only paid if they worked on it (regularHours > 0 means they worked)
-          if (regularHours > 0) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
+        // Only pay if employee actually worked on rest day
+        if (regularHours > 0) {
+          if (!useFixedAllowances) {
+            // Office-based Rank and File: Standard multiplier calculation (1.3x)
+            const standardAmount = calculateSundayRestDay(
+              regularHours,
+              ratePerHour
+            );
+            earningsBreakdown.restDay.days++;
+            earningsBreakdown.restDay.amount += standardAmount;
+          } else {
+            // Client-based Account Supervisors/Supervisory/Managerial:
+            // Daily rate only (1x), no multiplier
             const dailyRateAmount = regularHours * ratePerHour;
             earningsBreakdown.restDay.days++;
             earningsBreakdown.restDay.amount += dailyRateAmount;
@@ -610,8 +594,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }
             }
           }
-          // If regularHours === 0, it means they didn't work on the first rest day - no pay
         }
+        // If regularHours === 0, no rest day pay (rest day is not paid if not worked)
+        
+        // Rest Day Overtime
         if (overtimeHours > 0) {
           if (useFixedAllowances) {
             // For Account Supervisors and Office-based: use fixed allowance
@@ -626,6 +612,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             );
           }
         }
+        
+        // Rest Day Night Differential
         if (nightDiffHours > 0) {
           // Supervisory roles and client-based don't have ND
           if (isRankAndFile) {

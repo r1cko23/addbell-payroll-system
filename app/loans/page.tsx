@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -380,6 +381,12 @@ export default function LoansPage() {
       e.preventDefault();
     }
 
+    // Prevent multiple simultaneous submissions
+    if (submitting) {
+      console.warn("Form submission already in progress, ignoring duplicate submission");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -388,6 +395,7 @@ export default function LoansPage() {
       // Validation
       if (!formData.employee_id) {
         toast.error("Please select an employee");
+        setSubmitting(false);
         return;
       }
       if (
@@ -395,6 +403,7 @@ export default function LoansPage() {
         parseFloat(formData.original_balance) <= 0
       ) {
         toast.error("Please enter a valid original balance");
+        setSubmitting(false);
         return;
       }
       if (
@@ -402,6 +411,7 @@ export default function LoansPage() {
         parseFloat(formData.current_balance) < 0
       ) {
         toast.error("Please enter a valid current balance");
+        setSubmitting(false);
         return;
       }
       // Validate monthly payment (should be auto-calculated, but check anyway)
@@ -410,6 +420,7 @@ export default function LoansPage() {
         toast.error(
           "Monthly payment must be greater than 0. Please check Original Balance and Total Terms."
         );
+        setSubmitting(false);
         return;
       }
 
@@ -424,6 +435,7 @@ export default function LoansPage() {
       }
       if (!formData.total_terms || parseInt(formData.total_terms) <= 0) {
         toast.error("Please enter valid total terms");
+        setSubmitting(false);
         return;
       }
       const remainingTermsValue = parseInt(formData.remaining_terms);
@@ -433,10 +445,12 @@ export default function LoansPage() {
         remainingTermsValue < 0
       ) {
         toast.error("Remaining terms must be a positive number (0 or greater)");
+        setSubmitting(false);
         return;
       }
       if (!formData.effectivity_date) {
         toast.error("Please select an effectivity date");
+        setSubmitting(false);
         return;
       }
 
@@ -447,15 +461,18 @@ export default function LoansPage() {
       // Additional validation for remaining terms
       if (isNaN(remainingTerms) || remainingTerms < 0) {
         toast.error("Remaining terms must be a valid positive number");
+        setSubmitting(false);
         return;
       }
       if (isNaN(totalTerms) || totalTerms <= 0) {
         toast.error("Total terms must be a valid positive number");
+        setSubmitting(false);
         return;
       }
 
       if (formData.loan_type === "company" && totalTerms !== 6) {
         toast.error("Company loan must have 6 months term");
+        setSubmitting(false);
         return;
       }
       if (
@@ -464,6 +481,7 @@ export default function LoansPage() {
         totalTerms !== 24
       ) {
         toast.error("SSS Loan must have 24 months term");
+        setSubmitting(false);
         return;
       }
       if (
@@ -472,12 +490,14 @@ export default function LoansPage() {
         !["12", "24", "36"].includes(totalTerms.toString())
       ) {
         toast.error("Pagibig Loan must have 12, 24, or 36 months term");
+        setSubmitting(false);
         return;
       }
       // Emergency and Other loans have flexible terms (no validation)
 
       if (remainingTerms > totalTerms) {
         toast.error("Remaining terms cannot exceed total terms");
+        setSubmitting(false);
         return;
       }
 
@@ -549,6 +569,7 @@ export default function LoansPage() {
         if (authError || !userData.user) {
           console.error("Auth error:", authError);
           toast.error("Authentication error. Please log in again.");
+          setSubmitting(false);
           return;
         }
 
@@ -562,6 +583,7 @@ export default function LoansPage() {
         if (userError || !userRecord) {
           console.error("User record error:", userError);
           toast.error("Unable to verify user permissions.");
+          setSubmitting(false);
           return;
         }
 
@@ -578,6 +600,7 @@ export default function LoansPage() {
           toast.error(
             "You don't have permission to create loans. Only Admin and HR can create loans."
           );
+          setSubmitting(false);
           return;
         }
 
@@ -608,6 +631,7 @@ export default function LoansPage() {
           } else {
             toast.error(error.message || "Failed to create loan");
           }
+          setSubmitting(false);
           return;
         }
 
@@ -620,6 +644,9 @@ export default function LoansPage() {
     } catch (error: any) {
       console.error("Error saving loan:", error);
       toast.error(error.message || "Failed to save loan");
+    } finally {
+      // Always reset submitting state, even if there was an error
+      setSubmitting(false);
     }
   }
 
@@ -1128,6 +1155,11 @@ export default function LoansPage() {
               <DialogTitle>
                 {editingLoan ? "Edit Loan" : "Add New Loan"}
               </DialogTitle>
+              <DialogDescription>
+                {editingLoan
+                  ? "Update the loan details below. Critical changes will require confirmation."
+                  : "Fill in the loan details below. All fields marked with * are required."}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -1510,8 +1542,16 @@ export default function LoansPage() {
                   e.preventDefault();
                   handleSubmit(e);
                 }}
+                disabled={submitting}
               >
-                {editingLoan ? "Update" : "Create"} Loan
+                {submitting
+                  ? editingLoan
+                    ? "Updating..."
+                    : "Creating..."
+                  : editingLoan
+                  ? "Update"
+                  : "Create"}{" "}
+                Loan
               </Button>
             </DialogFooter>
           </DialogContent>

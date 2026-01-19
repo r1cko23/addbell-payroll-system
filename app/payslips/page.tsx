@@ -2017,8 +2017,11 @@ export default function PayslipsPage() {
           const isManagerial =
             selectedEmployee.employee_type === "office-based" &&
             selectedEmployee.job_level?.toUpperCase() === "MANAGERIAL";
+          const isSupervisoryByJobLevel =
+            selectedEmployee.employee_type === "office-based" &&
+            selectedEmployee.job_level?.toUpperCase() === "SUPERVISORY";
           const isEligibleForAllowances =
-            isAccountSupervisor || isSupervisory || isManagerial;
+            isAccountSupervisor || isSupervisory || isSupervisoryByJobLevel || isManagerial;
           const useFixedAllowances = isClientBased || isEligibleForAllowances;
 
           // Calculate base gross pay from standard calculations

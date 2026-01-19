@@ -89,14 +89,19 @@ function PayslipDetailedBreakdownComponent({
       employee.position?.toUpperCase().includes(pos.toUpperCase())
     );
 
-  // Check if employee is managerial (office-based)
+  // Check if employee is managerial (office-based) - by job_level
   const isManagerial =
     isOfficeBased && employee.job_level?.toUpperCase() === "MANAGERIAL";
 
+  // Check if employee is supervisory by job_level (more reliable than position matching)
+  const isSupervisoryByJobLevel =
+    isOfficeBased && employee.job_level?.toUpperCase() === "SUPERVISORY";
+
   // Office-based supervisory or managerial employees get allowances
   // Account Supervisors ALWAYS get allowances (whether office-based or client-based)
+  // Check BOTH position-based and job_level-based supervisory status
   const isEligibleForAllowances =
-    isAccountSupervisor || isSupervisory || isManagerial;
+    isAccountSupervisor || isSupervisory || isSupervisoryByJobLevel || isManagerial;
 
   // Rank and file office-based employees use standard calculations
   const isRankAndFile = isOfficeBased && !isEligibleForAllowances;

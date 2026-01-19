@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,6 +69,7 @@ const getColorStyleForEmployee = (employeeId: string) => {
 export default function SchedulesPage() {
   const supabase = createClient();
   const { role, isAdmin, loading: roleLoading } = useUserRole();
+  const { canRead, canUpdate, loading: permissionsLoading } = usePermissions();
 
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
@@ -180,7 +182,7 @@ export default function SchedulesPage() {
     });
   }, [weekDays, rows, allEmployees]);
 
-  if (roleLoading) {
+  if (roleLoading || permissionsLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -194,12 +196,13 @@ export default function SchedulesPage() {
     );
   }
 
-  if (!isAdmin && role !== "hr") {
+  // Check permissions - allow if user has read permission for schedules
+  if (!canRead("schedules")) {
     return (
       <DashboardLayout>
         <VStack gap="4" className="w-full">
           <BodySmall>
-            Only Account Managers, HR, or Admins can view schedules.
+            You do not have permission to view schedules.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -478,7 +481,7 @@ export default function SchedulesPage() {
                     );
                   })}
                 </div>
-                {isAdmin && (
+                {canUpdate("schedules") && (
                   <HStack justify="end" gap="2" className="w-full pt-2">
                     <Button
                       variant="outline"

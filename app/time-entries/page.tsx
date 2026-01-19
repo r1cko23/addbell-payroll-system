@@ -205,7 +205,7 @@ export default function TimeEntriesPage() {
 
       if (data) {
         setDriversGroupId(data.id);
-        
+
         // Load drivers employees
         const { data: driversData, error: driversError } = await supabase
           .from("employees")
@@ -955,7 +955,7 @@ export default function TimeEntriesPage() {
                   clockIn.setHours(8, 0, 0, 0);
                   const clockOut = new Date(today);
                   clockOut.setHours(17, 0, 0, 0);
-                  
+
                   const formatForInput = (date: Date) => {
                     const year = date.getFullYear();
                     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -964,7 +964,7 @@ export default function TimeEntriesPage() {
                     const minutes = String(date.getMinutes()).padStart(2, "0");
                     return `${year}-${month}-${day}T${hours}:${minutes}`;
                   };
-                  
+
                   setNewEntryClockIn(formatForInput(clockIn));
                   setNewEntryClockOut(formatForInput(clockOut));
                   setShowAddEntryDialog(true);

@@ -30,6 +30,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -43,6 +44,14 @@ import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface TimeEntry {
   id: string;
@@ -113,6 +122,13 @@ export default function TimeEntriesPage() {
   const [editedClockOut, setEditedClockOut] = useState("");
   const [savingTimeEdit, setSavingTimeEdit] = useState(false);
   const [driversGroupId, setDriversGroupId] = useState<string | null>(null);
+  const [showAddEntryDialog, setShowAddEntryDialog] = useState(false);
+  const [newEntryEmployee, setNewEntryEmployee] = useState<string>("");
+  const [newEntryClockIn, setNewEntryClockIn] = useState("");
+  const [newEntryClockOut, setNewEntryClockOut] = useState("");
+  const [newEntryNotes, setNewEntryNotes] = useState("");
+  const [savingNewEntry, setSavingNewEntry] = useState(false);
+  const [driversEmployees, setDriversEmployees] = useState<typeof employees>([]);
 
   // Calculate bi-monthly period start and end
   const periodStart =
@@ -173,7 +189,7 @@ export default function TimeEntriesPage() {
     fetchLocations();
   }, [supabase]);
 
-  // Load DRIVERS group ID
+  // Load DRIVERS group ID and drivers employees
   useEffect(() => {
     const fetchDriversGroup = async () => {
       const { data, error } = await supabase
@@ -189,6 +205,19 @@ export default function TimeEntriesPage() {
 
       if (data) {
         setDriversGroupId(data.id);
+        
+        // Load drivers employees
+        const { data: driversData, error: driversError } = await supabase
+          .from("employees")
+          .select("id, employee_id, full_name, last_name, first_name")
+          .eq("overtime_group_id", data.id)
+          .eq("is_active", true)
+          .order("last_name", { ascending: true, nullsFirst: false })
+          .order("first_name", { ascending: true, nullsFirst: false });
+
+        if (!driversError && driversData) {
+          setDriversEmployees(driversData);
+        }
       }
     };
 
@@ -717,6 +746,63 @@ export default function TimeEntriesPage() {
     }
   }
 
+  async function handleCreateTimeEntry() {
+    if (!newEntryEmployee || !newEntryClockIn || !newEntryClockOut) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // Validate times
+    const clockInDate = new Date(newEntryClockIn);
+    const clockOutDate = new Date(newEntryClockOut);
+
+    if (clockOutDate <= clockInDate) {
+      toast.error("Clock out time must be after clock in time");
+      return;
+    }
+
+    setSavingNewEntry(true);
+    try {
+      // Insert new time entry
+      const { data, error } = await supabase
+        .from("time_clock_entries")
+        .insert({
+          employee_id: newEntryEmployee,
+          clock_in_time: clockInDate.toISOString(),
+          clock_out_time: clockOutDate.toISOString(),
+          is_manual_entry: true,
+          status: "auto_approved",
+          employee_notes: newEntryNotes || null,
+          hr_notes: `Manually created by ${isAdmin ? "Admin" : "HR"}`,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating time entry:", error);
+        toast.error("Failed to create time entry: " + error.message);
+        return;
+      }
+
+      toast.success("Time entry created successfully", {
+        description: "New time entry has been added",
+      });
+
+      // Refresh entries and close dialog
+      await fetchTimeEntries();
+      setShowAddEntryDialog(false);
+      setNewEntryEmployee("");
+      setNewEntryClockIn("");
+      setNewEntryClockOut("");
+      setNewEntryNotes("");
+    } catch (error: any) {
+      console.error("Error creating time entry:", error);
+      toast.error(error.message || "Failed to create time entry");
+    } finally {
+      setSavingNewEntry(false);
+    }
+  }
+
   // Initialize edit fields when opening dialog for driver entry
   useEffect(() => {
     if (selectedEntry && canEditTime && !isEditingTime) {
@@ -859,14 +945,45 @@ export default function TimeEntriesPage() {
               Review and approve employee time clock entries
             </BodySmall>
           </VStack>
-          <Button
-            onClick={exportToCSV}
-            variant="secondary"
-            className="w-full sm:w-auto"
-          >
-            <Icon name="ArrowsClockwise" size={IconSizes.sm} />
-            Export CSV
-          </Button>
+          <HStack gap="2" className="w-full sm:w-auto">
+            {(isAdmin || isHR) && (
+              <Button
+                onClick={() => {
+                  // Set default times to today, 8 AM to 5 PM
+                  const today = new Date();
+                  const clockIn = new Date(today);
+                  clockIn.setHours(8, 0, 0, 0);
+                  const clockOut = new Date(today);
+                  clockOut.setHours(17, 0, 0, 0);
+                  
+                  const formatForInput = (date: Date) => {
+                    const year = date.getFullYear();
+                    const month = String(date.getMonth() + 1).padStart(2, "0");
+                    const day = String(date.getDate()).padStart(2, "0");
+                    const hours = String(date.getHours()).padStart(2, "0");
+                    const minutes = String(date.getMinutes()).padStart(2, "0");
+                    return `${year}-${month}-${day}T${hours}:${minutes}`;
+                  };
+                  
+                  setNewEntryClockIn(formatForInput(clockIn));
+                  setNewEntryClockOut(formatForInput(clockOut));
+                  setShowAddEntryDialog(true);
+                }}
+                className="w-full sm:w-auto"
+              >
+                <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
+                Add Time Entry
+              </Button>
+            )}
+            <Button
+              onClick={exportToCSV}
+              variant="secondary"
+              className="w-full sm:w-auto"
+            >
+              <Icon name="ArrowsClockwise" size={IconSizes.sm} />
+              Export CSV
+            </Button>
+          </HStack>
         </HStack>
 
         {/* Stats Cards */}
@@ -1599,6 +1716,142 @@ export default function TimeEntriesPage() {
                 </DialogFooter>
               </>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Time Entry Dialog */}
+        <Dialog
+          open={showAddEntryDialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowAddEntryDialog(false);
+              setNewEntryEmployee("");
+              setNewEntryClockIn("");
+              setNewEntryClockOut("");
+              setNewEntryNotes("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add New Time Entry</DialogTitle>
+              <DialogDescription>
+                Manually create a time entry for a driver. This entry will be marked as manually created.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              {/* Employee Selection */}
+              <div>
+                <Label htmlFor="new-entry-employee">Employee *</Label>
+                <Select
+                  value={newEntryEmployee}
+                  onValueChange={setNewEntryEmployee}
+                >
+                  <SelectTrigger id="new-entry-employee" className="w-full mt-1">
+                    <SelectValue placeholder="Select a driver" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {driversEmployees.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        No drivers found. Please ensure drivers are assigned to the DRIVERS group.
+                      </div>
+                    ) : (
+                      driversEmployees.map((employee) => {
+                        const nameParts = employee.full_name?.trim().split(/\s+/) || [];
+                        const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
+                        const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
+                        const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
+                        const displayName = lastName && firstName
+                          ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
+                          : employee.full_name || "";
+                        return (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {displayName} ({employee.employee_id})
+                          </SelectItem>
+                        );
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
+                <Caption className="text-muted-foreground mt-1">
+                  Only drivers are shown in this list
+                </Caption>
+              </div>
+
+              {/* Clock In Time */}
+              <div>
+                <Label htmlFor="new-entry-clock-in">Clock In Time *</Label>
+                <Input
+                  id="new-entry-clock-in"
+                  type="datetime-local"
+                  value={newEntryClockIn}
+                  onChange={(e) => setNewEntryClockIn(e.target.value)}
+                  className="w-full mt-1"
+                />
+              </div>
+
+              {/* Clock Out Time */}
+              <div>
+                <Label htmlFor="new-entry-clock-out">Clock Out Time *</Label>
+                <Input
+                  id="new-entry-clock-out"
+                  type="datetime-local"
+                  value={newEntryClockOut}
+                  onChange={(e) => setNewEntryClockOut(e.target.value)}
+                  className="w-full mt-1"
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <Label htmlFor="new-entry-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="new-entry-notes"
+                  value={newEntryNotes}
+                  onChange={(e) => setNewEntryNotes(e.target.value)}
+                  placeholder="Add any notes about this time entry..."
+                  className="w-full mt-1"
+                  rows={3}
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="mt-6">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowAddEntryDialog(false);
+                  setNewEntryEmployee("");
+                  setNewEntryClockIn("");
+                  setNewEntryClockOut("");
+                  setNewEntryNotes("");
+                }}
+                disabled={savingNewEntry}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateTimeEntry}
+                disabled={savingNewEntry || !newEntryEmployee || !newEntryClockIn || !newEntryClockOut}
+              >
+                {savingNewEntry ? (
+                  <>
+                    <Icon
+                      name="ArrowsClockwise"
+                      size={IconSizes.sm}
+                      className="animate-spin mr-2"
+                    />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="Check" size={IconSizes.sm} className="mr-2" />
+                    Create Time Entry
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </VStack>

@@ -45,6 +45,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
+import { PermissionsManager } from "@/components/PermissionsManager";
 
 interface User {
   id: string;
@@ -54,6 +55,7 @@ interface User {
   is_active: boolean;
   can_access_salary?: boolean | null;
   profile_picture_url: string | null;
+  permissions: any | null;
   created_at: string;
   assigned_ot_groups?: {
     id: string;
@@ -920,6 +922,19 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             </div>
+          </CardSection>
+        )}
+
+        {/* Permissions Management (Admin Only) */}
+        {isAdmin && (
+          <CardSection
+            title="Access Control (ACL/RBAC)"
+            description="Configure granular CRUD permissions for each user"
+          >
+            <PermissionsManager
+              users={users}
+              onPermissionsUpdate={loadData}
+            />
           </CardSection>
         )}
 

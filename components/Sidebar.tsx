@@ -25,11 +25,13 @@ import {
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { usePermissions, type ModuleName } from "@/lib/hooks/usePermissions";
 
 type NavItem = {
   name: string;
   href: string;
   icon: React.ElementType;
+  permissionModule?: ModuleName; // Maps this nav item to a permission module
 };
 
 type NavGroup = {
@@ -46,18 +48,18 @@ const navGroups: NavGroup[] = [
     label: "Overview",
     icon: ChartPieSlice,
     items: [
-      { name: "Executive Dashboard", href: "/dashboard?type=executive", icon: ChartLineUp },
-      { name: "Workforce Overview", href: "/dashboard?type=workforce", icon: UsersThree },
+      { name: "Executive Dashboard", href: "/dashboard?type=executive", icon: ChartLineUp, permissionModule: "dashboard" },
+      { name: "Workforce Overview", href: "/dashboard?type=workforce", icon: UsersThree, permissionModule: "dashboard" },
     ],
   },
   {
     label: "People",
     icon: UsersThree,
     items: [
-      { name: "Employees", href: "/employees", icon: UsersThree },
-      { name: "Schedules", href: "/schedules", icon: CalendarBlank },
-      { name: "Loans", href: "/loans", icon: Receipt },
-      { name: "Payslips", href: "/payslips", icon: Receipt },
+      { name: "Employees", href: "/employees", icon: UsersThree, permissionModule: "employees" },
+      { name: "Schedules", href: "/schedules", icon: CalendarBlank, permissionModule: "schedules" },
+      { name: "Loans", href: "/loans", icon: Receipt, permissionModule: "loans" },
+      { name: "Payslips", href: "/payslips", icon: Receipt, permissionModule: "payslips" },
     ],
   },
   {
@@ -65,18 +67,20 @@ const navGroups: NavGroup[] = [
     icon: ClockClockwise,
     defaultOpen: true,
     items: [
-      { name: "Time Attendance", href: "/timesheet", icon: CalendarBlank },
-      { name: "Time Entries", href: "/time-entries", icon: MapPin },
-      { name: "Leave Approvals", href: "/leave-approval", icon: CalendarCheck },
+      { name: "Time Attendance", href: "/timesheet", icon: CalendarBlank, permissionModule: "timesheet" },
+      { name: "Time Entries", href: "/time-entries", icon: MapPin, permissionModule: "time_entries" },
+      { name: "Leave Approvals", href: "/leave-approval", icon: CalendarCheck, permissionModule: "leave_approval" },
       {
         name: "OT Approvals",
         href: "/overtime-approval",
         icon: ClockClockwise,
+        permissionModule: "overtime_approval",
       },
       {
         name: "Failure to Log",
         href: "/failure-to-log-approval",
         icon: WarningCircle,
+        permissionModule: "failure_to_log",
       },
     ],
   },
@@ -84,15 +88,15 @@ const navGroups: NavGroup[] = [
     label: "Admin",
     icon: ShieldCheck,
     items: [
-      { name: "Audit Dashboard", href: "/audit", icon: FileText },
-      { name: "BIR Reports", href: "/bir-reports", icon: FileText },
-      { name: "Payroll Register", href: "/reports", icon: Receipt },
+      { name: "Audit Dashboard", href: "/audit", icon: FileText, permissionModule: "audit" },
+      { name: "BIR Reports", href: "/bir-reports", icon: FileText, permissionModule: "bir_reports" },
+      { name: "Payroll Register", href: "/reports", icon: Receipt, permissionModule: "reports" },
     ],
   },
   {
     label: "Settings",
     icon: Gear,
-    items: [{ name: "Settings", href: "/settings", icon: Gear }],
+    items: [{ name: "Settings", href: "/settings", icon: Gear, permissionModule: "settings" }],
   },
 ];
 
@@ -139,6 +143,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     canAccessSalaryInfo,
     loading: roleLoading,
   } = useUserRole();
+  const { canRead, loading: permissionsLoading } = usePermissions();
   const [openGroup, setOpenGroup] = React.useState<string | null>("People");
   const FallbackIcon = WarningCircle;
 
@@ -146,69 +151,49 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     setOpenGroup((prev) => (prev === label ? null : label));
   }, []);
 
-  // Filter navigation items based on user role
+  // Filter navigation items based on user permissions (ACL/RBAC)
   const filteredNavGroups = React.useMemo(() => {
     // If still loading, return all groups to prevent empty sidebar
-    if (roleLoading) {
+    if (roleLoading || permissionsLoading) {
       return navGroups;
     }
 
-    // Restricted access users are approver/viewer roles (but NOT HR, even though HR has isApprover: true)
-    // HR users should see all groups like admin (except Admin group if not admin)
-    const isRestrictedAccess = (isApprover && !isHR) || isViewer;
+    // Admin always sees everything
+    if (isAdmin) {
+      return navGroups;
+    }
 
+    // Filter based on permissions
     return navGroups
       .map((group) => {
-        // Restricted access users (approver/viewer, but not HR) can see the entire Time & Attendance group
-        if (isRestrictedAccess) {
-          if (group.label === "Time & Attendance") {
-            return group; // Show all items in Time & Attendance group
+        // Filter items based on read permission
+        const filteredItems = group.items.filter((item) => {
+          // If no permission module specified, use legacy role-based logic
+          if (!item.permissionModule) {
+            return true;
           }
-          return null; // Hide all other groups
+
+          // Check if user has read permission for this module
+          return canRead(item.permissionModule);
+        });
+
+        // Special case: Executive Dashboard only for admin (even if dashboard read is enabled)
+        if (group.label === "Overview") {
+          const nonExecutiveItems = filteredItems.filter(
+            (item) => !item.href.includes("?type=executive")
+          );
+          return nonExecutiveItems.length > 0
+            ? { ...group, items: nonExecutiveItems }
+            : null;
         }
 
-        // HR users can now see all Time & Attendance items (OT Approvals, Failure to Log, etc.)
-        // No filtering needed for HR users in Time & Attendance group
-        // Hide Payslips link from HR users without salary access
-        if (group.label === "People" && isHR && !canAccessSalaryInfo) {
-          return {
-            ...group,
-            items: group.items.filter((item) => item.href !== "/payslips"),
-          };
-        }
-        // Show Admin group to admin and HR users
-        // HR users can access BIR Reports, Audit Dashboard, and Payroll Register (if they have salary access)
-        if (group.label === "Admin") {
-          if (!isAdmin && !isHR) {
-            return null;
-          }
-          // Filter Payroll Register for HR users without salary access
-          if (isHR && !canAccessSalaryInfo) {
-            return {
-              ...group,
-              items: group.items.filter((item) => item.href !== "/reports"),
-            };
-          }
-        }
-        // Filter Overview (Dashboard) items based on role
-        if (group.label === "Overview") {
-          if (isAdmin) {
-            // Admins see both Executive Dashboard and Workforce Overview
-            return group;
-          } else {
-            // HR and others see Workforce Overview
-            return {
-              ...group,
-              items: group.items.filter(
-                (item) => item.href.includes("?type=workforce")
-              ),
-            };
-          }
-        }
-        return group;
+        // Return group with filtered items, or null if no items
+        return filteredItems.length > 0
+          ? { ...group, items: filteredItems }
+          : null;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isHR, isAdmin, isApprover, isViewer, canAccessSalaryInfo, roleLoading, role]);
+  }, [isAdmin, canRead, roleLoading, permissionsLoading]);
 
   // Auto-open the group that matches the current route
   React.useEffect(() => {
@@ -232,9 +217,8 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
   // Debug: Log filtered groups and render state
   React.useEffect(() => {
     console.log("Sidebar filteredNavGroups:", filteredNavGroups.length, filteredNavGroups);
-    console.log("Sidebar roleLoading:", roleLoading, "role:", role);
-    console.log("Sidebar component mounted/updated");
-  }, [filteredNavGroups, roleLoading, role]);
+    console.log("Sidebar roleLoading:", roleLoading, "permissionsLoading:", permissionsLoading, "role:", role);
+  }, [filteredNavGroups, roleLoading, permissionsLoading, role]);
 
   // Prevent sidebar from disappearing - ensure it always renders
   if (!filteredNavGroups || filteredNavGroups.length === 0) {
@@ -291,7 +275,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {roleLoading ? (
+        {(roleLoading || permissionsLoading) ? (
           <div className="flex items-center justify-center h-32">
             <ArrowsClockwise className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>

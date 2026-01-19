@@ -61,7 +61,10 @@ type PhosphorIconName =
   | "FileArrowDown"
   | "ArrowDown"
   | "FileCsv"
-  | "FilePdf";
+  | "FilePdf"
+  | "ShieldCheck"
+  | "Sliders"
+  | "ArrowCounterClockwise";
 
 interface PhosphorIconProps {
   name: PhosphorIconName;

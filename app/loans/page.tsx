@@ -383,16 +383,9 @@ export default function LoansPage() {
 
     // Prevent multiple simultaneous submissions
     if (submitting) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:380',message:'Duplicate submission prevented',data:{submitting},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       console.warn("Form submission already in progress, ignoring duplicate submission");
       return;
     }
-
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:386',message:'Form submission started',data:{formData,editingLoan:!!editingLoan},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C,F'})}).catch(()=>{});
-    // #endregion
 
     setSubmitting(true);
 
@@ -569,17 +562,9 @@ export default function LoansPage() {
         // Proceed with update (no critical changes)
         await performLoanUpdate(loanData);
       } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:565',message:'Starting loan creation - auth check',data:{loanData,submitting},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,B,C'})}).catch(()=>{});
-        // #endregion
-
         // Verify authentication before inserting
         const { data: userData, error: authError } =
           await supabase.auth.getUser();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:570',message:'Auth getUser result',data:{hasUser:!!userData?.user,userId:userData?.user?.id,authError:authError?.message,errorCode:authError?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
-        // #endregion
 
         if (authError || !userData.user) {
           console.error("Auth error:", authError);
@@ -594,10 +579,6 @@ export default function LoansPage() {
           .select("id, role, is_active")
           .eq("id", userData.user.id)
           .single();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:580',message:'User record query result',data:{hasRecord:!!userRecord,userId:userRecord?.id,role:userRecord?.role,isActive:userRecord?.is_active,userError:userError?.message,errorCode:userError?.code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
 
         if (userError || !userRecord) {
           console.error("User record error:", userError);
@@ -615,10 +596,6 @@ export default function LoansPage() {
           ((userRecord as any).role === "admin" ||
             (userRecord as any).role === "hr");
 
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:595',message:'Permission check result',data:{hasPermission,isActive:(userRecord as any).is_active,role:(userRecord as any).role,userId:userData.user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-
         if (!hasPermission) {
           toast.error(
             "You don't have permission to create loans. Only Admin and HR can create loans."
@@ -626,10 +603,6 @@ export default function LoansPage() {
           setSubmitting(false);
           return;
         }
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:607',message:'Before insert - checking session',data:{authUserId:userData.user.id,insertData:{...loanData,created_by:userData.user.id}},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,E'})}).catch(()=>{});
-        // #endregion
 
         const { data: insertData, error } = await supabase
           // @ts-ignore - employee_loans table type may not be in generated types
@@ -640,10 +613,6 @@ export default function LoansPage() {
             created_by: userData.user.id,
           })
           .select();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:617',message:'Insert operation result',data:{hasData:!!insertData,insertDataCount:insertData?.length,error:error?.message,errorCode:error?.code,errorDetails:error?.details,errorHint:error?.hint},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A,D'})}).catch(()=>{});
-        // #endregion
 
         if (error) {
           console.error("Insert error:", error);
@@ -665,10 +634,6 @@ export default function LoansPage() {
           setSubmitting(false);
           return;
         }
-
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/3c668d6b-d4d0-49aa-9ccb-187e52406fdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'app/loans/page.tsx:632',message:'Insert successful',data:{insertData},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
 
         console.log("Insert successful:", insertData);
         toast.success("Loan created successfully");

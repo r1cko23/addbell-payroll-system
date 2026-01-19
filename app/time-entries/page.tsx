@@ -41,6 +41,8 @@ import { determineDayType, normalizeHolidays } from "@/utils/holidays";
 import { getDayTypeLabel } from "@/utils/payroll-calculator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface TimeEntry {
   id: string;
@@ -71,6 +73,8 @@ interface TimeEntry {
     employee_id: string;
     full_name: string;
     profile_picture_url?: string | null;
+    overtime_group_id?: string | null;
+    employee_type?: string | null;
   };
 }
 
@@ -104,6 +108,11 @@ export default function TimeEntriesPage() {
   const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
   const [holidays, setHolidays] = useState<HolidayEntry[]>([]);
   const [employeeInfoMap, setEmployeeInfoMap] = useState<Map<string, { employee_type: string | null; restDays: Map<string, boolean> }>>(new Map());
+  const [isEditingTime, setIsEditingTime] = useState(false);
+  const [editedClockIn, setEditedClockIn] = useState("");
+  const [editedClockOut, setEditedClockOut] = useState("");
+  const [savingTimeEdit, setSavingTimeEdit] = useState(false);
+  const [driversGroupId, setDriversGroupId] = useState<string | null>(null);
 
   // Calculate bi-monthly period start and end
   const periodStart =
@@ -163,6 +172,32 @@ export default function TimeEntriesPage() {
 
     fetchLocations();
   }, [supabase]);
+
+  // Load DRIVERS group ID
+  useEffect(() => {
+    const fetchDriversGroup = async () => {
+      const { data, error } = await supabase
+        .from("overtime_groups")
+        .select("id")
+        .ilike("name", "DRIVERS")
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error loading drivers group:", error);
+        return;
+      }
+
+      if (data) {
+        setDriversGroupId(data.id);
+      }
+    };
+
+    fetchDriversGroup();
+  }, [supabase]);
+
+  // Check if selected entry is for a driver
+  const isDriverEntry = selectedEntry?.employees?.overtime_group_id === driversGroupId;
+  const canEditTime = (isAdmin || isHR) && isDriverEntry;
 
   const getDayType = (clockInTime: string, employeeId?: string): string => {
     const dateString = format(new Date(clockInTime), "yyyy-MM-dd");
@@ -625,6 +660,86 @@ export default function TimeEntriesPage() {
     setSelectedEntry(null);
     setHrNotes("");
   }
+
+  async function handleSaveTimeEdit() {
+    if (!selectedEntry) return;
+
+    if (!editedClockIn || !editedClockOut) {
+      toast.error("Please provide both clock in and clock out times");
+      return;
+    }
+
+    // Validate times
+    const clockInDate = new Date(editedClockIn);
+    const clockOutDate = new Date(editedClockOut);
+
+    if (clockOutDate <= clockInDate) {
+      toast.error("Clock out time must be after clock in time");
+      return;
+    }
+
+    setSavingTimeEdit(true);
+    try {
+      // Update the time entry with new times
+      const { error } = await supabase
+        .from("time_clock_entries")
+        .update({
+          clock_in_time: clockInDate.toISOString(),
+          clock_out_time: clockOutDate.toISOString(),
+          is_manual_entry: true,
+          status: "auto_approved",
+          hr_notes: hrNotes || `Time manually edited by ${isAdmin ? "Admin" : "HR"}`,
+        })
+        .eq("id", selectedEntry.id);
+
+      if (error) {
+        console.error("Error updating time entry:", error);
+        toast.error("Failed to update time entry");
+        return;
+      }
+
+      toast.success("Time entry updated successfully", {
+        description: "Clock in/out times have been updated",
+      });
+
+      // Refresh entries and close dialog
+      await fetchTimeEntries();
+      setSelectedEntry(null);
+      setIsEditingTime(false);
+      setEditedClockIn("");
+      setEditedClockOut("");
+      setHrNotes("");
+    } catch (error: any) {
+      console.error("Error saving time edit:", error);
+      toast.error(error.message || "Failed to save changes");
+    } finally {
+      setSavingTimeEdit(false);
+    }
+  }
+
+  // Initialize edit fields when opening dialog for driver entry
+  useEffect(() => {
+    if (selectedEntry && canEditTime && !isEditingTime) {
+      // Format times for datetime-local input (YYYY-MM-DDTHH:mm)
+      const clockIn = new Date(selectedEntry.clock_in_time);
+      const clockOut = selectedEntry.clock_out_time
+        ? new Date(selectedEntry.clock_out_time)
+        : new Date(clockIn.getTime() + 8 * 60 * 60 * 1000); // Default 8 hours if no clock out
+
+      // Convert to local time for input (datetime-local uses local timezone)
+      const formatForInput = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+
+      setEditedClockIn(formatForInput(clockIn));
+      setEditedClockOut(formatForInput(clockOut));
+    }
+  }, [selectedEntry, canEditTime, isEditingTime]);
 
   async function exportToCSV() {
     const csv = [
@@ -1168,7 +1283,15 @@ export default function TimeEntriesPage() {
 
         <Dialog
           open={!!selectedEntry}
-          onOpenChange={(open) => !open && setSelectedEntry(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedEntry(null);
+              setIsEditingTime(false);
+              setEditedClockIn("");
+              setEditedClockOut("");
+              setHrNotes("");
+            }
+          }}
         >
           <DialogContent className="max-w-2xl">
             {selectedEntry && (
@@ -1213,30 +1336,46 @@ export default function TimeEntriesPage() {
                       <div className="text-sm text-muted-foreground mb-1">
                         Clock In
                       </div>
-                      <div className="font-medium">
-                        {format(
-                          new Date(selectedEntry.clock_in_time),
-                          "MMM d, yyyy h:mm a"
-                        )}
-                      </div>
-                      {selectedClockInDetails && (
+                      {isEditingTime && canEditTime ? (
+                        <div>
+                          <Input
+                            type="datetime-local"
+                            value={editedClockIn}
+                            onChange={(e) => setEditedClockIn(e.target.value)}
+                            className="w-full"
+                          />
+                          <Caption className="text-muted-foreground mt-1">
+                            Edit clock in time (Driver entry)
+                          </Caption>
+                        </div>
+                      ) : (
                         <>
-                          <div className="text-xs text-muted-foreground">
-                            {selectedClockInDetails.name}
+                          <div className="font-medium">
+                            {format(
+                              new Date(selectedEntry.clock_in_time),
+                              "MMM d, yyyy h:mm a"
+                            )}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {selectedClockInDetails.address}
-                          </div>
-                          {selectedClockInDetails.coordinates && (
-                            <a
-                              href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
-                            >
-                              <Icon name="MapPin" size={IconSizes.xs} />
-                              View GPS Location
-                            </a>
+                          {selectedClockInDetails && (
+                            <>
+                              <div className="text-xs text-muted-foreground">
+                                {selectedClockInDetails.name}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {selectedClockInDetails.address}
+                              </div>
+                              {selectedClockInDetails.coordinates && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                                >
+                                  <Icon name="MapPin" size={IconSizes.xs} />
+                                  View GPS Location
+                                </a>
+                              )}
+                            </>
                           )}
                         </>
                       )}
@@ -1245,37 +1384,124 @@ export default function TimeEntriesPage() {
                       <div className="text-sm text-muted-foreground mb-1">
                         Clock Out
                       </div>
-                      <div className="font-medium">
-                        {selectedEntry.clock_out_time
-                          ? format(
-                              new Date(selectedEntry.clock_out_time),
-                              "MMM d, yyyy h:mm a"
-                            )
-                          : "Not clocked out"}
-                      </div>
-                      {selectedClockOutDetails && (
+                      {isEditingTime && canEditTime ? (
+                        <div>
+                          <Input
+                            type="datetime-local"
+                            value={editedClockOut}
+                            onChange={(e) => setEditedClockOut(e.target.value)}
+                            className="w-full"
+                          />
+                          <Caption className="text-muted-foreground mt-1">
+                            Edit clock out time (Driver entry)
+                          </Caption>
+                        </div>
+                      ) : (
                         <>
-                          <div className="text-xs text-muted-foreground">
-                            {selectedClockOutDetails.name}
+                          <div className="font-medium">
+                            {selectedEntry.clock_out_time
+                              ? format(
+                                  new Date(selectedEntry.clock_out_time),
+                                  "MMM d, yyyy h:mm a"
+                                )
+                              : "Not clocked out"}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {selectedClockOutDetails.address}
-                          </div>
-                          {selectedClockOutDetails.coordinates && (
-                            <a
-                              href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
-                            >
-                              <Icon name="MapPin" size={IconSizes.xs} />
-                              View GPS Location
-                            </a>
+                          {selectedClockOutDetails && (
+                            <>
+                              <div className="text-xs text-muted-foreground">
+                                {selectedClockOutDetails.name}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {selectedClockOutDetails.address}
+                              </div>
+                              {selectedClockOutDetails.coordinates && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                                >
+                                  <Icon name="MapPin" size={IconSizes.xs} />
+                                  View GPS Location
+                                </a>
+                              )}
+                            </>
                           )}
                         </>
                       )}
                     </div>
                   </div>
+
+                  {/* Edit Button for Drivers */}
+                  {canEditTime && !isEditingTime && (
+                    <div className="pt-2 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditingTime(true)}
+                        className="w-full"
+                      >
+                        <Icon name="PencilSimple" size={IconSizes.sm} className="mr-2" />
+                        Edit Clock Times (Driver Entry)
+                      </Button>
+                    </div>
+                  )}
+
+                  {isEditingTime && canEditTime && (
+                    <div className="pt-2 border-t space-y-2">
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingTime(false);
+                            // Reset to original values
+                            if (selectedEntry) {
+                              const clockIn = new Date(selectedEntry.clock_in_time);
+                              const clockOut = selectedEntry.clock_out_time
+                                ? new Date(selectedEntry.clock_out_time)
+                                : new Date(clockIn.getTime() + 8 * 60 * 60 * 1000);
+                              const formatForInput = (date: Date) => {
+                                const year = date.getFullYear();
+                                const month = String(date.getMonth() + 1).padStart(2, "0");
+                                const day = String(date.getDate()).padStart(2, "0");
+                                const hours = String(date.getHours()).padStart(2, "0");
+                                const minutes = String(date.getMinutes()).padStart(2, "0");
+                                return `${year}-${month}-${day}T${hours}:${minutes}`;
+                              };
+                              setEditedClockIn(formatForInput(clockIn));
+                              setEditedClockOut(formatForInput(clockOut));
+                            }
+                          }}
+                          disabled={savingTimeEdit}
+                        >
+                          Cancel Edit
+                        </Button>
+                        <Button
+                          onClick={handleSaveTimeEdit}
+                          disabled={savingTimeEdit}
+                          className="flex-1"
+                        >
+                          {savingTimeEdit ? (
+                            <>
+                              <Icon
+                                name="ArrowsClockwise"
+                                size={IconSizes.sm}
+                                className="animate-spin mr-2"
+                              />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Icon name="Check" size={IconSizes.sm} className="mr-2" />
+                              Save Time Changes
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <Caption className="text-muted-foreground">
+                        This will update the clock in/out times and mark the entry as manually edited.
+                      </Caption>
+                    </div>
+                  )}
 
                   {/* Hours Breakdown */}
                   <div className="grid grid-cols-3 gap-4 p-4 bg-emerald-50 rounded-lg">

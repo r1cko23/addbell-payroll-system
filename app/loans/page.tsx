@@ -592,13 +592,27 @@ export default function LoansPage() {
         console.log("Loan data to insert:", loanData);
 
         // Check if user has permission
-        const hasPermission = (userRecord as any).is_active &&
-          ((userRecord as any).role === "admin" ||
-            (userRecord as any).role === "hr");
+        const userRole = (userRecord as any).role;
+        const userIsActive = (userRecord as any).is_active;
+        const hasPermission = userIsActive &&
+          (userRole === "admin" || userRole === "hr");
+
+        console.log("Permission check:", {
+          userRole,
+          userIsActive,
+          hasPermission,
+          isAdmin: userRole === "admin",
+          isHR: userRole === "hr",
+        });
 
         if (!hasPermission) {
+          console.error("Permission denied:", {
+            role: userRole,
+            isActive: userIsActive,
+            expectedRole: "admin or hr",
+          });
           toast.error(
-            "You don't have permission to create loans. Only Admin and HR can create loans."
+            `You don't have permission to create loans. Only Admin and HR can create loans. Your role: ${userRole || "unknown"}, Active: ${userIsActive ? "yes" : "no"}`
           );
           setSubmitting(false);
           return;

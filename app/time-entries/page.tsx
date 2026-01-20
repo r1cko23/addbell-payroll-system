@@ -1108,7 +1108,7 @@ export default function TimeEntriesPage() {
               </>
             )}
             {/* HR: Add Time Entry for drivers only (legacy functionality) */}
-            {canEditTime && !isAdmin && (
+            {isHR && !isAdmin && driversGroupId && (
               <Button
                   onClick={() => {
                     // Set default times to today, 8 AM to 5 PM

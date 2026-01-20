@@ -129,6 +129,12 @@ export default function TimeEntriesPage() {
   const [newEntryNotes, setNewEntryNotes] = useState("");
   const [savingNewEntry, setSavingNewEntry] = useState(false);
   const [driversEmployees, setDriversEmployees] = useState<typeof employees>([]);
+  
+  // Bulk entry states
+  const [showBulkEntryDialog, setShowBulkEntryDialog] = useState(false);
+  const [bulkEntryEmployee, setBulkEntryEmployee] = useState<string>("");
+  const [bulkEntries, setBulkEntries] = useState<Array<{ date: string; timeIn: string; timeOut: string; notes: string }>>([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
+  const [savingBulkEntries, setSavingBulkEntries] = useState(false);
 
   // Calculate bi-monthly period start and end
   const periodStart =
@@ -803,6 +809,119 @@ export default function TimeEntriesPage() {
     }
   }
 
+  async function handleBulkCreateTimeEntries() {
+    if (!bulkEntryEmployee) {
+      toast.error("Please select an employee");
+      return;
+    }
+
+    // Filter out empty entries and validate
+    const validEntries = bulkEntries.filter(entry => entry.date && entry.timeIn && entry.timeOut);
+    
+    if (validEntries.length === 0) {
+      toast.error("Please add at least one valid time entry");
+      return;
+    }
+
+    // Validate all entries
+    const errors: string[] = [];
+    validEntries.forEach((entry, index) => {
+      const clockInDate = new Date(`${entry.date}T${entry.timeIn}`);
+      const clockOutDate = new Date(`${entry.date}T${entry.timeOut}`);
+      
+      if (clockOutDate <= clockInDate) {
+        errors.push(`Row ${index + 1}: Clock out time must be after clock in time`);
+      }
+    });
+
+    if (errors.length > 0) {
+      toast.error(errors[0]);
+      return;
+    }
+
+    setSavingBulkEntries(true);
+    try {
+      // Get office location for default location
+      const officeLoc = officeLocations.length > 0 
+        ? `${officeLocations[0].latitude}, ${officeLocations[0].longitude}`
+        : "14.5995, 120.9842";
+
+      // Prepare entries for insertion
+      const entriesToInsert = validEntries.map(entry => {
+        const clockInDate = new Date(`${entry.date}T${entry.timeIn}`);
+        const clockOutDate = new Date(`${entry.date}T${entry.timeOut}`);
+        
+        return {
+          employee_id: bulkEntryEmployee,
+          clock_in_time: clockInDate.toISOString(),
+          clock_out_time: clockOutDate.toISOString(),
+          clock_in_location: officeLoc,
+          clock_out_location: officeLoc,
+          clock_in_device: 'Manual Import',
+          clock_out_device: 'Manual Import',
+          is_manual_entry: true,
+          status: "auto_approved" as const,
+          employee_notes: entry.notes || `Bulk imported - ${entry.date}`,
+          hr_notes: `Bulk created by Admin`,
+        };
+      });
+
+      // Insert in batches of 50
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < entriesToInsert.length; i += 50) {
+        const batch = entriesToInsert.slice(i, i + 50);
+        const { data, error } = await supabase
+          .from("time_clock_entries")
+          .insert(batch)
+          .select();
+
+        if (error) {
+          console.error("Error inserting batch:", error);
+          failCount += batch.length;
+        } else {
+          successCount += data?.length || 0;
+        }
+      }
+
+      if (failCount > 0) {
+        toast.error(`Failed to create ${failCount} entries`);
+      } else {
+        toast.success(`Successfully created ${successCount} time entries`, {
+          description: `Added ${successCount} entries for the selected employee`,
+        });
+      }
+
+      // Refresh entries and close dialog
+      await fetchTimeEntries();
+      setShowBulkEntryDialog(false);
+      setBulkEntryEmployee("");
+      setBulkEntries([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
+    } catch (error: any) {
+      console.error("Error creating bulk time entries:", error);
+      toast.error(error.message || "Failed to create time entries");
+    } finally {
+      setSavingBulkEntries(false);
+    }
+  }
+
+  function addBulkEntryRow() {
+    setBulkEntries([...bulkEntries, { date: "", timeIn: "", timeOut: "", notes: "" }]);
+  }
+
+  function removeBulkEntryRow(index: number) {
+    if (bulkEntries.length > 1) {
+      setBulkEntries(bulkEntries.filter((_, i) => i !== index));
+    }
+  }
+
+  function updateBulkEntry(index: number, field: string, value: string) {
+    const updated = [...bulkEntries];
+    updated[index] = { ...updated[index], [field]: value };
+    setBulkEntries(updated);
+  }
+
   // Initialize edit fields when opening dialog for driver entry
   useEffect(() => {
     if (selectedEntry && canEditTime && !isEditingTime) {
@@ -946,35 +1065,78 @@ export default function TimeEntriesPage() {
             </BodySmall>
           </VStack>
           <HStack gap="2" className="w-full sm:w-auto">
-            {(isAdmin || isHR) && (
-              <Button
-                onClick={() => {
-                  // Set default times to today, 8 AM to 5 PM
-                  const today = new Date();
-                  const clockIn = new Date(today);
-                  clockIn.setHours(8, 0, 0, 0);
-                  const clockOut = new Date(today);
-                  clockOut.setHours(17, 0, 0, 0);
+            {/* Admin-only: Add Time Entry for any employee */}
+            {isAdmin && (
+              <>
+                <Button
+                  onClick={() => {
+                    // Set default times to today, 8 AM to 5 PM
+                    const today = new Date();
+                    const clockIn = new Date(today);
+                    clockIn.setHours(8, 0, 0, 0);
+                    const clockOut = new Date(today);
+                    clockOut.setHours(17, 0, 0, 0);
 
-                  const formatForInput = (date: Date) => {
-                    const year = date.getFullYear();
-                    const month = String(date.getMonth() + 1).padStart(2, "0");
-                    const day = String(date.getDate()).padStart(2, "0");
-                    const hours = String(date.getHours()).padStart(2, "0");
-                    const minutes = String(date.getMinutes()).padStart(2, "0");
-                    return `${year}-${month}-${day}T${hours}:${minutes}`;
-                  };
+                    const formatForInput = (date: Date) => {
+                      const year = date.getFullYear();
+                      const month = String(date.getMonth() + 1).padStart(2, "0");
+                      const day = String(date.getDate()).padStart(2, "0");
+                      const hours = String(date.getHours()).padStart(2, "0");
+                      const minutes = String(date.getMinutes()).padStart(2, "0");
+                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                    };
 
-                  setNewEntryClockIn(formatForInput(clockIn));
-                  setNewEntryClockOut(formatForInput(clockOut));
-                  setShowAddEntryDialog(true);
-                }}
-                className="w-full sm:w-auto"
-              >
-                <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
-                Add Time Entry
-              </Button>
+                    setNewEntryClockIn(formatForInput(clockIn));
+                    setNewEntryClockOut(formatForInput(clockOut));
+                    setShowAddEntryDialog(true);
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
+                  Add Time Entry
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowBulkEntryDialog(true);
+                  }}
+                  variant="secondary"
+                  className="w-full sm:w-auto"
+                >
+                  <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
+                  Bulk Add Entries
+                </Button>
+              </>
             )}
+            {/* HR: Add Time Entry for drivers only (legacy functionality) */}
+            {canEditTime && !isAdmin && (
+              <Button
+                  onClick={() => {
+                    // Set default times to today, 8 AM to 5 PM
+                    const today = new Date();
+                    const clockIn = new Date(today);
+                    clockIn.setHours(8, 0, 0, 0);
+                    const clockOut = new Date(today);
+                    clockOut.setHours(17, 0, 0, 0);
+
+                    const formatForInput = (date: Date) => {
+                      const year = date.getFullYear();
+                      const month = String(date.getMonth() + 1).padStart(2, "0");
+                      const day = String(date.getDate()).padStart(2, "0");
+                      const hours = String(date.getHours()).padStart(2, "0");
+                      const minutes = String(date.getMinutes()).padStart(2, "0");
+                      return `${year}-${month}-${day}T${hours}:${minutes}`;
+                    };
+
+                    setNewEntryClockIn(formatForInput(clockIn));
+                    setNewEntryClockOut(formatForInput(clockOut));
+                    setShowAddEntryDialog(true);
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
+                  Add Driver Time Entry
+                </Button>
+              )}
             <Button
               onClick={exportToCSV}
               variant="secondary"
@@ -1736,7 +1898,10 @@ export default function TimeEntriesPage() {
             <DialogHeader>
               <DialogTitle>Add New Time Entry</DialogTitle>
               <DialogDescription>
-                Manually create a time entry for a driver. This entry will be marked as manually created.
+                {isAdmin 
+                  ? "Manually create a time entry for any employee. This entry will be marked as manually created."
+                  : "Manually create a time entry for a driver. This entry will be marked as manually created."
+                }
               </DialogDescription>
             </DialogHeader>
 
@@ -1749,15 +1914,18 @@ export default function TimeEntriesPage() {
                   onValueChange={setNewEntryEmployee}
                 >
                   <SelectTrigger id="new-entry-employee" className="w-full mt-1">
-                    <SelectValue placeholder="Select a driver" />
+                    <SelectValue placeholder={isAdmin ? "Select an employee" : "Select a driver"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {driversEmployees.length === 0 ? (
+                    {(isAdmin ? employees : driversEmployees).length === 0 ? (
                       <div className="p-4 text-center text-sm text-muted-foreground">
-                        No drivers found. Please ensure drivers are assigned to the DRIVERS group.
+                        {isAdmin 
+                          ? "No employees found."
+                          : "No drivers found. Please ensure drivers are assigned to the DRIVERS group."
+                        }
                       </div>
                     ) : (
-                      driversEmployees.map((employee) => {
+                      (isAdmin ? employees : driversEmployees).map((employee) => {
                         const nameParts = employee.full_name?.trim().split(/\s+/) || [];
                         const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
                         const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
@@ -1775,7 +1943,10 @@ export default function TimeEntriesPage() {
                   </SelectContent>
                 </Select>
                 <Caption className="text-muted-foreground mt-1">
-                  Only drivers are shown in this list
+                  {isAdmin 
+                    ? "All employees are shown in this list"
+                    : "Only drivers are shown in this list"
+                  }
                 </Caption>
               </div>
 
@@ -1848,6 +2019,183 @@ export default function TimeEntriesPage() {
                   <>
                     <Icon name="Check" size={IconSizes.sm} className="mr-2" />
                     Create Time Entry
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Add Time Entries Dialog */}
+        <Dialog
+          open={showBulkEntryDialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowBulkEntryDialog(false);
+              setBulkEntryEmployee("");
+              setBulkEntries([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
+            }
+          }}
+        >
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Bulk Add Time Entries</DialogTitle>
+              <DialogDescription>
+                Add multiple time entries for one employee at once. Each row represents one day's entry.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              {/* Employee Selection */}
+              <div>
+                <Label htmlFor="bulk-entry-employee">Employee *</Label>
+                <Select
+                  value={bulkEntryEmployee}
+                  onValueChange={setBulkEntryEmployee}
+                >
+                  <SelectTrigger id="bulk-entry-employee" className="w-full mt-1">
+                    <SelectValue placeholder="Select an employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        No employees found.
+                      </div>
+                    ) : (
+                      employees.map((employee) => {
+                        const nameParts = employee.full_name?.trim().split(/\s+/) || [];
+                        const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
+                        const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
+                        const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
+                        const displayName = lastName && firstName
+                          ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
+                          : employee.full_name || "";
+                        return (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {displayName} ({employee.employee_id})
+                          </SelectItem>
+                        );
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Bulk Entries Table */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <Label>Time Entries</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addBulkEntryRow}
+                  >
+                    <Icon name="Plus" size={IconSizes.sm} className="mr-1" />
+                    Add Row
+                  </Button>
+                </div>
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="p-2 text-left">Date</th>
+                          <th className="p-2 text-left">Time In</th>
+                          <th className="p-2 text-left">Time Out</th>
+                          <th className="p-2 text-left">Notes (Optional)</th>
+                          <th className="p-2 text-left w-20">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkEntries.map((entry, index) => (
+                          <tr key={index} className="border-t">
+                            <td className="p-2">
+                              <Input
+                                type="date"
+                                value={entry.date}
+                                onChange={(e) => updateBulkEntry(index, "date", e.target.value)}
+                                className="w-full"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Input
+                                type="time"
+                                value={entry.timeIn}
+                                onChange={(e) => updateBulkEntry(index, "timeIn", e.target.value)}
+                                className="w-full"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Input
+                                type="time"
+                                value={entry.timeOut}
+                                onChange={(e) => updateBulkEntry(index, "timeOut", e.target.value)}
+                                className="w-full"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <Input
+                                type="text"
+                                value={entry.notes}
+                                onChange={(e) => updateBulkEntry(index, "notes", e.target.value)}
+                                placeholder="Optional notes"
+                                className="w-full"
+                              />
+                            </td>
+                            <td className="p-2">
+                              {bulkEntries.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeBulkEntryRow(index)}
+                                >
+                                  <Icon name="Trash" size={IconSizes.sm} />
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <Caption className="text-muted-foreground mt-1">
+                  Add multiple rows to create entries for different dates. Empty rows will be skipped.
+                </Caption>
+              </div>
+            </div>
+
+            <DialogFooter className="mt-6">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowBulkEntryDialog(false);
+                  setBulkEntryEmployee("");
+                  setBulkEntries([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
+                }}
+                disabled={savingBulkEntries}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBulkCreateTimeEntries}
+                disabled={savingBulkEntries || !bulkEntryEmployee || bulkEntries.every(e => !e.date || !e.timeIn || !e.timeOut)}
+              >
+                {savingBulkEntries ? (
+                  <>
+                    <Icon
+                      name="ArrowsClockwise"
+                      size={IconSizes.sm}
+                      className="animate-spin mr-2"
+                    />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="Check" size={IconSizes.sm} className="mr-2" />
+                    Create {bulkEntries.filter(e => e.date && e.timeIn && e.timeOut).length} Entries
                   </>
                 )}
               </Button>

@@ -63,25 +63,25 @@ function excelDateToJSDate(serial) {
     // Excel stored dates as MM/DD, but they should be DD/MM
     // So if month > 1 and day = 1, it's likely a swapped date
     // Also check if the parsed month is > 12 (impossible) or if day > 12 (might be swapped)
-    
+
     let month = dateObj.m;
     let day = dateObj.d;
     const year = dateObj.y;
-    
+
     // If year is 2026 and we're dealing with dates that should be in January:
     // - If month is 5 and day is 1, it should be month 1, day 5 (Jan 5)
     // - If month is 6 and day is 1, it should be month 1, day 6 (Jan 6) - but user said Jan 7
     // Actually, let's check: if the month value is between 1-31 and day is 1, swap them
     // This handles cases where Excel stored DD/MM as MM/DD
-    
+
     // For dates in 2026 that should be January:
     // Excel stored dates incorrectly - need to swap month and day
     // Known mappings for Alfeche:
     // Serial 46143 (May 1) should be Jan 5
-    // Serial 46174 (June 1) should be Jan 7  
+    // Serial 46174 (June 1) should be Jan 7
     // Serial 46204 (July 1) should be Jan 9
     // Serial 46266 (September 1) should be Jan 12
-    
+
     // Excel stored dates as MM/DD but they should be DD/MM
     // Pattern: If month > 1 and day = 1, swap them (month becomes day, day becomes 1 for January)
     // All serial dates in Sheet 2 follow this pattern for January 2026
@@ -95,7 +95,7 @@ function excelDateToJSDate(serial) {
       month = day;
       day = temp;
     }
-    
+
     // XLSX returns year, month (1-12), day, hours, minutes, seconds
     // JavaScript Date months are 0-indexed
     // Create date in UTC to avoid timezone shifts
@@ -172,7 +172,7 @@ function normalizeName(name) {
 // Find employee UUID by name
 async function findEmployeeByName(name) {
   const normalized = normalizeName(name);
-  
+
   const { data: allEmployees, error: fetchError } = await supabase
     .from('employees')
     .select('id, employee_id, full_name, first_name, last_name')
@@ -270,7 +270,7 @@ async function findEmployeeByName(name) {
         for (let i = 0; i < minLen; i++) {
           if (empLast[i] === excelLastName[i]) charMatches++;
         }
-        
+
         if (charMatches >= minLen * 0.8) {
           if (empFirst.includes(excelFirstName) || excelFirstName.includes(empFirst) ||
               empFull.includes(excelFirstName) || (excelFirstName.length > 0 && empFull.includes(excelFirstName.substring(0, 4)))) {
@@ -286,7 +286,7 @@ async function findEmployeeByName(name) {
     'rodriguez chrisanta': 'chrisanta rodriquez',
     'chrisanta rodriguez': 'chrisanta rodriquez',
   };
-  
+
   const variationKey = normalized;
   if (nameVariations[variationKey]) {
     for (const emp of allEmployees) {
@@ -296,7 +296,7 @@ async function findEmployeeByName(name) {
       }
     }
   }
-  
+
   // Also try direct match on first name + similar last name
   if (excelFirstName && excelFirstName.toLowerCase() === 'chrisanta') {
     for (const emp of allEmployees) {
@@ -490,8 +490,8 @@ async function importTimeLogs() {
         clock_out_device: clockOutDate ? 'Manual Import' : null,
         is_manual_entry: true,
         status: clockOutDate ? 'auto_approved' : 'clocked_in',
-        employee_notes: timeOutValue === 'OB' 
-          ? 'OB - Official Business (8 hours)' 
+        employee_notes: timeOutValue === 'OB'
+          ? 'OB - Official Business (8 hours)'
           : `Imported from Time Logs for Encoding.xlsx`
       };
 
@@ -527,7 +527,7 @@ async function importTimeLogs() {
   // Show preview
   console.log("\n📋 Preview of entries to import:\n");
   entries.slice(0, 10).forEach(entry => {
-    const clockIn = new Date(entry.clock_in_time).toLocaleString('en-US', { 
+    const clockIn = new Date(entry.clock_in_time).toLocaleString('en-US', {
       timeZone: 'Asia/Manila',
       year: 'numeric',
       month: '2-digit',
@@ -536,7 +536,7 @@ async function importTimeLogs() {
       minute: '2-digit'
     });
     const clockOut = entry.clock_out_time
-      ? new Date(entry.clock_out_time).toLocaleString('en-US', { 
+      ? new Date(entry.clock_out_time).toLocaleString('en-US', {
           timeZone: 'Asia/Manila',
           year: 'numeric',
           month: '2-digit',
@@ -566,7 +566,7 @@ async function importTimeLogs() {
     const clockInDate = new Date(entry.clock_in_time);
     const phDate = new Date(clockInDate.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
     const phDateStr = phDate.toISOString().split('T')[0];
-    
+
     const startOfDayPH = new Date(`${phDateStr}T00:00:00+08:00`);
     const endOfDayPH = new Date(`${phDateStr}T23:59:59+08:00`);
 

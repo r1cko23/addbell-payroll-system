@@ -129,7 +129,7 @@ export default function TimeEntriesPage() {
   const [newEntryNotes, setNewEntryNotes] = useState("");
   const [savingNewEntry, setSavingNewEntry] = useState(false);
   const [driversEmployees, setDriversEmployees] = useState<typeof employees>([]);
-  
+
   // Bulk entry states
   const [showBulkEntryDialog, setShowBulkEntryDialog] = useState(false);
   const [bulkEntryEmployee, setBulkEntryEmployee] = useState<string>("");
@@ -817,7 +817,7 @@ export default function TimeEntriesPage() {
 
     // Filter out empty entries and validate
     const validEntries = bulkEntries.filter(entry => entry.date && entry.timeIn && entry.timeOut);
-    
+
     if (validEntries.length === 0) {
       toast.error("Please add at least one valid time entry");
       return;
@@ -828,7 +828,7 @@ export default function TimeEntriesPage() {
     validEntries.forEach((entry, index) => {
       const clockInDate = new Date(`${entry.date}T${entry.timeIn}`);
       const clockOutDate = new Date(`${entry.date}T${entry.timeOut}`);
-      
+
       if (clockOutDate <= clockInDate) {
         errors.push(`Row ${index + 1}: Clock out time must be after clock in time`);
       }
@@ -842,7 +842,7 @@ export default function TimeEntriesPage() {
     setSavingBulkEntries(true);
     try {
       // Get office location for default location
-      const officeLoc = officeLocations.length > 0 
+      const officeLoc = officeLocations.length > 0
         ? `${officeLocations[0].latitude}, ${officeLocations[0].longitude}`
         : "14.5995, 120.9842";
 
@@ -850,7 +850,7 @@ export default function TimeEntriesPage() {
       const entriesToInsert = validEntries.map(entry => {
         const clockInDate = new Date(`${entry.date}T${entry.timeIn}`);
         const clockOutDate = new Date(`${entry.date}T${entry.timeOut}`);
-        
+
         return {
           employee_id: bulkEntryEmployee,
           clock_in_time: clockInDate.toISOString(),
@@ -1898,7 +1898,7 @@ export default function TimeEntriesPage() {
             <DialogHeader>
               <DialogTitle>Add New Time Entry</DialogTitle>
               <DialogDescription>
-                {isAdmin 
+                {isAdmin
                   ? "Manually create a time entry for any employee. This entry will be marked as manually created."
                   : "Manually create a time entry for a driver. This entry will be marked as manually created."
                 }
@@ -1919,7 +1919,7 @@ export default function TimeEntriesPage() {
                   <SelectContent>
                     {(isAdmin ? employees : driversEmployees).length === 0 ? (
                       <div className="p-4 text-center text-sm text-muted-foreground">
-                        {isAdmin 
+                        {isAdmin
                           ? "No employees found."
                           : "No drivers found. Please ensure drivers are assigned to the DRIVERS group."
                         }
@@ -1943,7 +1943,7 @@ export default function TimeEntriesPage() {
                   </SelectContent>
                 </Select>
                 <Caption className="text-muted-foreground mt-1">
-                  {isAdmin 
+                  {isAdmin
                     ? "All employees are shown in this list"
                     : "Only drivers are shown in this list"
                   }

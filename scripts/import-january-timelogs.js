@@ -79,7 +79,7 @@ function normalizeName(name) {
 // Find employee UUID by name
 async function findEmployeeByName(name) {
   const normalized = normalizeName(name);
-  
+
   const { data: allEmployees, error: fetchError } = await supabase
     .from('employees')
     .select('id, employee_id, full_name, first_name, last_name')
@@ -180,7 +180,7 @@ async function findEmployeeByName(name) {
         for (let i = 0; i < minLen; i++) {
           if (empLast[i] === excelLastName[i]) charMatches++;
         }
-        
+
         // If at least 80% of characters match and first name also matches
         if (charMatches >= minLen * 0.8) {
           if (empFirst.includes(excelFirstName) || excelFirstName.includes(empFirst) ||
@@ -197,7 +197,7 @@ async function findEmployeeByName(name) {
     'rodriguez chrisanta': 'chrisanta rodriquez',
     'chrisanta rodriguez': 'chrisanta rodriquez',
   };
-  
+
   const variationKey = normalized;
   if (nameVariations[variationKey]) {
     for (const emp of allEmployees) {
@@ -207,7 +207,7 @@ async function findEmployeeByName(name) {
       }
     }
   }
-  
+
   // Also try direct match on first name + similar last name
   if (excelFirstName && excelFirstName.toLowerCase() === 'chrisanta') {
     for (const emp of allEmployees) {
@@ -308,7 +308,7 @@ async function importTimeLogs() {
     try {
       // Parse date (DD/MM/YYYY format)
       const date = parseDate(dateStr);
-      
+
       // Parse times
       const timeIn = parseTime(timeInStr);
       if (!timeIn) {
@@ -389,8 +389,8 @@ async function importTimeLogs() {
         clock_out_device: clockOutDate ? 'Manual Import' : null,
         is_manual_entry: true,
         status: clockOutDate ? 'auto_approved' : 'clocked_in',
-        employee_notes: timeOutStr === 'OB' 
-          ? 'OB - Official Business (8 hours)' 
+        employee_notes: timeOutStr === 'OB'
+          ? 'OB - Official Business (8 hours)'
           : `Imported from January time logs`
       };
 
@@ -426,7 +426,7 @@ async function importTimeLogs() {
   // Show preview
   console.log("\n📋 Preview of entries to import:\n");
   entries.slice(0, 10).forEach(entry => {
-    const clockIn = new Date(entry.clock_in_time).toLocaleString('en-US', { 
+    const clockIn = new Date(entry.clock_in_time).toLocaleString('en-US', {
       timeZone: 'Asia/Manila',
       year: 'numeric',
       month: '2-digit',
@@ -435,7 +435,7 @@ async function importTimeLogs() {
       minute: '2-digit'
     });
     const clockOut = entry.clock_out_time
-      ? new Date(entry.clock_out_time).toLocaleString('en-US', { 
+      ? new Date(entry.clock_out_time).toLocaleString('en-US', {
           timeZone: 'Asia/Manila',
           year: 'numeric',
           month: '2-digit',
@@ -467,7 +467,7 @@ async function importTimeLogs() {
     const clockInDate = new Date(entry.clock_in_time);
     const phDate = new Date(clockInDate.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
     const phDateStr = phDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-    
+
     // Query using date range that covers the entire day in Philippines timezone
     const startOfDayPH = new Date(`${phDateStr}T00:00:00+08:00`);
     const endOfDayPH = new Date(`${phDateStr}T23:59:59+08:00`);

@@ -81,6 +81,7 @@ export default function LeaveRequestPage() {
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
   const [employeeInfo, setEmployeeInfo] = useState<EmployeeInfo | null>(null);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const [requestsFetchError, setRequestsFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
@@ -164,6 +165,15 @@ export default function LeaveRequestPage() {
     const emp = JSON.parse(sessionData) as EmployeeSession;
     setEmployee(emp);
 
+    // employee_id in leave_requests is UUID (employees.id). Session must have id = employees.id.
+    if (!emp?.id) {
+      console.error("Employee session missing id (UUID). Re-login may fix this.");
+      setRequestsFetchError("Session invalid. Please sign out and sign in again.");
+      setLoading(false);
+      return;
+    }
+
+    setRequestsFetchError(null);
     // Batch initial data fetching in parallel
     Promise.all([
       fetchLeaveRequests(emp.id),
@@ -311,7 +321,13 @@ export default function LeaveRequestPage() {
     }
   }
 
-  async function fetchLeaveRequests(employeeId: string) {
+  async function fetchLeaveRequests(employeeId: string | undefined) {
+    if (!employeeId) {
+      setRequestsFetchError("Cannot load leave requests: missing employee id.");
+      setRequests([]);
+      return;
+    }
+    setRequestsFetchError(null);
     setLoading(true);
     const { data, error } = await supabase
       .from("leave_requests")
@@ -331,8 +347,11 @@ export default function LeaveRequestPage() {
 
     if (error) {
       console.error("Error fetching leave requests:", error);
+      setRequestsFetchError("Unable to load leave requests. Please try again.");
+      setRequests([]);
       toast.error("Failed to load leave requests");
     } else {
+      setRequestsFetchError(null);
       setRequests(data || []);
     }
     setLoading(false);
@@ -584,7 +603,8 @@ export default function LeaveRequestPage() {
   const maternityDays = employeeInfo?.maternity_credits ?? 0;
   const paternityDays = employeeInfo?.paternity_credits ?? 0;
 
-  const visibleRequests = requests.filter((r) => r.status !== "cancelled");
+  // Include cancelled in history so employees can see all past requests
+  const visibleRequests = requests;
   const pendingCount = visibleRequests.filter(
     (r) => r.status === "pending"
   ).length;
@@ -1025,7 +1045,30 @@ export default function LeaveRequestPage() {
             <CardTitle>My Leave Requests</CardTitle>
           </CardHeader>
           <CardContent className="w-full">
-            {visibleRequests.length === 0 ? (
+            {requestsFetchError ? (
+              <div className="text-center py-8">
+                <VStack gap="4" align="center">
+                  <Icon
+                    name="WarningCircle"
+                    size={IconSizes.xl}
+                    className="text-destructive opacity-70"
+                  />
+                  <BodySmall className="text-destructive">{requestsFetchError}</BodySmall>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (employee?.id) {
+                        setRequestsFetchError(null);
+                        fetchLeaveRequests(employee.id);
+                      }
+                    }}
+                  >
+                    Retry
+                  </Button>
+                </VStack>
+              </div>
+            ) : visibleRequests.length === 0 ? (
               <div className="text-center py-8">
                 <VStack gap="4" align="center">
                   <Icon

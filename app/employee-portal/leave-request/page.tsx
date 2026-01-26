@@ -506,7 +506,7 @@ export default function LeaveRequestPage() {
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'leave-request/page.tsx:504',message:'handleCancel called',data:{requestId,employeeId:employee?.id},timestamp:Date.now(),sessionId:'debug-session',runId:'rpc-fix',hypothesisId:'D'})}).catch(()=>{});
     // #endregion
-    
+
     // Use RPC function to bypass RLS issues with anonymous users
     // Employee portal uses anon auth (no auth.uid()), so RLS policies checking auth.uid() don't work
     const { data, error } = await supabase.rpc("cancel_leave_request", {

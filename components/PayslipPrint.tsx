@@ -426,8 +426,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
 
-          // Legal Holiday component: ONLY when they rendered work (regularHours > 0)
-          if (regularHours > 0) {
+          // Legal Holiday component: ONLY when they rendered work (clock in/out). Eligible-no-work has regularHours=8 but no clock.
+          if (regularHours > 0 && (clockInTime || clockOutTime)) {
             if (useFixedAllowances) {
               earningsBreakdown.legalHoliday.days += 1; // 8h = 1 day for display
               // Amount is 0 here; the 1x is in basic, premium is the allowance below
@@ -489,8 +489,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
 
-          // Special Holiday component: ONLY when they rendered work (regularHours > 0)
-          if (regularHours > 0) {
+          // Special Holiday component: ONLY when they rendered work (clock in/out). Eligible-no-work has regularHours=8 but no clock.
+          if (regularHours > 0 && (clockInTime || clockOutTime)) {
             if (useFixedAllowances) {
               earningsBreakdown.spHoliday.days += 1;
               if (clockInTime && regularHours >= 4) {
@@ -612,7 +612,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
         }
-        if (regularHours > 0) {
+        if (regularHours > 0 && (clockInTime || clockOutTime)) {
           if (useFixedAllowances) {
             earningsBreakdown.spHoliday.days += 1;
             if (clockInTime && regularHours >= 4) {
@@ -661,7 +661,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
         }
-        if (regularHours > 0) {
+        if (regularHours > 0 && (clockInTime || clockOutTime)) {
           if (useFixedAllowances) {
             earningsBreakdown.legalHoliday.days += 1;
             if (clockInTime && regularHours >= 4) {

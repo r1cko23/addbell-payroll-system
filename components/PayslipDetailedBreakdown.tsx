@@ -637,9 +637,9 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // Legal Holiday component: ONLY when they rendered work (regularHours > 0).
-          // Those hours = extra 1x (double pay) for rank-and-file, or allowance for supervisory/managerial.
-          if (regularHours > 0) {
+          // Legal Holiday component: ONLY when they rendered work (regularHours > 0 AND have clock in/out).
+          // Eligible-but-didn't-work gets 8 in regularHours from timesheet but no clockIn/Out — exclude from this row.
+          if (regularHours > 0 && (clockInTime || clockOutTime)) {
             const hoursToPay = (isClientBased || isEligibleForAllowances)
               ? 8
               : regularHours;
@@ -713,9 +713,8 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // Special Holiday component: ONLY when they rendered work (regularHours > 0).
-          // Rank-and-file: 1.3x extra; supervisory/managerial: allowance.
-          if (regularHours > 0) {
+          // Special Holiday component: ONLY when they rendered work (regularHours > 0 AND have clock in/out).
+          if (regularHours > 0 && (clockInTime || clockOutTime)) {
             const hoursToPay = (isClientBased || isEligibleForAllowances)
               ? 8
               : regularHours;
@@ -940,8 +939,8 @@ function PayslipDetailedBreakdownComponent({
           }
         }
 
-        // Special Holiday component: ONLY when they rendered work (regularHours > 0)
-        if (regularHours > 0) {
+        // Special Holiday component: ONLY when they rendered work (clock in/out).
+        if (regularHours > 0 && (clockInTime || clockOutTime)) {
           const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
           breakdown.specialHoliday.hours += hoursToDisplay;
           breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : (regularHours * ratePerHour * 0.5); // Sunday+Special: 1.5x total, 1x in basic → extra 0.5x
@@ -1027,8 +1026,8 @@ function PayslipDetailedBreakdownComponent({
           }
         }
 
-        // Legal Holiday component: ONLY when they rendered work (regularHours > 0)
-        if (regularHours > 0) {
+        // Legal Holiday component: ONLY when they rendered work (clock in/out).
+        if (regularHours > 0 && (clockInTime || clockOutTime)) {
           const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
           breakdown.legalHoliday.hours += hoursToDisplay;
           // Sunday+Legal: 2.6x total, 1x in basic → extra 1.6x for rank-and-file

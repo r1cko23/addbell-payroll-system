@@ -52,6 +52,8 @@ interface FailureToLog {
   status: "pending" | "approved" | "rejected" | "cancelled";
   rejection_reason: string | null;
   account_manager_id: string | null;
+  approved_at: string | null;
+  updated_at: string | null;
   created_at: string;
   employees: {
     employee_id: string;
@@ -735,13 +737,21 @@ export default function FailureToLogApprovalPage() {
                         </BodySmall>
                       )}
                       {request.status === "approved" &&
-                        request.account_manager_id && (
+                        (request.account_manager_id || request.approved_at) && (
                           <Caption className="text-xs text-gray-600 mt-2">
                             Approved by Manager:{" "}
                             {approverNames[request.account_manager_id] ||
                               "Manager"}
+                            {request.approved_at &&
+                              ` on ${format(new Date(request.approved_at), "MMM dd, yyyy h:mm a")}`}
                           </Caption>
                         )}
+                      {request.status === "rejected" && request.updated_at && (
+                        <Caption className="text-xs text-gray-600 mt-2">
+                          Rejected on{" "}
+                          {format(new Date(request.updated_at), "MMM dd, yyyy h:mm a")}
+                        </Caption>
+                      )}
                     </div>
                     <Badge
                       variant={
@@ -914,13 +924,31 @@ export default function FailureToLogApprovalPage() {
                 )}
 
                 {selectedRequest.status === "approved" &&
-                  selectedRequest.account_manager_id && (
+                  (selectedRequest.account_manager_id ||
+                    selectedRequest.approved_at) && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">
                         Approved by Manager:{" "}
                         <span className="font-medium text-foreground">
                           {approverNames[selectedRequest.account_manager_id] ||
                             "Manager"}
+                        </span>
+                        {selectedRequest.approved_at &&
+                          ` on ${format(new Date(selectedRequest.approved_at), "MMM dd, yyyy h:mm a")}`}
+                      </p>
+                    </div>
+                  )}
+
+                {selectedRequest.status === "rejected" &&
+                  selectedRequest.updated_at && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Rejected on{" "}
+                        <span className="font-medium text-foreground">
+                          {format(
+                            new Date(selectedRequest.updated_at),
+                            "MMM dd, yyyy h:mm a"
+                          )}
                         </span>
                       </p>
                     </div>

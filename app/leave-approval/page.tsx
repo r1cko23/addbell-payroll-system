@@ -74,10 +74,14 @@ interface LeaveRequest {
     | "cancelled";
   rejection_reason: string | null;
   rejected_by: string | null;
+  rejected_at: string | null;
   account_manager_id: string | null;
+  account_manager_approved_at: string | null;
   account_manager_notes: string | null;
   hr_notes: string | null;
+  hr_approved_by?: string | null;
   hr_approver_id?: string | null;
+  hr_approved_at: string | null;
   created_at: string;
   employees: {
     employee_id: string;
@@ -1092,6 +1096,8 @@ export default function LeaveApprovalPage() {
                               Approved by Manager:{" "}
                               {approverNames[request.account_manager_id] ||
                                 "Manager"}
+                              {request.account_manager_approved_at &&
+                                ` on ${format(new Date(request.account_manager_approved_at), "MMM dd, yyyy h:mm a")}`}
                             </Caption>
                           )}
                           {request.status === "rejected" &&
@@ -1101,6 +1107,8 @@ export default function LeaveApprovalPage() {
                                 Rejected by Manager:{" "}
                                 {rejectedByNames[request.rejected_by] ||
                                   "Manager"}
+                                {request.rejected_at &&
+                                  ` on ${format(new Date(request.rejected_at), "MMM dd, yyyy h:mm a")}`}
                                 {request.rejection_reason &&
                                   ` - ${request.rejection_reason}`}
                               </Caption>
@@ -1113,16 +1121,20 @@ export default function LeaveApprovalPage() {
                               <Caption className="text-red-600">
                                 Rejected by HR:{" "}
                                 {rejectedByNames[request.rejected_by] || "HR"}
+                                {request.rejected_at &&
+                                  ` on ${format(new Date(request.rejected_at), "MMM dd, yyyy h:mm a")}`}
                                 {request.rejection_reason &&
                                   ` - ${request.rejection_reason}`}
                               </Caption>
                             )}
                           {request.status !== "rejected" &&
-                            request.hr_approver_id && (
+                            (request.hr_approver_id || request.hr_approved_by) && (
                               <Caption>
                                 Approved by HR:{" "}
-                                {hrApproverNames[request.hr_approver_id] ||
+                                {hrApproverNames[request.hr_approver_id || request.hr_approved_by!] ||
                                   "HR"}
+                                {request.hr_approved_at &&
+                                  ` on ${format(new Date(request.hr_approved_at), "MMM dd, yyyy h:mm a")}`}
                               </Caption>
                             )}
                         </VStack>
@@ -1418,6 +1430,45 @@ export default function LeaveApprovalPage() {
                       )}
                     </div>
                   </div>
+
+                  {(selectedRequest.account_manager_approved_at ||
+                    selectedRequest.hr_approved_at ||
+                    selectedRequest.rejected_at) && (
+                    <div className="space-y-2">
+                      <div className="text-sm text-muted-foreground">
+                        Approval / Rejection
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        {selectedRequest.account_manager_approved_at && (
+                          <div>
+                            Approved by Manager on{" "}
+                            {format(
+                              new Date(selectedRequest.account_manager_approved_at),
+                              "MMM dd, yyyy h:mm a"
+                            )}
+                          </div>
+                        )}
+                        {selectedRequest.hr_approved_at && (
+                          <div>
+                            Approved by HR on{" "}
+                            {format(
+                              new Date(selectedRequest.hr_approved_at),
+                              "MMM dd, yyyy h:mm a"
+                            )}
+                          </div>
+                        )}
+                        {selectedRequest.rejected_at && (
+                          <div className="text-red-600">
+                            Rejected on{" "}
+                            {format(
+                              new Date(selectedRequest.rejected_at),
+                              "MMM dd, yyyy h:mm a"
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedRequest.status === "rejected" &&
                     selectedRequest.rejection_reason && (

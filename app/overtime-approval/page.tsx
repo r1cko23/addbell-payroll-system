@@ -314,6 +314,7 @@ export default function OvertimeApprovalPage() {
     const requestsData = filteredData as Array<{
       status: string;
       account_manager_id?: string | null;
+      approved_by?: string | null;
     }> | null;
 
     // Filter out cancelled requests to avoid flooding the UI

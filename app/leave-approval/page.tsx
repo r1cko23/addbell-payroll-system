@@ -88,6 +88,8 @@ interface LeaveRequest {
     full_name: string;
     profile_picture_url?: string | null;
     sil_credits: number;
+    overtime_group_id?: string | null;
+    overtime_approver_id?: string | null;
   };
   leave_request_documents?: LeaveDocument[];
 }
@@ -297,7 +299,9 @@ export default function LeaveApprovalPage() {
           employee_id,
           full_name,
           profile_picture_url,
-          sil_credits
+          sil_credits,
+          overtime_group_id,
+          overtime_approver_id
         ),
         leave_request_documents (
           id,

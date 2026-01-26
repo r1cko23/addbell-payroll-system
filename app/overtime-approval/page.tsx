@@ -43,6 +43,8 @@ type OTRequest = {
   attachment_url: string | null;
   status: "pending" | "approved" | "rejected";
   account_manager_id?: string | null;
+  approved_at?: string | null;
+  approved_by?: string | null;
   created_at: string;
   overtime_documents?: OvertimeDocument[];
   employees?: {
@@ -320,12 +322,12 @@ export default function OvertimeApprovalPage() {
     );
     setRequests(cleaned as OTRequest[]);
 
-    // Load approver names for approved requests
+    // Load approver names for approved/rejected requests (account_manager_id and approved_by)
     const approverIds = Array.from(
       new Set(
-        cleaned
-          .map((r) => r.account_manager_id)
-          .filter((id): id is string => Boolean(id))
+        cleaned.flatMap((r) =>
+          [r.account_manager_id, r.approved_by].filter((id): id is string => Boolean(id))
+        )
       )
     );
     if (approverIds.length > 0) {
@@ -770,11 +772,23 @@ export default function OvertimeApprovalPage() {
                           </BodySmall>
                         ) : null}
                         {req.status === "approved" &&
-                          req.account_manager_id && (
+                          (req.account_manager_id || req.approved_by) && (
                             <Caption className="text-xs text-gray-600 mt-2">
                               Approved by Manager:{" "}
-                              {approverNames[req.account_manager_id] ||
+                              {approverNames[req.account_manager_id || req.approved_by!] ||
                                 "Manager"}
+                              {req.approved_at &&
+                                ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
+                            </Caption>
+                          )}
+                        {req.status === "rejected" &&
+                          (req.account_manager_id || req.approved_by) && (
+                            <Caption className="text-xs text-gray-600 mt-2">
+                              Rejected by:{" "}
+                              {approverNames[req.account_manager_id || req.approved_by!] ||
+                                "Manager"}
+                              {req.approved_at &&
+                                ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
                             </Caption>
                           )}
                       </div>
@@ -995,14 +1009,30 @@ export default function OvertimeApprovalPage() {
                 ) : null}
 
                 {selected.status === "approved" &&
-                  selected.account_manager_id && (
+                  (selected.account_manager_id || selected.approved_by) && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">
                         Approved by Manager:{" "}
                         <span className="font-medium text-foreground">
-                          {approverNames[selected.account_manager_id] ||
+                          {approverNames[selected.account_manager_id || selected.approved_by!] ||
                             "Manager"}
                         </span>
+                        {selected.approved_at &&
+                          ` on ${format(new Date(selected.approved_at), "MMM dd, yyyy h:mm a")}`}
+                      </p>
+                    </div>
+                  )}
+                {selected.status === "rejected" &&
+                  (selected.account_manager_id || selected.approved_by) && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Rejected by:{" "}
+                        <span className="font-medium text-foreground">
+                          {approverNames[selected.account_manager_id || selected.approved_by!] ||
+                            "Manager"}
+                        </span>
+                        {selected.approved_at &&
+                          ` on ${format(new Date(selected.approved_at), "MMM dd, yyyy h:mm a")}`}
                       </p>
                     </div>
                   )}

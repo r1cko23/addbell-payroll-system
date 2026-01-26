@@ -1131,8 +1131,8 @@ export default function TimesheetPage() {
   }
 
   async function handleRemoveTimeEntry(entryIds: string[], dateLabel: string) {
-    if (!(isAdmin || isHR)) {
-      toast.error("Only administrators and HR can remove time entries");
+    if (!isAdmin) {
+      toast.error("Only administrators can remove time entries");
       return;
     }
     if (!entryIds.length) return;
@@ -1533,7 +1533,7 @@ export default function TimesheetPage() {
                     <th className="px-4 py-2 text-right text-xs font-medium uppercase">
                       ND
                     </th>
-                    {(isAdmin || isHR) && (
+                    {isAdmin && (
                       <th className="px-4 py-2 text-xs font-medium uppercase w-20">
                         Actions
                       </th>
@@ -1615,7 +1615,7 @@ export default function TimesheetPage() {
                         <td className="px-4 py-2 text-sm text-right">
                           {day.nd > 0 ? day.nd.toFixed(2) : "0"}
                         </td>
-                        {(isAdmin || isHR) && (
+                        {isAdmin && (
                           <td className="px-4 py-2 text-sm">
                             {day.clockEntryIds && day.clockEntryIds.length > 0 ? (
                               <Button
@@ -1643,7 +1643,7 @@ export default function TimesheetPage() {
                   })}
                   {/* Summary Row */}
                   <tr className="border-t-2 font-semibold">
-                    <td colSpan={(isAdmin || isHR) ? 6 : 5} className="px-4 py-2 text-sm">
+                    <td colSpan={isAdmin ? 6 : 5} className="px-4 py-2 text-sm">
                       Days Work : {daysWorked.toFixed(2)}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">

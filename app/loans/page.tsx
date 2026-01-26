@@ -300,6 +300,7 @@ export default function LoansPage() {
         remaining_terms: parseInt(loanData.remaining_terms.toString()),
         effectivity_date: loanData.effectivity_date,
         cutoff_assignment: loanData.cutoff_assignment,
+        deduct_bi_monthly: loanData.deduct_bi_monthly ?? true,
         notes: loanData.notes || null,
         updated_by: userData.user.id,
       } as Record<string, unknown>;

@@ -96,6 +96,7 @@ interface AttendanceDay {
   lt: number; // Late (minutes)
   ut: number; // Undertime (minutes)
   nd: number; // Night Differential
+  clockEntryIds?: string[]; // ids from time_clock_entries for this day (for admin/HR remove)
 }
 
 export default function TimesheetPage() {
@@ -1086,6 +1087,7 @@ export default function TimesheetPage() {
         lt,
         ut,
         nd: Math.round(ndHours * 100) / 100,
+        clockEntryIds: dayEntries.map((e) => e.id),
       });
     });
 
@@ -1126,6 +1128,25 @@ export default function TimesheetPage() {
 
   function handlePrint() {
     window.print();
+  }
+
+  async function handleRemoveTimeEntry(entryIds: string[], dateLabel: string) {
+    if (!(isAdmin || isHR)) {
+      toast.error("Only administrators and HR can remove time entries");
+      return;
+    }
+    if (!entryIds.length) return;
+    if (!confirm(`Remove time entry for ${dateLabel}? This cannot be undone.`)) return;
+    for (const id of entryIds) {
+      const { error } = await supabase.from("time_clock_entries").delete().eq("id", id);
+      if (error) {
+        console.error("Error deleting time entry:", error);
+        toast.error("Failed to remove time entry");
+        return;
+      }
+    }
+    toast.success("Time entry removed");
+    loadAttendanceData();
   }
 
   const cutoffLabel =
@@ -1512,6 +1533,11 @@ export default function TimesheetPage() {
                     <th className="px-4 py-2 text-right text-xs font-medium uppercase">
                       ND
                     </th>
+                    {(isAdmin || isHR) && (
+                      <th className="px-4 py-2 text-xs font-medium uppercase w-20">
+                        Actions
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -1589,12 +1615,35 @@ export default function TimesheetPage() {
                         <td className="px-4 py-2 text-sm text-right">
                           {day.nd > 0 ? day.nd.toFixed(2) : "0"}
                         </td>
+                        {(isAdmin || isHR) && (
+                          <td className="px-4 py-2 text-sm">
+                            {day.clockEntryIds && day.clockEntryIds.length > 0 ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={() =>
+                                  handleRemoveTimeEntry(
+                                    day.clockEntryIds!,
+                                    format(parseISO(day.date), "MMM d, yyyy")
+                                  )
+                                }
+                                title="Remove time entry"
+                              >
+                                <Icon name="TrashSimple" size={IconSizes.sm} />
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
                   {/* Summary Row */}
                   <tr className="border-t-2 font-semibold">
-                    <td colSpan={5} className="px-4 py-2 text-sm">
+                    <td colSpan={(isAdmin || isHR) ? 6 : 5} className="px-4 py-2 text-sm">
                       Days Work : {daysWorked.toFixed(2)}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">

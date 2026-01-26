@@ -626,11 +626,10 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Legal Holiday (regular-holiday)
-      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
-      // Holiday pay is NOT added separately - it's already part of basicSalary
-      // Only OT allowances and ND are added separately
+      // NOTE: Holidays are included in basic salary (Days Work × daily rate). Eligible-but-didn't-work
+      // still get 1x in basic. The Legal Holiday component shows the EXTRA (double pay / allowance)
+      // only when they actually RENDERED WORK on that holiday.
       if (dayType === "regular-holiday") {
-        // All employees: Check "1 Day Before" rule
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
           regularHours,
@@ -638,29 +637,20 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // For Account Supervisors (client-based/hotel-based): Always get full daily rate (8 hours) regardless of actual hours worked
-          // For other employees: Use actual hours if worked, otherwise 8 hours
-          let hoursToPay: number;
-          if (isClientBased || isEligibleForAllowances) {
-            // Account Supervisors: Always 8 hours (full daily rate) - guaranteed regardless of actual hours worked
-            hoursToPay = 8;
-          } else {
-            // Other employees: Use actual hours if worked, otherwise 8 hours
-            hoursToPay = regularHours > 0 ? regularHours : 8;
+          // Legal Holiday component: ONLY when they rendered work (regularHours > 0).
+          // Those hours = extra 1x (double pay) for rank-and-file, or allowance for supervisory/managerial.
+          if (regularHours > 0) {
+            const hoursToPay = (isClientBased || isEligibleForAllowances)
+              ? 8
+              : regularHours;
+            breakdown.legalHoliday.hours += hoursToPay;
+            breakdown.legalHoliday.amount += (hoursToPay / 8) * ratePerDay;
           }
 
-          // Track hours and amount for display purposes (informational breakdown)
-          // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
-          breakdown.legalHoliday.hours += hoursToPay;
-          // Calculate amount for display: Always full daily rate (8 hours) for Account Supervisors/Supervisory/Managerial
-          breakdown.legalHoliday.amount += ratePerDay; // Always full daily rate
-
-          // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
-          // Allowance is based on ACTUAL hours worked, not the guaranteed daily rate
-          // OT allowances are still added separately (not part of basic salary)
+          // Allowance only when they actually worked (clockInTime and regularHours >= 4)
           if (clockInTime && regularHours >= 4) {
             const allowance = calculateHolidayRestDayAllowance(
-              regularHours, // Use actual hours worked for allowance calculation
+              regularHours,
               dayType
             );
             if (allowance > 0) {
@@ -712,11 +702,10 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Special Holiday (non-working-holiday)
-      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
-      // Holiday pay is NOT added separately - it's already part of basicSalary
-      // Only OT allowances and ND are added separately
+      // NOTE: Holidays are included in basic salary (Days Work × daily rate). Eligible-but-didn't-work
+      // still get 1x in basic. The Special Holiday component shows the EXTRA (1.3x / allowance)
+      // only when they actually RENDERED WORK on that holiday.
       if (dayType === "non-working-holiday") {
-        // All employees: Check "1 Day Before" rule
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
           regularHours,
@@ -724,29 +713,24 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // For Account Supervisors (client-based/hotel-based): Always get full daily rate (8 hours) regardless of actual hours worked
-          // For other employees: Use actual hours if worked, otherwise 8 hours
-          let hoursToPay: number;
-          if (isClientBased || isEligibleForAllowances) {
-            // Account Supervisors: Always 8 hours (full daily rate) - guaranteed regardless of actual hours worked
-            hoursToPay = 8;
-          } else {
-            // Other employees: Use actual hours if worked, otherwise 8 hours
-            hoursToPay = regularHours > 0 ? regularHours : 8;
+          // Special Holiday component: ONLY when they rendered work (regularHours > 0).
+          // Rank-and-file: 1.3x extra; supervisory/managerial: allowance.
+          if (regularHours > 0) {
+            const hoursToPay = (isClientBased || isEligibleForAllowances)
+              ? 8
+              : regularHours;
+            breakdown.specialHoliday.hours += hoursToPay;
+            // Special: 1.3x for rank-and-file; full daily rate for allowance-eligible (display)
+            // Display: extra only (1.3x total, 1x in basic) = 0.3x for rank-and-file; full daily for allowance-eligible
+            breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances)
+              ? (hoursToPay / 8) * ratePerDay
+              : regularHours * ratePerHour * 0.3;
           }
 
-          // Track hours and amount for display purposes (informational breakdown)
-          // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
-          breakdown.specialHoliday.hours += hoursToPay;
-          // Calculate amount for display: Always full daily rate (8 hours) for Account Supervisors/Supervisory/Managerial
-          breakdown.specialHoliday.amount += ratePerDay; // Always full daily rate
-
-          // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
-          // Allowance is based on ACTUAL hours worked, not the guaranteed daily rate
-          // OT allowances are still added separately (not part of basic salary)
+          // Allowance only when they actually worked (clockInTime and regularHours >= 4)
           if (clockInTime && regularHours >= 4) {
             const allowance = calculateHolidayRestDayAllowance(
-              regularHours, // Use actual hours worked for allowance calculation
+              regularHours,
               dayType
             );
             if (allowance > 0) {
@@ -956,18 +940,14 @@ function PayslipDetailedBreakdownComponent({
           }
         }
 
-        // For Account Supervisors/Supervisory/Managerial: Always get full daily rate (8 hours) regardless of actual hours worked
-        // For other employees: Use actual hours
-        const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
-
-        // Track hours and amount for display purposes (informational breakdown)
-        // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
-        breakdown.specialHoliday.hours += hoursToDisplay;
-        // Calculate amount for display: Always full daily rate for Account Supervisors/Supervisory/Managerial
-        breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : ((regularHours / 8) * ratePerDay);
+        // Special Holiday component: ONLY when they rendered work (regularHours > 0)
+        if (regularHours > 0) {
+          const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
+          breakdown.specialHoliday.hours += hoursToDisplay;
+          breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : (regularHours * ratePerHour * 0.5); // Sunday+Special: 1.5x total, 1x in basic → extra 0.5x
+        }
 
         // Add allowance ONLY if they actually worked (clockInTime exists)
-        // OT allowances are still added separately (not part of basic salary)
         if (clockInTime && regularHours >= 4) {
           const allowance = calculateHolidayRestDayAllowance(
             regularHours,
@@ -1047,18 +1027,15 @@ function PayslipDetailedBreakdownComponent({
           }
         }
 
-        // For Account Supervisors/Supervisory/Managerial: Always get full daily rate (8 hours) regardless of actual hours worked
-        // For other employees: Use actual hours
-        const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
-
-        // Track hours and amount for display purposes (informational breakdown)
-        // Note: This amount is already included in basicSalary, so it's not added to gross pay separately
-        breakdown.legalHoliday.hours += hoursToDisplay;
-        // Calculate amount for display: Always full daily rate for Account Supervisors/Supervisory/Managerial
-        breakdown.legalHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : ((regularHours / 8) * ratePerDay);
+        // Legal Holiday component: ONLY when they rendered work (regularHours > 0)
+        if (regularHours > 0) {
+          const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
+          breakdown.legalHoliday.hours += hoursToDisplay;
+          // Sunday+Legal: 2.6x total, 1x in basic → extra 1.6x for rank-and-file
+          breakdown.legalHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : (regularHours * ratePerHour * 1.6);
+        }
 
         // Add allowance ONLY if they actually worked (clockInTime exists)
-        // OT allowances are still added separately (not part of basic salary)
         if (clockInTime && regularHours >= 4) {
           const allowance = calculateHolidayRestDayAllowance(
             regularHours,
@@ -1069,9 +1046,6 @@ function PayslipDetailedBreakdownComponent({
             otherPay.legalHolidayOnRestDayAllowance.amount += allowance;
           }
         }
-
-        // Note: Fixed allowances for Account Supervisors and Office-based are NOT added here
-        // They only appear in Other Pay section as OT replacements
 
         // Move OT based on employee type
         const lhOnRDOTHours =
@@ -1178,20 +1152,19 @@ function PayslipDetailedBreakdownComponent({
         return sum + regularHours;
       }
 
-      // Count eligible holidays with BH > 0
-      // Holidays count toward the 13 days (they're included in the 104-hour base)
+      // Count eligible holidays (legal and special) in Days Work
+      // Days Work includes all days: regular, legal holidays, and special non-working holidays
+      // When worked: use actual regularHours; when eligible but didn't work: 8h (entitlement)
       if (
-        (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
-        regularHours > 0
+        dayType === "regular-holiday" || dayType === "non-working-holiday"
       ) {
-        // Check if eligible for holiday pay
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           day.date,
           regularHours,
           attendanceData
         );
         if (eligibleForHolidayPay) {
-          return sum + regularHours;
+          return sum + (regularHours > 0 ? regularHours : 8);
         }
       }
 
@@ -1246,19 +1219,16 @@ function PayslipDetailedBreakdownComponent({
     }
 
     // Calculate total gross pay (sum of all earnings)
-    // Basic Salary already includes all days worked (holidays and regular days) at daily rate
-    // Holiday amounts (breakdown.legalHoliday.amount and breakdown.specialHoliday.amount) are for display only
-    // They're already included in basicSalary, so we don't add them again to gross pay
+    // Basic Salary includes 1x for all days worked (regular + holidays). For Rank and File, Legal/Special
+    // Holiday rows hold the EXTRA pay when worked (1x for Legal = double, 0.3x for Special) and must be in Gross.
+    // For Supervisory/Managerial/AS: Legal/Special amounts are display-only; they get allowances (in Other Pay) instead.
     const totalGrossPayUnrounded =
       basicSalary +
       breakdown.nightDifferential.amount +
-      // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount NOT added - already in basicSalary
       breakdown.restDay.amount +
       breakdown.restDayNightDiff.amount +
-      // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)
-      // Add OT and ND items based on employee type
       (isClientBased || isEligibleForAllowances
-        ? // Client-based/Supervisory/Managerial: All OT items in Other Pay
+        ? // Client-based/Supervisory/Managerial: All OT items in Other Pay; Legal/Special Holiday not added (they get allowances)
           otherPay.regularOT.amount +
           otherPay.legalHolidayOT.amount +
           otherPay.legalHolidayND.amount +
@@ -1274,7 +1244,7 @@ function PayslipDetailedBreakdownComponent({
           otherPay.restDayAllowance.amount +
           otherPay.specialHolidayOnRestDayAllowance.amount +
           otherPay.legalHolidayOnRestDayAllowance.amount
-        : // Regular employees: OT and ND items in earnings breakdown table
+        : // Rank and File: OT/ND in earnings table + Legal Holiday + Special Holiday (when worked)
           earningsOT.regularOvertime.amount +
           earningsOT.legalHolidayOT.amount +
           earningsOT.legalHolidayND.amount +
@@ -1283,7 +1253,9 @@ function PayslipDetailedBreakdownComponent({
           earningsOT.shOnRDOT.amount +
           earningsOT.lhOnRDOT.amount +
           earningsOT.restDayOT.amount +
-          earningsOT.regularNightdiffOT.amount);
+          earningsOT.regularNightdiffOT.amount +
+          breakdown.legalHoliday.amount +
+          breakdown.specialHoliday.amount);
 
     // Round all breakdown amounts to 2 decimals before summing
     const roundTo2Decimals = (val: number) => Math.round(val * 100) / 100;
@@ -1291,6 +1263,8 @@ function PayslipDetailedBreakdownComponent({
       nightDifferential: roundTo2Decimals(breakdown.nightDifferential.amount),
       restDay: roundTo2Decimals(breakdown.restDay.amount),
       restDayNightDiff: roundTo2Decimals(breakdown.restDayNightDiff.amount),
+      legalHoliday: roundTo2Decimals(breakdown.legalHoliday.amount),
+      specialHoliday: roundTo2Decimals(breakdown.specialHoliday.amount),
     };
 
     const roundedOtherPay = isClientBased || isEligibleForAllowances ? {
@@ -1352,7 +1326,9 @@ function PayslipDetailedBreakdownComponent({
           roundedEarningsOT!.shOnRDOT +
           roundedEarningsOT!.lhOnRDOT +
           roundedEarningsOT!.restDayOT +
-          roundedEarningsOT!.regularNightdiffOT);
+          roundedEarningsOT!.regularNightdiffOT +
+          roundedBreakdown.legalHoliday +
+          roundedBreakdown.specialHoliday);
     const totalGrossPay = Math.round(totalGrossPayUnroundedRounded * 100) / 100;
 
     return {
@@ -1743,11 +1719,8 @@ function PayslipDetailedBreakdownComponent({
               <span className="text-sm font-bold text-primary-700">
                 {formatCurrency(
                   breakdown.nightDifferential.amount +
-                    // breakdown.legalHoliday.amount and breakdown.specialHoliday.amount removed - already in basicSalary
                     breakdown.restDay.amount +
                     breakdown.restDayNightDiff.amount +
-                    // Note: workingDayoff removed - Saturday is now included in basicSalary (regular work day per law)
-                    // Add OT items for regular employees
                     (isClientBased || isEligibleForAllowances
                       ? 0
                       : earningsOT.regularOvertime.amount +
@@ -1758,7 +1731,9 @@ function PayslipDetailedBreakdownComponent({
                         earningsOT.shOnRDOT.amount +
                         earningsOT.lhOnRDOT.amount +
                         earningsOT.restDayOT.amount +
-                        earningsOT.regularNightdiffOT.amount)
+                        earningsOT.regularNightdiffOT.amount +
+                        breakdown.legalHoliday.amount +
+                        breakdown.specialHoliday.amount)
                 )}
               </span>
             </div>

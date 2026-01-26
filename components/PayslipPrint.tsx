@@ -411,8 +411,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Legal Holiday
+      // Days Work includes eligible holidays (worked or not). The 1x base always goes to basic.
+      // Legal Holiday component only has hours/amount when they RENDERED WORK (extra 1x = double pay for rank-and-file, allowance for supervisory).
       if (dayType === "regular-holiday") {
-        // All employees: Check "1 Day Before" rule
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
           regularHours,
@@ -420,42 +421,27 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
 
         if (eligibleForHolidayPay) {
-          // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
-          const hoursToPay = regularHours > 0 ? regularHours : 8;
+          // Always add 1x to basic (Days Work includes all holidays)
+          const hoursForBasic = regularHours > 0 ? regularHours : 8;
+          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
+          earningsBreakdown.basic.days += hoursForBasic / 8;
 
-          if (useFixedAllowances) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            // If worked on holiday: pay for hours worked × 1.0 + allowance
-            // If didn't work but eligible: pay 8 hours × 1.0 (daily rate entitlement only, no allowance)
-            const dailyRateAmount = hoursToPay * ratePerHour;
-            earningsBreakdown.legalHoliday.days++;
-            earningsBreakdown.legalHoliday.amount += dailyRateAmount;
-
-            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
-            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(regularHours);
-              if (allowance > 0) {
-                fixedAllowances.legalHolidayAllowance.amount += allowance;
+          // Legal Holiday component: ONLY when they rendered work (regularHours > 0)
+          if (regularHours > 0) {
+            if (useFixedAllowances) {
+              earningsBreakdown.legalHoliday.days += 1; // 8h = 1 day for display
+              // Amount is 0 here; the 1x is in basic, premium is the allowance below
+              if (clockInTime && regularHours >= 4) {
+                const allowance = calculateHolidayRestDayAllowance(regularHours);
+                if (allowance > 0) {
+                  fixedAllowances.legalHolidayAllowance.amount += allowance;
+                }
               }
-            }
-          } else {
-            // Rank and File:
-            // If worked on holiday: 2.0x multiplier (Daily Rate 1.0x + Premium 1.0x)
-            // If didn't work but eligible: 1.0x multiplier (Daily Rate entitlement only)
-            if (regularHours > 0) {
-              // Worked on holiday: Premium pay (2.0x)
-              const standardAmount = calculateRegularHoliday(
-                regularHours,
-                ratePerHour
-              );
-              earningsBreakdown.legalHoliday.days++;
-              earningsBreakdown.legalHoliday.amount += standardAmount;
             } else {
-              // Didn't work but eligible: Daily rate entitlement (1.0x)
-              const dailyRateAmount = 8 * ratePerHour;
-              earningsBreakdown.legalHoliday.days++;
-              earningsBreakdown.legalHoliday.amount += dailyRateAmount;
+              // Rank and File: premium 1x (double pay = 1x base in basic + 1x here)
+              const premiumAmount = regularHours * ratePerHour;
+              earningsBreakdown.legalHoliday.days += regularHours / 8;
+              earningsBreakdown.legalHoliday.amount += premiumAmount;
             }
           }
         }
@@ -488,8 +474,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Special Holiday
+      // Days Work includes eligible holidays (worked or not). The 1x base always goes to basic.
+      // Special Holiday component only has hours/amount when they RENDERED WORK (extra 0.3x for rank-and-file, allowance for supervisory).
       if (dayType === "non-working-holiday") {
-        // All employees: Check "1 Day Before" rule
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
           regularHours,
@@ -497,42 +484,26 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
 
         if (eligibleForHolidayPay) {
-          // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
-          const hoursToPay = regularHours > 0 ? regularHours : 8;
+          // Always add 1x to basic (Days Work includes all holidays)
+          const hoursForBasic = regularHours > 0 ? regularHours : 8;
+          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
+          earningsBreakdown.basic.days += hoursForBasic / 8;
 
-          if (useFixedAllowances) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            // If worked on holiday: pay for hours worked × 1.0 + allowance
-            // If didn't work but eligible: pay 8 hours × 1.0 (daily rate entitlement only, no allowance)
-            const dailyRateAmount = hoursToPay * ratePerHour;
-            earningsBreakdown.spHoliday.days++;
-            earningsBreakdown.spHoliday.amount += dailyRateAmount;
-
-            // Add allowance ONLY if they actually worked on the holiday (clockInTime exists and regularHours >= 4)
-            // If clockInTime doesn't exist, regularHours = 8 is just the daily rate entitlement (no allowance)
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(regularHours);
-              if (allowance > 0) {
-                fixedAllowances.specialHolidayAllowance.amount += allowance;
+          // Special Holiday component: ONLY when they rendered work (regularHours > 0)
+          if (regularHours > 0) {
+            if (useFixedAllowances) {
+              earningsBreakdown.spHoliday.days += 1;
+              if (clockInTime && regularHours >= 4) {
+                const allowance = calculateHolidayRestDayAllowance(regularHours);
+                if (allowance > 0) {
+                  fixedAllowances.specialHolidayAllowance.amount += allowance;
+                }
               }
-            }
-          } else {
-            // Rank and File:
-            // If worked on holiday: 1.3x multiplier (Daily Rate 1.0x + Premium 0.3x)
-            // If didn't work but eligible: 1.0x multiplier (Daily Rate entitlement only)
-            if (regularHours > 0) {
-              // Worked on holiday: Premium pay (1.3x)
-              const standardAmount = calculateNonWorkingHoliday(
-                regularHours,
-                ratePerHour
-              );
-              earningsBreakdown.spHoliday.days++;
-              earningsBreakdown.spHoliday.amount += standardAmount;
             } else {
-              // Didn't work but eligible: Daily rate entitlement (1.0x)
-              const dailyRateAmount = 8 * ratePerHour;
-              earningsBreakdown.spHoliday.days++;
-              earningsBreakdown.spHoliday.amount += dailyRateAmount;
+              // Rank and File: premium 0.3x only (1.3x total = 1x base in basic + 0.3x here)
+              const premiumAmount = regularHours * ratePerHour * 0.3;
+              earningsBreakdown.spHoliday.days += regularHours / 8;
+              earningsBreakdown.spHoliday.amount += premiumAmount;
             }
           }
         }
@@ -633,17 +604,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Sunday + Special Holiday
+      // Days Work includes eligible; 1x in basic. Special Holiday component only when rendered work (premium 0.5x for rank-and-file, allowance for supervisory).
       if (dayType === "sunday-special-holiday") {
+        const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
+        if (eligible) {
+          const hoursForBasic = regularHours > 0 ? regularHours : 8;
+          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
+          earningsBreakdown.basic.days += hoursForBasic / 8;
+        }
         if (regularHours > 0) {
-          // Supervisory/Managerial: Get daily rate (1x) + allowance (if worked)
-          // Rank and File: Get 1.5x multiplier
           if (useFixedAllowances) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            const dailyRateAmount = regularHours * ratePerHour;
-            earningsBreakdown.spHoliday.days++;
-            earningsBreakdown.spHoliday.amount += dailyRateAmount;
-
-            // Add allowance ONLY if they actually worked (clockInTime exists)
+            earningsBreakdown.spHoliday.days += 1;
             if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(regularHours);
               if (allowance > 0) {
@@ -651,13 +622,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }
             }
           } else {
-            // Rank and File: Standard multiplier calculation (1.5x)
-            const standardAmount = calculateSundaySpecialHoliday(
-              regularHours,
-              ratePerHour
-            );
-            earningsBreakdown.spHoliday.days++;
-            earningsBreakdown.spHoliday.amount += standardAmount;
+            // Rank and File: premium 0.5x only (1.5x total = 1x in basic + 0.5x here)
+            earningsBreakdown.spHoliday.days += regularHours / 8;
+            earningsBreakdown.spHoliday.amount += regularHours * ratePerHour * 0.5;
           }
         }
         if (overtimeHours > 0) {
@@ -686,17 +653,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Sunday + Regular Holiday
+      // Days Work includes eligible; 1x in basic. Legal Holiday component only when rendered work (premium 1.6x for rank-and-file, allowance for supervisory).
       if (dayType === "sunday-regular-holiday") {
+        const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
+        if (eligible) {
+          const hoursForBasic = regularHours > 0 ? regularHours : 8;
+          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
+          earningsBreakdown.basic.days += hoursForBasic / 8;
+        }
         if (regularHours > 0) {
-          // Supervisory/Managerial: Get daily rate (1x) + allowance (if worked)
-          // Rank and File: Get 2.6x multiplier
           if (useFixedAllowances) {
-            // Supervisory/Managerial: Daily rate only (1x), no multiplier
-            const dailyRateAmount = regularHours * ratePerHour;
-            earningsBreakdown.legalHoliday.days++;
-            earningsBreakdown.legalHoliday.amount += dailyRateAmount;
-
-            // Add allowance ONLY if they actually worked (clockInTime exists)
+            earningsBreakdown.legalHoliday.days += 1;
             if (clockInTime && regularHours >= 4) {
               const allowance = calculateHolidayRestDayAllowance(regularHours);
               if (allowance > 0) {
@@ -704,13 +671,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }
             }
           } else {
-            // Rank and File: Standard multiplier calculation (2.6x)
-            const standardAmount = calculateSundayRegularHoliday(
-              regularHours,
-              ratePerHour
-            );
-            earningsBreakdown.legalHoliday.days++;
-            earningsBreakdown.legalHoliday.amount += standardAmount;
+            // Rank and File: premium 1.6x only (2.6x total = 1x in basic + 1.6x here)
+            earningsBreakdown.legalHoliday.days += regularHours / 8;
+            earningsBreakdown.legalHoliday.amount += regularHours * ratePerHour * 1.6;
           }
         }
         if (overtimeHours > 0) {

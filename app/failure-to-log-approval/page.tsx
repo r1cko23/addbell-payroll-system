@@ -740,8 +740,9 @@ export default function FailureToLogApprovalPage() {
                         (request.account_manager_id || request.approved_at) && (
                           <Caption className="text-xs text-gray-600 mt-2">
                             Approved by Manager:{" "}
-                            {approverNames[request.account_manager_id] ||
-                              "Manager"}
+                            {(request.account_manager_id
+                              ? approverNames[request.account_manager_id]
+                              : undefined) || "Manager"}
                             {request.approved_at &&
                               ` on ${format(new Date(request.approved_at), "MMM dd, yyyy h:mm a")}`}
                           </Caption>
@@ -930,8 +931,9 @@ export default function FailureToLogApprovalPage() {
                       <p className="text-sm text-muted-foreground">
                         Approved by Manager:{" "}
                         <span className="font-medium text-foreground">
-                          {approverNames[selectedRequest.account_manager_id] ||
-                            "Manager"}
+                          {(selectedRequest.account_manager_id
+                            ? approverNames[selectedRequest.account_manager_id]
+                            : undefined) || "Manager"}
                         </span>
                         {selectedRequest.approved_at &&
                           ` on ${format(new Date(selectedRequest.approved_at), "MMM dd, yyyy h:mm a")}`}

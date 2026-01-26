@@ -768,6 +768,12 @@ export default function PayslipsPage() {
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
           const isClientBased = selectedEmployee?.employee_type === "client-based" || false;
 
+          // #region agent log
+          if (periodStartStr <= "2026-01-15" && periodEndStr >= "2026-01-01") {
+            fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "payslips/page.tsx:beforeGenerator", message: "Payslip before generator", data: { periodStartStr, periodEndStr, holidaysCount: holidays.length, holidayDates: holidays.map((h: { holiday_date?: string }) => (h.holiday_date || "").toString().split("T")[0]) }, hypothesisId: "H2", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
+          }
+          // #endregion
+
           const timesheetData = generateTimesheetFromClockEntries(
             mappedClockEntries as any,
             periodStart,

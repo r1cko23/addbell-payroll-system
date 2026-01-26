@@ -1203,6 +1203,13 @@ function PayslipDetailedBreakdownComponent({
     const totalBHForDaysWork = Math.max(basePayHours, actualTotalBH);
     let daysWorked = totalBHForDaysWork / 8;
 
+    // #region agent log
+    const _jan1 = attendanceData.find((d: { date: string }) => d.date === "2026-01-01");
+    if (_jan1 || (periodStart && periodEnd && format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
+      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "PayslipDetailedBreakdown.tsx:DaysWork", message: "Payslip Days Work", data: { periodStart: periodStart ? format(periodStart, "yyyy-MM-dd") : null, periodEnd: periodEnd ? format(periodEnd, "yyyy-MM-dd") : null, employeeName: employee?.full_name, jan1: _jan1 ? { date: (_jan1 as any).date, dayType: (_jan1 as any).dayType, regularHours: (_jan1 as any).regularHours } : null, basePayHours, actualTotalBH, totalBHForDaysWork, daysWorked }, hypothesisId: "H2", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
+    }
+    // #endregion
+
     // NOTE: Days Work can exceed 13 if employee works on rest days
     // Rest day work counts toward Days Work AND gets premium pay separately
     // Maximum is not capped at 13 to allow for rest day work (e.g., 13 regular days + 1 rest day = 14 days)

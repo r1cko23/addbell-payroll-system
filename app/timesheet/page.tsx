@@ -1257,6 +1257,12 @@ export default function TimesheetPage() {
     // Use the maximum of basePayHours and actualTotalBH to ensure holidays with BH are counted
     totalBH = Math.max(basePayHours, actualTotalBH);
     daysWorked = totalBH / 8;
+    // #region agent log
+    if (attendanceDays.some((d) => d.date === "2026-01-01") || (format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
+      const jan1 = attendanceDays.find((d) => d.date === "2026-01-01");
+      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "timesheet/page.tsx:DaysWork", message: "Timesheet Days Work", data: { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd"), employeeName: selectedEmployee?.full_name, jan1: jan1 ? { date: jan1.date, status: jan1.status, bh: jan1.bh, dayType: jan1.dayType } : null, basePayHours, actualTotalBH, totalBH, daysWorked }, hypothesisId: "H1", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
+    }
+    // #endregion
     // NOTE: Days Work can exceed 13 if employee works on rest days
     // Rest day work counts toward Days Work AND gets premium pay separately
     // Maximum is not capped at 13 to allow for rest day work

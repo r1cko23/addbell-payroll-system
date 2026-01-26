@@ -330,6 +330,13 @@ export function generateTimesheetFromClockEntries(
       }
     }
 
+    // #region agent log
+    if (dateStr === "2026-01-01") {
+      const hasJan1 = holidays.some((h: { holiday_date?: string; date?: string }) => ((h.holiday_date || h.date || "").toString().split("T")[0] || "") === "2026-01-01");
+      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "timesheet-auto-generator.ts:2026-01-01", message: "Generator Jan 1", data: { dateStr, dayType, regularHoursFinal: Math.floor(regularHours), holidaysCount: holidays.length, hasJan1InHolidays: hasJan1 }, hypothesisId: "H2", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
+    }
+    // #endregion
+
     // Floor down hours (round down to full hours only, matching database trigger)
     attendance_data.push({
       date: dateStr,

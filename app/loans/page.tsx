@@ -128,6 +128,7 @@ export default function LoansPage() {
     effectivity_date: "",
     cutoff_assignment: "first" as "first" | "second" | "both",
     deduct_bi_monthly: true,
+    is_active: true,
     notes: "",
   });
 
@@ -206,6 +207,7 @@ export default function LoansPage() {
       effectivity_date: "",
       cutoff_assignment: "first",
       deduct_bi_monthly: true,
+      is_active: true,
       notes: "",
     });
     setShowModal(true);
@@ -224,6 +226,7 @@ export default function LoansPage() {
       effectivity_date: loan.effectivity_date,
       cutoff_assignment: loan.cutoff_assignment,
       deduct_bi_monthly: loan.deduct_bi_monthly ?? true,
+      is_active: loan.is_active ?? true,
       notes: loan.notes || "",
     });
     setShowModal(true);
@@ -289,7 +292,7 @@ export default function LoansPage() {
       }
 
       // Update loan with updated_by for audit trail
-      // Only update fields that are allowed to be changed (exclude id, created_by, created_at, is_active)
+      // Update all editable fields (exclude id, created_by, created_at)
       const updateData = {
         employee_id: loanData.employee_id,
         loan_type: loanData.loan_type,
@@ -301,6 +304,7 @@ export default function LoansPage() {
         effectivity_date: loanData.effectivity_date,
         cutoff_assignment: loanData.cutoff_assignment,
         deduct_bi_monthly: loanData.deduct_bi_monthly ?? true,
+        is_active: loanData.is_active ?? true,
         notes: loanData.notes || null,
         updated_by: userData.user.id,
       } as Record<string, unknown>;
@@ -513,8 +517,8 @@ export default function LoansPage() {
         effectivity_date: formData.effectivity_date,
         cutoff_assignment: formData.cutoff_assignment,
         deduct_bi_monthly: formData.deduct_bi_monthly,
+        is_active: formData.is_active,
         notes: formData.notes || null,
-        // Don't update is_active during regular edit - it's managed separately via toggle
       };
 
       if (editingLoan) {
@@ -1509,26 +1513,48 @@ export default function LoansPage() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="deduct_bi_monthly"
-                  checked={formData.deduct_bi_monthly}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      deduct_bi_monthly: e.target.checked,
-                    })
-                  }
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                <Label htmlFor="deduct_bi_monthly" className="font-normal cursor-pointer">
-                  Deduct Bi-Monthly (Divide by 2)
-                </Label>
-                <Caption className="text-xs text-gray-500 ml-2">
-                  If checked, monthly payment is divided by 2 per cutoff (e.g., ₱1,000/month = ₱500 per cutoff).
-                  If unchecked, full monthly payment is deducted per cutoff.
-                </Caption>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="deduct_bi_monthly"
+                    checked={formData.deduct_bi_monthly}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        deduct_bi_monthly: e.target.checked,
+                      })
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="deduct_bi_monthly" className="font-normal cursor-pointer">
+                    Deduct Bi-Monthly (Divide by 2)
+                  </Label>
+                  <Caption className="text-xs text-gray-500 ml-2">
+                    If checked, monthly payment is divided by 2 per cutoff (e.g., ₱1,000/month = ₱500 per cutoff).
+                    If unchecked, full monthly payment is deducted per cutoff.
+                  </Caption>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={formData.is_active}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        is_active: e.target.checked,
+                      })
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor="is_active" className="font-normal cursor-pointer">
+                    Active
+                  </Label>
+                  <Caption className="text-xs text-gray-500 ml-2">
+                    Inactive loans are not deducted from payslips.
+                  </Caption>
+                </div>
               </div>
 
               <div>

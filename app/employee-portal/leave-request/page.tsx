@@ -329,21 +329,13 @@ export default function LeaveRequestPage() {
     }
     setRequestsFetchError(null);
     setLoading(true);
-    const { data, error } = await supabase
-      .from("leave_requests")
-      .select(
-        `
-        *,
-        leave_request_documents (
-          id,
-          file_name,
-          file_type,
-          file_size
-        )
-      `
-      )
-      .eq("employee_id", employeeId)
-      .order("created_at", { ascending: false });
+
+    // Use RPC to bypass leave_requests RLS: anon employee portal has no auth.uid(),
+    // so policy (auth.uid() = employee_id) never matches. get_my_leave_requests is
+    // SECURITY DEFINER and returns only this employee's rows.
+    const { data, error } = await supabase.rpc("get_my_leave_requests", {
+      p_employee_uuid: employeeId,
+    } as { p_employee_uuid: string });
 
     if (error) {
       console.error("Error fetching leave requests:", error);
@@ -352,7 +344,7 @@ export default function LeaveRequestPage() {
       toast.error("Failed to load leave requests");
     } else {
       setRequestsFetchError(null);
-      setRequests(data || []);
+      setRequests(Array.isArray(data) ? data : []);
     }
     setLoading(false);
   }
@@ -443,6 +435,7 @@ export default function LeaveRequestPage() {
       p_total_days: calculatedDays,
       p_selected_dates: selectedDates.length > 0 ? selectedDates : null,
       p_reason: reason.trim() || null,
+      p_half_day_dates: halfDayDates.size > 0 ? Array.from(halfDayDates) : [],
     } as any);
 
     if (error || !inserted) {
@@ -494,6 +487,7 @@ export default function LeaveRequestPage() {
       description: `${leaveType} • ${calculatedDays} day(s) • Status: Pending approval`,
     });
     setSelectedDates([]);
+    setHalfDayDates(new Set());
     setStartDate("");
     setEndDate("");
     setReason("");
@@ -882,14 +876,16 @@ export default function LeaveRequestPage() {
                     automatically excluded from the day count.
                   </p>
 
-                  {/* Half-day option for SIL */}
-                  {leaveType === "SIL" && selectedDates.length > 0 && (
+                  {/* Half-day option for SIL and LWOP */}
+                  {(leaveType === "SIL" || leaveType === "LWOP") && selectedDates.length > 0 && (
                     <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
                       <Label className="text-sm font-medium text-amber-900 mb-2 block">
                         Half-Day Leave Options
                       </Label>
                       <p className="text-xs text-amber-700 mb-3">
-                        Mark dates as half-day to consume only 0.5 SIL credits per day (4 hours instead of 8 hours).
+                        {leaveType === "SIL"
+                          ? "Mark dates as half-day to consume only 0.5 SIL credits per day (4 hours instead of 8 hours)."
+                          : "Mark dates as half-day for 0.5 day (4 hours) unpaid leave per date."}
                       </p>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {selectedDates

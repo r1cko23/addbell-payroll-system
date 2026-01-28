@@ -417,11 +417,14 @@ export default function BundyClockPage() {
   );
 
   const checkClockStatus = useCallback(async () => {
+    // Look for incomplete entries (clock_out_time IS NULL) regardless of status
+    // This handles edge cases where status might have changed from 'clocked_in' to something else
+    // but the entry is still incomplete and should allow clock out
     const { data } = await supabase
       .from("time_clock_entries")
       .select("*")
       .eq("employee_id", employee.id)
-      .eq("status", "clocked_in")
+      .is("clock_out_time", null) // Incomplete entry (no clock out yet)
       .order("clock_in_time", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -432,6 +435,7 @@ export default function BundyClockPage() {
         clock_in_time: string;
         clock_out_time: string | null;
         id: string;
+        status: string;
       };
       const entryDate = new Date(entryData.clock_in_time);
       const today = new Date();
@@ -697,6 +701,25 @@ export default function BundyClockPage() {
     };
     fetchInitialData();
   }, [checkClockStatus, fetchEntries]);
+
+  // Refresh clock status periodically and on window focus to handle stale state
+  useEffect(() => {
+    // Refresh every 30 seconds to catch status changes
+    const interval = setInterval(() => {
+      checkClockStatus().catch((err) => console.error("Error refreshing clock status:", err));
+    }, 30000); // 30 seconds
+
+    // Refresh when window regains focus (user switches tabs/apps)
+    const handleFocus = () => {
+      checkClockStatus().catch((err) => console.error("Error refreshing clock status on focus:", err));
+    };
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [checkClockStatus, employee?.id]);
 
   // Function to get fresh location
   const getFreshLocation = useCallback(async (): Promise<{

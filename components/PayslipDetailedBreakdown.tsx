@@ -208,14 +208,14 @@ function PayslipDetailedBreakdownComponent({
     const regularHoursMs = Math.max(0, regularEndMs - regularStartMs);
     let regularHours = Math.min(regularHoursMs / (1000 * 60 * 60), 8);
 
-    // Calculate night differential hours (after 5PM = 17:00)
-    // Night diff starts at 5PM and continues until 6AM next day
+    // Night differential: only when OT overlaps 10PM–6AM Philippine time (all employees)
+    const ndStartHour = 22; // 10PM – 6AM; 0 ND if outside this window
     let nightDiffHours = 0;
 
-    // Same day: hours after 5PM
+    // Same day: hours after ND start
     if (clockOut.getDate() === clockIn.getDate()) {
       const nightDiffStart = new Date(workDate);
-      nightDiffStart.setHours(17, 0, 0, 0); // 5PM
+      nightDiffStart.setHours(ndStartHour, 0, 0, 0);
 
       if (clockOut.getTime() > nightDiffStart.getTime()) {
         const nightStartMs = Math.max(
@@ -230,9 +230,9 @@ function PayslipDetailedBreakdownComponent({
       }
     } else {
       // Work spans midnight
-      // Hours from 5PM to midnight on first day
+      // Hours from ND start to midnight on first day
       const nightDiffStart = new Date(clockIn);
-      nightDiffStart.setHours(17, 0, 0, 0); // 5PM
+      nightDiffStart.setHours(ndStartHour, 0, 0, 0);
       const dayEnd = new Date(clockIn);
       dayEnd.setHours(23, 59, 59, 999);
 
@@ -1170,9 +1170,8 @@ function PayslipDetailedBreakdownComponent({
       return sum;
     }, 0);
 
-    // Use the maximum of basePayHours and actualTotalBH to ensure eligible holidays are counted
-    // basePayHours represents the minimum (104 - absences), but eligible holidays add to it
-    const totalBHForDaysWork = Math.max(basePayHours, actualTotalBH);
+    // Per cutoff: 104 hours max (13 days × 8). Do not exceed 104 hours / 13 days for Days Work or Hours Work.
+    const totalBHForDaysWork = Math.min(104, Math.max(basePayHours, actualTotalBH));
     let daysWorked = totalBHForDaysWork / 8;
 
     // #region agent log
@@ -1182,9 +1181,7 @@ function PayslipDetailedBreakdownComponent({
     }
     // #endregion
 
-    // NOTE: Days Work can exceed 13 if employee works on rest days
-    // Rest day work counts toward Days Work AND gets premium pay separately
-    // Maximum is not capped at 13 to allow for rest day work (e.g., 13 regular days + 1 rest day = 14 days)
+    // Hours Work and Days Work per cutoff must not exceed 104 hours / 13 days.
 
     // Ensure basicSalary = daysWorked × daily rate (all days worked including holidays)
     // This ensures consistency: basicSalary should equal daysWorked × ratePerDay
@@ -1330,8 +1327,11 @@ function PayslipDetailedBreakdownComponent({
           roundedBreakdown.specialHoliday);
     const totalGrossPay = Math.round(totalGrossPayUnroundedRounded * 100) / 100;
 
+    // Per cutoff: Hours Work must not exceed 104
+    const cappedTotalHours = Math.min(104, totalHours);
+
     return {
-      totalHours,
+      totalHours: cappedTotalHours,
       daysWorked,
       basicSalary,
       totalRegularHours,
@@ -1433,7 +1433,7 @@ function PayslipDetailedBreakdownComponent({
               <tbody>
                 <tr className="bg-white hover:bg-gray-50 transition-colors">
                   <td className="px-2 py-1.5 text-xs font-medium text-gray-900">
-                    {daysWorked.toFixed(2)}
+                    {Math.round(daysWorked)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-semibold text-gray-700">
                     {formatCurrency(ratePerDay)}
@@ -1454,17 +1454,16 @@ function PayslipDetailedBreakdownComponent({
         </div>
       </div>
 
-      {/* Overtimes/Holiday Earning(s) Section - Compact */}
+      {/* Overtimes/Holiday Earning(s) Section - Regular work = 104 hrs/13 days only; rest day, holiday, OT recorded separately with hours and pay below / in Other Pay. */}
       <div className="mt-3">
         <div className="flex items-center gap-2 mb-2">
           <h4 className="text-sm font-semibold text-gray-800">
             Overtimes/Holiday Earning(s)
           </h4>
-          {(isClientBased || isEligibleForAllowances) && (
-            <span className="text-xs text-gray-500 italic">
-              (OT items shown in Other Pay section)
-            </span>
-          )}
+          <span className="text-xs text-gray-500 italic">
+            Regular work = 104 hrs (13 days) per cutoff. Rest day, holiday & OT recorded separately with hours and pay below
+            {isClientBased || isEligibleForAllowances ? "; supervisory/managerial OT allowances in Other Pay." : "."}
+          </span>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -1550,8 +1549,13 @@ function PayslipDetailedBreakdownComponent({
 
                   return (
                     <>
-                      {/* Hours Work - Total hours worked (including rest days, excluding holidays) */}
-                      {renderEarningRow("1. Hours Work", totalHours, "—", 0)}
+                      {/* 1. Hours Work = Regular work only (104 hrs / 13 days per cutoff). Rest day, holiday, OT are separate rows below / Other Pay. */}
+                      {renderEarningRow(
+                        "1. Hours Work (Regular)",
+                        totalHours,
+                        "—",
+                        Math.round(totalHours * ratePerHour * 100) / 100
+                      )}
 
                       {/* Night Differential */}
                       {renderEarningRow(
@@ -1612,8 +1616,8 @@ function PayslipDetailedBreakdownComponent({
 
                       {/* Working Day Off removed - Saturday is now included in Basic Salary (regular work day per law) */}
 
-                      {/* OT Items - Only show for regular employees (deployed) */}
-                      {!isAccountSupervisor && !isOfficeBased && (
+                      {/* OT Items - Show for client-based non-AS and for office-based rank and file */}
+                      {((!isAccountSupervisor && !isOfficeBased) || isRankAndFile) && (
                         <>
                           {/* Regular Overtime */}
                           {renderEarningRow(

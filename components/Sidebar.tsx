@@ -168,6 +168,11 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       .map((group) => {
         // Filter items based on read permission
         const filteredItems = group.items.filter((item) => {
+          // Account managers (approvers) and viewers must not see Employees in nav
+          if (item.permissionModule === "employees" && (isApprover || isViewer)) {
+            return false;
+          }
+
           // If no permission module specified, use legacy role-based logic
           if (!item.permissionModule) {
             return true;
@@ -193,7 +198,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
           : null;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isAdmin, canRead, roleLoading, permissionsLoading]);
+  }, [isAdmin, isApprover, isViewer, canRead, roleLoading, permissionsLoading]);
 
   // Auto-open the group that matches the current route
   React.useEffect(() => {

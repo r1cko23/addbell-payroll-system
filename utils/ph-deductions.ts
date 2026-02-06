@@ -262,30 +262,28 @@ export function calculatePhilHealth(monthlyBasicSalary: number): {
 }
 
 /**
- * Calculate Withholding Tax (BIR TRAIN Law - Effective January 1, 2023)
+ * Calculate Withholding Tax (BIR Withholding Tax Table - Effective January 1, 2023)
  * Based on monthly taxable income (after SSS, PhilHealth, Pag-IBIG deductions)
  *
- * Per Philippine Labor Code and BIR Revenue Regulations No. 11-2018:
+ * Per Philippine Labor Code and BIR:
  * - Withholding tax is calculated on MONTHLY taxable income
  * - Taxable income = Monthly BASIC salary - Mandatory contributions (SSS, PhilHealth, Pag-IBIG)
- * - IMPORTANT: Allowances (OT allowances, ND allowances, holiday allowances) for supervisors/managers
- *   are NON-TAXABLE and must be EXCLUDED from taxable income calculation
- * - This function returns the MONTHLY tax amount. For bi-monthly payroll, the tax is split in half
- *   and deducted in both cutoffs (half in 1st cutoff, half in 2nd cutoff)
+ * - Allowances (OT allowances, ND allowances, holiday allowances) are NON-TAXABLE and excluded
+ * - This function returns the MONTHLY tax amount. For bi-monthly payroll, split in half per cutoff
  *
- * Tax Brackets (Monthly):
- * - 0 – 20,833: 0% (No tax)
- * - 20,833.01 – 33,333: 20% of excess over ₱20,833
- * - 33,333.01 – 66,666: ₱2,500 + 25% of excess over ₱33,333
- * - 66,666.01 – 166,666: ₱10,833.33 + 30% of excess over ₱66,666
- * - 166,666.01 – 666,666: ₱40,833.33 + 32% of excess over ₱166,666
- * - Over 666,666: ₱200,833.33 + 35% of excess over ₱666,666
+ * BIR Withholding Tax Table on Compensation - Effective January 1, 2023 (TRAIN Law):
+ * | Compensation Range (Monthly) | Prescribed Tax | Rate | Over    |
+ * | 0 – 20,833                    | 0              | 0%   | 0       |
+ * | 20,833 – 33,332               | 0              | 15%  | 20,833  |
+ * | 33,333 – 66,666               | 2,500          | 20%  | 33,333  |
+ * | 66,667 – 166,666              | 10,833.33      | 25%  | 66,667  |
+ * | 166,667 – 666,666             | 40,833.33      | 30%  | 166,667 |
+ * | Over 666,667                  | 200,833.33     | 35%  | 666,667 |
  *
  * @param monthlyTaxableIncome Monthly taxable income (BASIC salary minus mandatory contributions, excludes allowances)
  * @returns Monthly withholding tax amount
  */
 export function calculateWithholdingTax(monthlyTaxableIncome: number): number {
-  // Ensure valid input
   const taxableIncome =
     typeof monthlyTaxableIncome === "number" &&
     !isNaN(monthlyTaxableIncome) &&
@@ -293,38 +291,31 @@ export function calculateWithholdingTax(monthlyTaxableIncome: number): number {
       ? monthlyTaxableIncome
       : 0;
 
-  // BIR Withholding Tax Table (TRAIN Law - Monthly, Effective January 1, 2023)
-  // Source: BIR Revenue Regulations No. 11-2018, updated per TRAIN Law
-  // Tax is calculated on monthly taxable income (after SSS, PhilHealth, Pag-IBIG deductions)
-
   if (taxableIncome <= 20833.0) {
-    // 0 – 20,833: No tax
     return 0;
-  } else if (taxableIncome <= 33333.0) {
-    // 20,833.01 – 33,333: 20% of excess over ₱20,833
+  }
+  if (taxableIncome <= 33332.0) {
     const excess = taxableIncome - 20833.0;
-    return Math.round(excess * 0.2 * 100) / 100;
-  } else if (taxableIncome <= 66666.0) {
-    // 33,333.01 – 66,666: ₱2,500 + 25% of excess over ₱33,333
+    return Math.round(excess * 0.15 * 100) / 100;
+  }
+  if (taxableIncome <= 66666.0) {
     const baseTax = 2500.0;
     const excess = taxableIncome - 33333.0;
-    return Math.round((baseTax + excess * 0.25) * 100) / 100;
-  } else if (taxableIncome <= 166666.0) {
-    // 66,666.01 – 166,666: ₱10,833.33 + 30% of excess over ₱66,666
-    const baseTax = 10833.33;
-    const excess = taxableIncome - 66666.0;
-    return Math.round((baseTax + excess * 0.3) * 100) / 100;
-  } else if (taxableIncome <= 666666.0) {
-    // 166,666.01 – 666,666: ₱40,833.33 + 32% of excess over ₱166,666
-    const baseTax = 40833.33;
-    const excess = taxableIncome - 166666.0;
-    return Math.round((baseTax + excess * 0.32) * 100) / 100;
-  } else {
-    // Over 666,666: ₱200,833.33 + 35% of excess over ₱666,666
-    const baseTax = 200833.33;
-    const excess = taxableIncome - 666666.0;
-    return Math.round((baseTax + excess * 0.35) * 100) / 100;
+    return Math.round((baseTax + excess * 0.2) * 100) / 100;
   }
+  if (taxableIncome <= 166666.0) {
+    const baseTax = 10833.33;
+    const excess = taxableIncome - 66667.0;
+    return Math.round((baseTax + excess * 0.25) * 100) / 100;
+  }
+  if (taxableIncome <= 666666.0) {
+    const baseTax = 40833.33;
+    const excess = taxableIncome - 166667.0;
+    return Math.round((baseTax + excess * 0.3) * 100) / 100;
+  }
+  const baseTax = 200833.33;
+  const excess = taxableIncome - 666667.0;
+  return Math.round((baseTax + excess * 0.35) * 100) / 100;
 }
 
 /**

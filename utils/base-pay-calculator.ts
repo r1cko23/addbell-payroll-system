@@ -2,10 +2,13 @@
  * Base Pay Calculator for Bi-Monthly Periods
  *
  * Simplified calculation:
- * - Base: 104 hours (13 days × 8 hours) per bi-monthly period
- * - Deduct 8 hours for each absence (scheduled work day with no clock entry)
- * - Rest days don't count as absences
- * - Holidays count toward the 13 days
+ * - Base: 104 hours (13 days × 8 hours) per bi-monthly period for all employees.
+ *   Saturday is paid (company benefit) but only actual absences are deducted.
+ * - Deduct 8 hours only for each absence on scheduled work days (no clock entry).
+ * - Office-based: work Mon–Fri only; rest days = Saturday + Sunday (no absence for Sat/Sun).
+ * - Client-based: work days = all days except rest days from schedule (e.g. Mon/Tue/Wed off);
+ *   absences on their working days (e.g. Thu–Sun) are deducted.
+ * - Holidays count toward the 13 days; missing a holiday is not an absence (handled separately).
  */
 
 import { format, parseISO, getDay } from "date-fns";
@@ -132,15 +135,15 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
       continue;
     }
 
-    // Check if it's a rest day
+    // Check if it's a rest day (days that are not expected work — no absence if no clock)
     let isRestDay = false;
     if (isClientBased) {
-      // Client-based: check day_off flag from schedule
+      // Client-based: rest days from schedule (e.g. Mon, Tue, Wed); work Thu–Sun. Absences only on working days.
       isRestDay = restDays?.get(dateStr) === true;
     } else {
-      // Office-based: Sunday is fixed rest day
+      // Office-based: only Mon–Fri are expected office days. Sat & Sun are not counted for absence.
       const dayOfWeek = getDay(currentDate);
-      isRestDay = dayOfWeek === 0; // Sunday
+      isRestDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday and Saturday
     }
 
     // If it's a rest day, skip (don't count as absence)

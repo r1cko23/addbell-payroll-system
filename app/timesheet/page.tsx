@@ -9,6 +9,7 @@ import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -44,6 +45,7 @@ interface Employee {
   employee_type?: "office-based" | "client-based" | null;
   hire_date?: string | null;
   termination_date?: string | null;
+  transferred_from_employee_id?: string | null; // When transferred (new record), previous employees.id so OT is still loaded
 }
 
 interface ClockEntry {
@@ -186,7 +188,7 @@ export default function TimesheetPage() {
       // Load employees with filtering by assigned groups for approvers/viewers
       let query = supabase
         .from("employees")
-        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, hire_date, overtime_group_id, last_name, first_name")
+        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, job_level, hire_date, overtime_group_id, last_name, first_name, transferred_from_employee_id")
         .eq("is_active", true)
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
@@ -435,16 +437,17 @@ export default function TimesheetPage() {
       }
       setLeaveRequests(leaveData || []);
 
-      // Load OT requests for the period
-      // IMPORTANT: Always fetch approved OT requests for display purposes, regardless of eligible_for_ot flag
-      // The eligible_for_ot flag controls whether employees can FILE new OT requests, not whether
-      // existing approved OT requests should be displayed in time attendance
+      // Load OT requests for the period (current employee and, if transferred, predecessor so OT is not lost)
+      const transferredFromId = selectedEmployee?.transferred_from_employee_id ?? null;
+      const employeeIdsToLoad = transferredFromId
+        ? [selectedEmployee.id, transferredFromId]
+        : [selectedEmployee.id];
       const { data: otRequests, error: otError } = await supabase
         .from("overtime_requests")
         .select(
           "id, ot_date, end_date, start_time, end_time, total_hours, status"
         )
-        .eq("employee_id", selectedEmployee.id)
+        .in("employee_id", employeeIdsToLoad)
         .gte("ot_date", periodStartStr)
         .lte("ot_date", periodEndStr)
         .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
@@ -555,12 +558,45 @@ export default function TimesheetPage() {
     scheduleMap: Map<string, Schedule>,
     employeeType?: "office-based" | "client-based" | null
   ) {
-    // Check if employee is account supervisor
+    // Check if employee is account supervisor (for ND eligibility)
     const isAccountSupervisor = selectedEmployee?.position
       ?.toUpperCase()
       .includes("ACCOUNT SUPERVISOR") || false;
+    // ND only when OT request overlaps 10PM–6AM Philippine time (all employees)
+    const ndNightStartHour = 22; // 10PM – 6AM; 0 ND if OT is outside this window
     const workingDays = getBiMonthlyWorkingDays(periodStart);
     const days: AttendanceDay[] = [];
+
+    // Debug: ND discrepancy (payslip shows ND, timesheet shows 0)
+    const ndDebug = {
+      employeeName: selectedEmployee?.full_name,
+      isAccountSupervisor,
+      ndNightStartHour,
+      otRequestsCount: otRequests.length,
+      sampleOt: otRequests[0]
+        ? {
+            ot_date: otRequests[0].ot_date,
+            start_time: otRequests[0].start_time,
+            end_time: otRequests[0].end_time,
+            status: otRequests[0].status,
+          }
+        : null,
+    };
+    console.log("Timesheet ND debug (generateAttendanceDays):", ndDebug);
+    try {
+      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "timesheet/page.tsx:ND-debug-start",
+          message: "Timesheet ND calculation context",
+          data: ndDebug,
+          hypothesisId: "ND-timesheet",
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+        }),
+      }).catch(() => {});
+    } catch (_) {}
 
     console.log("Generating attendance days:", {
       workingDaysCount: workingDays.length,
@@ -660,6 +696,26 @@ export default function TimesheetPage() {
     console.log("Incomplete entries:", incompleteByDate.size);
     console.log("Leave requests by date:", leavesByDate.size);
     console.log("OT requests by date:", otByDate.size);
+
+    // Debug: ND key mismatch (otByDate keys vs working day dates)
+    const otByDateKeys = Array.from(otByDate.keys()).sort();
+    const workingDayDateStrs = workingDays.map((d) => format(d, "yyyy-MM-dd"));
+    console.log("Timesheet ND otByDate keys:", otByDateKeys);
+    console.log("Timesheet ND workingDay dateStrs (sample):", workingDayDateStrs.slice(0, 5), "...", workingDayDateStrs.slice(-3));
+    try {
+      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "timesheet/page.tsx:ND-otByDate-keys",
+          message: "OT by date keys vs working days",
+          data: { otByDateKeys, workingDayDateStrsSample: workingDayDateStrs.slice(0, 5), workingDayDateStrsEnd: workingDayDateStrs.slice(-3) },
+          hypothesisId: "ND-timesheet",
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+        }),
+      }).catch(() => {});
+    } catch (_) {}
 
     workingDays.forEach((date) => {
       const dateStr = format(date, "yyyy-MM-dd");
@@ -955,27 +1011,24 @@ export default function TimesheetPage() {
             const spansMidnight = endDateStr !== otDateStr;
 
             let ndFromThisOT = 0;
-            const nightStart = 17; // 5PM
+            const nightStart = ndNightStartHour; // 10PM – 6AM Philippine time
             const nightEnd = 6; // 6AM
 
             // Convert times to minutes for easier calculation
             const startTotalMin = startHour * 60 + startMin;
             const endTotalMin = endHour * 60 + endMin;
-            const nightStartMin = nightStart * 60; // 5PM = 1020 minutes
+            const nightStartMin = nightStart * 60;
             const nightEndMin = nightEnd * 60; // 6AM = 360 minutes
 
             if (spansMidnight) {
-              // OT spans midnight
-              // Calculate ND from max(start_time, 5PM) to midnight, plus midnight to min(end_time, 6AM)
+              // OT spans midnight: ND from max(start, nightStart) to midnight + midnight to min(end, 6AM)
               const ndStartMin = Math.max(startTotalMin, nightStartMin);
               const hoursToMidnight = (24 * 60 - ndStartMin) / 60;
 
               let hoursFromMidnight = 0;
               if (endTotalMin <= nightEndMin) {
-                // Ends before or at 6AM
                 hoursFromMidnight = endTotalMin / 60;
               } else {
-                // Ends after 6AM, cap at 6AM
                 hoursFromMidnight = nightEndMin / 60;
               }
 
@@ -983,13 +1036,10 @@ export default function TimesheetPage() {
             } else {
               // OT on same day
               if (startTotalMin >= nightStartMin) {
-                // Starts at or after 5PM
                 ndFromThisOT = (endTotalMin - startTotalMin) / 60;
               } else if (endTotalMin >= nightStartMin) {
-                // Starts before 5PM, ends after 5PM
                 ndFromThisOT = (endTotalMin - nightStartMin) / 60;
               }
-              // If both start and end are before 5PM, ND = 0
             }
 
             // Cap ND hours at total_hours (can't exceed OT hours) and ensure non-negative
@@ -1090,6 +1140,30 @@ export default function TimesheetPage() {
         clockEntryIds: dayEntries.map((e) => e.id),
       });
     });
+
+    const totalND = days.reduce((sum, d) => sum + d.nd, 0);
+    const daysWithND = days.filter((d) => d.nd > 0);
+    const ndResultDebug = {
+      employeeName: selectedEmployee?.full_name,
+      totalND,
+      daysWithNDCount: daysWithND.length,
+      daysWithND: daysWithND.map((d) => ({ date: d.date, nd: d.nd })),
+    };
+    console.log("Timesheet ND result:", ndResultDebug);
+    try {
+      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          location: "timesheet/page.tsx:ND-debug-result",
+          message: "Timesheet ND result",
+          data: ndResultDebug,
+          hypothesisId: "ND-timesheet",
+          timestamp: Date.now(),
+          sessionId: "debug-session",
+        }),
+      }).catch(() => {});
+    } catch (_) {}
 
     console.log("Generated attendance days:", days.length);
     if (days.length > 0) {
@@ -1275,8 +1349,8 @@ export default function TimesheetPage() {
       return sum;
     }, 0);
 
-    // Use the maximum of basePayHours and actualTotalBH to ensure holidays with BH are counted
-    totalBH = Math.max(basePayHours, actualTotalBH);
+    // Per cutoff: 104 hours max (13 days × 8). Deduct 8h per absence; do not exceed 104.
+    totalBH = Math.min(104, basePayHours);
     daysWorked = totalBH / 8;
     // #region agent log
     if (attendanceDays.some((d) => d.date === "2026-01-01") || (format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
@@ -1284,9 +1358,7 @@ export default function TimesheetPage() {
       fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "timesheet/page.tsx:DaysWork", message: "Timesheet Days Work", data: { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd"), employeeName: selectedEmployee?.full_name, jan1: jan1 ? { date: jan1.date, status: jan1.status, bh: jan1.bh, dayType: jan1.dayType } : null, basePayHours, actualTotalBH, totalBH, daysWorked }, hypothesisId: "H1", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
     }
     // #endregion
-    // NOTE: Days Work can exceed 13 if employee works on rest days
-    // Rest day work counts toward Days Work AND gets premium pay separately
-    // Maximum is not capped at 13 to allow for rest day work
+    // Hours Work and Days Work per cutoff must not exceed 104 hours / 13 days
   } else {
     // Fallback: sum BH from attendance days (for display purposes)
     // But Days Work should still match base pay method if possible
@@ -1346,6 +1418,7 @@ export default function TimesheetPage() {
 
       return sum;
     }, 0);
+    totalBH = Math.min(104, totalBH);
     daysWorked = totalBH / 8;
   }
   const totalOT = attendanceDays.reduce((sum, d) => sum + d.ot, 0);
@@ -1469,33 +1542,23 @@ export default function TimesheetPage() {
         <CardSection>
           <VStack gap="2" align="start">
             <label className="text-sm font-medium">Select Employee</label>
-            <Select
+            <EmployeeSearchSelect
+              employees={employees.map((e) => ({
+                id: e.id,
+                employee_id: e.employee_id,
+                full_name: e.full_name ?? "",
+                first_name: e.first_name,
+                last_name: e.last_name,
+              }))}
               value={selectedEmployee?.id || ""}
               onValueChange={(value) => {
-                const emp = employees.find((emp) => emp.id === value);
+                const emp = employees.find((e) => e.id === value);
                 setSelectedEmployee(emp || null);
               }}
-            >
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="-- Select Employee --" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((emp) => {
-                  const nameParts = emp.full_name?.trim().split(/\s+/) || [];
-                  const lastName = emp.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
-                  const firstName = emp.first_name || (nameParts.length > 0 ? nameParts[0] : "");
-                  const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                  const displayName = lastName && firstName
-                    ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
-                    : emp.full_name || "";
-                  return (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {displayName} ({emp.employee_id})
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              showAllOption={false}
+              placeholder="Search by name or employee ID..."
+              className="w-64"
+            />
           </VStack>
         </CardSection>
 
@@ -1644,7 +1707,7 @@ export default function TimesheetPage() {
                   {/* Summary Row */}
                   <tr className="border-t-2 font-semibold">
                     <td colSpan={isAdmin ? 6 : 5} className="px-4 py-2 text-sm">
-                      Days Work : {daysWorked.toFixed(2)}
+                      Days Work : {Math.round(daysWorked)}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">
                       {totalBH > 0 ? totalBH.toFixed(1) : "0"}

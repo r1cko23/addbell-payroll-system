@@ -258,6 +258,7 @@ export default function BundyClockPage() {
   const [employeePosition, setEmployeePosition] = useState<string | null>(null);
   const [isRestDayToday, setIsRestDayToday] = useState<boolean>(false);
   const [employeeType, setEmployeeType] = useState<string | null>(null);
+  const [employeeJobLevel, setEmployeeJobLevel] = useState<string | null>(null);
 
   // Fetch employee position and type, and check if today is a rest day
   useEffect(() => {
@@ -266,9 +267,9 @@ export default function BundyClockPage() {
       try {
         const { data, error } = await supabase
           .from("employees")
-          .select("position, employee_type")
-          .eq("id", employee.id)
-          .maybeSingle<{ position: string | null; employee_type: string | null }>();
+.select("position, employee_type, job_level")
+              .eq("id", employee.id)
+              .maybeSingle<{ position: string | null; employee_type: string | null; job_level: string | null }>();
 
         if (error) {
           console.error("Failed to fetch employee info:", error);
@@ -280,6 +281,7 @@ export default function BundyClockPage() {
         if (data) {
           setEmployeePosition(data.position);
           setEmployeeType(data.employee_type);
+          setEmployeeJobLevel(data.job_level ?? null);
 
           // Check if today is a rest day
           const today = new Date();
@@ -1193,6 +1195,8 @@ export default function BundyClockPage() {
       const isAccountSupervisor =
         employeePosition?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
       const isClientBasedAccountSupervisor = isAccountSupervisor && (isClientBased === true);
+      // ND only when OT request overlaps 10PM–6AM Philippine time (all employees)
+      const ndNightStartHour = 22; // 10PM – 6AM; 0 ND if OT is outside this window
 
       workingDays.forEach((date) => {
         // Use consistent date formatting to match admin/HR dashboard
@@ -1556,37 +1560,31 @@ export default function BundyClockPage() {
               const spansMidnight = endDateStr !== otDateStr;
 
               let ndFromThisOT = 0;
-              const nightStart = 17; // 5PM
+              const nightStart = ndNightStartHour; // 10PM – 6AM Philippine time
               const nightEnd = 6; // 6AM
 
               // Convert times to minutes for easier calculation
               const startTotalMin = startHour * 60 + startMin;
               const endTotalMin = endHour * 60 + endMin;
-              const nightStartMin = nightStart * 60; // 5PM = 1020 minutes
+              const nightStartMin = nightStart * 60;
               const nightEndMin = nightEnd * 60; // 6AM = 360 minutes
 
               if (spansMidnight) {
-                // OT spans midnight
-                // Calculate ND from max(start_time, 5PM) to midnight, plus midnight to min(end_time, 6AM)
+                // OT spans midnight: ND from max(start, nightStart) to midnight + midnight to min(end, 6AM)
                 const ndStartMin = Math.max(startTotalMin, nightStartMin);
                 const hoursToMidnight = (24 * 60 - ndStartMin) / 60;
 
                 let hoursFromMidnight = 0;
                 if (endTotalMin <= nightEndMin) {
-                  // Ends before or at 6AM
                   hoursFromMidnight = endTotalMin / 60;
                 } else {
-                  // Ends after 6AM, cap at 6AM
                   hoursFromMidnight = nightEndMin / 60;
                 }
 
                 ndFromThisOT = hoursToMidnight + hoursFromMidnight;
               } else {
-                // OT doesn't span midnight
-                // Calculate ND from max(start_time, 5PM) to min(end_time, 6AM next day)
-                // But since it doesn't span midnight, end_time is same day, so cap at midnight
                 const ndStartMin = Math.max(startTotalMin, nightStartMin);
-                const ndEndMin = Math.min(endTotalMin, 24 * 60); // Cap at midnight
+                const ndEndMin = Math.min(endTotalMin, 24 * 60);
                 ndFromThisOT = Math.max(0, (ndEndMin - ndStartMin) / 60);
               }
 
@@ -1618,7 +1616,7 @@ export default function BundyClockPage() {
 
       setAttendanceDays(days);
     },
-    [employee, periodStart]
+    [employee, periodStart, employeePosition, employeeType, employeeJobLevel]
   );
 
   // Show modal when time in/out is clicked
@@ -2201,32 +2199,21 @@ export default function BundyClockPage() {
                     );
                   })
                 )}
-                {/* Summary Row */}
-                {attendanceDays.length > 0 && (
+                {/* Summary Row - Per cutoff: max 104 hours / 13 days for Days Work and Hours Work */}
+                {attendanceDays.length > 0 && (() => {
+                  const rawBH = attendanceDays.reduce((sum, d) => {
+                    if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") return sum;
+                    return sum + d.bh;
+                  }, 0);
+                  const totalBH = Math.min(104, rawBH);
+                  const daysWork = totalBH / 8;
+                  return (
                   <tr className="border-t-2 font-semibold bg-gray-50">
                     <td colSpan={5} className="px-2 py-1.5 text-xs">
-                      Days Work:{" "}
-                      {
-                        attendanceDays.filter((d) => {
-                          // Exclude non-working leave types (matches payslip generation logic)
-                          // SIL (status = "LEAVE") counts as working day
-                          // LWOP, CTO, OB do NOT count as working days
-                          if (
-                            d.status === "LWOP" ||
-                            d.status === "CTO" ||
-                            d.status === "OB"
-                          ) {
-                            return false;
-                          }
-                          // Count days with bh > 0 (includes SIL/LEAVE, regular work days, rest days, etc.)
-                          return d.bh > 0;
-                        }).length
-                      }
+                      Days Work: {Math.round(daysWork)}
                     </td>
                     <td className="px-2 py-1.5 text-xs text-right">
-                      {attendanceDays
-                        .reduce((sum, d) => sum + d.bh, 0)
-                        .toFixed(1)}
+                      {totalBH.toFixed(1)}
                     </td>
                     <td className="px-2 py-1.5 text-xs text-right">
                       {attendanceDays
@@ -2242,7 +2229,8 @@ export default function BundyClockPage() {
                         .toFixed(2)}
                     </td>
                   </tr>
-                )}
+                  );
+                })()}
               </tbody>
             </table>
           </div>

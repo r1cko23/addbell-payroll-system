@@ -69,6 +69,7 @@ interface PayslipPrintProps {
     totalDeductions: number;
   };
   adjustment: number;
+  adjustmentReason?: string | null;
   netPay: number;
   workingDays: number;
   absentDays: number;
@@ -82,6 +83,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     weekEnd,
     attendance,
     deductions,
+    adjustment = 0,
+    adjustmentReason,
     netPay: netPayProp,
     workingDays,
     preparedBy,
@@ -811,9 +814,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   // If they differ, use totalGrossPay as the source of truth
   totalSalary = totalGrossPay;
 
-  // Calculate Net Pay = Gross Pay - Deductions
-  // Use calculated value instead of prop to ensure accuracy
-  const netPay = totalGrossPay - totalDeductions;
+  // Net Pay = Gross Pay - Deductions + Adjustment (adjustment can be + or -)
+  const netPay =
+    totalGrossPay - totalDeductions + (typeof adjustment === "number" ? adjustment : 0);
 
   return (
     <div
@@ -986,7 +989,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   }}
                 >
                   {earningsBreakdown.basic.days > 0
-                    ? earningsBreakdown.basic.days.toFixed(2)
+                    ? Math.round(earningsBreakdown.basic.days)
                     : "-"}
                 </td>
                 <td
@@ -2592,6 +2595,34 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               >
                 {formatCurrency(totalDeductions)}
               </div>
+              {(typeof adjustment === "number" && adjustment !== 0) && (
+                <>
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      marginTop: "10px",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    Adjustment:
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "right",
+                      marginBottom: "5px",
+                      fontWeight: "bold",
+                      color: adjustment >= 0 ? "#166534" : "#b91c1c",
+                    }}
+                  >
+                    {adjustment >= 0 ? "+" : ""}{formatCurrency(adjustment)}
+                    {adjustmentReason && (
+                      <div style={{ fontWeight: "normal", fontSize: "8pt", color: "#374151", marginTop: "2px" }}>
+                        {adjustmentReason}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
               <div
                 style={{
                   fontWeight: "bold",

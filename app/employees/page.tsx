@@ -45,12 +45,15 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { useRouter } from "next/navigation";
 import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { InputGroup } from "@/components/ui/input-group";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 
 interface Employee {
   id: string;
@@ -127,6 +130,7 @@ const getColorStyleForEmployee = (employeeId: string) => {
 
 export default function EmployeesPage() {
   const supabase = createClient();
+  const router = useRouter();
   const {
     role,
     isAdmin,
@@ -134,6 +138,7 @@ export default function EmployeesPage() {
     canAccessSalaryInfo,
     loading: roleLoading,
   } = useUserRole();
+  const { canRead, loading: permissionsLoading } = usePermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
@@ -168,6 +173,7 @@ export default function EmployeesPage() {
     per_day: "",
     eligible_for_ot: false,
     overtime_group_id: "",
+    transferred_from_employee_id: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -202,6 +208,24 @@ export default function EmployeesPage() {
 
   const scheduleAllowed =
     isAdmin || role === "hr";
+
+  // Account managers (approvers) and viewers have no employees read permission
+  useEffect(() => {
+    if (permissionsLoading) return;
+    if (!canRead("employees")) {
+      router.replace("/overtime-approval");
+    }
+  }, [canRead, permissionsLoading, router]);
+
+  if (!permissionsLoading && !canRead("employees")) {
+    return (
+      <DashboardLayout>
+        <VStack gap="4" className="w-full">
+          <BodySmall>Redirecting…</BodySmall>
+        </VStack>
+      </DashboardLayout>
+    );
+  }
 
   useEffect(() => {
     fetchEmployees();
@@ -319,6 +343,7 @@ export default function EmployeesPage() {
       per_day: "",
       eligible_for_ot: false,
       overtime_group_id: "",
+      transferred_from_employee_id: "",
     });
     setShowModal(true);
   }
@@ -354,6 +379,7 @@ export default function EmployeesPage() {
       per_day: employee.per_day?.toString() || "",
       eligible_for_ot: employee.eligible_for_ot || false,
       overtime_group_id: employee.overtime_group_id || "none",
+      transferred_from_employee_id: (employee as any).transferred_from_employee_id || "",
     });
     setShowModal(true);
   }
@@ -445,6 +471,7 @@ export default function EmployeesPage() {
         per_day: formData.per_day ? parseFloat(formData.per_day) : null,
         eligible_for_ot: formData.eligible_for_ot,
         overtime_group_id: formData.overtime_group_id && formData.overtime_group_id !== "none" ? formData.overtime_group_id : null,
+        transferred_from_employee_id: formData.transferred_from_employee_id && formData.transferred_from_employee_id !== "none" ? formData.transferred_from_employee_id : null,
         paternity_credits:
           formData.gender === "male"
             ? parseFloat(formData.paternity_days || "0") || 0
@@ -1221,24 +1248,22 @@ export default function EmployeesPage() {
                         </div>
                         <div className="space-y-1.5">
                           <Label>Employee</Label>
-                          <Select
+                          <EmployeeSearchSelect
+                            employees={employees.map((e) => ({
+                              id: e.id,
+                              employee_id: e.employee_id,
+                              full_name: e.full_name ?? "",
+                              first_name: e.first_name,
+                              last_name: e.last_name,
+                            }))}
                             value={filters.employee_id}
                             onValueChange={(value) =>
                               setFilters({ employee_id: value })
                             }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="All employees" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="all">All employees</SelectItem>
-                              {employees.map((emp) => (
-                                <SelectItem key={emp.id} value={emp.id}>
-                                  {emp.full_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            showAllOption={true}
+                            placeholder="Search by name or employee ID..."
+                            className="w-full"
+                          />
                         </div>
                       </div>
                       <Button
@@ -1771,7 +1796,7 @@ export default function EmployeesPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="overtime-group">Overtime Group</Label>
+                <Label htmlFor="overtime-group">Group</Label>
                 <Select
                   value={formData.overtime_group_id || "none"}
                   onValueChange={(value) =>
@@ -1795,8 +1820,38 @@ export default function EmployeesPage() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Assign this employee to an overtime group. Group approvers/viewers will handle their OT requests.
+                  Assign this employee to a group. Group approvers/viewers will handle their OT requests.
                   Manage groups in <a href="/settings" className="text-emerald-600 underline">User Management</a>.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="transferred-from">Transferred from (previous employee)</Label>
+                <Select
+                  value={formData.transferred_from_employee_id || "none"}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      transferred_from_employee_id: value,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="None (OT loads from this record only)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (OT loads from this record only)</SelectItem>
+                    {employees
+                      .filter((emp) => !editingEmployee || emp.id !== editingEmployee.id)
+                      .map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {emp.full_name} ({emp.employee_id})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  If this record was created when transferring an employee, select the previous employee so OT and attendance from the old record still load on Payslips and Time Attendance.
                 </p>
               </div>
 

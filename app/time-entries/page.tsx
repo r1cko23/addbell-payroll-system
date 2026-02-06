@@ -52,6 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 
 interface TimeEntry {
   id: string;
@@ -1297,27 +1298,20 @@ export default function TimeEntriesPage() {
                 </select>
 
                 {/* Employee Filter */}
-                <select
+                <EmployeeSearchSelect
+                  employees={employees.map((e) => ({
+                    id: e.id,
+                    employee_id: e.employee_id,
+                    full_name: e.full_name ?? "",
+                    first_name: e.first_name,
+                    last_name: e.last_name,
+                  }))}
                   value={selectedEmployee}
-                  onChange={(e) => setSelectedEmployee(e.target.value)}
-                  className="flex h-10 w-full sm:w-[200px] lg:w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="all">All Employees</option>
-                  {employees.map((employee) => {
-                    const nameParts = employee.full_name?.trim().split(/\s+/) || [];
-                    const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
-                    const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
-                    const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                    const displayName = lastName && firstName
-                      ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
-                      : employee.full_name || "";
-                    return (
-                      <option key={employee.id} value={employee.id}>
-                        {displayName} ({employee.employee_id})
-                      </option>
-                    );
-                  })}
-                </select>
+                  onValueChange={setSelectedEmployee}
+                  showAllOption={true}
+                  placeholder="Search by name or employee ID..."
+                  className="w-full sm:w-[200px] lg:w-[240px]"
+                />
               </div>
             </div>
           </CardContent>

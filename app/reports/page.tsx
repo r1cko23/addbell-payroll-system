@@ -683,7 +683,7 @@ export default function ReportsPage() {
         row.employeeName,
         formatCurrency(row.dailyRate),
         row.hoursWorked.toFixed(2),
-        row.daysWorked.toFixed(2),
+        Math.round(row.daysWorked),
         formatCurrency(row.basicSalary),
         formatCurrency(row.totalSalary),
         row.regOTHours.toFixed(2),
@@ -810,7 +810,7 @@ export default function ReportsPage() {
         "TOTAL",
         "",
         roundedTotals.hoursWorked.toFixed(2),
-        roundedTotals.daysWorked.toFixed(2),
+        Math.round(roundedTotals.daysWorked),
         formatCurrency(roundedTotals.basicSalary),
         formatCurrency(roundedTotals.totalSalary),
         roundedTotals.regOTHours.toFixed(2),
@@ -1025,7 +1025,7 @@ export default function ReportsPage() {
           row.employeeName,
           row.dailyRate.toFixed(2),
           row.hoursWorked.toFixed(2),
-          row.daysWorked.toFixed(2),
+          Math.round(row.daysWorked),
           row.basicSalary.toFixed(2),
           row.totalSalary.toFixed(2),
           row.regOTHours.toFixed(2),
@@ -1346,7 +1346,7 @@ function ReportSummaryTotals({ reportRows }: { reportRows: ReportRow[] }) {
         <VStack gap="1" align="start" className="bg-white p-2 rounded border text-center">
           <Caption className="text-[9px] text-muted-foreground">Days</Caption>
           <BodySmall className="text-sm font-semibold">
-            {roundedTotals.daysWorked.toFixed(2)}
+            {Math.round(roundedTotals.daysWorked)}
           </BodySmall>
         </VStack>
         <VStack gap="1" align="start" className="bg-white p-2 rounded border text-center">
@@ -1699,7 +1699,7 @@ function ReportTable({ reportRows }: { reportRows: ReportRow[] }) {
               {roundedTotals.hoursWorked.toFixed(2)}
             </TableCell>
             <TableCell className="px-2 py-2 text-[11px] text-right">
-              {roundedTotals.daysWorked.toFixed(2)}
+              {Math.round(roundedTotals.daysWorked)}
             </TableCell>
             <TableCell className="px-2 py-2 text-[11px] text-right">
               {formatCurrency(roundedTotals.basicSalary)}
@@ -1807,7 +1807,7 @@ function ReportTable({ reportRows }: { reportRows: ReportRow[] }) {
                 {row.hoursWorked.toFixed(2)}
               </TableCell>
               <TableCell className="px-2 py-1.5 text-[11px] text-right">
-                {row.daysWorked.toFixed(2)}
+                {Math.round(row.daysWorked)}
               </TableCell>
               <TableCell className="px-2 py-1.5 text-[11px] text-right">
                 {formatCurrency(row.basicSalary)}

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
   H1,
@@ -38,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import { format, addDays, getWeek, parseISO, startOfYear, endOfYear } from "date-fns";
+import { format, addDays, getWeek, parseISO, startOfYear, endOfYear, startOfMonth } from "date-fns";
 import { formatCurrency, generatePayslipNumber } from "@/utils/format";
 import {
   calculateSSS,
@@ -75,6 +76,7 @@ interface Employee {
   job_level?: string | null;
   hire_date?: string | null;
   termination_date?: string | null;
+  transferred_from_employee_id?: string | null; // When transferred (new record), previous employees.id so OT is still loaded
   // Computed fields for backward compatibility
   rate_per_day?: number; // Alias for per_day
   rate_per_hour?: number; // Computed from per_day / 8
@@ -188,6 +190,8 @@ export default function PayslipsPage() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [adjustmentAmount, setAdjustmentAmount] = useState<string>("0");
   const [adjustmentReason, setAdjustmentReason] = useState<string>("");
+  // First cutoff gross for same month (used for 2nd cutoff tax preview/calculation)
+  const [firstCutoffGrossForTax, setFirstCutoffGrossForTax] = useState<number | null>(null);
 
   const supabase = createClient();
 
@@ -280,6 +284,9 @@ export default function PayslipsPage() {
     if (selectedEmployeeId) {
       const emp = employees.find((e) => e.id === selectedEmployeeId);
       setSelectedEmployee(emp || null);
+      // Reset adjustment so it doesn't carry over when switching employees
+      setAdjustmentAmount("0");
+      setAdjustmentReason("");
       // Only load attendance if employee is found in the list
       if (emp) {
         loadAttendanceAndDeductions();
@@ -292,13 +299,43 @@ export default function PayslipsPage() {
     }
   }, [selectedEmployeeId, periodStart, employees]);
 
+  // Load first cutoff gross for same month when in 2nd cutoff (for accurate tax preview)
+  useEffect(() => {
+    const second = periodStart.getDate() >= 16;
+    if (!second || !selectedEmployee?.id) {
+      setFirstCutoffGrossForTax(null);
+      return;
+    }
+    let cancelled = false;
+    const firstPeriodStart = startOfMonth(periodStart);
+    const firstPeriodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), 15);
+    supabase
+      .from("payslips")
+      .select("gross_pay, adjustment_amount")
+      .eq("employee_id", selectedEmployee.id)
+      .eq("period_start", format(firstPeriodStart, "yyyy-MM-dd"))
+      .eq("period_end", format(firstPeriodEnd, "yyyy-MM-dd"))
+      .maybeSingle()
+      .then(
+        ({ data }) => {
+          if (cancelled) return;
+          const gross = (data?.gross_pay ?? 0) + (data?.adjustment_amount ?? 0);
+          setFirstCutoffGrossForTax(gross);
+        },
+        () => {
+          if (!cancelled) setFirstCutoffGrossForTax(null);
+        }
+      );
+    return () => { cancelled = true; };
+  }, [selectedEmployee?.id, periodStart]);
+
   async function loadEmployees() {
     try {
       console.log("Loading employees for payslip generation...");
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot, assigned_hotel, employee_type, job_level, hire_date, last_name, first_name"
+          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot, assigned_hotel, employee_type, job_level, hire_date, last_name, first_name, transferred_from_employee_id"
         )
         .eq("is_active", true)
         .order("last_name", { ascending: true, nullsFirst: false })
@@ -620,34 +657,76 @@ export default function PayslipsPage() {
           }
           setRestDaysMap(restDaysMap);
 
-          // Check if employee is eligible for OT (default to true if not set)
+          // eligible_for_ot controls whether employee can FILE new OT; approved OT always shows on payslip
           const isEligibleForOT = selectedEmployee?.eligible_for_ot !== false;
+          const includeApprovedOTInPayslip = true; // Always merge approved OT into payslip so it displays
 
           // Check if employee is Account Supervisor (for ND eligibility)
+          // ND for rank and file only; 10PM–6AM during OT. Supervisory/managerial/client-based get no ND.
           const isAccountSupervisor =
             selectedEmployee?.position
               ?.toUpperCase()
               .includes("ACCOUNT SUPERVISOR") || false;
-          const isEligibleForNightDiff = !isAccountSupervisor;
+          const isOfficeBasedForND =
+            selectedEmployee?.employee_type === "office-based" ||
+            selectedEmployee?.employee_type === null;
+          const supervisoryPositionsND = [
+            "PAYROLL SUPERVISOR",
+            "ACCOUNT RECEIVABLE SUPERVISOR",
+            "HR OPERATIONS SUPERVISOR",
+            "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
+            "HR SUPERVISOR - LABOR RELATIONS",
+            "HR SUPERVISOR-LABOR RELATIONS",
+            "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
+            "HR SUPERVISOR-EMPLOYEE ENGAGEMENT",
+          ];
+          const isSupervisoryForND =
+            isOfficeBasedForND &&
+            supervisoryPositionsND.some((pos) =>
+              selectedEmployee?.position?.toUpperCase().includes(pos.toUpperCase())
+            );
+          const isManagerialForND =
+            isOfficeBasedForND &&
+            selectedEmployee?.job_level?.toUpperCase() === "MANAGERIAL";
+          const isSupervisoryByJobLevelND =
+            isOfficeBasedForND &&
+            selectedEmployee?.job_level?.toUpperCase() === "SUPERVISORY";
+          const isEligibleForAllowancesND =
+            isAccountSupervisor ||
+            isSupervisoryForND ||
+            isSupervisoryByJobLevelND ||
+            isManagerialForND;
+          const isRankAndFileForND =
+            isOfficeBasedForND && !isEligibleForAllowancesND;
+          const isEligibleForNightDiff = isRankAndFileForND;
+          const ndNightStartHour = 22; // 10PM – 6AM; ND only if OT overlaps this window (rank and file only)
 
           // Fetch approved overtime requests for this period
-          // OT and ND should come from overtime_requests once approved
+          // Always load approved OT (same as Time Attendance). Merge all approved OT into payslip
+          // so already-approved OT always shows; eligible_for_ot only controls filing new OT requests.
           let approvedOTByDate = new Map<string, number>();
           let approvedNDByDate = new Map<string, number>();
-          if (isEligibleForOT) {
-            const { data: otRequests, error: otError } = await supabase
-              .from("overtime_requests")
-              .select("ot_date, end_date, start_time, end_time, total_hours")
-              .eq("employee_id", selectedEmployeeId)
-              .in("status", ["approved", "approved_by_manager", "approved_by_hr"])
-              .gte("ot_date", periodStartStr)
-              .lte("ot_date", periodEndStr);
+          // Load OT for current employee and, if transferred, for predecessor so OT is not lost
+          const transferredFromId = selectedEmployee?.transferred_from_employee_id ?? null;
+          const employeeIdsToLoad = transferredFromId
+            ? [selectedEmployeeId, transferredFromId]
+            : [selectedEmployeeId];
+          const { data: otRequests, error: otError } = await supabase
+            .from("overtime_requests")
+            .select("ot_date, end_date, start_time, end_time, total_hours")
+            .in("employee_id", employeeIdsToLoad)
+            .in("status", ["approved", "approved_by_manager", "approved_by_hr"])
+            .gte("ot_date", periodStartStr)
+            .lte("ot_date", periodEndStr);
 
-            if (otError) {
-              console.warn("Error loading OT requests:", otError);
-            } else if (otRequests) {
-              // Group OT hours and calculate ND by date
-              otRequests.forEach((ot: any) => {
+          // Log each OT request and whether it falls 10PM–6AM Philippine (for ND check)
+          const otRequestNDCheck: Array<{ ot_date: string; start_time: string; end_time: string; total_hours: number; ndHours: number; overlaps10pm6am: boolean }> = [];
+
+          if (otError) {
+            console.warn("Error loading OT requests:", otError);
+          } else if (otRequests) {
+            // Group OT hours and calculate ND by date
+            otRequests.forEach((ot: any) => {
                 const dateStr =
                   typeof ot.ot_date === "string"
                     ? ot.ot_date.split("T")[0]
@@ -658,8 +737,8 @@ export default function PayslipsPage() {
                 const newOT = existingOT + (ot.total_hours || 0);
                 approvedOTByDate.set(dateStr, newOT);
 
-                // Calculate night differential from start_time and end_time
-                // ND applies from 5PM (17:00) to 6AM (06:00) next day
+                let ndHours = 0;
+                // Calculate night differential from OT request: ND only when OT overlaps 10PM–6AM Philippine time
                 if (isEligibleForNightDiff && ot.start_time && ot.end_time) {
                   const startTime = ot.start_time.includes("T")
                     ? ot.start_time.split("T")[1].substring(0, 8)
@@ -681,28 +760,24 @@ export default function PayslipsPage() {
                     : dateStr;
                   const spansMidnight = endDateStr !== dateStr;
 
-                  let ndHours = 0;
-                  const nightStart = 17; // 5PM
+                  const nightStart = ndNightStartHour; // 10PM – 6AM Philippine time
                   const nightEnd = 6; // 6AM
 
                   // Convert times to minutes for easier calculation
                   const startTotalMin = startHour * 60 + startMin;
                   const endTotalMin = endHour * 60 + endMin;
-                  const nightStartMin = nightStart * 60; // 5PM = 1020 minutes
+                  const nightStartMin = nightStart * 60;
                   const nightEndMin = nightEnd * 60; // 6AM = 360 minutes
 
                   if (spansMidnight) {
-                    // OT spans midnight
-                    // Calculate ND from max(start_time, 5PM) to midnight, plus midnight to min(end_time, 6AM)
+                    // OT spans midnight: ND from max(start, nightStart) to midnight + midnight to min(end, 6AM)
                     const ndStartMin = Math.max(startTotalMin, nightStartMin);
                     const hoursToMidnight = (24 * 60 - ndStartMin) / 60;
 
                     let hoursFromMidnight = 0;
                     if (endTotalMin <= nightEndMin) {
-                      // Ends before or at 6AM
                       hoursFromMidnight = endTotalMin / 60;
                     } else {
-                      // Ends after 6AM, cap at 6AM
                       hoursFromMidnight = nightEndMin / 60;
                     }
 
@@ -710,13 +785,10 @@ export default function PayslipsPage() {
                   } else {
                     // OT on same day
                     if (startTotalMin >= nightStartMin) {
-                      // Starts at or after 5PM
                       ndHours = (endTotalMin - startTotalMin) / 60;
                     } else if (endTotalMin >= nightStartMin) {
-                      // Starts before 5PM, ends after 5PM
                       ndHours = (endTotalMin - nightStartMin) / 60;
                     }
-                    // If both start and end are before 5PM, ND = 0
                   }
 
                   // Cap ND hours at total_hours (can't exceed OT hours) and ensure non-negative
@@ -740,10 +812,19 @@ export default function PayslipsPage() {
                   const existingND = approvedNDByDate.get(dateStr) || 0;
                   approvedNDByDate.set(dateStr, existingND + ndHours);
                 }
-              });
-              console.log("Approved OT requests by date:", approvedOTByDate);
-              console.log("Approved ND by date:", approvedNDByDate);
-            }
+
+                // Record for ND check log (all OT requests, with or without ND)
+                otRequestNDCheck.push({
+                  ot_date: dateStr,
+                  start_time: ot.start_time ?? "",
+                  end_time: ot.end_time ?? "",
+                  total_hours: ot.total_hours ?? 0,
+                  ndHours,
+                  overlaps10pm6am: ndHours > 0,
+                });
+            });
+            console.log("Approved OT requests by date:", approvedOTByDate);
+            console.log("Approved ND by date:", approvedNDByDate);
           }
 
           // Map clock entries to match the generator function's expected format
@@ -768,19 +849,13 @@ export default function PayslipsPage() {
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
           const isClientBased = selectedEmployee?.employee_type === "client-based" || false;
 
-          // #region agent log
-          if (periodStartStr <= "2026-01-15" && periodEndStr >= "2026-01-01") {
-            fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "payslips/page.tsx:beforeGenerator", message: "Payslip before generator", data: { periodStartStr, periodEndStr, holidaysCount: holidays.length, holidayDates: holidays.map((h: { holiday_date?: string }) => (h.holiday_date || "").toString().split("T")[0]) }, hypothesisId: "H2", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
-          }
-          // #endregion
-
           const timesheetData = generateTimesheetFromClockEntries(
             mappedClockEntries as any,
             periodStart,
             periodEnd,
             holidays,
             restDaysMap,
-            isEligibleForOT,
+            true, // Always include approved OT on payslip (eligible_for_ot only gates filing new OT)
             isEligibleForNightDiff,
             isClientBasedAccountSupervisor,
             approvedOTByDate, // Pass approved OT hours map
@@ -831,7 +906,7 @@ export default function PayslipsPage() {
           );
           if (selectedEmp && timesheetData.attendance_data.length > 0) {
             let ratePerHour = 0;
-            const workingDaysPerMonth = 22;
+            const workingDaysPerMonth = 26;
 
             if (selectedEmp.monthly_rate) {
               ratePerHour =
@@ -1422,68 +1497,67 @@ export default function PayslipsPage() {
         }
       }
 
-      // Calculate monthly basic salary for government contributions
-      const workingDaysPerMonth = 22;
-      let monthlyBasicSalary = 0;
+      // Gross = basic + OT + ND + adjustment. Statutory and tax use monthly gross (2 × cutoff gross).
+      const adjustment = parseFloat(adjustmentAmount) || 0;
+      const periodGross = grossPay + adjustment;
+      const monthlyGross =
+        periodGross > 0 ? Math.round(periodGross * 2 * 100) / 100 : 0;
 
+      // Monthly salary from rate only (per day × 26). For statutory and 13th month.
+      const workingDaysPerMonth = 26;
+      let monthlyBasicSalary = 0;
       if (selectedEmployee.monthly_rate) {
-        // Use monthly_rate directly if available
         monthlyBasicSalary = selectedEmployee.monthly_rate;
       } else if (selectedEmployee.per_day) {
-        // Calculate from per_day if monthly_rate not available
         monthlyBasicSalary = calculateMonthlySalary(
           selectedEmployee.per_day,
           workingDaysPerMonth
         );
       } else if (selectedEmployee.rate_per_day) {
-        // Backward compatibility
         monthlyBasicSalary = calculateMonthlySalary(
           selectedEmployee.rate_per_day,
           workingDaysPerMonth
         );
-      } else {
-        // Estimate from bi-monthly gross pay as last resort
-        monthlyBasicSalary = grossPay * 2;
       }
 
-      // Calculate mandatory government contributions based on monthly basic salary
-      // Ensure monthlyBasicSalary is valid (not NaN, undefined, or negative)
+      // Statutory (SSS, PhilHealth, Pag-IBIG) based on monthly salary only, not gross pay
       const validMonthlySalary =
         monthlyBasicSalary && monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
+      const validMonthlyGross =
+        monthlyGross && monthlyGross > 0 ? monthlyGross : 0;
 
       const sssContribution = calculateSSS(validMonthlySalary);
       const philhealthContribution = calculatePhilHealth(validMonthlySalary);
       const pagibigContribution = calculatePagIBIG(validMonthlySalary);
 
-      // Deductions are applied monthly, so only deduct during second cutoff (day 16+)
-      // Since deductions are applied once per month (not bi-monthly), use FULL monthly amounts
-      const applyMonthlyDeductions = isSecondCutoff();
+      // Statutory deductions by cutoff: 1st cutoff = SSS + Pag-IBIG; 2nd cutoff = PhilHealth + Tax
+      const applyFirstCutoffStatutory = isFirstCutoff();  // SSS, Pag-IBIG in 1st cutoff (1-15)
+      const applySecondCutoffStatutory = isSecondCutoff(); // PhilHealth, Tax in 2nd cutoff (16-31)
 
       // Note: Only employee shares are deducted
-      // Ensure values are valid numbers (not NaN or undefined)
-      // Regular SSS contribution (MSC up to PHP 20,000)
+      // Regular SSS contribution (MSC up to PHP 20,000) - 1st cutoff only
       const sssRegularAmount =
-        applyMonthlyDeductions && !isNaN(sssContribution?.regularEmployeeShare)
+        applyFirstCutoffStatutory && !isNaN(sssContribution?.regularEmployeeShare)
           ? Math.round(sssContribution.regularEmployeeShare * 100) / 100
           : 0;
 
-      // WISP (Workers' Investment and Savings Program) - mandatory for MSC > PHP 20,000
-      // WISP is shown separately from regular SSS
+      // WISP (Workers' Investment and Savings Program) - mandatory for MSC > PHP 20,000 - 1st cutoff only
       const sssWispAmount =
-        applyMonthlyDeductions &&
+        applyFirstCutoffStatutory &&
         sssContribution?.wispEmployeeShare &&
         sssContribution.wispEmployeeShare > 0
           ? Math.round(sssContribution.wispEmployeeShare * 100) / 100
           : 0;
 
-      // Total SSS amount (regular + WISP) for total deductions calculation
       const sssAmount = sssRegularAmount + sssWispAmount;
+      // PhilHealth - 2nd cutoff only
       const philhealthAmount =
-        applyMonthlyDeductions && !isNaN(philhealthContribution?.employeeShare)
+        applySecondCutoffStatutory && !isNaN(philhealthContribution?.employeeShare)
           ? Math.round(philhealthContribution.employeeShare * 100) / 100
           : 0;
+      // Pag-IBIG - 1st cutoff only
       const pagibigAmount =
-        applyMonthlyDeductions && !isNaN(pagibigContribution?.employeeShare)
+        applyFirstCutoffStatutory && !isNaN(pagibigContribution?.employeeShare)
           ? Math.round(pagibigContribution.employeeShare * 100) / 100
           : 0;
 
@@ -1507,53 +1581,60 @@ export default function PayslipsPage() {
             (monthlyLoans.companyLoan || 0)
           : 0);
 
-      // Add mandatory government contributions (only during second cutoff)
-      // Note: sssAmount already includes WISP if applicable (MSC > PHP 20,000)
+      // Add mandatory government contributions: 1st cutoff = SSS + Pag-IBIG; 2nd = PhilHealth
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
 
-      // Calculate withholding tax automatically if not in deductions
-      // Tax is now split between both cutoffs (half in 1st cutoff, half in 2nd cutoff)
-      // IMPORTANT: Allowances (OT allowances, ND allowances, holiday allowances) for supervisors/managers
-      // are NON-TAXABLE per Philippine Labor Code. Taxable income = Basic Salary ONLY (excludes allowances)
+      // Withholding tax: 2nd cutoff only. Use actual monthly gross (1st cutoff + 2nd cutoff) when available.
       let withholdingTax = 0;
-      // Calculate tax for both cutoffs (split monthly tax in half)
-      if (validMonthlySalary > 0) {
+      if (applySecondCutoffStatutory && (validMonthlyGross > 0 || periodGross > 0)) {
         withholdingTax = deductions?.withholding_tax || 0;
         if (withholdingTax === 0) {
-          // validMonthlySalary is already basic salary only (monthly_rate or per_day × 22)
-          // It does NOT include allowances, which is correct per labor code
           const monthlyContributions =
             sssContribution.employeeShare +
             philhealthContribution.employeeShare +
             pagibigContribution.employeeShare;
 
-          // Taxable income = Basic Monthly Salary - Mandatory Contributions
-          // Allowances (OT, ND, Holiday allowances) are EXCLUDED from taxable income
+          // Actual monthly gross = 1st cutoff gross + this period gross (when 1st cutoff payslip exists)
+          const firstPeriodStart = startOfMonth(periodStart);
+          const firstPeriodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), 15);
+          const { data: firstCutoffPayslip } = await supabase
+            .from("payslips")
+            .select("gross_pay, adjustment_amount")
+            .eq("employee_id", selectedEmployee.id)
+            .eq("period_start", format(firstPeriodStart, "yyyy-MM-dd"))
+            .eq("period_end", format(firstPeriodEnd, "yyyy-MM-dd"))
+            .maybeSingle();
+
+          const firstCutoffGross =
+            (firstCutoffPayslip?.gross_pay ?? 0) + (firstCutoffPayslip?.adjustment_amount ?? 0);
+          const actualMonthlyGross =
+            firstCutoffGross > 0
+              ? Math.round((firstCutoffGross + periodGross) * 100) / 100
+              : validMonthlyGross;
+
           const monthlyTaxableIncome =
-            validMonthlySalary - monthlyContributions;
+            Math.max(0, actualMonthlyGross - monthlyContributions);
           const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-          // Split monthly tax in half for bi-monthly deduction
-          withholdingTax = Math.round((monthlyTax / 2) * 100) / 100;
+          // Full month's tax is deducted in 2nd cutoff
+          withholdingTax = Math.round(monthlyTax * 100) / 100;
 
           console.log("Withholding tax calculation:", {
-            monthlyBasicSalary: validMonthlySalary, // Basic salary only (excludes allowances)
+            firstCutoffGross,
+            periodGross,
+            actualMonthlyGross,
             contributions: monthlyContributions,
-            taxableIncome: monthlyTaxableIncome, // Basic salary - contributions (allowances excluded)
+            taxableIncome: monthlyTaxableIncome,
             calculatedMonthlyTax: monthlyTax,
-            biMonthlyTax: withholdingTax, // Half of monthly tax
-            note: "Tax is split between both cutoffs (half per cutoff)",
+            withholdingTax,
           });
         }
       }
       totalDeductions += withholdingTax;
 
-      // Adjustment - can be positive (addition) or negative (deduction)
-      const adjustment = parseFloat(adjustmentAmount) || 0;
       const allowance = 0;
 
-      // Net pay = Gross Pay - Total Deductions + Adjustment
-      // Adjustment can be positive (add to net pay) or negative (subtract from net pay)
-      const netPay = grossPay - totalDeductions + adjustment;
+      // Net pay = (Gross + adjustment) - total deductions; adjustment already in periodGross above
+      const netPay = periodGross - totalDeductions;
 
       // Create deductions breakdown - default all to 0 if no deduction record
       const deductionsBreakdown: any = {
@@ -1725,8 +1806,8 @@ export default function PayslipsPage() {
             });
           }
 
-          // Calculate daily rate
-          const workingDaysPerMonth = 22;
+          // Calculate daily rate (monthly salary was computed with 26 days)
+          const workingDaysPerMonth = 26;
           const dailyRate = validMonthlySalary / workingDaysPerMonth;
 
           // Calculate 13th month pay
@@ -2233,118 +2314,92 @@ export default function PayslipsPage() {
     );
   }, [deductions, monthlyLoans, periodStart]);
 
-  // Memoize government deductions
-  const govDed = useMemo(() => {
-    const workingDaysPerMonth = 22;
-    let monthlyBasicSalary = 0;
-
-    if (selectedEmployee?.monthly_rate) {
-      monthlyBasicSalary = selectedEmployee.monthly_rate;
-    } else if (selectedEmployee?.per_day) {
-      monthlyBasicSalary = calculateMonthlySalary(
-        selectedEmployee.per_day,
-        workingDaysPerMonth
-      );
-    } else if (selectedEmployee?.rate_per_day) {
-      monthlyBasicSalary = calculateMonthlySalary(
-        selectedEmployee.rate_per_day,
-        workingDaysPerMonth
-      );
-    } else if (grossPay > 0) {
-      monthlyBasicSalary = grossPay * 2;
-    }
-
-    const applyMonthlyDeductions = isSecondCutoff();
-
-    if (monthlyBasicSalary > 0 && applyMonthlyDeductions) {
-      const validMonthlySalary =
-        monthlyBasicSalary && monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
-      const sssContribution = calculateSSS(validMonthlySalary);
-      const philhealthContribution = calculatePhilHealth(validMonthlySalary);
-      const pagibigContribution = calculatePagIBIG(validMonthlySalary);
-
-      const sssAmt = isNaN(sssContribution?.employeeShare)
-        ? 0
-        : Math.round(sssContribution.employeeShare * 100) / 100;
-      const philhealthAmt = isNaN(philhealthContribution?.employeeShare)
-        ? 0
-        : Math.round(philhealthContribution.employeeShare * 100) / 100;
-      const pagibigAmt = isNaN(pagibigContribution?.employeeShare)
-        ? 0
-        : Math.round(pagibigContribution.employeeShare * 100) / 100;
-
-      return sssAmt + philhealthAmt + pagibigAmt;
-    }
+  // Monthly salary from employee rate only (for statutory: SSS, PhilHealth, Pag-IBIG). Per day × 26.
+  const monthlySalary = useMemo(() => {
+    const workingDaysPerMonth = 26;
+    if (selectedEmployee?.monthly_rate) return selectedEmployee.monthly_rate;
+    if (selectedEmployee?.per_day)
+      return calculateMonthlySalary(selectedEmployee.per_day, workingDaysPerMonth);
+    if (selectedEmployee?.rate_per_day)
+      return calculateMonthlySalary(selectedEmployee.rate_per_day, workingDaysPerMonth);
     return 0;
-  }, [selectedEmployee, grossPay, periodStart]);
+  }, [selectedEmployee?.monthly_rate, selectedEmployee?.per_day, selectedEmployee?.rate_per_day]);
 
-  // Memoize withholding tax calculation
+  // Statutory: 1st cutoff = SSS + Pag-IBIG; 2nd cutoff = PhilHealth (tax in separate useMemo)
+  const govDed = useMemo(() => {
+    if (monthlySalary <= 0) return 0;
+    const first = isFirstCutoff();
+    const second = isSecondCutoff();
+    const sssContribution = calculateSSS(monthlySalary);
+    const philhealthContribution = calculatePhilHealth(monthlySalary);
+    const pagibigContribution = calculatePagIBIG(monthlySalary);
+
+    const sssAmt = isNaN(sssContribution?.employeeShare)
+      ? 0
+      : Math.round(sssContribution.employeeShare * 100) / 100;
+    const philhealthAmt = isNaN(philhealthContribution?.employeeShare)
+      ? 0
+      : Math.round(philhealthContribution.employeeShare * 100) / 100;
+    const pagibigAmt = isNaN(pagibigContribution?.employeeShare)
+      ? 0
+      : Math.round(pagibigContribution.employeeShare * 100) / 100;
+
+    return (first ? sssAmt + pagibigAmt : 0) + (second ? philhealthAmt : 0);
+  }, [monthlySalary, periodStart]);
+
+  // Withholding tax: 2nd cutoff only. Use actual monthly gross (1st + 2nd cutoff) when available; full month tax.
   const tax = useMemo(() => {
-    const workingDaysPerMonth = 22;
-    let monthlyBasicSalary = 0;
+    if (!isSecondCutoff()) return 0;
+    const adj = parseFloat(adjustmentAmount || "0") || 0;
+    const periodGross =
+      calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
+        ? calculatedTotalGrossPay + adj
+        : 0;
+    const actualMonthlyGross =
+      firstCutoffGrossForTax !== null
+        ? (firstCutoffGrossForTax + periodGross)
+        : periodGross * 2;
 
-    if (selectedEmployee?.monthly_rate) {
-      monthlyBasicSalary = selectedEmployee.monthly_rate;
-    } else if (selectedEmployee?.per_day) {
-      monthlyBasicSalary = calculateMonthlySalary(
-        selectedEmployee.per_day,
-        workingDaysPerMonth
-      );
-    } else if (selectedEmployee?.rate_per_day) {
-      monthlyBasicSalary = calculateMonthlySalary(
-        selectedEmployee.rate_per_day,
-        workingDaysPerMonth
-      );
-    } else if (grossPay > 0) {
-      monthlyBasicSalary = grossPay * 2;
-    }
-
-    if (monthlyBasicSalary > 0) {
+    if (actualMonthlyGross > 0) {
       const taxFromDeductions = deductions?.withholding_tax || 0;
       if (taxFromDeductions === 0) {
-        const sss = calculateSSS(monthlyBasicSalary);
-        const philhealth = calculatePhilHealth(monthlyBasicSalary);
-        const pagibig = calculatePagIBIG(monthlyBasicSalary);
+        const sss = calculateSSS(monthlySalary);
+        const philhealth = calculatePhilHealth(monthlySalary);
+        const pagibig = calculatePagIBIG(monthlySalary);
 
-        // Taxable income = gross salary minus mandatory contributions
         const monthlyContributions =
           sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
-        const monthlyTaxableIncome = monthlyBasicSalary - monthlyContributions;
+        const monthlyTaxableIncome = Math.max(0, actualMonthlyGross - monthlyContributions);
 
-        // Calculate monthly withholding tax, then split in half for bi-monthly deduction
         const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-        return Math.round((monthlyTax / 2) * 100) / 100;
+        return Math.round(monthlyTax * 100) / 100;
       }
       return taxFromDeductions;
     }
     return 0;
-  }, [selectedEmployee, grossPay, deductions]);
+  }, [calculatedTotalGrossPay, adjustmentAmount, monthlySalary, deductions, periodStart, firstCutoffGrossForTax]);
 
-  // Adjustment - can be positive (addition) or negative (deduction)
+  // Adjustment - included in gross for statutory, tax, and display
   const adjustment = parseFloat(adjustmentAmount) || 0;
   const allowance = 0;
 
   // Memoize total deductions
   const totalDed = useMemo(() => {
-    // Total deductions (excludes adjustments - they're handled separately in net pay calculation)
     return weeklyDed + govDed + tax;
   }, [weeklyDed, govDed, tax]);
 
-  // Memoize final gross pay
+  // Gross pay = earnings + adjustment (adjustment included in gross)
   const finalGrossPay = useMemo(() => {
-    // ALWAYS use calculatedTotalGrossPay from PayslipDetailedBreakdown (it's the authoritative source)
-    // This should match the Gross Pay shown in the Basic Earning(s) table
-    // If calculatedTotalGrossPay is null, it means PayslipDetailedBreakdown hasn't calculated it yet
-    // In that case, show 0 temporarily - it will update automatically via useEffect callback
-    return calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
-      ? calculatedTotalGrossPay
-      : 0; // Show 0 until calculatedTotalGrossPay is set (don't use grossPay fallback - it's wrong)
-  }, [calculatedTotalGrossPay]);
+    const base =
+      calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
+        ? calculatedTotalGrossPay
+        : 0;
+    return base + adjustment;
+  }, [calculatedTotalGrossPay, adjustment]);
 
-  // Memoize net pay
+  // Net pay = gross (incl. adjustment) − total deductions
   const netPay = useMemo(() => {
-    const allowance = 0;
-    return finalGrossPay - totalDed + allowance;
+    return finalGrossPay - totalDed;
   }, [finalGrossPay, totalDed]);
 
   // Show loading or access denied - MUST be after all hooks
@@ -2483,7 +2538,7 @@ export default function PayslipsPage() {
                 </HStack>
               </VStack>
 
-              {/* Employee Selection */}
+              {/* Employee Selection - search by name or employee ID */}
               <VStack gap="1" align="start">
                 <Label className="text-xs text-muted-foreground">
                   Employee
@@ -2495,34 +2550,29 @@ export default function PayslipsPage() {
                     onClick={() => (window.location.href = "/employees")}
                   >
                     <Icon name="UsersThree" size={IconSizes.sm} />
-                    Add Employees
+                    Go to Employees
                   </Button>
                 ) : (
-                  <Select
+                  <EmployeeSearchSelect
+                    employees={employees.map((e) => ({
+                      id: e.id,
+                      employee_id: e.employee_id,
+                      full_name: e.full_name ?? "",
+                      first_name: e.first_name,
+                      last_name: e.last_name,
+                    }))}
                     value={selectedEmployeeId}
-                    onValueChange={(value) => setSelectedEmployeeId(value)}
-                  >
-                    <SelectTrigger className="w-[200px] h-8">
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((emp) => {
-                        const nameParts = emp.full_name?.trim().split(/\s+/) || [];
-                        const lastName = emp.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
-                        const firstName = emp.first_name || (nameParts.length > 0 ? nameParts[0] : "");
-                        const middleParts = nameParts.length > 2 ? nameParts.slice(1, -1) : [];
-                        const displayName = lastName && firstName
-                          ? `${lastName.toUpperCase()}, ${firstName.toUpperCase()}${middleParts.length > 0 ? " " + middleParts.join(" ").toUpperCase() : ""}`
-                          : emp.full_name || "";
-                        return (
-                          <SelectItem key={emp.id} value={emp.id}>
-                            {displayName} ({emp.employee_id})
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={setSelectedEmployeeId}
+                    showAllOption={false}
+                    placeholder="Search by name or employee ID..."
+                    triggerClassName="h-8 w-[200px]"
+                  />
                 )}
+                <Caption className="text-muted-foreground">
+                  {employees.length === 0
+                    ? "No employees loaded. Open Employees to manage your roster."
+                    : "Search and select an employee to view or generate their payslip."}
+                </Caption>
               </VStack>
             </HStack>
           </CardSection>
@@ -2625,14 +2675,38 @@ export default function PayslipsPage() {
                                 return entryDateStr === dayDate;
                               });
 
-                              // Account Supervisors have flexi time, so they should not have night differential
-                              const isAccountSupervisor =
-                                selectedEmployee?.position
-                                  ?.toUpperCase()
-                                  .includes("ACCOUNT SUPERVISOR") || false;
+                              // ND for rank and file only (same rule as payslip generation)
+                              const isOfficeBasedND =
+                                selectedEmployee?.employee_type === "office-based" ||
+                                selectedEmployee?.employee_type === null;
+                              const isASND =
+                                selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
+                              const supervisoryListND = [
+                                "PAYROLL SUPERVISOR",
+                                "ACCOUNT RECEIVABLE SUPERVISOR",
+                                "HR OPERATIONS SUPERVISOR",
+                                "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
+                                "HR SUPERVISOR - LABOR RELATIONS",
+                                "HR SUPERVISOR-LABOR RELATIONS",
+                                "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
+                                "HR SUPERVISOR-EMPLOYEE ENGAGEMENT",
+                              ];
+                              const isSupervisoryND =
+                                isOfficeBasedND &&
+                                supervisoryListND.some((p) =>
+                                  selectedEmployee?.position?.toUpperCase().includes(p.toUpperCase())
+                                );
+                              const isManagerialND =
+                                isOfficeBasedND &&
+                                selectedEmployee?.job_level?.toUpperCase() === "MANAGERIAL";
+                              const isSupervisoryByJobND =
+                                isOfficeBasedND &&
+                                selectedEmployee?.job_level?.toUpperCase() === "SUPERVISORY";
+                              const isEligibleAllowancesND =
+                                isASND || isSupervisoryND || isSupervisoryByJobND || isManagerialND;
+                              const isRankAndFileND = isOfficeBasedND && !isEligibleAllowancesND;
 
                               // If day.regularHours is >= 8, it's likely a leave day - prioritize it over clock entry hours
-                              // This ensures leave days with BH = 8 are counted correctly
                               const isLeaveDayWithFullHours =
                                 (day.regularHours || 0) >= 8;
                               const regularHours = isLeaveDayWithFullHours
@@ -2641,16 +2715,16 @@ export default function PayslipsPage() {
                                   day.regularHours ||
                                   0;
 
+                              // ND for rank and file only, and only when OT overlaps 10PM–6AM (from approved OT).
+                              // Do not use matchingEntry.total_night_diff_hours — DB trigger uses 5PM–6AM; payslip uses 10PM–6AM during OT only.
                               return {
                                 date: dayDate,
                                 dayType: day.dayType || "regular",
                                 regularHours: regularHours,
                                 overtimeHours: day.overtimeHours || 0,
-                                nightDiffHours: isAccountSupervisor
-                                  ? 0
-                                  : matchingEntry?.total_night_diff_hours ||
-                                    day.nightDiffHours ||
-                                    0,
+                                nightDiffHours: isRankAndFileND
+                                  ? (day.nightDiffHours || 0)
+                                  : 0,
                                 clockInTime:
                                   matchingEntry?.clock_in_time ||
                                   day.clockInTime ||
@@ -2904,48 +2978,35 @@ export default function PayslipsPage() {
                     {/* Use grid layout for side-by-side cards - 2 columns on larger screens */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
                       {(() => {
-                        const workingDaysPerMonth = 22;
-                        let monthlyBasicSalary = 0;
+                        // 1st cutoff: SSS + Pag-IBIG. 2nd cutoff: PhilHealth. Tax in 2nd only.
+                        const applyFirst = isFirstCutoff();
+                        const applySecond = isSecondCutoff();
 
-                        if (selectedEmployee?.monthly_rate) {
-                          monthlyBasicSalary = selectedEmployee.monthly_rate;
-                        } else if (selectedEmployee?.per_day) {
-                          monthlyBasicSalary = calculateMonthlySalary(
-                            selectedEmployee.per_day,
-                            workingDaysPerMonth
-                          );
-                        } else if (selectedEmployee?.rate_per_day) {
-                          monthlyBasicSalary = calculateMonthlySalary(
-                            selectedEmployee.rate_per_day,
-                            workingDaysPerMonth
-                          );
-                        }
-
-                        // Deductions are applied monthly, so only show during second cutoff (day 16+)
-                        const applyMonthlyDeductions = isSecondCutoff();
-
-                        // Since deductions are applied once per month, use FULL monthly amounts
                         const sssContribution =
-                          monthlyBasicSalary > 0 && applyMonthlyDeductions
-                            ? calculateSSS(monthlyBasicSalary)
+                          monthlySalary > 0 && applyFirst
+                            ? calculateSSS(monthlySalary)
                             : null;
                         const philhealthContribution =
-                          monthlyBasicSalary > 0 && applyMonthlyDeductions
-                            ? calculatePhilHealth(monthlyBasicSalary)
+                          monthlySalary > 0 && applySecond
+                            ? calculatePhilHealth(monthlySalary)
                             : null;
                         const pagibigContribution =
-                          monthlyBasicSalary > 0 && applyMonthlyDeductions
-                            ? calculatePagIBIG(monthlyBasicSalary)
+                          monthlySalary > 0 && applyFirst
+                            ? calculatePagIBIG(monthlySalary)
                             : null;
 
                         return (
                           <>
-                            {monthlyBasicSalary > 0 &&
-                              applyMonthlyDeductions && (
+                            {monthlySalary > 0 && (applyFirst || applySecond) && (
                                 <div className="p-2 border rounded-lg bg-blue-50 border-blue-200 col-span-2">
                                   <BodySmall className="text-blue-700 text-xs">
                                     Based on monthly salary:{" "}
-                                    {formatCurrency(monthlyBasicSalary)}
+                                    {formatCurrency(monthlySalary)}
+                                    {applyFirst && applySecond
+                                      ? ". 1st cutoff: SSS + Pag-IBIG. 2nd: PhilHealth + Tax."
+                                      : applyFirst
+                                        ? ". 1st cutoff: SSS + Pag-IBIG only."
+                                        : ". 2nd cutoff: PhilHealth + Tax only."}
                                   </BodySmall>
                                 </div>
                               )}
@@ -3065,56 +3126,45 @@ export default function PayslipsPage() {
                       })()}
 
                       {(() => {
-                        // Calculate withholding tax automatically
-                        const workingDaysPerMonth = 22;
-                        let monthlyBasicSalary = 0;
+                        // Tax: 2nd cutoff only; actual monthly gross (1st + 2nd) when available, full month tax
+                        if (!isSecondCutoff()) return null;
+                        const adj = parseFloat(adjustmentAmount || "0") || 0;
+                        const periodGross =
+                          calculatedTotalGrossPay !== null &&
+                          calculatedTotalGrossPay >= 0
+                            ? calculatedTotalGrossPay + adj
+                            : 0;
+                        const actualMonthlyGross =
+                          firstCutoffGrossForTax !== null
+                            ? firstCutoffGrossForTax + periodGross
+                            : periodGross * 2;
 
-                        if (selectedEmployee?.monthly_rate) {
-                          monthlyBasicSalary = selectedEmployee.monthly_rate;
-                        } else if (selectedEmployee?.per_day) {
-                          monthlyBasicSalary = calculateMonthlySalary(
-                            selectedEmployee.per_day,
-                            workingDaysPerMonth
-                          );
-                        } else if (selectedEmployee?.rate_per_day) {
-                          monthlyBasicSalary = calculateMonthlySalary(
-                            selectedEmployee.rate_per_day,
-                            workingDaysPerMonth
-                          );
-                        }
-
-                        // Calculate withholding tax for both cutoffs (split monthly tax in half)
                         let withholdingTaxAmount = 0;
-                        if (monthlyBasicSalary > 0) {
-                          // Calculate mandatory contributions
-                          const sss = calculateSSS(monthlyBasicSalary);
+                        if (actualMonthlyGross > 0) {
+                          const sss = calculateSSS(monthlySalary);
                           const philhealth =
-                            calculatePhilHealth(monthlyBasicSalary);
-                          const pagibig = calculatePagIBIG(monthlyBasicSalary);
+                            calculatePhilHealth(monthlySalary);
+                          const pagibig = calculatePagIBIG(monthlySalary);
 
-                          // Taxable income = gross salary minus mandatory contributions
                           const monthlyContributions =
                             sss.employeeShare +
                             philhealth.employeeShare +
                             pagibig.employeeShare;
                           const monthlyTaxableIncome =
-                            monthlyBasicSalary - monthlyContributions;
+                            Math.max(0, actualMonthlyGross - monthlyContributions);
 
-                          // Calculate monthly withholding tax, then split in half for bi-monthly deduction
                           const monthlyTax =
                             calculateWithholdingTax(monthlyTaxableIncome);
-                          // Split monthly tax in half (half per cutoff)
                           withholdingTaxAmount =
-                            Math.round((monthlyTax / 2) * 100) / 100;
+                            Math.round(monthlyTax * 100) / 100;
                         }
 
-                        // Use calculated tax if available, otherwise use from deductions
                         const finalTax =
                           withholdingTaxAmount > 0
                             ? withholdingTaxAmount
                             : deductions?.withholding_tax || 0;
 
-                        return finalTax > 0 ? (
+                        return (
                           <HStack
                             justify="between"
                             align="center"
@@ -3127,14 +3177,14 @@ export default function PayslipsPage() {
                             >
                               <span className="font-medium text-sm">Tax</span>
                               <Caption className="text-muted-foreground text-xs">
-                                BIR TRAIN Law
+                                BIR TRAIN Law (on taxable income after SSS, PhilHealth, Pag-IBIG)
                               </Caption>
                             </VStack>
                             <span className="font-semibold text-sm ml-2 flex-shrink-0">
                               {formatCurrency(finalTax)}
                             </span>
                           </HStack>
-                        ) : null;
+                        );
                       })()}
                     </div>
                   </VStack>
@@ -3192,7 +3242,7 @@ export default function PayslipsPage() {
                     <span className="font-bold">NET PAY:</span>
                     <span className="font-bold text-primary-700">
                       {formatCurrency(
-                        finalGrossPay - totalDed + (parseFloat(adjustmentAmount) || 0)
+                        finalGrossPay - totalDed
                       )}
                     </span>
                   </HStack>
@@ -3308,32 +3358,10 @@ export default function PayslipsPage() {
                             }
                           : undefined,
                         sssContribution: (() => {
-                          // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
-                          const applyMonthlyDeductions = isSecondCutoff();
-                          if (!applyMonthlyDeductions) return 0;
-
-                          const workingDaysPerMonth = 22;
-                          let monthlyBasicSalary = 0;
-
-                          if (selectedEmployee?.monthly_rate) {
-                            monthlyBasicSalary = selectedEmployee.monthly_rate;
-                          } else if (selectedEmployee?.per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.per_day,
-                              workingDaysPerMonth
-                            );
-                          } else if (selectedEmployee?.rate_per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.rate_per_day,
-                              workingDaysPerMonth
-                            );
-                          }
-
-                          if (monthlyBasicSalary > 0) {
+                          if (!isFirstCutoff()) return 0;
+                          if (monthlySalary > 0) {
                             const sssContribution =
-                              calculateSSS(monthlyBasicSalary);
-                            // Since deductions are applied once per month, use FULL monthly amount
-                            // Return regular SSS contribution only (MSC up to PHP 20,000)
+                              calculateSSS(monthlySalary);
                             return (
                               Math.round(
                                 sssContribution.regularEmployeeShare * 100
@@ -3343,32 +3371,10 @@ export default function PayslipsPage() {
                           return 0;
                         })(),
                         sssWisp: (() => {
-                          // WISP (Workers' Investment and Savings Program) - mandatory for MSC > PHP 20,000
-                          // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
-                          const applyMonthlyDeductions = isSecondCutoff();
-                          if (!applyMonthlyDeductions) return 0;
-
-                          const workingDaysPerMonth = 22;
-                          let monthlyBasicSalary = 0;
-
-                          if (selectedEmployee?.monthly_rate) {
-                            monthlyBasicSalary = selectedEmployee.monthly_rate;
-                          } else if (selectedEmployee?.per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.per_day,
-                              workingDaysPerMonth
-                            );
-                          } else if (selectedEmployee?.rate_per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.rate_per_day,
-                              workingDaysPerMonth
-                            );
-                          }
-
-                          if (monthlyBasicSalary > 0) {
+                          if (!isFirstCutoff()) return 0;
+                          if (monthlySalary > 0) {
                             const sssContribution =
-                              calculateSSS(monthlyBasicSalary);
-                            // WISP is shown separately if employee has MSC > PHP 20,000
+                              calculateSSS(monthlySalary);
                             if (
                               sssContribution.wispEmployeeShare &&
                               sssContribution.wispEmployeeShare > 0
@@ -3383,31 +3389,10 @@ export default function PayslipsPage() {
                           return 0;
                         })(),
                         philhealthContribution: (() => {
-                          // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
-                          const applyMonthlyDeductions = isSecondCutoff();
-                          if (!applyMonthlyDeductions) return 0;
-
-                          const workingDaysPerMonth = 22;
-                          let monthlyBasicSalary = 0;
-
-                          if (selectedEmployee?.monthly_rate) {
-                            monthlyBasicSalary = selectedEmployee.monthly_rate;
-                          } else if (selectedEmployee?.per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.per_day,
-                              workingDaysPerMonth
-                            );
-                          } else if (selectedEmployee?.rate_per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.rate_per_day,
-                              workingDaysPerMonth
-                            );
-                          }
-
-                          if (monthlyBasicSalary > 0) {
+                          if (!isSecondCutoff()) return 0;
+                          if (monthlySalary > 0) {
                             const philhealthContribution =
-                              calculatePhilHealth(monthlyBasicSalary);
-                            // Since deductions are applied once per month, use FULL monthly amount
+                              calculatePhilHealth(monthlySalary);
                             return (
                               Math.round(
                                 philhealthContribution.employeeShare * 100
@@ -3417,88 +3402,56 @@ export default function PayslipsPage() {
                           return 0;
                         })(),
                         pagibigContribution: (() => {
-                          // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
-                          const applyMonthlyDeductions = isSecondCutoff();
-                          if (!applyMonthlyDeductions) return 0;
-
-                          const workingDaysPerMonth = 22;
-                          let monthlyBasicSalary = 0;
-
-                          if (selectedEmployee?.monthly_rate) {
-                            monthlyBasicSalary = selectedEmployee.monthly_rate;
-                          } else if (selectedEmployee?.per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.per_day,
-                              workingDaysPerMonth
-                            );
-                          } else if (selectedEmployee?.rate_per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.rate_per_day,
-                              workingDaysPerMonth
+                          if (!isFirstCutoff()) return 0;
+                          if (monthlySalary > 0) {
+                            const pagibigContribution =
+                              calculatePagIBIG(monthlySalary);
+                            return (
+                              Math.round(
+                                pagibigContribution.employeeShare * 100
+                              ) / 100
                             );
                           }
-
-                          // Pag-IBIG is fixed at ₱200/month regardless of salary
-                          const pagibigContribution =
-                            calculatePagIBIG(monthlyBasicSalary);
-                          // Since deductions are applied once per month, use FULL monthly amount
-                          return (
-                            Math.round(
-                              pagibigContribution.employeeShare * 100
-                            ) / 100
-                          );
+                          return 0;
                         })(),
                         withholdingTax: (() => {
-                          // Deductions are applied monthly, so only calculate during second cutoff (day 16+)
-                          const applyMonthlyDeductions = isSecondCutoff();
-                          if (!applyMonthlyDeductions) return 0;
+                          if (!isSecondCutoff()) return 0;
 
-                          // Auto-calculate withholding tax
-                          // IMPORTANT: Allowances (OT, ND, Holiday allowances) for supervisors/managers
-                          // are NON-TAXABLE per Philippine Labor Code. Use BASIC salary only.
-                          const workingDaysPerMonth = 22;
-                          let monthlyBasicSalary = 0;
+                          const adj = parseFloat(adjustmentAmount || "0") || 0;
+                          const periodGross =
+                            calculatedTotalGrossPay !== null &&
+                            calculatedTotalGrossPay >= 0
+                              ? calculatedTotalGrossPay + adj
+                              : 0;
+                          const actualMonthlyGross =
+                            firstCutoffGrossForTax !== null
+                              ? firstCutoffGrossForTax + periodGross
+                              : periodGross * 2;
 
-                          if (selectedEmployee?.monthly_rate) {
-                            monthlyBasicSalary = selectedEmployee.monthly_rate;
-                          } else if (selectedEmployee?.per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.per_day,
-                              workingDaysPerMonth
-                            );
-                          } else if (selectedEmployee?.rate_per_day) {
-                            monthlyBasicSalary = calculateMonthlySalary(
-                              selectedEmployee.rate_per_day,
-                              workingDaysPerMonth
-                            );
-                          }
-
-                          if (monthlyBasicSalary > 0) {
-                            const sss = calculateSSS(monthlyBasicSalary);
+                          if (actualMonthlyGross > 0) {
+                            const sss = calculateSSS(monthlySalary);
                             const philhealth =
-                              calculatePhilHealth(monthlyBasicSalary);
+                              calculatePhilHealth(monthlySalary);
                             const pagibig =
-                              calculatePagIBIG(monthlyBasicSalary);
+                              calculatePagIBIG(monthlySalary);
 
                             const monthlyContributions =
                               sss.employeeShare +
                               philhealth.employeeShare +
                               pagibig.employeeShare;
 
-                            // Taxable income = Basic Monthly Salary - Mandatory Contributions
-                            // Allowances are EXCLUDED (non-taxable per labor code)
                             const monthlyTaxableIncome =
-                              monthlyBasicSalary - monthlyContributions;
+                              Math.max(0, actualMonthlyGross - monthlyContributions);
                             const monthlyTax =
                               calculateWithholdingTax(monthlyTaxableIncome);
-                            // Split monthly tax in half for bi-monthly deduction (half per cutoff)
-                            return Math.round((monthlyTax / 2) * 100) / 100;
+                            return Math.round(monthlyTax * 100) / 100;
                           }
                           return deductions?.withholding_tax || 0;
                         })(),
                         totalDeductions: totalDed,
                       }}
                       adjustment={adjustment}
+                      adjustmentReason={adjustmentReason || undefined}
                       netPay={netPay}
                       workingDays={workingDays}
                       absentDays={0}

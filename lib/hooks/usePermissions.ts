@@ -178,7 +178,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
   },
   approver: {
     dashboard: { create: false, read: false, update: false, delete: false },
-    employees: { create: false, read: true, update: false, delete: false },
+    employees: { create: false, read: false, update: false, delete: false },
     schedules: { create: false, read: true, update: false, delete: false },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: false, update: false, delete: false },
@@ -195,7 +195,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
   },
   viewer: {
     dashboard: { create: false, read: false, update: false, delete: false },
-    employees: { create: false, read: true, update: false, delete: false },
+    employees: { create: false, read: false, update: false, delete: false },
     schedules: { create: false, read: true, update: false, delete: false },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: false, update: false, delete: false },

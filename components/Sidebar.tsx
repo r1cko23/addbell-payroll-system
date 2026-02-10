@@ -168,9 +168,13 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       .map((group) => {
         // Filter items based on read permission
         const filteredItems = group.items.filter((item) => {
-          // Account managers (approvers) and viewers must not see Employees in nav
-          if (item.permissionModule === "employees" && (isApprover || isViewer)) {
-            return false;
+          // Account managers (approvers) and viewers must not see Employees in nav.
+          // HR (e.g. April Gammad) is both HR and approver for her department; she should still see Employees.
+          if (item.permissionModule === "employees") {
+            const hideForApproverOrViewer = (isApprover && !isHR) || isViewer;
+            if (hideForApproverOrViewer) {
+              return false;
+            }
           }
 
           // If no permission module specified, use legacy role-based logic
@@ -218,12 +222,6 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       setOpenGroup(matchedGroup);
     }
   }, [pathname]);
-
-  // Debug: Log filtered groups and render state
-  React.useEffect(() => {
-    console.log("Sidebar filteredNavGroups:", filteredNavGroups.length, filteredNavGroups);
-    console.log("Sidebar roleLoading:", roleLoading, "permissionsLoading:", permissionsLoading, "role:", role);
-  }, [filteredNavGroups, roleLoading, permissionsLoading, role]);
 
   // Prevent sidebar from disappearing - ensure it always renders
   if (!filteredNavGroups || filteredNavGroups.length === 0) {

@@ -34,8 +34,10 @@ export {
   calculatePhilHealth,
   calculatePagIBIG,
   calculateWithholdingTax,
+  getWithholdingTaxBreakdown,
   calculateMonthlySalary,
 } from "@/utils/ph-deductions";
+export type { WithholdingTaxBreakdown } from "@/utils/ph-deductions";
 
 // Utilities
 export { formatCurrency, generatePayslipNumber } from "@/utils/format";

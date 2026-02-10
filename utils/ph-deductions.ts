@@ -262,60 +262,104 @@ export function calculatePhilHealth(monthlyBasicSalary: number): {
 }
 
 /**
- * Calculate Withholding Tax (BIR Withholding Tax Table - Effective January 1, 2023)
- * Based on monthly taxable income (after SSS, PhilHealth, Pag-IBIG deductions)
- *
- * Per Philippine Labor Code and BIR:
- * - Withholding tax is calculated on MONTHLY taxable income
- * - Taxable income = Monthly BASIC salary - Mandatory contributions (SSS, PhilHealth, Pag-IBIG)
- * - Allowances (OT allowances, ND allowances, holiday allowances) are NON-TAXABLE and excluded
- * - This function returns the MONTHLY tax amount. For bi-monthly payroll, split in half per cutoff
- *
- * BIR Withholding Tax Table on Compensation - Effective January 1, 2023 (TRAIN Law):
- * | Compensation Range (Monthly) | Prescribed Tax | Rate | Over    |
- * | 0 – 20,833                    | 0              | 0%   | 0       |
- * | 20,833 – 33,332               | 0              | 15%  | 20,833  |
- * | 33,333 – 66,666               | 2,500          | 20%  | 33,333  |
- * | 66,667 – 166,666              | 10,833.33      | 25%  | 66,667  |
- * | 166,667 – 666,666             | 40,833.33      | 30%  | 166,667 |
- * | Over 666,667                  | 200,833.33     | 35%  | 666,667 |
- *
- * @param monthlyTaxableIncome Monthly taxable income (BASIC salary minus mandatory contributions, excludes allowances)
- * @returns Monthly withholding tax amount
+ * BIR Withholding Tax Table on Compensation - MONTHLY (Effective January 1, 2023)
+ * Source: bir.gov.ph - Withholding Tax
+ * Used when tax is computed on monthly taxable income (e.g. deduct full month tax at end of month).
  */
-export function calculateWithholdingTax(monthlyTaxableIncome: number): number {
+const BIR_MONTHLY_TAX_TABLE = [
+  { maxComp: 20833, prescribedTax: 0, rate: 0, over: 0 },
+  { maxComp: 33332, prescribedTax: 0, rate: 0.15, over: 20833 },
+  { maxComp: 66666, prescribedTax: 1875.0, rate: 0.2, over: 33333 },
+  { maxComp: 166666, prescribedTax: 8541.8, rate: 0.25, over: 66667 },
+  { maxComp: 666666, prescribedTax: 33541.8, rate: 0.3, over: 166667 },
+  { maxComp: Infinity, prescribedTax: 183541.8, rate: 0.35, over: 666667 },
+] as const;
+
+export type WithholdingTaxBreakdown = {
+  taxableIncome: number;
+  rangeIndex: number;
+  rangeLabel: string;
+  prescribedTax: number;
+  ratePercent: number;
+  excessOver: number;
+  excessAmount: number;
+  taxOnExcess: number;
+  withholdingTax: number;
+};
+
+/**
+ * Get BIR withholding tax breakdown for display (e.g. payslip tooltip).
+ * Uses BIR Monthly table effective Jan 1, 2023.
+ */
+export function getWithholdingTaxBreakdown(monthlyTaxableIncome: number): WithholdingTaxBreakdown {
   const taxableIncome =
-    typeof monthlyTaxableIncome === "number" &&
-    !isNaN(monthlyTaxableIncome) &&
-    monthlyTaxableIncome >= 0
+    typeof monthlyTaxableIncome === "number" && !isNaN(monthlyTaxableIncome) && monthlyTaxableIncome >= 0
       ? monthlyTaxableIncome
       : 0;
 
-  if (taxableIncome <= 20833.0) {
-    return 0;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  for (let i = 0; i < BIR_MONTHLY_TAX_TABLE.length; i++) {
+    const row = BIR_MONTHLY_TAX_TABLE[i];
+    if (taxableIncome <= row.maxComp) {
+      const excessAmount = Math.max(0, taxableIncome - row.over);
+      const taxOnExcess = round2(excessAmount * row.rate);
+      const withholdingTax = round2(row.prescribedTax + taxOnExcess);
+      const rangeLabel =
+        i === 0
+          ? `₱${row.over.toLocaleString()} and below`
+          : i === BIR_MONTHLY_TAX_TABLE.length - 1
+            ? `Over ₱${row.over.toLocaleString()}`
+            : `₱${row.over.toLocaleString()} – ₱${row.maxComp.toLocaleString()}`;
+      return {
+        taxableIncome,
+        rangeIndex: i + 1,
+        rangeLabel,
+        prescribedTax: row.prescribedTax,
+        ratePercent: row.rate * 100,
+        excessOver: row.over,
+        excessAmount: round2(excessAmount),
+        taxOnExcess,
+        withholdingTax,
+      };
+    }
   }
-  if (taxableIncome <= 33332.0) {
-    const excess = taxableIncome - 20833.0;
-    return Math.round(excess * 0.15 * 100) / 100;
-  }
-  if (taxableIncome <= 66666.0) {
-    const baseTax = 2500.0;
-    const excess = taxableIncome - 33333.0;
-    return Math.round((baseTax + excess * 0.2) * 100) / 100;
-  }
-  if (taxableIncome <= 166666.0) {
-    const baseTax = 10833.33;
-    const excess = taxableIncome - 66667.0;
-    return Math.round((baseTax + excess * 0.25) * 100) / 100;
-  }
-  if (taxableIncome <= 666666.0) {
-    const baseTax = 40833.33;
-    const excess = taxableIncome - 166667.0;
-    return Math.round((baseTax + excess * 0.3) * 100) / 100;
-  }
-  const baseTax = 200833.33;
-  const excess = taxableIncome - 666667.0;
-  return Math.round((baseTax + excess * 0.35) * 100) / 100;
+  return {
+    taxableIncome,
+    rangeIndex: 6,
+    rangeLabel: `Over ₱666,667`,
+    prescribedTax: 183541.8,
+    ratePercent: 35,
+    excessOver: 666667,
+    excessAmount: 0,
+    taxOnExcess: 0,
+    withholdingTax: 0,
+  };
+}
+
+/**
+ * Calculate Withholding Tax (BIR Withholding Tax Table - MONTHLY - Effective January 1, 2023)
+ * Based on monthly taxable income (after SSS, PhilHealth, Pag-IBIG deductions)
+ *
+ * Per BIR bir.gov.ph:
+ * - Withholding tax is calculated on MONTHLY taxable income
+ * - Taxable income = Gross pay − Mandatory contributions (SSS, PhilHealth, Pag-IBIG)
+ * - This function returns the MONTHLY tax amount. Deduct full month tax at end of month (2nd cutoff only).
+ *
+ * BIR MONTHLY table (effective Jan 1, 2023):
+ * | Compensation Range (Monthly) | Prescribed Withholding Tax |
+ * | 20,833 and below             | 0.00                        |
+ * | 20,833 – 33,332              | 0.00 + 15% over 20,833      |
+ * | 33,333 – 66,666              | 1,875.00 + 20% over 33,333   |
+ * | 66,667 – 166,666             | 8,541.80 + 25% over 66,667   |
+ * | 166,667 – 666,666            | 33,541.80 + 30% over 166,667 |
+ * | 666,667 and above            | 183,541.80 + 35% over 666,667|
+ *
+ * @param monthlyTaxableIncome Monthly taxable income (gross minus SSS, PhilHealth, Pag-IBIG)
+ * @returns Monthly withholding tax amount
+ */
+export function calculateWithholdingTax(monthlyTaxableIncome: number): number {
+  return getWithholdingTaxBreakdown(monthlyTaxableIncome).withholdingTax;
 }
 
 /**

@@ -1549,12 +1549,12 @@ function PayslipDetailedBreakdownComponent({
 
                   return (
                     <>
-                      {/* 1. Hours Work = Regular work only (104 hrs / 13 days per cutoff). Rest day, holiday, OT are separate rows below / Other Pay. */}
+                      {/* 1. Hours Work = Regular work only (104 hrs / 13 days per cutoff). Amount matches Basic Salary (days × daily rate) to avoid rounding to whole pesos. */}
                       {renderEarningRow(
                         "1. Hours Work (Regular)",
                         totalHours,
                         "—",
-                        Math.round(totalHours * ratePerHour * 100) / 100
+                        basicSalary
                       )}
 
                       {/* Night Differential */}

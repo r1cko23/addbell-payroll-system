@@ -848,6 +848,7 @@ export default function BundyClockPage() {
         leaveResult,
         otResult,
         scheduleResult,
+        employeeTypeResult,
       ] = await Promise.all([
         supabase
           .from("holidays")
@@ -885,6 +886,11 @@ export default function BundyClockPage() {
           .eq("employee_id", employee.id)
           .gte("schedule_date", periodStartStr)
           .lte("schedule_date", periodEndStr),
+        supabase
+          .from("employees")
+          .select("employee_type")
+          .eq("id", employee.id)
+          .maybeSingle(),
       ]);
 
       const { data: holidaysData, error: holidaysError } = holidaysResult;
@@ -892,6 +898,11 @@ export default function BundyClockPage() {
       const { data: leaveData, error: leaveError } = leaveResult;
       const { data: otData, error: otError } = otResult;
       const { data: scheduleData, error: scheduleError } = scheduleResult;
+      const { data: employeeTypeRow } = employeeTypeResult || {};
+      const isClientBasedFromDb = employeeTypeRow?.employee_type === "client-based";
+      // Fallback: if employee_type is not set but they have rest days in schedule (day_off), treat as client-based
+      const hasRestDayInSchedule = (scheduleData || []).some((s: any) => s.day_off === true);
+      const isClientBasedFromDbOrSchedule = isClientBasedFromDb || (hasRestDayInSchedule && (employeeTypeRow?.employee_type == null || employeeTypeRow?.employee_type === ""));
 
       // Debug: Check auth session
       const { data: authSession } = await supabase.auth.getSession();
@@ -1047,7 +1058,11 @@ export default function BundyClockPage() {
 
       const scheduleMap = new Map<string, Schedule>();
       (scheduleData || []).forEach((s: any) => {
-        scheduleMap.set(s.schedule_date, {
+        const key =
+          typeof s.schedule_date === "string" && s.schedule_date.includes("T")
+            ? s.schedule_date.split("T")[0]
+            : s.schedule_date;
+        scheduleMap.set(key, {
           schedule_date: s.schedule_date,
           start_time: s.start_time,
           end_time: s.end_time,
@@ -1056,6 +1071,8 @@ export default function BundyClockPage() {
       });
       setSchedules(scheduleMap);
 
+      const isClientBased = isClientBasedFromDbOrSchedule;
+
       generateAttendanceDays(
         completeEntries,
         incompleteEntries,
@@ -1063,12 +1080,12 @@ export default function BundyClockPage() {
         otData || [],
         scheduleMap,
         formattedHolidays,
-        employeeType === "client-based"
+        isClientBased
       );
     } catch (error) {
       console.error("Error loading attendance data:", error);
     }
-  }, [employee, periodStart, periodEnd, supabase]);
+  }, [employee, periodStart, periodEnd, supabase, employeeType]);
 
   // Load attendance data for timesheet table
   useEffect(() => {

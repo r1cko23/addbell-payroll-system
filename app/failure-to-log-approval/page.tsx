@@ -73,8 +73,7 @@ export default function FailureToLogApprovalPage() {
   const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
-  // Check if HR user is a group approver (HR users need to be group approvers to approve)
-  const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
+  // HR can approve all failure-to-log requests (no group assignment required)
 
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
@@ -757,7 +756,7 @@ export default function FailureToLogApprovalPage() {
                     </Badge>
                   </HStack>
                   {request.status === "pending" &&
-                    (role === "admin" || (role === "hr" && isHRGroupApprover) || role === "approver") && (
+                    (role === "admin" || role === "hr" || role === "approver") && (
                     <HStack
                       gap="2"
                       align="center"
@@ -968,7 +967,7 @@ export default function FailureToLogApprovalPage() {
                 Close
               </Button>
               {selectedRequest?.status === "pending" &&
-                (role === "admin" || (role === "hr" && isHRGroupApprover) || role === "approver") && (
+                (role === "admin" || role === "hr" || role === "approver") && (
                 <div className="flex gap-2">
                   <Button
                     variant="destructive"

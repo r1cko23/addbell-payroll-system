@@ -68,8 +68,7 @@ export default function OvertimeApprovalPage() {
   const { isAdmin, role, isHR, isApprover, isViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
-  // Check if HR user is a group approver (HR users need to be group approvers to approve OT)
-  const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
+  // HR can approve all OT requests (no group assignment required)
 
   // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
@@ -800,7 +799,7 @@ export default function OvertimeApprovalPage() {
                       </Badge>
                     </HStack>
                     {req.status === "pending" &&
-                      (role === "admin" || (role === "hr" && isHRGroupApprover) || role === "approver") && (
+                      (role === "admin" || role === "hr" || role === "approver") && (
                         <HStack
                           gap="2"
                           align="center"
@@ -1036,7 +1035,7 @@ export default function OvertimeApprovalPage() {
                 Close
               </Button>
               {selected?.status === "pending" &&
-                (role === "admin" || (role === "hr" && isHRGroupApprover) || role === "approver") && (
+                (role === "admin" || role === "hr" || role === "approver") && (
                   <div className="flex gap-2">
                     <Button
                       variant="destructive"

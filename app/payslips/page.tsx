@@ -17,6 +17,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -47,6 +57,7 @@ import {
   calculatePagIBIG,
   calculateMonthlySalary,
   calculateWithholdingTax,
+  getWithholdingTaxBreakdown,
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import { getWeekOfMonth, normalizeHolidays } from "@/utils/holidays";
@@ -112,7 +123,7 @@ interface EmployeeDeductions {
 
 export default function PayslipsPage() {
   const router = useRouter();
-  const { canAccessSalaryInfo, loading: roleLoading } = useUserRole();
+  const { canAccessSalaryInfo, canUpdatePayslip, loading: roleLoading } = useUserRole();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
@@ -192,6 +203,22 @@ export default function PayslipsPage() {
   const [adjustmentReason, setAdjustmentReason] = useState<string>("");
   // First cutoff gross for same month (used for 2nd cutoff tax preview/calculation)
   const [firstCutoffGrossForTax, setFirstCutoffGrossForTax] = useState<number | null>(null);
+  // Saved payslip for this employee + period (when exists, we display DB values and lock edits)
+  const [savedPayslip, setSavedPayslip] = useState<{
+    id: string;
+    gross_pay: number;
+    total_deductions: number;
+    net_pay: number;
+    adjustment_amount: number;
+    adjustment_reason: string | null;
+    deductions_breakdown: Record<string, unknown>;
+    sss_amount: number;
+    philhealth_amount: number;
+    pagibig_amount: number;
+    withholding_tax?: number;
+  } | null>(null);
+  const [showSavePayslipConfirm, setShowSavePayslipConfirm] = useState(false);
+  const [showUpdatePayslipConfirm, setShowUpdatePayslipConfirm] = useState(false);
 
   const supabase = createClient();
 
@@ -448,6 +475,38 @@ export default function PayslipsPage() {
         periodStartDate: periodStart.toISOString(),
         periodEndDate: periodEnd.toISOString(),
       });
+
+      // Load saved payslip for this employee + period (if any). When present, we display DB values and lock edits.
+      const { data: existingPayslipRow } = await supabase
+        .from("payslips")
+        .select("id, gross_pay, total_deductions, net_pay, adjustment_amount, adjustment_reason, deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount")
+        .eq("employee_id", selectedEmployeeId)
+        .eq("period_start", periodStartStr)
+        .eq("period_end", periodEndStr)
+        .maybeSingle();
+
+      if (existingPayslipRow) {
+        const ded = (existingPayslipRow.deductions_breakdown as Record<string, unknown>) || {};
+        setSavedPayslip({
+          id: existingPayslipRow.id,
+          gross_pay: existingPayslipRow.gross_pay,
+          total_deductions: existingPayslipRow.total_deductions ?? 0,
+          net_pay: existingPayslipRow.net_pay,
+          adjustment_amount: existingPayslipRow.adjustment_amount ?? 0,
+          adjustment_reason: existingPayslipRow.adjustment_reason,
+          deductions_breakdown: ded,
+          sss_amount: existingPayslipRow.sss_amount ?? 0,
+          philhealth_amount: existingPayslipRow.philhealth_amount ?? 0,
+          pagibig_amount: existingPayslipRow.pagibig_amount ?? 0,
+          withholding_tax: typeof ded.tax === "number" ? ded.tax : 0,
+        });
+        setAdjustmentAmount(String(existingPayslipRow.adjustment_amount ?? 0));
+        setAdjustmentReason(existingPayslipRow.adjustment_reason ?? "");
+      } else {
+        setSavedPayslip(null);
+        setAdjustmentAmount("0");
+        setAdjustmentReason("");
+      }
 
       // Always generate from time clock entries to match timesheet data
       // Use time attendance sheet as reference (same as timesheet page)
@@ -1530,34 +1589,35 @@ export default function PayslipsPage() {
       const philhealthContribution = calculatePhilHealth(validMonthlySalary);
       const pagibigContribution = calculatePagIBIG(validMonthlySalary);
 
-      // Statutory deductions by cutoff: 1st cutoff = SSS + Pag-IBIG; 2nd cutoff = PhilHealth + Tax
-      const applyFirstCutoffStatutory = isFirstCutoff();  // SSS, Pag-IBIG in 1st cutoff (1-15)
-      const applySecondCutoffStatutory = isSecondCutoff(); // PhilHealth, Tax in 2nd cutoff (16-31)
+      // Deduction frequencies (per sample): SSS & PhilHealth = semi-monthly (half each cutoff); Pag-IBIG & Withholding tax = end of month (2nd cutoff only)
+      const applyFirstCutoff = isFirstCutoff();
+      const applySecondCutoff = isSecondCutoff();
 
       // Note: Only employee shares are deducted
-      // Regular SSS contribution (MSC up to PHP 20,000) - 1st cutoff only
+      // SSS - semi-monthly: half on 1st cutoff, half on 2nd cutoff
+      const sssHalfMonthly = !isNaN(sssContribution?.employeeShare) ? sssContribution.employeeShare / 2 : 0;
+      const sssRegularHalf = !isNaN(sssContribution?.regularEmployeeShare) ? sssContribution.regularEmployeeShare / 2 : 0;
+      const sssWispHalf = (sssContribution?.wispEmployeeShare ?? 0) / 2;
       const sssRegularAmount =
-        applyFirstCutoffStatutory && !isNaN(sssContribution?.regularEmployeeShare)
-          ? Math.round(sssContribution.regularEmployeeShare * 100) / 100
+        (applyFirstCutoff || applySecondCutoff)
+          ? Math.round(sssRegularHalf * 100) / 100
           : 0;
-
-      // WISP (Workers' Investment and Savings Program) - mandatory for MSC > PHP 20,000 - 1st cutoff only
       const sssWispAmount =
-        applyFirstCutoffStatutory &&
-        sssContribution?.wispEmployeeShare &&
-        sssContribution.wispEmployeeShare > 0
-          ? Math.round(sssContribution.wispEmployeeShare * 100) / 100
+        (applyFirstCutoff || applySecondCutoff) && sssWispHalf > 0
+          ? Math.round(sssWispHalf * 100) / 100
           : 0;
-
-      const sssAmount = sssRegularAmount + sssWispAmount;
-      // PhilHealth - 2nd cutoff only
+      const sssAmount =
+        (applyFirstCutoff || applySecondCutoff)
+          ? Math.round(sssHalfMonthly * 100) / 100
+          : 0;
+      // PhilHealth - semi-monthly: half on 1st cutoff, half on 2nd cutoff
       const philhealthAmount =
-        applySecondCutoffStatutory && !isNaN(philhealthContribution?.employeeShare)
-          ? Math.round(philhealthContribution.employeeShare * 100) / 100
+        (applyFirstCutoff || applySecondCutoff) && !isNaN(philhealthContribution?.employeeShare)
+          ? Math.round((philhealthContribution.employeeShare / 2) * 100) / 100
           : 0;
-      // Pag-IBIG - 1st cutoff only
+      // Pag-IBIG - end of month: full amount on 2nd cutoff only
       const pagibigAmount =
-        applyFirstCutoffStatutory && !isNaN(pagibigContribution?.employeeShare)
+        applySecondCutoff && !isNaN(pagibigContribution?.employeeShare)
           ? Math.round(pagibigContribution.employeeShare * 100) / 100
           : 0;
 
@@ -1581,12 +1641,12 @@ export default function PayslipsPage() {
             (monthlyLoans.companyLoan || 0)
           : 0);
 
-      // Add mandatory government contributions: 1st cutoff = SSS + Pag-IBIG; 2nd = PhilHealth
+      // Add mandatory government contributions: SSS & PhilHealth semi-monthly (half each); Pag-IBIG end of month (2nd only)
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
 
-      // Withholding tax: 2nd cutoff only. Use actual monthly gross (1st cutoff + 2nd cutoff) when available.
+      // Withholding tax: end of month (2nd cutoff only). Use actual monthly gross (1st + 2nd cutoff) when available.
       let withholdingTax = 0;
-      if (applySecondCutoffStatutory && (validMonthlyGross > 0 || periodGross > 0)) {
+      if (applySecondCutoff && (validMonthlyGross > 0 || periodGross > 0)) {
         withholdingTax = deductions?.withholding_tax || 0;
         if (withholdingTax === 0) {
           const monthlyContributions =
@@ -2325,7 +2385,7 @@ export default function PayslipsPage() {
     return 0;
   }, [selectedEmployee?.monthly_rate, selectedEmployee?.per_day, selectedEmployee?.rate_per_day]);
 
-  // Statutory: 1st cutoff = SSS + Pag-IBIG; 2nd cutoff = PhilHealth (tax in separate useMemo)
+  // Statutory: SSS & PhilHealth = semi-monthly (half each cutoff); Pag-IBIG & Tax = end of month (2nd cutoff only)
   const govDed = useMemo(() => {
     if (monthlySalary <= 0) return 0;
     const first = isFirstCutoff();
@@ -2334,20 +2394,22 @@ export default function PayslipsPage() {
     const philhealthContribution = calculatePhilHealth(monthlySalary);
     const pagibigContribution = calculatePagIBIG(monthlySalary);
 
-    const sssAmt = isNaN(sssContribution?.employeeShare)
+    const sssMonthly = isNaN(sssContribution?.employeeShare)
       ? 0
-      : Math.round(sssContribution.employeeShare * 100) / 100;
-    const philhealthAmt = isNaN(philhealthContribution?.employeeShare)
+      : sssContribution.employeeShare;
+    const philhealthMonthly = isNaN(philhealthContribution?.employeeShare)
       ? 0
-      : Math.round(philhealthContribution.employeeShare * 100) / 100;
+      : philhealthContribution.employeeShare;
     const pagibigAmt = isNaN(pagibigContribution?.employeeShare)
       ? 0
       : Math.round(pagibigContribution.employeeShare * 100) / 100;
 
-    return (first ? sssAmt + pagibigAmt : 0) + (second ? philhealthAmt : 0);
+    const sssHalf = Math.round((sssMonthly / 2) * 100) / 100;
+    const philhealthHalf = Math.round((philhealthMonthly / 2) * 100) / 100;
+    return (first ? sssHalf + philhealthHalf : 0) + (second ? sssHalf + philhealthHalf + pagibigAmt : 0);
   }, [monthlySalary, periodStart]);
 
-  // Withholding tax: 2nd cutoff only. Use actual monthly gross (1st + 2nd cutoff) when available; full month tax.
+  // Withholding tax: end of month (2nd cutoff only). Use actual monthly gross (1st + 2nd cutoff) when available; full month tax.
   const tax = useMemo(() => {
     if (!isSecondCutoff()) return 0;
     const adj = parseFloat(adjustmentAmount || "0") || 0;
@@ -2401,6 +2463,12 @@ export default function PayslipsPage() {
   const netPay = useMemo(() => {
     return finalGrossPay - totalDed;
   }, [finalGrossPay, totalDed]);
+
+  // When a payslip is already saved for this period, display saved values (and lock edits)
+  const displayGrossPay = savedPayslip ? savedPayslip.gross_pay : finalGrossPay;
+  const displayTotalDed = savedPayslip ? savedPayslip.total_deductions : totalDed;
+  const displayNetPay = savedPayslip ? savedPayslip.net_pay : netPay;
+  const isSavedPayslip = savedPayslip !== null;
 
   // Show loading or access denied - MUST be after all hooks
   if (roleLoading || loading) {
@@ -2927,6 +2995,8 @@ export default function PayslipsPage() {
                           onChange={(e) => setAdjustmentAmount(e.target.value)}
                           placeholder="0.00"
                           className="mt-1"
+                          readOnly={isSavedPayslip}
+                          disabled={isSavedPayslip}
                         />
                         <Caption className="text-xs text-gray-500 mt-1">
                           Enter positive amount to add to net pay, negative amount to deduct from net pay
@@ -2943,6 +3013,8 @@ export default function PayslipsPage() {
                           onChange={(e) => setAdjustmentReason(e.target.value)}
                           placeholder="e.g., Correction for previous period, Bonus, etc."
                           className="mt-1"
+                          readOnly={isSavedPayslip}
+                          disabled={isSavedPayslip}
                         />
                       </div>
                       {(parseFloat(adjustmentAmount) || 0) !== 0 && (
@@ -2978,22 +3050,35 @@ export default function PayslipsPage() {
                     {/* Use grid layout for side-by-side cards - 2 columns on larger screens */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
                       {(() => {
-                        // 1st cutoff: SSS + Pag-IBIG. 2nd cutoff: PhilHealth. Tax in 2nd only.
+                        // SSS & PhilHealth: semi-monthly (half each cutoff). Pag-IBIG & Tax: end of month (2nd only).
                         const applyFirst = isFirstCutoff();
                         const applySecond = isSecondCutoff();
 
                         const sssContribution =
-                          monthlySalary > 0 && applyFirst
+                          monthlySalary > 0 && (applyFirst || applySecond)
                             ? calculateSSS(monthlySalary)
                             : null;
                         const philhealthContribution =
-                          monthlySalary > 0 && applySecond
+                          monthlySalary > 0 && (applyFirst || applySecond)
                             ? calculatePhilHealth(monthlySalary)
                             : null;
                         const pagibigContribution =
-                          monthlySalary > 0 && applyFirst
+                          monthlySalary > 0 && applySecond
                             ? calculatePagIBIG(monthlySalary)
                             : null;
+
+                        const sssHalf = sssContribution
+                          ? Math.round((sssContribution.employeeShare / 2) * 100) / 100
+                          : 0;
+                        const sssRegularHalf = sssContribution
+                          ? Math.round((sssContribution.regularEmployeeShare / 2) * 100) / 100
+                          : 0;
+                        const sssWispHalf = sssContribution?.wispEmployeeShare
+                          ? Math.round((sssContribution.wispEmployeeShare / 2) * 100) / 100
+                          : 0;
+                        const philhealthHalf = philhealthContribution
+                          ? Math.round((philhealthContribution.employeeShare / 2) * 100) / 100
+                          : 0;
 
                         return (
                           <>
@@ -3002,15 +3087,11 @@ export default function PayslipsPage() {
                                   <BodySmall className="text-blue-700 text-xs">
                                     Based on monthly salary:{" "}
                                     {formatCurrency(monthlySalary)}
-                                    {applyFirst && applySecond
-                                      ? ". 1st cutoff: SSS + Pag-IBIG. 2nd: PhilHealth + Tax."
-                                      : applyFirst
-                                        ? ". 1st cutoff: SSS + Pag-IBIG only."
-                                        : ". 2nd cutoff: PhilHealth + Tax only."}
+                                    {". SSS & PhilHealth: semi-monthly (half each). Pag-IBIG & Tax: end of month (2nd cutoff)."}
                                   </BodySmall>
                                 </div>
                               )}
-                            {/* SSS Contribution Card */}
+                            {/* SSS Contribution Card - semi-monthly: half per cutoff */}
                             <HStack
                               justify="between"
                               align="center"
@@ -3026,19 +3107,11 @@ export default function PayslipsPage() {
                                 </span>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {sssContribution
-                                  ? formatCurrency(
-                                      Math.round(
-                                        sssContribution.regularEmployeeShare *
-                                          100
-                                      ) / 100
-                                    )
-                                  : formatCurrency(0)}
+                                {formatCurrency(sssRegularHalf)}
                               </span>
                             </HStack>
-                            {/* WISP Contribution Card (only if applicable) */}
-                            {sssContribution &&
-                              sssContribution.wispEmployeeShare > 0 && (
+                            {/* WISP Contribution Card (only if applicable) - semi-monthly half */}
+                            {sssWispHalf > 0 && (
                                 <HStack
                                   justify="between"
                                   align="center"
@@ -3054,16 +3127,12 @@ export default function PayslipsPage() {
                                     </span>
                                   </VStack>
                                   <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                    {formatCurrency(
-                                      Math.round(
-                                        sssContribution.wispEmployeeShare * 100
-                                      ) / 100
-                                    )}
+                                    {formatCurrency(sssWispHalf)}
                                   </span>
                                 </HStack>
                               )}
 
-                            {/* PhilHealth Contribution Card */}
+                            {/* PhilHealth Contribution Card - semi-monthly: half per cutoff */}
                             <HStack
                               justify="between"
                               align="center"
@@ -3078,22 +3147,15 @@ export default function PayslipsPage() {
                                   PhilHealth
                                 </span>
                                 <Caption className="text-muted-foreground text-xs">
-                                  2.5% employee share of monthly salary
+                                  2.5% employee share (semi-monthly: half)
                                 </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {philhealthContribution
-                                  ? formatCurrency(
-                                      Math.round(
-                                        philhealthContribution.employeeShare *
-                                          100
-                                      ) / 100
-                                    )
-                                  : formatCurrency(0)}
+                                {formatCurrency(philhealthHalf)}
                               </span>
                             </HStack>
 
-                            {/* Pag-IBIG Contribution Card */}
+                            {/* Pag-IBIG Contribution Card - end of month (2nd cutoff only) */}
                             <HStack
                               justify="between"
                               align="center"
@@ -3108,7 +3170,7 @@ export default function PayslipsPage() {
                                   Pag-IBIG
                                 </span>
                                 <Caption className="text-muted-foreground text-xs">
-                                  Fixed ₱200.00 per month
+                                  Fixed ₱200.00 per month (end of month)
                                 </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
@@ -3140,23 +3202,23 @@ export default function PayslipsPage() {
                             : periodGross * 2;
 
                         let withholdingTaxAmount = 0;
+                        let taxBreakdown: ReturnType<typeof getWithholdingTaxBreakdown> | null = null;
+                        let monthlyContributionsUsed = 0;
                         if (actualMonthlyGross > 0) {
                           const sss = calculateSSS(monthlySalary);
                           const philhealth =
                             calculatePhilHealth(monthlySalary);
                           const pagibig = calculatePagIBIG(monthlySalary);
 
-                          const monthlyContributions =
+                          monthlyContributionsUsed =
                             sss.employeeShare +
                             philhealth.employeeShare +
                             pagibig.employeeShare;
                           const monthlyTaxableIncome =
-                            Math.max(0, actualMonthlyGross - monthlyContributions);
+                            Math.max(0, actualMonthlyGross - monthlyContributionsUsed);
 
-                          const monthlyTax =
-                            calculateWithholdingTax(monthlyTaxableIncome);
-                          withholdingTaxAmount =
-                            Math.round(monthlyTax * 100) / 100;
+                          taxBreakdown = getWithholdingTaxBreakdown(monthlyTaxableIncome);
+                          withholdingTaxAmount = taxBreakdown.withholdingTax;
                         }
 
                         const finalTax =
@@ -3165,25 +3227,40 @@ export default function PayslipsPage() {
                             : deductions?.withholding_tax || 0;
 
                         return (
-                          <HStack
-                            justify="between"
-                            align="center"
-                            className="p-2 border rounded-lg bg-gray-50"
-                          >
-                            <VStack
-                              gap="0"
-                              align="start"
-                              className="flex-1 min-w-0"
-                            >
-                              <span className="font-medium text-sm">Tax</span>
-                              <Caption className="text-muted-foreground text-xs">
-                                BIR TRAIN Law (on taxable income after SSS, PhilHealth, Pag-IBIG)
-                              </Caption>
-                            </VStack>
-                            <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                              {formatCurrency(finalTax)}
-                            </span>
-                          </HStack>
+                          <VStack gap="1" className="p-2 border rounded-lg bg-gray-50">
+                            <HStack justify="between" align="center" className="w-full">
+                              <VStack gap="0" align="start" className="flex-1 min-w-0">
+                                <span className="font-medium text-sm">Tax</span>
+                                <Caption className="text-muted-foreground text-xs">
+                                  BIR Monthly table (Jan 1, 2023). Taxable = Gross − SSS − PhilHealth − Pag-IBIG.
+                                </Caption>
+                              </VStack>
+                              <span className="font-semibold text-sm ml-2 flex-shrink-0">
+                                {formatCurrency(finalTax)}
+                              </span>
+                            </HStack>
+                            {taxBreakdown && taxBreakdown.withholdingTax > 0 && (
+                              <div className="text-[10px] text-muted-foreground border-t border-gray-200 pt-1.5 mt-0.5 space-y-0.5">
+                                <div>
+                                  Monthly gross: {formatCurrency(actualMonthlyGross)}
+                                  {firstCutoffGrossForTax !== null && (
+                                    <span className="text-gray-500"> (1st: {formatCurrency(firstCutoffGrossForTax)} + 2nd: {formatCurrency(periodGross)})</span>
+                                  )}
+                                </div>
+                                <div>Less monthly contributions (SSS + PhilHealth + Pag-IBIG): {formatCurrency(monthlyContributionsUsed)}</div>
+                                <div className="font-medium">Taxable income: {formatCurrency(taxBreakdown.taxableIncome)}</div>
+                                <div>BIR Range {taxBreakdown.rangeIndex}: {taxBreakdown.rangeLabel}</div>
+                                <div>
+                                  {taxBreakdown.prescribedTax > 0 && `${formatCurrency(taxBreakdown.prescribedTax)} + `}
+                                  {taxBreakdown.ratePercent}% × {formatCurrency(taxBreakdown.excessAmount)} = {formatCurrency(taxBreakdown.taxOnExcess)}
+                                  {taxBreakdown.prescribedTax > 0 && ` = ${formatCurrency(taxBreakdown.withholdingTax)}`}
+                                </div>
+                                {taxBreakdown.prescribedTax === 0 && (
+                                  <div className="font-medium text-gray-700">Withholding tax: {formatCurrency(taxBreakdown.withholdingTax)}</div>
+                                )}
+                              </div>
+                            )}
+                          </VStack>
                         );
                       })()}
                     </div>
@@ -3193,9 +3270,61 @@ export default function PayslipsPage() {
             </div>
           )}
 
-          {/* Payslip Summary - Below Both Sections */}
+          {/* Payslip Summary - Below Both Sections (uses saved values when payslip already saved) */}
           {selectedEmployee && attendance && (
             <CardSection title="Payslip Summary">
+              {isSavedPayslip && (
+                <>
+                  <div className="mb-2 px-2 py-1.5 rounded bg-green-50 border border-green-200 text-xs text-green-800">
+                    This payslip has been saved. Values below are from the database. Adjustments cannot be edited.
+                  </div>
+                  {savedPayslip && (() => {
+                    const earnings = calculatedTotalGrossPay ?? 0;
+                    const savedAdj = savedPayslip.adjustment_amount;
+                    const impliedDiff = Math.round((savedPayslip.gross_pay - earnings - savedAdj) * 100) / 100;
+                    const showImplied = Math.abs(impliedDiff) > 0.01;
+                    return (
+                      <div className="mb-2 px-2 py-1.5 rounded bg-gray-50 border border-gray-200 text-xs text-gray-700 space-y-1">
+                        <div className="font-medium text-gray-800">Why is Gross Pay {formatCurrency(displayGrossPay)}?</div>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex justify-between">
+                            <span>Earnings (this period):</span>
+                            <span>{formatCurrency(earnings)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Adjustment (saved in DB):</span>
+                            <span className={savedAdj >= 0 ? "text-green-600" : "text-red-600"}>
+                              {savedAdj >= 0 ? "+" : ""}{formatCurrency(savedAdj)}
+                            </span>
+                          </div>
+                          {showImplied && (
+                            <div className="flex justify-between text-amber-700">
+                              <span>Difference (included in saved gross):</span>
+                              <span>{impliedDiff >= 0 ? "+" : ""}{formatCurrency(impliedDiff)}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between border-t border-gray-300 pt-1 font-medium">
+                            <span>Gross pay (saved):</span>
+                            <span>{formatCurrency(earnings + savedAdj + (showImplied ? impliedDiff : 0))}</span>
+                          </div>
+                        </div>
+                        {showImplied && (
+                          <div className="mt-1 text-amber-700 text-[10px]">
+                            {impliedDiff > 0
+                              ? `The saved gross is ${formatCurrency(impliedDiff)} more than Earnings + Adjustment. This may have been saved as part of gross when the payslip was created.`
+                              : `The saved gross is ${formatCurrency(Math.abs(impliedDiff))} less than Earnings + Adjustment (${formatCurrency(earnings)}). If the second cutoff gross should match current earnings, the saved value may need to be corrected.`}
+                          </div>
+                        )}
+                        {savedPayslip.adjustment_reason && (
+                          <div className="mt-1 text-gray-600">
+                            Reason: {savedPayslip.adjustment_reason}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
               <VStack gap="2">
                 <HStack
                   justify="between"
@@ -3204,7 +3333,7 @@ export default function PayslipsPage() {
                 >
                   <span className="font-medium">Gross Pay:</span>
                   <span className="font-semibold">
-                    {formatCurrency(finalGrossPay)}
+                    {formatCurrency(displayGrossPay)}
                   </span>
                 </HStack>
                 <HStack
@@ -3214,7 +3343,7 @@ export default function PayslipsPage() {
                 >
                   <span className="font-medium">Total Deductions:</span>
                   <span className="font-semibold">
-                    ({formatCurrency(totalDed)})
+                    ({formatCurrency(displayTotalDed)})
                   </span>
                 </HStack>
                 {(parseFloat(adjustmentAmount) || 0) !== 0 && (
@@ -3241,9 +3370,7 @@ export default function PayslipsPage() {
                   >
                     <span className="font-bold">NET PAY:</span>
                     <span className="font-bold text-primary-700">
-                      {formatCurrency(
-                        finalGrossPay - totalDed
-                      )}
+                      {formatCurrency(displayNetPay)}
                     </span>
                   </HStack>
                 </div>
@@ -3258,10 +3385,29 @@ export default function PayslipsPage() {
                   Preview & Print Payslip
                 </Button>
                 {canAccessSalaryInfo && (
-                  <Button onClick={generatePayslip} disabled={generating}>
-                    <Icon name="FileText" size={IconSizes.sm} />
-                    Save Payslip to Database
-                  </Button>
+                  isSavedPayslip ? (
+                    <HStack gap="2">
+                      <Button disabled className="opacity-80" variant="secondary">
+                        <Icon name="CheckCircle" size={IconSizes.sm} />
+                        Payslip saved
+                      </Button>
+                      {canUpdatePayslip && (
+                        <Button
+                          onClick={() => setShowUpdatePayslipConfirm(true)}
+                          disabled={generating}
+                          variant="default"
+                        >
+                          <Icon name="FloppyDisk" size={IconSizes.sm} />
+                          Update payslip
+                        </Button>
+                      )}
+                    </HStack>
+                  ) : (
+                    <Button onClick={() => setShowSavePayslipConfirm(true)} disabled={generating}>
+                      <Icon name="FileText" size={IconSizes.sm} />
+                      Save Payslip to Database
+                    </Button>
+                  )
                 )}
               </HStack>
             </CardSection>
@@ -3358,20 +3504,20 @@ export default function PayslipsPage() {
                             }
                           : undefined,
                         sssContribution: (() => {
-                          if (!isFirstCutoff()) return 0;
+                          if (!isFirstCutoff() && !isSecondCutoff()) return 0;
                           if (monthlySalary > 0) {
                             const sssContribution =
                               calculateSSS(monthlySalary);
                             return (
                               Math.round(
-                                sssContribution.regularEmployeeShare * 100
+                                (sssContribution.regularEmployeeShare / 2) * 100
                               ) / 100
                             );
                           }
                           return 0;
                         })(),
                         sssWisp: (() => {
-                          if (!isFirstCutoff()) return 0;
+                          if (!isFirstCutoff() && !isSecondCutoff()) return 0;
                           if (monthlySalary > 0) {
                             const sssContribution =
                               calculateSSS(monthlySalary);
@@ -3381,7 +3527,7 @@ export default function PayslipsPage() {
                             ) {
                               return (
                                 Math.round(
-                                  sssContribution.wispEmployeeShare * 100
+                                  (sssContribution.wispEmployeeShare / 2) * 100
                                 ) / 100
                               );
                             }
@@ -3389,20 +3535,20 @@ export default function PayslipsPage() {
                           return 0;
                         })(),
                         philhealthContribution: (() => {
-                          if (!isSecondCutoff()) return 0;
+                          if (!isFirstCutoff() && !isSecondCutoff()) return 0;
                           if (monthlySalary > 0) {
                             const philhealthContribution =
                               calculatePhilHealth(monthlySalary);
                             return (
                               Math.round(
-                                philhealthContribution.employeeShare * 100
+                                (philhealthContribution.employeeShare / 2) * 100
                               ) / 100
                             );
                           }
                           return 0;
                         })(),
                         pagibigContribution: (() => {
-                          if (!isFirstCutoff()) return 0;
+                          if (!isSecondCutoff()) return 0;
                           if (monthlySalary > 0) {
                             const pagibigContribution =
                               calculatePagIBIG(monthlySalary);
@@ -3448,11 +3594,11 @@ export default function PayslipsPage() {
                           }
                           return deductions?.withholding_tax || 0;
                         })(),
-                        totalDeductions: totalDed,
+                        totalDeductions: displayTotalDed,
                       }}
                       adjustment={adjustment}
                       adjustmentReason={adjustmentReason || undefined}
-                      netPay={netPay}
+                      netPay={displayNetPay}
                       workingDays={workingDays}
                       absentDays={0}
                       preparedBy={preparedBy}
@@ -3474,6 +3620,60 @@ export default function PayslipsPage() {
               )}
             </DialogContent>
           </Dialog>
+
+          {/* Save payslip confirmation */}
+          <AlertDialog open={showSavePayslipConfirm} onOpenChange={setShowSavePayslipConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Save payslip?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to save the payslip for{" "}
+                  <strong>{selectedEmployee?.full_name ?? "this employee"}</strong> for the cut-off period{" "}
+                  <strong>{periodStart ? format(periodStart, "MMM d") : ""} – {periodEnd ? format(periodEnd, "MMM d, yyyy") : ""}</strong>?
+                  Once saved, adjustments cannot be edited for this period.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={generating}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowSavePayslipConfirm(false);
+                    generatePayslip();
+                  }}
+                  disabled={generating}
+                >
+                  {generating ? "Saving…" : "Yes, save payslip"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Update payslip confirmation (re-save with current calculation) */}
+          <AlertDialog open={showUpdatePayslipConfirm} onOpenChange={setShowUpdatePayslipConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Update saved payslip?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will overwrite the saved payslip for{" "}
+                  <strong>{selectedEmployee?.full_name ?? "this employee"}</strong> for{" "}
+                  <strong>{periodStart ? format(periodStart, "MMM d") : ""} – {periodEnd ? format(periodEnd, "MMM d, yyyy") : ""}</strong> with the
+                  current calculation (earnings, deductions, and saved adjustment). Use this to correct the gross pay or other values. Continue?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={generating}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowUpdatePayslipConfirm(false);
+                    generatePayslip();
+                  }}
+                  disabled={generating}
+                >
+                  {generating ? "Updating…" : "Yes, update payslip"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </VStack>
       </DashboardLayout>
     </>

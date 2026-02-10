@@ -28,6 +28,8 @@ interface UserRoleData {
   isViewer: boolean;
   isRestrictedAccess: boolean; // approver or viewer
   canAccessSalaryInfo: boolean; // Admin or April Nina Gammad
+  /** Only Admin or HR April Gammad can update (re-save) a saved payslip */
+  canUpdatePayslip: boolean;
   refetch: () => void;
 }
 
@@ -39,8 +41,14 @@ export function useUserRole(): UserRoleData {
   }, [refetchUser]);
 
   // Memoize return value to prevent unnecessary re-renders
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const isAprilGammad =
+      user?.role === "hr" &&
+      user?.full_name != null &&
+      user.full_name.toLowerCase().includes("april") &&
+      user.full_name.toLowerCase().includes("gammad");
+
+    return {
       role: user?.role ?? null,
       email: user?.email ?? null,
       loading: userLoading,
@@ -51,10 +59,10 @@ export function useUserRole(): UserRoleData {
       isViewer: user?.role === "viewer",
       isRestrictedAccess: user?.role === "approver" || user?.role === "viewer",
       canAccessSalaryInfo: user?.role === "admin" || (user?.can_access_salary ?? false),
+      canUpdatePayslip: user?.role === "admin" || isAprilGammad,
       refetch,
-    }),
-    [user, userLoading, userError, refetch]
-  );
+    };
+  }, [user, userLoading, userError, refetch]);
 }
 
 /**

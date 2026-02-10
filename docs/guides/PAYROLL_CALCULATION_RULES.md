@@ -530,10 +530,10 @@ Other Pay Total = Regular OT Allowance
 
 **Total Deductions**:
 
-- SSS Contribution (monthly, applied in 2nd cutoff)
-- PhilHealth Contribution (monthly, applied in 2nd cutoff)
-- Pag-IBIG Contribution (monthly, applied in 2nd cutoff)
-- Withholding Tax (monthly, applied in 2nd cutoff)
+- SSS Contribution (semi-monthly: half in 1st cutoff, half in 2nd cutoff)
+- PhilHealth Contribution (semi-monthly: half in 1st cutoff, half in 2nd cutoff)
+- Pag-IBIG Contribution (end of month: full amount in 2nd cutoff only)
+- Withholding Tax (end of month: full amount in 2nd cutoff only)
 - Loans (SSS, Pag-IBIG, Company, Emergency, Other)
 - Vale/Advance payments
 
@@ -547,7 +547,7 @@ Other Pay Total = Regular OT Allowance
 2. **No Pro-Rating**: Fixed allowances require exact hour thresholds (4 or 8 hours)
 3. **Rest Days for Account Supervisors**: Determined by weekly schedule submission (`day_off: true`)
 4. **Leave Days**: Only SIL (Sick Leave) counts as 8 hours regular day; other leaves don't count
-5. **Deductions**: Applied monthly, only during 2nd cutoff (day 16+)
+5. **Deductions**: SSS & PhilHealth semi-monthly (half each cutoff); Pag-IBIG & Withholding tax end of month (2nd cutoff only)
 6. **Gross Pay Recalculation**: System recalculates from attendance_data if stored value seems incorrect
 7. **Employee Type Field**: New `employee_type` field determines if employee is "office-based" or "client-based"
 8. **Supervisory Identification**: Based on position title matching specific supervisory roles

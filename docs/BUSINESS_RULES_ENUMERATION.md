@@ -398,13 +398,13 @@ Net Pay = Gross Pay - Total Deductions + Allowances
 - **Rule 2.9.2.2**: System recalculates from attendance_data if stored value seems incorrect
 
 #### 2.9.3 Total Deductions
-- **Rule 2.9.3.1**: SSS Contribution (monthly, applied in 2nd cutoff)
-- **Rule 2.9.3.2**: PhilHealth Contribution (monthly, applied in 2nd cutoff)
-- **Rule 2.9.3.3**: Pag-IBIG Contribution (monthly, applied in 2nd cutoff)
-- **Rule 2.9.3.4**: Withholding Tax (monthly, applied in 2nd cutoff)
+- **Rule 2.9.3.1**: SSS Contribution (semi-monthly: half deducted in 1st cutoff, half in 2nd cutoff)
+- **Rule 2.9.3.2**: PhilHealth Contribution (semi-monthly: half deducted in 1st cutoff, half in 2nd cutoff)
+- **Rule 2.9.3.3**: Pag-IBIG Contribution (end of month: full amount in 2nd cutoff only)
+- **Rule 2.9.3.4**: Withholding Tax (end of month: full amount in 2nd cutoff only)
 - **Rule 2.9.3.5**: Loans (SSS, Pag-IBIG, Company, Emergency, Other)
 - **Rule 2.9.3.6**: Vale/Advance payments
-- **Rule 2.9.3.7**: Deductions are applied monthly, only during 2nd cutoff (day 16+)
+- **Rule 2.9.3.7**: Tax is computed on monthly taxable income (Gross − SSS − PhilHealth − Pag-IBIG); compensation level 20,833 then prescribed rate (e.g. 15% on excess per BIR TRAIN)
 
 #### 2.9.4 Allowances
 - **Rule 2.9.4.1**: Currently set to ₱0 (removed from system)

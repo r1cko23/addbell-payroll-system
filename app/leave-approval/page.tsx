@@ -100,9 +100,6 @@ export default function LeaveApprovalPage() {
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-
-  // Check if HR user is a group approver (HR users need to be group approvers to approve)
-  const isHRGroupApprover = isHR && assignedGroupIds.length > 0;
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
@@ -781,14 +778,9 @@ export default function LeaveApprovalPage() {
     }
 
     if (normalizedRole === "hr") {
-      // HR can only approve if they are group approvers
-      if (!isHRGroupApprover) {
-        return false;
-      }
-      // HR group approvers can ONLY approve requests already approved by manager (2nd step)
-      // They cannot approve pending requests - only approvers can do that
-      const canApproveResult = request.status === "approved_by_manager";
-      console.log("canApprove (hr group approver - 2nd step only):", {
+      // HR can approve all requests (both steps), including own direct reports - same as admin
+      const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
+      console.log("canApprove (hr - both steps):", {
         status: request.status,
         canApprove: canApproveResult,
       });

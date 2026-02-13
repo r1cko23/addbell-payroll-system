@@ -192,7 +192,7 @@ export default function ClientsPage() {
     );
   });
 
-  const canManage = profile?.role === "admin" || profile?.role === "hr";
+  const canManage = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "operations_manager";
 
   if (profileLoading) {
     return (

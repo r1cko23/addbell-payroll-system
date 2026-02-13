@@ -31,6 +31,7 @@ export async function middleware(req: NextRequest) {
     "/fund-request",
     "/fund-request-approval",
     "/purchase-order",
+    "/project-profitability",
   ];
 
   const isProtectedPath = protectedPaths.some((path) =>

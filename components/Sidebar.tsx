@@ -119,6 +119,7 @@ const navGroups: NavGroup[] = [
       { name: "Audit Dashboard", href: "/audit", icon: FileText, permissionModule: "audit" },
       { name: "BIR Reports", href: "/bir-reports", icon: FileText, permissionModule: "bir_reports" },
       { name: "Payroll Register", href: "/reports", icon: Receipt, permissionModule: "reports" },
+      { name: "Project Profitability", href: "/project-profitability", icon: ChartLineUp, permissionModule: "reports" },
     ],
   },
   {

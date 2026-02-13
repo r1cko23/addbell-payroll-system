@@ -46,7 +46,7 @@ export async function generatePurchaseOrderPDF(
         reader.onloadend = () => resolve(reader.result as string);
         reader.readAsDataURL(logoBlob);
       });
-      doc.addImage(logoDataUrl, "PNG", MARGIN, yPos, 80, 16);
+      doc.addImage(logoDataUrl, "PNG", MARGIN, yPos, 90, 16);
     }
   } catch {
     // Continue without logo
@@ -76,10 +76,10 @@ export async function generatePurchaseOrderPDF(
 
   // PO Number & Date - accent bar (light blue fill)
   doc.setFillColor(219, 234, 254); // blueMuted
-  doc.rect(MARGIN, yPos, CONTENT_WIDTH, 14, "F");
+  doc.rect(MARGIN, yPos, CONTENT_WIDTH, 18, "F");
   doc.setDrawColor(...COLORS.blue);
   doc.setLineWidth(0.8);
-  doc.line(MARGIN, yPos, MARGIN, yPos + 14);
+  doc.line(MARGIN, yPos, MARGIN, yPos + 18);
   doc.setTextColor(...COLORS.blue);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
@@ -90,7 +90,31 @@ export async function generatePurchaseOrderPDF(
   doc.setFont("helvetica", "bold");
   doc.text(data.poNumber, MARGIN + 3, yPos + 12);
   doc.text(data.date, MARGIN + 55, yPos + 12);
-  yPos += 18;
+  // ORIGINAL COPY | P.O. Approved | Print time
+  doc.setTextColor(...COLORS.blue);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("ORIGINAL COPY", CONTENT_WIDTH + MARGIN - 55, yPos + 6, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...COLORS.muted);
+  doc.text("P.O. Approved", CONTENT_WIDTH + MARGIN - 55, yPos + 11, { align: "right" });
+  if (data.printTimestamp) {
+    const printStr = `Print: ${new Date(data.printTimestamp).toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" })}`;
+    doc.text(printStr, CONTENT_WIDTH + MARGIN - 2, yPos + 16, { align: "right" });
+  }
+  yPos += 22;
+
+  // Legal disclaimers
+  doc.setFillColor(254, 252, 232);
+  doc.setDrawColor(234, 179, 8);
+  doc.roundedRect(MARGIN, yPos, CONTENT_WIDTH, 12, 2, 2, "FD");
+  doc.setTextColor(...COLORS.dark);
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.text("This document is not valid for claim of input tax.", MARGIN + 4, yPos + 5);
+  doc.setFont("helvetica", "normal");
+  doc.text("This Purchase Order shall be valid for five (5) years from the date of acknowledgement.", MARGIN + 4, yPos + 10);
+  yPos += 16;
 
   // Vendor | Buyer boxes - wrap long addresses to stay inside box
   const colWidth = (CONTENT_WIDTH - 10) / 2;
@@ -166,7 +190,13 @@ export async function generatePurchaseOrderPDF(
   doc.setFontSize(10);
   doc.text(data.projectTitle, MARGIN, yPos + 7);
   doc.text(data.deliverTo, MARGIN + colWidth + 10, yPos + 7);
-  addSpace(14);
+  addSpace(18);
+
+  // Intro line
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(9);
+  doc.text("Please deliver the following goods/services as specified in accordance with the terms and conditions herein:", MARGIN, yPos);
+  addSpace(8);
 
   // Line items table - blue header
   const col1 = 10;
@@ -273,30 +303,47 @@ export async function generatePurchaseOrderPDF(
   });
   yPos += paymentTermsHeight + 6;
 
-  // Signatures - blue top border
-  checkPageBreak(25);
+  // Four signatories - blue top border
+  checkPageBreak(28);
   doc.setDrawColor(...COLORS.blue);
   doc.setLineWidth(0.8);
   doc.line(MARGIN, yPos, PAGE_WIDTH - MARGIN, yPos);
   addSpace(10);
-  doc.setTextColor(...COLORS.blue);
+  const sigColWidth = CONTENT_WIDTH / 4;
+  const signatories = [
+    { label: "Requested By", value: data.requestedBy || data.requisitioner, sub: "" },
+    { label: "Prepared By", value: data.preparedBy, sub: "Purchasing" },
+    { label: "Reviewed By", value: data.reviewedBy, sub: "" },
+    { label: "Approved By", value: data.approvedBy, sub: data.approvedByTitle },
+  ];
+  signatories.forEach((sig, i) => {
+    const x = MARGIN + i * sigColWidth + 4;
+    doc.setTextColor(...COLORS.blue);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.text(sig.label.toUpperCase(), x, yPos);
+    doc.setTextColor(...COLORS.dark);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(sig.value || "—", x, yPos + 6);
+    if (sig.sub) {
+      doc.setTextColor(...COLORS.muted);
+      doc.setFontSize(7);
+      doc.text(sig.sub, x, yPos + 11);
+    }
+  });
+  addSpace(16);
+
+  // Contact footer
+  doc.setTextColor(...COLORS.muted);
   doc.setFontSize(8);
-  doc.setFont("helvetica", "bold");
-  doc.text("PREPARED BY", MARGIN, yPos);
-  doc.text("APPROVED BY", PAGE_WIDTH - MARGIN - 55, yPos);
-  doc.setTextColor(...COLORS.dark);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.text(data.preparedBy, MARGIN, yPos + 7);
-  doc.setTextColor(...COLORS.muted);
-  doc.setFontSize(8);
-  doc.text("Purchasing", MARGIN, yPos + 11);
-  doc.setTextColor(...COLORS.dark);
-  doc.setFontSize(11);
-  doc.text(data.approvedBy, PAGE_WIDTH - MARGIN - 55, yPos + 7);
-  doc.setTextColor(...COLORS.muted);
-  doc.setFontSize(8);
-  doc.text(data.approvedByTitle, PAGE_WIDTH - MARGIN - 55, yPos + 11);
+  doc.text(
+    "If you have any questions about this purchase order, please email admin@addbell.com",
+    PAGE_WIDTH / 2,
+    yPos,
+    { align: "center" }
+  );
 
   return doc;
 }

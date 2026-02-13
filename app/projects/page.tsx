@@ -201,6 +201,12 @@ export default function ProjectsPage() {
     }
 
     try {
+      const progressValue = parseFloat(progressPercentage) || 0;
+      if (progressValue < 0 || progressValue > 100) {
+        toast.error("Progress must be between 0 and 100");
+        return;
+      }
+
       const payload: any = {
         project_code: projectCode.trim(),
         project_name: projectName.trim(),
@@ -212,7 +218,7 @@ export default function ProjectsPage() {
         start_date: startDate || null,
         target_end_date: targetEndDate || null,
         project_status: projectStatus,
-        progress_percentage: parseFloat(progressPercentage) || 0,
+        progress_percentage: progressValue,
         budget_amount: budgetAmount ? parseFloat(budgetAmount) : null,
         contract_amount: contractAmount ? parseFloat(contractAmount) : null,
         description: description.trim() || null,
@@ -227,13 +233,52 @@ export default function ProjectsPage() {
           .eq("id", editingProject.id);
 
         if (error) throw error;
+
+        const oldProgress = Number(editingProject.progress_percentage || 0);
+        if (Math.abs(oldProgress - progressValue) > 0.0001) {
+          const { error: progressHistoryError } = await supabase
+            .from("project_progress")
+            .insert({
+              project_id: editingProject.id,
+              progress_date: format(new Date(), "yyyy-MM-dd"),
+              progress_percentage: progressValue,
+              milestone: `Progress updated from ${oldProgress.toFixed(2)}% to ${progressValue.toFixed(2)}%`,
+              notes: "Auto-recorded from Projects page update",
+              created_by: profile?.id || null,
+            });
+
+          if (progressHistoryError) {
+            console.error("Failed to record progress history:", progressHistoryError);
+            toast.warning("Project updated, but progress history entry was not saved.");
+          }
+        }
+
         toast.success("Project updated successfully");
       } else {
-        const { error } = await supabase
+        const { data: newProject, error } = await supabase
           .from("projects")
-          .insert(payload);
+          .insert(payload)
+          .select("id")
+          .single();
 
         if (error) throw error;
+
+        if (newProject?.id && progressValue > 0) {
+          const { error: progressHistoryError } = await supabase
+            .from("project_progress")
+            .insert({
+              project_id: newProject.id,
+              progress_date: format(new Date(), "yyyy-MM-dd"),
+              progress_percentage: progressValue,
+              milestone: "Initial project progress",
+              notes: "Auto-recorded when project was created",
+              created_by: profile?.id || null,
+            });
+          if (progressHistoryError) {
+            console.error("Failed to record initial progress history:", progressHistoryError);
+          }
+        }
+
         toast.success("Project created successfully");
       }
 
@@ -277,7 +322,7 @@ export default function ProjectsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const canManage = profile?.role === "admin" || profile?.role === "hr";
+  const canManage = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "operations_manager";
 
   if (profileLoading) {
     return (
@@ -360,7 +405,7 @@ export default function ProjectsPage() {
                     id="project_location"
                     value={projectLocation}
                     onChange={(e) => setProjectLocation(e.target.value)}
-                    placeholder="e.g., One Ayala, Makati City"
+                    placeholder="e.g., Building name, City"
                   />
                 </div>
                 <div>

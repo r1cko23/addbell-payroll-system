@@ -282,7 +282,7 @@ export default function VendorsPage() {
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="AIRT ENGINEERING SERVICES"
+                placeholder="Vendor or supplier name"
               />
             </div>
             <div className="space-y-2">
@@ -291,7 +291,7 @@ export default function VendorsPage() {
                 id="tin"
                 value={tin}
                 onChange={(e) => setTin(e.target.value)}
-                placeholder="293 128 460 000000"
+                placeholder="000 000 000 000000"
               />
             </div>
             <div className="space-y-2">
@@ -300,7 +300,7 @@ export default function VendorsPage() {
                 id="address"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                placeholder="BLK 6 LOT 26 LONDON ST..."
+                placeholder="Street, Barangay, City, Province"
                 rows={2}
               />
             </div>
@@ -311,7 +311,7 @@ export default function VendorsPage() {
                   id="phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="09063223449"
+                  placeholder="Phone number"
                 />
               </div>
               <div className="space-y-2">

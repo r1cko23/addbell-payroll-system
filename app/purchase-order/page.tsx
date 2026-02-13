@@ -24,9 +24,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Printer, Plus, Trash2, FileDown, Hash } from "lucide-react";
+import { Printer, Plus, Trash2, FileDown, Hash, Save } from "lucide-react";
 import { toast } from "sonner";
 import { generatePurchaseOrderPDF } from "@/utils/purchase-order-pdf";
+import { normalizePOData } from "@/utils/po-format";
 
 const emptyVendor: PurchaseOrderVendor = {
   name: "",
@@ -119,7 +120,9 @@ export default function PurchaseOrderPage() {
     emptyItem(1),
   ]);
   const [paymentTerms, setPaymentTerms] = useState(DEFAULT_PAYMENT_TERMS);
+  const [requestedBy, setRequestedBy] = useState("");
   const [preparedBy, setPreparedBy] = useState("JOSEFINA E. CONTE");
+  const [reviewedBy, setReviewedBy] = useState("");
   const [approvedBy, setApprovedBy] = useState("DIOSDADO B. LEONARDO");
   const [approvedByTitle, setApprovedByTitle] = useState("President");
 
@@ -205,7 +208,8 @@ export default function PurchaseOrderPage() {
       const p = projects.find((x) => x.id === id);
       if (p) {
         setProjectTitle(p.project_name);
-        setDeliverTo(p.deliver_to || p.project_location || "");
+        // Only pre-fill Deliver To when empty; user can always override for a different delivery address
+        setDeliverTo((prev) => prev.trim() ? prev : (p.deliver_to || p.project_location || ""));
       }
     },
     [projects]
@@ -238,53 +242,167 @@ export default function PurchaseOrderPage() {
         (parseFloat(String(it.qty)) || 0) * (it.unitPrice || 0),
     })),
     paymentTerms,
+    requestedBy: requestedBy.trim() || requisitioner,
     preparedBy,
+    reviewedBy,
     approvedBy,
     approvedByTitle,
+    printTimestamp: new Date().toISOString(),
   };
 
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingPO, setIsSavingPO] = useState(false);
+
+  const handleSaveAndPost = useCallback(async () => {
+    if (!selectedProjectId) {
+      toast.error("Select a project before saving PO.");
+      return;
+    }
+    if (!selectedVendorId) {
+      toast.error("Select a vendor before saving PO.");
+      return;
+    }
+    if (!poNumber.trim()) {
+      toast.error("Generate a PO number first.");
+      return;
+    }
+
+    const normalized = normalizePOData({
+      ...poData,
+      printTimestamp: new Date().toISOString(),
+    });
+
+    setIsSavingPO(true);
+    try {
+      const payloadItems = normalized.items.map((it) => ({
+        itemNo: it.itemNo,
+        description: it.description,
+        qty: it.qty,
+        unitPrice: it.unitPrice,
+        totalAmount: it.totalAmount,
+      }));
+
+      const { data, error } = await supabase.rpc("create_purchase_order_with_items", {
+        p_project_id: selectedProjectId,
+        p_vendor_id: selectedVendorId,
+        p_po_number: normalized.poNumber,
+        p_po_date_text: normalized.date,
+        p_requisitioner: normalized.requisitioner,
+        p_requested_by: normalized.requestedBy || normalized.requisitioner,
+        p_prepared_by: normalized.preparedBy,
+        p_reviewed_by: normalized.reviewedBy || "",
+        p_approved_by: normalized.approvedBy,
+        p_approved_by_title: normalized.approvedByTitle,
+        p_project_title: normalized.projectTitle,
+        p_deliver_to: normalized.deliverTo,
+        p_vendor_snapshot: normalized.vendor,
+        p_company_snapshot: normalized.company,
+        p_payment_terms: normalized.paymentTerms,
+        p_items: payloadItems,
+        p_print_timestamp: normalized.printTimestamp,
+        p_auto_post: true,
+      } as any);
+
+      if (error) throw error;
+
+      toast.success(`PO saved and posted to project costs${data ? ` (ID: ${String(data).slice(0, 8)}...)` : ""}`);
+    } catch (err: any) {
+      console.error("Failed to save/post PO:", err);
+      toast.error(err?.message || "Failed to save and post PO.");
+    } finally {
+      setIsSavingPO(false);
+    }
+  }, [poData, poNumber, selectedProjectId, selectedVendorId, supabase]);
 
   const handlePrint = useCallback(() => {
-    if (!poNumber.trim()) {
-      toast.error("Generate a PO number first");
+    if (!printRef.current) {
+      toast.error("Print content not ready. Please try again.");
       return;
     }
-    if (!printRef.current) return;
     const printContent = printRef.current.innerHTML;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      toast.error("Please allow popups to print.");
+    if (!printContent || printContent.trim().length < 100) {
+      toast.error("Print content not loaded. Please wait and try again.");
       return;
     }
+    const displayNumber = poNumber.trim() || "DRAFT";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+
     setIsPrinting(true);
-    printWindow.document.write(`
+
+    // Use iframe to avoid popup blockers (works when window.open is blocked)
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) {
+      document.body.removeChild(iframe);
+      toast.error("Could not create print preview.");
+      setIsPrinting(false);
+      return;
+    }
+
+    doc.open();
+    doc.write(`
       <!DOCTYPE html>
       <html>
         <head>
           <base href="${origin}/" />
-          <title>Purchase Order - ${poNumber}</title>
+          <title>Purchase Order - ${displayNumber}</title>
           <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
           <style>
             * { box-sizing: border-box; }
-            body { font-family: 'Plus Jakarta Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; font-size: 11px; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            img { max-width: 300px; height: auto; }
-            table { width: 100%; border-collapse: collapse; font-size: 10px; }
-            @media print { body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+            body { font-family: 'Plus Jakarta Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif; margin: 0; padding: 0; font-size: 11px; color: #1e293b; }
+            img { max-width: 240px; height: auto; }
+            table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: fixed; }
+            @page { size: A4; margin: 12mm; }
+            @media print {
+              body { margin: 0; padding: 0; -webkit-print-color-adjust: economy; print-color-adjust: economy; }
+              .po-print-root { max-width: 186mm !important; width: 100% !important; padding: 0 8mm !important; overflow: visible !important; }
+              img { max-width: 220px !important; }
+              /* Light gray only - minimal toner use */
+              .po-table-header th { background: #e8e8e8 !important; -webkit-print-color-adjust: economy; }
+            }
           </style>
         </head>
         <body>${printContent}</body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
+    doc.close();
+
+    const printWin = iframe.contentWindow;
+    if (!printWin) {
+      document.body.removeChild(iframe);
       setIsPrinting(false);
-    }, 300);
+      return;
+    }
+
+    // Wait for images to load before printing
+    const images = doc.querySelectorAll("img");
+    const imagePromises = Array.from(images).map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        setTimeout(resolve, 500);
+      });
+    });
+
+    Promise.all(imagePromises).then(() => {
+      setTimeout(() => {
+        printWin.focus();
+        printWin.print();
+        // Remove iframe and reset state after print dialog closes
+        const cleanup = () => {
+          if (iframe.parentNode) document.body.removeChild(iframe);
+          setIsPrinting(false);
+        };
+        printWin.onafterprint = cleanup;
+        // Fallback cleanup
+        setTimeout(cleanup, 3000);
+      }, 200);
+    });
   }, [poNumber]);
 
   const handleDownloadPDF = useCallback(async () => {
@@ -294,7 +412,7 @@ export default function PurchaseOrderPage() {
     }
     setIsDownloading(true);
     try {
-      const doc = await generatePurchaseOrderPDF(poData);
+      const doc = await generatePurchaseOrderPDF(normalizePOData(poData));
       doc.save(`Purchase-Order-${poNumber.replace(/\s/g, "-")}.pdf`);
       toast.success("PDF downloaded successfully");
     } catch (err) {
@@ -326,6 +444,24 @@ export default function PurchaseOrderPage() {
             </div>
           </div>
           <div className="flex gap-2 shrink-0">
+            <Button
+              variant="default"
+              size="lg"
+              onClick={handleSaveAndPost}
+              disabled={isSavingPO}
+            >
+              {isSavingPO ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Saving...
+                </span>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save & Post
+                </>
+              )}
+            </Button>
             <Button
               variant="outline"
               size="lg"
@@ -366,7 +502,7 @@ export default function PurchaseOrderPage() {
             <CardHeader>
               <CardTitle>PO & Project</CardTitle>
               <p className="text-sm text-muted-foreground font-normal mt-1">
-                Order identification and delivery location
+                Order identification, requisitioner, and delivery location
               </p>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-2">
@@ -414,7 +550,7 @@ export default function PurchaseOrderPage() {
                     id="poNumber"
                     value={poNumber}
                     onChange={(e) => setPoNumber(e.target.value)}
-                    placeholder="PUFB-AIRT-2026-0001"
+                    placeholder="e.g. PROJ-VEND-2026-0001"
                     className="h-10 font-mono"
                   />
                 </div>
@@ -448,7 +584,19 @@ export default function PurchaseOrderPage() {
                   id="projectTitle"
                   value={projectTitle}
                   onChange={(e) => setProjectTitle(e.target.value)}
-                  placeholder="Pickup Coffee Filipino Building"
+                  placeholder="Project name"
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="requisitioner" className="text-foreground">
+                  Requisitioner
+                </Label>
+                <Input
+                  id="requisitioner"
+                  value={requisitioner}
+                  onChange={(e) => setRequisitioner(e.target.value)}
+                  placeholder="Full name"
                   className="h-10"
                 />
               </div>
@@ -460,9 +608,12 @@ export default function PurchaseOrderPage() {
                   id="deliverTo"
                   value={deliverTo}
                   onChange={(e) => setDeliverTo(e.target.value)}
-                  placeholder="Pickup Coffee In Line Store - One Ayala Makati City"
+                  placeholder="Delivery address — editable, can differ from project"
                   className="h-10"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Pre-filled from project but fully editable for alternate delivery locations
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -471,7 +622,7 @@ export default function PurchaseOrderPage() {
             <CardHeader>
               <CardTitle>Vendor Information</CardTitle>
               <p className="text-sm text-muted-foreground font-normal mt-1">
-                Supplier and requisitioner details
+                Supplier contact and billing information
               </p>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-2">
@@ -485,7 +636,7 @@ export default function PurchaseOrderPage() {
                   onChange={(e) =>
                     setVendor((v) => ({ ...v, name: e.target.value }))
                   }
-                  placeholder="AIRT ENGINEERING SERVICES"
+                  placeholder="Vendor or supplier name"
                   className="h-10"
                 />
               </div>
@@ -499,19 +650,7 @@ export default function PurchaseOrderPage() {
                   onChange={(e) =>
                     setVendor((v) => ({ ...v, tin: e.target.value }))
                   }
-                  placeholder="293 128 460 000000"
-                  className="h-10"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="requisitioner" className="text-foreground">
-                  Requisitioner
-                </Label>
-                <Input
-                  id="requisitioner"
-                  value={requisitioner}
-                  onChange={(e) => setRequisitioner(e.target.value)}
-                  placeholder="JOSEFINA E. CONTE"
+                  placeholder="000 000 000 000000"
                   className="h-10"
                 />
               </div>
@@ -525,7 +664,7 @@ export default function PurchaseOrderPage() {
                   onChange={(e) =>
                     setVendor((v) => ({ ...v, address: e.target.value }))
                   }
-                  placeholder="BLK 6 LOT 26 LONDON ST. VILLA OLYMPIA 1 BRGY. MAHARLIKA SAN PEDRO, LAGUNA"
+                  placeholder="Street, Barangay, City, Province"
                   rows={3}
                   className="min-h-[80px] resize-y"
                 />
@@ -540,7 +679,7 @@ export default function PurchaseOrderPage() {
                   onChange={(e) =>
                     setVendor((v) => ({ ...v, phone: e.target.value }))
                   }
-                  placeholder="Mobile: 09063223449"
+                  placeholder="Phone number"
                   className="h-10"
                 />
               </div>
@@ -554,7 +693,7 @@ export default function PurchaseOrderPage() {
                   onChange={(e) =>
                     setVendor((v) => ({ ...v, email: e.target.value }))
                   }
-                  placeholder="airt.engineeringservices@gmail.com"
+                  placeholder="email@example.com"
                   className="h-10"
                 />
               </div>
@@ -601,7 +740,7 @@ export default function PurchaseOrderPage() {
                       onChange={(e) =>
                         updateItem(index, { description: e.target.value })
                       }
-                      placeholder="Civil and Architectural Works (SUPPLY OF LABOR & MATERIALS + CONSUMABLES)..."
+                      placeholder="Description of materials or services"
                       rows={4}
                       className="min-h-[100px] resize-y"
                     />
@@ -670,10 +809,22 @@ export default function PurchaseOrderPage() {
             <CardHeader>
               <CardTitle>Signatories</CardTitle>
               <p className="text-sm text-muted-foreground font-normal mt-1">
-                Prepared by and approved by
+                Requested by, prepared by, reviewed by, and approved by
               </p>
             </CardHeader>
-            <CardContent className="grid gap-5 sm:grid-cols-3">
+            <CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="requestedBy" className="text-foreground">
+                  Requested By
+                </Label>
+                <Input
+                  id="requestedBy"
+                  value={requestedBy}
+                  onChange={(e) => setRequestedBy(e.target.value)}
+                  placeholder="Same as requisitioner if blank"
+                  className="h-10"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="preparedBy" className="text-foreground">
                   Prepared By
@@ -687,6 +838,17 @@ export default function PurchaseOrderPage() {
                 <p className="text-xs text-muted-foreground">Purchasing</p>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="reviewedBy" className="text-foreground">
+                  Reviewed By
+                </Label>
+                <Input
+                  id="reviewedBy"
+                  value={reviewedBy}
+                  onChange={(e) => setReviewedBy(e.target.value)}
+                  className="h-10"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="approvedBy" className="text-foreground">
                   Approved By
                 </Label>
@@ -696,17 +858,12 @@ export default function PurchaseOrderPage() {
                   onChange={(e) => setApprovedBy(e.target.value)}
                   className="h-10"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="approvedByTitle" className="text-foreground">
-                  Title
-                </Label>
                 <Input
                   id="approvedByTitle"
                   value={approvedByTitle}
                   onChange={(e) => setApprovedByTitle(e.target.value)}
                   placeholder="President"
-                  className="h-10"
+                  className="h-9 text-sm"
                 />
               </div>
             </CardContent>
@@ -743,7 +900,7 @@ export default function PurchaseOrderPage() {
           className="sr-only absolute left-[-9999px] top-0"
           aria-hidden="true"
         >
-          <PurchaseOrderPrint data={poData} />
+          <PurchaseOrderPrint data={normalizePOData(poData)} />
         </div>
       </div>
     </DashboardLayout>

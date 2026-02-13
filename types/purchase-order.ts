@@ -36,16 +36,20 @@ export interface PurchaseOrder {
   deliverTo: string;
   items: PurchaseOrderLineItem[];
   paymentTerms: string[];
+  requestedBy: string;
   preparedBy: string;
+  reviewedBy: string;
   approvedBy: string;
   approvedByTitle: string;
+  /** Auto-set when printing - ISO string */
+  printTimestamp?: string;
 }
 
 /** Default Addbell company info - from sample PO */
 export const DEFAULT_COMPANY: PurchaseOrderCompany = {
   name: "ADD-BELL TECHNICAL SERVICES, INC.",
   tin: "293 128 460 000000",
-  address: "13 Rd. 3 Dona Petra Compd. Tumana 1806 Marikina City 2nd Dist.",
+  address: "BLK 6 LOT 26 LONDON ST. VILLA OLYMPIA 1 BRGY. MAHARLIKA SAN PEDRO, LAGUNA",
   phone: "(02) 7117-1628",
   email: "admin@addbell.com / phen.conte@addbell.com",
 };

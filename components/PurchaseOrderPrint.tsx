@@ -31,23 +31,27 @@ export const PurchaseOrderPrint = forwardRef<
   return (
     <div
       ref={ref}
-      className="bg-white mx-auto"
+      className="po-print-root bg-white mx-auto"
       style={{
         fontFamily: "'Plus Jakarta Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
-        maxWidth: "210mm",
-        padding: "18mm",
+        maxWidth: "186mm",
+        width: "100%",
+        padding: "12mm",
         fontSize: "11px",
         color: COLORS.dark,
         lineHeight: 1.5,
+        overflow: "visible",
       }}
     >
-      {/* Header - white with blue accent bar, logo in full color */}
+      {/* Header - print: grayscale, no heavy colors */}
       <div
+        className="po-header"
         style={{
-          margin: "-18mm -18mm 0 -18mm",
-          padding: "14mm 18mm 12mm",
-          borderBottom: `4px solid ${COLORS.blue}`,
+          margin: "-12mm -12mm 0 -12mm",
+          padding: "10mm 12mm 10mm",
+          borderBottom: "2px solid #333",
           backgroundColor: "#fff",
+          overflow: "visible",
         }}
       >
         <div
@@ -57,24 +61,27 @@ export const PurchaseOrderPrint = forwardRef<
             alignItems: "flex-start",
             flexWrap: "wrap",
             gap: "16px",
+            overflow: "visible",
           }}
         >
-          <img
-            src="/addbell-po-logo.png"
-            alt="Addbell Technical Services"
-            width={300}
-            height={56}
-            style={{ objectFit: "contain" }}
-          />
-          <div style={{ textAlign: "right" }}>
+          <div style={{ flexShrink: 0, overflow: "visible" }}>
+            <img
+              src="/addbell-po-logo.png"
+              alt="Addbell Technical Services"
+              width={220}
+              height={48}
+              style={{ objectFit: "contain", display: "block", width: "220px", height: "auto" }}
+            />
+          </div>
+          <div style={{ textAlign: "right" }} className="po-title">
             <h1
               style={{
                 margin: 0,
-                fontSize: "24px",
+                fontSize: "20px",
                 fontWeight: 700,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                color: COLORS.blue,
+                color: COLORS.dark,
               }}
             >
               Purchase Order
@@ -93,25 +100,28 @@ export const PurchaseOrderPrint = forwardRef<
         </div>
       </div>
 
-      {/* PO Number & Date - accent bar */}
+      {/* PO Number, Date, Status, Print Time - print: borders only, no fill */}
       <div
+        className="po-po-bar"
         style={{
           display: "flex",
-          gap: "24px",
-          marginTop: "16px",
-          padding: "12px 14px",
-          backgroundColor: COLORS.blueMuted,
-          borderRadius: "8px",
-          borderLeft: `4px solid ${COLORS.blue}`,
+          flexWrap: "wrap",
+          gap: "20px 32px",
+          marginTop: "12px",
+          padding: "10px 12px",
+          border: "1px solid #333",
+          borderRadius: "4px",
+          alignItems: "center",
         }}
       >
         <div>
           <span
+            className="po-text-blue"
             style={{
               fontSize: "9px",
               fontWeight: 600,
               textTransform: "uppercase",
-              color: COLORS.blue,
+              color: COLORS.dark,
               letterSpacing: "0.04em",
               display: "block",
             }}
@@ -128,7 +138,7 @@ export const PurchaseOrderPrint = forwardRef<
               fontSize: "9px",
               fontWeight: 600,
               textTransform: "uppercase",
-              color: COLORS.blue,
+              color: COLORS.dark,
               letterSpacing: "0.04em",
               display: "block",
             }}
@@ -138,6 +148,63 @@ export const PurchaseOrderPrint = forwardRef<
           <span style={{ fontSize: "15px", fontWeight: 700, color: COLORS.dark }}>
             {data.date}
           </span>
+        </div>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            gap: "12px",
+            alignItems: "center",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 700,
+              padding: "4px 8px",
+              border: "1px solid #333",
+              borderRadius: "4px",
+              color: COLORS.dark,
+              letterSpacing: "0.04em",
+            }}
+          >
+            ORIGINAL COPY
+          </span>
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: 600,
+              color: COLORS.muted,
+            }}
+          >
+            P.O. Approved
+          </span>
+          {data.printTimestamp && (
+            <span style={{ fontSize: "8px", color: COLORS.muted }}>
+              Print: {new Date(data.printTimestamp).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Legal disclaimers - print: border only */}
+      <div
+        className="po-legal"
+        style={{
+          marginTop: "10px",
+          padding: "6px 10px",
+          border: "1px solid #333",
+          borderRadius: "4px",
+          fontSize: "8px",
+          color: COLORS.dark,
+          lineHeight: 1.5,
+        }}
+      >
+        <div style={{ fontWeight: 600, color: COLORS.dark }}>
+          This document is not valid for claim of input tax.
+        </div>
+        <div style={{ marginTop: "2px" }}>
+          This Purchase Order shall be valid for five (5) years from the date of acknowledgement.
         </div>
       </div>
 
@@ -154,8 +221,8 @@ export const PurchaseOrderPrint = forwardRef<
         {[
           {
             title: "Vendor / Supplier",
-            borderColor: COLORS.sepia,
-            bg: COLORS.sepiaLight,
+            borderColor: "#333",
+            bg: "#fff",
             data: {
               name: data.vendor.name,
               tin: data.vendor.tin,
@@ -167,8 +234,8 @@ export const PurchaseOrderPrint = forwardRef<
           },
           {
             title: "Buyer / Company",
-            borderColor: COLORS.blue,
-            bg: COLORS.blueMuted,
+            borderColor: "#333",
+            bg: "#fff",
             data: {
               name: data.company.name,
               tin: data.company.tin,
@@ -189,6 +256,7 @@ export const PurchaseOrderPrint = forwardRef<
               minHeight: "100px",
               overflow: "hidden",
             }}
+            className={block.title.includes("Vendor") ? "po-vendor-box" : "po-buyer-box"}
           >
             <div
               style={{
@@ -197,7 +265,7 @@ export const PurchaseOrderPrint = forwardRef<
                 textTransform: "uppercase",
                 letterSpacing: "0.04em",
                 marginBottom: "10px",
-                color: block.borderColor,
+                color: COLORS.dark,
               }}
             >
               {block.title}
@@ -258,7 +326,7 @@ export const PurchaseOrderPrint = forwardRef<
               fontSize: "9px",
               fontWeight: 700,
               textTransform: "uppercase",
-              color: COLORS.blue,
+              color: COLORS.dark,
               letterSpacing: "0.03em",
               display: "block",
               marginBottom: "4px",
@@ -270,7 +338,7 @@ export const PurchaseOrderPrint = forwardRef<
             style={{
               margin: 0,
               padding: "8px 0",
-              borderBottom: `2px solid ${COLORS.blue}`,
+              borderBottom: "1px solid #333",
               fontSize: "11px",
               fontWeight: 500,
             }}
@@ -284,7 +352,7 @@ export const PurchaseOrderPrint = forwardRef<
               fontSize: "9px",
               fontWeight: 700,
               textTransform: "uppercase",
-              color: COLORS.blue,
+              color: COLORS.dark,
               letterSpacing: "0.03em",
               display: "block",
               marginBottom: "4px",
@@ -296,7 +364,7 @@ export const PurchaseOrderPrint = forwardRef<
             style={{
               margin: 0,
               padding: "8px 0",
-              borderBottom: `2px solid ${COLORS.blue}`,
+              borderBottom: "1px solid #333",
               fontSize: "11px",
               fontWeight: 500,
             }}
@@ -306,73 +374,35 @@ export const PurchaseOrderPrint = forwardRef<
         </div>
       </div>
 
-      {/* Line Items Table */}
-      <div style={{ marginTop: "20px", overflow: "hidden", borderRadius: "8px", border: `1px solid ${COLORS.blue}` }}>
+      {/* Intro line - professional */}
+      <p
+        style={{
+          marginTop: "16px",
+          fontSize: "10px",
+          color: COLORS.dark,
+          fontStyle: "italic",
+        }}
+      >
+        Please deliver the following goods/services as specified in accordance with the terms and conditions herein:
+      </p>
+
+      {/* Line Items Table - print: light gray header, no blue */}
+      <div style={{ marginTop: "12px", overflow: "visible", borderRadius: "4px", border: "1px solid #333" }}>
         <table
           style={{
             width: "100%",
             borderCollapse: "collapse",
-            fontSize: "10px",
+            fontSize: "9px",
+            tableLayout: "fixed",
           }}
         >
           <thead>
-            <tr style={{ backgroundColor: COLORS.blue, color: "#fff" }}>
-              <th
-                style={{
-                  padding: "10px 12px",
-                  textAlign: "left",
-                  fontWeight: 600,
-                  width: "36px",
-                  fontSize: "9px",
-                  letterSpacing: "0.03em",
-                }}
-              >
-                #
-              </th>
-              <th
-                style={{
-                  padding: "10px 12px",
-                  textAlign: "left",
-                  fontWeight: 600,
-                  fontSize: "9px",
-                  letterSpacing: "0.03em",
-                }}
-              >
-                Description of Materials and/or Services
-              </th>
-              <th
-                style={{
-                  padding: "10px 12px",
-                  textAlign: "center",
-                  fontWeight: 600,
-                  width: "56px",
-                  fontSize: "9px",
-                }}
-              >
-                Qty
-              </th>
-              <th
-                style={{
-                  padding: "10px 12px",
-                  textAlign: "right",
-                  fontWeight: 600,
-                  width: "78px",
-                  fontSize: "9px",
-                }}
-              >
-                Unit Price
-              </th>
-              <th
-                style={{
-                  padding: "10px 12px",
-                  textAlign: "right",
-                  fontWeight: 600,
-                  width: "88px",
-                  fontSize: "9px",
-                }}
-              >
-                Total Amount
-              </th>
+            <tr className="po-table-header" style={{ backgroundColor: "#e5e5e5", color: "#000" }}>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600, width: "4%", fontSize: "8px" }}>#</th>
+              <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600, width: "48%", fontSize: "8px" }}>Description of Materials and/or Services</th>
+              <th style={{ padding: "6px 8px", textAlign: "center", fontWeight: 600, width: "10%", fontSize: "8px" }}>Qty</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600, width: "16%", fontSize: "8px" }}>Unit Price</th>
+              <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600, width: "18%", fontSize: "8px" }}>Total Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -384,25 +414,17 @@ export const PurchaseOrderPrint = forwardRef<
                   borderBottom: "1px solid #e2e8f0",
                 }}
               >
-                <td style={{ padding: "8px 12px", verticalAlign: "top" }}>
-                  {item.itemNo}
-                </td>
-                <td style={{ padding: "8px 12px", verticalAlign: "top" }}>
-                  {item.description}
-                </td>
-                <td style={{ padding: "8px 12px", textAlign: "center", verticalAlign: "top" }}>
-                  {item.qty}
-                </td>
-                <td style={{ padding: "8px 12px", textAlign: "right", verticalAlign: "top" }}>
-                  {formatCurrency(item.unitPrice)}
-                </td>
+                <td style={{ padding: "5px 6px", verticalAlign: "top", fontSize: "9px" }}>{item.itemNo}</td>
+                <td style={{ padding: "5px 6px", verticalAlign: "top", fontSize: "9px", wordBreak: "break-word" }}>{item.description}</td>
+                <td style={{ padding: "5px 6px", textAlign: "center", verticalAlign: "top", fontSize: "9px" }}>{item.qty}</td>
+                <td style={{ padding: "5px 6px", textAlign: "right", verticalAlign: "top", fontSize: "9px" }}>{formatCurrency(item.unitPrice)}</td>
                 <td
                   style={{
-                    padding: "8px 12px",
+                    padding: "5px 6px",
                     textAlign: "right",
                     verticalAlign: "top",
                     fontWeight: 600,
-                    color: COLORS.dark,
+                    fontSize: "9px",
                   }}
                 >
                   {formatCurrency(item.totalAmount)}
@@ -429,7 +451,7 @@ export const PurchaseOrderPrint = forwardRef<
               fontSize: "9px",
               fontWeight: 700,
               textTransform: "uppercase",
-              color: COLORS.sepia,
+              color: COLORS.dark,
               letterSpacing: "0.03em",
               display: "block",
               marginBottom: "6px",
@@ -439,9 +461,9 @@ export const PurchaseOrderPrint = forwardRef<
           </span>
           <div
             style={{
-              width: "200px",
-              height: "40px",
-              borderBottom: `2px solid ${COLORS.dark}`,
+              width: "180px",
+              height: "36px",
+              borderBottom: "1px solid #333",
             }}
           />
           <p style={{ margin: "6px 0 0", fontSize: "9px", color: COLORS.muted }}>
@@ -449,12 +471,12 @@ export const PurchaseOrderPrint = forwardRef<
           </p>
         </div>
         <div
+          className="po-total-box"
           style={{
             textAlign: "right",
-            padding: "12px 16px",
-            backgroundColor: COLORS.blueMuted,
-            borderRadius: "8px",
-            border: `1px solid ${COLORS.blue}`,
+            padding: "10px 14px",
+            border: "1px solid #333",
+            borderRadius: "4px",
           }}
         >
           <span
@@ -462,27 +484,27 @@ export const PurchaseOrderPrint = forwardRef<
               fontSize: "9px",
               fontWeight: 700,
               textTransform: "uppercase",
-              color: COLORS.blue,
+              color: COLORS.dark,
               display: "block",
               marginBottom: "4px",
             }}
           >
             Approximate Total
           </span>
-          <span style={{ fontSize: "18px", fontWeight: 700, color: COLORS.blue }}>
+          <span style={{ fontSize: "16px", fontWeight: 700 }}>
             {formatCurrency(grandTotal)}
           </span>
         </div>
       </div>
 
-      {/* Payment Terms */}
+      {/* Payment Terms - print: border only */}
       <div
+        className="po-payment-box"
         style={{
-          marginTop: "20px",
-          padding: "14px",
-          backgroundColor: COLORS.sepiaLight,
-          borderRadius: "8px",
-          border: `1px solid ${COLORS.sepia}`,
+          marginTop: "16px",
+          padding: "10px 12px",
+          border: "1px solid #333",
+          borderRadius: "4px",
         }}
       >
         <span
@@ -490,10 +512,10 @@ export const PurchaseOrderPrint = forwardRef<
             fontSize: "9px",
             fontWeight: 700,
             textTransform: "uppercase",
-            color: COLORS.sepia,
+            color: COLORS.dark,
             letterSpacing: "0.03em",
             display: "block",
-            marginBottom: "8px",
+            marginBottom: "6px",
           }}
         >
           Payment Terms
@@ -507,60 +529,60 @@ export const PurchaseOrderPrint = forwardRef<
         </div>
       </div>
 
-      {/* Signatures */}
+      {/* Four signatories */}
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: "24px",
-          paddingTop: "18px",
-          borderTop: `2px solid ${COLORS.blue}`,
-          gap: "24px",
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "12px",
+          marginTop: "20px",
+          paddingTop: "14px",
+          borderTop: "1px solid #333",
         }}
       >
-        <div>
-          <span
-            style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              color: COLORS.blue,
-              letterSpacing: "0.03em",
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
-            Prepared By
-          </span>
-          <p style={{ margin: 0, fontWeight: 600, fontSize: "12px", color: COLORS.dark }}>
-            {data.preparedBy}
-          </p>
-          <p style={{ margin: "2px 0 0", fontSize: "9px", color: COLORS.muted }}>
-            Purchasing
-          </p>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <span
-            style={{
-              fontSize: "9px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              color: COLORS.blue,
-              letterSpacing: "0.03em",
-              display: "block",
-              marginBottom: "4px",
-            }}
-          >
-            Approved By
-          </span>
-          <p style={{ margin: 0, fontWeight: 600, fontSize: "12px", color: COLORS.dark }}>
-            {data.approvedBy}
-          </p>
-          <p style={{ margin: "2px 0 0", fontSize: "9px", color: COLORS.muted }}>
-            {data.approvedByTitle}
-          </p>
-        </div>
+        {[
+          { label: "Requested By", value: data.requestedBy, sub: "" },
+          { label: "Prepared By", value: data.preparedBy, sub: "Purchasing" },
+          { label: "Reviewed By", value: data.reviewedBy, sub: "" },
+          { label: "Approved By", value: data.approvedBy, sub: data.approvedByTitle },
+        ].map((sig) => (
+          <div key={sig.label}>
+            <span
+              style={{
+                fontSize: "9px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                color: COLORS.dark,
+                letterSpacing: "0.03em",
+                display: "block",
+                marginBottom: "4px",
+              }}
+            >
+              {sig.label}
+            </span>
+            <p style={{ margin: 0, fontWeight: 600, fontSize: "11px", color: COLORS.dark }}>
+              {sig.value || "—"}
+            </p>
+            {sig.sub && (
+              <p style={{ margin: "2px 0 0", fontSize: "9px", color: COLORS.muted }}>
+                {sig.sub}
+              </p>
+            )}
+          </div>
+        ))}
       </div>
+
+      {/* Contact footer */}
+      <p
+        style={{
+          marginTop: "16px",
+          fontSize: "9px",
+          color: COLORS.muted,
+          textAlign: "center",
+        }}
+      >
+        If you have any questions about this purchase order, please email admin@addbell.com
+      </p>
     </div>
   );
 });

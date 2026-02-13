@@ -467,7 +467,7 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const canManage = profile?.role === "admin" || profile?.role === "hr";
+  const canManage = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "operations_manager";
   const profit = (project?.contract_amount || 0) - totalCost;
   const profitMargin = project?.contract_amount ? (profit / project.contract_amount) * 100 : 0;
 

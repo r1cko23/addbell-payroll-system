@@ -242,7 +242,7 @@ export function LoginPageClient() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -253,41 +253,45 @@ export function LoginPageClient() {
           },
         }}
       />
-      <div className="max-w-md w-full">
-        <div className="bg-card rounded-2xl shadow-lg border p-8">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <img
-                src="/addbell-logo.jpg"
-                alt="Addbell Technical Services, Inc."
-                className="h-32 w-auto"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
+      <div className="w-full max-w-[380px]">
+        <div className="bg-white rounded-lg border border-neutral-200 shadow-sm py-6 px-6">
+          {/* Header: compact logo + title */}
+          <div className="flex flex-col items-center gap-3 mb-5">
+            <img
+              src="/addbell-logo.jpg"
+              alt="Addbell"
+              className="h-12 w-auto object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+            <div className="text-center">
+              <h1 className="text-base font-semibold text-neutral-900 tracking-tight">
+                Addbell Technical Services, Inc.
+              </h1>
+              <p className="text-xs text-neutral-500 mt-0.5">Sign in to your account</p>
             </div>
-            <h1 className="text-2xl font-bold text-primary mb-2">
-              Addbell Technical Services, Inc.
-            </h1>
-            <p className="text-muted-foreground">Sign in to your account</p>
           </div>
 
-          <div className="grid grid-cols-2 mb-6 rounded-lg border overflow-hidden">
+          {/* Role toggle */}
+          <div className="flex mb-4 rounded-md border border-neutral-200 overflow-hidden">
             <button
-              className={`py-3 text-sm font-medium transition ${
+              type="button"
+              className={`flex-1 py-2.5 text-xs font-medium transition-colors cursor-pointer ${
                 mode === "admin"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground"
+                  ? "bg-neutral-900 text-white"
+                  : "bg-white text-neutral-600 hover:bg-neutral-50"
               }`}
               onClick={() => setMode("admin")}
             >
               Admin / HR
             </button>
             <button
-              className={`py-3 text-sm font-medium transition ${
+              type="button"
+              className={`flex-1 py-2.5 text-xs font-medium transition-colors cursor-pointer border-l border-neutral-200 ${
                 mode === "employee"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground"
+                  ? "bg-neutral-900 text-white"
+                  : "bg-white text-neutral-600 hover:bg-neutral-50"
               }`}
               onClick={() => setMode("employee")}
             >
@@ -296,12 +300,9 @@ export function LoginPageClient() {
           </div>
 
           {mode === "admin" ? (
-            <form onSubmit={handleAdminLogin} className="space-y-6">
+            <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
-                <label
-                  htmlFor="email"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
+                <label htmlFor="email" className="block text-xs font-medium text-neutral-700 mb-1.5">
                   Email Address
                 </label>
                 <input
@@ -310,16 +311,13 @@ export function LoginPageClient() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-input rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent transition text-foreground"
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
                   placeholder="you@company.com"
                 />
               </div>
 
               <div>
-                <label
-                  htmlFor="password"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
+                <label htmlFor="password" className="block text-xs font-medium text-neutral-700 mb-1.5">
                   Password
                 </label>
                 <input
@@ -328,7 +326,7 @@ export function LoginPageClient() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-input rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent transition text-foreground"
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
                   placeholder="••••••••"
                 />
               </div>
@@ -336,7 +334,7 @@ export function LoginPageClient() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="w-full bg-neutral-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
@@ -344,18 +342,18 @@ export function LoginPageClient() {
                 type="button"
                 onClick={handleForgotPassword}
                 disabled={resetLoading}
-                className="w-full mt-3 text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-xs font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {resetLoading ? "Sending reset link..." : "Forgot password?"}
+                {resetLoading ? "Sending..." : "Forgot password?"}
               </button>
               {adminError && (
-                <p className="mt-2 text-sm text-red-600">{adminError}</p>
+                <p className="text-xs text-red-600">{adminError}</p>
               )}
             </form>
           ) : (
-            <form onSubmit={handleEmployeeLogin} className="space-y-6">
+            <form onSubmit={handleEmployeeLogin} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="block text-xs font-medium text-neutral-700 mb-1.5">
                   Employee ID
                 </label>
                 <input
@@ -363,13 +361,13 @@ export function LoginPageClient() {
                   required
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
-                  className="w-full px-4 py-3 border border-input rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent transition text-foreground"
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
                   placeholder="2025-001"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
+                <label className="block text-xs font-medium text-neutral-700 mb-1.5">
                   Password
                 </label>
                 <input
@@ -377,7 +375,7 @@ export function LoginPageClient() {
                   required
                   value={employeePassword}
                   onChange={(e) => setEmployeePassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-input rounded-lg bg-background focus:ring-2 focus:ring-ring focus:border-transparent transition text-foreground"
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
                   placeholder="Default is your Employee ID"
                 />
               </div>
@@ -385,41 +383,26 @@ export function LoginPageClient() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="w-full bg-neutral-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
               {employeeError && (
-                <p className="mt-2 text-sm text-red-600">{employeeError}</p>
+                <p className="text-xs text-red-600">{employeeError}</p>
               )}
             </form>
           )}
 
-          <div className="mt-8 text-center text-sm text-muted-foreground">
-            <p>
-              {mode === "admin"
-                ? "Authorized personnel only"
-                : "Use the credentials provided by HR"}
-            </p>
-          </div>
+          <p className="mt-4 text-center text-[11px] text-neutral-400">
+            {mode === "admin" ? "Authorized personnel only" : "Use the credentials provided by HR"}
+          </p>
         </div>
 
-        <div className="mt-6 text-center text-sm text-muted-foreground space-y-2">
-          <p>
-            © 2025 Addbell Technical Services, Inc. All rights reserved.
-          </p>
-          <div className="flex items-center justify-center gap-4 text-xs">
-            <a
-              href="/privacy"
-              className="text-primary hover:underline transition-colors"
-            >
-              Privacy Notice
-            </a>
-            <span className="text-muted-foreground">•</span>
-            <span className="text-muted-foreground">
-              Compliant with RA 10173 (Data Privacy Act)
-            </span>
-          </div>
+        <div className="mt-4 text-center text-[11px] text-neutral-400 space-y-1">
+          <p>© 2025 Addbell Technical Services, Inc.</p>
+          <a href="/privacy" className="text-neutral-500 hover:text-neutral-700 transition-colors">
+            Privacy Notice
+          </a>
         </div>
       </div>
     </div>

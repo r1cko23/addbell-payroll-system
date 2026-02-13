@@ -844,8 +844,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         }}
       >
         <img
-          src="/gp-logo.webp"
-          alt="Green Pasture Logo"
+          src="/addbell-logo.jpg"
+          alt="Addbell Technical Services, Inc."
           style={{
             height: "100px",
             width: "auto",
@@ -903,7 +903,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               Company Name:
             </td>
             <td style={{ padding: "3px 5px", width: "25%" }}>
-              GREEN PASTURE PEOPLE M
+              ADDBELL TECHNICAL SERVICES, INC.
             </td>
             <td style={{ padding: "3px 5px", fontWeight: "bold" }}>
               Period Covered:

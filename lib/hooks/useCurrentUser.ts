@@ -10,9 +10,9 @@
  */
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import type { Database } from "@/types/database";
-
-type UserRole = Database["public"]["Tables"]["users"]["Row"]["role"];
+import { createClient } from "@/lib/supabase/client";
+// Note: Using profiles table - role is a string type
+type UserRole = string;
 
 interface CurrentUser {
   id: string;
@@ -60,8 +60,8 @@ async function fetchCurrentUser(force = false): Promise<CurrentUser | null> {
         headers: {
           "Content-Type": "application/json",
         },
-        // Use cache for non-forced requests
-        cache: force ? "no-store" : "default",
+        // Always no-store to prevent stale user data when switching accounts
+        cache: "no-store",
       });
 
       if (!response.ok) {
@@ -126,6 +126,24 @@ export function useCurrentUser(): UseCurrentUserData {
 
   useEffect(() => {
     fetchUser();
+  }, [fetchUser]);
+
+  // Clear cache and refetch on auth changes (e.g. logout, account switch)
+  useEffect(() => {
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        clearCurrentUserCache();
+        setUser(null);
+      }
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        clearCurrentUserCache();
+        fetchUser(true);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, [fetchUser]);
 
   const refetch = useCallback(() => {

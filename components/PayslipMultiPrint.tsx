@@ -97,8 +97,8 @@ export function PayslipMultiPrint({
         }}
       >
         <img
-          src="/gp-logo.webp"
-          alt="Green Pasture People Management Inc."
+          src="/addbell-logo.jpg"
+          alt="Addbell Technical Services, Inc."
           style={{
             height: "36px",
             width: "auto",

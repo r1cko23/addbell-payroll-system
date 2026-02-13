@@ -1,0 +1,10 @@
+[     365ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3001/api/auth/me:0
+[     516ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_profile:0
+[     516ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_type_and_position:0
+[     517ms] [ERROR] EmployeePortalSidebar - Error fetching employee via RPC: {error: Object, uuid: ea310310-91d4-4b06-91ea-543dd466eadd, employeeId: 2025001, errorCode: PGRST202, errorMessage: Could not find the function public.get_employee_ty…and_position(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[     523ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_type_and_position:0
+[     523ms] [ERROR] EmployeePortalSidebar - Error fetching employee via RPC: {error: Object, uuid: ea310310-91d4-4b06-91ea-543dd466eadd, employeeId: 2025001, errorCode: PGRST202, errorMessage: Could not find the function public.get_employee_ty…and_position(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[    7755ms] [ERROR] Failed to load resource: the server responded with a status of 406 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employees?select=company_id&id=eq.ea310310-91d4-4b06-91ea-543dd466eadd:0
+[    8239ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3001/api/auth/me:0
+[   18862ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/api/employee/first-login:0
+[  178568ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/auth/v1/token?grant_type=password:0

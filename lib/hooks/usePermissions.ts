@@ -151,14 +151,18 @@ export const MODULE_INFO: ModuleInfo[] = [
   },
 ];
 
+// Full admin permissions (admin + upper_management per Addbell roles)
+const ADMIN_PERMISSIONS = Object.fromEntries(
+  Object.values(MODULES).map((module) => [
+    module,
+    { create: true, read: true, update: true, delete: true },
+  ])
+) as UserPermissions;
+
 // Default permissions by role
 export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
-  admin: Object.fromEntries(
-    Object.values(MODULES).map((module) => [
-      module,
-      { create: true, read: true, update: true, delete: true },
-    ])
-  ) as UserPermissions,
+  admin: ADMIN_PERMISSIONS,
+  upper_management: ADMIN_PERMISSIONS, // Addbell: Upper Management = Admin
   hr: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: true, read: true, update: true, delete: false },
@@ -174,6 +178,42 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     bir_reports: { create: false, read: true, update: false, delete: false },
     reports: { create: false, read: true, update: false, delete: false },
     settings: { create: false, read: true, update: false, delete: false },
+    user_management: { create: false, read: false, update: false, delete: false },
+  },
+  // Addbell: Operations Manager - project oversight, approvals, fund requests
+  operations_manager: {
+    dashboard: { create: false, read: true, update: false, delete: false },
+    employees: { create: false, read: true, update: true, delete: false },
+    schedules: { create: true, read: true, update: true, delete: true },
+    loans: { create: false, read: false, update: false, delete: false },
+    payslips: { create: false, read: true, update: false, delete: false },
+    timesheet: { create: false, read: true, update: true, delete: false },
+    time_entries: { create: true, read: true, update: true, delete: true },
+    leave_approval: { create: false, read: true, update: true, delete: false },
+    overtime_approval: { create: false, read: true, update: true, delete: false },
+    failure_to_log: { create: false, read: true, update: true, delete: false },
+    audit: { create: false, read: false, update: false, delete: false },
+    bir_reports: { create: false, read: false, update: false, delete: false },
+    reports: { create: false, read: true, update: false, delete: false },
+    settings: { create: false, read: false, update: false, delete: false },
+    user_management: { create: false, read: false, update: false, delete: false },
+  },
+  // Addbell: Purchasing Officer - fund request approval, limited dashboard
+  purchasing_officer: {
+    dashboard: { create: false, read: true, update: false, delete: false },
+    employees: { create: false, read: true, update: false, delete: false },
+    schedules: { create: false, read: false, update: false, delete: false },
+    loans: { create: false, read: false, update: false, delete: false },
+    payslips: { create: false, read: true, update: false, delete: false },
+    timesheet: { create: false, read: false, update: false, delete: false },
+    time_entries: { create: false, read: false, update: false, delete: false },
+    leave_approval: { create: false, read: false, update: false, delete: false },
+    overtime_approval: { create: false, read: false, update: false, delete: false },
+    failure_to_log: { create: false, read: false, update: false, delete: false },
+    audit: { create: false, read: false, update: false, delete: false },
+    bir_reports: { create: false, read: false, update: false, delete: false },
+    reports: { create: false, read: false, update: false, delete: false },
+    settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
   },
   approver: {

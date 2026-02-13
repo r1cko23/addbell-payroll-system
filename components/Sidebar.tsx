@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   FileText,
   ArrowsClockwise,
+  ClipboardText,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -53,11 +54,19 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Projects",
+    icon: MapPin,
+    items: [
+      { name: "Clients", href: "/clients", icon: Users, permissionModule: "employees" },
+      { name: "Projects", href: "/projects", icon: ChartLineUp, permissionModule: "dashboard" },
+      { name: "Vendors", href: "/vendors", icon: Receipt, permissionModule: "dashboard" },
+    ],
+  },
+  {
     label: "People",
     icon: UsersThree,
     items: [
       { name: "Employees", href: "/employees", icon: UsersThree, permissionModule: "employees" },
-      { name: "Schedules", href: "/schedules", icon: CalendarBlank, permissionModule: "schedules" },
       { name: "Loans", href: "/loans", icon: Receipt, permissionModule: "loans" },
       { name: "Payslips", href: "/payslips", icon: Receipt, permissionModule: "payslips" },
     ],
@@ -69,6 +78,19 @@ const navGroups: NavGroup[] = [
     items: [
       { name: "Time Attendance", href: "/timesheet", icon: CalendarBlank, permissionModule: "timesheet" },
       { name: "Time Entries", href: "/time-entries", icon: MapPin, permissionModule: "time_entries" },
+      {
+        name: "Failure to Log",
+        href: "/failure-to-log-approval",
+        icon: WarningCircle,
+        permissionModule: "failure_to_log",
+      },
+    ],
+  },
+  {
+    label: "Requests & Approvals",
+    icon: ClipboardText,
+    defaultOpen: true,
+    items: [
       { name: "Leave Approvals", href: "/leave-approval", icon: CalendarCheck, permissionModule: "leave_approval" },
       {
         name: "OT Approvals",
@@ -77,10 +99,16 @@ const navGroups: NavGroup[] = [
         permissionModule: "overtime_approval",
       },
       {
-        name: "Failure to Log",
-        href: "/failure-to-log-approval",
-        icon: WarningCircle,
-        permissionModule: "failure_to_log",
+        name: "Fund Requests",
+        href: "/fund-request-approval",
+        icon: Receipt,
+        permissionModule: "payslips",
+      },
+      {
+        name: "Purchase Order",
+        href: "/purchase-order",
+        icon: FileText,
+        permissionModule: "payslips",
       },
     ],
   },
@@ -249,8 +277,8 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       <div className="flex items-center justify-between h-16 px-4 border-b">
         <div className="flex-1 flex items-center justify-center min-h-[64px]">
           <img
-            src="/gp-logo.webp"
-            alt="Green Pasture People Management Inc."
+            src="/addbell-logo.jpg"
+            alt="Addbell Technical Services, Inc."
             className="h-16 w-auto object-contain"
             style={{
               display: 'block',
@@ -342,7 +370,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       {/* Footer */}
       <div className="p-4 border-t">
         <p className="text-xs text-muted-foreground text-center mb-2">
-          © 2025 Green Pasture People Management Inc.
+          © 2025 Addbell Technical Services, Inc.
           <br />
           All rights reserved
         </p>

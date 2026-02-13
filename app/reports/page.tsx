@@ -619,7 +619,7 @@ export default function ReportsPage() {
 
       // Load and add logo
       try {
-        const logoResponse = await fetch("/gp-logo.webp");
+        const logoResponse = await fetch("/addbell-logo.jpg");
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.blob();
           const logoDataUrl = await new Promise<string>((resolve) => {

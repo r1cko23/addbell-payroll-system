@@ -28,18 +28,15 @@ export async function GET(request: NextRequest) {
       return unauthorizedResponse("User not found");
     }
 
-    // Get full user data (role is already cached, but we need other fields)
-    type UserRow = Database["public"]["Tables"]["users"]["Row"];
-    type UserSelect = Pick<UserRow, "id" | "email" | "full_name" | "role" | "profile_picture_url" | "can_access_salary">;
-
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("id, email, full_name, role, profile_picture_url, can_access_salary")
+    // Get full user data from profiles table (role is already cached, but we need other fields)
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, avatar_url, is_active")
       .eq("id", authUser.id)
       .eq("is_active", true)
-      .single<UserSelect>();
+      .single();
 
-    if (userError || !userData) {
+    if (profileError || !profileData) {
       return unauthorizedResponse("User not found");
     }
 
@@ -47,12 +44,12 @@ export async function GET(request: NextRequest) {
     return successResponse(
       {
         user: {
-          id: userData.id,
-          email: userData.email,
-          full_name: userData.full_name,
-          role: userData.role,
-          profile_picture_url: userData.profile_picture_url,
-          can_access_salary: userData.can_access_salary ?? false,
+          id: profileData.id,
+          email: profileData.email,
+          full_name: profileData.full_name,
+          role: profileData.role,
+          profile_picture_url: profileData.avatar_url,
+          can_access_salary: false, // profiles table doesn't have can_access_salary, default to false
         },
       },
       { cache: 30, staleWhileRevalidate: 60 }

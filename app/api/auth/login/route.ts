@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
       return unauthorizedResponse(authError?.message || "Invalid credentials");
     }
 
-    // Get user role from public.users table
+    // Get user role from public.profiles table
     const { data: userData, error: userError } = await supabase
-      .from("users")
+      .from("profiles")
       .select("id, email, full_name, role")
       .eq("id", authData.user.id)
       .eq("is_active", true)
@@ -54,23 +54,18 @@ export async function POST(request: NextRequest) {
       return unauthorizedResponse("User not found or inactive");
     }
 
-    // Type assertion: TypeScript control flow analysis needs help here
-    type UserRow = Database["public"]["Tables"]["users"]["Row"];
-    type UserSelect = Pick<UserRow, "id" | "email" | "full_name" | "role">;
-    const user: UserSelect = userData as UserSelect;
-
     // Clear cache for this user to ensure fresh data on next request
-    clearUserRoleCache(user.id);
+    clearUserRoleCache(userData.id);
 
     // Supabase Auth session is now set in cookies automatically
     return successResponse(
       {
         success: true,
         user: {
-          id: user.id,
-          email: user.email,
-          full_name: user.full_name,
-          role: user.role,
+          id: userData.id,
+          email: userData.email,
+          full_name: userData.full_name,
+          role: userData.role,
         },
       },
       { cache: 0 } // No cache for login responses

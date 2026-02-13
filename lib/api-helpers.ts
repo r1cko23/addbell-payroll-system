@@ -8,8 +8,8 @@ import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 import { NextResponse } from "next/server";
 
-type UserRow = Database["public"]["Tables"]["users"]["Row"];
-type UserSelect = Pick<UserRow, "role">;
+// Note: Using profiles table instead of users table
+type UserSelect = { role: string };
 
 /**
  * Cache for user role lookups (in-memory, per-request)
@@ -40,13 +40,13 @@ export async function getCurrentUserRole(): Promise<string | null> {
     return cached.role;
   }
 
-  // Fetch from database
+  // Fetch from database (profiles table)
   const { data: userData, error: userError } = await supabase
-    .from("users")
+    .from("profiles")
     .select("role")
     .eq("id", user.id)
     .eq("is_active", true)
-    .single<UserSelect>();
+    .single();
 
   if (userError || !userData) {
     return null;
@@ -159,7 +159,7 @@ export async function batchGetUserRoles(
 
   const supabase = createServerComponentClient<Database>({ cookies });
   const { data: users, error } = await supabase
-    .from("users")
+    .from("profiles")
     .select("id, role")
     .in("id", userIds)
     .eq("is_active", true);

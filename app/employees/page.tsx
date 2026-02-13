@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDays, format, startOfWeek } from "date-fns";
+import { format } from "date-fns";
+import { formatLabel } from "@/utils/format";
 import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -33,7 +34,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -107,27 +107,6 @@ interface OvertimeGroup {
   description: string | null;
 }
 
-type ScheduleRow = {
-  id: string;
-  employee_id: string;
-  employee_name: string;
-  schedule_date: string;
-  start_time: string;
-  end_time: string;
-  tasks: string | null;
-};
-
-const getColorStyleForEmployee = (employeeId: string) => {
-  const hash = employeeId
-    .split("")
-    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  const hue = hash % 360;
-  const bg = `hsl(${hue}deg 80% 94%)`;
-  const border = `hsl(${hue}deg 70% 82%)`;
-  const text = `hsl(${hue}deg 45% 28%)`;
-  return { bg, border, text };
-};
-
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -144,9 +123,6 @@ export default function EmployeesPage() {
   const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"directory" | "schedules">(
-    "directory"
-  );
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
@@ -183,16 +159,6 @@ export default function EmployeesPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
-  const [weekStart, setWeekStart] = useState<Date>(() =>
-    startOfWeek(new Date(), { weekStartsOn: 1 })
-  );
-  const [filters, setFilters] = useState<{ employee_id: string }>({
-    employee_id: "all",
-  });
-  const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
-  const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [selectedScheduleEntry, setSelectedScheduleEntry] =
-    useState<ScheduleRow | null>(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);
 
   const locationMap = useMemo(() => {
@@ -201,13 +167,17 @@ export default function EmployeesPage() {
     return map;
   }, [locations]);
 
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i)),
-    [weekStart]
-  );
-
-  const scheduleAllowed =
-    isAdmin || role === "hr";
+  // Normalize employee data for Addbell schema (may lack full_name, use first+last)
+  function normalizeEmployees(rows: any[]): Employee[] {
+    return (rows || []).map((r: any) => ({
+      ...r,
+      full_name:
+        r.full_name ||
+        [r.first_name, r.last_name].filter(Boolean).join(" ").trim() ||
+        r.employee_id ||
+        "Unknown",
+    }));
+  }
 
   // Account managers (approvers) and viewers have no employees read permission
   useEffect(() => {
@@ -233,32 +203,18 @@ export default function EmployeesPage() {
     fetchOvertimeGroups();
   }, []);
 
-  useEffect(() => {
-    if (activeTab === "schedules" && scheduleAllowed) {
-      loadWeek();
-    }
-  }, [activeTab, weekStart, filters.employee_id, scheduleAllowed]);
-
   async function fetchEmployees() {
     try {
+      // Select employees only (employee_location_assignments/office_locations may not exist in Addbell DB)
       const { data, error } = await supabase
         .from("employees")
-        .select(
-          `*,
-          employee_location_assignments (
-            location_id,
-            office_locations (
-              id,
-              name
-            )
-          )`
-        )
+        .select("*")
         .order("last_name", { ascending: true, nullsFirst: true })
         .order("first_name", { ascending: true, nullsFirst: true });
 
       if (error) throw error;
 
-      setEmployees(data || []);
+      setEmployees(normalizeEmployees(data || []));
     } catch (error: any) {
       console.error("Error fetching employees:", error);
       toast.error(
@@ -280,7 +236,8 @@ export default function EmployeesPage() {
       if (error) throw error;
       setLocations(data || []);
     } catch (error) {
-      console.error("Error fetching locations:", error);
+      // office_locations may not exist in Addbell DB
+      setLocations([]);
     }
   }
 
@@ -295,26 +252,9 @@ export default function EmployeesPage() {
       if (error) throw error;
       setOvertimeGroups(data || []);
     } catch (error) {
-      console.error("Error fetching overtime groups:", error);
+      // overtime_groups may not exist in Addbell DB
+      setOvertimeGroups([]);
     }
-  }
-
-  async function loadWeek() {
-    setScheduleLoading(true);
-    const { data, error } = await supabase.rpc(
-      "get_week_schedule_for_manager",
-      {
-        p_week_start: format(weekStart, "yyyy-MM-dd"),
-        p_employee_id:
-          filters.employee_id === "all" ? null : filters.employee_id,
-      } as any
-    );
-    if (error) {
-      toast.error(error.message || "Failed to load schedules");
-    } else {
-      setScheduleRows((data || []) as ScheduleRow[]);
-    }
-    setScheduleLoading(false);
   }
 
   function openAddModal() {
@@ -710,15 +650,6 @@ export default function EmployeesPage() {
       emp.employee_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const groupedSchedules = weekDays.map((d) => {
-    const iso = format(d, "yyyy-MM-dd");
-    return {
-      date: iso,
-      label: format(d, "EEE, MMM d"),
-      entries: scheduleRows.filter((r) => r.schedule_date === iso),
-    };
-  });
-
   // Helper function to clean position field (remove salary info)
   const cleanPosition = (position: string | null | undefined): string => {
     if (!position) return "";
@@ -737,7 +668,7 @@ export default function EmployeesPage() {
 
       // Load and add logo
       try {
-        const logoResponse = await fetch("/gp-logo.webp");
+        const logoResponse = await fetch("/addbell-logo.jpg");
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.blob();
           const logoDataUrl = await new Promise<string>((resolve) => {
@@ -909,7 +840,7 @@ export default function EmployeesPage() {
         <HStack justify="between" align="center">
           <VStack gap="2" align="start">
             <H1>Employee Management</H1>
-            <BodySmall>Manage employee records and view schedules.</BodySmall>
+            <BodySmall>Manage employee records and portal access.</BodySmall>
           </VStack>
           <Button onClick={openAddModal}>
             <Icon name="Plus" size={IconSizes.sm} />
@@ -917,17 +848,7 @@ export default function EmployeesPage() {
           </Button>
         </HStack>
 
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as "directory" | "schedules")}
-          className="space-y-4"
-        >
-          <TabsList>
-            <TabsTrigger value="directory">Directory</TabsTrigger>
-            <TabsTrigger value="schedules">Schedules</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="directory" className="space-y-4">
+        <div className="space-y-4">
             <CardSection
               title="Directory"
               description="Search, edit, and manage employee portal access."
@@ -1065,7 +986,7 @@ export default function EmployeesPage() {
                                         : "bg-slate-100 text-slate-700 border-slate-200"
                                     }`}
                                   >
-                                    {employee.job_level}
+                                    {formatLabel(employee.job_level)}
                                   </Badge>
                                 </div>
                               ) : (
@@ -1206,245 +1127,7 @@ export default function EmployeesPage() {
                 </div>
               )}
             </CardSection>
-          </TabsContent>
-
-          <TabsContent value="schedules" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Schedules</CardTitle>
-                <CardDescription>
-                  Weekly schedules for account managers, HR, and admins.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {roleLoading ? (
-                  <div className="flex items-center justify-center py-10">
-                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-                  </div>
-                ) : !scheduleAllowed ? (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    Only account managers, HR, or admins can view schedules.
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                      <div className="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <div className="space-y-1.5">
-                          <Label>Week starting (Mon)</Label>
-                          <Input
-                            type="date"
-                            value={format(
-                              startOfWeek(weekStart, { weekStartsOn: 1 }),
-                              "yyyy-MM-dd"
-                            )}
-                            onChange={(e) =>
-                              setWeekStart(
-                                startOfWeek(new Date(e.target.value), {
-                                  weekStartsOn: 1,
-                                })
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Employee</Label>
-                          <EmployeeSearchSelect
-                            employees={employees.map((e) => ({
-                              id: e.id,
-                              employee_id: e.employee_id,
-                              full_name: e.full_name ?? "",
-                              first_name: e.first_name,
-                              last_name: e.last_name,
-                            }))}
-                            value={filters.employee_id}
-                            onValueChange={(value) =>
-                              setFilters({ employee_id: value })
-                            }
-                            showAllOption={true}
-                            placeholder="Search by name or employee ID..."
-                            className="w-full"
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        className="w-full sm:w-auto"
-                        variant="secondary"
-                        onClick={loadWeek}
-                        disabled={scheduleLoading}
-                      >
-                        <Icon name="ArrowsClockwise" size={IconSizes.sm} />
-                        {scheduleLoading ? "Refreshing..." : "Refresh"}
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      {groupedSchedules.map((col) => (
-                        <Card key={col.date} className="border-muted/60">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-base">
-                              {col.label}
-                            </CardTitle>
-                            <CardDescription>{col.date}</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            {col.entries.length === 0 ? (
-                              <p className="text-sm text-muted-foreground">
-                                No schedules
-                              </p>
-                            ) : (
-                              col.entries.map((entry) => {
-                                const color = getColorStyleForEmployee(
-                                  entry.employee_id
-                                );
-                                return (
-                                  <div
-                                    key={entry.id}
-                                    onClick={() =>
-                                      setSelectedScheduleEntry(entry)
-                                    }
-                                    className="rounded-md border px-3 py-2 text-sm cursor-pointer transition-all hover:shadow-md"
-                                    style={{
-                                      backgroundColor: color.bg,
-                                      borderColor: color.border,
-                                      color: color.text,
-                                    }}
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="font-semibold">
-                                        {entry.employee_name}
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className="bg-white/60 text-xs"
-                                      >
-                                        Shift
-                                      </Badge>
-                                    </div>
-                                    <HStack
-                                      gap="2"
-                                      align="center"
-                                      className="mt-1 text-xs"
-                                    >
-                                      <Icon
-                                        name="CalendarBlank"
-                                        size={IconSizes.sm}
-                                      />
-                                      {formatPHTime(
-                                        new Date(entry.schedule_date),
-                                        "MMM dd"
-                                      )}
-                                    </HStack>
-                                    {entry.start_time && entry.end_time ? (
-                                      <HStack
-                                        gap="2"
-                                        align="center"
-                                        className="mt-1 text-xs"
-                                      >
-                                        <Icon
-                                          name="Clock"
-                                          size={IconSizes.sm}
-                                        />
-                                        {`${formatPHTime(
-                                          new Date(
-                                            `${entry.schedule_date}T${entry.start_time}`
-                                          ),
-                                          "h:mm a"
-                                        )} - ${formatPHTime(
-                                          new Date(
-                                            `${entry.schedule_date}T${entry.end_time}`
-                                          ),
-                                          "h:mm a"
-                                        )}`}
-                                      </HStack>
-                                    ) : (
-                                      <HStack
-                                        gap="2"
-                                        align="center"
-                                        className="mt-1 text-xs text-muted-foreground"
-                                      >
-                                        <Icon
-                                          name="Clock"
-                                          size={IconSizes.sm}
-                                        />
-                                        No schedule set
-                                      </HStack>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <Dialog
-          open={!!selectedScheduleEntry}
-          onOpenChange={(open) => !open && setSelectedScheduleEntry(null)}
-        >
-          <DialogContent className="overflow-x-hidden max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                {selectedScheduleEntry?.employee_name} -{" "}
-                {selectedScheduleEntry &&
-                  format(
-                    new Date(selectedScheduleEntry.schedule_date),
-                    "EEEE, MMM d, yyyy"
-                  )}
-              </DialogTitle>
-              <DialogDescription>Schedule details and tasks</DialogDescription>
-            </DialogHeader>
-            {selectedScheduleEntry && (
-              <div className="mt-4 space-y-4 min-w-0">
-                <div className="min-w-0 w-full">
-                  <Label className="text-sm font-medium">Schedule</Label>
-                  {selectedScheduleEntry.start_time &&
-                  selectedScheduleEntry.end_time ? (
-                    <p className="mt-2 text-sm">
-                      {formatPHTime(
-                        new Date(
-                          `${selectedScheduleEntry.schedule_date}T${selectedScheduleEntry.start_time}`
-                        ),
-                        "h:mm a"
-                      )}{" "}
-                      -{" "}
-                      {formatPHTime(
-                        new Date(
-                          `${selectedScheduleEntry.schedule_date}T${selectedScheduleEntry.end_time}`
-                        ),
-                        "h:mm a"
-                      )}
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground italic">
-                      No schedule set for this day
-                    </p>
-                  )}
-                </div>
-                <div className="min-w-0 w-full">
-                  <Label className="text-sm font-medium">Tasks</Label>
-                  {selectedScheduleEntry.tasks ? (
-                    <div className="mt-2 min-w-0 w-full overflow-hidden">
-                      <p className="text-sm whitespace-pre-wrap break-words bg-muted p-3 rounded-md overflow-wrap-anywhere word-break-break-all max-w-full">
-                        {selectedScheduleEntry.tasks}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-muted-foreground italic">
-                      No tasks submitted for this day
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        </div>
       </VStack>
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
@@ -1707,10 +1390,14 @@ export default function EmployeesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="RANK AND FILE">
-                        Rank and File
+                        {formatLabel("RANK AND FILE")}
                       </SelectItem>
-                      <SelectItem value="SUPERVISORY">Supervisory</SelectItem>
-                      <SelectItem value="MANAGERIAL">Managerial</SelectItem>
+                      <SelectItem value="SUPERVISORY">
+                        {formatLabel("SUPERVISORY")}
+                      </SelectItem>
+                      <SelectItem value="MANAGERIAL">
+                        {formatLabel("MANAGERIAL")}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

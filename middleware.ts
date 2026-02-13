@@ -13,7 +13,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Protected routes that require authentication check
+  // Protected routes that require authentication check (RLS needs auth for clients, projects, vendors)
   const protectedPaths = [
     "/dashboard",
     "/employees",
@@ -25,6 +25,12 @@ export async function middleware(req: NextRequest) {
     "/leave-approval",
     "/time-entries",
     "/failure-to-log-approval",
+    "/projects",
+    "/clients",
+    "/vendors",
+    "/fund-request",
+    "/fund-request-approval",
+    "/purchase-order",
   ];
 
   const isProtectedPath = protectedPaths.some((path) =>

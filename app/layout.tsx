@@ -8,13 +8,13 @@ export const revalidate = 0;
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Green Pasture People Management Inc. - Payroll System",
+  title: "Addbell Technical Services, Inc. - Project Management & Payroll System",
   description:
-    "Complete payroll management system with bi-monthly timesheet tracking",
+    "Construction project management system with payroll, time tracking, and cost management",
   icons: {
-    icon: "/GP_favicon.webp",
-    shortcut: "/GP_favicon.webp",
-    apple: "/GP_favicon.webp",
+    icon: "/addbell-logo.jpg",
+    shortcut: "/addbell-logo.jpg",
+    apple: "/addbell-logo.jpg",
   },
 };
 

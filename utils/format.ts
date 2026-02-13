@@ -54,6 +54,21 @@ export function capitalize(text: string): string {
 }
 
 /**
+ * Format variable/DB values for display in the UI.
+ * - Replaces underscores and hyphens with spaces
+ * - Capitalizes first letter of each word (e.g., "rank_and_file" → "Rank And File")
+ */
+export function formatLabel(value: string | null | undefined): string {
+  if (value == null || value === "") return "";
+  return value
+    .replace(/[_\s-]+/g, " ")
+    .trim()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/**
  * Generate payslip number
  */
 export function generatePayslipNumber(

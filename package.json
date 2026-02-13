@@ -1,7 +1,7 @@
 {
-  "name": "green-pasture-payroll-system",
+  "name": "addbell-payroll-system",
   "version": "2.0.0",
-  "description": "Green Pasture People Management Inc. - Complete payroll system with weekly timesheet and deductions",
+  "description": "Addbell Technical Services, Inc. - Construction Project Management & Payroll System",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,8 @@
     "update:auth-display-names": "node scripts/update-auth-display-names.js",
     "fix:ot-users-names": "node scripts/fix-ot-users-names.js",
     "cleanup:old-ot-users": "node scripts/cleanup-old-ot-users.js",
-    "fix:january-1-attendance": "node scripts/fix-january-1-attendance.js"
+    "fix:january-1-attendance": "node scripts/fix-january-1-attendance.js",
+    "seed:test-data": "node scripts/seed-test-data.js"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

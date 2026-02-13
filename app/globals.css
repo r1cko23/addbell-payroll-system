@@ -13,19 +13,19 @@
     --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 147 66% 33%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 146 45% 94%;
-    --secondary-foreground: 148 30% 23%;
-    --muted: 148 30% 96%;
-    --muted-foreground: 147 12% 38%;
-    --accent: 146 40% 93%;
-    --accent-foreground: 148 32% 25%;
+    --secondary: 217 33% 94%;
+    --secondary-foreground: 217 30% 23%;
+    --muted: 217 20% 96%;
+    --muted-foreground: 217 12% 38%;
+    --accent: 217 40% 93%;
+    --accent-foreground: 217 32% 25%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 146 30% 88%;
-    --input: 146 30% 88%;
-    --ring: 147 66% 33%;
+    --border: 217 30% 88%;
+    --input: 217 30% 88%;
+    --ring: 217 91% 60%;
 
     /* Border Radius */
     --radius: 0.5rem;
@@ -109,11 +109,11 @@
   }
 
   [data-sonner-toast][data-type="success"] {
-    border-color: hsl(147 66% 33% / 0.3) !important;
+    border-color: hsl(217 91% 60% / 0.3) !important;
   }
 
   [data-sonner-toast][data-type="success"] [data-icon] {
-    color: hsl(147 66% 33%) !important;
+    color: hsl(217 91% 60%) !important;
   }
 
   [data-sonner-toast][data-type="error"] {
@@ -182,11 +182,11 @@
   }
 
   [data-sonner-toast][data-type="success"] {
-    border-color: hsl(147 66% 33% / 0.3) !important;
+    border-color: hsl(217 91% 60% / 0.3) !important;
   }
 
   [data-sonner-toast][data-type="success"] [data-icon] {
-    color: hsl(147 66% 33%) !important;
+    color: hsl(217 91% 60%) !important;
   }
 
   [data-sonner-toast][data-type="error"] {

@@ -74,11 +74,16 @@ function excelTimeToTime(timeFraction) {
   return { hours, minutes };
 }
 
+// Build full_name from first_name + last_name (Addbell uses separate columns)
+function getFullName(emp) {
+  return [emp.first_name, emp.last_name].filter(Boolean).join(" ").trim();
+}
+
 // Find employee by name (fuzzy match)
 async function findEmployeeByName(name) {
   const { data: employees, error } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, last_name, first_name")
+    .select("id, employee_id, last_name, first_name")
     .eq("is_active", true);
 
   if (error) {
@@ -89,24 +94,27 @@ async function findEmployeeByName(name) {
   const normalizedSearch = name.toLowerCase().trim();
 
   // Try exact match first
-  let match = employees.find(emp =>
-    emp.full_name.toLowerCase() === normalizedSearch ||
-    (emp.first_name && emp.last_name &&
-     `${emp.first_name} ${emp.last_name}`.toLowerCase() === normalizedSearch) ||
-    (emp.last_name && emp.first_name &&
-     `${emp.last_name}, ${emp.first_name}`.toLowerCase() === normalizedSearch)
-  );
+  let match = employees.find(emp => {
+    const fullName = getFullName(emp).toLowerCase();
+    const firstLast = emp.first_name && emp.last_name
+      ? `${emp.first_name} ${emp.last_name}`.toLowerCase()
+      : "";
+    const lastFirst = emp.last_name && emp.first_name
+      ? `${emp.last_name}, ${emp.first_name}`.toLowerCase()
+      : "";
+    return fullName === normalizedSearch || firstLast === normalizedSearch || lastFirst === normalizedSearch;
+  });
 
-  if (match) return match;
+  if (match) return { ...match, full_name: getFullName(match) };
 
   // Try partial match
   match = employees.find(emp => {
-    const fullName = emp.full_name.toLowerCase();
+    const fullName = getFullName(emp).toLowerCase();
     const parts = normalizedSearch.split(/[\s,]+/).filter(p => p.length > 0);
     return parts.every(part => fullName.includes(part));
   });
 
-  return match || null;
+  return match ? { ...match, full_name: getFullName(match) } : null;
 }
 
 async function updateTimeLogs() {
@@ -160,10 +168,10 @@ async function updateTimeLogs() {
 
   console.log(`Found ${rows.length} data rows in Excel file\n`);
 
-  // Fetch all employees once
+  // Fetch all employees once (Addbell uses first_name + last_name, not full_name)
   const { data: allEmployees, error: empError } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, last_name, first_name")
+    .select("id, employee_id, last_name, first_name")
     .eq("is_active", true);
 
   if (empError) {

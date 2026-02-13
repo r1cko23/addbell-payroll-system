@@ -1,54 +1,65 @@
 # Logo Assets
 
-This folder contains the source logo files for Green Pasture People Management Inc.
+This folder contains the source logo files for Addbell Technical Services, Inc.
 
-## Files
+## Logo Files
 
-- `GP LOGO (1).png` - Source logo file (PNG format)
+- Source logo file should be placed here (PNG, JPG, or SVG format)
 
-## Usage
+## Logo Usage
 
-The logo is converted to WebP format and placed in `/public/gp-logo.webp` for use in the application.
+The logo is converted to WebP format and placed in `/public/` for use in the application.
+
+### Logo Files Needed:
+- `/public/addbell-logo.jpg` - Main logo for sidebars, login page, payslips, and favicon
 
 ### Logo Specifications
 
-- **Format:** WebP (optimized for web)
-- **Location:** `/public/gp-logo.webp`
-- **Dimensions:** 500x185 pixels (aspect ratio ~2.7:1)
-- **File Size:** ~12KB
+- **Format:** JPG (from Official Logo Cropped.jpg)
+- **Location:** `/public/addbell-logo.jpg`
+- **Recommended Size:** 
+  - Logo: 500x185px or similar aspect ratio
+  - Favicon: 32x32px or 64x64px
 
 ### Where Logo is Used
 
-1. **Login Page** (`app/login/LoginPageClient.tsx`)
+1. **Sidebar** (`components/Sidebar.tsx`)
+   - Displayed in the main navigation sidebar
+   - Size: h-16 (64px height)
 
-   - Size: `h-24` (96px height, auto width)
+2. **Employee Portal Sidebar** (`components/EmployeePortalSidebar.tsx`)
+   - Displayed in employee portal navigation
+   - Size: h-12 (48px height)
 
-2. **Admin/HR Sidebar** (`components/Sidebar.tsx`)
+3. **Login Page** (`app/login/LoginPageClient.tsx`)
+   - Displayed prominently on the login page
+   - Size: h-32 (128px height)
 
-   - Size: `h-12` (48px height, auto width)
+4. **Payslips** (`components/PayslipPrint.tsx`, `components/PayslipMultiPrint.tsx`)
+   - Displayed on printed payslips
+   - Size: 100px height
 
-3. **Employee Portal Sidebar** (`components/EmployeePortalSidebar.tsx`)
+5. **PDF Exports** (`app/employees/page.tsx`, `app/reports/page.tsx`)
+   - Included in PDF reports and exports
 
-   - Size: `h-8` (32px height, max-width 140px)
-
-4. **Payslip Print** (`components/PayslipPrint.tsx`)
-
-   - Size: 80px height, auto width
-
-5. **Multi-Payslip Print** (`components/PayslipMultiPrint.tsx`)
-   - Size: 24px height, auto width (compact format)
+6. **Favicon** (`app/layout.tsx`)
+   - Browser tab icon
 
 ## Updating the Logo
 
 To update the logo:
 
-1. Replace `GP LOGO (1).png` with the new logo file
-2. Convert to WebP:
+1. Place your Addbell logo file in this folder (e.g., `addbell-logo.png`)
+2. Convert to WebP format (if needed):
    ```bash
-   convert "GP LOGO (1).png" -quality 90 -resize 500x500 public/gp-logo.webp
+   # Using ImageMagick or similar tool
+   convert "addbell-logo.png" -quality 90 -resize 500x500 public/addbell-logo.webp
+   convert "addbell-logo.png" -quality 90 -resize 64x64 public/addbell-favicon.webp
    ```
 3. All references will automatically use the new logo
 
----
+## Notes
 
-**Last Updated:** December 18, 2025
+- Ensure the logo has a transparent background for best results
+- Maintain aspect ratio when resizing
+- Use WebP format for optimal performance and file size

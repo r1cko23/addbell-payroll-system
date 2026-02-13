@@ -1,0 +1,120 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img "Addbell Technical Services, Inc." [ref=e7]
+        - navigation [ref=e8]:
+          - button "Overview" [ref=e32] [cursor=pointer]:
+            - generic [ref=e33]:
+              - img [ref=e34]
+              - text: Overview
+            - img [ref=e39]
+          - button "Projects" [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]:
+              - img [ref=e45]
+              - text: Projects
+            - img [ref=e49]
+          - button "People" [ref=e53] [cursor=pointer]:
+            - generic [ref=e54]:
+              - img [ref=e55]
+              - text: People
+            - img [ref=e63]
+          - generic [ref=e66]:
+            - button "Time & Attendance" [expanded] [ref=e67] [cursor=pointer]:
+              - generic [ref=e68]:
+                - img [ref=e69]
+                - text: Time & Attendance
+              - img [ref=e74]
+            - generic [ref=e77]:
+              - link "Time Attendance" [ref=e78] [cursor=pointer]:
+                - /url: /timesheet
+                - img [ref=e79]
+                - text: Time Attendance
+              - link "Time Entries" [ref=e82] [cursor=pointer]:
+                - /url: /time-entries
+                - img [ref=e83]
+                - text: Time Entries
+              - link "Leave Approvals" [ref=e87] [cursor=pointer]:
+                - /url: /leave-approval
+                - img [ref=e88]
+                - text: Leave Approvals
+              - link "OT Approvals" [ref=e92] [cursor=pointer]:
+                - /url: /overtime-approval
+                - img [ref=e93]
+                - text: OT Approvals
+              - link "Failure to Log" [ref=e98] [cursor=pointer]:
+                - /url: /failure-to-log-approval
+                - img [ref=e99]
+                - text: Failure to Log
+              - link "Fund Requests" [ref=e103] [cursor=pointer]:
+                - /url: /fund-request-approval
+                - img [ref=e104]
+                - text: Fund Requests
+          - button "Admin" [ref=e108] [cursor=pointer]:
+            - generic [ref=e109]:
+              - img [ref=e110]
+              - text: Admin
+            - img [ref=e114]
+          - button "Settings" [ref=e118] [cursor=pointer]:
+            - generic [ref=e119]:
+              - img [ref=e120]
+              - text: Settings
+            - img [ref=e124]
+        - generic [ref=e16]:
+          - paragraph [ref=e17]:
+            - text: © 2025 Addbell Technical Services, Inc.
+            - text: All rights reserved
+          - link "Privacy Notice" [ref=e19] [cursor=pointer]:
+            - /url: /privacy
+    - generic [ref=e20]:
+      - banner [ref=e21]:
+        - button "DL Dado Leonardo upper_management" [ref=e127] [cursor=pointer]:
+          - generic [ref=e26]: DL
+          - generic [ref=e128]:
+            - generic [ref=e129]: Dado Leonardo
+            - generic [ref=e130]: upper_management
+          - img
+      - main [ref=e27]:
+        - generic [ref=e29]:
+          - generic [ref=e131]:
+            - heading "Fund Request Approval" [level=1] [ref=e132]
+            - paragraph [ref=e133]: "Workflow: Requester → Project Manager → Purchasing Officer → Upper Management. Approve to move to the next step or reject with a reason."
+          - generic [ref=e134]:
+            - generic [ref=e137]:
+              - paragraph [ref=e138]: Total Requests
+              - paragraph [ref=e139]: "3"
+            - generic [ref=e142]:
+              - paragraph [ref=e143]: Pending (PM)
+              - paragraph [ref=e144]: "0"
+            - generic [ref=e147]:
+              - paragraph [ref=e148]: Pending (PO)
+              - paragraph [ref=e149]: "0"
+            - generic [ref=e152]:
+              - paragraph [ref=e153]: Pending (Management)
+              - paragraph [ref=e154]: "0"
+            - generic [ref=e157]:
+              - paragraph [ref=e158]: Approved
+              - paragraph [ref=e159]: "3"
+            - generic [ref=e162]:
+              - paragraph [ref=e163]: Rejected
+              - paragraph [ref=e164]: "0"
+          - generic [ref=e165]:
+            - generic [ref=e166]:
+              - button "Pending (actionable)" [ref=e167] [cursor=pointer]
+              - button "All requests (history)" [ref=e168] [cursor=pointer]
+            - combobox "Status filter only applies in All requests (history)" [disabled] [ref=e169]:
+              - option "All statuses" [selected]
+              - option "Pending"
+              - option "Approved"
+              - option "Rejected"
+            - generic "Date filter only applies in All requests (history)" [ref=e170]:
+              - button "Older week" [disabled] [ref=e171]:
+                - img [ref=e172]
+              - button "All weeks" [disabled] [ref=e174]
+              - button "Newer week" [disabled] [ref=e175]:
+                - img [ref=e176]
+            - generic [ref=e178]:
+              - img [ref=e179]
+              - textbox "Search by name or purpose..." [ref=e182]
+          - generic [ref=e185]: No requests in this step.
+  - alert [ref=e30]

@@ -10,6 +10,7 @@ import {
   CalendarBlank,
   Timer,
   FileArrowDown,
+  Receipt,
   X,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
@@ -29,23 +30,14 @@ type NavGroup = {
   defaultOpen?: boolean;
 };
 
-// Note: Schedule link will be conditionally shown based on employee type
-const getNavGroups = (isAccountSupervisor: boolean): NavGroup[] => [
+// Schedule functionality removed - not relevant for Addbell
+const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
   {
     label: "Time & Attendance",
     icon: Clock,
     defaultOpen: true,
     items: [
       { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
-      ...(isAccountSupervisor
-        ? [
-            {
-              name: "Schedule",
-              href: "/employee-portal/schedule",
-              icon: CalendarBlank,
-            },
-          ]
-        : []),
     ],
   },
   {
@@ -63,6 +55,11 @@ const getNavGroups = (isAccountSupervisor: boolean): NavGroup[] => [
         name: "Failure to Log",
         href: "/employee-portal/failure-to-log",
         icon: WarningCircle,
+      },
+      {
+        name: "Fund Request",
+        href: "/employee-portal/fund-request",
+        icon: Receipt,
       },
     ],
   },
@@ -252,8 +249,8 @@ export function EmployeePortalSidebar({
         <div className="flex items-center justify-center h-20 px-4 py-3">
           <div className="flex flex-col items-center justify-center gap-1.5 w-full">
             <img
-              src="/gp-logo.webp"
-              alt="Green Pasture People Management Inc."
+              src="/addbell-logo.jpg"
+              alt="Addbell Technical Services, Inc."
               className="h-12 w-auto max-w-[180px] object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
@@ -332,7 +329,7 @@ export function EmployeePortalSidebar({
       {/* Footer */}
       <div className="p-4 border-t">
         <p className="text-xs text-muted-foreground text-center mb-2">
-          © 2025 Green Pasture People Management Inc.
+          © 2025 Addbell Technical Services, Inc.
           <br />
           All rights reserved
         </p>

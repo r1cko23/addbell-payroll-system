@@ -1,0 +1,197 @@
+[    1261ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_user_permissions:0
+[    1261ms] [ERROR] Error fetching permissions: {code: PGRST202, details: Searched for the function public.get_user_permissi…r, but no matches were found in the schema cache., hint: Perhaps you meant to call the function public.get_employee_supervisor_id, message: Could not find the function public.get_user_permissions(p_user_id) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[    1766ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id%2Cperiod_start%2Cperiod_end&period_start=gte.2026-02-01&period_end=lte.2026-02-15&status=eq.paid:0
+[    1766ms] [ERROR] Error fetching current cutoff payslips: {code: 42703, details: null, hint: null, message: column payslips.period_start does not exist} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[    1916ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id%2Cperiod_start%2Cperiod_end&period_start=gte.2026-02-01&period_end=lte.2026-02-15&status=eq.paid:0
+[    1916ms] [ERROR] Error fetching current cutoff payslips: {code: 42703, details: null, hint: null, message: column payslips.period_start does not exist} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[    1978ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay&period_start=gte.2026-01-16&period_end=lte.2026-01-31&status=eq.paid:0
+[    2128ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay&period_start=gte.2026-01-16&period_end=lte.2026-01-31&status=eq.paid:0
+[    2203ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cdeductions_breakdown&period_start=gte.2026-01-01&status=eq.paid:0
+[    2389ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cdeductions_breakdown&period_start=gte.2026-01-01&status=eq.paid:0
+[    2447ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cperiod_start&period_start=gte.2026-02-01&status=eq.paid:0
+[    2595ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cperiod_start&period_start=gte.2026-02-01&status=eq.paid:0
+[    2861ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2026-01-16&period_end=lte.2026-01-31&status=eq.paid:0
+[    3010ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2026-01-16&period_end=lte.2026-01-31&status=eq.paid:0
+[    3167ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2026-01-01&period_end=lte.2026-01-15&status=eq.paid:0
+[    3312ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2026-01-01&period_end=lte.2026-01-15&status=eq.paid:0
+[    3355ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-12-16&period_end=lte.2025-12-31&status=eq.paid:0
+[    3519ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-12-16&period_end=lte.2025-12-31&status=eq.paid:0
+[    3568ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-12-01&period_end=lte.2025-12-15&status=eq.paid:0
+[    3714ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-12-01&period_end=lte.2025-12-15&status=eq.paid:0
+[    3753ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-11-16&period_end=lte.2025-11-30&status=eq.paid:0
+[    3904ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-11-16&period_end=lte.2025-11-30&status=eq.paid:0
+[    3975ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-11-01&period_end=lte.2025-11-15&status=eq.paid:0
+[    4126ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-11-01&period_end=lte.2025-11-15&status=eq.paid:0
+[    4172ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-10-16&period_end=lte.2025-10-31&status=eq.paid:0
+[    4330ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-10-16&period_end=lte.2025-10-31&status=eq.paid:0
+[    4429ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-10-01&period_end=lte.2025-10-15&status=eq.paid:0
+[    4582ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-10-01&period_end=lte.2025-10-15&status=eq.paid:0
+[    4619ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-09-16&period_end=lte.2025-09-30&status=eq.paid:0
+[    4778ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-09-16&period_end=lte.2025-09-30&status=eq.paid:0
+[    4818ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-09-01&period_end=lte.2025-09-15&status=eq.paid:0
+[    4971ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-09-01&period_end=lte.2025-09-15&status=eq.paid:0
+[    5038ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-08-16&period_end=lte.2025-08-31&status=eq.paid:0
+[    5192ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-08-16&period_end=lte.2025-08-31&status=eq.paid:0
+[    5278ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-08-01&period_end=lte.2025-08-15&status=eq.paid:0
+[    5464ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=gross_pay%2Cnet_pay%2Cemployee_id&period_start=gte.2025-08-01&period_end=lte.2025-08-15&status=eq.paid:0
+[    5595ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=id%2Cstatus%2Ccreated_at%2Cnet_pay%2Cemployee_id%2Cemployees%21payslips_employee_id_fkey%28full_name%2Cemployee_id%29&order=created_at.desc&limit=10:0
+[    5774ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=id%2Cstatus%2Ccreated_at%2Cnet_pay%2Cemployee_id%2Cemployees%21payslips_employee_id_fkey%28full_name%2Cemployee_id%29&order=created_at.desc&limit=10:0
+[    6406ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=deductions_breakdown%2Csss_amount%2Cphilhealth_amount%2Cpagibig_amount%2Cemployee_id&period_start=gte.2025-12-31&status=eq.paid:0
+[    6547ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/payslips?select=deductions_breakdown%2Csss_amount%2Cphilhealth_amount%2Cpagibig_amount%2Cemployee_id&period_start=gte.2025-12-31&status=eq.paid:0
+[   30313ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/api/employee/first-login:0
+[   31858ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_type_and_position:0
+[   31859ms] [ERROR] EmployeePortalSidebar - Error fetching employee via RPC: {error: Object, uuid: ea310310-91d4-4b06-91ea-543dd466eadd, employeeId: 2025001, errorCode: PGRST202, errorMessage: Could not find the function public.get_employee_ty…and_position(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   31872ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employees?select=position%2Cemployee_type%2Cjob_level&id=eq.ea310310-91d4-4b06-91ea-543dd466eadd:0
+[   31872ms] [ERROR] Failed to fetch employee info: {code: 42703, details: null, hint: null, message: column employees.employee_type does not exist} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   31899ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_type_and_position:0
+[   31899ms] [ERROR] EmployeePortalSidebar - Error fetching employee via RPC: {error: Object, uuid: ea310310-91d4-4b06-91ea-543dd466eadd, employeeId: 2025001, errorCode: PGRST202, errorMessage: Could not find the function public.get_employee_ty…and_position(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   31932ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/holidays?select=holiday_date%2Cname%2Cis_regular&holiday_date=gte.2026-02-01&holiday_date=lte.2026-02-28:0
+[   31932ms] [ERROR] Failed to load calendar holidays {code: 42703, details: null, hint: null, message: column holidays.name does not exist} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   31962ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_profile:0
+[   32008ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employees?select=position%2Cemployee_type%2Cjob_level&id=eq.ea310310-91d4-4b06-91ea-543dd466eadd:0
+[   32008ms] [ERROR] Failed to fetch employee info: {code: 42703, details: null, hint: null, message: column employees.employee_type does not exist} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32070ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/holidays?select=holiday_date%2Cname%2Cis_regular&holiday_date=gte.2026-02-01&holiday_date=lte.2026-02-28:0
+[   32070ms] [ERROR] Failed to load calendar holidays {code: 42703, details: null, hint: null, message: column holidays.name does not exist} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32082ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=*&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_out_time=is.null&order=clock_in_time.desc&limit=1:0
+[   32091ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=*&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_in_time=gte.2026-01-31T16%3A00%3A00.000Z&clock_in_time=lte.2026-02-15T15%3A59%3A59.999Z&order=clock_in_time.desc:0
+[   32110ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_server_time:0
+[   32121ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=clock_in_time%2Cclock_out_time%2Cstatus%2Cclock_in_date_ph&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_in_time=gte.2026-01-31T16%3A00%3A00.000Z&clock_in_time=lte.2026-02-28T15%3A59%3A59.999Z&order=clock_in_time.asc:0
+[   32136ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employee_week_schedules?select=schedule_date%2Cday_off&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&schedule_date=gte.2026-02-01&schedule_date=lte.2026-02-28:0
+[   32136ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_server_time:0
+[   32235ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=*&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_out_time=is.null&order=clock_in_time.desc&limit=1:0
+[   32254ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=*&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_in_time=gte.2026-01-31T16%3A00%3A00.000Z&clock_in_time=lte.2026-02-15T15%3A59%3A59.999Z&order=clock_in_time.desc:0
+[   32307ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employee_week_schedules?select=schedule_date%2Cday_off&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&schedule_date=gte.2026-02-01&schedule_date=lte.2026-02-28:0
+[   32308ms] [ERROR] Failed to load calendar time entries {code: PGRST205, details: null, hint: Perhaps you meant the table 'public.time_entries', message: Could not find the table 'public.time_clock_entries' in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32320ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=clock_in_time%2Cclock_out_time%2Cstatus%2Cclock_in_date_ph&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_in_time=gte.2026-01-31T16%3A00%3A00.000Z&clock_in_time=lte.2026-02-28T15%3A59%3A59.999Z&order=clock_in_time.asc:0
+[   32320ms] [ERROR] Failed to load calendar time entries {code: PGRST205, details: null, hint: Perhaps you meant the table 'public.time_entries', message: Could not find the table 'public.time_clock_entries' in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32441ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=id%2Cclock_in_time%2Cclock_out_time%2Cregular_hours%2Ctotal_hours%2Ctotal_night_diff_hours%2Cstatus&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_in_time=gte.2026-01-30T16%3A00%3A00.000Z&clock_in_time=lte.2026-02-16T15%3A59%3A59.999Z&order=clock_in_time.asc:0
+[   32452ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employee_week_schedules?select=schedule_date%2Cday_off&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&schedule_date=gte.2026-02-01&schedule_date=lte.2026-02-28:0
+[   32453ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/holidays?select=holiday_date%2Cname%2Cis_regular&holiday_date=gte.2026-02-01&holiday_date=lte.2026-02-15:0
+[   32467ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employee_week_schedules?select=schedule_date%2Cstart_time%2Cend_time%2Cday_off&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&schedule_date=gte.2026-02-01&schedule_date=lte.2026-02-15:0
+[   32477ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=clock_in_time%2Cclock_out_time%2Cstatus%2Cclock_in_date_ph&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_in_time=gte.2026-01-31T16%3A00%3A00.000Z&clock_in_time=lte.2026-02-28T15%3A59%3A59.999Z&order=clock_in_time.asc:0
+[   32477ms] [ERROR] Failed to load calendar time entries {code: PGRST205, details: null, hint: Perhaps you meant the table 'public.time_entries', message: Could not find the table 'public.time_clock_entries' in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32487ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_leave_credits:0
+[   32487ms] [ERROR] Error fetching SIL credits: {code: PGRST202, details: Searched for the function public.get_employee_leav…r, but no matches were found in the schema cache., hint: Perhaps you meant to call the function public.get_employee_clock_status, message: Could not find the function public.get_employee_leave_credits(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32490ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/employees?select=employee_type&id=eq.ea310310-91d4-4b06-91ea-543dd466eadd:0
+[   32491ms] [ERROR] ❌ Employee Portal - Clock entries query error: {error: Object, errorCode: PGRST205, errorMessage: Could not find the table 'public.time_clock_entries' in the schema cache, errorDetails: null, employeeId: ea310310-91d4-4b06-91ea-543dd466eadd} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   32491ms] [WARNING] ⚠️ Employee ea310310-91d4-4b06-91ea-543dd466eadd - No clock entries found for period 2026-02-01 to 2026-02-15 {clockData: null, clockError: Object, queryStart: 2026-01-30T16:00:00.000Z, queryEnd: 2026-02-16T15:59:59.999Z} @ webpack-internal:///(app-pages-browser)/./app/employee-portal/bundy/page.tsx:860
+[   35605ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/is_employee_location_allowed:0
+[   37564ms] [ERROR] ./app/fund-request/page.tsx
+Error: 
+  x Nullish coalescing operator(??) requires parens when mixing with logical operators
+    ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
+ 21 |   const pathname = usePathname();
+ 22 |   const { profile, loading: profileLoading } = useProfile();
+ 23 |   const session = useEmployeeSession();
+ 24 |   const isPortal = pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal') ?? false;
+    :                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 25 |   const [rows, setRows] = useState<FundRequestRow[]>([]);
+ 26 |   const [loading, setLoading] = useState(true);
+ 27 |   const supabase = createClient();
+    `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/fund-request/page.tsx
+./app/employee-portal/fund-request/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   37840ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=*&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_out_time=is.null&order=clock_in_time.desc&limit=1:0
+[   37933ms] [ERROR] ./app/fund-request/page.tsx
+Error: 
+  x Nullish coalescing operator(??) requires parens when mixing with logical operators
+    ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
+ 21 |   const pathname = usePathname();
+ 22 |   const { profile, loading: profileLoading } = useProfile();
+ 23 |   const session = useEmployeeSession();
+ 24 |   const isPortal = pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal') ?? false;
+    :                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 25 |   const [rows, setRows] = useState<FundRequestRow[]>([]);
+ 26 |   const [loading, setLoading] = useState(true);
+ 27 |   const supabase = createClient();
+    `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/fund-request/page.tsx
+./app/employee-portal/fund-request/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   38620ms] [ERROR] ./app/fund-request/page.tsx
+Error: 
+  x Nullish coalescing operator(??) requires parens when mixing with logical operators
+    ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
+ 21 |   const pathname = usePathname();
+ 22 |   const { profile, loading: profileLoading } = useProfile();
+ 23 |   const session = useEmployeeSession();
+ 24 |   const isPortal = pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal') ?? false;
+    :                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 25 |   const [rows, setRows] = useState<FundRequestRow[]>([]);
+ 26 |   const [loading, setLoading] = useState(true);
+ 27 |   const supabase = createClient();
+    `----
+
+Caused by:
+    Syntax Error
+
+Import trace for requested module:
+./app/fund-request/page.tsx
+./app/employee-portal/fund-request/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   38676ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/employee-portal/fund-request?_rsc=6e7kq:0
+[   38684ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/employee-portal/fund-request?_rsc=eijwh:0
+[   38689ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/employee-portal/fund-request?_rsc=eijwh:0
+[   38725ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/employee-portal/fund-request:0
+[   38885ms] ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
+Error: 
+  x Nullish coalescing operator(??) requires parens when mixing with logical operators
+    ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
+ 21 |   const pathname = usePathname();
+ 22 |   const { profile, loading: profileLoading } = useProfile();
+ 23 |   const session = useEmployeeSession();
+ 24 |   const isPortal = pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal') ?? false;
+    :                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 25 |   const [rows, setRows] = useState<FundRequestRow[]>([]);
+ 26 |   const [loading, setLoading] = useState(true);
+ 27 |   const supabase = createClient();
+    `----
+
+
+Caused by:
+    Syntax Error
+    at processResult (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/webpack/bundle5.js:28:398653)
+    at <unknown> (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/webpack/bundle5.js:28:400370)
+    at <unknown> (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:8645)
+    at <unknown> (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:5019)
+    at r.callback (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:4039)
+[   38886ms] [ERROR] ./app/fund-request/page.tsx
+Error: 
+  x Nullish coalescing operator(??) requires parens when mixing with logical operators
+    ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
+ 21 |   const pathname = usePathname();
+ 22 |   const { profile, loading: profileLoading } = useProfile();
+ 23 |   const session = useEmployeeSession();
+ 24 |   const isPortal = pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal') ?? false;
+    :                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 25 |   const [rows, setRows] = useState<FundRequestRow[]>([]);
+ 26 |   const [loading, setLoading] = useState(true);
+ 27 |   const supabase = createClient();
+    `----
+
+Caused by:
+    Syntax Error @ webpack-internal:///./node_modules/next/dist/compiled/@next/react-dev-overlay/dist/client.js:25
+[   38887ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3001/favicon.ico:0
+[   47628ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/_next/static/webpack/ff5148d7fadc3489.webpack.hot-update.json:0
+[   47628ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ webpack-internal:///./node_modules/next/dist/client/dev/error-overlay/hot-dev-client.js:297
+[   48243ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3001/api/auth/me:0
+[   48378ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_profile:0
+[   48380ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_type_and_position:0
+[   48380ms] [ERROR] EmployeePortalSidebar - Error fetching employee via RPC: {error: Object, uuid: ea310310-91d4-4b06-91ea-543dd466eadd, employeeId: 2025001, errorCode: PGRST202, errorMessage: Could not find the function public.get_employee_ty…and_position(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
+[   48382ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/get_employee_type_and_position:0
+[   48382ms] [ERROR] EmployeePortalSidebar - Error fetching employee via RPC: {error: Object, uuid: ea310310-91d4-4b06-91ea-543dd466eadd, employeeId: 2025001, errorCode: PGRST202, errorMessage: Could not find the function public.get_employee_ty…and_position(p_employee_uuid) in the schema cache} @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34

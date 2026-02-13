@@ -258,8 +258,8 @@ export function LoginPageClient() {
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <img
-                src="/gp-logo.webp"
-                alt="Green Pasture People Management Inc."
+                src="/addbell-logo.jpg"
+                alt="Addbell Technical Services, Inc."
                 className="h-32 w-auto"
                 onError={(e) => {
                   e.currentTarget.style.display = "none";
@@ -267,7 +267,7 @@ export function LoginPageClient() {
               />
             </div>
             <h1 className="text-2xl font-bold text-primary mb-2">
-              Green Pasture People Management Inc.
+              Addbell Technical Services, Inc.
             </h1>
             <p className="text-muted-foreground">Sign in to your account</p>
           </div>
@@ -406,7 +406,7 @@ export function LoginPageClient() {
 
         <div className="mt-6 text-center text-sm text-muted-foreground space-y-2">
           <p>
-            © 2025 Green Pasture People Management Inc. All rights reserved.
+            © 2025 Addbell Technical Services, Inc. All rights reserved.
           </p>
           <div className="flex items-center justify-center gap-4 text-xs">
             <a

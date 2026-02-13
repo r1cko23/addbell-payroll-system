@@ -48,18 +48,24 @@ export function useUserRole(): UserRoleData {
       user.full_name.toLowerCase().includes("april") &&
       user.full_name.toLowerCase().includes("gammad");
 
+    // Cast role to the expected type since profiles table may have different role values
+    const role = user?.role as UserRoleData["role"] | null;
+
+    // upper_management = admin per Addbell roles
+    const isAdmin = user?.role === "admin" || user?.role === "upper_management";
+
     return {
-      role: user?.role ?? null,
+      role,
       email: user?.email ?? null,
       loading: userLoading,
       error: userError,
-      isAdmin: user?.role === "admin",
+      isAdmin,
       isHR: user?.role === "hr",
       isApprover: user?.role === "approver" || user?.role === "hr",
       isViewer: user?.role === "viewer",
       isRestrictedAccess: user?.role === "approver" || user?.role === "viewer",
-      canAccessSalaryInfo: user?.role === "admin" || (user?.can_access_salary ?? false),
-      canUpdatePayslip: user?.role === "admin" || isAprilGammad,
+      canAccessSalaryInfo: isAdmin || (user?.can_access_salary ?? false),
+      canUpdatePayslip: isAdmin || isAprilGammad,
       refetch,
     };
   }, [user, userLoading, userError, refetch]);

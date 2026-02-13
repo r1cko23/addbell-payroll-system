@@ -45,12 +45,30 @@ export function Header({ onMenuClick }: HeaderProps) {
           headers: {
             "Content-Type": "application/json",
           },
+          cache: "no-store",
         });
 
-        if (!response.ok || !isMounted) return;
+        if (!isMounted) return;
+
+        if (!response.ok) {
+          // 401 or other error = not authenticated, clear state
+          setUser(null);
+          setUserRole("");
+          setUserFullName("");
+          setProfilePictureUrl(null);
+          return;
+        }
 
         const data = await response.json();
         const userData = data.user;
+
+        if (!userData && isMounted) {
+          setUser(null);
+          setUserRole("");
+          setUserFullName("");
+          setProfilePictureUrl(null);
+          return;
+        }
 
         if (userData && isMounted) {
           // Set auth user for compatibility
@@ -127,13 +145,13 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, [supabase]);
 
   const handleLogout = async () => {
-    // Clear session cache on logout
+    // Clear all auth caches before signOut so no stale data when switching accounts
     const { clearSessionCache } = await import("@/lib/session-utils");
     clearSessionCache();
-
-    // Clear current user cache
     const { clearCurrentUserCache } = await import("@/lib/hooks/useCurrentUser");
     clearCurrentUserCache();
+    const { clearPermissionsCache } = await import("@/lib/hooks/usePermissions");
+    clearPermissionsCache();
 
     await supabase.auth.signOut();
     router.push("/login");

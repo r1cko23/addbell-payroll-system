@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.fund_requests (
   date_needed DATE NOT NULL,
   urgent_reason TEXT,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'project_manager_approved', 'purchasing_officer_approved', 'management_approved', 'rejected')),
-  
+
   -- Approval tracking
   project_manager_approved_by UUID REFERENCES public.users(id),
   project_manager_approved_at TIMESTAMP WITH TIME ZONE,
@@ -28,12 +28,12 @@ CREATE TABLE IF NOT EXISTS public.fund_requests (
   management_approved_by UUID REFERENCES public.users(id),
   management_approved_at TIMESTAMP WITH TIME ZONE,
   supplier_bank_details TEXT,
-  
+
   -- Rejection tracking
   rejected_by UUID REFERENCES public.users(id),
   rejected_at TIMESTAMP WITH TIME ZONE,
   rejection_reason TEXT,
-  
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -51,7 +51,7 @@ ALTER TABLE public.fund_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Employees can view their own fund requests" ON public.fund_requests
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.employees 
+      SELECT 1 FROM public.employees
       WHERE id = requested_by AND id IN (
         SELECT id FROM public.employees WHERE id = requested_by
       )
@@ -62,7 +62,7 @@ CREATE POLICY "Employees can view their own fund requests" ON public.fund_reques
 CREATE POLICY "Employees can create fund requests" ON public.fund_requests
   FOR INSERT WITH CHECK (
     EXISTS (
-      SELECT 1 FROM public.employees 
+      SELECT 1 FROM public.employees
       WHERE id = requested_by AND id IN (
         SELECT id FROM public.employees WHERE id = requested_by
       )
@@ -78,7 +78,7 @@ CREATE POLICY "Operations managers can approve pending fund requests" ON public.
   FOR UPDATE USING (
     status = 'pending' AND
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role = 'operations_manager'
     )
   );
@@ -88,7 +88,7 @@ CREATE POLICY "Purchasing officers can approve PM-approved fund requests" ON pub
   FOR UPDATE USING (
     status = 'project_manager_approved' AND
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role = 'purchasing_officer'
     )
   );
@@ -98,7 +98,7 @@ CREATE POLICY "Management can approve PO-approved fund requests" ON public.fund_
   FOR UPDATE USING (
     status = 'purchasing_officer_approved' AND
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('hr', 'admin', 'upper_management')
     )
   );
@@ -107,7 +107,7 @@ CREATE POLICY "Management can approve PO-approved fund requests" ON public.fund_
 CREATE POLICY "Authorized roles can reject fund requests" ON public.fund_requests
   FOR UPDATE USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('operations_manager', 'purchasing_officer', 'hr', 'admin', 'upper_management')
     )
   );

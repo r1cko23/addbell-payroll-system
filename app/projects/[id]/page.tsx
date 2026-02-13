@@ -138,7 +138,7 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
-  
+
   const [project, setProject] = useState<Project | null>(null);
   const [costs, setCosts] = useState<ProjectCost[]>([]);
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
@@ -149,19 +149,19 @@ export default function ProjectDetailPage() {
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [addVendorId, setAddVendorId] = useState("");
   const [loading, setLoading] = useState(true);
-  
+
   // Cost summary
   const [materialCost, setMaterialCost] = useState(0);
   const [manpowerCost, setManpowerCost] = useState(0);
   const [machineCost, setMachineCost] = useState(0);
   const [otherCost, setOtherCost] = useState(0);
   const [totalCost, setTotalCost] = useState(0);
-  
+
   // Dialog states
   const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
   const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
   const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
-  
+
   // Cost form state
   const [costType, setCostType] = useState<ProjectCost["cost_type"]>("material");
   const [costCategory, setCostCategory] = useState("");
@@ -174,7 +174,7 @@ export default function ProjectDetailPage() {
   const [costVendor, setCostVendor] = useState("");
   const [costInvoice, setCostInvoice] = useState("");
   const [costPaymentStatus, setCostPaymentStatus] = useState<ProjectCost["payment_status"]>("pending");
-  
+
   // Progress form state
   const [progressPercentage, setProgressPercentage] = useState("");
   const [progressDate, setProgressDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -190,7 +190,7 @@ export default function ProjectDetailPage() {
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch project
       const { data: projectData, error: projectError } = await supabase
         .from("projects")
@@ -203,39 +203,39 @@ export default function ProjectDetailPage() {
         `)
         .eq("id", projectId)
         .single();
-      
+
       if (projectError) throw projectError;
       setProject(projectData);
-      
+
       // Fetch costs
       const { data: costsData, error: costsError } = await supabase
         .from("project_costs")
         .select("*")
         .eq("project_id", projectId)
         .order("cost_date", { ascending: false });
-      
+
       if (costsError) throw costsError;
       setCosts(costsData || []);
-      
+
       // Calculate cost summary
       const material = (costsData || []).filter(c => c.cost_type === "material").reduce((sum, c) => sum + c.total_cost, 0);
       const machine = (costsData || []).filter(c => c.cost_type === "machine").reduce((sum, c) => sum + c.total_cost, 0);
       const other = (costsData || []).filter(c => c.cost_type === "other").reduce((sum, c) => sum + c.total_cost, 0);
-      
+
       // Fetch manpower costs
       const { data: manpowerData, error: manpowerError } = await supabase
         .from("project_manpower_costs")
         .select("total_cost")
         .eq("project_id", projectId);
-      
+
       const manpower = (manpowerData || []).reduce((sum, c) => sum + c.total_cost, 0);
-      
+
       setMaterialCost(material);
       setManpowerCost(manpower);
       setMachineCost(machine);
       setOtherCost(other);
       setTotalCost(material + manpower + machine + other);
-      
+
       // Fetch assignments
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from("project_assignments")
@@ -248,10 +248,10 @@ export default function ProjectDetailPage() {
         `)
         .eq("project_id", projectId)
         .order("start_date", { ascending: false });
-      
+
       if (assignmentsError) throw assignmentsError;
       setAssignments(assignmentsData || []);
-      
+
       // Fetch time entries
       const { data: timeEntriesData, error: timeEntriesError } = await supabase
         .from("project_time_entries")
@@ -265,20 +265,20 @@ export default function ProjectDetailPage() {
         .eq("project_id", projectId)
         .order("clock_in", { ascending: false })
         .limit(50);
-      
+
       if (timeEntriesError) throw timeEntriesError;
       setTimeEntries(timeEntriesData || []);
-      
+
       // Fetch progress history
       const { data: progressData, error: progressError } = await supabase
         .from("project_progress")
         .select("*")
         .eq("project_id", projectId)
         .order("progress_date", { ascending: false });
-      
+
       if (progressError) throw progressError;
       setProgressHistory(progressData || []);
-      
+
       // Fetch project vendors
       const { data: pvData, error: pvError } = await supabase
         .from("project_vendors")
@@ -288,7 +288,7 @@ export default function ProjectDetailPage() {
           vendors(name, tin, phone, email)
         `)
         .eq("project_id", projectId);
-      
+
       if (!pvError) {
         const normalized = (pvData || []).map((pv: { id: string; vendor_id: string; vendors: { name: string; tin: string; phone: string; email: string } | { name: string; tin: string; phone: string; email: string }[] | null }) => ({
           id: pv.id,
@@ -297,7 +297,7 @@ export default function ProjectDetailPage() {
         }));
         setProjectVendors(normalized);
       }
-      
+
       // Fetch all vendors for add dropdown
       const { data: vendorsData } = await supabase
         .from("vendors")
@@ -305,7 +305,7 @@ export default function ProjectDetailPage() {
         .eq("is_active", true)
         .order("name");
       setAllVendors(vendorsData || []);
-      
+
     } catch (error) {
       toast.error("Failed to load project data");
       console.error(error);
@@ -316,7 +316,7 @@ export default function ProjectDetailPage() {
 
   const handleAddCost = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!costDescription.trim() || !costTotalCost) {
       toast.error("Description and total cost are required");
       return;
@@ -348,12 +348,12 @@ export default function ProjectDetailPage() {
       const { error } = await supabase
         .from("project_costs")
         .insert(payload);
-      
+
       if (error) throw error;
-      
+
       toast.success("Cost added successfully");
       setIsCostDialogOpen(false);
-      
+
       // Reset form
       setCostType("material");
       setCostCategory("");
@@ -366,7 +366,7 @@ export default function ProjectDetailPage() {
       setCostVendor("");
       setCostInvoice("");
       setCostPaymentStatus("pending");
-      
+
       fetchProjectData();
     } catch (error: any) {
       toast.error(error.message || "Failed to add cost");
@@ -376,7 +376,7 @@ export default function ProjectDetailPage() {
 
   const handleUpdateProgress = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const progressValue = parseFloat(progressPercentage);
     if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
       toast.error("Progress must be between 0 and 100");
@@ -396,26 +396,26 @@ export default function ProjectDetailPage() {
       const { error } = await supabase
         .from("project_progress")
         .insert(payload);
-      
+
       if (error) throw error;
-      
+
       // Update project progress percentage
       const { error: updateError } = await supabase
         .from("projects")
         .update({ progress_percentage: progressValue })
         .eq("id", projectId);
-      
+
       if (updateError) throw updateError;
-      
+
       toast.success("Progress updated successfully");
       setIsProgressDialogOpen(false);
-      
+
       // Reset form
       setProgressPercentage("");
       setProgressDate(format(new Date(), "yyyy-MM-dd"));
       setProgressMilestone("");
       setProgressNotes("");
-      
+
       fetchProjectData();
     } catch (error: any) {
       toast.error(error.message || "Failed to update progress");
@@ -541,7 +541,7 @@ export default function ProjectDetailPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -558,7 +558,7 @@ export default function ProjectDetailPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -577,7 +577,7 @@ export default function ProjectDetailPage() {
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">

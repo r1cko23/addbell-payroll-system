@@ -17,7 +17,7 @@ The logo is converted to WebP format and placed in `/public/` for use in the app
 
 - **Format:** JPG (from Official Logo Cropped.jpg)
 - **Location:** `/public/addbell-logo.jpg`
-- **Recommended Size:** 
+- **Recommended Size:**
   - Logo: 500x185px or similar aspect ratio
   - Favicon: 32x32px or 64x64px
 

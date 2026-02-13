@@ -86,7 +86,7 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  
+
   // Form state
   const [projectCode, setProjectCode] = useState("");
   const [projectName, setProjectName] = useState("");
@@ -116,7 +116,7 @@ export default function ProjectsPage() {
         .select("id, client_code, client_name")
         .eq("is_active", true)
         .order("client_name", { ascending: true });
-      
+
       if (error) throw error;
       setClients(data || []);
     } catch (error) {
@@ -137,7 +137,7 @@ export default function ProjectsPage() {
           )
         `)
         .order("created_at", { ascending: false });
-      
+
       if (error) throw error;
       setProjects(data || []);
     } catch (error) {
@@ -194,7 +194,7 @@ export default function ProjectsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!projectCode.trim() || !projectName.trim()) {
       toast.error("Project code and name are required");
       return;
@@ -225,14 +225,14 @@ export default function ProjectsPage() {
           .from("projects")
           .update(payload)
           .eq("id", editingProject.id);
-        
+
         if (error) throw error;
         toast.success("Project updated successfully");
       } else {
         const { error } = await supabase
           .from("projects")
           .insert(payload);
-        
+
         if (error) throw error;
         toast.success("Project created successfully");
       }
@@ -271,9 +271,9 @@ export default function ProjectsPage() {
       project.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       project.clients?.client_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (project.project_location && project.project_location.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     const matchesStatus = statusFilter === "all" || project.project_status === statusFilter;
-    
+
     return matchesSearch && matchesStatus;
   });
 

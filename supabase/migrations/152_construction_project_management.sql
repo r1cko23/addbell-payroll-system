@@ -188,7 +188,7 @@ CREATE POLICY "All authenticated users can view active clients" ON public.client
 CREATE POLICY "HR and Admin can view all clients" ON public.clients
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -196,7 +196,7 @@ CREATE POLICY "HR and Admin can view all clients" ON public.clients
 CREATE POLICY "HR and Admin can manage clients" ON public.clients
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -208,7 +208,7 @@ CREATE POLICY "All authenticated users can view active projects" ON public.proje
 CREATE POLICY "HR and Admin can view all projects" ON public.projects
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -216,7 +216,7 @@ CREATE POLICY "HR and Admin can view all projects" ON public.projects
 CREATE POLICY "HR and Admin can manage projects" ON public.projects
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -228,7 +228,7 @@ CREATE POLICY "All authenticated users can view project progress" ON public.proj
 CREATE POLICY "HR and Admin can manage project progress" ON public.project_progress
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -240,7 +240,7 @@ CREATE POLICY "All authenticated users can view project assignments" ON public.p
 CREATE POLICY "Employees can view their own assignments" ON public.project_assignments
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.employees 
+      SELECT 1 FROM public.employees
       WHERE id = employee_id AND id IN (
         SELECT employee_id FROM public.employees WHERE id = employee_id
       )
@@ -250,7 +250,7 @@ CREATE POLICY "Employees can view their own assignments" ON public.project_assig
 CREATE POLICY "HR and Admin can manage project assignments" ON public.project_assignments
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -259,7 +259,7 @@ CREATE POLICY "HR and Admin can manage project assignments" ON public.project_as
 CREATE POLICY "Employees can view their own time entries" ON public.project_time_entries
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.employees 
+      SELECT 1 FROM public.employees
       WHERE id = employee_id AND id IN (
         SELECT id FROM public.employees WHERE id = employee_id
       )
@@ -269,7 +269,7 @@ CREATE POLICY "Employees can view their own time entries" ON public.project_time
 CREATE POLICY "Employees can create their own time entries" ON public.project_time_entries
   FOR INSERT WITH CHECK (
     EXISTS (
-      SELECT 1 FROM public.employees 
+      SELECT 1 FROM public.employees
       WHERE id = employee_id AND id IN (
         SELECT id FROM public.employees WHERE id = employee_id
       )
@@ -280,7 +280,7 @@ CREATE POLICY "Employees can update their own pending time entries" ON public.pr
   FOR UPDATE USING (
     is_approved = false AND
     EXISTS (
-      SELECT 1 FROM public.employees 
+      SELECT 1 FROM public.employees
       WHERE id = employee_id AND id IN (
         SELECT id FROM public.employees WHERE id = employee_id
       )
@@ -290,7 +290,7 @@ CREATE POLICY "Employees can update their own pending time entries" ON public.pr
 CREATE POLICY "HR and Admin can view all time entries" ON public.project_time_entries
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -298,7 +298,7 @@ CREATE POLICY "HR and Admin can view all time entries" ON public.project_time_en
 CREATE POLICY "HR and Admin can manage time entries" ON public.project_time_entries
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -310,7 +310,7 @@ CREATE POLICY "All authenticated users can view project costs" ON public.project
 CREATE POLICY "HR and Admin can manage project costs" ON public.project_costs
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -322,7 +322,7 @@ CREATE POLICY "All authenticated users can view project manpower costs" ON publi
 CREATE POLICY "HR and Admin can manage project manpower costs" ON public.project_manpower_costs
   FOR ALL USING (
     EXISTS (
-      SELECT 1 FROM public.users 
+      SELECT 1 FROM public.users
       WHERE id = auth.uid() AND role IN ('admin', 'hr')
     )
   );
@@ -338,14 +338,14 @@ BEGIN
   -- Update the project's progress_percentage to the latest progress entry
   UPDATE public.projects
   SET progress_percentage = (
-    SELECT progress_percentage 
-    FROM public.project_progress 
-    WHERE project_id = NEW.project_id 
-    ORDER BY progress_date DESC, created_at DESC 
+    SELECT progress_percentage
+    FROM public.project_progress
+    WHERE project_id = NEW.project_id
+    ORDER BY progress_date DESC, created_at DESC
     LIMIT 1
   )
   WHERE id = NEW.project_id;
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -366,13 +366,13 @@ BEGIN
     -- Calculate total hours
     total_hours_calc := EXTRACT(EPOCH FROM (NEW.clock_out - NEW.clock_in)) / 3600.0;
     NEW.total_hours := total_hours_calc;
-    
+
     -- For now, set regular_hours = total_hours (can be refined later with schedule logic)
     IF NEW.regular_hours = 0 THEN
       NEW.regular_hours := total_hours_calc;
     END IF;
   END IF;
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -394,13 +394,13 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT
     COALESCE(SUM(CASE WHEN cost_type = 'material' THEN total_cost ELSE 0 END), 0) as material_cost,
-    COALESCE(SUM(CASE WHEN cost_type = 'manpower' THEN total_cost ELSE 0 END), 0) + 
+    COALESCE(SUM(CASE WHEN cost_type = 'manpower' THEN total_cost ELSE 0 END), 0) +
     COALESCE((SELECT SUM(total_cost) FROM public.project_manpower_costs WHERE project_id = project_uuid), 0) as manpower_cost,
     COALESCE(SUM(CASE WHEN cost_type = 'machine' THEN total_cost ELSE 0 END), 0) as machine_cost,
     COALESCE(SUM(CASE WHEN cost_type = 'other' THEN total_cost ELSE 0 END), 0) as other_cost,
-    COALESCE(SUM(total_cost), 0) + 
+    COALESCE(SUM(total_cost), 0) +
     COALESCE((SELECT SUM(total_cost) FROM public.project_manpower_costs WHERE project_id = project_uuid), 0) as total_cost
   FROM public.project_costs
   WHERE project_id = project_uuid;

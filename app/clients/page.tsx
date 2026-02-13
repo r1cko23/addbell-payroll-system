@@ -53,7 +53,7 @@ export default function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
-  
+
   // Form state
   const [clientCode, setClientCode] = useState("");
   const [clientName, setClientName] = useState("");
@@ -75,7 +75,7 @@ export default function ClientsPage() {
         .from("clients")
         .select("*")
         .order("client_name", { ascending: true });
-      
+
       if (error) throw error;
       setClients(data || []);
     } catch (error) {
@@ -118,7 +118,7 @@ export default function ClientsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!clientCode.trim() || !clientName.trim()) {
       toast.error("Client code and name are required");
       return;
@@ -142,14 +142,14 @@ export default function ClientsPage() {
           .from("clients")
           .update(payload)
           .eq("id", editingClient.id);
-        
+
         if (error) throw error;
         toast.success("Client updated successfully");
       } else {
         const { error } = await supabase
           .from("clients")
           .insert(payload);
-        
+
         if (error) throw error;
         toast.success("Client created successfully");
       }
@@ -172,7 +172,7 @@ export default function ClientsPage() {
         .from("clients")
         .delete()
         .eq("id", client.id);
-      
+
       if (error) throw error;
       toast.success("Client deleted successfully");
       fetchClients();

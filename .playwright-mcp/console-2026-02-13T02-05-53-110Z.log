@@ -77,7 +77,7 @@
 [   32491ms] [WARNING] ⚠️ Employee ea310310-91d4-4b06-91ea-543dd466eadd - No clock entries found for period 2026-02-01 to 2026-02-15 {clockData: null, clockError: Object, queryStart: 2026-01-30T16:00:00.000Z, queryEnd: 2026-02-16T15:59:59.999Z} @ webpack-internal:///(app-pages-browser)/./app/employee-portal/bundy/page.tsx:860
 [   35605ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/rpc/is_employee_location_allowed:0
 [   37564ms] [ERROR] ./app/fund-request/page.tsx
-Error: 
+Error:
   x Nullish coalescing operator(??) requires parens when mixing with logical operators
     ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
  21 |   const pathname = usePathname();
@@ -98,7 +98,7 @@ Import trace for requested module:
 ./app/employee-portal/fund-request/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
 [   37840ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://krqpfcqskvgigqdcyhvd.supabase.co/rest/v1/time_clock_entries?select=*&employee_id=eq.ea310310-91d4-4b06-91ea-543dd466eadd&clock_out_time=is.null&order=clock_in_time.desc&limit=1:0
 [   37933ms] [ERROR] ./app/fund-request/page.tsx
-Error: 
+Error:
   x Nullish coalescing operator(??) requires parens when mixing with logical operators
     ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
  21 |   const pathname = usePathname();
@@ -118,7 +118,7 @@ Import trace for requested module:
 ./app/fund-request/page.tsx
 ./app/employee-portal/fund-request/page.tsx @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/app-index.js:34
 [   38620ms] [ERROR] ./app/fund-request/page.tsx
-Error: 
+Error:
   x Nullish coalescing operator(??) requires parens when mixing with logical operators
     ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
  21 |   const pathname = usePathname();
@@ -142,7 +142,7 @@ Import trace for requested module:
 [   38689ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/employee-portal/fund-request?_rsc=eijwh:0
 [   38725ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3001/employee-portal/fund-request:0
 [   38885ms] ModuleBuildError: Module build failed (from ./node_modules/next/dist/build/webpack/loaders/next-swc-loader.js):
-Error: 
+Error:
   x Nullish coalescing operator(??) requires parens when mixing with logical operators
     ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
  21 |   const pathname = usePathname();
@@ -164,7 +164,7 @@ Caused by:
     at <unknown> (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:5019)
     at r.callback (file:///Users/ecko/Desktop/Payroll/addbell-payroll-system/node_modules/next/dist/compiled/loader-runner/LoaderRunner.js:1:4039)
 [   38886ms] [ERROR] ./app/fund-request/page.tsx
-Error: 
+Error:
   x Nullish coalescing operator(??) requires parens when mixing with logical operators
     ,-[/Users/ecko/Desktop/Payroll/addbell-payroll-system/app/fund-request/page.tsx:21:1]
  21 |   const pathname = usePathname();

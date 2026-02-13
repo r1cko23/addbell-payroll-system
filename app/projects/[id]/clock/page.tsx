@@ -39,13 +39,13 @@ export default function ProjectClockPage() {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
   const session = useEmployeeSession();
-  
+
   const [project, setProject] = useState<Project | null>(null);
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [clocking, setClocking] = useState(false);
   const [notes, setNotes] = useState("");
-  
+
   const employeeId = session?.employee?.id ?? null;
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export default function ProjectClockPage() {
         .select("id, project_code, project_name, project_status")
         .eq("id", projectId)
         .single();
-      
+
       if (error) throw error;
       setProject(data);
     } catch (error) {
@@ -73,7 +73,7 @@ export default function ProjectClockPage() {
 
   const checkActiveEntry = async () => {
     if (!employeeId) return;
-    
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -85,7 +85,7 @@ export default function ProjectClockPage() {
         .order("clock_in", { ascending: false })
         .limit(1)
         .maybeSingle();
-      
+
       if (error) throw error;
       setActiveEntry(data);
     } catch (error) {
@@ -132,9 +132,9 @@ export default function ProjectClockPage() {
           notes: notes.trim() || null,
           created_by: profile?.id || null,
         });
-      
+
       if (error) throw error;
-      
+
       toast.success("Clocked in successfully");
       setNotes("");
       checkActiveEntry();
@@ -157,7 +157,7 @@ export default function ProjectClockPage() {
       const clockOutTime = new Date().toISOString();
       const clockInTime = new Date(activeEntry.clock_in);
       const totalHours = (new Date(clockOutTime).getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
-      
+
       // For now, set regular_hours = total_hours (can be refined with schedule logic later)
       const { error } = await supabase
         .from("project_time_entries")
@@ -169,9 +169,9 @@ export default function ProjectClockPage() {
           updated_at: clockOutTime,
         })
         .eq("id", activeEntry.id);
-      
+
       if (error) throw error;
-      
+
       toast.success("Clocked out successfully");
       setNotes("");
       checkActiveEntry();
@@ -185,14 +185,14 @@ export default function ProjectClockPage() {
 
   const getElapsedTime = () => {
     if (!activeEntry) return null;
-    
+
     const start = new Date(activeEntry.clock_in);
     const now = new Date();
     const diffMs = now.getTime() - start.getTime();
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-    
+
     return { hours, minutes, seconds };
   };
 
@@ -284,7 +284,7 @@ export default function ProjectClockPage() {
                   Clocked in at {format(new Date(activeEntry.clock_in), "MMM d, yyyy h:mm a")}
                 </div>
               </div>
-              
+
               {elapsed && (
                 <div className="text-center">
                   <div className="text-4xl font-bold text-primary">
@@ -297,7 +297,7 @@ export default function ProjectClockPage() {
                   </div>
                 </div>
               )}
-              
+
               <div>
                 <Label htmlFor="clock_out_notes">Notes (Optional)</Label>
                 <Textarea
@@ -309,7 +309,7 @@ export default function ProjectClockPage() {
                   className="mt-2"
                 />
               </div>
-              
+
               <Button
                 onClick={handleClockOut}
                 disabled={clocking}
@@ -331,7 +331,7 @@ export default function ProjectClockPage() {
                   Click the button below to start tracking your time on this project
                 </div>
               </div>
-              
+
               <div>
                 <Label htmlFor="clock_in_notes">Notes (Optional)</Label>
                 <Textarea
@@ -343,7 +343,7 @@ export default function ProjectClockPage() {
                   className="mt-2"
                 />
               </div>
-              
+
               <Button
                 onClick={handleClockIn}
                 disabled={clocking || project.project_status !== "active"}
@@ -353,7 +353,7 @@ export default function ProjectClockPage() {
                 <LogIn className="h-5 w-5 mr-2" />
                 {clocking ? "Processing..." : "Clock In"}
               </Button>
-              
+
               {project.project_status !== "active" && (
                 <p className="text-sm text-muted-foreground text-center">
                   This project is not active. Only active projects allow clock in.

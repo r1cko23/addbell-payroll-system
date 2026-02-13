@@ -38,7 +38,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
    ```bash
    # If using Supabase CLI locally
    supabase db push
-   
+
    # Or manually run migrations in Supabase Dashboard:
    # 1. Go to SQL Editor in Supabase Dashboard
    # 2. Run migrations in order from supabase/migrations/

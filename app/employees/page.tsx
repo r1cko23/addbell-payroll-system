@@ -2,504 +2,291 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { formatLabel } from "@/utils/format";
-import { formatPHTime } from "@/utils/format";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import { InputGroup } from "@/components/ui/input-group";
-import { EmployeeAvatar } from "@/components/EmployeeAvatar";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 
 interface Employee {
   id: string;
-  employee_id: string;
-  full_name: string;
-  profile_picture_url?: string | null;
-  gender?: "male" | "female" | null;
-  sil_credits?: number;
-  last_name?: string | null;
-  first_name?: string | null;
-  middle_initial?: string;
-  assigned_hotel?: string;
-  address?: string | null;
-  birth_date?: string | null;
-  hire_date?: string | null;
-  tin_number?: string | null;
-  sss_number?: string | null;
-  philhealth_number?: string | null;
-  pagibig_number?: string | null;
-  hmo_provider?: string | null;
-  position?: string | null;
-  job_level?: string | null;
-  employee_type?: "office-based" | "client-based" | null;
-  monthly_rate?: number | null;
-  per_day?: number | null;
-  eligible_for_ot?: boolean | null;
-  overtime_group_id?: string | null;
-  is_active: boolean;
+  company_id: string;
+  employee_code: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  suffix: string | null;
+  date_of_birth: string | null;
+  sex: string | null;
+  civil_status: string | null;
+  mobile: string | null;
+  email: string | null;
+  address: string | null;
+  sss_number: string | null;
+  philhealth_number: string | null;
+  pagibig_number: string | null;
+  tin: string | null;
+  employment_type: string;
+  hire_date: string;
+  regularization_date: string | null;
+  end_of_contract: string | null;
+  employment_status: string;
+  department_id: string | null;
+  position_id: string | null;
+  supervisor_id: string | null;
+  salary_basis: string;
+  base_rate: number;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
   created_at: string;
-  employee_location_assignments?: {
-    location_id: string;
-    office_locations?: { id: string; name: string } | null;
-  }[];
+  updated_at: string;
+  departments: { name: string } | null;
+  positions: { name: string; job_grade: string | null } | null;
 }
 
-interface Location {
+interface Department {
   id: string;
   name: string;
 }
 
-interface User {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-}
-
-interface OvertimeGroup {
+interface Position {
   id: string;
   name: string;
-  description: string | null;
+  job_grade: string | null;
 }
+
+function fullName(emp: Employee): string {
+  return [emp.first_name, emp.middle_name, emp.last_name, emp.suffix].filter(Boolean).join(" ");
+}
+
+const emptyForm = {
+  employee_code: "",
+  first_name: "",
+  middle_name: "",
+  last_name: "",
+  suffix: "",
+  date_of_birth: "",
+  sex: "",
+  civil_status: "",
+  mobile: "",
+  email: "",
+  address: "",
+  sss_number: "",
+  philhealth_number: "",
+  pagibig_number: "",
+  tin: "",
+  employment_type: "regular",
+  hire_date: "",
+  regularization_date: "",
+  end_of_contract: "",
+  employment_status: "active",
+  department_id: "",
+  position_id: "",
+  salary_basis: "monthly",
+  base_rate: "",
+  bank_name: "",
+  bank_account_name: "",
+  bank_account_number: "",
+};
 
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
-  const {
-    role,
-    isAdmin,
-    isHR,
-    canAccessSalaryInfo,
-    loading: roleLoading,
-  } = useUserRole();
+  const { role, isAdmin, isHR, canAccessSalaryInfo, loading: roleLoading } = useUserRole();
   const { canRead, loading: permissionsLoading } = usePermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-  const [formData, setFormData] = useState({
-    employee_id: "",
-    last_name: "",
-    first_name: "",
-    middle_initial: "",
-    assigned_hotel: "",
-    locations: [] as string[],
-    address: "",
-    birth_date: "",
-    gender: "",
-    hire_date: "",
-    tin_number: "",
-    sss_number: "",
-    philhealth_number: "",
-    pagibig_number: "",
-    hmo_provider: "",
-    paternity_days: "",
-    position: "",
-    job_level: "",
-    employee_type: "office-based",
-    monthly_rate: "",
-    per_day: "",
-    eligible_for_ot: false,
-    overtime_group_id: "",
-    transferred_from_employee_id: "",
-  });
+  const [formData, setFormData] = useState({ ...emptyForm });
   const [submitting, setSubmitting] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordEmployee, setPasswordEmployee] = useState<Employee | null>(
-    null
-  );
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
 
-  const locationMap = useMemo(() => {
-    const map = new Map<string, string>();
-    locations.forEach((loc) => map.set(loc.id, loc.name));
-    return map;
-  }, [locations]);
-
-  // Normalize employee data for Addbell schema (may lack full_name, use first+last)
-  function normalizeEmployees(rows: any[]): Employee[] {
-    return (rows || []).map((r: any) => ({
-      ...r,
-      full_name:
-        r.full_name ||
-        [r.first_name, r.last_name].filter(Boolean).join(" ").trim() ||
-        r.employee_id ||
-        "Unknown",
-    }));
-  }
-
-  // Account managers (approvers) and viewers have no employees read permission
   useEffect(() => {
     if (permissionsLoading) return;
     if (!canRead("employees")) {
-      router.replace("/overtime-approval");
+      router.replace("/");
     }
   }, [canRead, permissionsLoading, router]);
 
   if (!permissionsLoading && !canRead("employees")) {
     return (
       <DashboardLayout>
-        <VStack gap="4" className="w-full">
-          <BodySmall>Redirecting…</BodySmall>
-        </VStack>
+        <VStack gap="4" className="w-full"><BodySmall>Redirecting…</BodySmall></VStack>
       </DashboardLayout>
     );
   }
 
   useEffect(() => {
     fetchEmployees();
-    fetchLocations();
-    fetchOvertimeGroups();
+    fetchDepartments();
+    fetchPositions();
   }, []);
 
   async function fetchEmployees() {
     try {
-      // Select employees only (employee_location_assignments/office_locations may not exist in Addbell DB)
       const { data, error } = await supabase
         .from("employees")
-        .select("*")
-        .order("last_name", { ascending: true, nullsFirst: true })
-        .order("first_name", { ascending: true, nullsFirst: true });
-
+        .select("*, departments:department_id ( name ), positions:position_id ( name, job_grade )")
+        .order("last_name", { ascending: true })
+        .order("first_name", { ascending: true });
       if (error) throw error;
-
-      setEmployees(normalizeEmployees(data || []));
+      setEmployees((data || []) as Employee[]);
     } catch (error: any) {
       console.error("Error fetching employees:", error);
-      toast.error(
-        `Failed to load employees: ${error.message || "Unknown error"}`
-      );
+      toast.error(`Failed to load employees: ${error.message || "Unknown error"}`);
     } finally {
       setLoading(false);
     }
   }
 
-  async function fetchLocations() {
+  async function fetchDepartments() {
     try {
-      const { data, error } = await supabase
-        .from("office_locations")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-
+      const { data, error } = await supabase.from("departments").select("id, name").eq("is_active", true).order("name");
       if (error) throw error;
-      setLocations(data || []);
-    } catch (error) {
-      // office_locations may not exist in Addbell DB
-      setLocations([]);
-    }
+      setDepartments(data || []);
+    } catch { setDepartments([]); }
   }
 
-  async function fetchOvertimeGroups() {
+  async function fetchPositions() {
     try {
-      const { data, error } = await supabase
-        .from("overtime_groups")
-        .select("id, name, description")
-        .eq("is_active", true)
-        .order("name");
-
+      const { data, error } = await supabase.from("positions").select("id, name, job_grade").order("name");
       if (error) throw error;
-      setOvertimeGroups(data || []);
-    } catch (error) {
-      // overtime_groups may not exist in Addbell DB
-      setOvertimeGroups([]);
-    }
+      setPositions(data || []);
+    } catch { setPositions([]); }
   }
 
   function openAddModal() {
     setEditingEmployee(null);
-    setFormData({
-      employee_id: "",
-      last_name: "",
-      first_name: "",
-      middle_initial: "",
-      assigned_hotel: "",
-      locations: [],
-      address: "",
-      birth_date: "",
-      gender: "",
-      hire_date: "",
-      tin_number: "",
-      sss_number: "",
-      philhealth_number: "",
-      pagibig_number: "",
-      hmo_provider: "",
-      paternity_days: "",
-      position: "",
-      job_level: "",
-      employee_type: "office-based",
-      monthly_rate: "",
-      per_day: "",
-      eligible_for_ot: false,
-      overtime_group_id: "",
-      transferred_from_employee_id: "",
-    });
+    setFormData({ ...emptyForm });
     setShowModal(true);
   }
 
   function openEditModal(employee: Employee) {
     setEditingEmployee(employee);
     setFormData({
-      employee_id: employee.employee_id,
-      last_name: employee.last_name || "",
-      first_name: employee.first_name || "",
-      middle_initial: employee.middle_initial || "",
-      assigned_hotel: employee.assigned_hotel || "",
-      locations:
-        employee.employee_location_assignments?.map((a) => a.location_id) || [],
+      employee_code: employee.employee_code,
+      first_name: employee.first_name,
+      middle_name: employee.middle_name || "",
+      last_name: employee.last_name,
+      suffix: employee.suffix || "",
+      date_of_birth: employee.date_of_birth ? new Date(employee.date_of_birth).toISOString().slice(0, 10) : "",
+      sex: employee.sex || "",
+      civil_status: employee.civil_status || "",
+      mobile: employee.mobile || "",
+      email: employee.email || "",
       address: employee.address || "",
-      birth_date: employee.birth_date
-        ? new Date(employee.birth_date).toISOString().slice(0, 10)
-        : "",
-      gender: (employee as any).gender || "",
-      hire_date: employee.hire_date
-        ? new Date(employee.hire_date).toISOString().slice(0, 10)
-        : "",
-      tin_number: employee.tin_number || "",
       sss_number: employee.sss_number || "",
       philhealth_number: employee.philhealth_number || "",
       pagibig_number: employee.pagibig_number || "",
-      hmo_provider: employee.hmo_provider || "",
-      paternity_days: "",
-      position: employee.position || "",
-      job_level: employee.job_level || "",
-      employee_type: (employee as any).employee_type || "office-based",
-      monthly_rate: employee.monthly_rate?.toString() || "",
-      per_day: employee.per_day?.toString() || "",
-      eligible_for_ot: employee.eligible_for_ot || false,
-      overtime_group_id: employee.overtime_group_id || "none",
-      transferred_from_employee_id: (employee as any).transferred_from_employee_id || "",
+      tin: employee.tin || "",
+      employment_type: employee.employment_type,
+      hire_date: employee.hire_date ? new Date(employee.hire_date).toISOString().slice(0, 10) : "",
+      regularization_date: employee.regularization_date ? new Date(employee.regularization_date).toISOString().slice(0, 10) : "",
+      end_of_contract: employee.end_of_contract ? new Date(employee.end_of_contract).toISOString().slice(0, 10) : "",
+      employment_status: employee.employment_status,
+      department_id: employee.department_id || "",
+      position_id: employee.position_id || "",
+      salary_basis: employee.salary_basis,
+      base_rate: String(employee.base_rate || ""),
+      bank_name: employee.bank_name || "",
+      bank_account_name: employee.bank_account_name || "",
+      bank_account_number: employee.bank_account_number || "",
     });
     setShowModal(true);
   }
 
-  const toggleLocationSelection = (locationId: string) => {
-    setFormData((prev) => {
-      const exists = prev.locations.includes(locationId);
-      return {
-        ...prev,
-        locations: exists
-          ? prev.locations.filter((id) => id !== locationId)
-          : [...prev.locations, locationId],
-      };
-    });
-  };
-
-  async function saveEmployeeLocations(
-    employeeId: string,
-    locationIds: string[]
-  ) {
-    const { error: deleteError } = await supabase
-      .from("employee_location_assignments")
-      .delete()
-      .eq("employee_id", employeeId);
-
-    if (deleteError) throw deleteError;
-
-    if (locationIds.length === 0) {
-      return;
-    }
-
-    const inserts = locationIds.map((location_id) => ({
-      employee_id: employeeId,
-      location_id,
-    }));
-
-    const { error: insertError } = await (
-      supabase.from("employee_location_assignments") as any
-    ).insert(inserts);
-
-    if (insertError) throw insertError;
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    if (formData.locations.length === 0) {
-      toast.error("Please assign at least one location");
-      return;
-    }
-
     setSubmitting(true);
 
     try {
-      const middleInitial = formData.middle_initial
-        ? ` ${formData.middle_initial}.`
-        : "";
-      const full_name = `${formData.first_name}${middleInitial} ${formData.last_name}`;
-
-      const primaryLocationName =
-        formData.locations.length > 0
-          ? locationMap.get(formData.locations[0]) ||
-            locations.find((loc) => loc.id === formData.locations[0])?.name ||
-            null
-          : null;
-
-      const employeeData = {
-        employee_id: formData.employee_id,
-        full_name: full_name.trim(),
-        last_name: formData.last_name,
+      const employeeData: Record<string, unknown> = {
+        employee_code: formData.employee_code,
         first_name: formData.first_name,
-        middle_initial: formData.middle_initial || null,
-        assigned_hotel: primaryLocationName,
+        middle_name: formData.middle_name || null,
+        last_name: formData.last_name,
+        suffix: formData.suffix || null,
+        date_of_birth: formData.date_of_birth || null,
+        sex: formData.sex || null,
+        civil_status: formData.civil_status || null,
+        mobile: formData.mobile || null,
+        email: formData.email || null,
         address: formData.address || null,
-        birth_date: formData.birth_date || null,
-        hire_date: formData.hire_date || null,
-        tin_number: formData.tin_number || null,
         sss_number: formData.sss_number || null,
         philhealth_number: formData.philhealth_number || null,
         pagibig_number: formData.pagibig_number || null,
-        hmo_provider: formData.hmo_provider || null,
-        gender: formData.gender || null,
-        position: formData.position || null,
-        job_level: formData.job_level || null,
-        employee_type: formData.employee_type || "office-based",
-        monthly_rate: formData.monthly_rate
-          ? parseFloat(formData.monthly_rate)
-          : null,
-        per_day: formData.per_day ? parseFloat(formData.per_day) : null,
-        eligible_for_ot: formData.eligible_for_ot,
-        overtime_group_id: formData.overtime_group_id && formData.overtime_group_id !== "none" ? formData.overtime_group_id : null,
-        transferred_from_employee_id: formData.transferred_from_employee_id && formData.transferred_from_employee_id !== "none" ? formData.transferred_from_employee_id : null,
-        paternity_credits:
-          formData.gender === "male"
-            ? parseFloat(formData.paternity_days || "0") || 0
-            : 0,
+        tin: formData.tin || null,
+        employment_type: formData.employment_type,
+        hire_date: formData.hire_date,
+        regularization_date: formData.regularization_date || null,
+        end_of_contract: formData.end_of_contract || null,
+        employment_status: formData.employment_status,
+        department_id: formData.department_id || null,
+        position_id: formData.position_id || null,
+        salary_basis: formData.salary_basis,
+        base_rate: formData.base_rate ? parseFloat(formData.base_rate) : 0,
+        bank_name: formData.bank_name || null,
+        bank_account_name: formData.bank_account_name || null,
+        bank_account_number: formData.bank_account_number || null,
       };
 
-      let employeeId = editingEmployee ? editingEmployee.id : "";
-
       if (editingEmployee) {
-        // Get current user for audit tracking
-        const {
-          data: { user: authUser },
-        } = await supabase.auth.getUser();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:460',message:'Starting employee update',data:{isAdmin,role,isHR,hasAuthUser:!!authUser,authUserId:authUser?.id,employeeId:editingEmployee.id,editingEmployeeId:editingEmployee.employee_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
-
-        if (!authUser) {
-          toast.error("Authentication error. Please log in again.");
-          return;
-        }
-
-        // For HR users: Always exclude hire_date from update
-        // (Database trigger prevents HR from updating hire_date, and UI field is disabled)
-        const updateData: any = {
-          ...employeeData,
-          updated_by: authUser.id,
-        };
-
-        // If user is HR (not admin), always exclude hire_date from updates
-        // HR cannot change hire_date - it's disabled in the UI and blocked by database trigger
-        if (!isAdmin && (isHR || role === "hr")) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:480',message:'HR employee update - excluding hire_date',data:{isAdmin,role,isHR,employeeId:editingEmployee.id,originalHireDate:editingEmployee.hire_date},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-
-          // Always exclude hire_date for HR users (they cannot change it)
-          delete updateData.hire_date;
-        }
-
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:505',message:'Employee update attempt',data:{isAdmin,role,employeeId:editingEmployee.id,hasHireDate:!!updateData.hire_date,updateFields:Object.keys(updateData)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:489',message:'About to execute employee update',data:{isAdmin,role,isHR,employeeId:editingEmployee.id,updateDataKeys:Object.keys(updateData),hasHireDate:!!updateData.hire_date,authUserId:authUser.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
-
-        const { error, data } = await (supabase.from("employees") as any)
-          .update(updateData)
-          .eq("id", editingEmployee.id)
-          .select();
-
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:496',message:'Employee update response',data:{isAdmin,role,isHR,hasError:!!error,errorMessage:error?.message,errorCode:error?.code,errorDetails:error?.details,errorHint:error?.hint,hasData:!!data,dataCount:data?.length,employeeId:editingEmployee.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
-
-        if (error) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'employees/page.tsx:503',message:'Employee update error - throwing',data:{isAdmin,role,isHR,error:error.message,errorCode:error.code,errorDetails:error.details,errorHint:error.hint,fullError:JSON.stringify(error),employeeId:editingEmployee.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
-          throw error;
-        }
-        await saveEmployeeLocations(editingEmployee.id, formData.locations);
+        const { error } = await supabase
+          .from("employees")
+          .update(employeeData as never)
+          .eq("id", editingEmployee.id);
+        if (error) throw error;
         toast.success("Employee updated successfully!", {
-          description: `${full_name} • ${formData.employee_id}`,
+          description: `${formData.first_name} ${formData.last_name} · ${formData.employee_code}`,
         });
       } else {
-        const { data: inserted, error } = await (
-          supabase.from("employees") as any
-        )
-          .insert([
-            {
-              ...employeeData,
-              portal_password: formData.employee_id,
-            },
-          ])
+        const { data: companyData } = await supabase
+          .from("companies")
           .select("id")
+          .limit(1)
           .single();
-
+        const { error } = await supabase.from("employees").insert([
+          {
+            ...employeeData,
+            company_id: companyData?.id,
+            // Default employee portal password to employee code
+            portal_password: formData.employee_code,
+          } as never,
+        ]);
         if (error) throw error;
-        employeeId = inserted?.id || "";
-        if (employeeId) {
-          await saveEmployeeLocations(employeeId, formData.locations);
-        }
         toast.success("Employee added successfully!", {
-          description: `${full_name} • Portal password set to Employee ID`,
+          description: `${formData.first_name} ${formData.last_name} · ${formData.employee_code}`,
         });
       }
 
@@ -514,34 +301,13 @@ export default function EmployeesPage() {
   }
 
   async function toggleEmployeeStatus(employee: Employee) {
+    const newStatus = employee.employment_status === "active" ? "inactive" : "active";
     try {
-      // Get current user for audit tracking
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-
-      if (!authUser) {
-        toast.error("Authentication error. Please log in again.");
-        return;
-      }
-
-      const { error } = await (supabase.from("employees") as any)
-        .update({
-          is_active: !employee.is_active,
-          updated_by: authUser.id,
-        })
-        .eq("id", employee.id);
-
+      const { error } = await supabase.from("employees").update({ employment_status: newStatus } as never).eq("id", employee.id);
       if (error) throw error;
-
-      toast.success(
-        `Employee ${
-          employee.is_active ? "deactivated" : "activated"
-        } successfully!`,
-        {
-          description: `${employee.full_name} • ${employee.employee_id}`,
-        }
-      );
+      toast.success(`Employee ${newStatus === "active" ? "activated" : "deactivated"} successfully!`, {
+        description: `${fullName(employee)} · ${employee.employee_code}`,
+      });
       fetchEmployees();
     } catch (error: any) {
       console.error("Error toggling employee status:", error);
@@ -549,124 +315,22 @@ export default function EmployeesPage() {
     }
   }
 
-  function openPasswordModal(employee: Employee) {
-    setPasswordEmployee(employee);
-    setNewPassword("");
-    setConfirmPassword("");
-    setShowPasswordModal(true);
-  }
+  const filteredEmployees = employees.filter((emp) => {
+    const name = fullName(emp).toLowerCase();
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = name.includes(term) || emp.employee_code.toLowerCase().includes(term) ||
+      (emp.email || "").toLowerCase().includes(term);
+    const matchesStatus = statusFilter === "all" || emp.employment_status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
-  async function handlePasswordUpdate(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (!passwordEmployee) return;
-
-    if (!newPassword.trim()) {
-      toast.error("Password cannot be empty");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-
-    if (newPassword.length < 4) {
-      toast.error("Password must be at least 4 characters long");
-      return;
-    }
-
-    setPasswordSubmitting(true);
-
-    try {
-      // Get current user for audit tracking
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-
-      if (!authUser) {
-        toast.error("Authentication error. Please log in again.");
-        setPasswordSubmitting(false);
-        return;
-      }
-
-      const { error } = await (supabase.from("employees") as any)
-        .update({
-          portal_password: newPassword.trim(),
-          updated_by: authUser.id,
-        })
-        .eq("id", passwordEmployee.id);
-
-      if (error) throw error;
-
-      toast.success("Portal password updated successfully!", {
-        description: `${passwordEmployee.full_name} • ${passwordEmployee.employee_id}`,
-      });
-      setShowPasswordModal(false);
-      fetchEmployees();
-    } catch (error: any) {
-      console.error("Error updating password:", error);
-      toast.error(error.message || "Failed to update password");
-    } finally {
-      setPasswordSubmitting(false);
-    }
-  }
-
-  async function resetPasswordToDefault(employee: Employee) {
-    if (
-      !confirm(
-        "Reset password to Employee ID? This will set the password to: " +
-          employee.employee_id
-      )
-    ) {
-      return;
-    }
-
-    setPasswordSubmitting(true);
-
-    try {
-      const { error } = await (supabase.from("employees") as any)
-        .update({ portal_password: employee.employee_id })
-        .eq("id", employee.id);
-
-      if (error) throw error;
-
-      toast.success("Password reset to Employee ID");
-      setShowPasswordModal(false);
-      fetchEmployees();
-    } catch (error: any) {
-      console.error("Error resetting password:", error);
-      toast.error(error.message || "Failed to reset password");
-    } finally {
-      setPasswordSubmitting(false);
-    }
-  }
-
-  const filteredEmployees = employees.filter(
-    (emp) =>
-      emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.employee_id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Helper function to clean position field (remove salary info)
-  const cleanPosition = (position: string | null | undefined): string => {
-    if (!position) return "";
-    // Remove salary information in parentheses like "(22,000)" or "(18,070.00)"
-    return position.replace(/\s*\([^)]*\)/g, "").trim();
-  };
-
-  // Export employee masterlist to PDF
   async function exportEmployeeMasterlistToPDF() {
     setGeneratingPDF(true);
     try {
       const doc = new jsPDF("landscape", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
       let yPos = 15;
 
-      // Load and add logo
       try {
         const logoResponse = await fetch("/addbell-logo.jpg");
         if (logoResponse.ok) {
@@ -676,158 +340,67 @@ export default function EmployeesPage() {
             reader.onloadend = () => resolve(reader.result as string);
             reader.readAsDataURL(logoBlob);
           });
-
-          // Logo dimensions: 500x185 original, scale to fit
-          const logoWidth = 50; // mm
-          const logoHeight = (logoWidth * 185) / 500; // Maintain aspect ratio
-          const logoX = 15; // Left align
-
-          doc.addImage(logoDataUrl, "WEBP", logoX, yPos, logoWidth, logoHeight);
+          const logoWidth = 50;
+          const logoHeight = (logoWidth * 185) / 500;
+          doc.addImage(logoDataUrl, "JPEG", 15, yPos, logoWidth, logoHeight);
           yPos += logoHeight + 8;
         }
-      } catch (error) {
-        console.warn("Logo could not be loaded, continuing without logo", error);
-      }
+      } catch { /* continue without logo */ }
 
-      // Company name
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("GREEN PASTURE", 15, yPos);
-      yPos += 6;
-
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.text("PEOPLE MANAGEMENT INC.", 15, yPos);
+      doc.text("ADDBELL TECHNICAL SERVICE INC.", 15, yPos);
       yPos += 8;
 
-      // Document title
       doc.setFontSize(14);
       doc.setFont("helvetica", "normal");
-      doc.text("Active List/Master Employees", 15, yPos);
+      doc.text("Employee Masterlist", 15, yPos);
       yPos += 6;
 
-      // Client name and date
       doc.setFontSize(10);
-      doc.text("Client Name: GREEN PASTURE PEOPLE I", 15, yPos);
-      yPos += 5;
-      doc.text(`As of ${format(new Date(), "MM/dd/yyyy")}`, 15, yPos);
+      doc.text(`As of ${format(new Date(), "MMMM d, yyyy")}`, 15, yPos);
       yPos += 10;
 
-      // Prepare table data - use all employees for masterlist
-      const tableData = employees.map((emp, index) => {
-        // Get department from assigned locations or assigned_hotel
-        const department =
-          emp.employee_location_assignments
-            ?.map((a) => a.office_locations?.name || locationMap.get(a.location_id) || null)
-            .filter((name): name is string => Boolean(name))
-            .join(", ") || emp.assigned_hotel || "";
+      const tableData = employees.map((emp, index) => [
+        (index + 1).toString(),
+        emp.employee_code,
+        emp.last_name,
+        emp.first_name,
+        emp.middle_name || "",
+        emp.departments?.name || "",
+        emp.positions?.name || "",
+        emp.employment_type,
+        emp.hire_date ? format(new Date(emp.hire_date), "MM/dd/yyyy") : "",
+        emp.date_of_birth ? format(new Date(emp.date_of_birth), "MM/dd/yyyy") : "",
+        emp.sss_number || "",
+        emp.philhealth_number || "",
+        emp.pagibig_number || "",
+        emp.tin || "",
+        emp.employment_status,
+      ]);
 
-        // Clean position to remove salary info
-        const cleanPos = cleanPosition(emp.position);
-
-        return [
-          (index + 1).toString(), // #
-          emp.employee_id || "", // EMPID
-          emp.last_name || "", // Last Name
-          emp.first_name || "", // First Name
-          emp.middle_initial || "", // Middle Name
-          emp.address || "", // Address
-          "", // Contact No (not in schema)
-          department, // Department
-          cleanPos, // Position (without salary)
-          emp.birth_date ? format(new Date(emp.birth_date), "MM/dd/yyyy") : "", // Birth Date
-          emp.hire_date ? format(new Date(emp.hire_date), "MM/dd/yyyy") : "", // Date Hired
-          emp.tin_number || "", // Tin #
-          emp.sss_number || "", // SSS #
-          emp.philhealth_number || "", // Phil Health
-          emp.pagibig_number || "", // Pagibig
-          emp.is_active ? "Regular" : "Inactive", // Status
-          "", // NBIno (not in schema)
-          "", // Police Clr (not in schema)
-          "", // Brgy (not in schema)
-        ];
-      });
-
-      // Define table columns
       const columns = [
-        "#",
-        "EMPID",
-        "Last Name",
-        "First Name",
-        "Middle Name",
-        "Address",
-        "Contact No",
-        "Department",
-        "Position",
-        "Birth Date",
-        "Date Hired",
-        "Tin #",
-        "SSS #",
-        "Phil Health",
-        "Pagibig",
-        "Status",
-        "NBIno",
-        "Police Clr",
-        "Brgy",
+        "#", "Code", "Last Name", "First Name", "Middle", "Department", "Position",
+        "Type", "Hire Date", "Birth Date", "SSS", "PhilHealth", "Pag-IBIG", "TIN", "Status",
       ];
 
-      // Add table using autoTable
-      // Landscape A4: 297mm wide, with 5mm margins = 287mm available
-      const availableWidth = pageWidth - 10; // 297 - 10 = 287mm
+      const availableWidth = pageWidth - 10;
       autoTable(doc, {
         head: [columns],
         body: tableData,
         startY: yPos,
-        styles: {
-          fontSize: 5,
-          cellPadding: 1,
-          overflow: "linebreak",
-          lineWidth: 0.1,
-          textColor: [0, 0, 0],
-        },
-        headStyles: {
-          fillColor: [34, 139, 34], // Green color
-          textColor: 255,
-          fontStyle: "bold",
-          fontSize: 5,
-          cellPadding: 1,
-        },
-        columnStyles: {
-          0: { cellWidth: 4 }, // #
-          1: { cellWidth: 13 }, // EMPID
-          2: { cellWidth: 17 }, // Last Name
-          3: { cellWidth: 17 }, // First Name
-          4: { cellWidth: 9 }, // Middle Name
-          5: { cellWidth: 26 }, // Address
-          6: { cellWidth: 15 }, // Contact No
-          7: { cellWidth: 20 }, // Department
-          8: { cellWidth: 19 }, // Position
-          9: { cellWidth: 13 }, // Birth Date
-          10: { cellWidth: 13 }, // Date Hired
-          11: { cellWidth: 13 }, // Tin #
-          12: { cellWidth: 13 }, // SSS #
-          13: { cellWidth: 13 }, // Phil Health
-          14: { cellWidth: 13 }, // Pagibig
-          15: { cellWidth: 11 }, // Status
-          16: { cellWidth: 11 }, // NBIno
-          17: { cellWidth: 11 }, // Police Clr
-          18: { cellWidth: 11 }, // Brgy
-        },
+        styles: { fontSize: 5.5, cellPadding: 1.2, overflow: "linebreak", lineWidth: 0.1, textColor: [0, 0, 0] },
+        headStyles: { fillColor: [34, 139, 34], textColor: 255, fontStyle: "bold", fontSize: 5.5, cellPadding: 1.2 },
         margin: { left: 5, right: 5 },
         tableWidth: availableWidth,
         showHead: "everyPage",
-        horizontalPageBreak: false,
       });
 
-      // Save PDF
-      const fileName = `Employee_Masterlist_${format(new Date(), "yyyy-MM-dd")}.pdf`;
-      doc.save(fileName);
+      doc.save(`Employee_Masterlist_${format(new Date(), "yyyy-MM-dd")}.pdf`);
       toast.success("Employee masterlist exported successfully!");
     } catch (error: any) {
       console.error("Error exporting PDF:", error);
-      toast.error("Failed to export employee masterlist", {
-        description: error.message || "An error occurred while generating the PDF",
-      });
+      toast.error("Failed to export employee masterlist", { description: error.message || "An error occurred" });
     } finally {
       setGeneratingPDF(false);
     }
@@ -836,11 +409,10 @@ export default function EmployeesPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
-        {/* Header Section */}
         <HStack justify="between" align="center">
           <VStack gap="2" align="start">
             <H1>Employee Management</H1>
-            <BodySmall>Manage employee records and portal access.</BodySmall>
+            <BodySmall>Manage employee records, departments, and positions.</BodySmall>
           </VStack>
           <Button onClick={openAddModal}>
             <Icon name="Plus" size={IconSizes.sm} />
@@ -849,831 +421,390 @@ export default function EmployeesPage() {
         </HStack>
 
         <div className="space-y-4">
-            <CardSection
-              title="Directory"
-              description="Search, edit, and manage employee portal access."
-            >
-              <HStack justify="between" align="end" gap="4">
-                <div className="relative flex-1 max-w-md">
-                  <Icon
-                    name="MagnifyingGlass"
-                    size={IconSizes.sm}
-                    className="absolute left-3 top-2.5 text-muted-foreground"
-                  />
-                  <Input
-                    type="search"
-                    placeholder="Search by name or employee ID..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
+          <CardSection title="Directory" description="Search, view, and manage employee records.">
+            <HStack justify="between" align="end" gap="4">
+              <div className="relative flex-1 max-w-md">
+                <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Search by name, code, or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <HStack gap="2" align="center">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="terminated">Terminated</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(isAdmin || role === "hr") && (
+                  <Button variant="secondary" size="sm" onClick={exportEmployeeMasterlistToPDF} disabled={generatingPDF || employees.length === 0}>
+                    <Icon name={generatingPDF ? "ArrowsClockwise" : "FilePdf"} size={IconSizes.sm} className={generatingPDF ? "animate-spin" : ""} />
+                    {generatingPDF ? "Generating..." : "Export PDF"}
+                  </Button>
+                )}
                 <HStack gap="2" align="center">
-                  {(isAdmin || role === "hr") && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={exportEmployeeMasterlistToPDF}
-                      disabled={generatingPDF || employees.length === 0}
-                    >
-                      <Icon
-                        name={generatingPDF ? "ArrowsClockwise" : "FilePdf"}
-                        size={IconSizes.sm}
-                        className={generatingPDF ? "animate-spin" : ""}
-                      />
-                      {generatingPDF ? "Generating..." : "Download Masterlist"}
-                    </Button>
-                  )}
-                  <HStack gap="2" align="center">
-                    <Icon
-                      name="User"
-                      size={IconSizes.sm}
-                      className="text-muted-foreground"
-                    />
-                    <Caption>{filteredEmployees.length} employees</Caption>
-                  </HStack>
+                  <Icon name="User" size={IconSizes.sm} className="text-muted-foreground" />
+                  <Caption>{filteredEmployees.length} employees</Caption>
                 </HStack>
               </HStack>
+            </HStack>
 
-              {loading ? (
-                <div className="flex items-center justify-center py-10">
-                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border">
-                  <Table className="min-w-full">
-                    <TableHeader>
-                      <TableRow className="h-10">
-                        <TableHead className="w-[110px] whitespace-nowrap py-2 text-xs font-semibold">
-                          Employee ID
-                        </TableHead>
-                        <TableHead className="min-w-[180px] py-2 text-xs font-semibold">
-                          Employee
-                        </TableHead>
-                        <TableHead className="min-w-[160px] py-2 text-xs font-semibold">
-                          Position
-                        </TableHead>
-                        <TableHead className="min-w-[120px] whitespace-nowrap py-2 text-xs font-semibold">
-                          Job Level
-                        </TableHead>
-                        <TableHead className="min-w-[160px] py-2 text-xs font-semibold">
-                          Assigned Locations
-                        </TableHead>
-                        <TableHead className="w-[90px] whitespace-nowrap py-2 text-xs font-semibold">
-                          Status
-                        </TableHead>
-                        <TableHead className="text-right w-[200px] whitespace-nowrap py-2 text-xs font-semibold">
-                          Actions
-                        </TableHead>
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <Table className="min-w-full">
+                  <TableHeader>
+                    <TableRow className="h-10">
+                      <TableHead className="w-[100px] whitespace-nowrap py-2 text-xs font-semibold">Code</TableHead>
+                      <TableHead className="min-w-[200px] py-2 text-xs font-semibold">Employee</TableHead>
+                      <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Department</TableHead>
+                      <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Position</TableHead>
+                      <TableHead className="min-w-[100px] py-2 text-xs font-semibold">Type</TableHead>
+                      <TableHead className="w-[90px] whitespace-nowrap py-2 text-xs font-semibold">Status</TableHead>
+                      <TableHead className="text-right w-[160px] whitespace-nowrap py-2 text-xs font-semibold">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredEmployees.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                          {searchTerm ? "No employees found matching your search." : "No employees yet. Add your first employee!"}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredEmployees.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center">
-                            {searchTerm
-                              ? "No employees found matching your search."
-                              : "No employees yet. Add your first employee!"}
+                    ) : (
+                      filteredEmployees.map((employee) => (
+                        <TableRow key={employee.id} className="h-auto hover:bg-muted/50">
+                          <TableCell className="font-semibold font-mono whitespace-nowrap py-2 text-sm">
+                            {employee.employee_code}
+                          </TableCell>
+                          <TableCell className="min-w-[200px] py-2">
+                            <Link href={`/employees/${employee.id}`} className="hover:underline text-primary font-medium text-sm">
+                              {fullName(employee)}
+                            </Link>
+                            {employee.email && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{employee.email}</p>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm py-2">
+                            {employee.departments?.name || <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-sm py-2">
+                            {employee.positions ? (
+                              <div>
+                                <span>{employee.positions.name}</span>
+                                {employee.positions.job_grade && (
+                                  <Badge variant="outline" className="ml-2 text-[10px]">{employee.positions.job_grade}</Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm py-2 capitalize">{employee.employment_type}</TableCell>
+                          <TableCell className="py-2">
+                            <Badge
+                              variant="outline"
+                              className={`text-xs capitalize ${
+                                employee.employment_status === "active"
+                                  ? "bg-emerald-100 text-emerald-900 border-emerald-200"
+                                  : employee.employment_status === "terminated"
+                                  ? "bg-red-100 text-red-900 border-red-200"
+                                  : "bg-slate-100 text-slate-800 border-slate-200"
+                              }`}
+                            >
+                              {employee.employment_status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right w-[160px] py-2">
+                            <HStack gap="2" justify="end" className="whitespace-nowrap">
+                              <Link href={`/employees/${employee.id}`}>
+                                <Button size="sm" variant="ghost" className="h-7 px-2" title="View details">
+                                  <Icon name="Eye" size={IconSizes.sm} />
+                                </Button>
+                              </Link>
+                              <Button size="sm" variant="secondary" onClick={() => openEditModal(employee)} className="h-7 px-2" title="Edit employee">
+                                <Icon name="PencilSimple" size={IconSizes.sm} />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={employee.employment_status === "active" ? "destructive" : "default"}
+                                onClick={() => toggleEmployeeStatus(employee)}
+                                className="h-7 px-2"
+                                title={employee.employment_status === "active" ? "Deactivate" : "Activate"}
+                              >
+                                <Icon name="Power" size={IconSizes.sm} />
+                              </Button>
+                            </HStack>
                           </TableCell>
                         </TableRow>
-                      ) : (
-                        filteredEmployees.map((employee) => (
-                          <TableRow key={employee.id} className="h-auto">
-                            <TableCell className="font-semibold whitespace-nowrap py-2">
-                              {employee.employee_id}
-                            </TableCell>
-                            <TableCell className="min-w-[180px] py-2">
-                              <HStack gap="4" align="center">
-                                <EmployeeAvatar
-                                  profilePictureUrl={
-                                    employee.profile_picture_url
-                                  }
-                                  fullName={employee.full_name}
-                                  size="sm"
-                                />
-                                <span className="break-words min-w-0 text-sm">
-                                  {employee.full_name}
-                                </span>
-                              </HStack>
-                            </TableCell>
-                            <TableCell className="text-sm min-w-[160px] py-2 text-center">
-                              {employee.position ? (
-                                <div className="flex justify-center">
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[11px] leading-tight whitespace-normal bg-slate-50 text-slate-700 border-slate-200 text-center"
-                                    title={employee.position}
-                                  >
-                                    {employee.position}
-                                  </Badge>
-                                </div>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="min-w-[120px] py-2 text-center">
-                              {employee.job_level ? (
-                                <div className="flex justify-center">
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs whitespace-nowrap text-center ${
-                                      employee.job_level === "MANAGERIAL"
-                                        ? "bg-emerald-700 text-white border-emerald-800"
-                                        : employee.job_level === "SUPERVISORY"
-                                        ? "bg-emerald-500 text-white border-emerald-600"
-                                        : employee.job_level === "RANK AND FILE"
-                                        ? "bg-emerald-100 text-emerald-900 border-emerald-200"
-                                        : "bg-slate-100 text-slate-700 border-slate-200"
-                                    }`}
-                                  >
-                                    {formatLabel(employee.job_level)}
-                                  </Badge>
-                                </div>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="min-w-[160px] text-sm py-2">
-                              {(() => {
-                                const locationNames =
-                                  employee.employee_location_assignments
-                                    ?.map(
-                                      (assignment) =>
-                                        assignment.office_locations?.name ||
-                                        locationMap.get(
-                                          assignment.location_id
-                                        ) ||
-                                        null
-                                    )
-                                    .filter((name): name is string =>
-                                      Boolean(name)
-                                    ) || [];
-
-                                const allLocations =
-                                  locationNames.length > 0
-                                    ? locationNames
-                                    : employee.assigned_hotel
-                                    ? [employee.assigned_hotel]
-                                    : [];
-
-                                if (allLocations.length === 0) {
-                                  return "—";
-                                }
-
-                                // Show first 2 locations as badges, rest in tooltip
-                                const displayLocations = allLocations.slice(
-                                  0,
-                                  2
-                                );
-                                const remainingCount = allLocations.length - 2;
-                                const fullText = allLocations.join(", ");
-
-                                return (
-                                  <div className="flex flex-wrap gap-1 items-center">
-                                    {displayLocations.map((loc, idx) => (
-                                      <Badge
-                                        key={idx}
-                                        variant="outline"
-                                        className="text-xs whitespace-normal break-words max-w-[120px]"
-                                        title={loc}
-                                      >
-                                        {loc}
-                                      </Badge>
-                                    ))}
-                                    {remainingCount > 0 && (
-                                      <Badge
-                                        variant="outline"
-                                        className="text-xs whitespace-nowrap"
-                                        title={fullText}
-                                      >
-                                        +{remainingCount}
-                                      </Badge>
-                                    )}
-                                    {allLocations.length > 0 && (
-                                      <span
-                                        className="sr-only"
-                                        title={fullText}
-                                      >
-                                        {fullText}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell className="py-2">
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${
-                                  employee.is_active
-                                    ? "bg-emerald-100 text-emerald-900 border-emerald-200"
-                                    : "bg-slate-100 text-slate-800 border-slate-200"
-                                }`}
-                              >
-                                {employee.is_active ? "Active" : "Inactive"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right w-[200px] py-2">
-                              <HStack
-                                gap="2"
-                                justify="end"
-                                className="whitespace-nowrap"
-                              >
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => openEditModal(employee)}
-                                  className="h-7 px-2"
-                                  title="Edit employee"
-                                >
-                                  <Icon
-                                    name="PencilSimple"
-                                    size={IconSizes.sm}
-                                  />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => openPasswordModal(employee)}
-                                  title="Manage portal account"
-                                  className="h-7 px-2"
-                                >
-                                  <Icon name="Key" size={IconSizes.sm} />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant={
-                                    employee.is_active
-                                      ? "destructive"
-                                      : "default"
-                                  }
-                                  onClick={() => toggleEmployeeStatus(employee)}
-                                  className="h-7 px-2"
-                                  title={
-                                    employee.is_active
-                                      ? "Deactivate employee"
-                                      : "Activate employee"
-                                  }
-                                >
-                                  <Icon name="Power" size={IconSizes.sm} />
-                                </Button>
-                              </HStack>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardSection>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardSection>
         </div>
       </VStack>
 
+      {/* Add / Edit Employee Dialog */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
-            <DialogTitle>
-              {editingEmployee ? "Edit Employee" : "Add New Employee"}
-            </DialogTitle>
+            <DialogTitle>{editingEmployee ? "Edit Employee" : "Add New Employee"}</DialogTitle>
+            <DialogDescription>
+              {editingEmployee ? "Update employee information below." : "Fill in the details to create a new employee record."}
+            </DialogDescription>
           </DialogHeader>
-          <form
-            onSubmit={handleSubmit}
-            className="flex flex-col flex-1 min-h-0"
-          >
-            <div className="space-y-4 overflow-y-auto flex-1 px-6 pr-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-5 overflow-y-auto flex-1 px-6 pr-4">
+              {/* Basic Info */}
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground">Basic Information</h3>
+                <div className="h-px bg-border" />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label htmlFor="employee-id">Employee ID</Label>
-                  <Input
-                    id="employee-id"
-                    required
-                    value={formData.employee_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, employee_id: e.target.value })
-                    }
-                    disabled={!!editingEmployee}
-                    placeholder="EMP001"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Unique identifier. Immutable after creation.
-                  </p>
+                  <Label htmlFor="employee-code">Employee Code *</Label>
+                  <Input id="employee-code" required value={formData.employee_code}
+                    onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
+                    disabled={!!editingEmployee} placeholder="EMP-001" />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="hire-date">Hire Date</Label>
-                  <Input
-                    id="hire-date"
-                    type="date"
-                    value={formData.hire_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, hire_date: e.target.value })
-                    }
-                    required
-                    disabled={!!editingEmployee && !isAdmin}
-                  />
+                  <Label htmlFor="employment-type">Employment Type *</Label>
+                  <Select value={formData.employment_type} onValueChange={(v) => setFormData({ ...formData, employment_type: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="regular">Regular</SelectItem>
+                      <SelectItem value="probationary">Probationary</SelectItem>
+                      <SelectItem value="contractual">Contractual</SelectItem>
+                      <SelectItem value="project_based">Project Based</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hire-date">Hire Date *</Label>
+                  <Input id="hire-date" type="date" required value={formData.hire_date}
+                    onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} />
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* Name */}
+              <div className="grid gap-4 sm:grid-cols-4">
                 <div className="space-y-2">
-                  <Label htmlFor="last-name">Last Name</Label>
-                  <Input
-                    id="last-name"
-                    required
-                    value={formData.last_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, last_name: e.target.value })
-                    }
-                  />
+                  <Label htmlFor="first-name">First Name *</Label>
+                  <Input id="first-name" required value={formData.first_name}
+                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="first-name">First Name</Label>
-                  <Input
-                    id="first-name"
-                    required
-                    value={formData.first_name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, first_name: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="middle-initial">Middle Initial</Label>
-                  <Input
-                    id="middle-initial"
-                    value={formData.middle_initial}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        middle_initial: e.target.value
-                          .toUpperCase()
-                          .slice(0, 1),
-                      })
-                    }
-                    placeholder="M"
-                  />
+                  <Label htmlFor="middle-name">Middle Name</Label>
+                  <Input id="middle-name" value={formData.middle_name}
+                    onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="birth-date">Birth Date</Label>
-                  <Input
-                    id="birth-date"
-                    type="date"
-                    value={formData.birth_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, birth_date: e.target.value })
-                    }
-                  />
+                  <Label htmlFor="last-name">Last Name *</Label>
+                  <Input id="last-name" required value={formData.last_name}
+                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="suffix">Suffix</Label>
+                  <Input id="suffix" value={formData.suffix}
+                    onChange={(e) => setFormData({ ...formData, suffix: e.target.value })} placeholder="Jr., Sr." />
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* Personal */}
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Gender</Label>
-                  <Select
-                    value={formData.gender}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, gender: value })
-                    }
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
+                  <Label htmlFor="date-of-birth">Date of Birth</Label>
+                  <Input id="date-of-birth" type="date" value={formData.date_of_birth}
+                    onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sex</Label>
+                  <Select value={formData.sex} onValueChange={(v) => setFormData({ ...formData, sex: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="male">Male</SelectItem>
                       <SelectItem value="female">Female</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Used to auto-allocate maternity/paternity leave.
-                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Textarea
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) =>
-                      setFormData({ ...formData, address: e.target.value })
-                    }
-                    placeholder="Residential address"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Assigned Locations</Label>
-                <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                  {locations.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No active locations configured yet. Add locations first.
-                    </p>
-                  ) : (
-                    locations.map((loc) => {
-                      const checked = formData.locations.includes(loc.id);
-                      return (
-                        <label
-                          key={loc.id}
-                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-                            checked
-                              ? "border-emerald-200 bg-emerald-50"
-                              : "border-border"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 rounded border-input text-primary focus:ring-primary"
-                            checked={checked}
-                            onChange={() => toggleLocationSelection(loc.id)}
-                          />
-                          <span>{loc.name}</span>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Select at least one location. The first selected becomes the
-                  primary location.
-                </p>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="tin">TIN #</Label>
-                  <Input
-                    id="tin"
-                    value={formData.tin_number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, tin_number: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sss">SSS #</Label>
-                  <Input
-                    id="sss"
-                    value={formData.sss_number}
-                    onChange={(e) =>
-                      setFormData({ ...formData, sss_number: e.target.value })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="philhealth">PhilHealth #</Label>
-                  <Input
-                    id="philhealth"
-                    value={formData.philhealth_number}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        philhealth_number: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pagibig">Pag-IBIG #</Label>
-                  <Input
-                    id="pagibig"
-                    value={formData.pagibig_number}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        pagibig_number: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="hmo">HMO</Label>
-                <Input
-                  id="hmo"
-                  value={formData.hmo_provider}
-                  onChange={(e) =>
-                    setFormData({ ...formData, hmo_provider: e.target.value })
-                  }
-                  placeholder="Provider name"
-                />
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="position">Position</Label>
-                  <Input
-                    id="position"
-                    value={formData.position}
-                    onChange={(e) =>
-                      setFormData({ ...formData, position: e.target.value })
-                    }
-                    placeholder="e.g., Account Supervisor"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="job-level">Job Level</Label>
-                  <Select
-                    value={formData.job_level}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, job_level: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select job level" />
-                    </SelectTrigger>
+                  <Label>Civil Status</Label>
+                  <Select value={formData.civil_status} onValueChange={(v) => setFormData({ ...formData, civil_status: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="RANK AND FILE">
-                        {formatLabel("RANK AND FILE")}
-                      </SelectItem>
-                      <SelectItem value="SUPERVISORY">
-                        {formatLabel("SUPERVISORY")}
-                      </SelectItem>
-                      <SelectItem value="MANAGERIAL">
-                        {formatLabel("MANAGERIAL")}
-                      </SelectItem>
+                      <SelectItem value="single">Single</SelectItem>
+                      <SelectItem value="married">Married</SelectItem>
+                      <SelectItem value="widowed">Widowed</SelectItem>
+                      <SelectItem value="separated">Separated</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
+              {/* Contact */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="mobile">Mobile</Label>
+                  <Input id="mobile" value={formData.mobile}
+                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} placeholder="09XX-XXX-XXXX" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="employee-type">Employee Type</Label>
-                <Select
-                  value={formData.employee_type}
-                  onValueChange={(value: "office-based" | "client-based") =>
-                    setFormData({ ...formData, employee_type: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select employee type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="office-based">Office-Based</SelectItem>
-                    <SelectItem value="client-based">Client-Based</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Office-Based: All employees except Account Supervisors.
-                  Client-Based: Account Supervisors only.
-                </p>
+                <Label htmlFor="address">Address</Label>
+                <Textarea id="address" value={formData.address} rows={2}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
               </div>
 
-              {canAccessSalaryInfo && (
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="monthly-rate">Monthly Rate</Label>
-                    <Input
-                      id="monthly-rate"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.monthly_rate}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          monthly_rate: e.target.value,
-                        })
-                      }
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="per-day">Per Day Rate</Label>
-                    <Input
-                      id="per-day"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.per_day}
-                      onChange={(e) =>
-                        setFormData({ ...formData, per_day: e.target.value })
-                      }
-                      placeholder="0.00"
-                    />
-                  </div>
+              {/* Department & Position */}
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground">Department & Position</h3>
+                <div className="h-px bg-border" />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select value={formData.department_id || "none"} onValueChange={(v) => setFormData({ ...formData, department_id: v === "none" ? "" : v })}>
+                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Position</Label>
+                  <Select value={formData.position_id || "none"} onValueChange={(v) => setFormData({ ...formData, position_id: v === "none" ? "" : v })}>
+                    <SelectTrigger><SelectValue placeholder="Select position" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.job_grade ? ` (${p.job_grade})` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Employment Dates */}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Employment Status</Label>
+                  <Select value={formData.employment_status} onValueChange={(v) => setFormData({ ...formData, employment_status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="terminated">Terminated</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-date">Regularization Date</Label>
+                  <Input id="reg-date" type="date" value={formData.regularization_date}
+                    onChange={(e) => setFormData({ ...formData, regularization_date: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="eoc-date">End of Contract</Label>
+                  <Input id="eoc-date" type="date" value={formData.end_of_contract}
+                    onChange={(e) => setFormData({ ...formData, end_of_contract: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Government IDs */}
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground">Government IDs</h3>
+                <div className="h-px bg-border" />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="sss">SSS #</Label>
+                  <Input id="sss" value={formData.sss_number} onChange={(e) => setFormData({ ...formData, sss_number: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="philhealth">PhilHealth #</Label>
+                  <Input id="philhealth" value={formData.philhealth_number} onChange={(e) => setFormData({ ...formData, philhealth_number: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pagibig">Pag-IBIG #</Label>
+                  <Input id="pagibig" value={formData.pagibig_number} onChange={(e) => setFormData({ ...formData, pagibig_number: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tin">TIN</Label>
+                  <Input id="tin" value={formData.tin} onChange={(e) => setFormData({ ...formData, tin: e.target.value })} />
+                </div>
+              </div>
+
+              {/* Salary */}
+              {canAccessSalaryInfo && (
+                <>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-foreground">Compensation</h3>
+                    <div className="h-px bg-border" />
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Salary Basis</Label>
+                      <Select value={formData.salary_basis} onValueChange={(v) => setFormData({ ...formData, salary_basis: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="daily">Daily</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="base-rate">Base Rate (₱)</Label>
+                      <Input id="base-rate" type="number" step="0.01" min="0" value={formData.base_rate}
+                        onChange={(e) => setFormData({ ...formData, base_rate: e.target.value })} placeholder="0.00" />
+                    </div>
+                  </div>
+                </>
               )}
 
-              <div className="space-y-2">
-                <Label>Eligible for OT</Label>
-                <Select
-                  value={formData.eligible_for_ot ? "YES" : "NO"}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      eligible_for_ot: value === "YES",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="YES">Yes</SelectItem>
-                    <SelectItem value="NO">No</SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Bank */}
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground">Bank Details</h3>
+                <div className="h-px bg-border" />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="overtime-group">Group</Label>
-                <Select
-                  value={formData.overtime_group_id || "none"}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      overtime_group_id: value,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select group (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None (any account manager/admin)</SelectItem>
-                    {overtimeGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                        {group.description && ` - ${group.description}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Assign this employee to a group. Group approvers/viewers will handle their OT requests.
-                  Manage groups in <a href="/settings" className="text-emerald-600 underline">User Management</a>.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="transferred-from">Transferred from (previous employee)</Label>
-                <Select
-                  value={formData.transferred_from_employee_id || "none"}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      transferred_from_employee_id: value,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="None (OT loads from this record only)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None (OT loads from this record only)</SelectItem>
-                    {employees
-                      .filter((emp) => !editingEmployee || emp.id !== editingEmployee.id)
-                      .map((emp) => (
-                        <SelectItem key={emp.id} value={emp.id}>
-                          {emp.full_name} ({emp.employee_id})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  If this record was created when transferring an employee, select the previous employee so OT and attendance from the old record still load on Payslips and Time Attendance.
-                </p>
-              </div>
-
-              <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
-                <p className="text-sm font-semibold text-foreground">
-                  Leave Allocations (auto-managed)
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  SIL: 10 days after first anniversary (usable until Dec 31),
-                  then prorated monthly each year. Maternity: 105 days when
-                  gender is female.
-                </p>
-                {formData.gender === "male" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="paternity">Paternity Leave (days)</Label>
-                    <Input
-                      id="paternity"
-                      type="number"
-                      min="0"
-                      step="0.5"
-                      value={formData.paternity_days}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          paternity_days: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., 7"
-                    />
-                  </div>
-                )}
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="bank-name">Bank Name</Label>
+                  <Input id="bank-name" value={formData.bank_name} onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bank-acct-name">Account Name</Label>
+                  <Input id="bank-acct-name" value={formData.bank_account_name} onChange={(e) => setFormData({ ...formData, bank_account_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bank-acct-no">Account Number</Label>
+                  <Input id="bank-acct-no" value={formData.bank_account_number} onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })} />
+                </div>
               </div>
             </div>
+
             <DialogFooter className="flex items-center justify-end gap-2 flex-shrink-0 pt-4 pb-6 px-6 border-t bg-background">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowModal(false)}
-              >
-                Cancel
-              </Button>
+              <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
               <Button type="submit" disabled={submitting}>
-                {submitting
-                  ? "Saving..."
-                  : editingEmployee
-                  ? "Update"
-                  : "Create"}
+                {submitting ? "Saving..." : editingEmployee ? "Update" : "Create"}
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              Manage Portal Account
-              {passwordEmployee?.full_name
-                ? ` - ${passwordEmployee.full_name}`
-                : ""}
-            </DialogTitle>
-          </DialogHeader>
-          {passwordEmployee && (
-            <form onSubmit={handlePasswordUpdate} className="space-y-4">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
-                <p className="text-emerald-900">
-                  <strong>Employee ID:</strong> {passwordEmployee.employee_id}
-                </p>
-                <p className="text-xs text-emerald-800 mt-1">
-                  Default password is the employee ID.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="new-password">New password</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  minLength={4}
-                  required
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={passwordSubmitting}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirm password</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  minLength={4}
-                  required
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={passwordSubmitting}
-                />
-              </div>
-
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                Employee will use this password to sign in at /employee-login.
-              </div>
-
-              <DialogFooter className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() =>
-                    passwordEmployee && resetPasswordToDefault(passwordEmployee)
-                  }
-                  disabled={passwordSubmitting}
-                >
-                  <Icon
-                    name="ClockClockwise"
-                    size={IconSizes.sm}
-                    className="mr-2"
-                  />
-                  Reset to default
-                </Button>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowPasswordModal(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={passwordSubmitting}>
-                    {passwordSubmitting ? "Saving..." : "Update password"}
-                  </Button>
-                </div>
-              </DialogFooter>
-            </form>
-          )}
         </DialogContent>
       </Dialog>
     </DashboardLayout>

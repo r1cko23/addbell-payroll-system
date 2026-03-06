@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { DashboardLayout } from "@/components/DashboardLayout";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
 
@@ -331,7 +332,7 @@ export default function FundRequestApprovalPage() {
   };
 
   if (profileLoading)
-    return <div className="animate-pulse h-8 w-48 bg-slate-200 rounded" />;
+    return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
   const canManage =
     profile?.role === "hr" ||
     profile?.role === "admin" ||
@@ -340,14 +341,16 @@ export default function FundRequestApprovalPage() {
     profile?.role === "operations_manager";
   if (!canManage) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Fund Request Approval
-        </h1>
-        <p className="text-muted-foreground">
-          You don’t have permission to manage fund requests.
-        </p>
-      </div>
+      <DashboardLayout>
+        <div className="space-y-6">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Fund Request Approval
+          </h1>
+          <p className="text-muted-foreground">
+            You do not have permission to manage fund requests.
+          </p>
+        </div>
+      </DashboardLayout>
     );
   }
 
@@ -425,6 +428,7 @@ export default function FundRequestApprovalPage() {
     : weekFilteredRows;
 
   return (
+    <DashboardLayout>
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
@@ -826,7 +830,7 @@ export default function FundRequestApprovalPage() {
                               Date needed
                             </span>
                             <p className="mt-0.5">
-                              {format(new Date(r.date_needed), "MMM d, yyyy")}
+                              {r.date_needed ? format(new Date(r.date_needed), "MMM d, yyyy") : "—"}
                             </p>
                           </div>
                           {r.urgent_reason && (
@@ -997,5 +1001,6 @@ export default function FundRequestApprovalPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   );
 }

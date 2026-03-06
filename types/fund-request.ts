@@ -1,7 +1,7 @@
-// Type definition for fund_requests table
-// This is used instead of Database types since fund_requests table may not be in the generated types yet
 export type FundRequestRow = {
   id: string;
+  company_id: string;
+  project_id: string | null;
   requested_by: string;
   request_date: string;
   purpose: string;
@@ -10,9 +10,9 @@ export type FundRequestRow = {
   project_location: string | null;
   po_amount: number | null;
   current_project_percentage: number | null;
-  details: any;
+  details: unknown;
   total_requested_amount: number;
-  date_needed: string;
+  date_needed: string | null;
   urgent_reason: string | null;
   status: string;
   project_manager_approved_by: string | null;

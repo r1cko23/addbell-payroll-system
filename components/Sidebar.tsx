@@ -67,6 +67,7 @@ const navGroups: NavGroup[] = [
     icon: UsersThree,
     items: [
       { name: "Employees", href: "/employees", icon: UsersThree, permissionModule: "employees" },
+      { name: "Payroll", href: "/payroll", icon: Receipt, permissionModule: "payslips" },
       { name: "Loans", href: "/loans", icon: Receipt, permissionModule: "loans" },
       { name: "Payslips", href: "/payslips", icon: Receipt, permissionModule: "payslips" },
     ],

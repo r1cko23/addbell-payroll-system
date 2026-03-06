@@ -7,14 +7,31 @@ import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { format } from 'date-fns';
+import { DashboardLayout } from '@/components/DashboardLayout';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Search, Plus } from 'lucide-react';
 import type { FundRequestRow } from '@/types/fund-request';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending (PM)',
   project_manager_approved: 'PM Approved (PO)',
-  purchasing_officer_approved: 'PO Approved (Management)',
+  purchasing_officer_approved: 'PO Approved (Mgmt)',
   management_approved: 'Approved',
   rejected: 'Rejected',
+};
+
+type FundRequestWithProject = FundRequestRow & {
+  projects: { name: string; code: string } | null;
 };
 
 export default function FundRequestListPage() {
@@ -22,8 +39,10 @@ export default function FundRequestListPage() {
   const { profile, loading: profileLoading } = useProfile();
   const session = useEmployeeSession();
   const isPortal = (pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal')) ?? false;
-  const [rows, setRows] = useState<FundRequestRow[]>([]);
+  const [rows, setRows] = useState<FundRequestWithProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const supabase = createClient();
   const employeeId = session?.employee?.id ?? null;
 
@@ -32,86 +51,141 @@ export default function FundRequestListPage() {
     const fetchData = async () => {
       let query = supabase
         .from('fund_requests')
-        .select('*')
+        .select('*, projects ( name, code )')
         .order('created_at', { ascending: false });
       if (employeeId) query = query.eq('requested_by', employeeId);
       const { data } = await query;
-      setRows((data as FundRequestRow[]) ?? []);
+      setRows((data as FundRequestWithProject[]) ?? []);
       setLoading(false);
     };
     fetchData();
   }, [employeeId, profile, profileLoading, supabase]);
 
   const loadingState = profileLoading && !session?.employee?.id;
-  if (loadingState) return <div className="animate-pulse h-8 w-48 bg-slate-200 rounded" />;
+  if (loadingState) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
 
   const canCreate = Boolean(employeeId);
   const base = pathname?.startsWith('/employee-portal') ? '/employee-portal/fund-request' : isPortal ? '/app/fund-request' : '/fund-request';
 
-  return (
+  const filteredRows = rows.filter((r) => {
+    if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const matchPurpose = (r.purpose || '').toLowerCase().includes(term);
+      const matchProject = (r.project_title || r.projects?.name || '').toLowerCase().includes(term);
+      if (!matchPurpose && !matchProject) return false;
+    }
+    return true;
+  });
+
+  const content = (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Fund Request</h1>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Fund Requests</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Request funds for materials, subcontractor payment, project funds, or liquidation.
+          </p>
+        </div>
         {canCreate && (
-          <Link
-            href={`${base}/new`}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            New fund request
-          </Link>
+          <Button asChild>
+            <Link href={`${base}/new`}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Request
+            </Link>
+          </Button>
         )}
       </div>
-      <p className="text-muted-foreground text-sm">
-        Request funds for materials, subcontractor payment, project funds, or liquidation. Flow: Requester → Project Manager → Purchasing Officer → Upper Management.
-      </p>
-      <div className="rounded-xl border bg-card overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Loading...</div>
-        ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">No fund requests yet.</div>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted/50 border-b">
-              <tr>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Purpose</th>
-                <th className="px-4 py-3 font-medium">Total (PHP)</th>
-                <th className="px-4 py-3 font-medium">Date needed</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
-                  <td className="px-4 py-3">{format(new Date(r.request_date), 'MMM d, yyyy')}</td>
-                  <td className="px-4 py-3 max-w-[200px] truncate">{r.purpose}</td>
-                  <td className="px-4 py-3 font-medium">₱{Number(r.total_requested_amount).toLocaleString()}</td>
-                  <td className="px-4 py-3">{format(new Date(r.date_needed), 'MMM d')}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        r.status === 'management_approved'
-                          ? 'bg-green-100 text-green-800'
-                          : r.status === 'rejected'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {STATUS_LABELS[r.status] ?? r.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Link href={`${base}/${r.id}`} className="text-primary font-medium hover:underline">
-                      View
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by purpose or project..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="pending">Pending (PM)</SelectItem>
+            <SelectItem value="project_manager_approved">PM Approved</SelectItem>
+            <SelectItem value="purchasing_officer_approved">PO Approved</SelectItem>
+            <SelectItem value="management_approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-8 text-center text-muted-foreground">Loading...</div>
+          ) : filteredRows.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              {searchTerm || statusFilter !== 'all' ? 'No fund requests match your filters.' : 'No fund requests yet.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-muted/50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Date</th>
+                    <th className="px-4 py-3 font-medium">Project</th>
+                    <th className="px-4 py-3 font-medium">Purpose</th>
+                    <th className="px-4 py-3 font-medium text-right">Total (PHP)</th>
+                    <th className="px-4 py-3 font-medium">Date Needed</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((r) => (
+                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="px-4 py-3 whitespace-nowrap">{format(new Date(r.request_date), 'MMM d, yyyy')}</td>
+                      <td className="px-4 py-3 max-w-[180px] truncate">
+                        {r.projects?.name || r.project_title || '—'}
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px] truncate">{r.purpose}</td>
+                      <td className="px-4 py-3 font-medium text-right tabular-nums">
+                        ₱{Number(r.total_requested_amount).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {r.date_needed ? format(new Date(r.date_needed), 'MMM d') : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge
+                          variant={
+                            r.status === 'management_approved' ? 'default'
+                            : r.status === 'rejected' ? 'destructive'
+                            : 'secondary'
+                          }
+                          className="text-xs whitespace-nowrap"
+                        >
+                          {STATUS_LABELS[r.status] ?? r.status}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link href={`${base}/${r.id}`} className="text-primary font-medium hover:underline text-sm">
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
+
+  if (isPortal) return content;
+  return <DashboardLayout>{content}</DashboardLayout>;
 }

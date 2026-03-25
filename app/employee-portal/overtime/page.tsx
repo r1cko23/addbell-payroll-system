@@ -45,6 +45,12 @@ export default function OvertimePage() {
   });
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
+  const [replaceDocByRequestId, setReplaceDocByRequestId] = useState<
+    Record<string, File | null>
+  >({});
+  const [replaceDocLoadingId, setReplaceDocLoadingId] = useState<string | null>(
+    null
+  );
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -574,6 +580,109 @@ export default function OvertimePage() {
                               ))}
                             </VStack>
                           )}
+
+                        {req.status === "pending" && (
+                          <div className="mt-3 w-full space-y-2 rounded-md border border-dashed border-muted-foreground/30 p-3">
+                            <Label
+                              htmlFor={`replace-doc-${req.id}`}
+                              className="text-xs font-medium"
+                            >
+                              Replace supporting document (PDF/DOC/DOCX)
+                            </Label>
+                            <input
+                              id={`replace-doc-${req.id}`}
+                              type="file"
+                              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                              className="flex w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs file:mr-2 file:border-0 file:bg-transparent file:text-xs"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) {
+                                  setReplaceDocByRequestId((prev) => ({
+                                    ...prev,
+                                    [req.id]: null,
+                                  }));
+                                  return;
+                                }
+                                if (!isAllowedFile(file)) {
+                                  toast.error("Only PDF, DOC, or DOCX files are allowed.");
+                                  e.target.value = "";
+                                  return;
+                                }
+                                if (file.size > MAX_FILE_SIZE) {
+                                  toast.error("File too large. Max size is 5MB.");
+                                  e.target.value = "";
+                                  return;
+                                }
+                                setReplaceDocByRequestId((prev) => ({
+                                  ...prev,
+                                  [req.id]: file,
+                                }));
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              disabled={
+                                replaceDocLoadingId === req.id ||
+                                !replaceDocByRequestId[req.id]
+                              }
+                              onClick={async () => {
+                                const file = replaceDocByRequestId[req.id];
+                                if (!file || !employee?.id) return;
+                                setReplaceDocLoadingId(req.id);
+                                try {
+                                  const base64 = await fileToBase64(file);
+                                  const res = await fetch(
+                                    "/api/employee-portal/overtime-requests",
+                                    {
+                                      method: "PATCH",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                      },
+                                      body: JSON.stringify({
+                                        request_id: req.id,
+                                        employee_id: employee.id,
+                                        document: {
+                                          file_name: file.name,
+                                          file_type: resolveMimeType(file),
+                                          file_size: file.size,
+                                          file_base64: base64,
+                                        },
+                                      }),
+                                    }
+                                  );
+                                  const payload = await res.json();
+                                  if (!res.ok) {
+                                    toast.error(
+                                      payload?.error || "Failed to update document"
+                                    );
+                                  } else {
+                                    if (payload?.warning) {
+                                      toast.warning(payload.warning);
+                                    } else {
+                                      toast.success("Supporting document updated");
+                                    }
+                                    setReplaceDocByRequestId((prev) => ({
+                                      ...prev,
+                                      [req.id]: null,
+                                    }));
+                                    await loadRequests();
+                                  }
+                                } catch (err) {
+                                  console.error(err);
+                                  toast.error("Failed to update document");
+                                } finally {
+                                  setReplaceDocLoadingId(null);
+                                }
+                              }}
+                            >
+                              {replaceDocLoadingId === req.id
+                                ? "Uploading..."
+                                : "Save new file"}
+                            </Button>
+                          </div>
+                        )}
                       </div>
 
                       <VStack gap="2" align="end" className="ml-4">

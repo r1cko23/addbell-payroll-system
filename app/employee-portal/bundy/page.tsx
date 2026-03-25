@@ -26,7 +26,6 @@ import {
   endOfMonth,
   endOfWeek,
   format as formatDate,
-  isSameDay,
   isSameMonth,
   startOfMonth,
   startOfWeek,
@@ -55,6 +54,21 @@ function getDateInManilaTimezone(utcTimestamp: string | Date): string {
   const day = parts.find((p) => p.type === "day")?.value;
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Manila calendar date (YYYY-MM-DD) for a visible calendar grid day.
+ * Uses local noon to avoid midnight/DST skew when mapping to Asia/Manila.
+ */
+function getManilaDateStringFromLocalDate(d: Date): string {
+  return getDateInManilaTimezone(
+    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
+  );
+}
+
+function getManilaTodayString(): string {
+  return getDateInManilaTimezone(new Date());
+}
+
 import { determineDayType, getDayName } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
@@ -271,29 +285,32 @@ export default function BundyClockPage() {
     const fetchEmployeeInfo = async () => {
       if (!employee?.id) return;
       try {
-        const { data, error } = await supabase
-          .from("employees")
-          .select("position, employment_type, job_level")
-          .eq("id", employee.id)
-          .maybeSingle<{ position: string | null; employment_type: string | null; job_level: string | null }>();
-
-        if (error) {
-          console.error("Failed to fetch employee info:", error);
-          // Don't show toast here as this is a background fetch
-          // The schedule page will handle its own errors
+        const res = await fetch(
+          `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+            employee.id
+          )}`
+        );
+        const json = (await res.json().catch(() => ({}))) as {
+          position?: string | null;
+          employment_type?: string | null;
+          job_level?: string | null;
+          error?: string;
+        };
+        if (!res.ok) {
+          console.error("Failed to fetch employee info:", json.error || res.statusText);
           return;
         }
 
-        if (data) {
-          setEmployeePosition(data.position);
-          setEmployeeType(data.employment_type);
-          setEmployeeJobLevel(data.job_level ?? null);
+        if (json.employment_type !== undefined || json.position !== undefined) {
+          setEmployeePosition(json.position ?? null);
+          setEmployeeType(json.employment_type ?? null);
+          setEmployeeJobLevel(json.job_level ?? null);
 
           // Check if today is a rest day
           const today = new Date();
           const todayStr = getDateInManilaTimezone(today);
 
-          if (data.employment_type === "client-based") {
+          if (json.employment_type === "client-based") {
             // Schema does not include employee_week_schedules — no rest-day from schedule
             setIsRestDayToday(false);
           } else {
@@ -307,7 +324,7 @@ export default function BundyClockPage() {
       }
     };
     fetchEmployeeInfo();
-  }, [employee?.id, supabase]);
+  }, [employee?.id]);
 
   // Fetch client IP once for logging
   useEffect(() => {
@@ -422,14 +439,19 @@ export default function BundyClockPage() {
     today.setHours(0, 0, 0, 0);
     const todayStr = getDateInManilaTimezone(today);
 
-    const { data: punches } = await supabase
-      .from("time_entries")
-      .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
-      .eq("employee_id", employee.id)
-      .order("punched_at", { ascending: false })
-      .limit(100);
-
-    const list = (punches || []) as TimeEntryPunch[];
+    const res = await fetch(
+      `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(
+        employee.id
+      )}&limit=100`
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      punches?: TimeEntryPunch[];
+      error?: string;
+    };
+    if (!res.ok) {
+      console.error("checkClockStatus:", json.error || res.statusText);
+    }
+    const list = (json.punches || []) as TimeEntryPunch[];
     const open = getOpenEntryFromPunches(
       list,
       (iso) => getDateInManilaTimezone(iso),
@@ -439,15 +461,21 @@ export default function BundyClockPage() {
   }, [employee.id, supabase]);
 
   const fetchEntries = useCallback(async () => {
-    const { data: punches } = await supabase
-      .from("time_entries")
-      .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
-      .eq("employee_id", employee.id)
-      .gte("punched_at", periodStart.toISOString())
-      .lte("punched_at", periodEnd.toISOString())
-      .order("punched_at", { ascending: false });
-
-    const list = (punches || []) as TimeEntryPunch[];
+    const params = new URLSearchParams({
+      employee_id: employee.id,
+      start: periodStart.toISOString(),
+      end: periodEnd.toISOString(),
+      limit: "500",
+    });
+    const res = await fetch(`/api/employee-portal/time-entries?${params}`);
+    const json = (await res.json().catch(() => ({}))) as {
+      punches?: TimeEntryPunch[];
+      error?: string;
+    };
+    if (!res.ok) {
+      console.error("fetchEntries:", json.error || res.statusText);
+    }
+    const list = (json.punches || []) as TimeEntryPunch[];
     const sessions = punchesToSessions(
       list,
       (iso) => getDateInManilaTimezone(iso)
@@ -493,34 +521,48 @@ export default function BundyClockPage() {
       const endDateStr = formatDate(gridEnd, "yyyy-MM-dd");
       const holidaySet = new Set(calendarHolidays.map((h) => h.date));
 
-      // Schema: no employee_week_schedules table, no selected_dates on leave_requests
-      const [timeResult, leaveResult] = await Promise.all([
-        supabase
-          .from("time_entries")
-          .select("id, employee_id, punch_type, punched_at")
-          .eq("employee_id", employee.id)
-          .gte("punched_at", startRange)
-          .lte("punched_at", endRange)
-          .order("punched_at", { ascending: true }),
-        supabase
-          .from("leave_requests")
-          .select("leave_type, start_date, end_date, status")
-          .eq("employee_id", employee.id)
-          .in("status", ["approved_by_manager", "approved_by_hr"]),
-      ]);
-
-      const { data: timeData, error: timeError } = timeResult;
-      const { data: leaveData, error: leaveError } = leaveResult;
       const scheduleDays: Array<{ schedule_date: string; day_off: boolean }> = [];
 
-      if (timeError) {
-        console.error("Failed to load calendar time entries", timeError);
+      const timeParams = new URLSearchParams({
+        employee_id: employee.id,
+        start: startRange,
+        end: endRange,
+        limit: "500",
+      });
+      const [timeRes, leaveRes] = await Promise.all([
+        fetch(`/api/employee-portal/time-entries?${timeParams}`),
+        fetch(
+          `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
+            employee.id
+          )}`
+        ),
+      ]);
+      const timeJson = (await timeRes.json().catch(() => ({}))) as {
+        punches?: TimeEntryPunch[];
+        error?: string;
+      };
+      const leaveJson = (await leaveRes.json().catch(() => ({}))) as {
+        requests?: Array<{
+          leave_type: string;
+          start_date: string;
+          end_date: string;
+          status: string;
+        }>;
+        error?: string;
+      };
+
+      if (!timeRes.ok) {
+        console.error(
+          "Failed to load calendar time entries",
+          timeJson.error || timeRes.statusText
+        );
         return;
       }
 
-      if (leaveError) {
-        console.error("Failed to load calendar leaves", leaveError);
-      }
+      const timeData = timeJson.punches || [];
+      const leaveData = (leaveJson.requests || []).filter((r) =>
+        ["approved_by_manager", "approved_by_hr"].includes(r.status)
+      );
 
       const entries: CalendarEntry[] = [];
 
@@ -539,7 +581,7 @@ export default function BundyClockPage() {
       timeSessions.forEach((entry) => {
         const dateIso =
           entry.clock_in_date_ph ||
-          formatDate(new Date(entry.clock_in_time), "yyyy-MM-dd");
+          getDateInManilaTimezone(entry.clock_in_time);
         entries.push({
           date: dateIso,
           type: entry.clock_out_time ? "time" : "inc",
@@ -563,7 +605,7 @@ export default function BundyClockPage() {
         const datesToProcess = eachDayOfInterval({ start, end });
 
         datesToProcess.forEach((d) => {
-          const iso = formatDate(d, "yyyy-MM-dd");
+          const iso = getManilaDateStringFromLocalDate(d);
           // Only include days inside the grid range
           if (d >= gridStart && d <= gridEnd) {
             entries.push({
@@ -582,10 +624,10 @@ export default function BundyClockPage() {
         dayMap.get(e.date)!.push(e);
       });
 
-      // Build absent/inc/present markers for each day in grid
-      const today = new Date();
+      // Build absent/inc/present markers for each day in grid (Manila dates)
+      const todayStr = getManilaTodayString();
       eachDayOfInterval({ start: gridStart, end: gridEnd }).forEach((day) => {
-        const iso = formatDate(day, "yyyy-MM-dd");
+        const iso = getManilaDateStringFromLocalDate(day);
         const existing = dayMap.get(iso) || [];
         const hasLeave = existing.some((e) => e.type === "leave");
         if (hasLeave) return;
@@ -597,12 +639,16 @@ export default function BundyClockPage() {
           (e) => e.type === "time" || e.type === "inc"
         );
 
-        // Only mark absent/inc/present for dates up to today
-        if (day > today) return;
+        // Only mark absent/inc/present for dates up to today (Manila)
+        if (iso > todayStr) return;
         // Skip holidays and marked day-offs (weekends can be working days)
         if (isHoliday || isDayOff) return;
 
         if (timeEntries.length === 0) {
+          if (iso === todayStr) {
+            // Same calendar day in PH — still in progress; do not show Absent
+            return;
+          }
           existing.push({
             date: iso,
             type: "absent",
@@ -622,7 +668,7 @@ export default function BundyClockPage() {
 
       setCalendarEntries(Array.from(dayMap.values()).flat());
     },
-    [employee.id, supabase]
+    [employee.id, calendarHolidays]
   );
 
   useEffect(() => {
@@ -751,8 +797,8 @@ export default function BundyClockPage() {
     if (!employee) return;
 
     try {
-      const periodStartStr = formatDate(periodStart, "yyyy-MM-dd");
-      const periodEndStr = formatDate(periodEnd, "yyyy-MM-dd");
+      const periodStartStr = getManilaDateStringFromLocalDate(periodStart);
+      const periodEndStr = getManilaDateStringFromLocalDate(periodEnd);
 
       // Batch all queries in parallel for better performance
       const periodStartDate = new Date(periodStart);
@@ -778,51 +824,98 @@ export default function BundyClockPage() {
         (h) => h.date >= periodStartStr && h.date <= periodEndStr
       ).map((h) => ({ holiday_date: h.date, name: h.name, is_regular: h.type === "regular" }));
 
+      const clockParams = new URLSearchParams({
+        employee_id: employee.id,
+        start: periodStartDate.toISOString(),
+        end: periodEndDate.toISOString(),
+        limit: "500",
+      });
       const [
-        clockResult,
-        leaveResult,
-        otResult,
-        employeeTypeResult,
+        clockRes,
+        leaveRes,
+        otRes,
+        empProfileRes,
       ] = await Promise.all([
-        supabase
-          .from("time_entries")
-          .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
-          .eq("employee_id", employee.id)
-          .gte("punched_at", periodStartDate.toISOString())
-          .lte("punched_at", periodEndDate.toISOString())
-          .order("punched_at", { ascending: true }),
-        supabase
-          .from("leave_requests")
-          .select("id, leave_type, start_date, end_date, status")
-          .eq("employee_id", employee.id)
-          .lte("start_date", periodEndStr)
-          .gte("end_date", periodStartStr)
-          .in("status", ["approved_by_manager", "approved_by_hr"]),
-        supabase
-          .from("overtime_requests")
-          .select("id, ot_date, start_time, end_time, total_hours, status")
-          .eq("employee_id", employee.id)
-          .gte("ot_date", periodStartStr)
-          .lte("ot_date", periodEndStr)
-          .in("status", ["approved", "approved_by_manager", "approved_by_hr"]),
-        supabase
-          .from("employees")
-          .select("employment_type")
-          .eq("id", employee.id)
-          .maybeSingle(),
+        fetch(`/api/employee-portal/time-entries?${clockParams}`),
+        fetch(
+          `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
+            employee.id
+          )}`
+        ),
+        fetch(
+          `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
+            employee.id
+          )}`
+        ),
+        fetch(
+          `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+            employee.id
+          )}`
+        ),
       ]);
 
-      const clockPunches = (clockResult.data || []) as TimeEntryPunch[];
+      const clockJson = (await clockRes.json().catch(() => ({}))) as {
+        punches?: TimeEntryPunch[];
+        error?: string;
+      };
+      const leaveJson = (await leaveRes.json().catch(() => ({}))) as {
+        requests?: Array<{
+          id: string;
+          leave_type: string;
+          start_date: string;
+          end_date: string;
+          status: string;
+        }>;
+        error?: string;
+      };
+      const otJson = (await otRes.json().catch(() => ({}))) as {
+        requests?: Array<{
+          id: string;
+          ot_date: string;
+          start_time: string;
+          end_time: string;
+          total_hours: number;
+          status: string;
+        }>;
+        error?: string;
+      };
+      const empProfileJson = (await empProfileRes.json().catch(() => ({}))) as {
+        employment_type?: string | null;
+        error?: string;
+      };
+
+      const clockErrorMsg = !clockRes.ok
+        ? clockJson.error || clockRes.statusText
+        : null;
+      if (!leaveRes.ok) {
+        console.warn("leave-requests load:", leaveJson.error || leaveRes.statusText);
+      }
+      if (!otRes.ok) {
+        console.warn("overtime-requests load:", otJson.error || otRes.statusText);
+      }
+
+      const clockPunches = (clockJson.punches || []) as TimeEntryPunch[];
       const clockData = punchesToSessions(
         clockPunches,
         (iso) => getDateInManilaTimezone(iso)
       );
-      const { error: clockError } = clockResult;
-      const { data: leaveData, error: leaveError } = leaveResult;
-      const { data: otData, error: otError } = otResult;
+      const leaveData = (leaveJson.requests || []).filter(
+        (r) =>
+          ["approved_by_manager", "approved_by_hr"].includes(r.status) &&
+          r.start_date <= periodEndStr &&
+          r.end_date >= periodStartStr
+      );
+      const otData = (otJson.requests || []).filter(
+        (r) =>
+          ["approved", "approved_by_manager", "approved_by_hr"].includes(
+            r.status
+          ) &&
+          r.ot_date >= periodStartStr &&
+          r.ot_date <= periodEndStr
+      );
       const scheduleData: Array<{ schedule_date: string; day_off: boolean }> = [];
-      const { data: employeeTypeRow } = employeeTypeResult || {};
-      const isClientBasedFromDb = employeeTypeRow?.employment_type === "client-based";
+      const isClientBasedFromDb =
+        empProfileJson.employment_type === "client-based";
       const isClientBasedFromDbOrSchedule = isClientBasedFromDb;
 
       // Debug: Check auth session
@@ -834,12 +927,9 @@ export default function BundyClockPage() {
       });
 
       // Debug: Log query errors
-      if (clockError) {
+      if (clockErrorMsg) {
         console.error("❌ Employee Portal - Clock entries query error:", {
-          error: clockError,
-          errorCode: clockError.code,
-          errorMessage: clockError.message,
-          errorDetails: clockError.details,
+          errorMessage: clockErrorMsg,
           employeeId: employee.id,
           employeeIdString: employee.employee_id,
           queryStart: periodStartDate.toISOString(),
@@ -852,7 +942,7 @@ export default function BundyClockPage() {
         employeeId: employee.id,
         employeeIdString: employee.employee_id,
         clockEntriesCount: clockData?.length || 0,
-        clockError: clockError?.message || null,
+        clockError: clockErrorMsg,
         holidaysCount: holidaysData?.length || 0,
         leaveCount: leaveData?.length || 0,
         otCount: otData?.length || 0,
@@ -881,7 +971,7 @@ export default function BundyClockPage() {
           `⚠️ Employee ${employee.id} - No clock entries found for period ${periodStartStr} to ${periodEndStr}`,
           {
             clockData: clockData,
-            clockError: clockError,
+            clockError: clockErrorMsg,
             queryStart: periodStartDate.toISOString(),
             queryEnd: periodEndDate.toISOString(),
           }
@@ -1052,8 +1142,8 @@ export default function BundyClockPage() {
       });
 
       // Debug: Log entries by date to help diagnose issues
-      const periodStartStr = formatDate(periodStart, "yyyy-MM-dd");
-      const periodEndStr = formatDate(periodEnd, "yyyy-MM-dd");
+      const periodStartStr = getManilaDateStringFromLocalDate(periodStart);
+      const periodEndStr = getManilaDateStringFromLocalDate(periodEnd);
       if (entries.length > 0 || incompleteEntries.length > 0 || employee?.id) {
         console.log(
           `Employee ${employee?.id || "unknown"} - Processing entries:`,
@@ -1096,7 +1186,7 @@ export default function BundyClockPage() {
         const endDate = new Date(leave.end_date);
         let currentDate = new Date(startDate);
         while (currentDate <= endDate) {
-          const dateStr = formatDate(currentDate, "yyyy-MM-dd");
+          const dateStr = getManilaDateStringFromLocalDate(currentDate);
           if (!leavesByDate.has(dateStr)) {
             leavesByDate.set(dateStr, []);
           }
@@ -1127,9 +1217,8 @@ export default function BundyClockPage() {
       const ndNightStartHour = 22; // 10PM – 6AM; 0 ND if OT is outside this window
 
       workingDays.forEach((date) => {
-        // Use consistent date formatting to match admin/HR dashboard
-        // Format date as yyyy-MM-dd to ensure consistency across both pages
-        const dateStr = formatDate(date, "yyyy-MM-dd");
+        // Manila calendar date — must match getDateInManilaTimezone(punch times)
+        const dateStr = getManilaDateStringFromLocalDate(date);
         const schedule = scheduleMap.get(dateStr);
         const isRestDay = schedule?.day_off === true;
         // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
@@ -1143,9 +1232,9 @@ export default function BundyClockPage() {
         // Determine status based on priority (matching admin/HR page logic):
         // 1. Holidays (check FIRST - before everything else)
         // 2. Leave requests (LWOP, LEAVE, CTO, OB)
-        // 3. OT requests
-        // 4. Complete time entries (LOG)
-        // 5. Incomplete time entries (INC)
+        // 3. Complete time entries (LOG) — before OT-only so punches + OT show LOG, not OT in badge
+        // 4. Incomplete time entries (INC)
+        // 5. OT requests only (no punch — hours in OT column; status "-")
         // 6. Rest days (Sunday)
         // 7. Saturday (regular work day - paid 6 days/week)
         // 8. No entry = ABSENT
@@ -1181,7 +1270,7 @@ export default function BundyClockPage() {
           for (let i = 1; i <= 7; i++) {
             const checkDate = new Date(date);
             checkDate.setDate(checkDate.getDate() - i);
-            const checkDateStr = formatDate(checkDate, "yyyy-MM-dd");
+            const checkDateStr = getManilaDateStringFromLocalDate(checkDate);
             const checkDayEntries = entriesByDate.get(checkDateStr) || [];
             const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
 
@@ -1224,16 +1313,15 @@ export default function BundyClockPage() {
             status = "LEAVE";
             bh = 8;
           }
-        } else if (dayOTs.length > 0) {
-          // OT request exists
-          status = "OT";
-          // BH will be calculated from time entries if they exist
         } else if (dayEntries.length > 0) {
-          // Complete time entries exist
+          // Complete time entries exist (OT hours stay in the OT column, not the status badge)
           status = "LOG";
         } else if (incompleteDayEntries.length > 0) {
           // Incomplete entry (clock_in but no clock_out)
           status = "INC";
+        } else if (dayOTs.length > 0) {
+          // Approved OT only — show hours in OT column; status stays neutral
+          status = "-";
         } else if (dayType === "sunday" || isRestDay) {
           // Rest day (Sunday is the designated rest day for office-based employees)
           // OR rest day from employee schedule (for Account Supervisors: Mon/Tue/Wed, or any day marked as rest day)
@@ -1251,11 +1339,10 @@ export default function BundyClockPage() {
         if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
           status = "LOG"; // Worked on Saturday
         } else {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const currentDate = new Date(date);
-          currentDate.setHours(0, 0, 0, 0);
-          status = currentDate > today ? "-" : "ABSENT";
+          const todayStr = getManilaTodayString();
+          if (dateStr > todayStr) status = "-";
+          else if (dateStr === todayStr) status = "-";
+          else status = "ABSENT";
         }
         } else if (dayOfWeek === 0) {
           // Sunday handling:
@@ -1271,12 +1358,10 @@ export default function BundyClockPage() {
               if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
                 status = "LOG"; // Worked on Sunday
               } else {
-                // No logs = ABSENT
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const currentDate = new Date(date);
-                currentDate.setHours(0, 0, 0, 0);
-                status = currentDate > today ? "-" : "ABSENT";
+                const todayStr = getManilaTodayString();
+                if (dateStr > todayStr) status = "-";
+                else if (dateStr === todayStr) status = "-";
+                else status = "ABSENT";
               }
             }
           } else {
@@ -1284,20 +1369,13 @@ export default function BundyClockPage() {
             status = "RD";
           }
         } else {
-          // Monday-Friday: Normal workdays
-          // - Office-based: Must have logs or be ABSENT
-          // - Client-based: Must have logs or be ABSENT (unless it's their rest day, which is handled above)
-          // Check if the date is in the future (hasn't occurred yet)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const currentDate = new Date(date);
-          currentDate.setHours(0, 0, 0, 0);
-
-          if (currentDate > today) {
-            // Future date - don't mark as ABSENT, just show "-"
+          // Monday-Friday: Manila dates — future / today = not absent yet; past with no log = ABSENT
+          const todayStr = getManilaTodayString();
+          if (dateStr > todayStr) {
+            status = "-";
+          } else if (dateStr === todayStr) {
             status = "-";
           } else {
-            // Past or today date with no entry = ABSENT
             status = "ABSENT";
           }
         }
@@ -1392,13 +1470,8 @@ export default function BundyClockPage() {
         if (bh === 0) {
           if (dayEntries.length > 0) {
             bh = dayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
-          } else if (
-            status === "OT" &&
-            dayOTs.length > 0 &&
-            dayEntries.length === 0
-          ) {
-            // If OT status but no clock entries, BH can be 0 or 8 depending on context
-            // For pure OT days without clock entries, BH is typically 0
+          } else if (dayOTs.length > 0 && dayEntries.length === 0) {
+            // Approved OT but no clock entries: BH stays 0 (OT hours in OT column)
             bh = 0;
           }
         }
@@ -1562,53 +1635,40 @@ export default function BundyClockPage() {
       return false;
     }
 
-    const locationString = `${location.lat.toFixed(6)}, ${location.lng.toFixed(
-      6
-    )}`;
-
     try {
       if (action === "in") {
         console.log("Starting clock in process...");
-        // Prevent clock-in if there's an open punch from a previous day (user must file failure-to-log first)
-        const { data: serverTimeData, error: timeError } =
-          await supabase.rpc("get_server_time");
-        if (timeError || !serverTimeData) {
-          toast.error("Could not get server time. Please try again.");
-          return false;
-        }
-        const serverTime = new Date(serverTimeData as string).toISOString();
+        const deviceInfo =
+          (navigator.userAgent?.slice(0, 255) || null) +
+          (clientIp ? ` | IP: ${clientIp}` : "");
 
-        const { data: insertData, error: clockInError } = await supabase
-          .from("time_entries")
-          .insert({
+        const clockRes = await fetch("/api/employee-portal/clock-punch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             employee_id: employee.id,
             punch_type: "in",
-            punched_at: serverTime,
             lat: location.lat,
             lng: location.lng,
-            device_info:
-              (navigator.userAgent?.slice(0, 255) || null) +
-              (clientIp ? ` | IP: ${clientIp}` : ""),
-          })
-          .select("id, punched_at")
-          .single();
+            device_info: deviceInfo,
+          }),
+        });
+        const clockJson = (await clockRes.json().catch(() => ({}))) as {
+          error?: string;
+          id?: string;
+          punched_at?: string;
+        };
 
-        if (clockInError) {
-          console.error("Clock in error:", clockInError);
+        if (!clockRes.ok || !clockJson.id || !clockJson.punched_at) {
+          console.error("Clock in error:", clockJson);
           toast.error(
-            `Failed to clock in: ${clockInError.message || "Unknown error"}`
+            `Failed to clock in: ${clockJson.error || clockRes.statusText || "Unknown error"}`
           );
           return false;
         }
 
-        if (!insertData) {
-          toast.error("Failed to create clock-in entry");
-          return false;
-        }
-
-        const punchedAt = (insertData as { id: string; punched_at: string })
-          .punched_at;
-        const entryId = (insertData as { id: string }).id;
+        const punchedAt = clockJson.punched_at;
+        const entryId = clockJson.id;
         const clockInEntry: TimeEntrySession = {
           id: entryId,
           clock_in_time: punchedAt,
@@ -1647,31 +1707,29 @@ export default function BundyClockPage() {
         return false;
       }
 
-      const { data: serverTimeData, error: timeError } =
-        await supabase.rpc("get_server_time");
-      if (timeError || !serverTimeData) {
-        toast.error("Could not get server time. Please try again.");
-        return false;
-      }
-      const serverTime = new Date(serverTimeData as string).toISOString();
+      const deviceInfoOut =
+        (navigator.userAgent?.slice(0, 255) || null) +
+        (clientIp ? ` | IP: ${clientIp}` : "");
 
-      const { error: clockOutError } = await supabase
-        .from("time_entries")
-        .insert({
+      const clockOutRes = await fetch("/api/employee-portal/clock-punch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           employee_id: employee.id,
           punch_type: "out",
-          punched_at: serverTime,
           lat: location.lat,
           lng: location.lng,
-          device_info:
-            (navigator.userAgent?.slice(0, 255) || null) +
-            (clientIp ? ` | IP: ${clientIp}` : ""),
-        });
+          device_info: deviceInfoOut,
+        }),
+      });
+      const clockOutJson = (await clockOutRes.json().catch(() => ({}))) as {
+        error?: string;
+      };
 
-      if (clockOutError) {
-        console.error("Clock out error:", clockOutError);
+      if (!clockOutRes.ok) {
+        console.error("Clock out error:", clockOutJson);
         toast.error(
-          `Failed to clock out: ${clockOutError.message || "Unknown error"}`
+          `Failed to clock out: ${clockOutJson.error || clockOutRes.statusText || "Unknown error"}`
         );
         return false;
       }
@@ -2062,7 +2120,6 @@ export default function BundyClockPage() {
                     const getStatusColor = (status: string) => {
                       switch (status) {
                         case "LOG":
-                        case "OT":
                         case "RD":
                           return "bg-green-100 text-green-700 border-green-200";
                         case "OB":
@@ -2315,11 +2372,11 @@ const HolidayCalendar = memo(
 
           <div className="grid grid-cols-7 border rounded-lg overflow-hidden text-[8px]">
             {days.map((day) => {
-              const iso = formatDate(day, "yyyy-MM-dd");
+              const iso = getManilaDateStringFromLocalDate(day);
               const holiday = holidayMap.get(iso);
               const dailyEntries = entryMap.get(iso);
               const isCurrentMonth = isSameMonth(day, date);
-              const isToday = isSameDay(day, new Date());
+              const isToday = iso === getManilaTodayString();
 
               const leaves = (dailyEntries || []).filter(
                 (e) => e.type === "leave"

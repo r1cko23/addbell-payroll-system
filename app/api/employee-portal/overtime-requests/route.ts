@@ -181,6 +181,12 @@ export async function PATCH(req: NextRequest) {
     const body = (await req.json()) as {
       request_id: string;
       employee_id: string;
+      document?: {
+        file_name: string;
+        file_type: string;
+        file_size: number;
+        file_base64: string;
+      } | null;
     };
     if (!body?.request_id || !body?.employee_id) {
       return NextResponse.json(
@@ -190,6 +196,66 @@ export async function PATCH(req: NextRequest) {
     }
 
     const admin = getAdminClient();
+
+    // Replace supporting document (pending requests only)
+    if (body.document?.file_base64) {
+      const b64 = normalizeBase64(body.document.file_base64);
+      if (b64.length === 0) {
+        return NextResponse.json(
+          { error: "Invalid document payload" },
+          { status: 400 }
+        );
+      }
+
+      const { data: reqRow, error: reqErr } = await admin
+        .from("overtime_requests")
+        .select("id, status")
+        .eq("id", body.request_id)
+        .eq("employee_id", body.employee_id)
+        .maybeSingle();
+
+      if (reqErr) {
+        return NextResponse.json({ error: reqErr.message }, { status: 500 });
+      }
+      if (!reqRow || reqRow.status !== "pending") {
+        return NextResponse.json(
+          { error: "Request not found or document can only be changed while pending" },
+          { status: 404 }
+        );
+      }
+
+      const del = await admin
+        .from("overtime_documents")
+        .delete()
+        .eq("overtime_request_id", body.request_id);
+
+      if (del.error && !isSchemaMissingTableOrRelationError(del.error)) {
+        return NextResponse.json({ error: del.error.message }, { status: 500 });
+      }
+
+      const ins = await admin.from("overtime_documents").insert({
+        overtime_request_id: body.request_id,
+        employee_id: body.employee_id,
+        file_name: body.document.file_name || "attachment",
+        file_type: body.document.file_type || null,
+        file_size: body.document.file_size ?? null,
+        file_base64: b64,
+      });
+
+      if (ins.error) {
+        if (isSchemaMissingTableOrRelationError(ins.error)) {
+          return NextResponse.json({
+            warning:
+              "Document table is not available. Apply database migrations to enable attachments.",
+          });
+        }
+        return NextResponse.json({ error: ins.error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ id: body.request_id, documentUpdated: true });
+    }
+
+    // Cancel (reject) pending request
     const { data, error } = await admin
       .from("overtime_requests")
       .update({ status: "rejected" })

@@ -204,6 +204,13 @@ export default function PayslipsPage() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [adjustmentAmount, setAdjustmentAmount] = useState<string>("0");
   const [adjustmentReason, setAdjustmentReason] = useState<string>("");
+  /** Freeform rows (Type + Amount) for vale/uniform/etc.; summed into weekly manual deductions */
+  const [otherDeductionRows, setOtherDeductionRows] = useState<
+    { id: string; type: string; amount: string }[]
+  >([
+    { id: "row-vale", type: "Vale", amount: "0" },
+    { id: "row-uniform", type: "Uniform", amount: "0" },
+  ]);
   // First cutoff gross for same month (used for 2nd cutoff tax preview/calculation)
   const [firstCutoffGrossForTax, setFirstCutoffGrossForTax] = useState<number | null>(null);
   // Saved payslip for this employee + period (when exists, we display DB values and lock edits)
@@ -1213,6 +1220,35 @@ export default function PayslipsPage() {
           pagibig_contribution: dedRow?.pagibig_contribution ?? 0,
           withholding_tax: dedRow?.withholding_tax ?? 0,
         });
+
+        const savedBr = existingPayslipRow?.deductions_breakdown as
+          | Record<string, unknown>
+          | undefined;
+        const savedLines = savedBr?.other_deduction_lines;
+        if (Array.isArray(savedLines) && savedLines.length > 0) {
+          setOtherDeductionRows(
+            savedLines.map((line: unknown, i: number) => {
+              const L = line as { type?: string; amount?: number | string };
+              return {
+                id: `saved-${i}`,
+                type: String(L?.type ?? ""),
+                amount:
+                  L?.amount !== undefined && L?.amount !== null
+                    ? String(L.amount)
+                    : "",
+              };
+            })
+          );
+        } else {
+          setOtherDeductionRows([
+            {
+              id: "row-vale",
+              type: "Vale",
+              amount: String(dedRow?.vale_amount ?? 0),
+            },
+            { id: "row-uniform", type: "Uniform", amount: "0" },
+          ]);
+        }
       } catch (dedErr) {
         console.error("Exception loading deductions:", dedErr);
         setDeductions({
@@ -1226,6 +1262,10 @@ export default function PayslipsPage() {
           pagibig_contribution: 0,
           withholding_tax: 0,
         });
+        setOtherDeductionRows([
+          { id: "row-vale", type: "Vale", amount: "0" },
+          { id: "row-uniform", type: "Uniform", amount: "0" },
+        ]);
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -1496,10 +1536,15 @@ export default function PayslipsPage() {
           ? Math.round(pagibigContribution.employeeShare * 100) / 100
           : 0;
 
+      const manualOtherDeductionTotal = otherDeductionRows.reduce(
+        (s, r) => s + (parseFloat(r.amount) || 0),
+        0
+      );
+
       // Weekly deductions (always applied) - default to 0 if no deduction record
       // Loan deductions are now calculated from employee_loans table based on effectivity date and cutoff
       let totalDeductions =
-        (deductions?.vale_amount || 0) +
+        manualOtherDeductionTotal +
         (deductions?.sss_salary_loan || 0) +
         (deductions?.sss_calamity_loan || 0) +
         (deductions?.pagibig_salary_loan || 0) +
@@ -1574,7 +1619,7 @@ export default function PayslipsPage() {
       // Create deductions breakdown - default all to 0 if no deduction record
       const deductionsBreakdown: any = {
         weekly: {
-          vale: deductions?.vale_amount || 0,
+          vale: manualOtherDeductionTotal,
           sss_loan: deductions?.sss_salary_loan || 0,
           sss_calamity: deductions?.sss_calamity_loan || 0,
           pagibig_loan: deductions?.pagibig_salary_loan || 0,
@@ -1590,6 +1635,10 @@ export default function PayslipsPage() {
             : undefined, // Monthly loans only for 1st cutoff
         },
         tax: withholdingTax,
+        other_deduction_lines: otherDeductionRows.map((r) => ({
+          type: r.type.trim(),
+          amount: parseFloat(r.amount) || 0,
+        })),
       };
 
       // Mandatory government contributions (always included)
@@ -2207,10 +2256,19 @@ export default function PayslipsPage() {
     return calculatedGrossPay;
   }, [attendance, selectedEmployee]);
 
+  const otherManualDeductionSum = useMemo(
+    () =>
+      otherDeductionRows.reduce(
+        (s, r) => s + (parseFloat(r.amount) || 0),
+        0
+      ),
+    [otherDeductionRows]
+  );
+
   // Memoize deductions calculations
   const weeklyDed = useMemo(() => {
     return (
-      (deductions?.vale_amount || 0) +
+      otherManualDeductionSum +
       (deductions?.sss_salary_loan || 0) +
       (deductions?.sss_calamity_loan || 0) +
       (deductions?.pagibig_salary_loan || 0) +
@@ -2230,7 +2288,7 @@ export default function PayslipsPage() {
           (monthlyLoans.sssLoan || 0)
         : 0)
     );
-  }, [deductions, monthlyLoans, periodStart]);
+  }, [deductions, monthlyLoans, periodStart, otherManualDeductionSum]);
 
   // Monthly salary from employee rate only (for statutory: SSS, PhilHealth, Pag-IBIG). Per day × 26.
   const monthlySalary = useMemo(() => {
@@ -2686,17 +2744,103 @@ export default function PayslipsPage() {
                       gap="2"
                       className="bg-gray-50 p-3 rounded-lg w-full"
                     >
-                      {(deductions?.vale_amount || 0) > 0 && (
-                        <HStack
-                          justify="between"
-                          align="center"
-                          className="w-full"
+                      <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-gray-100 text-left">
+                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
+                                Type
+                              </th>
+                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
+                                Amount
+                              </th>
+                              {!isSavedPayslip && (
+                                <th className="w-10 px-1 py-1.5" aria-label="Remove row" />
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {otherDeductionRows.map((row) => (
+                              <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                                <td className="px-2 py-1 align-middle">
+                                  <Input
+                                    type="text"
+                                    placeholder="e.g. Vale, Uniform"
+                                    value={row.type}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setOtherDeductionRows((prev) =>
+                                        prev.map((r) =>
+                                          r.id === row.id ? { ...r, type: v } : r
+                                        )
+                                      );
+                                    }}
+                                    disabled={isSavedPayslip}
+                                    className="h-8 text-sm"
+                                  />
+                                </td>
+                                <td className="px-2 py-1 align-middle">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0"
+                                    value={row.amount}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setOtherDeductionRows((prev) =>
+                                        prev.map((r) =>
+                                          r.id === row.id ? { ...r, amount: v } : r
+                                        )
+                                      );
+                                    }}
+                                    disabled={isSavedPayslip}
+                                    className="h-8 text-sm text-right"
+                                  />
+                                </td>
+                                {!isSavedPayslip && (
+                                  <td className="px-1 py-1 align-middle text-center">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 text-red-600"
+                                      disabled={otherDeductionRows.length <= 1}
+                                      onClick={() =>
+                                        setOtherDeductionRows((prev) =>
+                                          prev.filter((r) => r.id !== row.id)
+                                        )
+                                      }
+                                      aria-label="Remove row"
+                                    >
+                                      <Icon name="Trash" size={IconSizes.sm} />
+                                    </Button>
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {!isSavedPayslip && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={() =>
+                            setOtherDeductionRows((prev) => [
+                              ...prev,
+                              {
+                                id: `row-${crypto.randomUUID()}`,
+                                type: "",
+                                amount: "",
+                              },
+                            ])
+                          }
                         >
-                          <BodySmall>Vale:</BodySmall>
-                          <span className="font-semibold">
-                            {formatCurrency(deductions?.vale_amount || 0)}
-                          </span>
-                        </HStack>
+                          <Icon name="Plus" size={IconSizes.sm} className="mr-1" />
+                          Add deduction row
+                        </Button>
                       )}
                       {(deductions?.sss_salary_loan || 0) > 0 && (
                         <HStack
@@ -2845,40 +2989,62 @@ export default function PayslipsPage() {
                       gap="2"
                       className="bg-gray-50 p-3 rounded-lg w-full"
                     >
-                      <div className="w-full">
-                        <Label htmlFor="adjustment_amount" className="text-sm">
-                          Adjustment Amount
-                        </Label>
-                        <Input
-                          id="adjustment_amount"
-                          type="number"
-                          step="0.01"
-                          value={adjustmentAmount}
-                          onChange={(e) => setAdjustmentAmount(e.target.value)}
-                          placeholder="0.00"
-                          className="mt-1"
-                          readOnly={isSavedPayslip}
-                          disabled={isSavedPayslip}
-                        />
-                        <Caption className="text-xs text-gray-500 mt-1">
-                          Enter positive amount to add to net pay, negative amount to deduct from net pay
-                        </Caption>
+                      <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-gray-100 text-left">
+                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
+                                Description
+                              </th>
+                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
+                                Amount
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="px-2 py-2 align-top">
+                                <Label htmlFor="adjustment_reason" className="sr-only">
+                                  Description
+                                </Label>
+                                <Input
+                                  id="adjustment_reason"
+                                  type="text"
+                                  value={adjustmentReason}
+                                  onChange={(e) =>
+                                    setAdjustmentReason(e.target.value)
+                                  }
+                                  placeholder="e.g. Correction for previous period, Bonus"
+                                  readOnly={isSavedPayslip}
+                                  disabled={isSavedPayslip}
+                                  className="text-sm"
+                                />
+                              </td>
+                              <td className="px-2 py-2 align-top">
+                                <Label htmlFor="adjustment_amount" className="sr-only">
+                                  Amount
+                                </Label>
+                                <Input
+                                  id="adjustment_amount"
+                                  type="number"
+                                  step="0.01"
+                                  value={adjustmentAmount}
+                                  onChange={(e) =>
+                                    setAdjustmentAmount(e.target.value)
+                                  }
+                                  placeholder="0.00"
+                                  readOnly={isSavedPayslip}
+                                  disabled={isSavedPayslip}
+                                  className="text-sm text-right"
+                                />
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
-                      <div className="w-full">
-                        <Label htmlFor="adjustment_reason" className="text-sm">
-                          Reason (Optional)
-                        </Label>
-                        <Input
-                          id="adjustment_reason"
-                          type="text"
-                          value={adjustmentReason}
-                          onChange={(e) => setAdjustmentReason(e.target.value)}
-                          placeholder="e.g., Correction for previous period, Bonus, etc."
-                          className="mt-1"
-                          readOnly={isSavedPayslip}
-                          disabled={isSavedPayslip}
-                        />
-                      </div>
+                      <Caption className="text-xs text-gray-500">
+                        Positive adds to net pay; negative deducts from net pay.
+                      </Caption>
                       {(parseFloat(adjustmentAmount) || 0) !== 0 && (
                         <div className="border-t pt-2 mt-2 w-full">
                           <HStack

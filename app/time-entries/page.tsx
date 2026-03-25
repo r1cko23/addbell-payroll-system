@@ -210,9 +210,8 @@ export default function TimeEntriesPage() {
     setDriversEmployees([]);
   }, []);
 
-  // Check if selected entry is for a driver
-  const isDriverEntry = selectedEntry?.employees?.overtime_group_id === driversGroupId;
-  const canEditTime = (isAdmin || isHR) && isDriverEntry;
+  // Only HR may correct clock in/out times (not admin).
+  const canEditTime = isHR;
 
   const getDayType = (clockInTime: string, employeeId?: string): string => {
     const dateString = format(new Date(clockInTime), "yyyy-MM-dd");
@@ -591,8 +590,8 @@ export default function TimeEntriesPage() {
   }
 
   async function handleDelete(entryId: string) {
-    if (!isAdmin) {
-      toast.error("Only administrators can delete time entries");
+    if (!isHR) {
+      toast.error("Only HR can delete time entries");
       return;
     }
     if (!confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
@@ -1356,7 +1355,7 @@ export default function TimeEntriesPage() {
                                           <Icon name="PencilSimple" size={IconSizes.sm} />
                                         </Button>
                                       )}
-                                      {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && isAdmin && (
+                                      {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && isHR && (
                                         <Button
                                           size="sm"
                                           variant="ghost"
@@ -1449,7 +1448,7 @@ export default function TimeEntriesPage() {
                             className="w-full"
                           />
                           <Caption className="text-muted-foreground mt-1">
-                            Edit clock in time (Driver entry)
+                            Edit clock in time (HR only)
                           </Caption>
                         </div>
                       ) : (
@@ -1497,7 +1496,7 @@ export default function TimeEntriesPage() {
                             className="w-full"
                           />
                           <Caption className="text-muted-foreground mt-1">
-                            Edit clock out time (Driver entry)
+                            Edit clock out time (HR only)
                           </Caption>
                         </div>
                       ) : (
@@ -1536,7 +1535,7 @@ export default function TimeEntriesPage() {
                     </div>
                   </div>
 
-                  {/* Edit Button for Drivers */}
+                  {/* Edit clock times — HR only */}
                   {canEditTime && !isEditingTime && (
                     <div className="pt-2 border-t">
                       <Button
@@ -1545,7 +1544,7 @@ export default function TimeEntriesPage() {
                         className="w-full"
                       >
                         <Icon name="PencilSimple" size={IconSizes.sm} className="mr-2" />
-                        Edit Clock Times (Driver Entry)
+                        Edit Clock Times (HR only)
                       </Button>
                     </div>
                   )}
@@ -1672,7 +1671,7 @@ export default function TimeEntriesPage() {
                   >
                     Cancel
                   </Button>
-                  {isAdmin && (
+                  {isHR && (
                     <Button
                       variant="destructive"
                       onClick={() =>

@@ -47,6 +47,7 @@ interface PayrollRun {
 
 interface Employee {
   id: string;
+  company_id_no: string;
   employee_code: string;
   first_name: string;
   middle_name: string | null;
@@ -161,7 +162,7 @@ export default function PayrollPage() {
     try {
       const { data, error } = await supabase
         .from("payslips")
-        .select("*, employees:employee_id ( id, employee_code, first_name, middle_name, last_name, salary_basis, base_rate, departments:department_id ( name ), positions:position_id ( name ) )")
+        .select("*, employees:employee_id ( id, company_id_no, employee_code, first_name, middle_name, last_name, salary_basis, base_rate, departments:department_id ( name ), positions:position_id ( name ) )")
         .eq("payroll_run_id", run.id)
         .order("created_at");
       if (error) throw error;
@@ -180,7 +181,7 @@ export default function PayrollPage() {
     try {
       const { data: employees, error: empErr } = await supabase
         .from("employees")
-        .select("id, employee_code, first_name, last_name, salary_basis, base_rate, employment_status")
+        .select("id, company_id_no, employee_code, first_name, last_name, salary_basis, base_rate, employment_status")
         .eq("employment_status", "active");
       if (empErr) throw empErr;
 
@@ -369,7 +370,7 @@ export default function PayrollPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Code</TableHead>
+                      <TableHead>Company ID</TableHead>
                       <TableHead>Employee</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead className="text-right">Gross Pay</TableHead>
@@ -383,7 +384,7 @@ export default function PayrollPage() {
                   <TableBody>
                     {payslips.map((ps) => (
                       <TableRow key={ps.id}>
-                        <TableCell className="font-mono text-sm">{ps.employee?.employee_code || "—"}</TableCell>
+                        <TableCell className="font-mono text-sm">{ps.employee?.company_id_no || "—"}</TableCell>
                         <TableCell>
                           {ps.employee ? (
                             <Link href={`/employees/${ps.employee.id}`} className="text-primary hover:underline text-sm">

@@ -490,7 +490,7 @@ async function main() {
     );
 
     rows.push({
-      employee_code: code,
+      company_id_no: code,
       first_name: first_name || "Unknown",
       middle_name,
       last_name: last_name || "Unknown",
@@ -531,25 +531,48 @@ async function main() {
 
   const { data: existingList, error: exErr } = await supabase
     .from("employees")
-    .select("id, employee_code");
+    .select("id, company_id_no, employee_code");
   if (exErr) {
     console.error("Failed to fetch employees:", exErr);
     process.exit(1);
   }
 
-  const byCode = new Map(
-    (existingList || []).map((e) => [normalizeCode(e.employee_code), e.id])
+  const byCompanyId = new Map(
+    (existingList || []).map((e) => [normalizeCode(e.company_id_no), e.id])
   );
+
+  const maxExistingPin = Math.max(
+    0,
+    ...((existingList || [])
+      .map((e) => parseInt(String(e.employee_code), 10))
+      .filter((n) => !Number.isNaN(n)))
+  );
+  let nextPin = maxExistingPin + 1;
+  const existingById = new Map((existingList || []).map((e) => [e.id, e]));
+
+  for (const row of rows) {
+    const existingId = byCompanyId.get(normalizeCode(row.company_id_no));
+    if (existingId) {
+      const ex = existingById.get(existingId);
+      row.employee_code =
+        ex && String(ex.employee_code || "").match(/^\d+$/)
+          ? String(ex.employee_code)
+          : String(nextPin++);
+    } else {
+      row.employee_code = String(nextPin++);
+    }
+  }
 
   let created = 0;
   let updated = 0;
   let errors = 0;
 
   for (const row of rows) {
-    const code = row.employee_code;
-    const existingId = byCode.get(code);
+    const code = row.company_id_no;
+    const existingId = byCompanyId.get(normalizeCode(code));
     const payload = {
-      employee_code: code,
+      company_id_no: code,
+      employee_code: row.employee_code,
       first_name: row.first_name,
       middle_name: row.middle_name,
       last_name: row.last_name,

@@ -571,7 +571,7 @@ export default function PayslipsPage() {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, employee_code, first_name, middle_name, last_name, employment_status, salary_basis, base_rate, position, hire_date, employment_type, job_level, transferred_from_employee_id"
+          "id, company_id_no, employee_code, first_name, middle_name, last_name, employment_status, salary_basis, base_rate, position, hire_date, employment_type, job_level, transferred_from_employee_id"
         )
         .eq("employment_status", "active")
         .order("last_name", { ascending: true, nullsFirst: false })
@@ -593,7 +593,7 @@ export default function PayslipsPage() {
         console.log("Sample employee:", data[0]);
         const mappedEmployees = data.map((emp: any) => {
           const full_name = [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(" ").trim() || "—";
-          const employee_id = emp.employee_code ?? emp.id;
+          const employee_id = emp.company_id_no ?? emp.employee_code ?? emp.id;
           const monthly_rate = emp.salary_basis === "monthly" ? Number(emp.base_rate ?? 0) : Number(emp.base_rate ?? 0) * 26;
           const per_day = emp.salary_basis === "daily" ? Number(emp.base_rate ?? 0) : monthly_rate / 26;
           const rate_per_day = per_day;
@@ -616,7 +616,7 @@ export default function PayslipsPage() {
         );
         const { data: allEmployees, error: allEmpError } = await supabase
           .from("employees")
-          .select("id, employee_code, employment_status")
+          .select("id, company_id_no, employee_code, employment_status")
           .limit(10);
 
         if (allEmpError) {

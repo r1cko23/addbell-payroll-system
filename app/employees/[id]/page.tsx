@@ -28,6 +28,7 @@ interface Employee {
   id: string;
   company_id: string | null;
   user_id: string | null;
+  company_id_no: string;
   employee_code: string;
   first_name: string;
   middle_name: string | null;
@@ -233,8 +234,10 @@ export default function EmployeeDetailPage() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{empFullName}</h1>
               <p className="text-muted-foreground text-sm">
-                {employee.employee_code} · {employee.employment_type} ·{" "}
-                {employee.salary_basis}
+                {employee.company_id_no}
+                <span className="text-muted-foreground/80"> · time clock {employee.employee_code}</span>
+                {" · "}
+                {employee.employment_type} · {employee.salary_basis}
               </p>
             </div>
           </div>
@@ -477,7 +480,11 @@ export default function EmployeeDetailPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-muted-foreground text-xs uppercase">Employee Code</span>
+                    <span className="text-muted-foreground text-xs uppercase">Company ID no.</span>
+                    <p className="font-medium mt-1 font-mono">{employee.company_id_no}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase">Time clock / biometric ID</span>
                     <p className="font-medium mt-1 font-mono">{employee.employee_code}</p>
                   </div>
                   <div>

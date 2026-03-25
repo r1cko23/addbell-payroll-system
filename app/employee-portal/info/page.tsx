@@ -79,7 +79,7 @@ export default function EmployeeInfoPage() {
         const { data, error } = await supabase
           .from("employees")
           .select(
-            "employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
+            "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
           )
           .eq("id", employee.id)
           .maybeSingle();
@@ -88,7 +88,7 @@ export default function EmployeeInfoPage() {
 
         if (data) {
           setInfo({
-            employee_id: data.employee_code ?? employee.employee_id,
+            employee_id: data.company_id_no ?? data.employee_code ?? employee.employee_id,
             full_name: data.full_name ?? employee.full_name,
             first_name: data.first_name ?? null,
             last_name: data.last_name ?? null,
@@ -262,13 +262,13 @@ export default function EmployeeInfoPage() {
                   const { data, error } = await supabase
                     .from("employees")
                     .select(
-                      "employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
+                      "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
                     )
                     .eq("id", employee.id)
                     .maybeSingle();
                   if (!error && data) {
                     setInfo({
-                      employee_id: data.employee_code ?? employee.employee_id,
+                      employee_id: data.company_id_no ?? data.employee_code ?? employee.employee_id,
                       full_name: data.full_name ?? employee.full_name,
                       first_name: data.first_name ?? null,
                       last_name: data.last_name ?? null,

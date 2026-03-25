@@ -20,6 +20,7 @@ import {
 interface DepartmentStat { name: string; count: number; }
 interface RecentEmployee {
   id: string;
+  company_id_no: string;
   employee_code: string;
   first_name: string;
   last_name: string;
@@ -54,7 +55,7 @@ export default function HRDashboard() {
         supabase.from("employees").select("*", { count: "exact", head: true }),
         supabase.from("employees").select("*", { count: "exact", head: true }).eq("employment_status", "active"),
         supabase.from("employees").select("employment_type, departments:department_id ( name )").eq("employment_status", "active"),
-        supabase.from("employees").select("id, employee_code, first_name, last_name, employment_type, hire_date, employment_status, departments:department_id ( name )")
+        supabase.from("employees").select("id, company_id_no, employee_code, first_name, last_name, employment_type, hire_date, employment_status, departments:department_id ( name )")
           .order("hire_date", { ascending: false }).limit(10),
       ]);
 
@@ -174,7 +175,7 @@ export default function HRDashboard() {
                         <Link href={`/employees/${emp.id}`} className="text-primary hover:underline text-sm font-medium">
                           {emp.first_name} {emp.last_name}
                         </Link>
-                        <p className="text-xs text-muted-foreground font-mono">{emp.employee_code}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{emp.company_id_no}</p>
                       </TableCell>
                       <TableCell className="text-sm">{emp.departments?.name || "—"}</TableCell>
                       <TableCell className="text-sm">{format(new Date(emp.hire_date), "MMM d, yyyy")}</TableCell>

@@ -55,7 +55,7 @@ Install the management software so the PC can talk to the device and download at
 
 ### Step 4: Register employees and test punches
 
-1. **Add users on the device or in the software:** Each employee should have a **User ID / PIN** that you will later match to **employee_code** in your payroll app. Use the same code in both places (e.g. 10001, 10002).
+1. **Add users on the device or in the software:** Each employee should have a **User ID / PIN** that matches **`employees.employee_code`** (digits only — usually **1, 2, 3, …** in hire order after migration). The HR-facing **Company ID no.** (`company_id_no`, e.g. AX-10001) is separate and does not need to match the terminal.
 2. Enroll fingerprints (or cards) as per the device menu.
 3. Do a test **punch in** and **punch out** on the device.
 4. In the ZKTeco software, **download attendance / transaction logs** and confirm the test punches appear with correct time and in/out state.
@@ -194,7 +194,7 @@ Punches from ZKTeco (or middleware) are sent to:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `employee_code` or `pin` or `user_id` | One of these | Matches `employees.employee_code` (or UUID for `employee_id`). |
+| `employee_code` or `pin` or `user_id` | One of these | Matches **`employees.employee_code`** (numeric time clock ID; not `company_id_no`) or UUID for `employee_id`. |
 | `punched_at` or `timestamp` | Yes | ISO datetime or `YYYY-MM-DD HH:mm:ss`. |
 | `punch_type` | Yes | `"in"` or `"out"`. ZKTeco `state`: 0 = in, 1 = out. |
 | `device_serial` | No | Device serial (e.g. LX50 serial). |
@@ -226,7 +226,7 @@ Some services (e.g. ZKTeco cloud, StandTech PUSH SDK) can forward events to a we
 
 ## 4. Employee code on the device
 
-Ensure each user on the ZKTeco LX50 uses an **employee code (PIN)** that matches `employees.employee_code` in your database. Then the webhook can look up the employee by `employee_code` and insert the punch with the correct `employee_id`.
+Ensure each user on the ZKTeco LX50 uses a **numeric PIN** that matches **`employees.employee_code`**. The webhook does not match **`company_id_no`** (Company ID no.); use the time clock / biometric ID on the device.
 
 ## 5. Env variable (summary)
 

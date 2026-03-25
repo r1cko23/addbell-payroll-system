@@ -43,8 +43,8 @@ async function main() {
 
   const { data: emp, error: empErr } = await supabase
     .from("employees")
-    .select("id, employee_code, first_name, last_name, base_rate, salary_basis")
-    .eq("employee_code", EMPLOYEE_CODE)
+    .select("id, employee_code, company_id_no, first_name, last_name, base_rate, salary_basis")
+    .or(`employee_code.eq.${EMPLOYEE_CODE},company_id_no.eq.${EMPLOYEE_CODE}`)
     .maybeSingle();
 
   if (empErr || !emp) {

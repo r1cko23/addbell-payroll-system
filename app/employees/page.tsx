@@ -36,6 +36,9 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 interface Employee {
   id: string;
   company_id: string | null;
+  /** Official company personnel ID (e.g. AX-10001). Shown in HR UI and reports. */
+  company_id_no: string;
+  /** Digits only; matches ZKTeco user PIN and biometric webhook. */
   employee_code: string;
   first_name: string;
   middle_name: string | null;
@@ -95,6 +98,7 @@ function fullName(emp: Employee): string {
 }
 
 const emptyForm = {
+  company_id_no: "",
   employee_code: "",
   first_name: "",
   middle_name: "",
@@ -215,15 +219,28 @@ export default function EmployeesPage() {
     }
   }
 
-  function openAddModal() {
+  async function openAddModal() {
     setEditingEmployee(null);
     setFormData({ ...emptyForm });
     setShowModal(true);
+    try {
+      const { data } = await supabase.from("employees").select("employee_code");
+      const max = Math.max(
+        0,
+        ...(data ?? [])
+          .map((e) => parseInt(String(e.employee_code), 10))
+          .filter((n) => !Number.isNaN(n))
+      );
+      setFormData((prev) => ({ ...prev, employee_code: String(max + 1) }));
+    } catch {
+      setFormData((prev) => ({ ...prev, employee_code: "1" }));
+    }
   }
 
   function openEditModal(employee: Employee) {
     setEditingEmployee(employee);
     setFormData({
+      company_id_no: employee.company_id_no,
       employee_code: employee.employee_code,
       first_name: employee.first_name,
       middle_name: employee.middle_name || "",
@@ -262,11 +279,18 @@ export default function EmployeesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const companyIdNo = formData.company_id_no.trim();
+    const biometricId = formData.employee_code.trim();
+    if (!/^\d+$/.test(biometricId)) {
+      toast.error("Time clock / biometric ID must be digits only (e.g. 10001).");
+      return;
+    }
     setSubmitting(true);
 
     try {
       const employeeData: Record<string, unknown> = {
-        employee_code: formData.employee_code,
+        company_id_no: companyIdNo,
+        employee_code: biometricId,
         first_name: formData.first_name,
         middle_name: formData.middle_name || null,
         last_name: formData.last_name,
@@ -305,7 +329,7 @@ export default function EmployeesPage() {
           .eq("id", editingEmployee.id);
         if (error) throw error;
         toast.success("Employee updated successfully!", {
-          description: `${formData.first_name} ${formData.last_name} · ${formData.employee_code}`,
+          description: `${formData.first_name} ${formData.last_name} · ${companyIdNo}`,
         });
       } else {
         const { data: companyData } = await supabase
@@ -318,12 +342,12 @@ export default function EmployeesPage() {
             ...employeeData,
             company_id: companyData?.id,
             // Default employee portal password to employee code
-            portal_password: formData.employee_code,
+            portal_password: companyIdNo,
           } as never,
         ]);
         if (error) throw error;
         toast.success("Employee added successfully!", {
-          description: `${formData.first_name} ${formData.last_name} · ${formData.employee_code}`,
+          description: `${formData.first_name} ${formData.last_name} · ${companyIdNo}`,
         });
       }
 
@@ -343,7 +367,7 @@ export default function EmployeesPage() {
       const { error } = await supabase.from("employees").update({ employment_status: newStatus } as never).eq("id", employee.id);
       if (error) throw error;
       toast.success(`Employee ${newStatus === "active" ? "activated" : "deactivated"} successfully!`, {
-        description: `${fullName(employee)} · ${employee.employee_code}`,
+        description: `${fullName(employee)} · ${employee.company_id_no}`,
       });
       fetchEmployees();
     } catch (error: any) {
@@ -355,7 +379,10 @@ export default function EmployeesPage() {
   const filteredEmployees = employees.filter((emp) => {
     const name = fullName(emp).toLowerCase();
     const term = searchTerm.toLowerCase();
-    const matchesSearch = name.includes(term) || emp.employee_code.toLowerCase().includes(term) ||
+    const matchesSearch =
+      name.includes(term) ||
+      emp.company_id_no.toLowerCase().includes(term) ||
+      emp.employee_code.toLowerCase().includes(term) ||
       (emp.email || "").toLowerCase().includes(term);
     const matchesStatus = statusFilter === "all" || emp.employment_status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -400,6 +427,7 @@ export default function EmployeesPage() {
 
       const tableData = employees.map((emp, index) => [
         (index + 1).toString(),
+        emp.company_id_no,
         emp.employee_code,
         emp.last_name,
         emp.first_name,
@@ -417,7 +445,7 @@ export default function EmployeesPage() {
       ]);
 
       const columns = [
-        "#", "Code", "Last Name", "First Name", "Middle", "Department", "Position",
+        "#", "Company ID no.", "Time clock ID", "Last Name", "First Name", "Middle", "Department", "Position",
         "Type", "Hire Date", "Birth Date", "SSS", "PhilHealth", "Pag-IBIG", "TIN", "Status",
       ];
 
@@ -464,7 +492,7 @@ export default function EmployeesPage() {
                 <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by name, code, or email..."
+                  placeholder="Search by name, company ID, time clock ID, or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -502,7 +530,8 @@ export default function EmployeesPage() {
                 <Table className="min-w-full">
                   <TableHeader>
                     <TableRow className="h-10">
-                      <TableHead className="w-[100px] whitespace-nowrap py-2 text-xs font-semibold">Code</TableHead>
+                      <TableHead className="w-[120px] whitespace-nowrap py-2 text-xs font-semibold">Company ID</TableHead>
+                      <TableHead className="w-[100px] whitespace-nowrap py-2 text-xs font-semibold">Time clock</TableHead>
                       <TableHead className="min-w-[200px] py-2 text-xs font-semibold">Employee</TableHead>
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Department</TableHead>
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Position</TableHead>
@@ -514,7 +543,7 @@ export default function EmployeesPage() {
                   <TableBody>
                     {filteredEmployees.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           {searchTerm ? "No employees found matching your search." : "No employees yet. Add your first employee!"}
                         </TableCell>
                       </TableRow>
@@ -522,6 +551,9 @@ export default function EmployeesPage() {
                       filteredEmployees.map((employee) => (
                         <TableRow key={employee.id} className="h-auto hover:bg-muted/50">
                           <TableCell className="font-semibold font-mono whitespace-nowrap py-2 text-sm">
+                            {employee.company_id_no}
+                          </TableCell>
+                          <TableCell className="font-mono text-muted-foreground whitespace-nowrap py-2 text-sm">
                             {employee.employee_code}
                           </TableCell>
                           <TableCell className="min-w-[200px] py-2">
@@ -610,12 +642,31 @@ export default function EmployeesPage() {
                 <h3 className="text-sm font-semibold text-foreground">Basic Information</h3>
                 <div className="h-px bg-border" />
               </div>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="space-y-2">
-                  <Label htmlFor="employee-code">Employee Code *</Label>
-                  <Input id="employee-code" required value={formData.employee_code}
-                    onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
-                    disabled={!!editingEmployee} placeholder="EMP-001" />
+                  <Label htmlFor="company-id-no">Company ID no. *</Label>
+                  <Input
+                    id="company-id-no"
+                    required
+                    value={formData.company_id_no}
+                    onChange={(e) => setFormData({ ...formData, company_id_no: e.target.value })}
+                    placeholder="e.g. AX-10001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employee-code">Time clock / biometric ID *</Label>
+                  <Input
+                    id="employee-code"
+                    required
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={formData.employee_code}
+                    onChange={(e) => setFormData({ ...formData, employee_code: e.target.value.replace(/\D/g, "") })}
+                    placeholder="1, 2, 3…"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Sequential ID for the ZKTeco terminal (suggested next number when you click Add Employee).
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="employment-type">Employment Type *</Label>

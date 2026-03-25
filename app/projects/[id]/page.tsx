@@ -37,8 +37,8 @@ interface Project {
   clients: { name: string } | null;
 }
 interface ProjectCost { id: string; cost_type: string; cost_category: string | null; description: string; quantity: number | null; unit: string | null; unit_cost: number | null; total_cost: number; cost_date: string; vendor_supplier: string | null; invoice_number: string | null; payment_status: string; }
-interface ProjectAssignment { id: string; employee_id: string; role: string | null; start_date: string; end_date: string | null; is_active: boolean; employees: { employee_code: string; first_name: string; last_name: string } | null; }
-interface ProjectTimeEntry { id: string; employee_id: string; clock_in: string; clock_out: string | null; regular_hours: number; overtime_hours: number; night_diff_hours: number; total_hours: number; notes: string | null; is_approved: boolean; employees: { employee_code: string; first_name: string; last_name: string } | null; }
+interface ProjectAssignment { id: string; employee_id: string; role: string | null; start_date: string; end_date: string | null; is_active: boolean; employees: { company_id_no: string; first_name: string; last_name: string } | null; }
+interface ProjectTimeEntry { id: string; employee_id: string; clock_in: string; clock_out: string | null; regular_hours: number; overtime_hours: number; night_diff_hours: number; total_hours: number; notes: string | null; is_approved: boolean; employees: { company_id_no: string; first_name: string; last_name: string } | null; }
 interface ProjectProgressEntry { id: string; progress_date: string; progress_percentage: number; notes: string | null; milestone: string | null; created_at: string; }
 interface FundRequestBrief { id: string; purpose: string; total_requested_amount: number; status: string; request_date: string; }
 interface POBrief { id: string; po_number: string; total_amount: number; status: string; po_date: string; vendors: { name: string } | null; }
@@ -78,7 +78,7 @@ export default function ProjectDetailPage() {
   const [assignRole, setAssignRole] = useState("");
   const [assignStartDate, setAssignStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [assignEndDate, setAssignEndDate] = useState("");
-  const [employeesList, setEmployeesList] = useState<{ id: string; employee_code: string; first_name: string; last_name: string }[]>([]);
+  const [employeesList, setEmployeesList] = useState<{ id: string; company_id_no: string; first_name: string; last_name: string }[]>([]);
 
   const [costType, setCostType] = useState("material");
   const [costCategory, setCostCategory] = useState("");
@@ -106,8 +106,8 @@ export default function ProjectDetailPage() {
         supabase.from("projects").select("*, clients:client_id ( name )").eq("id", projectId).single(),
         supabase.from("project_costs").select("*").eq("project_id", projectId).order("cost_date", { ascending: false }),
         supabase.from("project_manpower_costs").select("total_cost").eq("project_id", projectId),
-        supabase.from("project_assignments").select("*, employees:employee_id ( employee_code, first_name, last_name )").eq("project_id", projectId).order("start_date", { ascending: false }),
-        supabase.from("project_time_entries").select("*, employees:employee_id ( employee_code, first_name, last_name )").eq("project_id", projectId).order("clock_in", { ascending: false }).limit(50),
+        supabase.from("project_assignments").select("*, employees:employee_id ( company_id_no, first_name, last_name )").eq("project_id", projectId).order("start_date", { ascending: false }),
+        supabase.from("project_time_entries").select("*, employees:employee_id ( company_id_no, first_name, last_name )").eq("project_id", projectId).order("clock_in", { ascending: false }).limit(50),
         supabase.from("project_progress").select("*").eq("project_id", projectId).order("progress_date", { ascending: false }),
         supabase.from("fund_requests").select("id, purpose, total_requested_amount, status, request_date").eq("project_id", projectId).order("created_at", { ascending: false }),
         supabase.from("purchase_orders").select("id, po_number, total_amount, status, po_date, vendors ( name )").eq("project_id", projectId).order("created_at", { ascending: false }),
@@ -174,7 +174,7 @@ export default function ProjectDetailPage() {
     setAssignRole("");
     setAssignStartDate(format(new Date(), "yyyy-MM-dd"));
     setAssignEndDate("");
-    const { data } = await supabase.from("employees").select("id, employee_code, first_name, last_name").order("last_name");
+    const { data } = await supabase.from("employees").select("id, company_id_no, first_name, last_name").order("last_name");
     setEmployeesList(data ?? []);
     setIsAssignDialogOpen(true);
   };
@@ -394,7 +394,7 @@ export default function ProjectDetailPage() {
                           <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
                           <SelectContent>
                             {employeesList.filter((emp) => !assignments.some((a) => a.employee_id === emp.id)).map((emp) => (
-                              <SelectItem key={emp.id} value={emp.id}>{emp.last_name}, {emp.first_name} ({emp.employee_code})</SelectItem>
+                              <SelectItem key={emp.id} value={emp.id}>{emp.last_name}, {emp.first_name} ({emp.company_id_no})</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -418,7 +418,7 @@ export default function ProjectDetailPage() {
                 <TableBody>{assignments.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No employees assigned</TableCell></TableRow> :
                   assignments.map((a) => (
                     <TableRow key={a.id}>
-                      <TableCell>{a.employees ? `${a.employees.first_name} ${a.employees.last_name}` : "—"} ({a.employees?.employee_code ?? "—"})</TableCell>
+                      <TableCell>{a.employees ? `${a.employees.first_name} ${a.employees.last_name}` : "—"} ({a.employees?.company_id_no ?? "—"})</TableCell>
                       <TableCell>{a.role || "—"}</TableCell>
                       <TableCell>{format(new Date(a.start_date), "MMM d, yyyy")}</TableCell>
                       <TableCell>{a.end_date ? format(new Date(a.end_date), "MMM d, yyyy") : "Ongoing"}</TableCell>

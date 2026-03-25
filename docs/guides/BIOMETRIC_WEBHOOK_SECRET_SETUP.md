@@ -63,6 +63,8 @@ curl -X POST "https://YOUR-DOMAIN/api/biometric/punch" \
   -d '{"employee_code":"10001","punched_at":"2026-03-14T08:00:00.000Z","punch_type":"in"}'
 ```
 
+(`employee_code` must match **`employees.employee_code`** — the numeric time clock ID, not `company_id_no`.)
+
 **Example – ZKTeco middleware / script:**  
 Store the secret in the middleware’s environment (e.g. its own `.env` or config) and send it in the `X-Biometric-Secret` header on every request to `https://YOUR-DOMAIN/api/biometric/punch`.
 

@@ -4,7 +4,7 @@
  * POST /api/biometric/punch
  *
  * Accepts punches from ZKTeco PUSH/middleware or any client that sends:
- * - employee_code (or employee_id): map to employee
+ * - employee_code (or employee_id): map to employee — employee_code is digits-only (time clock / ZKTeco PIN)
  * - punched_at (ISO) or timestamp (YYYY-MM-DD HH:mm:ss)
  * - punch_type: "in" | "out"
  * - device_serial, device_name, office_location_id (optional)

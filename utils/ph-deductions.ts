@@ -363,6 +363,24 @@ export function calculateWithholdingTax(monthlyTaxableIncome: number): number {
 }
 
 /**
+ * BIR withholding for one **semi-month** using the same monthly compensation table:
+ * taxable for the half-month × 2 → {@link calculateWithholdingTax} → ÷ 2.
+ * Aligns with semi-monthly / twice-monthly withholding practice under TRAIN.
+ */
+export function calculateSemiMonthlyWithholdingTax(
+  semiMonthlyTaxableIncome: number
+): number {
+  const semi = Math.max(
+    0,
+    typeof semiMonthlyTaxableIncome === "number" && !isNaN(semiMonthlyTaxableIncome)
+      ? semiMonthlyTaxableIncome
+      : 0
+  );
+  const monthlyTax = calculateWithholdingTax(semi * 2);
+  return Math.round((monthlyTax / 2) * 100) / 100;
+}
+
+/**
  * Calculate all government contributions for bi-monthly period
  * @param dailyRate Daily rate in PHP
  * @param workingDaysPerMonth Number of working days per month (default: 22)

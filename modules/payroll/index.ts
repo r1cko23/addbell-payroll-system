@@ -34,6 +34,7 @@ export {
   calculatePhilHealth,
   calculatePagIBIG,
   calculateWithholdingTax,
+  calculateSemiMonthlyWithholdingTax,
   getWithholdingTaxBreakdown,
   calculateMonthlySalary,
 } from "@/utils/ph-deductions";

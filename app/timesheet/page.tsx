@@ -974,7 +974,7 @@ export default function TimesheetPage() {
       // Note: isAccountSupervisor is already defined at function level (line 550)
       let ndHours = 0;
 
-      if (!isAccountSupervisor && dayOTs.length > 0) {
+      if (dayOTs.length > 0) {
         // Calculate ND from each approved OT request's start_time and end_time
         // Only process approved OT requests
         const approvedOTs = dayOTs.filter(ot =>

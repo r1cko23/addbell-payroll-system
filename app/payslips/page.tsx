@@ -49,14 +49,26 @@ import { Label } from "@/components/ui/label";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import { format, addDays, getWeek, parseISO, startOfYear, endOfYear, startOfMonth } from "date-fns";
+import { format, addDays, getWeek, parseISO, startOfYear, endOfYear, startOfMonth, endOfMonth } from "date-fns";
+import {
+  countWeeklyPaysInSemiMonth,
+  isFourthStatutoryWeeklyPay,
+  isLastWeeklyPayOfSemiMonth,
+  semiMonthlyPeriodIndex,
+} from "@/lib/weekly-statutory-deductions";
+import {
+  applyStatutoryProration,
+  fetchDistinctWorkDaysMonthToDate,
+  statutoryProrationFactorFromDays,
+  STATUTORY_PRORATION_REFERENCE_DAYS,
+} from "@/lib/statutory-proration";
 import { formatCurrency, generatePayslipNumber } from "@/utils/format";
 import {
   calculateSSS,
   calculatePhilHealth,
   calculatePagIBIG,
   calculateMonthlySalary,
-  calculateWithholdingTax,
+  calculateSemiMonthlyWithholdingTax,
   getWithholdingTaxBreakdown,
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
@@ -116,6 +128,115 @@ interface EmployeeDeductions {
   withholding_tax: number;
 }
 
+/** Manual other deductions: one amount per fixed type (no free-text types). */
+const OTHER_DEDUCTION_TYPES = ["Vale", "Uniform", "PPE", "Gasul"] as const;
+type OtherDeductionType = (typeof OTHER_DEDUCTION_TYPES)[number];
+
+type OtherDeductionRow = {
+  id: string;
+  type: OtherDeductionType;
+  amount: string;
+};
+
+function createDefaultOtherDeductionRows(): OtherDeductionRow[] {
+  return OTHER_DEDUCTION_TYPES.map((type) => ({
+    id: `row-${type}`,
+    type,
+    amount: "0",
+  }));
+}
+
+function mergeOtherDeductionRowsFromSaved(
+  savedLines: unknown,
+  valeFromDb: number
+): OtherDeductionRow[] {
+  const amounts = new Map<string, string>();
+  for (const t of OTHER_DEDUCTION_TYPES) {
+    amounts.set(t, "0");
+  }
+  amounts.set("Vale", String(valeFromDb ?? 0));
+  if (Array.isArray(savedLines)) {
+    for (const line of savedLines) {
+      const L = line as { type?: string; amount?: number | string };
+      const typ = String(L?.type ?? "").trim();
+      if ((OTHER_DEDUCTION_TYPES as readonly string[]).includes(typ)) {
+        const amt =
+          L?.amount !== undefined && L?.amount !== null
+            ? String(L.amount)
+            : "0";
+        amounts.set(typ, amt);
+      }
+    }
+  }
+  return OTHER_DEDUCTION_TYPES.map((type) => ({
+    id: `row-${type}`,
+    type,
+    amount: amounts.get(type) ?? "0",
+  }));
+}
+
+/** Multiple adjustment lines (description + amount); total stored in payslip.adjustment_amount. */
+type AdjustmentRow = {
+  id: string;
+  description: string;
+  amount: string;
+};
+
+function createDefaultAdjustmentRows(): AdjustmentRow[] {
+  return [{ id: "adj-1", description: "", amount: "0" }];
+}
+
+function mergeAdjustmentRowsFromSaved(
+  adjustmentAmount: number,
+  adjustmentReason: string | null | undefined,
+  deductionsBreakdown: Record<string, unknown> | undefined
+): AdjustmentRow[] {
+  const lines = deductionsBreakdown?.adjustment_lines;
+  if (Array.isArray(lines) && lines.length > 0) {
+    return lines.map((line: unknown, i: number) => {
+      const L = line as {
+        description?: string;
+        reason?: string;
+        amount?: number | string;
+      };
+      const desc = String(L?.description ?? L?.reason ?? "").trim();
+      const amt =
+        L?.amount !== undefined && L?.amount !== null
+          ? String(L.amount)
+          : "0";
+      return { id: `adj-${i}`, description: desc, amount: amt };
+    });
+  }
+  if (
+    (adjustmentAmount !== 0 && !Number.isNaN(adjustmentAmount)) ||
+    (adjustmentReason && adjustmentReason.trim())
+  ) {
+    return [
+      {
+        id: "adj-legacy",
+        description: adjustmentReason?.trim() ?? "",
+        amount: String(adjustmentAmount ?? 0),
+      },
+    ];
+  }
+  return createDefaultAdjustmentRows();
+}
+
+/** Single field for DB + print preview (legacy consumers). */
+function combineAdjustmentReasonForDb(rows: AdjustmentRow[]): string | null {
+  const parts = rows
+    .map((r) => {
+      const d = r.description.trim();
+      const a = parseFloat(r.amount) || 0;
+      if (!d && a === 0) return "";
+      if (!d) return `${a}`;
+      return `${d}: ${a}`;
+    })
+    .filter(Boolean);
+  if (parts.length === 0) return null;
+  return parts.join(" | ").slice(0, 2000);
+}
+
 export default function PayslipsPage() {
   const router = useRouter();
   const { canAccessSalaryInfo, canUpdatePayslip, loading: roleLoading } = useUserRole();
@@ -157,15 +278,39 @@ export default function PayslipsPage() {
     }
   }, [canAccessSalaryInfo, roleLoading, router]);
 
-  // Helper function to check if current period is second cutoff (deductions applied monthly)
-  const isSecondCutoff = () => {
-    return periodStart.getDate() >= 16;
+  /**
+   * Weekly pay (Wed–Tue): statutory month = calendar month of period end (Tuesday).
+   * SSS / PhilHealth / Pag-IBIG: full month (prorated) on the 4th weekly pay (last Tue if fewer than four).
+   * BIR withholding: semi-monthly — last Tuesday in days 1–15 and last Tuesday of the month (days 16–end);
+   * gross for that half minus ½ prorated monthly contributions; BIR monthly table on (2× semi taxable) ÷ 2.
+   */
+  const payWeekContainsDayOfMonth = (dayOfMonth: number) => {
+    const start = new Date(periodStart);
+    start.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      if (d.getDate() === dayOfMonth) return true;
+    }
+    return false;
   };
 
-  // Helper function to check if current period is first cutoff (1-15)
-  const isFirstCutoff = () => {
-    return periodStart.getDate() <= 15;
+  const payWeekContainsLastDayOfAnyMonth = () => {
+    const start = new Date(periodStart);
+    start.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const next = new Date(d);
+      next.setDate(d.getDate() + 1);
+      if (next.getMonth() !== d.getMonth()) return true;
+    }
+    return false;
   };
+
+  const isFirstCutoff = () => payWeekContainsDayOfMonth(15);
+
+  const isSecondCutoff = () => payWeekContainsLastDayOfAnyMonth();
 
   // State for active loans with full details
   interface LoanDetail {
@@ -202,17 +347,22 @@ export default function PayslipsPage() {
   const [applyPagibig] = useState(true); // Always true - mandatory
   const [preparedBy, setPreparedBy] = useState("Melanie R. Sapinoso");
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [adjustmentAmount, setAdjustmentAmount] = useState<string>("0");
-  const [adjustmentReason, setAdjustmentReason] = useState<string>("");
-  /** Freeform rows (Type + Amount) for vale/uniform/etc.; summed into weekly manual deductions */
+  const [adjustmentRows, setAdjustmentRows] = useState<AdjustmentRow[]>(() =>
+    createDefaultAdjustmentRows()
+  );
+  /** Fixed types (Vale, Uniform, PPE, Gasul); amounts summed into weekly manual deductions */
   const [otherDeductionRows, setOtherDeductionRows] = useState<
-    { id: string; type: string; amount: string }[]
-  >([
-    { id: "row-vale", type: "Vale", amount: "0" },
-    { id: "row-uniform", type: "Uniform", amount: "0" },
-  ]);
-  // First cutoff gross for same month (used for 2nd cutoff tax preview/calculation)
-  const [firstCutoffGrossForTax, setFirstCutoffGrossForTax] = useState<number | null>(null);
+    OtherDeductionRow[]
+  >(() => createDefaultOtherDeductionRows());
+  /** Same calendar month **and BIR semi-month half** as period end (Tue): saved gross+adj from other weeks in that half; prior WH in that half */
+  const [semiMonthlyRollupForTax, setSemiMonthlyRollupForTax] = useState<{
+    grossFromSavedOtherWeeksInSemiMonth: number;
+    taxWithheldPriorExcludingCurrentInSemiMonth: number;
+  } | null>(null);
+  /** Distinct work days (Manila) month-to-date through period end Tue — for statutory proration vs 26. */
+  const [mtdWorkDaysForStatutory, setMtdWorkDaysForStatutory] = useState<
+    number | null
+  >(null);
   // Saved payslip for this employee + period (when exists, we display DB values and lock edits)
   const [savedPayslip, setSavedPayslip] = useState<{
     id: string;
@@ -321,9 +471,8 @@ export default function PayslipsPage() {
     if (selectedEmployeeId) {
       const emp = employees.find((e) => e.id === selectedEmployeeId);
       setSelectedEmployee(emp || null);
-      // Reset adjustment so it doesn't carry over when switching employees
-      setAdjustmentAmount("0");
-      setAdjustmentReason("");
+      // Reset adjustments so they don't carry over when switching employees
+      setAdjustmentRows(createDefaultAdjustmentRows());
       // Only load attendance if employee is found in the list
       if (emp) {
         loadAttendanceAndDeductions();
@@ -336,35 +485,85 @@ export default function PayslipsPage() {
     }
   }, [selectedEmployeeId, periodStart, employees]);
 
-  // Load first cutoff gross for same month when in 2nd cutoff (for accurate tax preview)
   useEffect(() => {
-    const second = periodStart.getDate() >= 16;
-    if (!second || !selectedEmployee?.id) {
-      setFirstCutoffGrossForTax(null);
+    if (!selectedEmployee?.id) {
+      setSemiMonthlyRollupForTax(null);
       return;
     }
+    const end = new Date(periodStart);
+    end.setDate(end.getDate() + 6);
+    end.setHours(0, 0, 0, 0);
+    const curEnd = format(end, "yyyy-MM-dd");
+    const half = semiMonthlyPeriodIndex(end);
+    const startM = startOfMonth(end);
+    const endM = endOfMonth(end);
     let cancelled = false;
-    const firstPeriodStart = startOfMonth(periodStart);
-    const firstPeriodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), 15);
     supabase
       .from("payslips")
-      .select("gross_pay, adjustment_amount")
+      .select("gross_pay, adjustment_amount, period_end, deductions_breakdown")
       .eq("employee_id", selectedEmployee.id)
-      .eq("period_start", format(firstPeriodStart, "yyyy-MM-dd"))
-      .eq("period_end", format(firstPeriodEnd, "yyyy-MM-dd"))
-      .maybeSingle()
-      .then(
-        ({ data }) => {
-          if (cancelled) return;
-          const gross = (data?.gross_pay ?? 0) + (data?.adjustment_amount ?? 0);
-          setFirstCutoffGrossForTax(gross);
-        },
-        () => {
-          if (!cancelled) setFirstCutoffGrossForTax(null);
+      .gte("period_end", format(startM, "yyyy-MM-dd"))
+      .lte("period_end", format(endM, "yyyy-MM-dd"))
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setSemiMonthlyRollupForTax(null);
+          return;
         }
-      );
-    return () => { cancelled = true; };
-  }, [selectedEmployee?.id, periodStart]);
+        let grossOther = 0;
+        let taxPrior = 0;
+        for (const row of data || []) {
+          if (row.period_end === curEnd) continue;
+          const [py, pm, pd] = (row.period_end || "").split("-").map(Number);
+          if (!py || !pm || !pd) continue;
+          const rowEnd = new Date(py, pm - 1, pd);
+          if (semiMonthlyPeriodIndex(rowEnd) !== half) continue;
+          grossOther += (row.gross_pay ?? 0) + (row.adjustment_amount ?? 0);
+          const br = row.deductions_breakdown as { tax?: number } | undefined;
+          taxPrior += typeof br?.tax === "number" ? br.tax : 0;
+        }
+        setSemiMonthlyRollupForTax({
+          grossFromSavedOtherWeeksInSemiMonth: Math.round(grossOther * 100) / 100,
+          taxWithheldPriorExcludingCurrentInSemiMonth:
+            Math.round(taxPrior * 100) / 100,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEmployee?.id, periodStart, supabase]);
+
+  useEffect(() => {
+    if (!selectedEmployee?.id) {
+      setMtdWorkDaysForStatutory(null);
+      return;
+    }
+    const end = new Date(periodStart);
+    end.setDate(end.getDate() + 6);
+    end.setHours(0, 0, 0, 0);
+    const ids = [
+      selectedEmployee.id,
+      selectedEmployee.transferred_from_employee_id,
+    ].filter(Boolean) as string[];
+    let cancelled = false;
+    fetchDistinctWorkDaysMonthToDate(supabase, ids, end)
+      .then((n) => {
+        if (!cancelled) setMtdWorkDaysForStatutory(n);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMtdWorkDaysForStatutory(STATUTORY_PRORATION_REFERENCE_DAYS);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedEmployee?.id,
+    selectedEmployee?.transferred_from_employee_id,
+    periodStart,
+    supabase,
+  ]);
 
   async function loadEmployees() {
     try {
@@ -501,12 +700,16 @@ export default function PayslipsPage() {
           pagibig_amount: existingPayslipRow.pagibig_amount ?? 0,
           withholding_tax: typeof ded.tax === "number" ? ded.tax : 0,
         });
-        setAdjustmentAmount(String(existingPayslipRow.adjustment_amount ?? 0));
-        setAdjustmentReason(existingPayslipRow.adjustment_reason ?? "");
+        setAdjustmentRows(
+          mergeAdjustmentRowsFromSaved(
+            existingPayslipRow.adjustment_amount ?? 0,
+            existingPayslipRow.adjustment_reason,
+            ded
+          )
+        );
       } else {
         setSavedPayslip(null);
-        setAdjustmentAmount("0");
-        setAdjustmentReason("");
+        setAdjustmentRows(createDefaultAdjustmentRows());
       }
 
       // Always generate from time_entries (sessions) to match timesheet data
@@ -632,45 +835,9 @@ export default function PayslipsPage() {
           const isEligibleForOT = selectedEmployee?.eligible_for_ot !== false;
           const includeApprovedOTInPayslip = true; // Always merge approved OT into payslip so it displays
 
-          // Check if employee is Account Supervisor (for ND eligibility)
-          // ND for rank and file only; 10PM–6AM during OT. Supervisory/managerial/client-based get no ND.
-          const isAccountSupervisor =
-            selectedEmployee?.position
-              ?.toUpperCase()
-              .includes("ACCOUNT SUPERVISOR") || false;
-          const isOfficeBasedForND =
-            selectedEmployee?.employee_type === "office-based" ||
-            selectedEmployee?.employee_type === null;
-          const supervisoryPositionsND = [
-            "PAYROLL SUPERVISOR",
-            "ACCOUNT RECEIVABLE SUPERVISOR",
-            "HR OPERATIONS SUPERVISOR",
-            "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
-            "HR SUPERVISOR - LABOR RELATIONS",
-            "HR SUPERVISOR-LABOR RELATIONS",
-            "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
-            "HR SUPERVISOR-EMPLOYEE ENGAGEMENT",
-          ];
-          const isSupervisoryForND =
-            isOfficeBasedForND &&
-            supervisoryPositionsND.some((pos) =>
-              selectedEmployee?.position?.toUpperCase().includes(pos.toUpperCase())
-            );
-          const isManagerialForND =
-            isOfficeBasedForND &&
-            selectedEmployee?.job_level?.toUpperCase() === "MANAGERIAL";
-          const isSupervisoryByJobLevelND =
-            isOfficeBasedForND &&
-            selectedEmployee?.job_level?.toUpperCase() === "SUPERVISORY";
-          const isEligibleForAllowancesND =
-            isAccountSupervisor ||
-            isSupervisoryForND ||
-            isSupervisoryByJobLevelND ||
-            isManagerialForND;
-          const isRankAndFileForND =
-            isOfficeBasedForND && !isEligibleForAllowancesND;
-          const isEligibleForNightDiff = isRankAndFileForND;
-          const ndNightStartHour = 22; // 10PM – 6AM; ND only if OT overlaps this window (rank and file only)
+          // Night differential: all employees (10PM–6AM overlap with approved OT).
+          const isEligibleForNightDiff = true;
+          const ndNightStartHour = 22; // 10PM – 6AM Philippine time
 
           // Fetch approved overtime requests for this period
           // Always load approved OT (same as Time Attendance). Merge all approved OT into payslip
@@ -814,7 +981,6 @@ export default function PayslipsPage() {
 
           // Generate attendance data from mapped clock entries with rest days
           // Note: leaveDatesMap is already created above for existing attendance records
-          // isAccountSupervisor and isEligibleForNightDiff are already defined above
           const isClientBasedAccountSupervisor =
             selectedEmployee?.employee_type === "client-based" &&
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
@@ -914,7 +1080,7 @@ export default function PayslipsPage() {
             employee_id: selectedEmployeeId,
             period_start: periodStartStr,
             period_end: periodEndStr,
-            period_type: "bimonthly",
+            period_type: "weekly",
             attendance_data: timesheetData.attendance_data,
             total_regular_hours: timesheetData.total_regular_hours,
             total_overtime_hours: timesheetData.total_overtime_hours,
@@ -1227,27 +1393,12 @@ export default function PayslipsPage() {
         const savedLines = savedBr?.other_deduction_lines;
         if (Array.isArray(savedLines) && savedLines.length > 0) {
           setOtherDeductionRows(
-            savedLines.map((line: unknown, i: number) => {
-              const L = line as { type?: string; amount?: number | string };
-              return {
-                id: `saved-${i}`,
-                type: String(L?.type ?? ""),
-                amount:
-                  L?.amount !== undefined && L?.amount !== null
-                    ? String(L.amount)
-                    : "",
-              };
-            })
+            mergeOtherDeductionRowsFromSaved(savedLines, dedRow?.vale_amount ?? 0)
           );
         } else {
-          setOtherDeductionRows([
-            {
-              id: "row-vale",
-              type: "Vale",
-              amount: String(dedRow?.vale_amount ?? 0),
-            },
-            { id: "row-uniform", type: "Uniform", amount: "0" },
-          ]);
+          setOtherDeductionRows(
+            mergeOtherDeductionRowsFromSaved(undefined, dedRow?.vale_amount ?? 0)
+          );
         }
       } catch (dedErr) {
         console.error("Exception loading deductions:", dedErr);
@@ -1262,10 +1413,7 @@ export default function PayslipsPage() {
           pagibig_contribution: 0,
           withholding_tax: 0,
         });
-        setOtherDeductionRows([
-          { id: "row-vale", type: "Vale", amount: "0" },
-          { id: "row-uniform", type: "Uniform", amount: "0" },
-        ]);
+        setOtherDeductionRows(createDefaultOtherDeductionRows());
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -1471,11 +1619,15 @@ export default function PayslipsPage() {
         }
       }
 
-      // Gross = basic + OT + ND + adjustment. Statutory and tax use monthly gross (2 × cutoff gross).
-      const adjustment = parseFloat(adjustmentAmount) || 0;
+      // Gross = basic + OT + ND + adjustment. Tax uses calendar-month gross (saved other weeks + this period).
+      const adjustment = Math.round(
+        adjustmentRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) *
+          100
+      ) / 100;
       const periodGross = grossPay + adjustment;
-      const monthlyGross =
-        periodGross > 0 ? Math.round(periodGross * 2 * 100) / 100 : 0;
+      const periodEndTuesday = new Date(periodStart);
+      periodEndTuesday.setDate(periodEndTuesday.getDate() + 6);
+      periodEndTuesday.setHours(0, 0, 0, 0);
 
       // Monthly salary from rate only (per day × 26). For statutory and 13th month.
       const workingDaysPerMonth = 26;
@@ -1497,43 +1649,70 @@ export default function PayslipsPage() {
       // Statutory (SSS, PhilHealth, Pag-IBIG) based on monthly salary only, not gross pay
       const validMonthlySalary =
         monthlyBasicSalary && monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
-      const validMonthlyGross =
-        monthlyGross && monthlyGross > 0 ? monthlyGross : 0;
 
       const sssContribution = calculateSSS(validMonthlySalary);
       const philhealthContribution = calculatePhilHealth(validMonthlySalary);
       const pagibigContribution = calculatePagIBIG(validMonthlySalary);
 
-      // Deduction frequencies (per sample): SSS & PhilHealth = semi-monthly (half each cutoff); Pag-IBIG & Withholding tax = end of month (2nd cutoff only)
-      const applyFirstCutoff = isFirstCutoff();
-      const applySecondCutoff = isSecondCutoff();
+      let mtdWorkDaysForSave = 0;
+      let prorationFactorSave = 1;
+      try {
+        const clockIds = [
+          selectedEmployee.id,
+          selectedEmployee.transferred_from_employee_id,
+        ].filter(Boolean) as string[];
+        mtdWorkDaysForSave = await fetchDistinctWorkDaysMonthToDate(
+          supabase,
+          clockIds,
+          periodEndTuesday
+        );
+        prorationFactorSave = statutoryProrationFactorFromDays(
+          mtdWorkDaysForSave
+        );
+      } catch {
+        mtdWorkDaysForSave = STATUTORY_PRORATION_REFERENCE_DAYS;
+        prorationFactorSave = 1;
+      }
 
-      // Note: Only employee shares are deducted
-      // SSS - semi-monthly: half on 1st cutoff, half on 2nd cutoff
-      const sssHalfMonthly = !isNaN(sssContribution?.employeeShare) ? sssContribution.employeeShare / 2 : 0;
-      const sssRegularHalf = !isNaN(sssContribution?.regularEmployeeShare) ? sssContribution.regularEmployeeShare / 2 : 0;
-      const sssWispHalf = (sssContribution?.wispEmployeeShare ?? 0) / 2;
+      const takeStatutory = isFourthStatutoryWeeklyPay(periodEndTuesday);
+
+      // Full monthly employee shares on statutory week, × min(1, MTD work days / 26).
       const sssRegularAmount =
-        (applyFirstCutoff || applySecondCutoff)
-          ? Math.round(sssRegularHalf * 100) / 100
+        takeStatutory &&
+        validMonthlySalary > 0 &&
+        !isNaN(sssContribution?.regularEmployeeShare)
+          ? applyStatutoryProration(
+              Math.round(sssContribution.regularEmployeeShare * 100) / 100,
+              prorationFactorSave
+            )
           : 0;
       const sssWispAmount =
-        (applyFirstCutoff || applySecondCutoff) && sssWispHalf > 0
-          ? Math.round(sssWispHalf * 100) / 100
+        takeStatutory &&
+        validMonthlySalary > 0 &&
+        (sssContribution?.wispEmployeeShare ?? 0) > 0
+          ? applyStatutoryProration(
+              Math.round((sssContribution.wispEmployeeShare ?? 0) * 100) / 100,
+              prorationFactorSave
+            )
           : 0;
-      const sssAmount =
-        (applyFirstCutoff || applySecondCutoff)
-          ? Math.round(sssHalfMonthly * 100) / 100
-          : 0;
-      // PhilHealth - semi-monthly: half on 1st cutoff, half on 2nd cutoff
+      const sssAmount = Math.round((sssRegularAmount + sssWispAmount) * 100) / 100;
       const philhealthAmount =
-        (applyFirstCutoff || applySecondCutoff) && !isNaN(philhealthContribution?.employeeShare)
-          ? Math.round((philhealthContribution.employeeShare / 2) * 100) / 100
+        takeStatutory &&
+        validMonthlySalary > 0 &&
+        !isNaN(philhealthContribution?.employeeShare)
+          ? applyStatutoryProration(
+              Math.round(philhealthContribution.employeeShare * 100) / 100,
+              prorationFactorSave
+            )
           : 0;
-      // Pag-IBIG - end of month: full amount on 2nd cutoff only
       const pagibigAmount =
-        applySecondCutoff && !isNaN(pagibigContribution?.employeeShare)
-          ? Math.round(pagibigContribution.employeeShare * 100) / 100
+        takeStatutory &&
+        validMonthlySalary > 0 &&
+        !isNaN(pagibigContribution?.employeeShare)
+          ? applyStatutoryProration(
+              Math.round(pagibigContribution.employeeShare * 100) / 100,
+              prorationFactorSave
+            )
           : 0;
 
       const manualOtherDeductionTotal = otherDeductionRows.reduce(
@@ -1561,51 +1740,78 @@ export default function PayslipsPage() {
             (monthlyLoans.companyLoan || 0)
           : 0);
 
-      // Add mandatory government contributions: SSS & PhilHealth semi-monthly (half each); Pag-IBIG end of month (2nd only)
+      // Full-month government contributions only on statutory week (4th Tue / last if <4)
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
 
-      // Withholding tax: end of month (2nd cutoff only). Use actual monthly gross (1st + 2nd cutoff) when available.
       let withholdingTax = 0;
-      if (applySecondCutoff && (validMonthlyGross > 0 || periodGross > 0)) {
-        withholdingTax = deductions?.withholding_tax || 0;
-        if (withholdingTax === 0) {
-          const monthlyContributions =
+      const takeSemiMonthTax = isLastWeeklyPayOfSemiMonth(periodEndTuesday);
+      if (periodGross > 0 || validMonthlySalary > 0) {
+        const whOverride = deductions?.withholding_tax || 0;
+        if (whOverride !== 0) {
+          withholdingTax = Math.round(whOverride * 100) / 100;
+        } else if (takeSemiMonthTax) {
+          const monthlyContributionsFull =
             sssContribution.employeeShare +
             philhealthContribution.employeeShare +
             pagibigContribution.employeeShare;
+          const monthlyContributions = applyStatutoryProration(
+            Math.round(monthlyContributionsFull * 100) / 100,
+            prorationFactorSave
+          );
+          const halfMonthlyContrib = Math.round((monthlyContributions / 2) * 100) / 100;
 
-          // Actual monthly gross = 1st cutoff gross + this period gross (when 1st cutoff payslip exists)
-          const firstPeriodStart = startOfMonth(periodStart);
-          const firstPeriodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), 15);
-          const { data: firstCutoffPayslip } = await supabase
+          const curEndStr = format(periodEndTuesday, "yyyy-MM-dd");
+          const startM = startOfMonth(periodEndTuesday);
+          const endM = endOfMonth(periodEndTuesday);
+          const half = semiMonthlyPeriodIndex(periodEndTuesday);
+          const { data: monthRows } = await supabase
             .from("payslips")
-            .select("gross_pay, adjustment_amount")
+            .select("gross_pay, adjustment_amount, period_end, deductions_breakdown")
             .eq("employee_id", selectedEmployee.id)
-            .eq("period_start", format(firstPeriodStart, "yyyy-MM-dd"))
-            .eq("period_end", format(firstPeriodEnd, "yyyy-MM-dd"))
-            .maybeSingle();
+            .gte("period_end", format(startM, "yyyy-MM-dd"))
+            .lte("period_end", format(endM, "yyyy-MM-dd"));
 
-          const firstCutoffGross =
-            (firstCutoffPayslip?.gross_pay ?? 0) + (firstCutoffPayslip?.adjustment_amount ?? 0);
-          const actualMonthlyGross =
-            firstCutoffGross > 0
-              ? Math.round((firstCutoffGross + periodGross) * 100) / 100
-              : validMonthlyGross;
+          let grossOther = 0;
+          let taxPrior = 0;
+          for (const row of monthRows || []) {
+            if (row.period_end === curEndStr) continue;
+            const [py, pm, pd] = (row.period_end || "").split("-").map(Number);
+            if (!py || !pm || !pd) continue;
+            const rowEnd = new Date(py, pm - 1, pd);
+            if (semiMonthlyPeriodIndex(rowEnd) !== half) continue;
+            grossOther += (row.gross_pay ?? 0) + (row.adjustment_amount ?? 0);
+            const br = row.deductions_breakdown as { tax?: number } | undefined;
+            taxPrior += typeof br?.tax === "number" ? br.tax : 0;
+          }
+          grossOther = Math.round(grossOther * 100) / 100;
+          taxPrior = Math.round(taxPrior * 100) / 100;
 
-          const monthlyTaxableIncome =
-            Math.max(0, actualMonthlyGross - monthlyContributions);
-          const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-          // Full month's tax is deducted in 2nd cutoff
-          withholdingTax = Math.round(monthlyTax * 100) / 100;
+          const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEndTuesday);
+          const actualSemiGross =
+            monthRows != null
+              ? Math.round((grossOther + periodGross) * 100) / 100
+              : Math.round(periodGross * nSemiWeeks * 100) / 100;
 
-          console.log("Withholding tax calculation:", {
-            firstCutoffGross,
+          const semiTaxableIncome = Math.max(
+            0,
+            actualSemiGross - halfMonthlyContrib
+          );
+          const semiTaxDue = calculateSemiMonthlyWithholdingTax(semiTaxableIncome);
+          withholdingTax = Math.max(
+            0,
+            Math.round((semiTaxDue - taxPrior) * 100) / 100
+          );
+
+          console.log("Withholding tax (BIR semi-monthly):", {
+            grossOther,
             periodGross,
-            actualMonthlyGross,
-            contributions: monthlyContributions,
-            taxableIncome: monthlyTaxableIncome,
-            calculatedMonthlyTax: monthlyTax,
+            actualSemiGross,
+            halfMonthlyContrib,
+            semiTaxableIncome,
+            semiTaxDue,
+            taxPrior,
             withholdingTax,
+            semiMonthHalf: half,
           });
         }
       }
@@ -1639,6 +1845,10 @@ export default function PayslipsPage() {
           type: r.type.trim(),
           amount: parseFloat(r.amount) || 0,
         })),
+        adjustment_lines: adjustmentRows.map((r) => ({
+          description: r.description.trim(),
+          amount: parseFloat(r.amount) || 0,
+        })),
       };
 
       // Mandatory government contributions (always included)
@@ -1646,6 +1856,10 @@ export default function PayslipsPage() {
       deductionsBreakdown.sss_wisp = sssWispAmount; // WISP shown separately if applicable
       deductionsBreakdown.philhealth = philhealthAmount;
       deductionsBreakdown.pagibig = pagibigAmount;
+      deductionsBreakdown.statutory_mtd_work_days = mtdWorkDaysForSave;
+      deductionsBreakdown.statutory_proration_factor = prorationFactorSave;
+      deductionsBreakdown.statutory_reference_days =
+        STATUTORY_PRORATION_REFERENCE_DAYS;
 
       // Generate payslip number
       const year = periodStart.getFullYear();
@@ -1660,7 +1874,7 @@ export default function PayslipsPage() {
         year
       );
 
-      const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 6);
+      const periodEnd = periodEndTuesday;
 
       // Validate required fields before creating payslip data
       if (!attendance.attendance_data) {
@@ -1800,7 +2014,7 @@ export default function PayslipsPage() {
         week_number: periodNumber,
         period_start: format(periodStart, "yyyy-MM-dd"),
         period_end: format(periodEnd, "yyyy-MM-dd"),
-        period_type: "bimonthly",
+        period_type: "weekly",
         earnings_breakdown: attendance.attendance_data || [], // Ensure it's never null
         gross_pay: grossPay,
         deductions_breakdown: deductionsBreakdown || {}, // Ensure it's never null
@@ -1814,7 +2028,7 @@ export default function PayslipsPage() {
         pagibig_amount: isNaN(pagibigAmount) ? 0 : pagibigAmount,
         thirteenth_month_pay: thirteenthMonthPay,
         adjustment_amount: adjustment,
-        adjustment_reason: adjustmentReason || null,
+        adjustment_reason: combineAdjustmentReasonForDb(adjustmentRows),
         allowance_amount: 0,
         net_pay: netPay,
         status: "draft",
@@ -1899,14 +2113,8 @@ export default function PayslipsPage() {
         adjustment_reason?: string | null;
       } | null;
 
-      // Load adjustments from existing payslip if present
+      // Reload merges adjustment_lines from DB via loadAttendanceAndDeductions
       if (existingPayslip) {
-        if (existingPayslip.adjustment_amount !== null && existingPayslip.adjustment_amount !== undefined) {
-          setAdjustmentAmount(existingPayslip.adjustment_amount.toString());
-        }
-        if (existingPayslip.adjustment_reason) {
-          setAdjustmentReason(existingPayslip.adjustment_reason);
-        }
         console.log("Updating existing payslip:", existingPayslip.id);
         // Update
         const { error, data: updatedData } = await (
@@ -2274,6 +2482,20 @@ export default function PayslipsPage() {
     [otherDeductionRows]
   );
 
+  const adjustment = useMemo(
+    () =>
+      Math.round(
+        adjustmentRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) *
+          100
+      ) / 100,
+    [adjustmentRows]
+  );
+
+  const adjustmentReasonForPrint = useMemo(
+    () => combineAdjustmentReasonForDb(adjustmentRows) ?? undefined,
+    [adjustmentRows]
+  );
+
   // Memoize deductions calculations
   const weeklyDed = useMemo(() => {
     return (
@@ -2310,61 +2532,100 @@ export default function PayslipsPage() {
     return 0;
   }, [selectedEmployee?.monthly_rate, selectedEmployee?.per_day, selectedEmployee?.rate_per_day]);
 
-  // Statutory: SSS & PhilHealth = semi-monthly (half each cutoff); Pag-IBIG & Tax = end of month (2nd cutoff only)
-  const govDed = useMemo(() => {
-    if (monthlySalary <= 0) return 0;
-    const first = isFirstCutoff();
-    const second = isSecondCutoff();
-    const sssContribution = calculateSSS(monthlySalary);
-    const philhealthContribution = calculatePhilHealth(monthlySalary);
-    const pagibigContribution = calculatePagIBIG(monthlySalary);
+  const statutoryProrationFactorPreview = useMemo(() => {
+    if (mtdWorkDaysForStatutory === null) return 1;
+    return statutoryProrationFactorFromDays(mtdWorkDaysForStatutory);
+  }, [mtdWorkDaysForStatutory]);
 
-    const sssMonthly = isNaN(sssContribution?.employeeShare)
-      ? 0
-      : sssContribution.employeeShare;
-    const philhealthMonthly = isNaN(philhealthContribution?.employeeShare)
-      ? 0
-      : philhealthContribution.employeeShare;
-    const pagibigAmt = isNaN(pagibigContribution?.employeeShare)
-      ? 0
-      : Math.round(pagibigContribution.employeeShare * 100) / 100;
-
-    const sssHalf = Math.round((sssMonthly / 2) * 100) / 100;
-    const philhealthHalf = Math.round((philhealthMonthly / 2) * 100) / 100;
-    return (first ? sssHalf + philhealthHalf : 0) + (second ? sssHalf + philhealthHalf + pagibigAmt : 0);
-  }, [monthlySalary, periodStart]);
-
-  // Withholding tax: end of month (2nd cutoff only). Use actual monthly gross (1st + 2nd cutoff) when available; full month tax.
-  const tax = useMemo(() => {
-    if (!isSecondCutoff()) return 0;
-    const adj = parseFloat(adjustmentAmount || "0") || 0;
-    const periodGross = earningsBaseForPeriod + adj;
-    const actualMonthlyGross =
-      firstCutoffGrossForTax !== null
-        ? (firstCutoffGrossForTax + periodGross)
-        : periodGross * 2;
-
-    if (actualMonthlyGross > 0) {
-      const taxFromDeductions = deductions?.withholding_tax || 0;
-      if (taxFromDeductions === 0) {
-        const sss = calculateSSS(monthlySalary);
-        const philhealth = calculatePhilHealth(monthlySalary);
-        const pagibig = calculatePagIBIG(monthlySalary);
-
-        const monthlyContributions =
-          sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
-        const monthlyTaxableIncome = Math.max(0, actualMonthlyGross - monthlyContributions);
-
-        const monthlyTax = calculateWithholdingTax(monthlyTaxableIncome);
-        return Math.round(monthlyTax * 100) / 100;
-      }
-      return taxFromDeductions;
+  /** Full monthly SSS (regular + WISP), PhilHealth, Pag-IBIG — 4th weekly pay only; × min(1, MTD days / 26). */
+  const weeklyStatutory = useMemo(() => {
+    if (monthlySalary <= 0 || !isFourthStatutoryWeeklyPay(periodEnd)) {
+      return { sssReg: 0, sssWisp: 0, phil: 0, pagibig: 0, total: 0 };
     }
-    return 0;
-  }, [earningsBaseForPeriod, adjustmentAmount, monthlySalary, deductions, periodStart, firstCutoffGrossForTax]);
+    const sssCalc = calculateSSS(monthlySalary);
+    const phCalc = calculatePhilHealth(monthlySalary);
+    const piCalc = calculatePagIBIG(monthlySalary);
+    const f = statutoryProrationFactorPreview;
+    const sssReg = !isNaN(sssCalc.regularEmployeeShare)
+      ? applyStatutoryProration(
+          Math.round(sssCalc.regularEmployeeShare * 100) / 100,
+          f
+        )
+      : 0;
+    const sssWisp =
+      (sssCalc.wispEmployeeShare ?? 0) > 0
+        ? applyStatutoryProration(
+            Math.round((sssCalc.wispEmployeeShare ?? 0) * 100) / 100,
+            f
+          )
+        : 0;
+    const phil = !isNaN(phCalc.employeeShare)
+      ? applyStatutoryProration(
+          Math.round(phCalc.employeeShare * 100) / 100,
+          f
+        )
+      : 0;
+    const pagibig = !isNaN(piCalc.employeeShare)
+      ? applyStatutoryProration(
+          Math.round(piCalc.employeeShare * 100) / 100,
+          f
+        )
+      : 0;
+    const total =
+      Math.round((sssReg + sssWisp + phil + pagibig) * 100) / 100;
+    return { sssReg, sssWisp, phil, pagibig, total };
+  }, [monthlySalary, periodEnd, statutoryProrationFactorPreview]);
 
-  // Adjustment - included in gross for statutory, tax, and display
-  const adjustment = parseFloat(adjustmentAmount) || 0;
+  const govDed = weeklyStatutory.total;
+
+  const tax = useMemo(() => {
+    const whOverride = deductions?.withholding_tax || 0;
+    if (whOverride !== 0) return Math.round(whOverride * 100) / 100;
+    if (!isLastWeeklyPayOfSemiMonth(periodEnd)) return 0;
+
+    const periodGross = earningsBaseForPeriod + adjustment;
+    const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEnd);
+    const grossOther =
+      semiMonthlyRollupForTax?.grossFromSavedOtherWeeksInSemiMonth ?? 0;
+    const actualSemiGross =
+      semiMonthlyRollupForTax != null
+        ? Math.round((grossOther + periodGross) * 100) / 100
+        : Math.round(periodGross * nSemiWeeks * 100) / 100;
+
+    if (actualSemiGross <= 0) return 0;
+
+    const sss = calculateSSS(monthlySalary);
+    const philhealth = calculatePhilHealth(monthlySalary);
+    const pagibig = calculatePagIBIG(monthlySalary);
+    const monthlyContributionsFull =
+      sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
+    const monthlyContributions = applyStatutoryProration(
+      Math.round(monthlyContributionsFull * 100) / 100,
+      statutoryProrationFactorPreview
+    );
+    const halfMonthlyContrib = Math.round((monthlyContributions / 2) * 100) / 100;
+    const semiTaxableIncome = Math.max(
+      0,
+      actualSemiGross - halfMonthlyContrib
+    );
+    const semiTaxDue = calculateSemiMonthlyWithholdingTax(semiTaxableIncome);
+    const taxPrior =
+      semiMonthlyRollupForTax?.taxWithheldPriorExcludingCurrentInSemiMonth ??
+      0;
+    return Math.max(
+      0,
+      Math.round((semiTaxDue - taxPrior) * 100) / 100
+    );
+  }, [
+    earningsBaseForPeriod,
+    adjustment,
+    monthlySalary,
+    deductions?.withholding_tax,
+    periodEnd,
+    semiMonthlyRollupForTax,
+    statutoryProrationFactorPreview,
+  ]);
+
   const allowance = 0;
 
   // Memoize total deductions
@@ -2665,37 +2926,6 @@ export default function PayslipsPage() {
                                 return entryDateStr === dayDate;
                               });
 
-                              // ND for rank and file only (same rule as payslip generation)
-                              const isOfficeBasedND =
-                                selectedEmployee?.employee_type === "office-based" ||
-                                selectedEmployee?.employee_type === null;
-                              const isASND =
-                                selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
-                              const supervisoryListND = [
-                                "PAYROLL SUPERVISOR",
-                                "ACCOUNT RECEIVABLE SUPERVISOR",
-                                "HR OPERATIONS SUPERVISOR",
-                                "HR SUPERVISOR - LABOR RELATIONS/EMPLOYEE ENGAGEMENT",
-                                "HR SUPERVISOR - LABOR RELATIONS",
-                                "HR SUPERVISOR-LABOR RELATIONS",
-                                "HR SUPERVISOR - EMPLOYEE ENGAGEMENT",
-                                "HR SUPERVISOR-EMPLOYEE ENGAGEMENT",
-                              ];
-                              const isSupervisoryND =
-                                isOfficeBasedND &&
-                                supervisoryListND.some((p) =>
-                                  selectedEmployee?.position?.toUpperCase().includes(p.toUpperCase())
-                                );
-                              const isManagerialND =
-                                isOfficeBasedND &&
-                                selectedEmployee?.job_level?.toUpperCase() === "MANAGERIAL";
-                              const isSupervisoryByJobND =
-                                isOfficeBasedND &&
-                                selectedEmployee?.job_level?.toUpperCase() === "SUPERVISORY";
-                              const isEligibleAllowancesND =
-                                isASND || isSupervisoryND || isSupervisoryByJobND || isManagerialND;
-                              const isRankAndFileND = isOfficeBasedND && !isEligibleAllowancesND;
-
                               // If day.regularHours is >= 8, it's likely a leave day - prioritize it over clock entry hours
                               const isLeaveDayWithFullHours =
                                 (day.regularHours || 0) >= 8;
@@ -2705,16 +2935,13 @@ export default function PayslipsPage() {
                                   day.regularHours ||
                                   0;
 
-                              // ND for rank and file only, and only when OT overlaps 10PM–6AM (from approved OT).
-                              // Do not use matchingEntry.total_night_diff_hours — DB trigger uses 5PM–6AM; payslip uses 10PM–6AM during OT only.
+                              // ND when OT overlaps 10PM–6AM (from approved OT). Do not use matchingEntry.total_night_diff_hours for payslip.
                               return {
                                 date: dayDate,
                                 dayType: day.dayType || "regular",
                                 regularHours: regularHours,
                                 overtimeHours: day.overtimeHours || 0,
-                                nightDiffHours: isRankAndFileND
-                                  ? (day.nightDiffHours || 0)
-                                  : 0,
+                                nightDiffHours: day.nightDiffHours || 0,
                                 clockInTime:
                                   matchingEntry?.clock_in_time ||
                                   day.clockInTime ||
@@ -2737,113 +2964,251 @@ export default function PayslipsPage() {
                 className="md:col-span-1 lg:col-span-2"
               >
                 <VStack gap="3">
-                  {/* Other Deductions */}
-                  <VStack gap="1" align="start">
-                    <H4 className="text-sm font-medium text-muted-foreground">
-                      Other Deductions
-                    </H4>
-                    <VStack
-                      gap="2"
-                      className="bg-gray-50 p-3 rounded-lg w-full"
-                    >
-                      <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b bg-gray-100 text-left">
-                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
-                                Type
-                              </th>
-                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
-                                Amount
-                              </th>
-                              {!isSavedPayslip && (
-                                <th className="w-10 px-1 py-1.5" aria-label="Remove row" />
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {otherDeductionRows.map((row) => (
-                              <tr key={row.id} className="border-b border-gray-100 last:border-0">
-                                <td className="px-2 py-1 align-middle">
-                                  <Input
-                                    type="text"
-                                    placeholder="e.g. Vale, Uniform"
-                                    value={row.type}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setOtherDeductionRows((prev) =>
-                                        prev.map((r) =>
-                                          r.id === row.id ? { ...r, type: v } : r
-                                        )
-                                      );
-                                    }}
-                                    disabled={isSavedPayslip}
-                                    className="h-8 text-sm"
-                                  />
-                                </td>
-                                <td className="px-2 py-1 align-middle">
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="0"
-                                    value={row.amount}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setOtherDeductionRows((prev) =>
-                                        prev.map((r) =>
-                                          r.id === row.id ? { ...r, amount: v } : r
-                                        )
-                                      );
-                                    }}
-                                    disabled={isSavedPayslip}
-                                    className="h-8 text-sm text-right"
-                                  />
-                                </td>
-                                {!isSavedPayslip && (
-                                  <td className="px-1 py-1 align-middle text-center">
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 text-red-600"
-                                      disabled={otherDeductionRows.length <= 1}
-                                      onClick={() =>
-                                        setOtherDeductionRows((prev) =>
-                                          prev.filter((r) => r.id !== row.id)
-                                        )
-                                      }
-                                      aria-label="Remove row"
+                  {/* Other Deductions full width; Adjustments stacked below */}
+                  <VStack align="stretch" gap="4" className="w-full">
+                    <VStack gap="1" align="start" className="w-full min-w-0">
+                      <H4 className="text-sm font-medium text-muted-foreground">
+                        Other Deductions
+                      </H4>
+                      <VStack
+                        gap="2"
+                        className="bg-gray-50 p-3 rounded-lg w-full h-full border border-gray-100"
+                      >
+                        <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b bg-gray-100 text-left">
+                                <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
+                                  Type
+                                </th>
+                                <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
+                                  Amount
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {otherDeductionRows.map((row) => (
+                                <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                                  <td className="px-2 py-1 align-middle">
+                                    <Select
+                                      value={row.type}
+                                      disabled={isSavedPayslip}
+                                      onValueChange={(newType) => {
+                                        const t = newType as OtherDeductionType;
+                                        setOtherDeductionRows((prev) => {
+                                          const i = prev.findIndex((r) => r.id === row.id);
+                                          if (i < 0) return prev;
+                                          const j = prev.findIndex(
+                                            (r) => r.type === t && r.id !== row.id
+                                          );
+                                          const next = prev.map((r) => ({ ...r }));
+                                          if (j >= 0) {
+                                            const tmpType = next[i].type;
+                                            const tmpAmt = next[i].amount;
+                                            next[i] = {
+                                              ...next[i],
+                                              type: t,
+                                              amount: next[j].amount,
+                                            };
+                                            next[j] = {
+                                              ...next[j],
+                                              type: tmpType,
+                                              amount: tmpAmt,
+                                            };
+                                          } else {
+                                            next[i] = { ...next[i], type: t };
+                                          }
+                                          return next;
+                                        });
+                                      }}
                                     >
-                                      <Icon name="Trash" size={IconSizes.sm} />
-                                    </Button>
+                                      <SelectTrigger className="h-8 text-sm">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {OTHER_DEDUCTION_TYPES.map((opt) => (
+                                          <SelectItem key={opt} value={opt}>
+                                            {opt}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </td>
+                                  <td className="px-2 py-1 align-middle">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      placeholder="0"
+                                      value={row.amount}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setOtherDeductionRows((prev) =>
+                                          prev.map((r) =>
+                                            r.id === row.id ? { ...r, amount: v } : r
+                                          )
+                                        );
+                                      }}
+                                      disabled={isSavedPayslip}
+                                      className="h-8 text-sm text-right"
+                                    />
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </VStack>
+                    </VStack>
+
+                    {/* Adjustments */}
+                    <VStack gap="2" align="start" className="w-full min-w-0">
+                      <H4 className="text-sm font-medium text-muted-foreground">
+                        Adjustments
+                      </H4>
+                      <VStack
+                        gap="2"
+                        className="bg-gray-50 p-3 rounded-lg w-full h-full border border-gray-100"
+                      >
+                        <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b bg-gray-100 text-left">
+                                <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
+                                  Description
+                                </th>
+                                <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
+                                  Amount
+                                </th>
+                                {!isSavedPayslip && (
+                                  <th className="w-10 px-1 py-1.5" aria-label="Remove row" />
                                 )}
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                      {!isSavedPayslip && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() =>
-                            setOtherDeductionRows((prev) => [
-                              ...prev,
-                              {
-                                id: `row-${crypto.randomUUID()}`,
-                                type: "",
-                                amount: "",
-                              },
-                            ])
-                          }
-                        >
-                          <Icon name="Plus" size={IconSizes.sm} className="mr-1" />
-                          Add deduction row
-                        </Button>
-                      )}
+                            </thead>
+                            <tbody>
+                              {adjustmentRows.map((row) => (
+                                <tr
+                                  key={row.id}
+                                  className="border-b border-gray-100 last:border-0"
+                                >
+                                  <td className="px-2 py-2 align-top">
+                                    <Label className="sr-only">Description</Label>
+                                    <Input
+                                      type="text"
+                                      value={row.description}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setAdjustmentRows((prev) =>
+                                          prev.map((r) =>
+                                            r.id === row.id ? { ...r, description: v } : r
+                                          )
+                                        );
+                                      }}
+                                      placeholder="e.g. Correction, bonus"
+                                      readOnly={isSavedPayslip}
+                                      disabled={isSavedPayslip}
+                                      className="text-sm"
+                                    />
+                                  </td>
+                                  <td className="px-2 py-2 align-top">
+                                    <Label className="sr-only">Amount</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={row.amount}
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        setAdjustmentRows((prev) =>
+                                          prev.map((r) =>
+                                            r.id === row.id ? { ...r, amount: v } : r
+                                          )
+                                        );
+                                      }}
+                                      placeholder="0.00"
+                                      readOnly={isSavedPayslip}
+                                      disabled={isSavedPayslip}
+                                      className="text-sm text-right"
+                                    />
+                                  </td>
+                                  {!isSavedPayslip && (
+                                    <td className="px-1 py-2 align-middle text-center">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0 text-red-600"
+                                        disabled={adjustmentRows.length <= 1}
+                                        onClick={() =>
+                                          setAdjustmentRows((prev) =>
+                                            prev.filter((r) => r.id !== row.id)
+                                          )
+                                        }
+                                        aria-label="Remove adjustment row"
+                                      >
+                                        <Icon name="Trash" size={IconSizes.sm} />
+                                      </Button>
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {!isSavedPayslip && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto"
+                            onClick={() =>
+                              setAdjustmentRows((prev) => [
+                                ...prev,
+                                {
+                                  id: `adj-${crypto.randomUUID()}`,
+                                  description: "",
+                                  amount: "0",
+                                },
+                              ])
+                            }
+                          >
+                            <Icon name="Plus" size={IconSizes.sm} className="mr-1" />
+                            Add adjustment row
+                          </Button>
+                        )}
+                        <Caption className="text-xs text-gray-500">
+                          Positive adds to net pay; negative deducts from net pay.
+                        </Caption>
+                        {adjustment !== 0 && (
+                          <div className="border-t pt-2 mt-2 w-full">
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="w-full"
+                            >
+                              <BodySmall className="font-medium">
+                                Total adjustments:
+                              </BodySmall>
+                              <span
+                                className={`font-semibold text-sm ${
+                                  adjustment >= 0
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                {formatCurrency(adjustment)}
+                              </span>
+                            </HStack>
+                          </div>
+                        )}
+                      </VStack>
+                    </VStack>
+                  </VStack>
+
+                  {/* Loan deductions & weekly subtotal — full width below */}
+                  <VStack gap="2" className="w-full">
+                    <VStack
+                      gap="2"
+                      className="bg-gray-50 p-3 rounded-lg w-full border border-gray-100"
+                    >
                       {(deductions?.sss_salary_loan || 0) > 0 && (
                         <HStack
                           justify="between"
@@ -2982,96 +3347,6 @@ export default function PayslipsPage() {
                     </VStack>
                   </VStack>
 
-                  {/* Adjustments */}
-                  <VStack gap="2" align="start">
-                    <H4 className="text-sm font-medium text-muted-foreground">
-                      Adjustments
-                    </H4>
-                    <VStack
-                      gap="2"
-                      className="bg-gray-50 p-3 rounded-lg w-full"
-                    >
-                      <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b bg-gray-100 text-left">
-                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
-                                Description
-                              </th>
-                              <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
-                                Amount
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td className="px-2 py-2 align-top">
-                                <Label htmlFor="adjustment_reason" className="sr-only">
-                                  Description
-                                </Label>
-                                <Input
-                                  id="adjustment_reason"
-                                  type="text"
-                                  value={adjustmentReason}
-                                  onChange={(e) =>
-                                    setAdjustmentReason(e.target.value)
-                                  }
-                                  placeholder="e.g. Correction for previous period, Bonus"
-                                  readOnly={isSavedPayslip}
-                                  disabled={isSavedPayslip}
-                                  className="text-sm"
-                                />
-                              </td>
-                              <td className="px-2 py-2 align-top">
-                                <Label htmlFor="adjustment_amount" className="sr-only">
-                                  Amount
-                                </Label>
-                                <Input
-                                  id="adjustment_amount"
-                                  type="number"
-                                  step="0.01"
-                                  value={adjustmentAmount}
-                                  onChange={(e) =>
-                                    setAdjustmentAmount(e.target.value)
-                                  }
-                                  placeholder="0.00"
-                                  readOnly={isSavedPayslip}
-                                  disabled={isSavedPayslip}
-                                  className="text-sm text-right"
-                                />
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                      <Caption className="text-xs text-gray-500">
-                        Positive adds to net pay; negative deducts from net pay.
-                      </Caption>
-                      {(parseFloat(adjustmentAmount) || 0) !== 0 && (
-                        <div className="border-t pt-2 mt-2 w-full">
-                          <HStack
-                            justify="between"
-                            align="center"
-                            className="w-full"
-                          >
-                            <BodySmall className="font-medium">
-                              Adjustment:
-                            </BodySmall>
-                            <span
-                              className={`font-semibold text-sm ${
-                                (parseFloat(adjustmentAmount) || 0) >= 0
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                              }`}
-                            >
-                              {formatCurrency(parseFloat(adjustmentAmount) || 0)}
-                            </span>
-                          </HStack>
-                        </div>
-                      )}
-                    </VStack>
-                  </VStack>
-
                   {/* Government Contributions */}
                   <VStack gap="2" align="start">
                     <H4 className="text-sm font-medium text-muted-foreground">
@@ -3079,49 +3354,44 @@ export default function PayslipsPage() {
                     </H4>
                     {/* Use grid layout for side-by-side cards - 2 columns on larger screens */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                      {(() => {
-                        // SSS & PhilHealth: semi-monthly (half each cutoff). Pag-IBIG & Tax: end of month (2nd only).
-                        const applyFirst = isFirstCutoff();
-                        const applySecond = isSecondCutoff();
-
-                        const sssContribution =
-                          monthlySalary > 0 && (applyFirst || applySecond)
-                            ? calculateSSS(monthlySalary)
-                            : null;
-                        const philhealthContribution =
-                          monthlySalary > 0 && (applyFirst || applySecond)
-                            ? calculatePhilHealth(monthlySalary)
-                            : null;
-                        const pagibigContribution =
-                          monthlySalary > 0 && applySecond
-                            ? calculatePagIBIG(monthlySalary)
-                            : null;
-
-                        const sssHalf = sssContribution
-                          ? Math.round((sssContribution.employeeShare / 2) * 100) / 100
-                          : 0;
-                        const sssRegularHalf = sssContribution
-                          ? Math.round((sssContribution.regularEmployeeShare / 2) * 100) / 100
-                          : 0;
-                        const sssWispHalf = sssContribution?.wispEmployeeShare
-                          ? Math.round((sssContribution.wispEmployeeShare / 2) * 100) / 100
-                          : 0;
-                        const philhealthHalf = philhealthContribution
-                          ? Math.round((philhealthContribution.employeeShare / 2) * 100) / 100
-                          : 0;
-
-                        return (
+                      {monthlySalary > 0 ? (
                           <>
-                            {monthlySalary > 0 && (applyFirst || applySecond) && (
-                                <div className="p-2 border rounded-lg bg-blue-50 border-blue-200 col-span-2">
-                                  <BodySmall className="text-blue-700 text-xs">
-                                    Based on monthly salary:{" "}
-                                    {formatCurrency(monthlySalary)}
-                                    {". SSS & PhilHealth: semi-monthly (half each). Pag-IBIG & Tax: end of month (2nd cutoff)."}
-                                  </BodySmall>
-                                </div>
-                              )}
-                            {/* SSS Contribution Card - semi-monthly: half per cutoff */}
+                            <div className="p-2 border rounded-lg bg-blue-50 border-blue-200 col-span-2">
+                              <BodySmall className="text-blue-700 text-xs">
+                                Based on monthly salary:{" "}
+                                {formatCurrency(monthlySalary)}. SSS, PhilHealth,
+                                and Pag-IBIG use bracket rates from that monthly
+                                rate (not from a single week&apos;s gross).
+                                Full-month employee shares are deducted only on
+                                the <strong>4th</strong> weekly pay (period end
+                                Tuesday) in that calendar month—or on the{" "}
+                                <strong>last</strong> Tuesday if the month has
+                                fewer than four. Other weeks show ₱0 here.
+                                Withholding tax uses the same month&apos;s total
+                                gross (other saved pays + this period) minus
+                                <strong> prorated</strong> monthly contributions
+                                (same factor as SSS / PhilHealth / Pag-IBIG), on
+                                that statutory week. Proration: distinct work days
+                                with clock (main + project), month start through
+                                period end Tuesday, ÷ {STATUTORY_PRORATION_REFERENCE_DAYS}{" "}
+                                (same 26-day basis as monthly rate ÷ 26).
+                                {mtdWorkDaysForStatutory !== null ? (
+                                  <>
+                                    {" "}
+                                    This preview:{" "}
+                                    <strong>
+                                      {mtdWorkDaysForStatutory} day
+                                      {mtdWorkDaysForStatutory === 1 ? "" : "s"}
+                                    </strong>{" "}
+                                    MTD → factor ≈{" "}
+                                    {(
+                                      statutoryProrationFactorPreview * 100
+                                    ).toFixed(2)}
+                                    %.
+                                  </>
+                                ) : null}
+                              </BodySmall>
+                            </div>
                             <HStack
                               justify="between"
                               align="center"
@@ -3137,32 +3407,29 @@ export default function PayslipsPage() {
                                 </span>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(sssRegularHalf)}
+                                {formatCurrency(weeklyStatutory.sssReg)}
                               </span>
                             </HStack>
-                            {/* WISP Contribution Card (only if applicable) - semi-monthly half */}
-                            {sssWispHalf > 0 && (
-                                <HStack
-                                  justify="between"
-                                  align="center"
-                                  className="p-2 border rounded-lg bg-gray-50"
+                            {weeklyStatutory.sssWisp > 0 && (
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="p-2 border rounded-lg bg-gray-50"
+                              >
+                                <VStack
+                                  gap="0"
+                                  align="start"
+                                  className="flex-1 min-w-0"
                                 >
-                                  <VStack
-                                    gap="0"
-                                    align="start"
-                                    className="flex-1 min-w-0"
-                                  >
-                                    <span className="font-medium text-sm">
-                                      SSS WISP
-                                    </span>
-                                  </VStack>
-                                  <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                    {formatCurrency(sssWispHalf)}
+                                  <span className="font-medium text-sm">
+                                    SSS WISP
                                   </span>
-                                </HStack>
-                              )}
-
-                            {/* PhilHealth Contribution Card - semi-monthly: half per cutoff */}
+                                </VStack>
+                                <span className="font-semibold text-sm ml-2 flex-shrink-0">
+                                  {formatCurrency(weeklyStatutory.sssWisp)}
+                                </span>
+                              </HStack>
+                            )}
                             <HStack
                               justify="between"
                               align="center"
@@ -3177,15 +3444,13 @@ export default function PayslipsPage() {
                                   PhilHealth
                                 </span>
                                 <Caption className="text-muted-foreground text-xs">
-                                  2.5% employee share (semi-monthly: half)
+                                  Prorated full-month share (4th pay × days÷26)
                                 </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(philhealthHalf)}
+                                {formatCurrency(weeklyStatutory.phil)}
                               </span>
                             </HStack>
-
-                            {/* Pag-IBIG Contribution Card - end of month (2nd cutoff only) */}
                             <HStack
                               justify="between"
                               align="center"
@@ -3200,57 +3465,63 @@ export default function PayslipsPage() {
                                   Pag-IBIG
                                 </span>
                                 <Caption className="text-muted-foreground text-xs">
-                                  Fixed ₱200.00 per month (end of month)
+                                  Prorated full-month share (4th pay × days÷26)
                                 </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {pagibigContribution
-                                  ? formatCurrency(
-                                      Math.round(
-                                        pagibigContribution.employeeShare * 100
-                                      ) / 100
-                                    )
-                                  : formatCurrency(0)}
+                                {formatCurrency(weeklyStatutory.pagibig)}
                               </span>
                             </HStack>
                           </>
-                        );
-                      })()}
+                        ) : null}
 
                       {(() => {
-                        // Tax: 2nd cutoff only; actual monthly gross (1st + 2nd) when available, full month tax
-                        if (!isSecondCutoff()) return null;
-                        const adj = parseFloat(adjustmentAmount || "0") || 0;
+                        const adj = adjustment;
                         const periodGross = earningsBaseForPeriod + adj;
-                        const actualMonthlyGross =
-                          firstCutoffGrossForTax !== null
-                            ? firstCutoffGrossForTax + periodGross
-                            : periodGross * 2;
+                        if (periodGross <= 0 && monthlySalary <= 0) return null;
 
-                        let withholdingTaxAmount = 0;
-                        let taxBreakdown: ReturnType<typeof getWithholdingTaxBreakdown> | null = null;
-                        let monthlyContributionsUsed = 0;
-                        if (actualMonthlyGross > 0) {
-                          const sss = calculateSSS(monthlySalary);
-                          const philhealth =
-                            calculatePhilHealth(monthlySalary);
-                          const pagibig = calculatePagIBIG(monthlySalary);
+                        const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEnd);
+                        const grossOther =
+                          semiMonthlyRollupForTax?.grossFromSavedOtherWeeksInSemiMonth ??
+                          0;
+                        const actualSemiGross =
+                          semiMonthlyRollupForTax != null
+                            ? Math.round((grossOther + periodGross) * 100) / 100
+                            : Math.round(periodGross * nSemiWeeks * 100) / 100;
 
-                          monthlyContributionsUsed =
-                            sss.employeeShare +
-                            philhealth.employeeShare +
-                            pagibig.employeeShare;
-                          const monthlyTaxableIncome =
-                            Math.max(0, actualMonthlyGross - monthlyContributionsUsed);
-
-                          taxBreakdown = getWithholdingTaxBreakdown(monthlyTaxableIncome);
-                          withholdingTaxAmount = taxBreakdown.withholdingTax;
-                        }
-
-                        const finalTax =
-                          withholdingTaxAmount > 0
-                            ? withholdingTaxAmount
-                            : deductions?.withholding_tax || 0;
+                        const sss = calculateSSS(monthlySalary);
+                        const philhealth = calculatePhilHealth(monthlySalary);
+                        const pagibig = calculatePagIBIG(monthlySalary);
+                        const monthlyContributionsFull =
+                          sss.employeeShare +
+                          philhealth.employeeShare +
+                          pagibig.employeeShare;
+                        const monthlyContributionsUsed =
+                          applyStatutoryProration(
+                            Math.round(monthlyContributionsFull * 100) / 100,
+                            statutoryProrationFactorPreview
+                          );
+                        const halfMonthlyContrib =
+                          Math.round((monthlyContributionsUsed / 2) * 100) / 100;
+                        const semiTaxableIncome =
+                          actualSemiGross > 0
+                            ? Math.max(0, actualSemiGross - halfMonthlyContrib)
+                            : 0;
+                        const monthlyEquivTaxable = semiTaxableIncome * 2;
+                        const taxBreakdown =
+                          semiTaxableIncome > 0
+                            ? getWithholdingTaxBreakdown(monthlyEquivTaxable)
+                            : null;
+                        const semiTaxDue = calculateSemiMonthlyWithholdingTax(
+                          semiTaxableIncome
+                        );
+                        const taxPrior =
+                          semiMonthlyRollupForTax?.taxWithheldPriorExcludingCurrentInSemiMonth ??
+                          0;
+                        const semiHalfLabel =
+                          semiMonthlyPeriodIndex(periodEnd) === 1
+                            ? "1st (days 1–15)"
+                            : "2nd (days 16–end)";
 
                         return (
                           <VStack gap="1" className="p-2 border rounded-lg bg-gray-50">
@@ -3258,32 +3529,74 @@ export default function PayslipsPage() {
                               <VStack gap="0" align="start" className="flex-1 min-w-0">
                                 <span className="font-medium text-sm">Tax</span>
                                 <Caption className="text-muted-foreground text-xs">
-                                  BIR Monthly table (Jan 1, 2023). Taxable = Gross − SSS − PhilHealth − Pag-IBIG.
+                                  BIR semi-monthly: withheld on the last weekly pay of
+                                  each half-month ({semiHalfLabel}). Monthly table on 2×
+                                  semi-monthly taxable income, then ÷ 2.
                                 </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(finalTax)}
+                                {formatCurrency(tax)}
                               </span>
                             </HStack>
-                            {taxBreakdown && taxBreakdown.withholdingTax > 0 && (
+                            {taxBreakdown &&
+                              (semiTaxDue > 0 || taxBreakdown.withholdingTax > 0) && (
                               <div className="text-[10px] text-muted-foreground border-t border-gray-200 pt-1.5 mt-0.5 space-y-0.5">
                                 <div>
-                                  Monthly gross: {formatCurrency(actualMonthlyGross)}
-                                  {firstCutoffGrossForTax !== null && (
-                                    <span className="text-gray-500"> (1st: {formatCurrency(firstCutoffGrossForTax)} + 2nd: {formatCurrency(periodGross)})</span>
+                                  Semi-month gross (est.):{" "}
+                                  {formatCurrency(actualSemiGross)}
+                                  {semiMonthlyRollupForTax != null ? (
+                                    <span className="text-gray-500">
+                                      {" "}
+                                      (other saved pays this half-month:{" "}
+                                      {formatCurrency(grossOther)} + this period:{" "}
+                                      {formatCurrency(periodGross)})
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-500">
+                                      {" "}
+                                      (loading saved pays… using this period ×{" "}
+                                      {nSemiWeeks} pays in this half)
+                                    </span>
                                   )}
                                 </div>
-                                <div>Less monthly contributions (SSS + PhilHealth + Pag-IBIG): {formatCurrency(monthlyContributionsUsed)}</div>
-                                <div className="font-medium">Taxable income: {formatCurrency(taxBreakdown.taxableIncome)}</div>
-                                <div>BIR Range {taxBreakdown.rangeIndex}: {taxBreakdown.rangeLabel}</div>
                                 <div>
-                                  {taxBreakdown.prescribedTax > 0 && `${formatCurrency(taxBreakdown.prescribedTax)} + `}
-                                  {taxBreakdown.ratePercent}% × {formatCurrency(taxBreakdown.excessAmount)} = {formatCurrency(taxBreakdown.taxOnExcess)}
-                                  {taxBreakdown.prescribedTax > 0 && ` = ${formatCurrency(taxBreakdown.withholdingTax)}`}
+                                  WH already taken this half-month (saved pays, excl.
+                                  this period): {formatCurrency(taxPrior)}
                                 </div>
-                                {taxBreakdown.prescribedTax === 0 && (
-                                  <div className="font-medium text-gray-700">Withholding tax: {formatCurrency(taxBreakdown.withholdingTax)}</div>
-                                )}
+                                <div>
+                                  Semi-monthly tax due (BIR):{" "}
+                                  {formatCurrency(semiTaxDue)}
+                                </div>
+                                <div>
+                                  Less ½ prorated monthly contributions (SSS +
+                                  PhilHealth + Pag-IBIG):{" "}
+                                  {formatCurrency(halfMonthlyContrib)}
+                                </div>
+                                <div className="font-medium">
+                                  Semi-monthly taxable income:{" "}
+                                  {formatCurrency(semiTaxableIncome)}
+                                </div>
+                                <div>
+                                  Monthly-equivalent taxable (×2 for table):{" "}
+                                  {formatCurrency(monthlyEquivTaxable)}
+                                </div>
+                                <div>
+                                  BIR Range {taxBreakdown.rangeIndex}:{" "}
+                                  {taxBreakdown.rangeLabel}
+                                </div>
+                                <div>
+                                  {taxBreakdown.prescribedTax > 0 &&
+                                    `${formatCurrency(taxBreakdown.prescribedTax)} + `}
+                                  {taxBreakdown.ratePercent}% ×{" "}
+                                  {formatCurrency(taxBreakdown.excessAmount)} ={" "}
+                                  {formatCurrency(taxBreakdown.taxOnExcess)}
+                                  {taxBreakdown.prescribedTax > 0 &&
+                                    ` = ${formatCurrency(taxBreakdown.withholdingTax)} monthly`}
+                                </div>
+                                <div className="font-medium text-gray-700">
+                                  Withholding this pay (½ of monthly on equivalent):{" "}
+                                  {formatCurrency(semiTaxDue)}
+                                </div>
                               </div>
                             )}
                           </VStack>
@@ -3341,11 +3654,38 @@ export default function PayslipsPage() {
                               : `The saved gross is ${formatCurrency(Math.abs(impliedDiff))} less than Earnings + Adjustment (${formatCurrency(earnings)}). If the second cutoff gross should match current earnings, the saved value may need to be corrected.`}
                           </div>
                         )}
-                        {savedPayslip.adjustment_reason && (
-                          <div className="mt-1 text-gray-600">
-                            Reason: {savedPayslip.adjustment_reason}
-                          </div>
-                        )}
+                        {(() => {
+                          const lines = savedPayslip.deductions_breakdown
+                            ?.adjustment_lines;
+                          if (Array.isArray(lines) && lines.length > 0) {
+                            return (
+                              <ul className="mt-1 text-gray-600 list-disc pl-4 space-y-0.5">
+                                {lines.map((line: unknown, i: number) => {
+                                  const L = line as {
+                                    description?: string;
+                                    amount?: number;
+                                  };
+                                  const amt = Number(L?.amount) || 0;
+                                  return (
+                                    <li key={i}>
+                                      {(L?.description || "").trim() ||
+                                        "Adjustment"}
+                                      : {formatCurrency(amt)}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            );
+                          }
+                          if (savedPayslip.adjustment_reason) {
+                            return (
+                              <div className="mt-1 text-gray-600">
+                                Reason: {savedPayslip.adjustment_reason}
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
                     );
                   })()}
@@ -3372,19 +3712,19 @@ export default function PayslipsPage() {
                     ({formatCurrency(displayTotalDed)})
                   </span>
                 </HStack>
-                {(parseFloat(adjustmentAmount) || 0) !== 0 && (
+                {adjustment !== 0 && (
                   <HStack
                     justify="between"
                     align="center"
                     className={`text-sm w-full p-2 bg-gray-50 rounded ${
-                      (parseFloat(adjustmentAmount) || 0) >= 0
+                      adjustment >= 0
                         ? "text-green-600"
                         : "text-red-600"
                     }`}
                   >
                     <span className="font-medium">Adjustments:</span>
                     <span className="font-semibold">
-                      {formatCurrency(parseFloat(adjustmentAmount) || 0)}
+                      {formatCurrency(adjustment)}
                     </span>
                   </HStack>
                 )}
@@ -3529,97 +3869,15 @@ export default function PayslipsPage() {
                               otherLoan: monthlyLoans.otherLoan || 0,
                             }
                           : undefined,
-                        sssContribution: (() => {
-                          if (!isFirstCutoff() && !isSecondCutoff()) return 0;
-                          if (monthlySalary > 0) {
-                            const sssContribution =
-                              calculateSSS(monthlySalary);
-                            return (
-                              Math.round(
-                                (sssContribution.regularEmployeeShare / 2) * 100
-                              ) / 100
-                            );
-                          }
-                          return 0;
-                        })(),
-                        sssWisp: (() => {
-                          if (!isFirstCutoff() && !isSecondCutoff()) return 0;
-                          if (monthlySalary > 0) {
-                            const sssContribution =
-                              calculateSSS(monthlySalary);
-                            if (
-                              sssContribution.wispEmployeeShare &&
-                              sssContribution.wispEmployeeShare > 0
-                            ) {
-                              return (
-                                Math.round(
-                                  (sssContribution.wispEmployeeShare / 2) * 100
-                                ) / 100
-                              );
-                            }
-                          }
-                          return 0;
-                        })(),
-                        philhealthContribution: (() => {
-                          if (!isFirstCutoff() && !isSecondCutoff()) return 0;
-                          if (monthlySalary > 0) {
-                            const philhealthContribution =
-                              calculatePhilHealth(monthlySalary);
-                            return (
-                              Math.round(
-                                (philhealthContribution.employeeShare / 2) * 100
-                              ) / 100
-                            );
-                          }
-                          return 0;
-                        })(),
-                        pagibigContribution: (() => {
-                          if (!isSecondCutoff()) return 0;
-                          if (monthlySalary > 0) {
-                            const pagibigContribution =
-                              calculatePagIBIG(monthlySalary);
-                            return (
-                              Math.round(
-                                pagibigContribution.employeeShare * 100
-                              ) / 100
-                            );
-                          }
-                          return 0;
-                        })(),
-                        withholdingTax: (() => {
-                          if (!isSecondCutoff()) return 0;
-
-                          const adj = parseFloat(adjustmentAmount || "0") || 0;
-                          const periodGross = earningsBaseForPeriod + adj;
-                          const actualMonthlyGross =
-                            firstCutoffGrossForTax !== null
-                              ? firstCutoffGrossForTax + periodGross
-                              : periodGross * 2;
-
-                          if (actualMonthlyGross > 0) {
-                            const sss = calculateSSS(monthlySalary);
-                            const philhealth =
-                              calculatePhilHealth(monthlySalary);
-                            const pagibig =
-                              calculatePagIBIG(monthlySalary);
-
-                            const monthlyContributions =
-                              sss.employeeShare +
-                              philhealth.employeeShare +
-                              pagibig.employeeShare;
-
-                            const monthlyTaxableIncome =
-                              Math.max(0, actualMonthlyGross - monthlyContributions);
-                            const monthlyTax =
-                              calculateWithholdingTax(monthlyTaxableIncome);
-                            return Math.round(monthlyTax * 100) / 100;
-                          }
-                          return deductions?.withholding_tax || 0;
-                        })(),
+                        sssContribution: weeklyStatutory.sssReg,
+                        sssWisp: weeklyStatutory.sssWisp,
+                        philhealthContribution: weeklyStatutory.phil,
+                        pagibigContribution: weeklyStatutory.pagibig,
+                        withholdingTax: tax,
                         totalDeductions: displayTotalDed,
                       }}
                       adjustment={adjustment}
-                      adjustmentReason={adjustmentReason || undefined}
+                      adjustmentReason={adjustmentReasonForPrint}
                       netPay={displayNetPay}
                       workingDays={workingDays}
                       absentDays={0}

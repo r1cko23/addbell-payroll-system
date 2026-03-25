@@ -126,8 +126,7 @@ async function generateAttendance() {
   const isClientBased = eia.employee_type === "client-based";
   const isAccountSupervisor = eia.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
   const isEligibleForOT = eia.eligible_for_ot !== false;
-  // Night diff eligibility: Account Supervisors don't get ND (they have OT allowance)
-  const isEligibleForNightDiff = !isAccountSupervisor && !isClientBased;
+  const isEligibleForNightDiff = true;
 
   console.log("Employee Classification:");
   console.log(`  isClientBased: ${isClientBased}`);

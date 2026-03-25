@@ -42,7 +42,7 @@ export function generateTimesheetFromClockEntries(
   holidays: Array<{ holiday_date: string; holiday_type: string }>,
   restDays?: Map<string, boolean>, // Map of date string to isRestDay boolean
   eligibleForOT: boolean = true, // Whether employee is eligible for overtime
-  eligibleForNightDiff: boolean = true, // Whether employee is eligible for night differential (Account Supervisors have flexi time, so no night diff)
+  eligibleForNightDiff: boolean = true, // When false, ND from clock entries / approved ND maps is omitted
   isClientBasedAccountSupervisor: boolean = false, // Whether employee is client-based Account Supervisor (for rest day logic)
   approvedOTByDate?: Map<string, number>, // Map of date string to approved OT hours (for dates without clock entries)
   approvedNDByDate?: Map<string, number>, // Map of date string to approved ND hours (for dates without clock entries)
@@ -198,7 +198,7 @@ export function generateTimesheetFromClockEntries(
         if (eligibleForOT) {
           overtimeHours += entryOTHours;
         }
-        // Only count night differential if employee is eligible (Account Supervisors have flexi time, so no night diff)
+        // Night differential when caller passes eligibleForNightDiff (payslip: all employees)
         if (eligibleForNightDiff) {
           nightDiffHours += entryNDHours;
         }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CardSection } from "@/components/ui/card-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,12 @@ import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { formatCurrency } from "@/utils/format";
+import {
+  countWeeklyPayPeriodsInMonth,
+  isFourthStatutoryWeeklyPay,
+  isLastWeeklyPayOfSemiMonth,
+  tuesdayPayIndexInMonth,
+} from "@/lib/weekly-statutory-deductions";
 import { PayslipPrint } from "@/components/PayslipPrint";
 import {
   Dialog,
@@ -46,6 +52,57 @@ interface Payslip {
   updated_at: string;
 }
 
+/** DB JSON keys from HR payslip save (`sss`, `sss_wisp`) — avoid typo-prone identifiers. */
+const BR_SSS = String.fromCharCode(115, 115, 115);
+const BR_SSS_WISP = `${BR_SSS}_wisp`;
+
+function sssPartsFromPayslip(p: Payslip): { regular: number; wisp: number } {
+  const br = p.deductions_breakdown;
+  if (!br || typeof br !== "object") {
+    return { regular: p.sss_amount, wisp: 0 };
+  }
+  const o = br as Record<string, unknown>;
+  const wisp = Number(o[BR_SSS_WISP] ?? 0);
+  const reg = Number(o[BR_SSS] ?? NaN);
+  if (Number.isFinite(reg) && reg >= 0 && (reg > 0 || wisp > 0)) {
+    return { regular: reg, wisp: Number.isFinite(wisp) ? wisp : 0 };
+  }
+  return {
+    regular: Math.max(0, p.sss_amount - (Number.isFinite(wisp) ? wisp : 0)),
+    wisp: Number.isFinite(wisp) ? wisp : 0,
+  };
+}
+
+function weeklyStatutoryCaption(periodEndStr: string): string {
+  try {
+    const [y, m, d] = periodEndStr.split("-").map(Number);
+    if (!y || !m || !d) throw new Error("bad date");
+    const end = new Date(y, m - 1, d);
+    end.setHours(0, 0, 0, 0);
+    const n = countWeeklyPayPeriodsInMonth(end);
+    const statutoryWeek = isFourthStatutoryWeeklyPay(end);
+    const semiSettle = isLastWeeklyPayOfSemiMonth(end);
+    const payNum = tuesdayPayIndexInMonth(end) + 1;
+    const parts = [
+      `Wed–Tue pay · ${format(end, "MMM yyyy")} · Weekly pay ${payNum} of ${n}.`,
+      `SSS, PhilHealth, and Pag-IBIG (prorated full month) apply on the 4th weekly pay (last Tuesday if fewer than four).`,
+      `BIR withholding is semi-monthly: last Tuesday in days 1–15 and last Tuesday of the month (days 16–end).`,
+    ];
+    if (statutoryWeek) {
+      parts.push("This payslip includes full-month SSS / PhilHealth / Pag-IBIG.");
+    }
+    if (semiSettle) {
+      parts.push("This payslip is a BIR withholding settlement for that half-month.");
+    }
+    if (!statutoryWeek && !semiSettle) {
+      parts.push("Contribution and tax lines are usually ₱0 this week unless HR entered overrides.");
+    }
+    return parts.join(" ");
+  } catch {
+    return "SSS / PhilHealth / Pag-IBIG on the 4th weekly pay; BIR withholding on the last Tuesday of each half-month (1–15 and 16–end).";
+  }
+}
+
 export default function EmployeePayslipsPage() {
   const { employee } = useEmployeeSession();
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -53,6 +110,14 @@ export default function EmployeePayslipsPage() {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+
+  const sssSplit = useMemo(
+    () =>
+      selectedPayslip
+        ? sssPartsFromPayslip(selectedPayslip)
+        : { regular: 0, wisp: 0 },
+    [selectedPayslip]
+  );
 
   useEffect(() => {
     loadPayslips();
@@ -403,7 +468,8 @@ export default function EmployeePayslipsPage() {
                   pagibigCalamityLoan:
                     selectedPayslip.deductions_breakdown
                       ?.pagibig_calamity_loan || 0,
-                  sssContribution: selectedPayslip.sss_amount,
+                  sssContribution: sssSplit.regular,
+                  sssWisp: sssSplit.wisp,
                   philhealthContribution: selectedPayslip.philhealth_amount,
                   pagibigContribution: selectedPayslip.pagibig_amount,
                   withholdingTax: selectedPayslip.withholding_tax,
@@ -524,13 +590,26 @@ export default function EmployeePayslipsPage() {
                 </CardHeader>
                 <CardContent>
                   <VStack gap="2">
+                    <Caption className="text-muted-foreground block mb-2">
+                      {weeklyStatutoryCaption(selectedPayslip.period_end)}
+                    </Caption>
                     {selectedPayslip.sss_amount > 0 && (
-                      <HStack justify="between">
-                        <BodySmall>SSS Contribution:</BodySmall>
-                        <BodySmall className="font-semibold text-red-600">
-                          -{formatCurrency(selectedPayslip.sss_amount)}
-                        </BodySmall>
-                      </HStack>
+                      <>
+                        <HStack justify="between">
+                          <BodySmall>SSS (Regular):</BodySmall>
+                          <BodySmall className="font-semibold text-red-600">
+                            -{formatCurrency(sssSplit.regular)}
+                          </BodySmall>
+                        </HStack>
+                        {sssSplit.wisp > 0 && (
+                          <HStack justify="between">
+                            <BodySmall>SSS WISP:</BodySmall>
+                            <BodySmall className="font-semibold text-red-600">
+                              -{formatCurrency(sssSplit.wisp)}
+                            </BodySmall>
+                          </HStack>
+                        )}
+                      </>
                     )}
                     {selectedPayslip.philhealth_amount > 0 && (
                       <HStack justify="between">

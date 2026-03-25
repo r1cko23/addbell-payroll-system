@@ -97,7 +97,7 @@ async function regenerateAttendanceRecords() {
           employee.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ||
           false;
         const isEligibleForOT = true; // All employees are eligible for OT
-        const isEligibleForNightDiff = !isAccountSupervisor; // Account Supervisors don't have ND
+        const isEligibleForNightDiff = true;
 
         // Generate attendance data
         const periodStart = parseISO(record.period_start);

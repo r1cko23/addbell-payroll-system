@@ -107,25 +107,6 @@ function PayslipDetailedBreakdownComponent({
   const isRankAndFile = isOfficeBased && !isEligibleForAllowances;
 
   /**
-   * Calculate OT allowance based on employee type
-   * Client-based, Office-based Supervisory/Managerial: First 2 hours = ₱200 total, then ₱100 per succeeding hour
-   * Office-based Rank and File: Standard calculation (1.25x hourly rate)
-   */
-  function calculateOTAllowance(hours: number): number {
-    // Client-based employees and Office-based Supervisory/Managerial: First 2 hours = ₱200, then ₱100 per succeeding hour
-    if (isClientBased || isAccountSupervisor || isEligibleForAllowances) {
-      if (hours < 2) {
-        return 0;
-      }
-      // First 2 hours = ₱200, then ₱100 per succeeding hour
-      const allowance = 200 + Math.max(0, hours - 2) * 100;
-      return allowance;
-    }
-    // Office-based Rank and File: Standard calculation (1.25x hourly rate)
-    return calculateRegularOT(hours, ratePerHour);
-  }
-
-  /**
    * Calculate holiday/rest day allowance for client-based and office-based supervisory/managerial
    * Sunday, Rest Day, Special Holiday, Legal Holiday: ₱350 for ≥4 hours, ₱700 for ≥8 hours
    * NO PRO-RATING - must meet exact hour requirements
@@ -143,25 +124,6 @@ function PayslipDetailedBreakdownComponent({
       dayType === "sunday-regular-holiday";
 
     if ((isClientBased || isEligibleForAllowances) && isEligibleDay) {
-      if (hours >= 8) {
-        return 700;
-      } else if (hours >= 4) {
-        return 350;
-      }
-      // No pro-rating - must meet 4 or 8 hour requirement
-      return 0;
-    }
-    // Rank and file use standard calculation
-    return 0; // Will be calculated separately
-  }
-
-  /**
-   * Calculate OT allowance for holidays/rest days for client-based and office-based supervisory/managerial
-   * Uses same fixed amounts: ₱350 for ≥4 hours, ₱700 for ≥8 hours
-   * NO PRO-RATING - must meet exact hour requirements
-   */
-  function calculateHolidayRestDayOTAllowance(hours: number): number {
-    if (isClientBased || isEligibleForAllowances) {
       if (hours >= 8) {
         return 700;
       } else if (hours >= 4) {
@@ -385,7 +347,7 @@ function PayslipDetailedBreakdownComponent({
     }
 
     // Total hours for "Hours Work" - should match timesheet calculation exactly
-    // Only count regular days (Mon-Fri), Saturdays (company benefit), and eligible holidays
+    // Only count regular days (Mon–Sat per actual hours), and eligible holidays
     // Exclude Sundays from "Hours Work" (they're paid separately)
     let totalHours = 0; // Total hours for "Hours Work" display (matches timesheet BH)
     let totalRegularHours = 0; // Total regular hours for "Days Work" calculation
@@ -411,8 +373,7 @@ function PayslipDetailedBreakdownComponent({
       workingDayoff: { hours: 0, amount: 0 },
     };
 
-    // Earnings breakdown - For regular employees, OT items go here (in earnings table)
-    // For Account Supervisors/Office-based, OT and ND items go to Other Pay section
+    // Earnings breakdown — statutory OT/ND hours and amounts (all employees)
     const earningsOT = {
       regularOvertime: { hours: 0, amount: 0 },
       legalHolidayOT: { hours: 0, amount: 0 },
@@ -425,8 +386,7 @@ function PayslipDetailedBreakdownComponent({
       regularNightdiffOT: { hours: 0, amount: 0 },
     };
 
-    // Other Pay - All OT and ND items for Account Supervisors and Office-based employees
-    // Combined into one section to avoid confusion
+    // Other Pay — optional fixed work allowances on holidays/rest days (supervisory/client-based policy only)
     const otherPay = {
       regularOT: { hours: 0, amount: 0 },
       regularNightDiff: { hours: 0, amount: 0 }, // Night Differential for regular days
@@ -505,18 +465,10 @@ function PayslipDetailedBreakdownComponent({
 
         // REST DAY RULES:
         // - Office-based: Sunday is rest day - NOT PAID if not worked
-        // - Client-based: Rest day (Mon/Tue/Wed) - NOT PAID if not worked
-        // - Only paid if employee actually worked (finalRegularHours > 0)
-        // - Saturday: Office-based gets 8 BH even if not worked (regular work day per law)
-        // - Client-based: Saturday is normal workday - must have clock entries to be paid
+        // - Client-based: scheduled rest days - NOT PAID if not worked
+        // - Mon–Sat: pay only actual regular hours (6-day week; no automatic 8h on unworked Saturday)
 
-        if (dayOfWeek === 6 && finalRegularHours === 0 && !isClientBased) {
-          // Saturday with no work - regular work day: 8 hours (paid 6 days/week per law)
-          // Office-based only: Saturday is a regular work day, paid even if not worked
-          hoursToCount = 8;
-          // Saturday is included in Basic Salary (regular work day, not a separate benefit)
-          basicSalary += 8 * ratePerHour;
-        } else if (dayOfWeek === 0 && (isClientBased || isAccountSupervisor) && finalRegularHours === 0) {
+        if (dayOfWeek === 0 && (isClientBased || isAccountSupervisor) && finalRegularHours === 0) {
           // Sunday Regular Work Day for Client-Based Account Supervisors:
           // For client-based account supervisors, rest days are Monday, Tuesday, or Wednesday
           // If Sunday is NOT their rest day, it should be treated like Saturday (regular workday)
@@ -528,15 +480,11 @@ function PayslipDetailedBreakdownComponent({
             // If no work, don't pay (unlike office-based Saturday)
           }
         } else if (finalRegularHours > 0) {
-          // Regular day with work - count actual hours
-          // This includes:
-          // - Regular work days (Mon-Fri)
-          // - Saturday with work (office-based or client-based)
-          // - Sunday with work (client-based if not rest day)
+          // Regular day with work - count actual hours (Mon–Sat and eligible Sundays)
           hoursToCount = finalRegularHours;
           basicSalary += finalRegularHours * ratePerHour;
         }
-        // If finalRegularHours === 0 and it's not Saturday (office-based), don't pay
+        // If finalRegularHours === 0, don't pay basic for that day
         // Rest days (Sunday for office-based, or Mon/Tue/Wed for client-based) are NOT paid if not worked
       } else if (
         dayType === "regular-holiday" ||
@@ -588,41 +536,23 @@ function PayslipDetailedBreakdownComponent({
         }
       }
 
-      // Regular Overtime - Move to allowances or Other Pay based on employee type
-      // Convert overtimeHours to number if it's a string
+      // Regular overtime — statutory (Labor Code) hourly OT for all employees
       const otHours =
         typeof overtimeHours === "string"
           ? parseFloat(overtimeHours)
           : overtimeHours || 0;
       if (dayType === "regular" && otHours > 0) {
-        if (isClientBased || isEligibleForAllowances) {
-          // Client-based or Office-based Supervisory/Managerial: Fixed amounts - goes to Other Pay
-          const allowance = calculateOTAllowance(otHours);
-          if (allowance > 0) {
-            otherPay.regularOT.hours += otHours;
-            otherPay.regularOT.amount += allowance;
-          }
-        } else {
-          // Office-based Rank and File: Standard calculation (1.25x hourly rate) - goes to earnings breakdown table
-          earningsOT.regularOvertime.hours += otHours;
-          earningsOT.regularOvertime.amount += calculateRegularOT(otHours, ratePerHour);
-        }
+        earningsOT.regularOvertime.hours += otHours;
+        earningsOT.regularOvertime.amount += calculateRegularOT(otHours, ratePerHour);
       }
 
       // Night Differential (regular days only - holidays and rest days have separate ND calculations)
-      // Supervisory roles (office-based) don't have ND (they have OT allowance already)
-      // Client-based (Account Supervisors) don't have ND (they have OT allowance already)
-      // Only Rank and File office-based employees get ND
       if (dayType === "regular" && nightDiffHours > 0) {
-        if (isRankAndFile) {
-          // Office-based Rank and File: ND goes to earnings breakdown table
-          breakdown.nightDifferential.hours += nightDiffHours;
-          breakdown.nightDifferential.amount += calculateNightDiff(
-            nightDiffHours,
-            ratePerHour
-          );
-        }
-        // Client-based and Office-based Supervisory/Managerial: NO ND (they have OT allowance)
+        breakdown.nightDifferential.hours += nightDiffHours;
+        breakdown.nightDifferential.amount += calculateNightDiff(
+          nightDiffHours,
+          ratePerHour
+        );
       }
 
       // Legal Holiday (regular-holiday)
@@ -670,34 +600,19 @@ function PayslipDetailedBreakdownComponent({
             ? parseFloat(overtimeHours)
             : overtimeHours || 0;
         if (legalHolidayOTHours > 0) {
-          if (isClientBased || isEligibleForAllowances) {
-            // Client-based or Office-based Supervisory/Managerial: Fixed amounts - goes to Other Pay
-            const legalHolidayOTAllowance =
-              calculateHolidayRestDayOTAllowance(legalHolidayOTHours);
-            if (legalHolidayOTAllowance > 0) {
-              otherPay.legalHolidayOT.hours += legalHolidayOTHours;
-              otherPay.legalHolidayOT.amount += legalHolidayOTAllowance;
-            }
-          } else {
-            // Office-based Rank and File: Standard calculation - goes to earnings breakdown table
-            earningsOT.legalHolidayOT.hours += legalHolidayOTHours;
-            earningsOT.legalHolidayOT.amount += calculateRegularHolidayOT(
-              legalHolidayOTHours,
-              ratePerHour
-            );
-          }
+          earningsOT.legalHolidayOT.hours += legalHolidayOTHours;
+          earningsOT.legalHolidayOT.amount += calculateRegularHolidayOT(
+            legalHolidayOTHours,
+            ratePerHour
+          );
         }
 
         if (nightDiffHours > 0) {
-          if (isRankAndFile) {
-            // Office-based Rank and File: ND goes to earnings breakdown table
-            earningsOT.legalHolidayND.hours += nightDiffHours;
-            earningsOT.legalHolidayND.amount += calculateNightDiff(
-              nightDiffHours,
-              ratePerHour
-            );
-          }
-          // Client-based and Office-based Supervisory/Managerial: NO ND (they have OT allowance)
+          earningsOT.legalHolidayND.hours += nightDiffHours;
+          earningsOT.legalHolidayND.amount += calculateNightDiff(
+            nightDiffHours,
+            ratePerHour
+          );
         }
       }
 
@@ -749,34 +664,19 @@ function PayslipDetailedBreakdownComponent({
             ? parseFloat(overtimeHours)
             : overtimeHours || 0;
         if (specialHolidayOTHours > 0) {
-          if (isClientBased || isEligibleForAllowances) {
-            // Fixed amounts only - goes to Other Pay
-            const specialHolidayOTAllowance =
-              calculateHolidayRestDayOTAllowance(specialHolidayOTHours);
-            if (specialHolidayOTAllowance > 0) {
-              otherPay.specialHolidayOT.hours += specialHolidayOTHours;
-              otherPay.specialHolidayOT.amount += specialHolidayOTAllowance;
-            }
-          } else {
-            // Office-based Rank and File: Standard calculation - goes to earnings breakdown table
-            earningsOT.shOT.hours += specialHolidayOTHours;
-            earningsOT.shOT.amount += calculateNonWorkingHolidayOT(
-              specialHolidayOTHours,
-              ratePerHour
-            );
-          }
+          earningsOT.shOT.hours += specialHolidayOTHours;
+          earningsOT.shOT.amount += calculateNonWorkingHolidayOT(
+            specialHolidayOTHours,
+            ratePerHour
+          );
         }
 
         if (nightDiffHours > 0) {
-          if (isRankAndFile) {
-            // Office-based Rank and File: ND goes to earnings breakdown table
-            earningsOT.shNightDiff.hours += nightDiffHours;
-            earningsOT.shNightDiff.amount += calculateNightDiff(
-              nightDiffHours,
-              ratePerHour
-            );
-          }
-          // Client-based and Office-based Supervisory/Managerial: NO ND (they have OT allowance)
+          earningsOT.shNightDiff.hours += nightDiffHours;
+          earningsOT.shNightDiff.amount += calculateNightDiff(
+            nightDiffHours,
+            ratePerHour
+          );
         }
       }
 
@@ -880,34 +780,19 @@ function PayslipDetailedBreakdownComponent({
             ? parseFloat(overtimeHours)
             : overtimeHours || 0;
         if (restDayOTHours > 0) {
-          if (isClientBased || isEligibleForAllowances) {
-            // Fixed amounts - goes to Other Pay
-            const restDayOTAllowance =
-              calculateHolidayRestDayOTAllowance(restDayOTHours);
-            if (restDayOTAllowance > 0) {
-              otherPay.restDayOT.hours += restDayOTHours;
-              otherPay.restDayOT.amount += restDayOTAllowance;
-            }
-          } else {
-            // Office-based Rank and File: Standard calculation - goes to earnings breakdown table
-            earningsOT.restDayOT.hours += restDayOTHours;
-            earningsOT.restDayOT.amount += calculateSundayRestDayOT(
-              restDayOTHours,
-              ratePerHour
-            );
-          }
+          earningsOT.restDayOT.hours += restDayOTHours;
+          earningsOT.restDayOT.amount += calculateSundayRestDayOT(
+            restDayOTHours,
+            ratePerHour
+          );
         }
 
         if (nightDiffHours > 0) {
-          if (isRankAndFile) {
-            // Office-based Rank and File: Rest Day ND goes to earnings breakdown table
-            breakdown.restDayNightDiff.hours += nightDiffHours;
-            breakdown.restDayNightDiff.amount += calculateNightDiff(
-              nightDiffHours,
-              ratePerHour
-            );
-          }
-          // Client-based and Office-based Supervisory/Managerial: NO ND (they have OT allowance)
+          breakdown.restDayNightDiff.hours += nightDiffHours;
+          breakdown.restDayNightDiff.amount += calculateNightDiff(
+            nightDiffHours,
+            ratePerHour
+          );
         }
       }
 
@@ -967,34 +852,19 @@ function PayslipDetailedBreakdownComponent({
             ? parseFloat(overtimeHours)
             : overtimeHours || 0;
         if (shOnRDOTHours > 0) {
-          if (isClientBased || isEligibleForAllowances) {
-            // Fixed amounts - goes to Other Pay
-            const shOnRDOTAllowance =
-              calculateHolidayRestDayOTAllowance(shOnRDOTHours);
-            if (shOnRDOTAllowance > 0) {
-              otherPay.specialHolidayOnRestDayOT.hours += shOnRDOTHours;
-              otherPay.specialHolidayOnRestDayOT.amount += shOnRDOTAllowance;
-            }
-          } else {
-            // Office-based Rank and File: Standard calculation - goes to earnings breakdown table
-            earningsOT.shOnRDOT.hours += shOnRDOTHours;
-            earningsOT.shOnRDOT.amount += calculateSundaySpecialHolidayOT(
-              shOnRDOTHours,
-              ratePerHour
-            );
-          }
+          earningsOT.shOnRDOT.hours += shOnRDOTHours;
+          earningsOT.shOnRDOT.amount += calculateSundaySpecialHolidayOT(
+            shOnRDOTHours,
+            ratePerHour
+          );
         }
 
         if (nightDiffHours > 0) {
-          if (isRankAndFile) {
-            // Office-based Rank and File: ND goes to earnings breakdown table
-            earningsOT.shNightDiff.hours += nightDiffHours;
-            earningsOT.shNightDiff.amount += calculateNightDiff(
-              nightDiffHours,
-              ratePerHour
-            );
-          }
-          // Client-based and Office-based Supervisory/Managerial: NO ND (they have OT allowance)
+          earningsOT.shNightDiff.hours += nightDiffHours;
+          earningsOT.shNightDiff.amount += calculateNightDiff(
+            nightDiffHours,
+            ratePerHour
+          );
         }
       }
 
@@ -1052,52 +922,32 @@ function PayslipDetailedBreakdownComponent({
             ? parseFloat(overtimeHours)
             : overtimeHours || 0;
         if (lhOnRDOTHours > 0) {
-          if (isClientBased || isEligibleForAllowances) {
-            // Fixed amounts - goes to Other Pay
-            const lhOnRDOTAllowance =
-              calculateHolidayRestDayOTAllowance(lhOnRDOTHours);
-            if (lhOnRDOTAllowance > 0) {
-              otherPay.legalHolidayOnRestDayOT.hours += lhOnRDOTHours;
-              otherPay.legalHolidayOnRestDayOT.amount += lhOnRDOTAllowance;
-            }
-          } else {
-            // Office-based Rank and File: Standard calculation - goes to earnings breakdown table
-            earningsOT.lhOnRDOT.hours += lhOnRDOTHours;
-            earningsOT.lhOnRDOT.amount += calculateSundayRegularHolidayOT(
-              lhOnRDOTHours,
-              ratePerHour
-            );
-          }
+          earningsOT.lhOnRDOT.hours += lhOnRDOTHours;
+          earningsOT.lhOnRDOT.amount += calculateSundayRegularHolidayOT(
+            lhOnRDOTHours,
+            ratePerHour
+          );
         }
 
         if (nightDiffHours > 0) {
-          if (isRankAndFile) {
-            // Office-based Rank and File: ND goes to earnings breakdown table
-            earningsOT.legalHolidayND.hours += nightDiffHours;
-            earningsOT.legalHolidayND.amount += calculateNightDiff(
-              nightDiffHours,
-              ratePerHour
-            );
-          }
-          // Client-based and Office-based Supervisory/Managerial: NO ND (they have OT allowance)
+          earningsOT.legalHolidayND.hours += nightDiffHours;
+          earningsOT.legalHolidayND.amount += calculateNightDiff(
+            nightDiffHours,
+            ratePerHour
+          );
         }
       }
 
       // Regular Nightdiff OT (regular day with OT and night diff)
-      // Supervisory roles and client-based don't have ND, so no NDOT
       if (dayType === "regular" && overtimeHours > 0 && nightDiffHours > 0) {
-        if (isRankAndFile) {
-          // Office-based Rank and File: NDOT goes to earnings breakdown table
-          earningsOT.regularNightdiffOT.hours += Math.min(
-            overtimeHours,
-            nightDiffHours
-          );
-          earningsOT.regularNightdiffOT.amount += calculateNightDiff(
-            Math.min(overtimeHours, nightDiffHours),
-            ratePerHour
-          );
-        }
-        // Client-based and Office-based Supervisory/Managerial: NO NDOT (they have OT allowance, no ND)
+        earningsOT.regularNightdiffOT.hours += Math.min(
+          overtimeHours,
+          nightDiffHours
+        );
+        earningsOT.regularNightdiffOT.amount += calculateNightDiff(
+          Math.min(overtimeHours, nightDiffHours),
+          ratePerHour
+        );
       }
     });
 
@@ -1240,44 +1090,28 @@ function PayslipDetailedBreakdownComponent({
       }
     }
 
-    // Calculate total gross pay (sum of all earnings)
-    // Basic Salary includes 1x for all days worked (regular + holidays). For Rank and File, Legal/Special
-    // Holiday rows hold the EXTRA pay when worked (1x for Legal = double, 0.3x for Special) and must be in Gross.
-    // For Supervisory/Managerial/AS: Legal/Special amounts are display-only; they get allowances (in Other Pay) instead.
+    // Gross = basic + statutory OT/ND (earningsOT + breakdown) + holiday/rest rows + optional fixed work allowances (Other Pay)
     const totalGrossPayUnrounded =
       basicSalary +
       breakdown.nightDifferential.amount +
       breakdown.restDay.amount +
       breakdown.restDayNightDiff.amount +
-      (isClientBased || isEligibleForAllowances
-        ? // Client-based/Supervisory/Managerial: All OT items in Other Pay; Legal/Special Holiday not added (they get allowances)
-          otherPay.regularOT.amount +
-          otherPay.legalHolidayOT.amount +
-          otherPay.legalHolidayND.amount +
-          otherPay.specialHolidayOT.amount +
-          otherPay.specialHolidayND.amount +
-          otherPay.restDayOT.amount +
-          otherPay.restDayND.amount +
-          otherPay.specialHolidayOnRestDayOT.amount +
-          otherPay.legalHolidayOnRestDayOT.amount +
-          otherPay.regularNightdiffOT.amount +
-          otherPay.legalHolidayAllowance.amount +
-          otherPay.specialHolidayAllowance.amount +
-          otherPay.restDayAllowance.amount +
-          otherPay.specialHolidayOnRestDayAllowance.amount +
-          otherPay.legalHolidayOnRestDayAllowance.amount
-        : // Rank and File: OT/ND in earnings table + Legal Holiday + Special Holiday (when worked)
-          earningsOT.regularOvertime.amount +
-          earningsOT.legalHolidayOT.amount +
-          earningsOT.legalHolidayND.amount +
-          earningsOT.shOT.amount +
-          earningsOT.shNightDiff.amount +
-          earningsOT.shOnRDOT.amount +
-          earningsOT.lhOnRDOT.amount +
-          earningsOT.restDayOT.amount +
-          earningsOT.regularNightdiffOT.amount +
-          breakdown.legalHoliday.amount +
-          breakdown.specialHoliday.amount);
+      earningsOT.regularOvertime.amount +
+      earningsOT.legalHolidayOT.amount +
+      earningsOT.legalHolidayND.amount +
+      earningsOT.shOT.amount +
+      earningsOT.shNightDiff.amount +
+      earningsOT.shOnRDOT.amount +
+      earningsOT.lhOnRDOT.amount +
+      earningsOT.restDayOT.amount +
+      earningsOT.regularNightdiffOT.amount +
+      breakdown.legalHoliday.amount +
+      breakdown.specialHoliday.amount +
+      otherPay.legalHolidayAllowance.amount +
+      otherPay.specialHolidayAllowance.amount +
+      otherPay.restDayAllowance.amount +
+      otherPay.specialHolidayOnRestDayAllowance.amount +
+      otherPay.legalHolidayOnRestDayAllowance.amount;
 
     // Round all breakdown amounts to 2 decimals before summing
     const roundTo2Decimals = (val: number) => Math.round(val * 100) / 100;
@@ -1289,25 +1123,19 @@ function PayslipDetailedBreakdownComponent({
       specialHoliday: roundTo2Decimals(breakdown.specialHoliday.amount),
     };
 
-    const roundedOtherPay = isClientBased || isEligibleForAllowances ? {
-      regularOT: roundTo2Decimals(otherPay.regularOT.amount),
-      legalHolidayOT: roundTo2Decimals(otherPay.legalHolidayOT.amount),
-      legalHolidayND: roundTo2Decimals(otherPay.legalHolidayND.amount),
-      specialHolidayOT: roundTo2Decimals(otherPay.specialHolidayOT.amount),
-      specialHolidayND: roundTo2Decimals(otherPay.specialHolidayND.amount),
-      restDayOT: roundTo2Decimals(otherPay.restDayOT.amount),
-      restDayND: roundTo2Decimals(otherPay.restDayND.amount),
-      specialHolidayOnRestDayOT: roundTo2Decimals(otherPay.specialHolidayOnRestDayOT.amount),
-      legalHolidayOnRestDayOT: roundTo2Decimals(otherPay.legalHolidayOnRestDayOT.amount),
-      regularNightdiffOT: roundTo2Decimals(otherPay.regularNightdiffOT.amount),
+    const roundedAllowances = {
       legalHolidayAllowance: roundTo2Decimals(otherPay.legalHolidayAllowance.amount),
       specialHolidayAllowance: roundTo2Decimals(otherPay.specialHolidayAllowance.amount),
       restDayAllowance: roundTo2Decimals(otherPay.restDayAllowance.amount),
-      specialHolidayOnRestDayAllowance: roundTo2Decimals(otherPay.specialHolidayOnRestDayAllowance.amount),
-      legalHolidayOnRestDayAllowance: roundTo2Decimals(otherPay.legalHolidayOnRestDayAllowance.amount),
-    } : null;
+      specialHolidayOnRestDayAllowance: roundTo2Decimals(
+        otherPay.specialHolidayOnRestDayAllowance.amount
+      ),
+      legalHolidayOnRestDayAllowance: roundTo2Decimals(
+        otherPay.legalHolidayOnRestDayAllowance.amount
+      ),
+    };
 
-    const roundedEarningsOT = !(isClientBased || isEligibleForAllowances) ? {
+    const roundedEarningsOT = {
       regularOvertime: roundTo2Decimals(earningsOT.regularOvertime.amount),
       legalHolidayOT: roundTo2Decimals(earningsOT.legalHolidayOT.amount),
       legalHolidayND: roundTo2Decimals(earningsOT.legalHolidayND.amount),
@@ -1317,40 +1145,29 @@ function PayslipDetailedBreakdownComponent({
       lhOnRDOT: roundTo2Decimals(earningsOT.lhOnRDOT.amount),
       restDayOT: roundTo2Decimals(earningsOT.restDayOT.amount),
       regularNightdiffOT: roundTo2Decimals(earningsOT.regularNightdiffOT.amount),
-    } : null;
+    };
 
-    // Calculate total gross pay using rounded values
-    const totalGrossPayUnroundedRounded = basicSalary +
+    const totalGrossPayUnroundedRounded =
+      basicSalary +
       roundedBreakdown.nightDifferential +
       roundedBreakdown.restDay +
       roundedBreakdown.restDayNightDiff +
-      (isClientBased || isEligibleForAllowances
-        ? roundedOtherPay!.regularOT +
-          roundedOtherPay!.legalHolidayOT +
-          roundedOtherPay!.legalHolidayND +
-          roundedOtherPay!.specialHolidayOT +
-          roundedOtherPay!.specialHolidayND +
-          roundedOtherPay!.restDayOT +
-          roundedOtherPay!.restDayND +
-          roundedOtherPay!.specialHolidayOnRestDayOT +
-          roundedOtherPay!.legalHolidayOnRestDayOT +
-          roundedOtherPay!.regularNightdiffOT +
-          roundedOtherPay!.legalHolidayAllowance +
-          roundedOtherPay!.specialHolidayAllowance +
-          roundedOtherPay!.restDayAllowance +
-          roundedOtherPay!.specialHolidayOnRestDayAllowance +
-          roundedOtherPay!.legalHolidayOnRestDayAllowance
-        : roundedEarningsOT!.regularOvertime +
-          roundedEarningsOT!.legalHolidayOT +
-          roundedEarningsOT!.legalHolidayND +
-          roundedEarningsOT!.shOT +
-          roundedEarningsOT!.shNightDiff +
-          roundedEarningsOT!.shOnRDOT +
-          roundedEarningsOT!.lhOnRDOT +
-          roundedEarningsOT!.restDayOT +
-          roundedEarningsOT!.regularNightdiffOT +
-          roundedBreakdown.legalHoliday +
-          roundedBreakdown.specialHoliday);
+      roundedEarningsOT.regularOvertime +
+      roundedEarningsOT.legalHolidayOT +
+      roundedEarningsOT.legalHolidayND +
+      roundedEarningsOT.shOT +
+      roundedEarningsOT.shNightDiff +
+      roundedEarningsOT.shOnRDOT +
+      roundedEarningsOT.lhOnRDOT +
+      roundedEarningsOT.restDayOT +
+      roundedEarningsOT.regularNightdiffOT +
+      roundedBreakdown.legalHoliday +
+      roundedBreakdown.specialHoliday +
+      roundedAllowances.legalHolidayAllowance +
+      roundedAllowances.specialHolidayAllowance +
+      roundedAllowances.restDayAllowance +
+      roundedAllowances.specialHolidayOnRestDayAllowance +
+      roundedAllowances.legalHolidayOnRestDayAllowance;
     const totalGrossPay = Math.round(totalGrossPayUnroundedRounded * 100) / 100;
 
     return {
@@ -1478,8 +1295,7 @@ function PayslipDetailedBreakdownComponent({
             Overtimes/Holiday Earning(s)
           </h4>
           <span className="text-xs text-gray-500 italic">
-            Regular work = 104 hrs (13 days) per cutoff. Rest day, holiday & OT recorded separately with hours and pay below
-            {isClientBased || isEligibleForAllowances ? "; supervisory/managerial OT allowances in Other Pay." : "."}
+            Regular work = 104 hrs (13 days) per cutoff. Rest day, holiday, overtime, and night differential use statutory rates in the table below.
           </span>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -1633,95 +1449,76 @@ function PayslipDetailedBreakdownComponent({
 
                       {/* Working Day Off removed - Saturday is now included in Basic Salary (regular work day per law) */}
 
-                      {/* OT Items - Show for client-based non-AS and for office-based rank and file */}
-                      {((!isAccountSupervisor && !isOfficeBased) || isRankAndFile) && (
-                        <>
-                          {/* Regular Overtime */}
-                          {renderEarningRow(
-                            "8. Regular Overtime",
-                            earningsOT.regularOvertime.hours,
-                            PAYROLL_MULTIPLIERS.REGULAR_OT,
-                            earningsOT.regularOvertime.amount,
-                            true
-                          )}
+                      {/* Statutory overtime (Labor Code rates in payroll-calculator) */}
+                      {renderEarningRow(
+                        "8. Regular Overtime",
+                        earningsOT.regularOvertime.hours,
+                        PAYROLL_MULTIPLIERS.REGULAR_OT,
+                        earningsOT.regularOvertime.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "9. Legal Holiday OT",
+                        earningsOT.legalHolidayOT.hours,
+                        PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY *
+                          PAYROLL_MULTIPLIERS.OT_PREMIUM,
+                        earningsOT.legalHolidayOT.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "11. Special Holiday OT",
+                        earningsOT.shOT.hours,
+                        PAYROLL_MULTIPLIERS.SPECIAL_HOLIDAY *
+                          PAYROLL_MULTIPLIERS.OT_PREMIUM,
+                        earningsOT.shOT.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "13. Special Holiday on Rest Day OT",
+                        earningsOT.shOnRDOT.hours,
+                        PAYROLL_MULTIPLIERS.SUNDAY_SPECIAL_HOLIDAY *
+                          PAYROLL_MULTIPLIERS.OT_PREMIUM,
+                        earningsOT.shOnRDOT.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "14. Legal Holiday on Rest Day OT",
+                        earningsOT.lhOnRDOT.hours,
+                        PAYROLL_MULTIPLIERS.SUNDAY_REGULAR_HOLIDAY *
+                          PAYROLL_MULTIPLIERS.OT_PREMIUM,
+                        earningsOT.lhOnRDOT.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "15. Rest Day OT",
+                        earningsOT.restDayOT.hours,
+                        PAYROLL_MULTIPLIERS.REST_DAY *
+                          PAYROLL_MULTIPLIERS.OT_PREMIUM,
+                        earningsOT.restDayOT.amount,
+                        true
+                      )}
 
-                          {/* Legal Holiday OT */}
-                          {renderEarningRow(
-                            "9. Legal Holiday OT",
-                            earningsOT.legalHolidayOT.hours,
-                            PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY *
-                              PAYROLL_MULTIPLIERS.OT_PREMIUM,
-                            earningsOT.legalHolidayOT.amount,
-                            true
-                          )}
-
-                          {/* Legal Holiday ND */}
-                          {renderEarningRow(
-                            "10. Legal Holiday ND",
-                            earningsOT.legalHolidayND.hours,
-                            PAYROLL_MULTIPLIERS.NIGHT_DIFF,
-                            earningsOT.legalHolidayND.amount,
-                            true
-                          )}
-
-                          {/* Special Holiday OT */}
-                          {renderEarningRow(
-                            "11. Special Holiday OT",
-                            earningsOT.shOT.hours,
-                            PAYROLL_MULTIPLIERS.SPECIAL_HOLIDAY *
-                              PAYROLL_MULTIPLIERS.OT_PREMIUM,
-                            earningsOT.shOT.amount,
-                            true
-                          )}
-
-                          {/* Special Holiday ND */}
-                          {renderEarningRow(
-                            "12. Special Holiday ND",
-                            earningsOT.shNightDiff.hours,
-                            PAYROLL_MULTIPLIERS.NIGHT_DIFF,
-                            earningsOT.shNightDiff.amount,
-                            true
-                          )}
-
-                          {/* Special Holiday on Rest Day OT */}
-                          {renderEarningRow(
-                            "13. Special Holiday on Rest Day OT",
-                            earningsOT.shOnRDOT.hours,
-                            PAYROLL_MULTIPLIERS.SUNDAY_SPECIAL_HOLIDAY *
-                              PAYROLL_MULTIPLIERS.OT_PREMIUM,
-                            earningsOT.shOnRDOT.amount,
-                            true
-                          )}
-
-                          {/* Legal Holiday on Rest Day OT */}
-                          {renderEarningRow(
-                            "14. Legal Holiday on Rest Day OT",
-                            earningsOT.lhOnRDOT.hours,
-                            PAYROLL_MULTIPLIERS.SUNDAY_REGULAR_HOLIDAY *
-                              PAYROLL_MULTIPLIERS.OT_PREMIUM,
-                            earningsOT.lhOnRDOT.amount,
-                            true
-                          )}
-
-                          {/* Rest Day OT */}
-                          {renderEarningRow(
-                            "15. Rest Day OT",
-                            earningsOT.restDayOT.hours,
-                            PAYROLL_MULTIPLIERS.REST_DAY *
-                              PAYROLL_MULTIPLIERS.OT_PREMIUM,
-                            earningsOT.restDayOT.amount,
-                            true
-                          )}
-
-                          {/* Regular Night Differential OT */}
-                          {renderEarningRow(
-                            "16. Regular Night Differential OT",
-                            earningsOT.regularNightdiffOT.hours,
-                            PAYROLL_MULTIPLIERS.NIGHT_DIFF,
-                            earningsOT.regularNightdiffOT.amount,
-                            true
-                          )}
-                        </>
+                      {/* ND from OT (10PM–6AM overlap) — all employees */}
+                      {renderEarningRow(
+                        "10. Legal Holiday ND",
+                        earningsOT.legalHolidayND.hours,
+                        PAYROLL_MULTIPLIERS.NIGHT_DIFF,
+                        earningsOT.legalHolidayND.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "12. Special Holiday ND",
+                        earningsOT.shNightDiff.hours,
+                        PAYROLL_MULTIPLIERS.NIGHT_DIFF,
+                        earningsOT.shNightDiff.amount,
+                        true
+                      )}
+                      {renderEarningRow(
+                        "16. Regular Night Differential OT",
+                        earningsOT.regularNightdiffOT.hours,
+                        PAYROLL_MULTIPLIERS.NIGHT_DIFF,
+                        earningsOT.regularNightdiffOT.amount,
+                        true
                       )}
                     </>
                   );
@@ -1741,19 +1538,17 @@ function PayslipDetailedBreakdownComponent({
                   breakdown.nightDifferential.amount +
                     breakdown.restDay.amount +
                     breakdown.restDayNightDiff.amount +
-                    (isClientBased || isEligibleForAllowances
-                      ? 0
-                      : earningsOT.regularOvertime.amount +
-                        earningsOT.legalHolidayOT.amount +
-                        earningsOT.legalHolidayND.amount +
-                        earningsOT.shOT.amount +
-                        earningsOT.shNightDiff.amount +
-                        earningsOT.shOnRDOT.amount +
-                        earningsOT.lhOnRDOT.amount +
-                        earningsOT.restDayOT.amount +
-                        earningsOT.regularNightdiffOT.amount +
-                        breakdown.legalHoliday.amount +
-                        breakdown.specialHoliday.amount)
+                    earningsOT.regularOvertime.amount +
+                    earningsOT.legalHolidayOT.amount +
+                    earningsOT.legalHolidayND.amount +
+                    earningsOT.shOT.amount +
+                    earningsOT.shNightDiff.amount +
+                    earningsOT.shOnRDOT.amount +
+                    earningsOT.lhOnRDOT.amount +
+                    earningsOT.restDayOT.amount +
+                    earningsOT.regularNightdiffOT.amount +
+                    breakdown.legalHoliday.amount +
+                    breakdown.specialHoliday.amount
                 )}
               </span>
             </div>
@@ -1761,36 +1556,21 @@ function PayslipDetailedBreakdownComponent({
         </div>
       </div>
 
-      {/* Other Pay Section - For Account Supervisors and Office-based employees */}
-      {/* Contains all OT and ND items combined in one table */}
-      {/* Debug: Check if employee is eligible and if allowances are calculated */}
+      {/* Other Pay: fixed work allowances on holidays/rest days (policy); OT/ND are in main earnings */}
       {(() => {
         const hasAllowances =
-          otherPay.regularOT.amount > 0 ||
-          otherPay.legalHolidayOT.amount > 0 ||
-          otherPay.specialHolidayOT.amount > 0 ||
-          otherPay.restDayOT.amount > 0 ||
-          otherPay.specialHolidayOnRestDayOT.amount > 0 ||
-          otherPay.legalHolidayOnRestDayOT.amount > 0 ||
           otherPay.legalHolidayAllowance.amount > 0 ||
           otherPay.specialHolidayAllowance.amount > 0 ||
           otherPay.restDayAllowance.amount > 0 ||
           otherPay.specialHolidayOnRestDayAllowance.amount > 0 ||
           otherPay.legalHolidayOnRestDayAllowance.amount > 0;
 
-        // Debug log (remove in production)
         if (process.env.NODE_ENV === "development") {
           console.log("Other Pay Debug:", {
             isClientBased,
             isEligibleForAllowances,
             isAccountSupervisor,
             hasAllowances,
-            otherPay: {
-              regularOT: otherPay.regularOT.amount,
-              legalHolidayOT: otherPay.legalHolidayOT.amount,
-              specialHolidayOT: otherPay.specialHolidayOT.amount,
-              restDayOT: otherPay.restDayOT.amount,
-            },
           });
         }
 
@@ -1800,8 +1580,7 @@ function PayslipDetailedBreakdownComponent({
           <div className="flex items-center gap-2 mb-2">
             <h4 className="text-sm font-semibold text-gray-800">Other Pay</h4>
             <span className="text-xs text-gray-500 italic">
-              (OT & ND -{" "}
-              {isAccountSupervisor ? "Account Supervisor" : "Office-based"})
+              (Holiday / rest day work allowances)
             </span>
           </div>
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -1887,73 +1666,7 @@ function PayslipDetailedBreakdownComponent({
 
                     return (
                       <>
-                        {/* OT Allowances - Fixed amounts replacing OT calculations */}
-                        {otherPay.regularOT.amount > 0 &&
-                          renderAllowanceRow(
-                            "Regular OT Allowance",
-                            otherPay.regularOT.hours,
-                            "Fixed Amount",
-                            otherPay.regularOT.amount,
-                            false
-                          )}
-                        {/* Night Differential Allowances */}
-                        {otherPay.regularNightDiff.amount > 0 &&
-                          renderAllowanceRow(
-                            "Night Differential",
-                            otherPay.regularNightDiff.hours,
-                            PAYROLL_MULTIPLIERS.NIGHT_DIFF,
-                            otherPay.regularNightDiff.amount,
-                            true
-                          )}
-                        {otherPay.legalHolidayOT.amount > 0 &&
-                          renderAllowanceRow(
-                            "Legal Holiday OT Allowance",
-                            otherPay.legalHolidayOT.hours,
-                            "Fixed Amount",
-                            otherPay.legalHolidayOT.amount,
-                            false
-                          )}
-                        {otherPay.specialHolidayOT.amount > 0 &&
-                          renderAllowanceRow(
-                            "Special Holiday OT Allowance",
-                            otherPay.specialHolidayOT.hours,
-                            "Fixed Amount",
-                            otherPay.specialHolidayOT.amount,
-                            false
-                          )}
-                        {otherPay.restDayOT.amount > 0 &&
-                          renderAllowanceRow(
-                            "Rest Day OT Allowance",
-                            otherPay.restDayOT.hours,
-                            "Fixed Amount",
-                            otherPay.restDayOT.amount,
-                            false
-                          )}
-                        {otherPay.restDayND.amount > 0 &&
-                          renderAllowanceRow(
-                            "Rest Day Night Differential",
-                            otherPay.restDayND.hours,
-                            PAYROLL_MULTIPLIERS.NIGHT_DIFF,
-                            otherPay.restDayND.amount,
-                            true
-                          )}
-                        {otherPay.specialHolidayOnRestDayOT.amount > 0 &&
-                          renderAllowanceRow(
-                            "Special Holiday on Rest Day OT Allowance",
-                            otherPay.specialHolidayOnRestDayOT.hours,
-                            "Fixed Amount",
-                            otherPay.specialHolidayOnRestDayOT.amount,
-                            false
-                          )}
-                        {otherPay.legalHolidayOnRestDayOT.amount > 0 &&
-                          renderAllowanceRow(
-                            "Legal Holiday on Rest Day OT Allowance",
-                            otherPay.legalHolidayOnRestDayOT.hours,
-                            "Fixed Amount",
-                            otherPay.legalHolidayOnRestDayOT.amount,
-                            false
-                          )}
-                        {/* Allowances for regular hours worked on holidays/rest days */}
+                        {/* Fixed allowances for regular hours on holidays/rest days */}
                         {otherPay.legalHolidayAllowance.amount > 0 &&
                           renderAllowanceRow(
                             "Legal Holiday Allowance",
@@ -1995,7 +1708,6 @@ function PayslipDetailedBreakdownComponent({
                             false
                           )}
 
-                        {/* Note: Supervisory roles and client-based employees don't have ND (they have OT allowance) */}
                       </>
                     );
                   })()}
@@ -2010,13 +1722,7 @@ function PayslipDetailedBreakdownComponent({
                 </span>
                 <span className="text-sm font-bold text-primary-700">
                   {formatCurrency(
-                    otherPay.regularOT.amount +
-                      otherPay.legalHolidayOT.amount +
-                      otherPay.specialHolidayOT.amount +
-                      otherPay.restDayOT.amount +
-                      otherPay.specialHolidayOnRestDayOT.amount +
-                      otherPay.legalHolidayOnRestDayOT.amount +
-                      otherPay.legalHolidayAllowance.amount +
+                    otherPay.legalHolidayAllowance.amount +
                       otherPay.specialHolidayAllowance.amount +
                       otherPay.restDayAllowance.amount +
                       otherPay.specialHolidayOnRestDayAllowance.amount +

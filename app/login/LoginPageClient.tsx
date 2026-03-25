@@ -155,35 +155,26 @@ export function LoginPageClient() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc("authenticate_employee", {
-        p_employee_id: employeeId.trim(),
-        p_password: employeePassword.trim(),
-      } as any);
+      const res = await fetch("/api/auth/employee-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id: employeeId.trim(),
+          password: employeePassword.trim(),
+        }),
+      });
 
-      if (error) {
-        // RPC error (e.g., function failure)
-        throw new Error(error.message || "Failed to login");
+      const payload = await res.json();
+
+      if (!res.ok || !payload?.success || !payload?.employee_data) {
+        throw new Error("Invalid credentials. Please try again.");
       }
 
-      const authData = data as Array<{
-        success: boolean;
-        employee_data?: {
-          id: string;
-          employee_id: string;
-          full_name: string;
-        };
-      }> | null;
-
-      if (!authData || authData.length === 0 || !authData[0].success) {
-        // Use generic wording to avoid revealing if ID or password is wrong
-        const errorMessage = "Invalid credentials. Please try again.";
-        throw new Error(errorMessage);
-      }
-
-      const employeeData = authData[0].employee_data;
-      if (!employeeData) {
-        throw new Error("Invalid employee data received");
-      }
+      const employeeData = payload.employee_data as {
+        id: string;
+        employee_id: string;
+        full_name: string;
+      };
 
       // Capture device information for first login tracking
       const deviceInfo = getDeviceInfo();

@@ -14,8 +14,9 @@ test.describe("Leave Request (Employee Portal)", () => {
     await page.goto("/login?mode=employee");
     await page.waitForSelector('button:has-text("Employee")', { timeout: 10000 });
     await page.click('button:has-text("Employee")');
-    const empId = process.env.TEST_EMPLOYEE_ID || "2025002";
-    const empPass = process.env.TEST_EMPLOYEE_PASSWORD || "2025002";
+    // Default to the populated March test dataset (2025001/2025001)
+    const empId = process.env.TEST_EMPLOYEE_ID || "2025001";
+    const empPass = process.env.TEST_EMPLOYEE_PASSWORD || "2025001";
     await page.fill('input[placeholder="2025-001"]', empId);
     await page.fill('input[type="password"]', empPass);
     await page.click('button:has-text("Sign In")');

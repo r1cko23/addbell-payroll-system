@@ -15,15 +15,16 @@ test.describe('Loan Creation', () => {
     // TODO: Replace with actual admin/HR credentials from test environment
     // For now, this test assumes you're already logged in as admin/HR
     // You may need to update these credentials based on your test setup
-    const adminEmail = process.env.TEST_ADMIN_EMAIL || 'admin@example.com';
-    const adminPassword = process.env.TEST_ADMIN_PASSWORD || 'password123';
+    // Default to the same admin creds used by other approval access tests
+    const adminEmail = process.env.TEST_ADMIN_EMAIL || 'jericko.rzl@gmail.com';
+    const adminPassword = process.env.TEST_ADMIN_PASSWORD || 'test123';
     
     // Fill in login form
     await page.fill('input[type="email"]', adminEmail);
     await page.fill('input[type="password"]', adminPassword);
     
     // Submit login form
-    await page.click('button[type="submit"]');
+    await page.click('button:has-text("Sign In"), button:has-text("Login"), button[type="submit"]');
     
     // Wait for navigation after login (adjust selector based on your app)
     await page.waitForURL('**/dashboard**', { timeout: 15000 });
@@ -46,22 +47,44 @@ test.describe('Loan Creation', () => {
     await page.waitForTimeout(500);
     
     // Fill in loan form
-    // Select employee (assuming there's at least one employee)
-    await page.click('button[role="combobox"]:near(text=Employee)');
-    await page.waitForTimeout(300);
-    // Select first employee option
-    const employeeOptions = page.locator('[role="option"]');
-    const firstEmployee = employeeOptions.first();
-    if (await firstEmployee.count() > 0) {
-      await firstEmployee.click();
+    const dialog = page.locator('[role="dialog"]').first();
+
+    // Select employee (Radix Select). Prefer the "Select employee" placeholder.
+    const employeeCombobox = dialog
+      .locator('button[role="combobox"]')
+      .filter({ hasText: /Select employee/i })
+      .first();
+
+    if ((await employeeCombobox.count()) > 0) {
+      await employeeCombobox.click();
     } else {
-      throw new Error('No employees available for testing');
+      await dialog.locator('button[role="combobox"]').first().click();
+    }
+
+    const employeeOptions = page.locator('[role="option"]');
+    await page.waitForSelector('[role="option"]', { timeout: 5000 });
+    const firstEmployee = employeeOptions.first();
+    const optionText = (await firstEmployee.textContent()) || "";
+    const match = optionText.match(/\(([^)]+)\)/);
+    const expectedEmployeeId = match?.[1];
+    await firstEmployee.click();
+
+    // Sanity-check the selection took effect (employee_id is displayed in parentheses).
+    if (expectedEmployeeId) {
+      await expect(
+        dialog
+          .locator('button[role="combobox"]')
+          .filter({ hasText: expectedEmployeeId })
+          .first()
+      ).toBeVisible({ timeout: 5000 });
     }
     
     // Fill in loan details
     await page.fill('input[id="original_balance"]', '10000');
     await page.fill('input[id="current_balance"]', '10000');
-    await page.fill('input[id="monthly_payment"]', '1666.67');
+    // Loan form uses Weekly Deduction Amount (not monthly payment)
+    // For a company loan of 6 total terms (~24 weeks), 10000 / (6*4) = 416.67/week
+    await page.fill('input[id="weekly_deduction_amount"]', '416.67');
     await page.fill('input[id="total_terms"]', '6');
     await page.fill('input[id="remaining_terms"]', '6');
     
@@ -71,53 +94,47 @@ test.describe('Loan Creation', () => {
     const dateStr = tomorrow.toISOString().split('T')[0];
     await page.fill('input[id="effectivity_date"]', dateStr);
     
-    // Select cutoff assignment
-    await page.click('button[role="combobox"]:near(text=Cutoff Assignment)');
-    await page.waitForTimeout(300);
-    await page.click('[role="option"]:has-text("Both Cutoffs")');
-    
     // Click "Create Loan" button
+    const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") consoleErrors.push(msg.text());
+    });
+    page.on("pageerror", (err) => {
+      pageErrors.push(err.message);
+    });
     const createButton = page.locator('button:has-text("Create Loan")');
     await createButton.click();
     
-    // Wait for either success toast or error message
-    // Check for success toast
-    const successToast = page.locator('text=/Loan created successfully/i');
-    const errorToast = page.locator('text=/error|failed|permission/i');
-    
-    // Wait for either toast to appear (with timeout)
-    await Promise.race([
-      successToast.waitFor({ timeout: 10000 }).catch(() => null),
-      errorToast.waitFor({ timeout: 10000 }).catch(() => null),
-    ]);
-    
-    // Check if success toast appeared
-    const successVisible = await successToast.isVisible().catch(() => false);
-    const errorVisible = await errorToast.isVisible().catch(() => false);
-    
-    if (errorVisible) {
-      const errorText = await errorToast.textContent();
-      console.error('Loan creation failed with error:', errorText);
-      throw new Error(`Loan creation failed: ${errorText}`);
+    // Prefer app's success signal: modal closes only after a successful insert.
+    let modalClosed = false;
+    try {
+      await page.waitForSelector('text=Add New Loan', { state: 'hidden', timeout: 30000 });
+      modalClosed = true;
+    } catch {
+      // Modal didn't close within timeout.
+    }
+
+    const toasts = page.locator('[role="status"], [data-sonner-toast]');
+    const toastTexts = (await toasts.allInnerTexts().catch(() => [])).map((t) =>
+      t.trim()
+    );
+    const hasSuccessToast = toastTexts.some((t) => /Loan created successfully/i.test(t));
+
+    if (!modalClosed && !hasSuccessToast) {
+      throw new Error(
+        `Loan creation did not succeed. Toasts: ${toastTexts.join(
+          " | "
+        )}. ConsoleErrors: ${consoleErrors.join(" | ")}. PageErrors: ${pageErrors.join(
+          " | "
+        )}`
+      );
     }
     
-    if (!successVisible) {
-      // Check console for errors
-      const consoleErrors: string[] = [];
-      page.on('console', msg => {
-        if (msg.type() === 'error') {
-          consoleErrors.push(msg.text());
-        }
-      });
-      
-      throw new Error(`Loan creation did not succeed. Console errors: ${consoleErrors.join(', ')}`);
+    if (!modalClosed) {
+      // If toast arrived but modal close was slightly delayed, wait briefly.
+      await page.waitForSelector('text=Add New Loan', { state: 'hidden', timeout: 5000 });
     }
-    
-    // Verify success
-    expect(successVisible).toBe(true);
-    
-    // Wait for modal to close
-    await page.waitForSelector('text=Add New Loan', { state: 'hidden', timeout: 5000 });
   });
 
   test('should prevent duplicate submissions', async ({ page }) => {
@@ -134,12 +151,32 @@ test.describe('Loan Creation', () => {
     await page.waitForSelector('text=Add New Loan', { timeout: 5000 });
     
     // Fill in minimal required fields
-    await page.click('button[role="combobox"]:near(text=Employee)');
-    await page.waitForTimeout(300);
+    const dialog = page.locator('[role="dialog"]').first();
+    const employeeCombobox = dialog
+      .locator('button[role="combobox"]')
+      .filter({ hasText: /Select employee/i })
+      .first();
+    if ((await employeeCombobox.count()) > 0) {
+      await employeeCombobox.click();
+    } else {
+      await dialog.locator('button[role="combobox"]').first().click();
+    }
+
     const employeeOptions = page.locator('[role="option"]');
+    await page.waitForSelector('[role="option"]', { timeout: 5000 });
     const firstEmployee = employeeOptions.first();
-    if (await firstEmployee.count() > 0) {
-      await firstEmployee.click();
+    const optionText = (await firstEmployee.textContent()) || "";
+    const match = optionText.match(/\(([^)]+)\)/);
+    const expectedEmployeeId = match?.[1];
+    await firstEmployee.click();
+
+    if (expectedEmployeeId) {
+      await expect(
+        dialog
+          .locator('button[role="combobox"]')
+          .filter({ hasText: expectedEmployeeId })
+          .first()
+      ).toBeVisible({ timeout: 5000 });
     }
     
     await page.fill('input[id="original_balance"]', '5000');

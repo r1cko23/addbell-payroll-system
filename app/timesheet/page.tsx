@@ -833,14 +833,16 @@ export default function TimesheetPage() {
         }
       } else if (dayOTs.length > 0) {
         // OT request exists
-        // If there are also clock entries, show OT status but display the clock times
-        // If no clock entries, just show OT status (OT-only day)
-        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-          status = "OT"; // OT request + clock entries = OT status with times
+        // If there are also clock entries, STATUS should remain LOG/INC.
+        // OT affects the OT column/hours only; it should not replace the LOG badge.
+        if (dayEntries.length > 0) {
+          status = "LOG";
+        } else if (incompleteDayEntries.length > 0) {
+          status = "INC";
         } else {
-          status = "OT"; // OT request only (no clock entries) = OT status without times
+          status = "OT"; // OT-only day (no clock entries)
         }
-        // BH will be calculated from time entries if they exist
+        // BH will be calculated from time entries if they exist.
       } else if (dayEntries.length > 0) {
         // Complete time entries exist
         status = "LOG";

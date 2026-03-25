@@ -26,17 +26,19 @@ if (fs.existsSync(envPath)) {
 // Configuration
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://wavweetmtjoxzdirnfva.supabase.co';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-if (!SUPABASE_ANON_KEY) {
-  console.error('ERROR: NEXT_PUBLIC_SUPABASE_ANON_KEY is required.');
-  console.error('Please set it in .env.local or as an environment variable.');
+const SUPABASE_DB_KEY = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+if (!SUPABASE_DB_KEY) {
+  console.error('ERROR: Supabase key is required (set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY).');
   process.exit(1);
 }
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 // Initialize Supabase client
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Use service-role when available so tests can read tables that are blocked by RLS for anon.
+const supabase = createClient(SUPABASE_URL, SUPABASE_DB_KEY);
 
 interface TestResult {
   category: string;

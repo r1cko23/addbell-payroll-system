@@ -1,0 +1,560 @@
+{
+  "timestamp": "2026-03-25T07:11:47.585Z",
+  "summary": {
+    "total": 28,
+    "passed": 24,
+    "failed": 4,
+    "passRate": "85.7%"
+  },
+  "resultsByCategory": [
+    {
+      "category": "Time Clock Entry",
+      "tests": [
+        {
+          "category": "Time Clock Entry",
+          "testName": "Rule 1.1.1.1: Employee active status check",
+          "passed": true,
+          "details": {
+            "activeEmployees": 10,
+            "inactiveEmployees": 0
+          }
+        },
+        {
+          "category": "Time Clock Entry",
+          "testName": "Rule 1.1.1.2: Rest day check function exists",
+          "passed": false,
+          "error": "Could not find the function public.is_rest_day_today(p_employee_id) in the schema cache"
+        },
+        {
+          "category": "Time Clock Entry",
+          "testName": "Rule 1.1.3: Regular hours calculation (column exists)",
+          "passed": false,
+          "error": "Could not find the table 'public.time_clock_entries' in the schema cache"
+        },
+        {
+          "category": "Time Clock Entry",
+          "testName": "Rule 1.1.3: Account Supervisor vs Non-AS distinction",
+          "passed": true,
+          "details": {
+            "accountSupervisors": 0,
+            "nonAccountSupervisors": 20
+          }
+        },
+        {
+          "category": "Time Clock Entry",
+          "testName": "Rule 1.1.4: OT hours from approved overtime_requests",
+          "passed": true,
+          "details": {
+            "totalRequests": 6,
+            "approvedRequests": 2
+          }
+        },
+        {
+          "category": "Time Clock Entry",
+          "testName": "Rule 1.1.5: ND hours calculated from OT request times",
+          "passed": true,
+          "details": {
+            "requestsWithTimes": 2,
+            "totalApproved": 2
+          }
+        }
+      ],
+      "passed": 4,
+      "total": 6
+    },
+    {
+      "category": "Days Work Calculation",
+      "tests": [
+        {
+          "category": "Days Work Calculation",
+          "testName": "Rule 1.2.1: Regular work days calculation",
+          "passed": true,
+          "details": {
+            "completeEntries": 0,
+            "totalEntries": 0
+          }
+        },
+        {
+          "category": "Days Work Calculation",
+          "testName": "Rule 1.2.2: Holiday eligibility structure",
+          "passed": true,
+          "details": {
+            "holidaysCount": 0
+          }
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    {
+      "category": "Leave Rules",
+      "tests": [
+        {
+          "category": "Leave Rules",
+          "testName": "Rule 1.3.1: SIL counts as 8 hours",
+          "passed": true,
+          "details": {
+            "approvedSILCount": 0
+          }
+        },
+        {
+          "category": "Leave Rules",
+          "testName": "Rule 1.3.2: Other leaves don't count",
+          "passed": true,
+          "details": {
+            "otherLeavesCount": 0
+          }
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    {
+      "category": "Holiday Eligibility",
+      "tests": [
+        {
+          "category": "Holiday Eligibility",
+          "testName": "Rule 1.4: \"1 Day Before\" Rule structure",
+          "passed": true,
+          "details": {
+            "holidaysCount": 0,
+            "note": "Rule implemented in timesheet-auto-generator.ts and payslip calculation"
+          }
+        }
+      ],
+      "passed": 1,
+      "total": 1
+    },
+    {
+      "category": "Rest Day Rules",
+      "tests": [
+        {
+          "category": "Rest Day Rules",
+          "testName": "Rule 1.5.2: Account Supervisor rest day schedules",
+          "passed": true,
+          "details": {
+            "restDaySchedules": 0
+          }
+        }
+      ],
+      "passed": 1,
+      "total": 1
+    },
+    {
+      "category": "Employee Classification",
+      "tests": [
+        {
+          "category": "Employee Classification",
+          "testName": "Rule 2.1.1: Client-Based Employees identification",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        },
+        {
+          "category": "Employee Classification",
+          "testName": "Rule 2.1.2: Office-Based Supervisory identification",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        },
+        {
+          "category": "Employee Classification",
+          "testName": "Rule 2.1.3: Office-Based Managerial identification",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        },
+        {
+          "category": "Employee Classification",
+          "testName": "Rule 2.1.4: Office-Based Rank and File identification",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        }
+      ],
+      "passed": 4,
+      "total": 4
+    },
+    {
+      "category": "Overtime Calculation",
+      "tests": [
+        {
+          "category": "Overtime Calculation",
+          "testName": "Rule 2.3.1: Client-Based OT Allowance structure",
+          "passed": true,
+          "details": {
+            "approvedOTRequests": 2,
+            "distribution": {
+              "lessThan3Hours": 2,
+              "threeToFourHours": 0,
+              "moreThan4Hours": 0
+            }
+          }
+        },
+        {
+          "category": "Overtime Calculation",
+          "testName": "Rule 2.3.4: Overtime Eligibility (defaults to true)",
+          "passed": true,
+          "details": {
+            "eligibleCount": 20,
+            "totalCount": 20
+          }
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    {
+      "category": "Night Differential",
+      "tests": [
+        {
+          "category": "Night Differential",
+          "testName": "Rule 2.4.1: ND hours from OT request times",
+          "passed": true,
+          "details": {
+            "requestsWithTimes": 2
+          }
+        },
+        {
+          "category": "Night Differential",
+          "testName": "Rule 2.4.3: Account Supervisors identified (NO ND)",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    {
+      "category": "Holiday Pay",
+      "tests": [
+        {
+          "category": "Holiday Pay",
+          "testName": "Rule 2.5.1: Regular Holiday structure",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        },
+        {
+          "category": "Holiday Pay",
+          "testName": "Rule 2.5.2: Special Holiday structure",
+          "passed": true,
+          "details": {
+            "count": 0
+          }
+        }
+      ],
+      "passed": 2,
+      "total": 2
+    },
+    {
+      "category": "Payslip Structure",
+      "tests": [
+        {
+          "category": "Payslip Structure",
+          "testName": "Rule 2.8: Total Salary calculation structure",
+          "passed": false,
+          "error": "Could not find the table 'public.weekly_attendance' in the schema cache",
+          "details": {
+            "recordsCount": 0,
+            "tableExists": false
+          }
+        }
+      ],
+      "passed": 0,
+      "total": 1
+    },
+    {
+      "category": "Data Sources",
+      "tests": [
+        {
+          "category": "Data Sources",
+          "testName": "Rule 3.1: time_clock_entries table exists",
+          "passed": false,
+          "error": "Could not find the table 'public.time_clock_entries' in the schema cache",
+          "details": {
+            "hasData": false
+          }
+        },
+        {
+          "category": "Data Sources",
+          "testName": "Rule 3.2: overtime_requests table exists",
+          "passed": true,
+          "details": {
+            "hasData": true
+          }
+        },
+        {
+          "category": "Data Sources",
+          "testName": "Rule 3.3: leave_requests table exists",
+          "passed": true,
+          "details": {
+            "hasData": true
+          }
+        },
+        {
+          "category": "Data Sources",
+          "testName": "Rule 3.4: holidays table exists",
+          "passed": true,
+          "details": {
+            "hasData": true
+          }
+        },
+        {
+          "category": "Data Sources",
+          "testName": "Rule 3.5: employee_week_schedules table exists",
+          "passed": true,
+          "details": {
+            "hasData": true
+          }
+        }
+      ],
+      "passed": 4,
+      "total": 5
+    }
+  ],
+  "results": [
+    {
+      "category": "Time Clock Entry",
+      "testName": "Rule 1.1.1.1: Employee active status check",
+      "passed": true,
+      "details": {
+        "activeEmployees": 10,
+        "inactiveEmployees": 0
+      }
+    },
+    {
+      "category": "Time Clock Entry",
+      "testName": "Rule 1.1.1.2: Rest day check function exists",
+      "passed": false,
+      "error": "Could not find the function public.is_rest_day_today(p_employee_id) in the schema cache"
+    },
+    {
+      "category": "Time Clock Entry",
+      "testName": "Rule 1.1.3: Regular hours calculation (column exists)",
+      "passed": false,
+      "error": "Could not find the table 'public.time_clock_entries' in the schema cache"
+    },
+    {
+      "category": "Time Clock Entry",
+      "testName": "Rule 1.1.3: Account Supervisor vs Non-AS distinction",
+      "passed": true,
+      "details": {
+        "accountSupervisors": 0,
+        "nonAccountSupervisors": 20
+      }
+    },
+    {
+      "category": "Time Clock Entry",
+      "testName": "Rule 1.1.4: OT hours from approved overtime_requests",
+      "passed": true,
+      "details": {
+        "totalRequests": 6,
+        "approvedRequests": 2
+      }
+    },
+    {
+      "category": "Time Clock Entry",
+      "testName": "Rule 1.1.5: ND hours calculated from OT request times",
+      "passed": true,
+      "details": {
+        "requestsWithTimes": 2,
+        "totalApproved": 2
+      }
+    },
+    {
+      "category": "Days Work Calculation",
+      "testName": "Rule 1.2.1: Regular work days calculation",
+      "passed": true,
+      "details": {
+        "completeEntries": 0,
+        "totalEntries": 0
+      }
+    },
+    {
+      "category": "Days Work Calculation",
+      "testName": "Rule 1.2.2: Holiday eligibility structure",
+      "passed": true,
+      "details": {
+        "holidaysCount": 0
+      }
+    },
+    {
+      "category": "Leave Rules",
+      "testName": "Rule 1.3.1: SIL counts as 8 hours",
+      "passed": true,
+      "details": {
+        "approvedSILCount": 0
+      }
+    },
+    {
+      "category": "Leave Rules",
+      "testName": "Rule 1.3.2: Other leaves don't count",
+      "passed": true,
+      "details": {
+        "otherLeavesCount": 0
+      }
+    },
+    {
+      "category": "Holiday Eligibility",
+      "testName": "Rule 1.4: \"1 Day Before\" Rule structure",
+      "passed": true,
+      "details": {
+        "holidaysCount": 0,
+        "note": "Rule implemented in timesheet-auto-generator.ts and payslip calculation"
+      }
+    },
+    {
+      "category": "Rest Day Rules",
+      "testName": "Rule 1.5.2: Account Supervisor rest day schedules",
+      "passed": true,
+      "details": {
+        "restDaySchedules": 0
+      }
+    },
+    {
+      "category": "Employee Classification",
+      "testName": "Rule 2.1.1: Client-Based Employees identification",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Employee Classification",
+      "testName": "Rule 2.1.2: Office-Based Supervisory identification",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Employee Classification",
+      "testName": "Rule 2.1.3: Office-Based Managerial identification",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Employee Classification",
+      "testName": "Rule 2.1.4: Office-Based Rank and File identification",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Overtime Calculation",
+      "testName": "Rule 2.3.1: Client-Based OT Allowance structure",
+      "passed": true,
+      "details": {
+        "approvedOTRequests": 2,
+        "distribution": {
+          "lessThan3Hours": 2,
+          "threeToFourHours": 0,
+          "moreThan4Hours": 0
+        }
+      }
+    },
+    {
+      "category": "Overtime Calculation",
+      "testName": "Rule 2.3.4: Overtime Eligibility (defaults to true)",
+      "passed": true,
+      "details": {
+        "eligibleCount": 20,
+        "totalCount": 20
+      }
+    },
+    {
+      "category": "Night Differential",
+      "testName": "Rule 2.4.1: ND hours from OT request times",
+      "passed": true,
+      "details": {
+        "requestsWithTimes": 2
+      }
+    },
+    {
+      "category": "Night Differential",
+      "testName": "Rule 2.4.3: Account Supervisors identified (NO ND)",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Holiday Pay",
+      "testName": "Rule 2.5.1: Regular Holiday structure",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Holiday Pay",
+      "testName": "Rule 2.5.2: Special Holiday structure",
+      "passed": true,
+      "details": {
+        "count": 0
+      }
+    },
+    {
+      "category": "Payslip Structure",
+      "testName": "Rule 2.8: Total Salary calculation structure",
+      "passed": false,
+      "error": "Could not find the table 'public.weekly_attendance' in the schema cache",
+      "details": {
+        "recordsCount": 0,
+        "tableExists": false
+      }
+    },
+    {
+      "category": "Data Sources",
+      "testName": "Rule 3.1: time_clock_entries table exists",
+      "passed": false,
+      "error": "Could not find the table 'public.time_clock_entries' in the schema cache",
+      "details": {
+        "hasData": false
+      }
+    },
+    {
+      "category": "Data Sources",
+      "testName": "Rule 3.2: overtime_requests table exists",
+      "passed": true,
+      "details": {
+        "hasData": true
+      }
+    },
+    {
+      "category": "Data Sources",
+      "testName": "Rule 3.3: leave_requests table exists",
+      "passed": true,
+      "details": {
+        "hasData": true
+      }
+    },
+    {
+      "category": "Data Sources",
+      "testName": "Rule 3.4: holidays table exists",
+      "passed": true,
+      "details": {
+        "hasData": true
+      }
+    },
+    {
+      "category": "Data Sources",
+      "testName": "Rule 3.5: employee_week_schedules table exists",
+      "passed": true,
+      "details": {
+        "hasData": true
+      }
+    }
+  ]
+}

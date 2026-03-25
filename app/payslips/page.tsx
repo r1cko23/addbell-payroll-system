@@ -2256,6 +2256,15 @@ export default function PayslipsPage() {
     return calculatedGrossPay;
   }, [attendance, selectedEmployee]);
 
+  /** Prefer page-level gross (attendance + calculateWeeklyPayroll / AS rules); fallback to breakdown callback. Keeps summary in sync with preview. */
+  const earningsBaseForPeriod = useMemo(() => {
+    if (grossPay > 0) return grossPay;
+    if (calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0) {
+      return calculatedTotalGrossPay;
+    }
+    return 0;
+  }, [grossPay, calculatedTotalGrossPay]);
+
   const otherManualDeductionSum = useMemo(
     () =>
       otherDeductionRows.reduce(
@@ -2329,10 +2338,7 @@ export default function PayslipsPage() {
   const tax = useMemo(() => {
     if (!isSecondCutoff()) return 0;
     const adj = parseFloat(adjustmentAmount || "0") || 0;
-    const periodGross =
-      calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
-        ? calculatedTotalGrossPay + adj
-        : 0;
+    const periodGross = earningsBaseForPeriod + adj;
     const actualMonthlyGross =
       firstCutoffGrossForTax !== null
         ? (firstCutoffGrossForTax + periodGross)
@@ -2355,7 +2361,7 @@ export default function PayslipsPage() {
       return taxFromDeductions;
     }
     return 0;
-  }, [calculatedTotalGrossPay, adjustmentAmount, monthlySalary, deductions, periodStart, firstCutoffGrossForTax]);
+  }, [earningsBaseForPeriod, adjustmentAmount, monthlySalary, deductions, periodStart, firstCutoffGrossForTax]);
 
   // Adjustment - included in gross for statutory, tax, and display
   const adjustment = parseFloat(adjustmentAmount) || 0;
@@ -2368,12 +2374,8 @@ export default function PayslipsPage() {
 
   // Gross pay = earnings + adjustment (adjustment included in gross)
   const finalGrossPay = useMemo(() => {
-    const base =
-      calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0
-        ? calculatedTotalGrossPay
-        : 0;
-    return base + adjustment;
-  }, [calculatedTotalGrossPay, adjustment]);
+    return earningsBaseForPeriod + adjustment;
+  }, [earningsBaseForPeriod, adjustment]);
 
   // Net pay = gross (incl. adjustment) − total deductions
   const netPay = useMemo(() => {
@@ -3219,11 +3221,7 @@ export default function PayslipsPage() {
                         // Tax: 2nd cutoff only; actual monthly gross (1st + 2nd) when available, full month tax
                         if (!isSecondCutoff()) return null;
                         const adj = parseFloat(adjustmentAmount || "0") || 0;
-                        const periodGross =
-                          calculatedTotalGrossPay !== null &&
-                          calculatedTotalGrossPay >= 0
-                            ? calculatedTotalGrossPay + adj
-                            : 0;
+                        const periodGross = earningsBaseForPeriod + adj;
                         const actualMonthlyGross =
                           firstCutoffGrossForTax !== null
                             ? firstCutoffGrossForTax + periodGross
@@ -3307,7 +3305,7 @@ export default function PayslipsPage() {
                     This payslip has been saved. Values below are from the database. Adjustments cannot be edited.
                   </div>
                   {savedPayslip && (() => {
-                    const earnings = calculatedTotalGrossPay ?? 0;
+                    const earnings = earningsBaseForPeriod;
                     const savedAdj = savedPayslip.adjustment_amount;
                     const impliedDiff = Math.round((savedPayslip.gross_pay - earnings - savedAdj) * 100) / 100;
                     const showImplied = Math.abs(impliedDiff) > 0.01;
@@ -3592,11 +3590,7 @@ export default function PayslipsPage() {
                           if (!isSecondCutoff()) return 0;
 
                           const adj = parseFloat(adjustmentAmount || "0") || 0;
-                          const periodGross =
-                            calculatedTotalGrossPay !== null &&
-                            calculatedTotalGrossPay >= 0
-                              ? calculatedTotalGrossPay + adj
-                              : 0;
+                          const periodGross = earningsBaseForPeriod + adj;
                           const actualMonthlyGross =
                             firstCutoffGrossForTax !== null
                               ? firstCutoffGrossForTax + periodGross

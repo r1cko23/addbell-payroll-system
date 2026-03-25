@@ -152,6 +152,14 @@ export default function EmployeesPage() {
     }
   }, [canRead, permissionsLoading, router]);
 
+  useEffect(() => {
+    if (permissionsLoading || !canRead("employees")) return;
+    fetchEmployees();
+    fetchDepartments();
+    fetchPositions();
+    fetchOvertimeGroups();
+  }, [permissionsLoading, canRead]);
+
   if (!permissionsLoading && !canRead("employees")) {
     return (
       <DashboardLayout>
@@ -159,13 +167,6 @@ export default function EmployeesPage() {
       </DashboardLayout>
     );
   }
-
-  useEffect(() => {
-    fetchEmployees();
-    fetchDepartments();
-    fetchPositions();
-    fetchOvertimeGroups();
-  }, []);
 
   async function fetchEmployees() {
     try {

@@ -141,3 +141,43 @@ export function getBiMonthlyPeriodFromDate(date: Date = new Date()): {
     periodEnd,
   };
 }
+
+/** Weekly payroll cutoff: Wednesday 00:00 through Tuesday end of day (matches admin Timesheet). */
+export function getWednesdayWeekStart(date: Date = new Date()): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  while (d.getDay() !== 3) {
+    d.setDate(d.getDate() - 1);
+  }
+  return d;
+}
+
+export function getWeeklyCutoffEnd(weekStartWednesday: Date): Date {
+  return endOfDay(addDays(weekStartWednesday, 6));
+}
+
+/** Seven calendar days: Wed → Tue. */
+export function getWeeklyCutoffDays(weekStartWednesday: Date): Date[] {
+  const days: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    days.push(addDays(weekStartWednesday, i));
+  }
+  return days;
+}
+
+export function getPreviousWeeklyCutoff(weekStartWednesday: Date): Date {
+  return addDays(weekStartWednesday, -7);
+}
+
+export function getNextWeeklyCutoff(weekStartWednesday: Date): Date {
+  return addDays(weekStartWednesday, 7);
+}
+
+export function formatWeeklyCutoffPeriod(
+  weekStartWednesday: Date,
+  weekEndTuesday: Date
+): string {
+  const startFormatted = format(weekStartWednesday, "MMM d");
+  const endFormatted = format(weekEndTuesday, "MMM d, yyyy");
+  return `${startFormatted} – ${endFormatted}`;
+}

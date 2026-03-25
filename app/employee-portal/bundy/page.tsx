@@ -13,11 +13,12 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
 import {
-  getBiMonthlyPeriodEnd,
-  getBiMonthlyPeriodStart,
-  getNextBiMonthlyPeriod,
-  getPreviousBiMonthlyPeriod,
-  formatBiMonthlyPeriod,
+  getWednesdayWeekStart,
+  getWeeklyCutoffEnd,
+  getNextWeeklyCutoff,
+  getPreviousWeeklyCutoff,
+  formatWeeklyCutoffPeriod,
+  getWeeklyCutoffDays,
 } from "@/utils/bimonthly";
 import {
   addMonths,
@@ -56,7 +57,6 @@ function getDateInManilaTimezone(utcTimestamp: string | Date): string {
 }
 import { determineDayType, getDayName } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
-import { getBiMonthlyWorkingDays } from "@/utils/bimonthly";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
 import {
   punchesToSessions,
@@ -224,10 +224,10 @@ export default function BundyClockPage() {
     null
   );
   const [periodStart, setPeriodStart] = useState<Date>(() =>
-    getBiMonthlyPeriodStart(new Date())
+    getWednesdayWeekStart(new Date())
   );
   const periodEnd = useMemo(
-    () => getBiMonthlyPeriodEnd(periodStart),
+    () => getWeeklyCutoffEnd(periodStart),
     [periodStart]
   );
   const [loading, setLoading] = useState(true);
@@ -1026,7 +1026,7 @@ export default function BundyClockPage() {
       holidays: Holiday[],
       isClientBased?: boolean
     ) => {
-      const workingDays = getBiMonthlyWorkingDays(periodStart);
+      const workingDays = getWeeklyCutoffDays(periodStart);
       const days: AttendanceDay[] = [];
 
       // Group entries by date using reliable timezone conversion
@@ -1823,7 +1823,7 @@ export default function BundyClockPage() {
                 size="sm"
                 className="px-3 py-3"
                 onClick={() =>
-                  setPeriodStart(getPreviousBiMonthlyPeriod(periodStart))
+                  setPeriodStart(getPreviousWeeklyCutoff(periodStart))
                 }
               >
                 <Icon name="CaretLeft" size={IconSizes.sm} />
@@ -1833,7 +1833,7 @@ export default function BundyClockPage() {
                   Weekly Cutoff (Wed – Tue)
                 </Caption>
                 <p className="text-lg font-semibold text-gray-800">
-                  {formatBiMonthlyPeriod(periodStart, periodEnd)}
+                  {formatWeeklyCutoffPeriod(periodStart, periodEnd)}
                 </p>
               </VStack>
               <Button
@@ -1841,7 +1841,7 @@ export default function BundyClockPage() {
                 size="sm"
                 className="px-3 py-3"
                 onClick={() =>
-                  setPeriodStart(getNextBiMonthlyPeriod(periodStart))
+                  setPeriodStart(getNextWeeklyCutoff(periodStart))
                 }
               >
                 <Icon name="CaretRight" size={IconSizes.sm} />
@@ -2136,17 +2136,8 @@ export default function BundyClockPage() {
                 )}
                 {/* Summary Row - Weekly (Wednesday to Tuesday) based on company cutoff */}
                 {attendanceDays.length > 0 && (() => {
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  // Find current week's Wednesday (0=Sun,...,3=Wed)
-                  const weekStart = new Date(today);
-                  while (weekStart.getDay() !== 3) {
-                    weekStart.setDate(weekStart.getDate() - 1);
-                  }
-                  const weekEnd = new Date(weekStart);
-                  weekEnd.setDate(weekEnd.getDate() + 6); // Wednesday + 6 = Tuesday
-                  const weekStartStr = formatDate(weekStart, "yyyy-MM-dd");
-                  const weekEndStr = formatDate(weekEnd, "yyyy-MM-dd");
+                  const weekStartStr = formatDate(periodStart, "yyyy-MM-dd");
+                  const weekEndStr = formatDate(periodEnd, "yyyy-MM-dd");
 
                   const totalBH = attendanceDays.reduce((sum, d) => {
                     if (d.date < weekStartStr || d.date > weekEndStr) return sum;

@@ -23,6 +23,36 @@ function ResetPasswordClient() {
   const [sessionAttempted, setSessionAttempted] = useState(false);
 
   useEffect(() => {
+    // Supabase puts auth failures in the hash (#error=...&error_code=otp_expired).
+    // Parse this before getSession / listeners so a stale session cannot enable the form.
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash || "";
+      const hashParams = hash.startsWith("#")
+        ? new URLSearchParams(hash.slice(1))
+        : null;
+      const error =
+        hashParams?.get("error") || searchParams?.get("error");
+      const errorCode =
+        hashParams?.get("error_code") || searchParams?.get("error_code");
+      const errorDescription =
+        hashParams?.get("error_description") ||
+        searchParams?.get("error_description");
+
+      if (error) {
+        let errorMessage =
+          "This reset link is invalid or has expired. Request a new one.";
+        if (errorCode === "otp_expired" || error === "access_denied") {
+          errorMessage = errorDescription
+            ? decodeURIComponent(errorDescription.replace(/\+/g, " "))
+            : "This reset link has expired. Please request a new password reset email.";
+        }
+        setLinkError(errorMessage);
+        setCanReset(false);
+        setSessionAttempted(true);
+        return;
+      }
+    }
+
     // Mark the page ready when the recovery link has been used
     const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
@@ -66,28 +96,6 @@ function ResetPasswordClient() {
           );
           setCanReset(false);
         });
-    }
-
-    // Check for error parameters in hash or query string (Supabase redirects with errors)
-    if (typeof window !== "undefined") {
-      const hash = window.location.hash || "";
-      const hashParams = hash.startsWith("#") ? new URLSearchParams(hash.slice(1)) : null;
-      const error = hashParams?.get("error") || searchParams?.get("error");
-      const errorCode = hashParams?.get("error_code") || searchParams?.get("error_code");
-      const errorDescription = hashParams?.get("error_description") || searchParams?.get("error_description");
-
-      if (error) {
-        let errorMessage = "This reset link is invalid or has expired. Request a new one.";
-        if (errorCode === "otp_expired" || error === "access_denied") {
-          errorMessage = errorDescription
-            ? decodeURIComponent(errorDescription.replace(/\+/g, " "))
-            : "This reset link has expired. Please request a new password reset email.";
-        }
-        setLinkError(errorMessage);
-        setCanReset(false);
-        setSessionAttempted(true);
-        return;
-      }
     }
 
     // Handle hash-based recovery links (#access_token=...&refresh_token=...&type=recovery)
@@ -255,7 +263,7 @@ function ResetPasswordClient() {
               {loading ? "Updating password..." : "Update Password"}
             </button>
 
-            {!canReset && (
+            {!canReset && !linkError && (
               <p className="text-sm text-amber-600">
                 Open this page from the password reset link we sent to your
                 email to continue.

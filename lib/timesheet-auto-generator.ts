@@ -136,6 +136,43 @@ export function generateTimesheetFromClockEntries(
     // Pass isClientBasedAccountSupervisor so Sunday is not automatically treated as rest day for client-based employees
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay, isClientBasedAccountSupervisor);
 
+    // Helper to calculate regular business hours (08:00–12:00 and 13:00–17:00, Manila time)
+    // Lunch break 12:00–13:00 is always unpaid.
+    const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
+      if (!entry.clock_in_time || !entry.clock_out_time) return 0;
+
+      const clockIn = parseISO(entry.clock_in_time);
+      const clockOut = parseISO(entry.clock_out_time);
+      if (clockOut <= clockIn) return 0;
+
+      const workDate = parseISO(format(clockIn, "yyyy-MM-dd"));
+
+      const makeWindow = (hourStart: number, hourEnd: number) => {
+        const start = new Date(workDate);
+        start.setHours(hourStart, 0, 0, 0);
+        const end = new Date(workDate);
+        end.setHours(hourEnd, 0, 0, 0);
+        return { start, end };
+      };
+
+      // Morning: 08:00–12:00
+      const morning = makeWindow(8, 12);
+      // Afternoon: 13:00–17:00
+      const afternoon = makeWindow(13, 17);
+
+      const overlapHours = (startA: Date, endA: Date, startB: Date, endB: Date) => {
+        const start = Math.max(startA.getTime(), startB.getTime());
+        const end = Math.min(endA.getTime(), endB.getTime());
+        if (end <= start) return 0;
+        return (end - start) / (1000 * 60 * 60);
+      };
+
+      const morningHours = overlapHours(clockIn, clockOut, morning.start, morning.end);
+      const afternoonHours = overlapHours(clockIn, clockOut, afternoon.start, afternoon.end);
+
+      return morningHours + afternoonHours;
+    };
+
     // Aggregate hours from all entries for this day
     let regularHours = 0;
     let overtimeHours = 0;
@@ -148,7 +185,10 @@ export function generateTimesheetFromClockEntries(
         entry.status === "auto_approved" ||
         entry.status === "clocked_out"
       ) {
-        const entryRegularHours = entry.regular_hours || 0;
+        // Always recompute regular business hours (8–12, 13–17) from raw clock times,
+        // so Time Attendance and Payslip treat lunch (12–13) as unpaid and ignore time beyond 17:00
+        // unless it is explicitly recorded as OT.
+        const entryRegularHours = calculateBusinessRegularHours(entry);
         const entryOTHours = entry.overtime_hours || 0;
         const entryNDHours = entry.total_night_diff_hours || 0;
         regularHours += entryRegularHours;
@@ -201,20 +241,8 @@ export function generateTimesheetFromClockEntries(
       }
     }
 
-    // Saturday Regular Work Day: Set regularHours = 8 even if employee didn't work
-    // Per Philippine labor law, office-based employees are paid 6 days/week (Mon-Sat)
-    // For office-based: Saturday is a regular work day - paid even if not worked
-    // For client-based: Saturday is a normal workday - must have logs (no automatic regularHours = 8)
-    if (dayType === "regular" && regularHours === 0) {
-      const dateObj = parseISO(dateStr);
-      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-      if (dayOfWeek === 6 && !isClientBased) {
-        regularHours = 8; // Office-based: Regular work day: 8 hours even if not worked (paid 6 days/week)
-      }
-    }
-
-    // Note: Client-based employees do NOT get automatic regularHours = 8 for Saturday or Sunday
-    // They must log time on all 6 workdays (non-rest days) or be marked as ABSENT in the timesheet display
+    // Note: Employees do NOT get automatic regularHours for Saturday or Sunday.
+    // They must log time on scheduled workdays or be marked as ABSENT in the timesheet display.
 
     // Client-based Account Supervisor Rest Day Logic:
     // They can mark rest days as Monday, Tuesday, or Wednesday only (enforced in schedule validation)
@@ -299,7 +327,7 @@ export function generateTimesheetFromClockEntries(
                   (entry.status === "approved" ||
                     entry.status === "auto_approved" ||
                     entry.status === "clocked_out") &&
-                  (entry.regular_hours || 0) >= 8
+                  (entry.regular_hours ?? (entry as any).total_hours ?? 0) >= 8
                 );
               });
 
@@ -338,12 +366,16 @@ export function generateTimesheetFromClockEntries(
     // #endregion
 
     // Floor down hours (round down to full hours only, matching database trigger)
+    // Preserve fractional hours (e.g. 0.2) by rounding to 2 decimals
+    const round2 = (value: number) =>
+      Math.round((value + Number.EPSILON) * 100) / 100;
+
     attendance_data.push({
       date: dateStr,
       dayType: dayType as any,
-      regularHours: Math.floor(regularHours),
-      overtimeHours: Math.floor(overtimeHours),
-      nightDiffHours: Math.floor(nightDiffHours),
+      regularHours: round2(regularHours),
+      overtimeHours: round2(overtimeHours),
+      nightDiffHours: round2(nightDiffHours),
     });
 
     // Move to next day
@@ -351,15 +383,20 @@ export function generateTimesheetFromClockEntries(
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
-  // Calculate totals (already floored in individual days, but ensure totals are also floored)
-  const total_regular_hours = Math.floor(
-    attendance_data.reduce((sum, day) => sum + day.regularHours, 0)
+  // Calculate totals with 2-decimal precision
+  const sumRound2 = (values: number[]) =>
+    Math.round(
+      (values.reduce((sum, v) => sum + v, 0) + Number.EPSILON) * 100
+    ) / 100;
+
+  const total_regular_hours = sumRound2(
+    attendance_data.map((day) => day.regularHours)
   );
-  const total_overtime_hours = Math.floor(
-    attendance_data.reduce((sum, day) => sum + day.overtimeHours, 0)
+  const total_overtime_hours = sumRound2(
+    attendance_data.map((day) => day.overtimeHours)
   );
-  const total_night_diff_hours = Math.floor(
-    attendance_data.reduce((sum, day) => sum + day.nightDiffHours, 0)
+  const total_night_diff_hours = sumRound2(
+    attendance_data.map((day) => day.nightDiffHours)
   );
 
   return {

@@ -20,6 +20,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
+import {
+  getOpenEntryFromPunches,
+  fetchSessionsForEmployee,
+  type TimeEntryPunch,
+  type TimeEntrySession,
+} from "@/lib/timeEntries";
 
 interface Employee {
   id: string;
@@ -40,6 +46,30 @@ interface ClockEntry {
   regular_hours: number | null;
   overtime_hours: number | null;
   employee_notes: string | null;
+}
+
+function clockEntryFromSession(s: TimeEntrySession): ClockEntry {
+  const st = s.status;
+  const status: ClockEntry["status"] =
+    st === "clocked_in" ||
+    st === "clocked_out" ||
+    st === "approved" ||
+    st === "rejected"
+      ? st
+      : "clocked_in";
+
+  return {
+    id: s.id,
+    clock_in_time: s.clock_in_time,
+    clock_out_time: s.clock_out_time,
+    clock_in_location: s.clock_in_location ?? null,
+    clock_out_location: s.clock_out_location ?? null,
+    status,
+    total_hours: s.total_hours ?? null,
+    regular_hours: s.regular_hours ?? null,
+    overtime_hours: null,
+    employee_notes: null,
+  };
 }
 
 export default function ClockPage() {
@@ -166,21 +196,24 @@ export default function ClockPage() {
   async function checkClockStatus() {
     if (!selectedEmployeeId) return;
 
-    const { data, error } = await supabase
-      .from("time_clock_entries")
-      .select("*")
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = format(today, "yyyy-MM-dd");
+
+    const { data: punches } = await supabase
+      .from("time_entries")
+      .select("id, employee_id, punch_type, punched_at")
       .eq("employee_id", selectedEmployeeId)
-      .eq("status", "clocked_in")
-      .order("clock_in_time", { ascending: false })
-      .limit(1)
-      .single();
+      .order("punched_at", { ascending: false })
+      .limit(100);
 
-    if (error && error.code !== "PGRST116") {
-      console.error("Error checking clock status:", error);
-      return;
-    }
-
-    setCurrentEntry(data || null);
+    const list = (punches || []) as TimeEntryPunch[];
+    const open = getOpenEntryFromPunches(
+      list,
+      (iso) => format(new Date(iso), "yyyy-MM-dd"),
+      todayStr
+    );
+    setCurrentEntry(open ? clockEntryFromSession(open) : null);
   }
 
   async function fetchTodayEntries() {
@@ -191,20 +224,14 @@ export default function ClockPage() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const { data, error } = await supabase
-      .from("time_clock_entries")
-      .select("*")
-      .eq("employee_id", selectedEmployeeId)
-      .gte("clock_in_time", today.toISOString())
-      .lt("clock_in_time", tomorrow.toISOString())
-      .order("clock_in_time", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching today entries:", error);
-      return;
-    }
-
-    setTodayEntries(data || []);
+    const sessions = await fetchSessionsForEmployee(
+      supabase,
+      selectedEmployeeId,
+      today.toISOString(),
+      tomorrow.toISOString(),
+      (iso) => format(new Date(iso), "yyyy-MM-dd")
+    );
+    setTodayEntries(sessions.map(clockEntryFromSession));
   }
 
   async function handleClockIn() {
@@ -254,19 +281,26 @@ export default function ClockPage() {
       }
     }
 
-    const locationString = location
-      ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
-      : null;
+    const { data: serverTimeData, error: timeError } =
+      await supabase.rpc("get_server_time");
+    if (timeError || !serverTimeData) {
+      setLoading(false);
+      toast.error("Could not get server time. Please try again.");
+      return;
+    }
+    const serverTime = new Date(serverTimeData as string).toISOString();
 
-    const { data, error } = await (supabase.from("time_clock_entries") as any)
+    const { data: insertData, error } = await supabase
+      .from("time_entries")
       .insert({
         employee_id: selectedEmployeeId,
-        clock_in_time: new Date().toISOString(),
-        clock_in_location: locationString,
-        clock_in_device: navigator.userAgent.substring(0, 255),
-        status: "clocked_in",
+        punch_type: "in",
+        punched_at: serverTime,
+        lat: location?.lat ?? null,
+        lng: location?.lng ?? null,
+        device_info: navigator.userAgent?.substring(0, 255) || null,
       })
-      .select()
+      .select("id, punched_at")
       .single();
 
     setLoading(false);
@@ -277,7 +311,22 @@ export default function ClockPage() {
       return;
     }
 
-    setCurrentEntry(data);
+    const punchedAt = (insertData as { punched_at: string }).punched_at;
+    const entryId = (insertData as { id: string }).id;
+    setCurrentEntry({
+      id: entryId,
+      clock_in_time: punchedAt,
+      clock_out_time: null,
+      clock_in_location: location
+        ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
+        : null,
+      clock_out_location: null,
+      status: "clocked_in",
+      total_hours: null,
+      regular_hours: null,
+      overtime_hours: null,
+      employee_notes: null,
+    });
     toast.success("Clocked in successfully!");
     fetchTodayEntries();
   }
@@ -324,17 +373,23 @@ export default function ClockPage() {
       }
     }
 
-    const locationString = location
-      ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`
-      : null;
+    const { data: serverTimeData, error: timeError } =
+      await supabase.rpc("get_server_time");
+    if (timeError || !serverTimeData) {
+      setLoading(false);
+      toast.error("Could not get server time. Please try again.");
+      return;
+    }
+    const serverTime = new Date(serverTimeData as string).toISOString();
 
-    const { error } = await (supabase.from("time_clock_entries") as any)
-      .update({
-        clock_out_time: new Date().toISOString(),
-        clock_out_location: locationString,
-        clock_out_device: navigator.userAgent.substring(0, 255),
-      })
-      .eq("id", currentEntry.id);
+    const { error } = await supabase.from("time_entries").insert({
+      employee_id: selectedEmployeeId,
+      punch_type: "out",
+      punched_at: serverTime,
+      lat: location?.lat ?? null,
+      lng: location?.lng ?? null,
+      device_info: navigator.userAgent?.substring(0, 255) || null,
+    });
 
     setLoading(false);
 

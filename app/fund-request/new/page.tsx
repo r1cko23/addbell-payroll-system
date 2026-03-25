@@ -136,11 +136,6 @@ export default function NewFundRequestPage() {
         const { data: companies } = await supabase.from("companies").select("id").limit(1).single();
         companyId = companies?.id ?? null;
       }
-      if (!companyId) {
-        toast.error("Could not determine company. Contact HR.");
-        setSubmitting(false);
-        return;
-      }
 
       const payload = {
         company_id: companyId,

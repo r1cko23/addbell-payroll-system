@@ -60,17 +60,12 @@ import {
   getWithholdingTaxBreakdown,
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
-import { getWeekOfMonth, normalizeHolidays } from "@/utils/holidays";
-import {
-  getBiMonthlyPeriodStart,
-  getBiMonthlyPeriodEnd,
-  getNextBiMonthlyPeriod,
-  getPreviousBiMonthlyPeriod,
-  formatBiMonthlyPeriod,
-} from "@/utils/bimonthly";
+import { getWeekOfMonth } from "@/utils/holidays";
+// Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
 import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
+import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee } from "@/lib/timeEntries";
 
 interface Employee {
   id: string;
@@ -129,15 +124,23 @@ export default function PayslipsPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null
   );
-  const [periodStart, setPeriodStart] = useState<Date>(
-    getBiMonthlyPeriodStart(new Date()) // Bi-monthly period starts on Monday
-  );
+  const [periodStart, setPeriodStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    // Company cutoff: Wednesday to Tuesday — find current week's Wednesday
+    while (d.getDay() !== 3) {
+      d.setDate(d.getDate() - 1);
+    }
+    return d;
+  });
   const [attendance, setAttendance] = useState<WeeklyAttendance | null>(null);
   const [deductions, setDeductions] = useState<EmployeeDeductions | null>(null);
   const [loading, setLoading] = useState(true);
   const [clockEntries, setClockEntries] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [holidays, setHolidays] = useState<Array<{ holiday_date: string }>>([]);
+  const [holidays, setHolidays] = useState<
+    Array<{ holiday_date: string; holiday_type?: string }>
+  >([]);
   const [restDaysMap, setRestDaysMap] = useState<Map<string, boolean>>(new Map());
   const [calculatedTotalGrossPay, setCalculatedTotalGrossPay] = useState<number | null>(null);
 
@@ -362,9 +365,9 @@ export default function PayslipsPage() {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, employee_id, full_name, monthly_rate, per_day, position, eligible_for_ot, assigned_hotel, employee_type, job_level, hire_date, last_name, first_name, transferred_from_employee_id"
+          "id, employee_code, first_name, middle_name, last_name, employment_status, salary_basis, base_rate, position, hire_date, employment_type, job_level, transferred_from_employee_id"
         )
-        .eq("is_active", true)
+        .eq("employment_status", "active")
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -382,20 +385,22 @@ export default function PayslipsPage() {
       console.log(`Loaded ${data?.length || 0} active employees`);
       if (data && data.length > 0) {
         console.log("Sample employee:", data[0]);
-        // Map employees to include computed rate fields
         const mappedEmployees = data.map((emp: any) => {
-          // Calculate rate_per_day: monthly_rate / 26 if monthly_rate exists, otherwise use per_day
-          const ratePerDay = emp.monthly_rate
-            ? emp.monthly_rate / 26
-            : (emp.per_day || undefined);
-          const ratePerHour = ratePerDay
-            ? ratePerDay / 8
-            : undefined;
-
+          const full_name = [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(" ").trim() || "—";
+          const employee_id = emp.employee_code ?? emp.id;
+          const monthly_rate = emp.salary_basis === "monthly" ? Number(emp.base_rate ?? 0) : Number(emp.base_rate ?? 0) * 26;
+          const per_day = emp.salary_basis === "daily" ? Number(emp.base_rate ?? 0) : monthly_rate / 26;
+          const rate_per_day = per_day;
+          const rate_per_hour = rate_per_day ? rate_per_day / 8 : undefined;
           return {
             ...emp,
-            rate_per_day: ratePerDay,
-            rate_per_hour: ratePerHour,
+            employee_id,
+            full_name,
+            employee_type: emp.employment_type ?? null,
+            monthly_rate: monthly_rate || null,
+            per_day: per_day || null,
+            rate_per_day: rate_per_day || undefined,
+            rate_per_hour: rate_per_hour ?? undefined,
           };
         });
         setEmployees(mappedEmployees);
@@ -403,10 +408,9 @@ export default function PayslipsPage() {
         console.warn(
           "No active employees found. Checking if there are any employees at all..."
         );
-        // Check if there are any employees (including inactive)
         const { data: allEmployees, error: allEmpError } = await supabase
           .from("employees")
-          .select("id, employee_id, full_name, is_active")
+          .select("id, employee_code, employment_status")
           .limit(10);
 
         if (allEmpError) {
@@ -417,21 +421,12 @@ export default function PayslipsPage() {
             allEmployees?.length || 0
           );
           if (allEmployees && allEmployees.length > 0) {
-            const inactiveCount = (allEmployees as any[]).filter(
-              (emp) => !emp.is_active
-            ).length;
             const activeCount = (allEmployees as any[]).filter(
-              (emp) => emp.is_active
+              (e: any) => e.employment_status === "active"
             ).length;
             console.log(
-              `Found ${activeCount} active and ${inactiveCount} inactive employees`
+              `Found ${activeCount} active and ${(allEmployees?.length ?? 0) - activeCount} inactive employees`
             );
-            if (inactiveCount > 0) {
-              console.log(
-                "Inactive employees:",
-                (allEmployees as any[]).filter((emp) => !emp.is_active)
-              );
-            }
           } else {
             console.warn(
               "No employees found in database at all. Please create employees first."
@@ -439,8 +434,6 @@ export default function PayslipsPage() {
           }
         }
       }
-
-      // Already set above if data exists
     } catch (error) {
       console.error("Error loading employees:", error);
       toast.error("Failed to load employees");
@@ -465,8 +458,9 @@ export default function PayslipsPage() {
 
     try {
       const periodStartStr = format(periodStart, "yyyy-MM-dd");
-      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
-      const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+      const periodEndDate = new Date(periodStart);
+      periodEndDate.setDate(periodEndDate.getDate() + 6);
+      const periodEndStr = format(periodEndDate, "yyyy-MM-dd");
 
       console.log("Loading attendance for employee:", {
         employeeId: selectedEmployeeId,
@@ -508,15 +502,13 @@ export default function PayslipsPage() {
         setAdjustmentReason("");
       }
 
-      // Always generate from time clock entries to match timesheet data
-      // Use time attendance sheet as reference (same as timesheet page)
-      // This ensures payslip always matches what's shown in the timesheet
-      let attData = null; // Don't use stored weekly_attendance - always regenerate from time_clock_entries
+      // Always generate from time_entries (sessions) to match timesheet data
+      let attData = null; // Don't use stored weekly_attendance - always regenerate from time_entries
 
       // Load leave requests for the period (needed for both existing and new attendance)
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("id, leave_type, start_date, end_date, status, selected_dates")
+        .select("id, leave_type, start_date, end_date, status")
         .eq("employee_id", selectedEmployeeId)
         .lte("start_date", periodEndStr)
         .gte("end_date", periodStartStr)
@@ -542,23 +534,8 @@ export default function PayslipsPage() {
             });
           }
 
-          // Handle selected_dates if available (for multi-day leaves)
-          if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
-            leave.selected_dates.forEach((dateStr: string) => {
-              if (dateStr >= periodStartStr && dateStr <= periodEndStr) {
-                const existing = leaveDatesMap.get(dateStr);
-                // Prioritize SIL over other leave types
-                if (!existing || leave.leave_type === "SIL") {
-                  leaveDatesMap.set(dateStr, {
-                    leaveType: leave.leave_type,
-                    status: leave.status,
-                    isHalfDay: halfDayDatesSet.has(dateStr),
-                  });
-                }
-              }
-            });
-          } else {
-            // Handle date range (start_date to end_date)
+          // Use date range (start_date to end_date) — selected_dates not in schema
+          {
             const startDate = new Date(leave.start_date);
             const endDate = new Date(leave.end_date);
             let currentDate = new Date(startDate);
@@ -583,48 +560,28 @@ export default function PayslipsPage() {
 
       console.log("Leave dates map:", Array.from(leaveDatesMap.entries()));
 
-      // Always generate from time clock entries to match timesheet data
-      // Use time attendance sheet as reference (same as timesheet page)
-      // This ensures payslip always matches what's shown in the timesheet
-      // OT will come from approved OT requests (handled below)
       console.log(
-        "Generating payslip from time clock entries (matching timesheet)..."
+        "Generating payslip from time_entries (matching timesheet)..."
       );
 
       try {
-          // Load time clock entries for this period
-          // Use wider date range like timesheet page to account for timezone differences
           const periodStartDate = new Date(periodStart);
           periodStartDate.setHours(0, 0, 0, 0);
-          periodStartDate.setDate(periodStartDate.getDate() - 1); // Start 1 day earlier
+          periodStartDate.setDate(periodStartDate.getDate() - 1);
 
           const periodEndDate = new Date(periodEnd);
           periodEndDate.setHours(23, 59, 59, 999);
-          periodEndDate.setDate(periodEndDate.getDate() + 1); // End 1 day later
+          periodEndDate.setDate(periodEndDate.getDate() + 1);
 
-          // Use the same column selection as timesheet page
-          const { data: clockEntries, error: clockError } = await supabase
-            .from("time_clock_entries")
-            .select(
-              "id, clock_in_time, clock_out_time, regular_hours, total_hours, total_night_diff_hours, status"
-            )
-            .eq("employee_id", selectedEmployeeId)
-            .gte("clock_in_time", periodStartDate.toISOString())
-            .lte("clock_in_time", periodEndDate.toISOString())
-            .order("clock_in_time", { ascending: true });
-
-          if (clockError) {
-            console.error("Error loading clock entries:", clockError);
-            throw clockError;
-          }
-
-          if (clockError) {
-            console.error("Error loading clock entries:", clockError);
-            throw clockError;
-          }
+          const getDateInManila = (iso: string) => format(new Date(iso), "yyyy-MM-dd");
+          const [mainSessions, projectSessions] = await Promise.all([
+            fetchSessionsForEmployee(supabase, selectedEmployeeId, periodStartDate.toISOString(), periodEndDate.toISOString(), getDateInManila),
+            fetchProjectTimeSessionsForEmployee(supabase, selectedEmployeeId, periodStartDate.toISOString(), periodEndDate.toISOString(), getDateInManila),
+          ]);
+          const clockEntries = [...(mainSessions || []), ...(projectSessions || [])];
 
           if (!clockEntries || clockEntries.length === 0) {
-            console.log("No time clock entries found for this period");
+            console.log("No time entries found for this period");
             // Set attendance to null - will show "No Attendance Data" message
             setAttendance(null);
             return;
@@ -648,72 +605,20 @@ export default function PayslipsPage() {
 
           if (filteredClockEntries.length === 0) {
             console.log(
-              "No time clock entries found after filtering for period"
+              "No time entries found after filtering for period"
             );
             setAttendance(null);
             return;
           }
 
           console.log(
-            `Found ${clockEntries.length} clock entries, ${filteredClockEntries.length} within period`
+            `Found ${clockEntries.length} time entries, ${filteredClockEntries.length} within period`
           );
 
-          // Load holidays for this period
-          const { data: holidaysData, error: holidaysError } = await supabase
-            .from("holidays")
-            .select("holiday_date, name, is_regular")
-            .gte("holiday_date", periodStartStr)
-            .lte("holiday_date", periodEndStr);
+          // Schema does not include holidays or employee_week_schedules
+          setHolidays([]);
 
-          if (holidaysError) {
-            console.warn("Error loading holidays:", holidaysError);
-          }
-
-          // Normalize holidays to ensure consistent date format
-          const normalizedHolidays = normalizeHolidays(
-            (holidaysData || []).map((h: any) => ({
-              date: h.holiday_date,
-              name: h.name || "",
-              type: h.is_regular ? "regular" : "non-working",
-            }))
-          );
-
-          // Debug logging for December holidays
-          if (periodStartStr.includes("12") || periodEndStr.includes("12")) {
-            console.log("Holidays loaded for period:", {
-              periodStart: periodStartStr,
-              periodEnd: periodEndStr,
-              holidaysCount: normalizedHolidays.length,
-              decemberHolidays: normalizedHolidays.filter((h) =>
-                h.date.includes("12-")
-              ),
-              allHolidays: normalizedHolidays,
-            });
-          }
-
-          const holidays = normalizedHolidays.map((h) => ({
-            holiday_date: h.date,
-            holiday_type: h.type,
-          }));
-          setHolidays(holidays);
-
-          // Load employee schedules to determine rest days (for Account Supervisors and others)
-          const { data: scheduleData } = await supabase
-            .from("employee_week_schedules")
-            .select("schedule_date, day_off")
-            .eq("employee_id", selectedEmployeeId)
-            .gte("schedule_date", periodStartStr)
-            .lte("schedule_date", periodEndStr);
-
-          // Create a map of rest days from schedules
           const restDaysMap = new Map<string, boolean>();
-          if (scheduleData) {
-            scheduleData.forEach((schedule: any) => {
-              if (schedule.day_off) {
-                restDaysMap.set(schedule.schedule_date, true);
-              }
-            });
-          }
           setRestDaysMap(restDaysMap);
 
           // eligible_for_ot controls whether employee can FILE new OT; approved OT always shows on payslip
@@ -908,11 +813,15 @@ export default function PayslipsPage() {
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
           const isClientBased = selectedEmployee?.employee_type === "client-based" || false;
 
+          const holidaysForTimesheet = holidays.map((h) => ({
+            holiday_date: h.holiday_date,
+            holiday_type: h.holiday_type ?? "regular",
+          }));
           const timesheetData = generateTimesheetFromClockEntries(
             mappedClockEntries as any,
             periodStart,
             periodEnd,
-            holidays,
+            holidaysForTimesheet,
             restDaysMap,
             true, // Always include approved OT on payslip (eligible_for_ot only gates filing new OT)
             isEligibleForNightDiff,
@@ -1061,25 +970,21 @@ export default function PayslipsPage() {
         console.warn(
           "No attendance record found after auto-generation attempt."
         );
-        // Check if there are time clock entries for this period
+        // Check if there are time_entries for this period
         const periodStartISO = new Date(
           `${periodStartStr}T00:00:00`
         ).toISOString();
         const periodEndISO = new Date(`${periodEndStr}T23:59:59`).toISOString();
 
-        const { data: clockEntries, error: clockEntriesError } = await supabase
-          .from("time_clock_entries")
-          .select("clock_in_time, clock_out_time")
-          .eq("employee_id", selectedEmployeeId)
-          .gte("clock_in_time", periodStartISO)
-          .lte("clock_in_time", periodEndISO)
-          .limit(5);
-
-        if (clockEntriesError) {
-          console.error("Error checking for clock entries:", clockEntriesError);
+        const getDateManila = (iso: string) => format(new Date(iso), "yyyy-MM-dd");
+        const [checkMain, checkProject] = await Promise.all([
+          fetchSessionsForEmployee(supabase, selectedEmployeeId, periodStartISO, periodEndISO, getDateManila),
+          fetchProjectTimeSessionsForEmployee(supabase, selectedEmployeeId, periodStartISO, periodEndISO, getDateManila),
+        ]);
+        const checkSessions = [...(checkMain || []), ...(checkProject || [])];
+        if (checkSessions.length === 0) {
+          console.log("No time entries for this period");
         }
-
-        // This code block is no longer needed since we generate directly from clock entries above
       }
 
       // Only set attendance if attData exists and has valid structure
@@ -1252,8 +1157,6 @@ export default function PayslipsPage() {
             `${periodEndStr}T23:59:59`
           ).toISOString();
 
-          // Use the same query structure as timesheet page
-          // Use wider date range to account for timezone differences
           const periodStartDateWide = new Date(periodStart);
           periodStartDateWide.setHours(0, 0, 0, 0);
           periodStartDateWide.setDate(periodStartDateWide.getDate() - 1);
@@ -1262,82 +1165,53 @@ export default function PayslipsPage() {
           periodEndDateWide.setHours(23, 59, 59, 999);
           periodEndDateWide.setDate(periodEndDateWide.getDate() + 1);
 
-          let { data: clockData, error: clockDataError } = await supabase
-            .from("time_clock_entries")
-            .select(
-              "id, clock_in_time, clock_out_time, regular_hours, total_hours, total_night_diff_hours, status"
-            )
-            .eq("employee_id", selectedEmployeeId)
-            .gte("clock_in_time", periodStartDateWide.toISOString())
-            .lte("clock_in_time", periodEndDateWide.toISOString())
-            .order("clock_in_time", { ascending: true });
+          const getDateInManila = (iso: string) => format(new Date(iso), "yyyy-MM-dd");
+          const [mainSessions, projectSessions] = await Promise.all([
+            fetchSessionsForEmployee(supabase, selectedEmployeeId, periodStartDateWide.toISOString(), periodEndDateWide.toISOString(), getDateInManila),
+            fetchProjectTimeSessionsForEmployee(supabase, selectedEmployeeId, periodStartDateWide.toISOString(), periodEndDateWide.toISOString(), getDateInManila),
+          ]);
+          const clockData = [...(mainSessions || []), ...(projectSessions || [])];
 
-          // Filter by date in Asia/Manila timezone and status (like timesheet page)
-          if (!clockDataError && clockData) {
-            // Filter by date first
-            const filteredByDate = clockData.filter((entry: any) => {
-              const entryDate = new Date(entry.clock_in_time);
-              const entryDatePH = new Date(
-                entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-              );
-              const entryDateStr = format(entryDatePH, "yyyy-MM-dd");
-              return (
-                entryDateStr >= periodStartStr && entryDateStr <= periodEndStr
-              );
-            });
-
-            // Then filter by status
-            const validStatuses = ["clocked_out", "approved", "auto_approved"];
-            clockData = filteredByDate.filter((entry: any) =>
-              validStatuses.includes(entry.status)
-            );
-          }
-
-          if (clockDataError) {
-            console.error("Error loading clock entries:", clockDataError);
-            console.error("Query parameters:", {
-              employee_id: selectedEmployeeId,
-              periodStart: periodStartStr,
-              periodEnd: periodEndStr,
-              periodStartISO,
-              periodEndISO,
-            });
-            console.error("Full error details:", {
-              message: clockDataError.message,
-              code: clockDataError.code,
-              details: clockDataError.details,
-              hint: clockDataError.hint,
-            });
-            // Don't throw - just log and continue with empty array
-          }
-          setClockEntries(clockData || []);
+          const filteredByDate = clockData.filter((entry: any) => {
+            const entryDateStr = entry.clock_in_date_ph || format(new Date(entry.clock_in_time), "yyyy-MM-dd");
+            return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
+          });
+          const validStatuses = ["clocked_out", "approved", "auto_approved"];
+          const filtered = filteredByDate.filter((entry: any) =>
+            validStatuses.includes(entry.status)
+          );
+          setClockEntries(filtered);
         }
       } catch (clockErr) {
         console.error("Exception loading clock entries:", clockErr);
         setClockEntries([]);
       }
 
-      // Load deductions for this period
-      // NOTE: The employee_deductions table schema has changed from the original design
-      // The current table uses deduction_type/amount/description instead of specific amount fields
-      // For now, we'll skip loading deductions to avoid 400 errors
-      // TODO: Update this to work with the new schema or restore the old schema
       try {
-        // Temporarily disable deductions loading until schema is aligned
-        // The new schema doesn't match what the payslip code expects
-        console.warn(
-          "Deductions loading skipped - schema mismatch between code and database"
-        );
+        // Load active deduction profile for this employee from employee_deductions
+        const { data: dedRow, error: dedError } = await supabase
+          .from("employee_deductions")
+          .select(
+            "vale_amount, sss_salary_loan, sss_calamity_loan, pagibig_salary_loan, pagibig_calamity_loan, sss_contribution, philhealth_contribution, pagibig_contribution, withholding_tax"
+          )
+          .eq("employee_id", selectedEmployeeId)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (dedError) {
+          console.error("Error loading employee_deductions:", dedError);
+        }
+
         setDeductions({
-          vale_amount: 0,
-          sss_salary_loan: 0,
-          sss_calamity_loan: 0,
-          pagibig_salary_loan: 0,
-          pagibig_calamity_loan: 0,
-          sss_contribution: 0,
-          philhealth_contribution: 0,
-          pagibig_contribution: 0,
-          withholding_tax: 0,
+          vale_amount: dedRow?.vale_amount ?? 0,
+          sss_salary_loan: dedRow?.sss_salary_loan ?? 0,
+          sss_calamity_loan: dedRow?.sss_calamity_loan ?? 0,
+          pagibig_salary_loan: dedRow?.pagibig_salary_loan ?? 0,
+          pagibig_calamity_loan: dedRow?.pagibig_calamity_loan ?? 0,
+          sss_contribution: dedRow?.sss_contribution ?? 0,
+          philhealth_contribution: dedRow?.philhealth_contribution ?? 0,
+          pagibig_contribution: dedRow?.pagibig_contribution ?? 0,
+          withholding_tax: dedRow?.withholding_tax ?? 0,
         });
       } catch (dedErr) {
         console.error("Exception loading deductions:", dedErr);
@@ -1360,11 +1234,12 @@ export default function PayslipsPage() {
   }
 
   function changePeriod(direction: "prev" | "next") {
-    if (direction === "prev") {
-      setPeriodStart(getPreviousBiMonthlyPeriod(periodStart));
-    } else {
-      setPeriodStart(getNextBiMonthlyPeriod(periodStart));
-    }
+    setPeriodStart((prev) => {
+      const d = new Date(prev);
+      d.setDate(d.getDate() + (direction === "prev" ? -7 : 7));
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
   }
 
   // Function to update loan balances and terms after payslip is saved
@@ -1736,7 +1611,7 @@ export default function PayslipsPage() {
         year
       );
 
-      const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+      const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 6);
 
       // Validate required fields before creating payslip data
       if (!attendance.attendance_data) {
@@ -1809,7 +1684,7 @@ export default function PayslipsPage() {
 
           const { data: yearLeaves } = await supabase
             .from("leave_requests")
-            .select("start_date, end_date, selected_dates, total_days, half_day_dates, leave_type, status")
+            .select("start_date, end_date, total_days, half_day_dates, leave_type, status")
             .eq("employee_id", selectedEmployee.id)
             .eq("status", "approved")
             .eq("leave_type", "SIL")
@@ -1829,19 +1704,7 @@ export default function PayslipsPage() {
                 });
               }
 
-              if (leave.selected_dates && Array.isArray(leave.selected_dates)) {
-                // Count only dates within the year, accounting for half-day
-                leave.selected_dates.forEach((dateStr: string) => {
-                  if (dateStr >= format(yearStart, "yyyy-MM-dd") && dateStr <= format(yearEnd, "yyyy-MM-dd")) {
-                    // Check if this date is half-day (0.5) or full-day (1.0)
-                    if (halfDayDatesSet.has(dateStr)) {
-                      totalSILDays += 0.5;
-                    } else {
-                      totalSILDays += 1.0;
-                    }
-                  }
-                });
-              } else if (leave.start_date && leave.end_date) {
+              if (leave.start_date && leave.end_date) {
                 // Count days within the year range, accounting for half-day
                 const start = parseISO(leave.start_date);
                 const end = parseISO(leave.end_date);
@@ -1942,7 +1805,7 @@ export default function PayslipsPage() {
       // Verify user role
       if (authSession?.user?.id) {
         const { data: userRoleData, error: roleError } = await supabase
-          .from("users")
+          .from("profiles")
           .select("role, is_active")
           .eq("id", authSession.user.id)
           .single();
@@ -2066,7 +1929,11 @@ export default function PayslipsPage() {
   }
 
   // Memoize periodEnd calculation
-  const periodEnd = useMemo(() => getBiMonthlyPeriodEnd(periodStart), [periodStart]);
+  const periodEnd = useMemo(() => {
+    const d = new Date(periodStart);
+    d.setDate(d.getDate() + 6);
+    return d;
+  }, [periodStart]);
 
   // Memoize working days calculation to ensure it recalculates when holidays are loaded
   // This fixes the issue where on first load, holidays might be empty [], causing incorrect calculation
@@ -2281,17 +2148,8 @@ export default function PayslipsPage() {
                   : 0);
 
               if (dayType === "regular") {
-                // Regular days: standard calculation
-                // Saturday Regular Work Day: Pay 8 hours even if employee didn't work (paid 6 days/week per law)
-                const dateObj = new Date(date);
-                const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
-                if (dayOfWeek === 6 && regularHours === 0) {
-                  // Saturday with no work - regular work day: pay 8 hours at regular rate
-                  basicPay += 8 * ratePerHour;
-                } else {
-                  // Regular day with work - pay actual hours (includes Saturday if worked)
-                  basicPay += regularHours * ratePerHour;
-                }
+                // Regular days: pay based on actual regular hours worked (including Saturdays).
+                basicPay += regularHours * ratePerHour;
               } else if (
                 dayType === "regular-holiday" ||
                 dayType === "non-working-holiday"
@@ -2592,8 +2450,11 @@ export default function PayslipsPage() {
                   >
                     <Icon name="CaretLeft" size={IconSizes.sm} />
                   </Button>
-                  <span className="font-medium text-sm min-w-[140px] text-center">
-                    {formatBiMonthlyPeriod(periodStart, periodEnd)}
+                  <span className="font-medium text-sm min-w-[160px] text-center">
+                    {`${format(periodStart, "MMM d")} – ${format(
+                      periodEnd,
+                      "MMM d, yyyy"
+                    )}`}
                   </span>
                   <Button
                     variant="ghost"
@@ -2662,7 +2523,8 @@ export default function PayslipsPage() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                 <BodySmall className="text-yellow-800 font-medium text-xs">
                   No time attendance data found for {selectedEmployee.full_name}{" "}
-                  for the period {formatBiMonthlyPeriod(periodStart, periodEnd)}
+                  for the period {format(periodStart, "MMM d")} –{" "}
+                  {format(periodEnd, "MMM d, yyyy")}
                 </BodySmall>
                 <BodySmall className="text-yellow-700 mt-1 text-xs">
                   The system attempted to generate attendance data from time

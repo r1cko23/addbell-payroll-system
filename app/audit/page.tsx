@@ -269,7 +269,7 @@ export default function AuditDashboardPage() {
         (data || []).map(async (log: any) => {
           if (log.user_id) {
             const { data: userData } = await supabase
-              .from("users")
+              .from("profiles")
               .select("full_name, email")
               .eq("id", log.user_id)
               .single();
@@ -300,100 +300,73 @@ export default function AuditDashboardPage() {
         .order("first_login_time", { ascending: false })
         .limit(200);
 
-      // If no data in employee_first_login, fallback to time_clock_entries
+      // If no data in employee_first_login, fallback to time_entries (first 'in' punch per employee)
       if (
         (!firstLoginData || firstLoginData.length === 0) &&
         !firstLoginError
       ) {
-        // Load from time_clock_entries as fallback
-        const { data: timeClockData, error: timeClockError } = await supabase
-          .from("time_clock_entries")
-          .select(
-            `
-            employee_id,
-            clock_in_time,
-            clock_out_time,
-            clock_in_ip,
-            clock_in_device,
-            clock_out_ip,
-            clock_out_device,
-            employee:employees(employee_id, full_name)
-          `
-          )
-          .order("clock_in_time", { ascending: true });
+        const { data: punchData, error: timePunchError } = await supabase
+          .from("time_entries")
+          .select("employee_id, punched_at, device_info, employee:employees(employee_id, full_name)")
+          .eq("punch_type", "in")
+          .order("punched_at", { ascending: true });
 
-        if (timeClockError) {
-          console.error(
-            "Error loading from time_clock_entries:",
-            timeClockError
-          );
-          // Continue with empty array
-        } else if (timeClockData && timeClockData.length > 0) {
-          // Group by employee and get first entry per employee
+        if (!timePunchError && punchData && punchData.length > 0) {
           const firstEntriesMap = new Map();
-          timeClockData.forEach((entry: any) => {
+          punchData.forEach((entry: any) => {
             if (!firstEntriesMap.has(entry.employee_id)) {
               firstEntriesMap.set(entry.employee_id, {
-                id: `tce_${entry.employee_id}`,
+                id: `te_${entry.employee_id}`,
                 employee_id: entry.employee_id,
-                first_login_time: entry.clock_in_time,
-                first_logout_time: entry.clock_out_time,
-                ip_address: entry.clock_in_ip,
-                device_info: entry.clock_in_device,
-                user_agent: entry.clock_in_device,
+                first_login_time: entry.punched_at,
+                first_logout_time: null,
+                ip_address: null,
+                device_info: entry.device_info,
+                user_agent: entry.device_info,
                 browser_name: null,
                 browser_version: null,
                 os_name: null,
                 os_version: null,
                 device_type:
-                  entry.clock_in_device?.toLowerCase().includes("mobile") ||
-                  entry.clock_in_device?.toLowerCase().includes("android") ||
-                  entry.clock_in_device?.toLowerCase().includes("iphone")
+                  entry.device_info?.toLowerCase().includes("mobile") ||
+                  entry.device_info?.toLowerCase().includes("android") ||
+                  entry.device_info?.toLowerCase().includes("iphone")
                     ? "mobile"
                     : "desktop",
-                created_at: entry.clock_in_time,
+                created_at: entry.punched_at,
                 employee: entry.employee,
               });
             }
           });
-
-          const loginsFromTimeClock = Array.from(firstEntriesMap.values());
-          setFirstLogins(loginsFromTimeClock as EmployeeFirstLogin[]);
+          const loginsFromTime = Array.from(firstEntriesMap.values());
+          setFirstLogins(loginsFromTime as EmployeeFirstLogin[]);
           return;
         }
       }
 
       if (firstLoginError) {
         console.error("Error loading first logins:", firstLoginError);
-        // Try fallback to time_clock_entries
-        const { data: timeClockData } = await supabase
-          .from("time_clock_entries")
-          .select(
-            `
-            employee_id,
-            clock_in_time,
-            clock_out_time,
-            clock_in_ip,
-            clock_in_device,
-            employee:employees(employee_id, full_name)
-          `
-          )
-          .order("clock_in_time", { ascending: true })
+        const { data: punchData } = await supabase
+          .from("time_entries")
+          .select("employee_id, punched_at, device_info, employee:employees(employee_id, full_name)")
+          .eq("punch_type", "in")
+          .order("punched_at", { ascending: true })
           .limit(200);
 
-        if (timeClockData && timeClockData.length > 0) {
+        if (punchData && punchData.length > 0) {
           const firstEntriesMap = new Map();
-          timeClockData.forEach((entry: any) => {
+          punchData.forEach((entry: any) => {
             if (!firstEntriesMap.has(entry.employee_id)) {
               firstEntriesMap.set(entry.employee_id, {
-                id: `tce_${entry.employee_id}`,
+                id: `te_${entry.employee_id}`,
                 employee_id: entry.employee_id,
-                first_login_time: entry.clock_in_time,
-                first_logout_time: entry.clock_out_time,
-                ip_address: entry.clock_in_ip,
-                device_info: entry.clock_in_device,
-                user_agent: entry.clock_in_device,
+                first_login_time: entry.punched_at,
+                first_logout_time: null,
+                ip_address: null,
+                device_info: entry.device_info,
+                user_agent: entry.device_info,
                 device_type: "desktop",
+                created_at: entry.punched_at,
                 employee: entry.employee,
               });
             }
@@ -536,9 +509,6 @@ export default function AuditDashboardPage() {
                           </SelectItem>
                           <SelectItem value="employee_location_assignments">
                             Locations
-                          </SelectItem>
-                          <SelectItem value="employee_week_schedules">
-                            Schedules
                           </SelectItem>
                         </SelectContent>
                       </Select>

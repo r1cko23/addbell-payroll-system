@@ -97,14 +97,14 @@ export async function middleware(req: NextRequest) {
 
       if (user) {
         const { data: userData } = await supabase
-          .from("users")
-          .select("role, can_access_salary")
+          .from("profiles")
+          .select("role")
           .eq("id", user.id)
           .eq("is_active", true)
           .single();
 
         if (userData) {
-          const userRecord = userData as { role: string; can_access_salary: boolean | null };
+          const userRecord = userData as { role: string };
 
           // Redirect approvers/viewers to allowed pages only
           // They can access: All Time & Attendance pages (OT Approvals, Leave Approvals, Time Attendance, Time Entries, Failure to Log)
@@ -128,11 +128,10 @@ export async function middleware(req: NextRequest) {
           }
 
 
-          // Redirect HR users without salary access from /payslips only
-          // HR can always view employees (as per role access matrix)
+          // Redirect HR users without salary access from /payslips only (profiles may not have can_access_salary; default = no access)
           if (
             userRecord.role === "hr" &&
-            !userRecord.can_access_salary &&
+            !(userRecord as { can_access_salary?: boolean }).can_access_salary &&
             pathname.startsWith("/payslips")
           ) {
             const redirectUrl = req.nextUrl.clone();

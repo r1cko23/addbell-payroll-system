@@ -27,6 +27,7 @@ import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
+import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 
 interface EmployeeSession {
   id: string;
@@ -86,7 +87,6 @@ export default function LeaveRequestPage() {
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
-  const [docUploading, setDocUploading] = useState(false);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
 
   // Form state
@@ -251,13 +251,14 @@ export default function LeaveRequestPage() {
 
   async function fetchEmployeeInfo(employeeId: string) {
     try {
-      const { data, error } = await supabase.rpc("get_employee_leave_credits", {
-        p_employee_uuid: employeeId,
-      } as any);
+      const { data, error } = await supabase
+        .from("employees")
+        .select("sil_credits")
+        .eq("id", employeeId)
+        .maybeSingle();
 
       if (error) {
         console.error("Error fetching employee leave credits:", error);
-        // Set default values instead of null to prevent infinite loading state
         setEmployeeInfo({
           sil_credits: 0,
           maternity_credits: 0,
@@ -266,17 +267,11 @@ export default function LeaveRequestPage() {
         return;
       }
 
-      const creditsData = data as Array<{
-        sil_credits: number | null;
-        maternity_credits: number | null;
-        paternity_credits: number | null;
-      }> | null;
-
-      if (creditsData && creditsData.length > 0) {
+      if (data) {
         setEmployeeInfo({
-          sil_credits: Number(creditsData[0].sil_credits ?? 0),
-          maternity_credits: Number(creditsData[0].maternity_credits ?? 0),
-          paternity_credits: Number(creditsData[0].paternity_credits ?? 0),
+          sil_credits: Number(data.sil_credits ?? 0),
+          maternity_credits: 0,
+          paternity_credits: 0,
         });
       } else {
         setEmployeeInfo({
@@ -297,28 +292,8 @@ export default function LeaveRequestPage() {
   }
 
   async function fetchHolidayDates() {
-    try {
-      const { data, error } = await supabase
-        .from("holidays")
-        .select("holiday_date");
-      if (error) {
-        console.error("Error fetching holidays:", error);
-        return;
-      }
-      const holidaysData = data as Array<{
-        holiday_date: string;
-        holiday_name: string;
-        holiday_type: string;
-      }> | null;
-
-      const set = new Set<string>();
-      (holidaysData || []).forEach((h) => {
-        if (h.holiday_date) set.add(h.holiday_date);
-      });
-      setHolidayDates(set);
-    } catch (err) {
-      console.error("Error fetching holidays:", err);
-    }
+    // Schema does not include holidays table — use empty set
+    setHolidayDates(new Set<string>());
   }
 
   async function fetchLeaveRequests(employeeId: string | undefined) {
@@ -330,22 +305,25 @@ export default function LeaveRequestPage() {
     setRequestsFetchError(null);
     setLoading(true);
 
-    // Use RPC to bypass leave_requests RLS: anon employee portal has no auth.uid(),
-    // so policy (auth.uid() = employee_id) never matches. get_my_leave_requests is
-    // SECURITY DEFINER and returns only this employee's rows.
-    const { data, error } = await supabase.rpc("get_my_leave_requests", {
-      p_employee_uuid: employeeId,
-    } as { p_employee_uuid: string });
+    // Load requests directly from table (new schema without get_my_leave_requests RPC)
+    const response = await fetch(
+      `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
+        employeeId
+      )}`
+    );
+    const payload = await response.json();
 
-    if (error) {
-      console.error("Error fetching leave requests:", error);
+    if (!response.ok) {
+      console.error("Error fetching leave requests:", payload);
       setRequestsFetchError("Unable to load leave requests. Please try again.");
       setRequests([]);
       toast.error("Failed to load leave requests");
-    } else {
-      setRequestsFetchError(null);
-      setRequests(Array.isArray(data) ? data : []);
+      setLoading(false);
+      return;
     }
+
+    setRequestsFetchError(null);
+    setRequests((payload.requests || []) as LeaveRequest[]);
     setLoading(false);
   }
 
@@ -413,7 +391,7 @@ export default function LeaveRequestPage() {
       }
     }
 
-    if (leaveType === "SIL" && supportingDoc) {
+    if (supportingDoc) {
       if (!isAllowedFile(supportingDoc)) {
         toast.error("Only PDF, DOC, or DOCX files are allowed");
         return;
@@ -426,66 +404,59 @@ export default function LeaveRequestPage() {
 
     setSubmitting(true);
 
-    // Use RPC function to bypass RLS issues with anonymous users
-    const { data: inserted, error } = await supabase.rpc("create_leave_request", {
-      p_employee_id: employee.id,
-      p_leave_type: leaveType,
-      p_start_date: startDate,
-      p_end_date: endDate,
-      p_total_days: calculatedDays,
-      p_selected_dates: selectedDates.length > 0 ? selectedDates : null,
-      p_reason: reason.trim() || null,
-      p_half_day_dates: halfDayDates.size > 0 ? Array.from(halfDayDates) : [],
-    } as any);
+    let documentPayload:
+      | {
+          file_name: string;
+          file_type: string;
+          file_size: number;
+          file_base64: string;
+        }
+      | null = null;
+    if (supportingDoc) {
+      const base64 = await fileToBase64(supportingDoc);
+      documentPayload = {
+        file_name: supportingDoc.name,
+        file_type: resolveMimeType(supportingDoc),
+        file_size: supportingDoc.size,
+        file_base64: base64,
+      };
+    }
 
-    if (error || !inserted) {
+    const createResponse = await fetch("/api/employee-portal/leave-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employee_id: employee.id,
+        leave_type: leaveType,
+        start_date: startDate,
+        end_date: endDate,
+        total_days: calculatedDays,
+        selected_dates: selectedDates.length > 0 ? selectedDates : null,
+        half_day_dates: halfDayDates.size > 0 ? Array.from(halfDayDates) : [],
+        reason: reason.trim() || null,
+        document: documentPayload,
+      }),
+    });
+    const createPayload = await createResponse.json();
+
+    if (!createResponse.ok || !createPayload?.id) {
       setSubmitting(false);
-      console.error("Error submitting leave request:", error);
+      console.error("Error submitting leave request:", createPayload);
       toast.error("Failed to submit leave request");
       return;
     }
 
-    if (leaveType === "SIL" && supportingDoc) {
-      setDocUploading(true);
-      try {
-        const base64 = await fileToBase64(supportingDoc);
-        const resolvedType = resolveMimeType(supportingDoc);
-        const { error: docError } = await (
-          supabase.from("leave_request_documents") as any
-        ).insert({
-          leave_request_id: inserted.id,
-          employee_id: employee.id,
-          document_type: "SIL",
-          file_name: supportingDoc.name,
-          file_type: resolvedType,
-          file_size: supportingDoc.size,
-          file_base64: base64,
-        });
-
-        if (docError) {
-          console.error("Error saving document:", docError);
-          await supabase.from("leave_requests").delete().eq("id", inserted.id);
-          toast.error("Failed to save document. Please try again.");
-          setDocUploading(false);
-          setSubmitting(false);
-          return;
-        }
-      } catch (err) {
-        console.error("Error preparing document:", err);
-        await supabase.from("leave_requests").delete().eq("id", inserted.id);
-        toast.error("Failed to attach document. Please try again.");
-        setDocUploading(false);
-        setSubmitting(false);
-        return;
-      }
-      setDocUploading(false);
-    }
-
     setSubmitting(false);
 
-    toast.success("Leave request submitted successfully!", {
-      description: `${leaveType} • ${calculatedDays} day(s) • Status: Pending approval`,
-    });
+    if (createPayload?.warning) {
+      toast.warning(createPayload.warning, {
+        description: `${leaveType} • ${calculatedDays} day(s) • Status: Pending approval`,
+      });
+    } else {
+      toast.success("Leave request submitted successfully!", {
+        description: `${leaveType} • ${calculatedDays} day(s) • Status: Pending approval`,
+      });
+    }
     setSelectedDates([]);
     setHalfDayDates(new Set());
     setStartDate("");
@@ -504,23 +475,23 @@ export default function LeaveRequestPage() {
   async function handleCancel(requestId: string) {
     setCancelLoading(true);
 
-    // Use RPC function to bypass RLS issues with anonymous users
-    // Employee portal uses anon auth (no auth.uid()), so RLS policies checking auth.uid() don't work
-    const { data, error } = await supabase.rpc("cancel_leave_request", {
-      p_request_id: requestId,
-      p_employee_id: employee?.id || "",
+    const response = await fetch("/api/employee-portal/leave-requests", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: requestId,
+        employee_id: employee?.id || "",
+      }),
     });
+    const payload = await response.json();
 
     setCancelLoading(false);
 
-    if (error) {
-      console.error("Error cancelling leave request:", error);
-      toast.error(`Failed to cancel leave request: ${error.message || "Unknown error"}`);
-      return;
-    }
-
-    if (!data) {
-      toast.error("Could not cancel; request may have already been processed or cancelled.");
+    if (!response.ok) {
+      console.error("Error cancelling leave request:", payload);
+      toast.error(
+        `Failed to cancel leave request: ${payload?.error || "Unknown error"}`
+      );
       return;
     }
 
@@ -544,8 +515,16 @@ export default function LeaveRequestPage() {
 
     setDownloadingDocId(null);
 
-    if (error || !data) {
-      console.error("Error fetching document:", error);
+    if (error) {
+      if (isSchemaMissingTableOrRelationError(error)) {
+        toast.error("Document storage is not configured");
+      } else {
+        console.error("Error fetching document:", error);
+        toast.error("Unable to fetch document");
+      }
+      return;
+    }
+    if (!data) {
       toast.error("Unable to fetch document");
       return;
     }
@@ -677,7 +656,7 @@ export default function LeaveRequestPage() {
                     Allotted SIL Credits
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-blue-600">10</div>
+                <div className="text-3xl font-bold text-blue-600">5</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   Available: {silCredits !== null ? silCredits.toFixed(2) : "—"}
                 </div>
@@ -819,7 +798,7 @@ export default function LeaveRequestPage() {
                     {leaveType === "SIL" && (
                       <>
                         <p>
-                          Allotted SIL Credits: <strong>10</strong>
+                          Allotted SIL Credits: <strong>5</strong>
                         </p>
                         <p>
                           Available SIL Credits:{" "}
@@ -951,63 +930,60 @@ export default function LeaveRequestPage() {
                   </div>
                 )}
 
-                {leaveType === "SIL" && (
-                  <div className="w-full space-y-2">
-                    <Label htmlFor="supporting-doc">
-                      Supporting Document (optional, PDF/DOC/DOCX)
-                    </Label>
-                    <input
-                      id="supporting-doc"
-                      type="file"
-                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) {
-                          setSupportingDoc(null);
-                          setDocError(null);
-                          return;
-                        }
-                        if (!isAllowedFile(file)) {
-                          setDocError(
-                            "Only PDF, DOC, or DOCX files are allowed."
-                          );
-                          setSupportingDoc(null);
-                          return;
-                        }
-                        if (file.size > MAX_FILE_SIZE) {
-                          setDocError("File too large. Max size is 5MB.");
-                          setSupportingDoc(null);
-                          return;
-                        }
+                <div className="w-full space-y-2">
+                  <Label htmlFor="supporting-doc">
+                    Supporting document (optional, PDF/DOC/DOCX)
+                  </Label>
+                  <input
+                    id="supporting-doc"
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) {
+                        setSupportingDoc(null);
                         setDocError(null);
-                        setSupportingDoc(file);
-                      }}
-                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Optional: attach clinic slip or documentation for SIL. Max
-                      5MB.
+                        return;
+                      }
+                      if (!isAllowedFile(file)) {
+                        setDocError(
+                          "Only PDF, DOC, or DOCX files are allowed."
+                        );
+                        setSupportingDoc(null);
+                        return;
+                      }
+                      if (file.size > MAX_FILE_SIZE) {
+                        setDocError("File too large. Max size is 5MB.");
+                        setSupportingDoc(null);
+                        return;
+                      }
+                      setDocError(null);
+                      setSupportingDoc(file);
+                    }}
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional for any leave type. Max 5MB.
+                  </p>
+                  {supportingDoc && !docError && (
+                    <HStack
+                      gap="2"
+                      align="center"
+                      className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2"
+                    >
+                      <Icon name="Paperclip" size={IconSizes.sm} />
+                      <span>{supportingDoc.name}</span>
+                      <Caption>
+                        {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
+                      </Caption>
+                    </HStack>
+                  )}
+                  {docError && (
+                    <p className="text-sm text-destructive font-medium">
+                      {docError}
                     </p>
-                    {supportingDoc && !docError && (
-                      <HStack
-                        gap="2"
-                        align="center"
-                        className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2"
-                      >
-                        <Icon name="Paperclip" size={IconSizes.sm} />
-                        <span>{supportingDoc.name}</span>
-                        <Caption>
-                          {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
-                        </Caption>
-                      </HStack>
-                    )}
-                    {docError && (
-                      <p className="text-sm text-destructive font-medium">
-                        {docError}
-                      </p>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
 
                 <div className="w-full space-y-2">
                   <Label htmlFor="reason">Reason</Label>
@@ -1023,12 +999,10 @@ export default function LeaveRequestPage() {
 
                 <Button
                   type="submit"
-                  disabled={submitting || docUploading}
+                  disabled={submitting}
                   className="w-full"
                 >
-                  {submitting || docUploading
-                    ? "Submitting..."
-                    : "Submit Leave Request"}
+                  {submitting ? "Submitting..." : "Submit Leave Request"}
                 </Button>
               </VStack>
             </form>

@@ -14,8 +14,14 @@ import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
 import { useCurrentUser } from "./useCurrentUser";
 
-type UserRole =
-  | Database["public"]["Tables"]["users"]["Row"]["role"];
+type DbUserRole = Database["public"]["Tables"]["users"]["Row"]["role"];
+
+/** Profiles include roles beyond the legacy `users` table enum in generated types */
+export type UserRole =
+  | DbUserRole
+  | "upper_management"
+  | "project_manager"
+  | "operations_manager";
 
 interface UserRoleData {
   role: UserRole | null;

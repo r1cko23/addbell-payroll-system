@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { format, parseISO, getDay, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO, getDay } from "date-fns";
 import {
   determineDayType,
   getDayName,
@@ -27,12 +27,13 @@ import {
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { normalizeHolidays } from "@/utils/holidays";
-import {
-  getBiMonthlyPeriodStart,
-  getBiMonthlyPeriodEnd,
-  getBiMonthlyWorkingDays,
-} from "@/utils/bimonthly";
+import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
+import {
+  fetchSessionsForEmployee,
+  fetchProjectTimeSessionsForEmployee,
+  type TimeEntrySession,
+} from "@/lib/timeEntries";
 
 interface Employee {
   id: string;
@@ -56,6 +57,18 @@ interface ClockEntry {
   total_hours: number | null;
   total_night_diff_hours: number | null;
   status: string;
+}
+
+function clockEntryFromSession(s: TimeEntrySession): ClockEntry {
+  return {
+    id: s.id,
+    clock_in_time: s.clock_in_time,
+    clock_out_time: s.clock_out_time,
+    regular_hours: s.regular_hours ?? null,
+    total_hours: s.total_hours ?? null,
+    total_night_diff_hours: s.total_night_diff_hours ?? null,
+    status: s.status,
+  };
 }
 
 interface Schedule {
@@ -98,7 +111,7 @@ interface AttendanceDay {
   lt: number; // Late (minutes)
   ut: number; // Undertime (minutes)
   nd: number; // Night Differential
-  clockEntryIds?: string[]; // ids from time_clock_entries for this day (for admin/HR remove)
+  clockEntryIds?: string[]; // ids from time_entries (in + out punch ids for this day, for admin/HR remove)
 }
 
 export default function TimesheetPage() {
@@ -108,8 +121,81 @@ export default function TimesheetPage() {
   );
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const today = new Date();
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
-  const [cutoffPeriod, setCutoffPeriod] = useState<"first" | "second">("first");
+  // Month/week filter for weekly cutoff (Wednesday–Tuesday)
+  const [filterMonth, setFilterMonth] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [selectedWeekKey, setSelectedWeekKey] = useState<string>("");
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    // Company weekly cutoff: Wednesday to Tuesday. Find current week's Wednesday.
+    while (d.getDay() !== 3) {
+      d.setDate(d.getDate() - 1);
+    }
+    return d;
+  });
+
+  const weekOptions = useMemo(() => {
+    const year = filterMonth.getFullYear();
+    const month = filterMonth.getMonth();
+    const firstOfMonth = new Date(year, month, 1);
+    firstOfMonth.setHours(0, 0, 0, 0);
+    let start = new Date(firstOfMonth);
+    // Align to Wednesday
+    while (start.getDay() !== 3) {
+      start.setDate(start.getDate() - 1);
+    }
+    const endOfMonth = new Date(year, month + 1, 0);
+    endOfMonth.setHours(0, 0, 0, 0);
+    const options: { key: string; label: string; start: Date; end: Date }[] = [];
+    let weekIndex = 1;
+    while (start <= endOfMonth) {
+      const ws = new Date(start);
+      const we = new Date(start);
+      we.setDate(we.getDate() + 6);
+      options.push({
+        key: ws.toISOString(),
+        label: `Week ${weekIndex} (${format(ws, "MMM d")} – ${format(
+          we,
+          "MMM d"
+        )})`,
+        start: ws,
+        end: we,
+      });
+      weekIndex += 1;
+      start.setDate(start.getDate() + 7);
+    }
+    return options;
+  }, [filterMonth]);
+
+  // Keep selectedWeekStart and week dropdown in sync
+  useEffect(() => {
+    if (weekOptions.length === 0) return;
+    // Try to match current selectedWeekStart to one of the options
+    const matchByStart = weekOptions.find((opt) => {
+      const d = new Date(opt.start);
+      const s = new Date(selectedWeekStart);
+      d.setHours(0, 0, 0, 0);
+      s.setHours(0, 0, 0, 0);
+      return d.getTime() === s.getTime();
+    });
+    if (matchByStart) {
+      setSelectedWeekKey(matchByStart.key);
+      return;
+    }
+    // If no exact match, find week that contains selectedWeekStart
+    const inRange = weekOptions.find(
+      (opt) =>
+        selectedWeekStart >= opt.start && selectedWeekStart <= opt.end
+    );
+    const chosen = inRange ?? weekOptions[0];
+    setSelectedWeekKey(chosen.key);
+    setSelectedWeekStart(chosen.start);
+  }, [weekOptions, selectedWeekStart]);
   const [attendanceDays, setAttendanceDays] = useState<AttendanceDay[]>([]);
   const [clockEntries, setClockEntries] = useState<ClockEntry[]>([]);
   const [schedules, setSchedules] = useState<Map<string, Schedule>>(new Map());
@@ -121,18 +207,19 @@ export default function TimesheetPage() {
   const { isAdmin, isHR, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
-  // Calculate period start/end based on month and cutoff
-  const periodStart =
-    cutoffPeriod === "first"
-      ? new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1)
-      : new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 16);
-  const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+  // Weekly cutoff: Wednesday to Tuesday
+  const periodStart = selectedWeekStart;
+  const periodEnd = (() => {
+    const d = new Date(selectedWeekStart);
+    d.setDate(d.getDate() + 6); // Wed + 6 = Tue
+    return d;
+  })();
 
   useEffect(() => {
     if (!groupsLoading && !roleLoading) {
       loadInitialData();
     }
-  }, [selectedMonth, assignedGroupIds, groupsLoading, roleLoading, isAdmin]); // Reload holidays when month changes
+  }, [assignedGroupIds, groupsLoading, roleLoading, isAdmin]);
 
   useEffect(() => {
     if (selectedEmployee) {
@@ -142,7 +229,7 @@ export default function TimesheetPage() {
         loadAttendanceData();
       });
     }
-  }, [selectedEmployee, selectedMonth, cutoffPeriod]);
+  }, [selectedEmployee, selectedWeekStart, filterMonth]);
 
   async function ensureTimesheetExists() {
     if (!selectedEmployee) return;
@@ -185,56 +272,25 @@ export default function TimesheetPage() {
 
   async function loadInitialData() {
     try {
-      // Load employees with filtering by assigned groups for approvers/viewers
-      let query = supabase
+      // Load employees (schema: employment_type, no overtime_group_id)
+      const { data: empData, error: empError } = await supabase
         .from("employees")
-        .select("id, employee_id, full_name, eligible_for_ot, position, employee_type, job_level, hire_date, overtime_group_id, last_name, first_name, transferred_from_employee_id")
+        .select("id, employee_id, full_name, eligible_for_ot, position, employment_type, job_level, hire_date, last_name, first_name, transferred_from_employee_id")
         .eq("is_active", true)
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
 
-      // Filter by assigned groups if user is approver/viewer (not admin or HR)
-      // Admin and HR should see all employees
-      if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
-        query = query.in("overtime_group_id", assignedGroupIds);
-      }
-
-      const { data: empData, error: empError } = await query;
-
       if (empError) throw empError;
-      setEmployees(empData || []);
+      // Map employment_type → employee_type for UI
+      const mapped = (empData || []).map((e: any) => ({
+        ...e,
+        employee_type: e.employment_type ?? null,
+      }));
+      setEmployees(mapped);
 
       // Load holidays for the selected month
-      const monthStart = startOfMonth(selectedMonth);
-      const monthEnd = endOfMonth(selectedMonth);
-      const monthStartStr = format(monthStart, "yyyy-MM-dd");
-      const monthEndStr = format(monthEnd, "yyyy-MM-dd");
-
-      const { data: holidayData, error: holidayError } = await supabase
-        .from("holidays")
-        .select("holiday_date, name, is_regular")
-        .gte("holiday_date", monthStartStr)
-        .lte("holiday_date", monthEndStr);
-
-      if (holidayError) {
-        console.warn("Error loading holidays (non-critical):", holidayError);
-        // Don't throw - holidays are not critical for attendance display
-      }
-
-      const holidaysArray = holidayData as Array<{
-        holiday_date: string;
-        name: string;
-        is_regular: boolean;
-      }> | null;
-
-      // Normalize holidays to ensure consistent date format
-      const formattedHolidays: Holiday[] = normalizeHolidays(
-        (holidaysArray || []).map((h) => ({
-          date: h.holiday_date,
-          name: h.name,
-          type: h.is_regular ? "regular" : "non-working",
-        }))
-      );
+      // Schema does not include holidays table — use empty list
+      const formattedHolidays: Holiday[] = [];
 
       setHolidays(formattedHolidays);
     } catch (error) {
@@ -274,36 +330,39 @@ export default function TimesheetPage() {
         queryEnd: periodEndDate.toISOString(),
       });
 
-      // Load ALL clock entries (both complete and incomplete) for the period
-      // Use wider date range to account for timezone differences, then filter by date in app
-      const { data: clockData, error: clockError } = await supabase
-        .from("time_clock_entries")
-        .select(
-          "id, clock_in_time, clock_out_time, regular_hours, total_hours, total_night_diff_hours, status"
-        )
-        .eq("employee_id", selectedEmployee.id)
-        .gte("clock_in_time", periodStartDate.toISOString())
-        .lte("clock_in_time", periodEndDate.toISOString())
-        .order("clock_in_time", { ascending: true });
-
-      if (clockError) {
-        console.error("Error loading clock entries:", clockError);
-        console.error("Error details:", {
-          message: clockError.message,
-          code: clockError.code,
-          details: clockError.details,
-          hint: clockError.hint,
+      const getDateInManila = (iso: string) => {
+        const d = new Date(iso);
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
         });
-        toast.error(
-          `Failed to load time entries: ${
-            clockError.message || "Unknown error"
-          }`
-        );
-        // Don't throw - continue with empty data so user can see the interface
-        setClockEntries([]);
-        setAttendanceDays([]);
-        return;
-      }
+        const parts = formatter.formatToParts(d);
+        return `${parts.find((p) => p.type === "year")!.value}-${
+          parts.find((p) => p.type === "month")!.value
+        }-${parts.find((p) => p.type === "day")!.value}`;
+      };
+
+      const [mainSessions, projectSessions] = await Promise.all([
+        fetchSessionsForEmployee(
+          supabase,
+          selectedEmployee.id,
+          periodStartDate.toISOString(),
+          periodEndDate.toISOString(),
+          getDateInManila
+        ),
+        fetchProjectTimeSessionsForEmployee(
+          supabase,
+          selectedEmployee.id,
+          periodStartDate.toISOString(),
+          periodEndDate.toISOString(),
+          getDateInManila
+        ),
+      ]);
+
+      // Merge main clock (Bundy) and project time entries so BH = sum of all hours per day
+      const clockData = [...(mainSessions || []), ...(projectSessions || [])];
 
       // Filter entries by date in Asia/Manila timezone to ensure accuracy
       const filteredClockData = (clockData || []).filter((entry: any) => {
@@ -367,14 +426,14 @@ export default function TimesheetPage() {
         console.warn(
           "No clock entries found for period. Checking if employee has any entries..."
         );
-        // Fallback: Check if employee has ANY entries to verify query is working
-        const { data: anyEntries } = await supabase
-          .from("time_clock_entries")
-          .select("clock_in_time")
+        // Fallback: Check if employee has ANY punches to verify query is working
+        const { data: anyPunches } = await supabase
+          .from("time_entries")
+          .select("punched_at")
           .eq("employee_id", selectedEmployee.id)
           .limit(5)
-          .order("clock_in_time", { ascending: false });
-        console.log("Recent entries for employee (any date):", anyEntries);
+          .order("punched_at", { ascending: false });
+        console.log("Recent punches for employee (any date):", anyPunches);
 
         // Also check raw data before filtering
         if (clockData && clockData.length > 0) {
@@ -398,14 +457,17 @@ export default function TimesheetPage() {
           );
         }
       }
-      setClockEntries(validEntries || []);
+      const validClockEntries = (validEntries as TimeEntrySession[]).map(
+        clockEntryFromSession
+      );
+      setClockEntries(validClockEntries);
 
       // Separate complete and incomplete entries from valid clock entries only
-      const completeEntries = validEntries.filter(
-        (entry: any) => entry.clock_out_time !== null
+      const completeEntries = validClockEntries.filter(
+        (entry) => entry.clock_out_time !== null
       );
-      const incompleteEntries = validEntries.filter(
-        (entry: any) => entry.clock_out_time === null
+      const incompleteEntries = validClockEntries.filter(
+        (entry) => entry.clock_out_time === null
       );
 
 
@@ -416,7 +478,7 @@ export default function TimesheetPage() {
       // Leave requests overlap if: start_date <= periodEnd AND end_date >= periodStart
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("id, leave_type, start_date, end_date, status, selected_dates")
+        .select("id, leave_type, start_date, end_date, status")
         .eq("employee_id", selectedEmployee.id)
         .lte("start_date", periodEndStr)
         .gte("end_date", periodStartStr)
@@ -465,62 +527,8 @@ export default function TimesheetPage() {
       }
       setOtRequests(otData);
 
-      // Load schedules from employee_week_schedules (including day_off for rest day detection)
-      const { data: scheduleData, error: scheduleError } = await supabase
-        .from("employee_week_schedules")
-        .select("schedule_date, start_time, end_time, day_off")
-        .eq("employee_id", selectedEmployee.id)
-        .gte("schedule_date", periodStartStr)
-        .lte("schedule_date", periodEndStr);
-
-      if (scheduleError) {
-        console.warn("Error loading week schedules:", scheduleError);
-      }
-
-      console.log("Loaded schedules:", scheduleData?.length || 0);
-      if (scheduleData && scheduleData.length > 0) {
-        console.log("Sample schedule:", scheduleData[0]);
-      }
-
-      // Also try loading from employee_schedules (fallback for day-of-week based schedules)
-      let scheduleMap = new Map<string, Schedule>();
-
-      if (scheduleData && scheduleData.length > 0) {
-        scheduleData.forEach((s: any) => {
-          scheduleMap.set(s.schedule_date, {
-            schedule_date: s.schedule_date,
-            start_time: s.start_time,
-            end_time: s.end_time,
-            day_off: s.day_off || false,
-          });
-        });
-      } else {
-        // Fallback: Load from employee_schedules table (day-of-week based)
-        const { data: dayOfWeekSchedules } = await supabase
-          .from("employee_schedules")
-          .select("day_of_week, shift_start_time, shift_end_time")
-          .eq("employee_id", selectedEmployee.id)
-          .eq("is_active", true);
-
-        if (dayOfWeekSchedules && dayOfWeekSchedules.length > 0) {
-          // Map day-of-week schedules to specific dates
-          const workingDays = getBiMonthlyWorkingDays(periodStart);
-          workingDays.forEach((date) => {
-            const dayOfWeek = getDay(date);
-            const schedule = dayOfWeekSchedules.find(
-              (s: any) => s.day_of_week === dayOfWeek
-            );
-            if (schedule) {
-              const dateStr = format(date, "yyyy-MM-dd");
-              scheduleMap.set(dateStr, {
-                schedule_date: dateStr,
-                start_time: (schedule as any).shift_start_time,
-                end_time: (schedule as any).shift_end_time,
-              });
-            }
-          });
-        }
-      }
+      // Schema does not include employee_week_schedules table — no schedule data
+      const scheduleMap = new Map<string, Schedule>();
 
       setSchedules(scheduleMap);
       generateAttendanceDays(
@@ -564,7 +572,18 @@ export default function TimesheetPage() {
       .includes("ACCOUNT SUPERVISOR") || false;
     // ND only when OT request overlaps 10PM–6AM Philippine time (all employees)
     const ndNightStartHour = 22; // 10PM – 6AM; 0 ND if OT is outside this window
-    const workingDays = getBiMonthlyWorkingDays(periodStart);
+    // For weekly cutoff, working days are simply all calendar days between periodStart and periodEnd (inclusive)
+    const workingDays: Date[] = [];
+    {
+      const d = new Date(periodStart);
+      d.setHours(0, 0, 0, 0);
+      const end = new Date(periodEnd);
+      end.setHours(0, 0, 0, 0);
+      while (d <= end) {
+        workingDays.push(new Date(d));
+        d.setDate(d.getDate() + 1);
+      }
+    }
     const days: AttendanceDay[] = [];
 
     // Debug: ND discrepancy (payslip shows ND, timesheet shows 0)
@@ -656,25 +675,15 @@ export default function TimesheetPage() {
       const endDate = new Date(leave.end_date);
       let currentDate = new Date(startDate);
 
-      // Use selected_dates if available, otherwise use date range
-      if (leave.selected_dates && leave.selected_dates.length > 0) {
-        leave.selected_dates.forEach((dateStr: string) => {
-          if (!leavesByDate.has(dateStr)) {
-            leavesByDate.set(dateStr, []);
-          }
-          leavesByDate.get(dateStr)!.push(leave);
-        });
-      } else {
-        // Use date range
-        while (currentDate <= endDate) {
-          const dateStr = format(currentDate, "yyyy-MM-dd");
-          if (!leavesByDate.has(dateStr)) {
-            leavesByDate.set(dateStr, []);
-          }
-          leavesByDate.get(dateStr)!.push(leave);
-          currentDate = new Date(currentDate);
-          currentDate.setDate(currentDate.getDate() + 1);
+      // Schema has no selected_dates — use start_date/end_date only
+      while (currentDate <= endDate) {
+        const dateStr = format(currentDate, "yyyy-MM-dd");
+        if (!leavesByDate.has(dateStr)) {
+          leavesByDate.set(dateStr, []);
         }
+        leavesByDate.get(dateStr)!.push(leave);
+        currentDate = new Date(currentDate);
+        currentDate.setDate(currentDate.getDate() + 1);
       }
     });
 
@@ -785,8 +794,8 @@ export default function TimesheetPage() {
 
           // Only check regular working days (skip holidays and rest days)
           if (checkDayType === "regular" && checkDayEntries.length > 0) {
-            // Check if employee worked 8+ hours on this regular working day
-            const workedHours = checkDayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+            // Check if employee worked 8+ hours on this regular working day (main + project time)
+            const workedHours = checkDayEntries.reduce((sum, e) => sum + (e.regular_hours ?? e.total_hours ?? 0), 0);
             if (workedHours >= 8) {
               eligibleForHoliday = true;
               break;
@@ -850,27 +859,16 @@ export default function TimesheetPage() {
         }
       } else if (dayOfWeek === 6) {
         // Saturday handling:
-        // - Office-based: Saturday is a regular work day (paid 6 days/week per law) - shows LOG even if no logs
-        // - Client-based: Saturday is a normal workday - shows ABSENT if no logs (unless it's their rest day, which is handled above)
-        if (isClientBased) {
-          // Client-based: Saturday is a normal workday - must have logs or be ABSENT
-          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-            status = "LOG"; // Worked on Saturday
-          } else {
-            // No logs = ABSENT (unless it's a rest day, which is already handled above)
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const currentDate = new Date(date);
-            currentDate.setHours(0, 0, 0, 0);
-            status = currentDate > today ? "-" : "ABSENT";
-          }
+        // For this company, Saturday is NOT automatically treated as a worked/logged day.
+        // Both office-based and client-based employees must have logs, otherwise it's ABSENT (or "-" for future dates).
+        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+          status = "LOG"; // Worked on Saturday
         } else {
-          // Office-based: Saturday is a regular work day (paid even if not worked)
-          if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-            status = "LOG"; // Worked on Saturday
-          } else {
-            status = "LOG"; // Saturday - paid as regular work day even if not worked
-          }
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const currentDate = new Date(date);
+          currentDate.setHours(0, 0, 0, 0);
+          status = currentDate > today ? "-" : "ABSENT";
         }
       } else if (dayOfWeek === 0) {
         // Sunday handling:
@@ -1052,13 +1050,11 @@ export default function TimesheetPage() {
         });
       }
 
-      // Calculate BH (Basic Hours)
-      // If status is already set from leave (CTO, LEAVE, OB), use that value
-      // Otherwise, sum regular hours from complete entries
-      // BH should always show regular hours (8), not OT hours
+      // Calculate BH (Basic Hours): sum of all sessions (main Bundy + project time) for this day
+      // One day can have multiple project sessions (e.g. 3h + 2h + 3h = 8h) — single BH for HRIS
       if (bh === 0) {
         if (dayEntries.length > 0) {
-          bh = dayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+          bh = dayEntries.reduce((sum, e) => sum + (e.regular_hours ?? e.total_hours ?? 0), 0);
         } else if (
           status === "OT" &&
           dayOTs.length > 0 &&
@@ -1077,17 +1073,8 @@ export default function TimesheetPage() {
         bh = 8;
       }
 
-      // Saturday Regular Work Day: Set BH = 8 even if employee didn't work
-      // Per Philippine labor law, office-based employees are paid 6 days/week (Mon-Sat)
-      // For office-based: Saturday is a regular work day - paid even if not worked
-      // For client-based: Saturday is a normal workday - must have logs (no automatic BH = 8)
-      // dayOfWeek from getDay(): 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-      if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6 && !isClientBased) {
-        bh = 8; // Office-based: Regular work day: 8 hours even if not worked (paid 6 days/week)
-      }
-
-      // Note: Client-based employees do NOT get automatic BH = 8 for Saturday or Sunday
-      // They must log time on all 6 workdays (non-rest days) or be marked as ABSENT
+      // Note: Employees do NOT get automatic BH for Saturday or Sunday.
+      // They must log time on scheduled workdays or be marked as ABSENT/rest day.
 
       // IMPORTANT: BH is set based on:
       // 1. Actual completed time log entries (regular_hours from clock entries)
@@ -1137,7 +1124,7 @@ export default function TimesheetPage() {
         lt,
         ut,
         nd: Math.round(ndHours * 100) / 100,
-        clockEntryIds: dayEntries.map((e) => e.id),
+        clockEntryIds: dayEntries.flatMap((e: any) => (e.out_punch_id ? [e.id, e.out_punch_id] : [e.id])),
       });
     });
 
@@ -1212,7 +1199,7 @@ export default function TimesheetPage() {
     if (!entryIds.length) return;
     if (!confirm(`Remove time entry for ${dateLabel}? This cannot be undone.`)) return;
     for (const id of entryIds) {
-      const { error } = await supabase.from("time_clock_entries").delete().eq("id", id);
+      const { error } = await supabase.from("time_entries").delete().eq("id", id);
       if (error) {
         console.error("Error deleting time entry:", error);
         toast.error("Failed to remove time entry");
@@ -1223,10 +1210,10 @@ export default function TimesheetPage() {
     loadAttendanceData();
   }
 
-  const cutoffLabel =
-    cutoffPeriod === "first"
-      ? `First Cut Off 1 to 15`
-      : `Second Cut Off 16 to ${format(periodEnd, "d")}`;
+  const cutoffLabel = `Weekly Cutoff ${format(periodStart, "MMM d")} to ${format(
+    periodEnd,
+    "MMM d"
+  )}`;
 
   // Calculate base pay using simplified 104-hour method (if employee data is available)
   // This applies to both client-based and office-based employees
@@ -1443,18 +1430,20 @@ export default function TimesheetPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         {/* Header with Title and Controls */}
-        <div className="flex items-center justify-between w-full">
+        <div className="flex items-center justify-between w-full flex-col gap-3 md:flex-row">
           <H1>TIME ATTENDANCE</H1>
-          <HStack gap="3" align="center">
+          <HStack gap="3" align="center" className="flex-wrap justify-end">
             {/* Year Selector */}
             <Select
-              value={selectedMonth.getFullYear().toString()}
+              value={filterMonth.getFullYear().toString()}
               onValueChange={(value) => {
                 const year = parseInt(value, 10);
-                setSelectedMonth(new Date(year, selectedMonth.getMonth(), 1));
+                setFilterMonth(
+                  new Date(year, filterMonth.getMonth(), 1)
+                );
               }}
             >
-              <SelectTrigger className="w-28">
+              <SelectTrigger className="w-24">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1471,44 +1460,89 @@ export default function TimesheetPage() {
 
             {/* Month Selector */}
             <Select
-              value={format(selectedMonth, "yyyy-MM")}
+              value={format(filterMonth, "MM")}
               onValueChange={(value) => {
-                const [year, month] = value.split("-").map(Number);
-                setSelectedMonth(new Date(year, month - 1, 1));
+                const month = parseInt(value, 10) - 1;
+                setFilterMonth(
+                  new Date(filterMonth.getFullYear(), month, 1)
+                );
               }}
             >
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 12 }, (_, i) => {
-                  const date = new Date(selectedMonth.getFullYear(), i, 1);
+                  const d = new Date(filterMonth.getFullYear(), i, 1);
                   return (
-                    <SelectItem key={i} value={format(date, "yyyy-MM")}>
-                      {format(date, "MMMM yyyy")}
+                    <SelectItem
+                      key={i}
+                      value={format(d, "MM")}
+                    >
+                      {format(d, "MMMM")}
                     </SelectItem>
                   );
                 })}
               </SelectContent>
             </Select>
 
-            {/* Cutoff Period Selector */}
+            {/* Week-of-cutoff Selector */}
             <Select
-              value={cutoffPeriod}
-              onValueChange={(value) =>
-                setCutoffPeriod(value as "first" | "second")
-              }
+              value={selectedWeekKey}
+              onValueChange={(value) => {
+                setSelectedWeekKey(value);
+                const d = new Date(value);
+                d.setHours(0, 0, 0, 0);
+                setSelectedWeekStart(d);
+              }}
             >
-              <SelectTrigger className="w-48">
-                <SelectValue />
+              <SelectTrigger className="w-56">
+                <SelectValue placeholder="Select week" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="first">First Cut Off 1 to 15</SelectItem>
-                <SelectItem value="second">
-                  Second Cut Off 16 to {format(periodEnd, "d")}
-                </SelectItem>
+                {weekOptions.map((opt) => (
+                  <SelectItem key={opt.key} value={opt.key}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+
+            {/* Quick previous/next week buttons */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() =>
+                setSelectedWeekStart((prev) => {
+                  const d = new Date(prev);
+                  d.setDate(d.getDate() - 7);
+                  setFilterMonth(
+                    new Date(d.getFullYear(), d.getMonth(), 1)
+                  );
+                  return d;
+                })
+              }
+              aria-label="Previous week"
+            >
+              <Icon name="CaretLeft" size={IconSizes.sm} />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() =>
+                setSelectedWeekStart((prev) => {
+                  const d = new Date(prev);
+                  d.setDate(d.getDate() + 7);
+                  setFilterMonth(
+                    new Date(d.getFullYear(), d.getMonth(), 1)
+                  );
+                  return d;
+                })
+              }
+              aria-label="Next week"
+            >
+              <Icon name="CaretRight" size={IconSizes.sm} />
+            </Button>
 
             {/* Print Button */}
             <Button onClick={handlePrint} variant="outline">
@@ -1578,12 +1612,6 @@ export default function TimesheetPage() {
                     <th className="px-4 py-2 text-left text-xs font-medium uppercase">
                       STATUS
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase">
-                      TIME IN
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase">
-                      TIME OUT
-                    </th>
                     <th className="px-4 py-2 text-right text-xs font-medium uppercase">
                       BH
                     </th>
@@ -1650,16 +1678,6 @@ export default function TimesheetPage() {
                             {day.status}
                           </span>
                         </td>
-                        <td className="px-4 py-2 text-sm">
-                          {day.status === "LWOP" || day.status === "LEAVE"
-                            ? "-"
-                            : day.timeIn || "-"}
-                        </td>
-                        <td className="px-4 py-2 text-sm">
-                          {day.status === "LWOP" || day.status === "LEAVE"
-                            ? "-"
-                            : day.timeOut || "-"}
-                        </td>
                         <td className="px-4 py-2 text-sm text-right">
                           {day.status === "LWOP"
                             ? "-"
@@ -1706,7 +1724,7 @@ export default function TimesheetPage() {
                   })}
                   {/* Summary Row */}
                   <tr className="border-t-2 font-semibold">
-                    <td colSpan={isAdmin ? 6 : 5} className="px-4 py-2 text-sm">
+                    <td colSpan={3} className="px-4 py-2 text-sm">
                       Days Work : {Math.round(daysWorked)}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">
@@ -1719,6 +1737,7 @@ export default function TimesheetPage() {
                     <td className="px-4 py-2 text-sm text-right">
                       {totalND > 0 ? totalND.toFixed(2) : "0"}
                     </td>
+                    {isAdmin && <td className="px-4 py-2" />}
                   </tr>
                 </tbody>
               </table>

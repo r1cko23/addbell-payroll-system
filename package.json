@@ -16,6 +16,7 @@
     "test:report": "playwright show-report",
     "test:clock": "node scripts/test-time-clock.js",
     "import:employees": "node scripts/import-employees-from-excel.js",
+    "import:masterlist-2026": "node scripts/import-masterlist-2026-employees.js",
     "import:ot-accounts": "node scripts/import-ot-accounts-from-excel.js",
     "import:timelog-approvers": "node scripts/import-timelog-approvers-from-excel.js",
     "assign:employee-ot-approvers": "node scripts/assign-employee-ot-approvers-from-excel.js",

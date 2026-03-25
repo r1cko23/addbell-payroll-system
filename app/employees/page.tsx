@@ -35,7 +35,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 
 interface Employee {
   id: string;
-  company_id: string;
+  company_id: string | null;
   employee_code: string;
   first_name: string;
   middle_name: string | null;
@@ -47,10 +47,12 @@ interface Employee {
   mobile: string | null;
   email: string | null;
   address: string | null;
+  contact_person: string | null;
   sss_number: string | null;
   philhealth_number: string | null;
   pagibig_number: string | null;
   tin: string | null;
+  nbi_clearance_expiration_date: string | null;
   employment_type: string;
   hire_date: string;
   regularization_date: string | null;
@@ -66,8 +68,15 @@ interface Employee {
   bank_account_number: string | null;
   created_at: string;
   updated_at: string;
+  /** Overtime / approval routing: must match an `overtime_groups` row. */
+  overtime_group_id?: string | null;
   departments: { name: string } | null;
   positions: { name: string; job_grade: string | null } | null;
+}
+
+interface OvertimeGroupOption {
+  id: string;
+  name: string;
 }
 
 interface Department {
@@ -97,10 +106,12 @@ const emptyForm = {
   mobile: "",
   email: "",
   address: "",
+  contact_person: "",
   sss_number: "",
   philhealth_number: "",
   pagibig_number: "",
   tin: "",
+  nbi_clearance_expiration_date: "",
   employment_type: "regular",
   hire_date: "",
   regularization_date: "",
@@ -113,6 +124,7 @@ const emptyForm = {
   bank_name: "",
   bank_account_name: "",
   bank_account_number: "",
+  overtime_group_id: "",
 };
 
 export default function EmployeesPage() {
@@ -123,6 +135,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroupOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -151,6 +164,7 @@ export default function EmployeesPage() {
     fetchEmployees();
     fetchDepartments();
     fetchPositions();
+    fetchOvertimeGroups();
   }, []);
 
   async function fetchEmployees() {
@@ -186,6 +200,20 @@ export default function EmployeesPage() {
     } catch { setPositions([]); }
   }
 
+  async function fetchOvertimeGroups() {
+    try {
+      const { data, error } = await supabase
+        .from("overtime_groups")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      setOvertimeGroups(data || []);
+    } catch {
+      setOvertimeGroups([]);
+    }
+  }
+
   function openAddModal() {
     setEditingEmployee(null);
     setFormData({ ...emptyForm });
@@ -206,10 +234,14 @@ export default function EmployeesPage() {
       mobile: employee.mobile || "",
       email: employee.email || "",
       address: employee.address || "",
+      contact_person: employee.contact_person || "",
       sss_number: employee.sss_number || "",
       philhealth_number: employee.philhealth_number || "",
       pagibig_number: employee.pagibig_number || "",
       tin: employee.tin || "",
+      nbi_clearance_expiration_date: employee.nbi_clearance_expiration_date
+        ? new Date(employee.nbi_clearance_expiration_date).toISOString().slice(0, 10)
+        : "",
       employment_type: employee.employment_type,
       hire_date: employee.hire_date ? new Date(employee.hire_date).toISOString().slice(0, 10) : "",
       regularization_date: employee.regularization_date ? new Date(employee.regularization_date).toISOString().slice(0, 10) : "",
@@ -222,6 +254,7 @@ export default function EmployeesPage() {
       bank_name: employee.bank_name || "",
       bank_account_name: employee.bank_account_name || "",
       bank_account_number: employee.bank_account_number || "",
+      overtime_group_id: employee.overtime_group_id || "",
     });
     setShowModal(true);
   }
@@ -243,10 +276,12 @@ export default function EmployeesPage() {
         mobile: formData.mobile || null,
         email: formData.email || null,
         address: formData.address || null,
+        contact_person: formData.contact_person || null,
         sss_number: formData.sss_number || null,
         philhealth_number: formData.philhealth_number || null,
         pagibig_number: formData.pagibig_number || null,
         tin: formData.tin || null,
+        nbi_clearance_expiration_date: formData.nbi_clearance_expiration_date || null,
         employment_type: formData.employment_type,
         hire_date: formData.hire_date,
         regularization_date: formData.regularization_date || null,
@@ -259,6 +294,7 @@ export default function EmployeesPage() {
         bank_name: formData.bank_name || null,
         bank_account_name: formData.bank_account_name || null,
         bank_account_number: formData.bank_account_number || null,
+        overtime_group_id: formData.overtime_group_id ? formData.overtime_group_id : null,
       };
 
       if (editingEmployee) {
@@ -666,6 +702,12 @@ export default function EmployeesPage() {
                   <Input id="email" type="email" value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                 </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="contact-person">Contact person</Label>
+                  <Input id="contact-person" value={formData.contact_person}
+                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                    placeholder="Name of emergency or designated contact" />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
@@ -698,6 +740,30 @@ export default function EmployeesPage() {
                       {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.job_grade ? ` (${p.job_grade})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Overtime group (approvals)</Label>
+                  <Select
+                    value={formData.overtime_group_id || "none"}
+                    onValueChange={(v) =>
+                      setFormData({ ...formData, overtime_group_id: v === "none" ? "" : v })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="None — assign on Overtime Groups page" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {overtimeGroups.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Caption className="text-muted-foreground">
+                    OT, leave, and failure-to-log approvals use this group so the assigned operations approver can act on requests.
+                  </Caption>
                 </div>
               </div>
 
@@ -747,6 +813,11 @@ export default function EmployeesPage() {
                 <div className="space-y-2">
                   <Label htmlFor="tin">TIN</Label>
                   <Input id="tin" value={formData.tin} onChange={(e) => setFormData({ ...formData, tin: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nbi-expiration">NBI Clearance (expiration date)</Label>
+                  <Input id="nbi-expiration" type="date" value={formData.nbi_clearance_expiration_date}
+                    onChange={(e) => setFormData({ ...formData, nbi_clearance_expiration_date: e.target.value })} />
                 </div>
               </div>
 

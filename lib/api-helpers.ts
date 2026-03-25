@@ -86,16 +86,24 @@ export async function verifyAdminAccess(): Promise<{
   return { userId: user.id, role };
 }
 
+const TIMESHEET_AND_PAYROLL_ROLES = new Set([
+  "admin",
+  "upper_management",
+  "hr",
+  "project_manager",
+  "operations_manager",
+]);
+
 /**
- * Verify current user is admin or HR
- * Returns user ID and role if authorized, null otherwise
+ * Verify current user may run HR/payroll-style operations (timesheet generation, etc.).
+ * Includes admin, upper_management, HR, and project/operations management roles.
  */
 export async function verifyAdminOrHrAccess(): Promise<{
   userId: string;
   role: string;
 } | null> {
   const role = await getCurrentUserRole();
-  if (!role || (role !== "admin" && role !== "hr")) {
+  if (!role || !TIMESHEET_AND_PAYROLL_ROLES.has(role)) {
     return null;
   }
 

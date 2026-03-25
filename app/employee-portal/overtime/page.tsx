@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
-import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,8 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 
+type OvertimeDocSummary = { id: string; file_name: string };
+
 type OvertimeRequest = {
   id: string;
   ot_date: string;
@@ -24,17 +25,12 @@ type OvertimeRequest = {
   end_time: string;
   total_hours: number;
   reason: string | null;
-  status: "pending" | "approved" | "rejected" | "cancelled";
+  status: "pending" | "approved" | "rejected";
   created_at: string;
-  overtime_documents?: {
-    id: string;
-    file_name: string;
-    file_size: number | null;
-  }[];
+  overtime_documents?: OvertimeDocSummary[];
 };
 
 export default function OvertimePage() {
-  const supabase = createClient();
   const { employee } = useEmployeeSession();
   const [requests, setRequests] = useState<OvertimeRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,7 +55,6 @@ export default function OvertimePage() {
     pending: "bg-amber-100 text-amber-800 border-amber-200",
     approved: "bg-emerald-100 text-emerald-900 border-emerald-200",
     rejected: "bg-rose-100 text-rose-900 border-rose-200",
-    cancelled: "bg-slate-100 text-slate-800 border-slate-200",
   };
   const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
 
@@ -132,27 +127,27 @@ export default function OvertimePage() {
 
   const loadRequests = async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc("get_my_overtime_requests", {
-      p_employee_id: employee.id,
-    } as any);
-    if (error) {
-      console.error("Error loading OT requests", error);
+    const response = await fetch(
+      `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
+        employee.id
+      )}`
+    );
+    const payload = await response.json();
+
+    if (!response.ok) {
+      console.error("Error loading OT requests", payload);
       toast.error("Failed to load OT requests");
-    } else {
-      // data.overtime_documents is jsonb array; align with state shape
-      const requestsData = data as Array<any> | null;
-      const normalized = (requestsData || []).map((row: any) => ({
-        ...row,
-        overtime_documents: row.overtime_documents || [],
-      }));
-      setRequests(normalized as OvertimeRequest[]);
+      setLoading(false);
+      return;
     }
+
+    setRequests((payload.requests || []) as OvertimeRequest[]);
     setLoading(false);
   };
 
   useEffect(() => {
     loadRequests();
-  }, [employee.id, supabase]);
+  }, [employee.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +158,17 @@ export default function OvertimePage() {
     if (totalHours <= 0) {
       toast.error("Invalid time range. Please check your times.");
       return;
+    }
+
+    if (supportingDoc) {
+      if (!isAllowedFile(supportingDoc)) {
+        toast.error("Only PDF, DOC, or DOCX files are allowed.");
+        return;
+      }
+      if (supportingDoc.size > MAX_FILE_SIZE) {
+        toast.error("File too large. Max size is 5MB.");
+        return;
+      }
     }
 
     // Auto-calculate end_date if not provided but spans midnight
@@ -180,55 +186,45 @@ export default function OvertimePage() {
 
     setSubmitting(true);
     setDocError(null);
-    const { data: created, error } = await supabase.rpc(
-      "create_overtime_request",
-      {
-        p_employee_id: employee.id,
-        p_ot_date: formData.ot_date,
-        p_start_time: formData.start_time,
-        p_end_time: formData.end_time,
-        p_total_hours: totalHours,
-        p_reason: formData.reason || null,
-        p_end_date: formData.end_date || calculatedEndDate || null,
-      } as any
-    );
-    if (error) {
-      console.error("Error filing OT", error);
-      toast.error(error.message || "Failed to submit OT request");
-    } else {
-      const createdData = created as { id: string } | null;
-      const latestId = createdData?.id;
 
-      if (latestId && supportingDoc) {
-        if (!isAllowedFile(supportingDoc)) {
-          setDocError("Only PDF, DOC, or DOCX files are allowed");
-        } else if (supportingDoc.size > MAX_FILE_SIZE) {
-          setDocError("File too large. Max size is 5MB.");
-        } else {
-          try {
-            const base64 = await fileToBase64(supportingDoc);
-            const resolvedType = resolveMimeType(supportingDoc);
-            const { error: docErr } = await (
-              supabase.from("overtime_documents") as any
-            ).insert({
-              overtime_request_id: latestId,
-              employee_id: employee.id,
-              file_name: supportingDoc.name,
-              file_type: resolvedType,
-              file_size: supportingDoc.size,
-              file_base64: base64,
-            });
-            if (docErr) {
-              console.error("Error saving OT document:", docErr);
-              setDocError(docErr.message || "Failed to attach document");
-            }
-          } catch (err: any) {
-            console.error("Error preparing OT document:", err);
-            setDocError(err?.message || "Failed to attach document");
-          }
+    let documentPayload:
+      | {
+          file_name: string;
+          file_type: string;
+          file_size: number;
+          file_base64: string;
         }
-      }
+      | null = null;
+    if (supportingDoc) {
+      const base64 = await fileToBase64(supportingDoc);
+      documentPayload = {
+        file_name: supportingDoc.name,
+        file_type: resolveMimeType(supportingDoc),
+        file_size: supportingDoc.size,
+        file_base64: base64,
+      };
+    }
 
+    const createResponse = await fetch("/api/employee-portal/overtime-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employee_id: employee.id,
+        ot_date: formData.ot_date,
+        end_date: formData.end_date || calculatedEndDate || null,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        total_hours: totalHours,
+        reason: formData.reason || null,
+        document: documentPayload,
+      }),
+    });
+    const createPayload = await createResponse.json();
+
+    if (!createResponse.ok) {
+      console.error("Error filing OT", createPayload);
+      toast.error(createPayload?.error || "Failed to submit OT request");
+    } else {
       // Determine if OT spans midnight
       const startTimeOnly = new Date(`2000-01-01T${formData.start_time}:00`);
       const endTimeOnly = new Date(`2000-01-01T${formData.end_time}:00`);
@@ -252,9 +248,15 @@ export default function OvertimePage() {
             )} - ${formatPHTime(new Date(actualEndDate), "MMM d, yyyy")}`
           : formatPHTime(new Date(formData.ot_date), "MMM d, yyyy");
 
-      toast.success("Overtime request submitted successfully!", {
-        description: `Date: ${dateRange} • ${totalHours.toFixed(2)} hours`,
-      });
+      if (createPayload?.warning) {
+        toast.warning(createPayload.warning, {
+          description: `Date: ${dateRange} • ${totalHours.toFixed(2)} hours`,
+        });
+      } else {
+        toast.success("Overtime request submitted successfully!", {
+          description: `Date: ${dateRange} • ${totalHours.toFixed(2)} hours`,
+        });
+      }
       setFormData({
         ot_date: "",
         end_date: "",
@@ -555,37 +557,23 @@ export default function OvertimePage() {
                           </div>
                         )}
 
-                        {req.overtime_documents?.length ? (
-                          <VStack gap="2" align="start" className="mt-2">
-                            <HStack gap="2" align="center">
-                              <Icon name="FileText" size={IconSizes.sm} />
-                              <BodySmall className="font-semibold">
-                                Supporting Document
-                              </BodySmall>
-                            </HStack>
-                            <VStack gap="2">
-                              {req.overtime_documents.map((doc) => (
-                                <HStack key={doc.id} gap="2" align="center">
-                                  <Icon
-                                    name="Paperclip"
-                                    size={IconSizes.sm}
-                                    className="text-muted-foreground"
-                                  />
-                                  <span className="truncate max-w-[160px] text-sm">
-                                    {doc.file_name}
-                                  </span>
-                                  {doc.file_size && (
-                                    <Caption>
-                                      (
-                                      {(doc.file_size / 1024 / 1024).toFixed(2)}{" "}
-                                      MB)
-                                    </Caption>
-                                  )}
-                                </HStack>
+                        {req.overtime_documents &&
+                          req.overtime_documents.length > 0 && (
+                            <VStack gap="1" align="start" className="mt-2">
+                              <HStack gap="2" align="center">
+                                <Icon name="FileText" size={IconSizes.sm} />
+                                <BodySmall className="font-semibold">
+                                  Supporting document
+                                  {req.overtime_documents.length > 1 ? "s" : ""}
+                                </BodySmall>
+                              </HStack>
+                              {req.overtime_documents.map((d) => (
+                                <Caption key={d.id} className="text-muted-foreground">
+                                  {d.file_name}
+                                </Caption>
                               ))}
                             </VStack>
-                          </VStack>
-                        ) : null}
+                          )}
                       </div>
 
                       <VStack gap="2" align="end" className="ml-4">
@@ -604,16 +592,21 @@ export default function OvertimePage() {
                               disabled={cancelLoading === req.id}
                               onClick={async () => {
                                 setCancelLoading(req.id);
-                                const { error } = await supabase.rpc(
-                                  "cancel_overtime_request",
+                                const response = await fetch(
+                                  "/api/employee-portal/overtime-requests",
                                   {
-                                    p_request_id: req.id,
-                                    p_employee_id: employee.id,
-                                  } as any
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      request_id: req.id,
+                                      employee_id: employee.id,
+                                    }),
+                                  }
                                 );
-                                if (error) {
+                                const payload = await response.json();
+                                if (!response.ok) {
                                   toast.error(
-                                    error.message ||
+                                    payload?.error ||
                                       "Failed to cancel OT request"
                                   );
                                 } else {
@@ -647,15 +640,7 @@ export default function OvertimePage() {
                             REJECTED
                           </Badge>
                         )}
-                        {req.status === "cancelled" && (
-                          <Badge
-                            variant="outline"
-                            className={`flex items-center gap-2 ${statusStyles.cancelled}`}
-                          >
-                            <Icon name="XCircle" size={IconSizes.sm} />
-                            CANCELLED
-                          </Badge>
-                        )}
+                        {/* "Cancelled" state is represented as REJECTED in the new schema */}
                       </VStack>
                     </div>
 

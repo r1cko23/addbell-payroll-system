@@ -33,14 +33,14 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 interface Client {
   id: string;
-  client_code: string;
-  client_name: string;
+  company_id: string | null;
+  client_code: string | null;
+  name: string;
   contact_person: string | null;
   contact_email: string | null;
   contact_phone: string | null;
   address: string | null;
   is_active: boolean;
-  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -61,7 +61,6 @@ export default function ClientsPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [notes, setNotes] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -74,7 +73,7 @@ export default function ClientsPage() {
       const { data, error } = await supabase
         .from("clients")
         .select("*")
-        .order("client_name", { ascending: true });
+        .order("name", { ascending: true });
 
       if (error) throw error;
       setClients(data || []);
@@ -89,13 +88,12 @@ export default function ClientsPage() {
   const handleOpenDialog = (client?: Client) => {
     if (client) {
       setEditingClient(client);
-      setClientCode(client.client_code);
-      setClientName(client.client_name);
+      setClientCode(client.client_code || "");
+      setClientName(client.name);
       setContactPerson(client.contact_person || "");
       setContactEmail(client.contact_email || "");
       setContactPhone(client.contact_phone || "");
       setAddress(client.address || "");
-      setNotes(client.notes || "");
       setIsActive(client.is_active);
     } else {
       setEditingClient(null);
@@ -105,7 +103,6 @@ export default function ClientsPage() {
       setContactEmail("");
       setContactPhone("");
       setAddress("");
-      setNotes("");
       setIsActive(true);
     }
     setIsDialogOpen(true);
@@ -127,14 +124,12 @@ export default function ClientsPage() {
     try {
       const payload = {
         client_code: clientCode.trim(),
-        client_name: clientName.trim(),
+        name: clientName.trim(),
         contact_person: contactPerson.trim() || null,
         contact_email: contactEmail.trim() || null,
         contact_phone: contactPhone.trim() || null,
         address: address.trim() || null,
-        notes: notes.trim() || null,
         is_active: isActive,
-        created_by: profile?.id || null,
       };
 
       if (editingClient) {
@@ -163,7 +158,7 @@ export default function ClientsPage() {
   };
 
   const handleDelete = async (client: Client) => {
-    if (!confirm(`Are you sure you want to delete ${client.client_name}?`)) {
+    if (!confirm(`Are you sure you want to delete ${client.name}?`)) {
       return;
     }
 
@@ -185,14 +180,15 @@ export default function ClientsPage() {
   const filteredClients = clients.filter((client) => {
     const search = searchTerm.toLowerCase();
     return (
-      client.client_code.toLowerCase().includes(search) ||
-      client.client_name.toLowerCase().includes(search) ||
+      (client.client_code && client.client_code.toLowerCase().includes(search)) ||
+      client.name.toLowerCase().includes(search) ||
       (client.contact_person && client.contact_person.toLowerCase().includes(search)) ||
       (client.contact_email && client.contact_email.toLowerCase().includes(search))
     );
   });
 
-  const canManage = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "operations_manager";
+  // Only admin or upper management can add, edit, or delete clients (same level as admin)
+  const canManage = profile?.role === "admin" || profile?.role === "upper_management";
 
   if (profileLoading) {
     return (
@@ -241,6 +237,7 @@ export default function ClientsPage() {
                       onChange={(e) => setClientCode(e.target.value)}
                       required
                       disabled={!!editingClient}
+                      placeholder="e.g. PUC, SMC"
                     />
                   </div>
                   <div>
@@ -287,15 +284,6 @@ export default function ClientsPage() {
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     rows={2}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={3}
                   />
                 </div>
                 <div className="flex items-center space-x-2">
@@ -357,8 +345,8 @@ export default function ClientsPage() {
               <TableBody>
                 {filteredClients.map((client) => (
                   <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.client_code}</TableCell>
-                    <TableCell>{client.client_name}</TableCell>
+                    <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
+                    <TableCell>{client.name}</TableCell>
                     <TableCell>{client.contact_person || "—"}</TableCell>
                     <TableCell>{client.contact_email || "—"}</TableCell>
                     <TableCell>{client.contact_phone || "—"}</TableCell>

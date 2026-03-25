@@ -58,6 +58,12 @@ import { determineDayType, getDayName } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { getBiMonthlyWorkingDays } from "@/utils/bimonthly";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
+import {
+  punchesToSessions,
+  getOpenEntryFromPunches,
+  type TimeEntryPunch,
+  type TimeEntrySession,
+} from "@/lib/timeEntries";
 
 interface TimeEntry {
   id: string;
@@ -267,9 +273,9 @@ export default function BundyClockPage() {
       try {
         const { data, error } = await supabase
           .from("employees")
-.select("position, employee_type, job_level")
-              .eq("id", employee.id)
-              .maybeSingle<{ position: string | null; employee_type: string | null; job_level: string | null }>();
+          .select("position, employment_type, job_level")
+          .eq("id", employee.id)
+          .maybeSingle<{ position: string | null; employment_type: string | null; job_level: string | null }>();
 
         if (error) {
           console.error("Failed to fetch employee info:", error);
@@ -280,23 +286,16 @@ export default function BundyClockPage() {
 
         if (data) {
           setEmployeePosition(data.position);
-          setEmployeeType(data.employee_type);
+          setEmployeeType(data.employment_type);
           setEmployeeJobLevel(data.job_level ?? null);
 
           // Check if today is a rest day
           const today = new Date();
           const todayStr = getDateInManilaTimezone(today);
 
-          if (data.employee_type === "client-based") {
-            // For client-based: Check employee_week_schedules for day_off flag
-            const { data: scheduleData } = await supabase
-              .from("employee_week_schedules")
-              .select("day_off")
-              .eq("employee_id", employee.id)
-              .eq("schedule_date", todayStr)
-              .maybeSingle();
-
-            setIsRestDayToday(scheduleData?.day_off === true);
+          if (data.employment_type === "client-based") {
+            // Schema does not include employee_week_schedules — no rest-day from schedule
+            setIsRestDayToday(false);
           } else {
             // For office-based: Sunday is the fixed rest day
             const dayOfWeek = getDay(today);
@@ -419,59 +418,41 @@ export default function BundyClockPage() {
   );
 
   const checkClockStatus = useCallback(async () => {
-    // Look for incomplete entries (clock_out_time IS NULL) regardless of status
-    // This handles edge cases where status might have changed from 'clocked_in' to something else
-    // but the entry is still incomplete and should allow clock out
-    const { data } = await supabase
-      .from("time_clock_entries")
-      .select("*")
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = getDateInManilaTimezone(today);
+
+    const { data: punches } = await supabase
+      .from("time_entries")
+      .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
       .eq("employee_id", employee.id)
-      .is("clock_out_time", null) // Incomplete entry (no clock out yet)
-      .order("clock_in_time", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("punched_at", { ascending: false })
+      .limit(100);
 
-    if (data) {
-      // Check if the entry is from today (Asia/Manila timezone)
-      const entryData = data as {
-        clock_in_time: string;
-        clock_out_time: string | null;
-        id: string;
-        status: string;
-      };
-      const entryDate = new Date(entryData.clock_in_time);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      // Convert to Asia/Manila timezone for accurate comparison using reliable method
-      const entryDateStr = getDateInManilaTimezone(entryDate);
-      const todayStr = getDateInManilaTimezone(today);
-
-      // Only set current entry if it's from today
-      // If entry is from a previous day, it should remain incomplete
-      // and the database function will prevent clocking in until failure-to-log is filed
-      if (entryDateStr === todayStr) {
-        setCurrentEntry(entryData as any);
-      } else {
-        // Entry is from a previous day - don't set as current entry
-        // User must file failure-to-log request before clocking in again
-        setCurrentEntry(null);
-      }
-    } else {
-      setCurrentEntry(null);
-    }
+    const list = (punches || []) as TimeEntryPunch[];
+    const open = getOpenEntryFromPunches(
+      list,
+      (iso) => getDateInManilaTimezone(iso),
+      todayStr
+    );
+    setCurrentEntry(open ? (open as any) : null);
   }, [employee.id, supabase]);
 
   const fetchEntries = useCallback(async () => {
-    const { data } = await supabase
-      .from("time_clock_entries")
-      .select("*")
+    const { data: punches } = await supabase
+      .from("time_entries")
+      .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
       .eq("employee_id", employee.id)
-      .gte("clock_in_time", periodStart.toISOString())
-      .lte("clock_in_time", periodEnd.toISOString())
-      .order("clock_in_time", { ascending: false });
+      .gte("punched_at", periodStart.toISOString())
+      .lte("punched_at", periodEnd.toISOString())
+      .order("punched_at", { ascending: false });
 
-    setEntries(data || []);
+    const list = (punches || []) as TimeEntryPunch[];
+    const sessions = punchesToSessions(
+      list,
+      (iso) => getDateInManilaTimezone(iso)
+    ).reverse();
+    setEntries(sessions as any[]);
   }, [employee.id, periodEnd, periodStart, supabase]);
 
   const fetchCalendarHolidays = useCallback(
@@ -483,39 +464,15 @@ export default function BundyClockPage() {
       const startISO = formatDate(gridStart, "yyyy-MM-dd");
       const endISO = formatDate(gridEnd, "yyyy-MM-dd");
 
-      const { data, error } = await supabase
-        .from("holidays")
-        .select("holiday_date, name, is_regular")
-        .gte("holiday_date", startISO)
-        .lte("holiday_date", endISO);
-
-      if (error) {
-        console.error("Failed to load calendar holidays", error);
-      }
-
+      // Schema does not include holidays table — use in-app list only
       const targetYear = targetDate.getFullYear();
-      const holidaysData = data as Array<{
-        holiday_date: string;
-        name: string;
-        is_regular: boolean;
-      }> | null;
-
-      const dbHolidays =
-        (holidaysData || []).map((holiday) => ({
-          date: holiday.holiday_date,
-          name: holiday.name,
-          type: holiday.is_regular
-            ? ("regular" as const)
-            : ("non-working" as const),
-        })) || [];
-
       const fallbackHolidays =
         PHILIPPINE_HOLIDAYS[targetYear]?.filter(
           (holiday) => holiday.date >= startISO && holiday.date <= endISO
         ) || [];
 
       const merged = new Map<string, CalendarHoliday>();
-      [...dbHolidays, ...fallbackHolidays].forEach((holiday) => {
+      fallbackHolidays.forEach((holiday) => {
         merged.set(holiday.date, holiday);
       });
 
@@ -536,31 +493,25 @@ export default function BundyClockPage() {
       const endDateStr = formatDate(gridEnd, "yyyy-MM-dd");
       const holidaySet = new Set(calendarHolidays.map((h) => h.date));
 
-      // Batch all queries in parallel for better performance
-      const [timeResult, leaveResult, scheduleResult] = await Promise.all([
+      // Schema: no employee_week_schedules table, no selected_dates on leave_requests
+      const [timeResult, leaveResult] = await Promise.all([
         supabase
-          .from("time_clock_entries")
-          .select("clock_in_time, clock_out_time, status, clock_in_date_ph")
+          .from("time_entries")
+          .select("id, employee_id, punch_type, punched_at")
           .eq("employee_id", employee.id)
-          .gte("clock_in_time", startRange)
-          .lte("clock_in_time", endRange)
-          .order("clock_in_time", { ascending: true }),
+          .gte("punched_at", startRange)
+          .lte("punched_at", endRange)
+          .order("punched_at", { ascending: true }),
         supabase
           .from("leave_requests")
-          .select("leave_type, start_date, end_date, selected_dates, status")
+          .select("leave_type, start_date, end_date, status")
           .eq("employee_id", employee.id)
           .in("status", ["approved_by_manager", "approved_by_hr"]),
-        supabase
-          .from("employee_week_schedules")
-          .select("schedule_date, day_off")
-          .eq("employee_id", employee.id)
-          .gte("schedule_date", startDateStr)
-          .lte("schedule_date", endDateStr),
       ]);
 
       const { data: timeData, error: timeError } = timeResult;
       const { data: leaveData, error: leaveError } = leaveResult;
-      const { data: scheduleDays, error: scheduleError } = scheduleResult;
+      const scheduleDays: Array<{ schedule_date: string; day_off: boolean }> = [];
 
       if (timeError) {
         console.error("Failed to load calendar time entries", timeError);
@@ -571,10 +522,6 @@ export default function BundyClockPage() {
         console.error("Failed to load calendar leaves", leaveError);
       }
 
-      if (scheduleError) {
-        console.error("Failed to load schedule day-off flags", scheduleError);
-      }
-
       const entries: CalendarEntry[] = [];
 
       const dayOffSet = new Set(
@@ -583,15 +530,13 @@ export default function BundyClockPage() {
           .map((d: any) => formatDate(new Date(d.schedule_date), "yyyy-MM-dd"))
       );
 
-      // Time entries mapped to days
-      const timeEntries = timeData as Array<{
-        clock_in_time: string;
-        clock_out_time: string | null;
-        status: string;
-        clock_in_date_ph?: string | null;
-      }> | null;
-
-      (timeEntries || []).forEach((entry) => {
+      // Convert punch rows to sessions, then map to calendar days
+      const punchesList = (timeData || []) as TimeEntryPunch[];
+      const timeSessions = punchesToSessions(
+        punchesList,
+        (iso) => getDateInManilaTimezone(iso)
+      );
+      timeSessions.forEach((entry) => {
         const dateIso =
           entry.clock_in_date_ph ||
           formatDate(new Date(entry.clock_in_time), "yyyy-MM-dd");
@@ -604,33 +549,18 @@ export default function BundyClockPage() {
         });
       });
 
-      // Leave entries - use selected_dates if available, otherwise use date range
+      // Leave entries: schema has no selected_dates — use start_date/end_date only
       const leaveEntries = leaveData as Array<{
         leave_type: string;
         start_date: string;
         end_date: string;
-        selected_dates?: string[] | null;
         status: string;
       }> | null;
 
       (leaveEntries || []).forEach((leave) => {
-        let datesToProcess: Date[] = [];
-
-        if (
-          leave.selected_dates &&
-          Array.isArray(leave.selected_dates) &&
-          leave.selected_dates.length > 0
-        ) {
-          // Use selected dates
-          datesToProcess = leave.selected_dates
-            .map((dateStr: string) => new Date(dateStr))
-            .filter((d: Date) => !isNaN(d.getTime()));
-        } else {
-          // Fallback to date range
-          const start = new Date(leave.start_date);
-          const end = new Date(leave.end_date);
-          datesToProcess = eachDayOfInterval({ start, end });
-        }
+        const start = new Date(leave.start_date);
+        const end = new Date(leave.end_date);
+        const datesToProcess = eachDayOfInterval({ start, end });
 
         datesToProcess.forEach((d) => {
           const iso = formatDate(d, "yyyy-MM-dd");
@@ -842,33 +772,28 @@ export default function BundyClockPage() {
         queryEnd: periodEndDate.toISOString(),
       });
 
+      // Schema: no holidays table, no employee_week_schedules, no selected_dates on leave_requests
+      const year = new Date(periodStartStr).getFullYear();
+      const holidaysData = (PHILIPPINE_HOLIDAYS[year] || []).filter(
+        (h) => h.date >= periodStartStr && h.date <= periodEndStr
+      ).map((h) => ({ holiday_date: h.date, name: h.name, is_regular: h.type === "regular" }));
+
       const [
-        holidaysResult,
         clockResult,
         leaveResult,
         otResult,
-        scheduleResult,
         employeeTypeResult,
       ] = await Promise.all([
         supabase
-          .from("holidays")
-          .select("holiday_date, name, is_regular")
-          .gte("holiday_date", periodStartStr)
-          .lte("holiday_date", periodEndStr),
-        supabase
-          .from("time_clock_entries")
-          .select(
-            "id, clock_in_time, clock_out_time, regular_hours, total_hours, total_night_diff_hours, status"
-          )
+          .from("time_entries")
+          .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
           .eq("employee_id", employee.id)
-          .gte("clock_in_time", periodStartDate.toISOString())
-          .lte("clock_in_time", periodEndDate.toISOString())
-          .order("clock_in_time", { ascending: true }),
+          .gte("punched_at", periodStartDate.toISOString())
+          .lte("punched_at", periodEndDate.toISOString())
+          .order("punched_at", { ascending: true }),
         supabase
           .from("leave_requests")
-          .select(
-            "id, leave_type, start_date, end_date, status, selected_dates"
-          )
+          .select("id, leave_type, start_date, end_date, status")
           .eq("employee_id", employee.id)
           .lte("start_date", periodEndStr)
           .gte("end_date", periodStartStr)
@@ -881,28 +806,24 @@ export default function BundyClockPage() {
           .lte("ot_date", periodEndStr)
           .in("status", ["approved", "approved_by_manager", "approved_by_hr"]),
         supabase
-          .from("employee_week_schedules")
-          .select("schedule_date, start_time, end_time, day_off")
-          .eq("employee_id", employee.id)
-          .gte("schedule_date", periodStartStr)
-          .lte("schedule_date", periodEndStr),
-        supabase
           .from("employees")
-          .select("employee_type")
+          .select("employment_type")
           .eq("id", employee.id)
           .maybeSingle(),
       ]);
 
-      const { data: holidaysData, error: holidaysError } = holidaysResult;
-      const { data: clockData, error: clockError } = clockResult;
+      const clockPunches = (clockResult.data || []) as TimeEntryPunch[];
+      const clockData = punchesToSessions(
+        clockPunches,
+        (iso) => getDateInManilaTimezone(iso)
+      );
+      const { error: clockError } = clockResult;
       const { data: leaveData, error: leaveError } = leaveResult;
       const { data: otData, error: otError } = otResult;
-      const { data: scheduleData, error: scheduleError } = scheduleResult;
+      const scheduleData: Array<{ schedule_date: string; day_off: boolean }> = [];
       const { data: employeeTypeRow } = employeeTypeResult || {};
-      const isClientBasedFromDb = employeeTypeRow?.employee_type === "client-based";
-      // Fallback: if employee_type is not set but they have rest days in schedule (day_off), treat as client-based
-      const hasRestDayInSchedule = (scheduleData || []).some((s: any) => s.day_off === true);
-      const isClientBasedFromDbOrSchedule = isClientBasedFromDb || (hasRestDayInSchedule && (employeeTypeRow?.employee_type == null || employeeTypeRow?.employee_type === ""));
+      const isClientBasedFromDb = employeeTypeRow?.employment_type === "client-based";
+      const isClientBasedFromDbOrSchedule = isClientBasedFromDb;
 
       // Debug: Check auth session
       const { data: authSession } = await supabase.auth.getSession();
@@ -1168,29 +1089,19 @@ export default function BundyClockPage() {
         );
       }
 
-      // Group leave requests by date
+      // Group leave requests by date (schema has no selected_dates — use start_date/end_date only)
       const leavesByDate = new Map<string, LeaveRequest[]>();
       leaveRequests.forEach((leave) => {
-        if (leave.selected_dates && leave.selected_dates.length > 0) {
-          leave.selected_dates.forEach((dateStr: string) => {
-            if (!leavesByDate.has(dateStr)) {
-              leavesByDate.set(dateStr, []);
-            }
-            leavesByDate.get(dateStr)!.push(leave);
-          });
-        } else {
-          const startDate = new Date(leave.start_date);
-          const endDate = new Date(leave.end_date);
-          let currentDate = new Date(startDate);
-          while (currentDate <= endDate) {
-            const dateStr = formatDate(currentDate, "yyyy-MM-dd");
-            if (!leavesByDate.has(dateStr)) {
-              leavesByDate.set(dateStr, []);
-            }
-            leavesByDate.get(dateStr)!.push(leave);
-            currentDate = new Date(currentDate);
-            currentDate.setDate(currentDate.getDate() + 1);
+        const startDate = new Date(leave.start_date);
+        const endDate = new Date(leave.end_date);
+        let currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const dateStr = formatDate(currentDate, "yyyy-MM-dd");
+          if (!leavesByDate.has(dateStr)) {
+            leavesByDate.set(dateStr, []);
           }
+          leavesByDate.get(dateStr)!.push(leave);
+          currentDate.setDate(currentDate.getDate() + 1);
         }
       });
 
@@ -1334,29 +1245,18 @@ export default function BundyClockPage() {
             status = "RD"; // Rest day - paid even if not worked
           }
         } else if (dayOfWeek === 6) {
-          // Saturday handling:
-          // - Office-based: Saturday is a regular work day (paid 6 days/week per law) - shows LOG even if no logs
-          // - Client-based: Saturday is a normal workday - shows ABSENT if no logs (unless it's their rest day, which is handled above)
-          if (isClientBased) {
-            // Client-based: Saturday is a normal workday - must have logs or be ABSENT
-            if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-              status = "LOG"; // Worked on Saturday
-            } else {
-              // No logs = ABSENT (unless it's a rest day, which is already handled above)
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const currentDate = new Date(date);
-              currentDate.setHours(0, 0, 0, 0);
-              status = currentDate > today ? "-" : "ABSENT";
-            }
-          } else {
-            // Office-based: Saturday is a regular work day (paid even if not worked)
-            if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
-              status = "LOG"; // Worked on Saturday
-            } else {
-              status = "LOG"; // Saturday - paid as regular work day even if not worked
-            }
-          }
+        // Saturday handling:
+        // For this company, Saturday is NOT automatically treated as a worked/logged day.
+        // Employees must have logs, otherwise it's ABSENT (or "-" for future dates).
+        if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
+          status = "LOG"; // Worked on Saturday
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const currentDate = new Date(date);
+          currentDate.setHours(0, 0, 0, 0);
+          status = currentDate > today ? "-" : "ABSENT";
+        }
         } else if (dayOfWeek === 0) {
           // Sunday handling:
           // - Office-based: Sunday is rest day (handled above)
@@ -1427,20 +1327,27 @@ export default function BundyClockPage() {
           });
         }
 
-        const firstEntry = dayEntries[0] || incompleteDayEntries[0];
-        // For LWOP and LEAVE, don't show clock times
-        const timeIn =
-          status === "LWOP" || status === "LEAVE"
-            ? null
-            : firstEntry
-            ? formatDate(parseISO(firstEntry.clock_in_time), "hh:mm a")
-            : null;
-        const timeOut =
-          status === "LWOP" || status === "LEAVE"
-            ? null
-            : firstEntry?.clock_out_time
-            ? formatDate(parseISO(firstEntry.clock_out_time), "hh:mm a")
-            : null;
+        // Pair time in / time out: 1st in with 1st out, 2nd in with 2nd out, etc. (multiple shifts per day)
+        const allDayEntries = [...dayEntries, ...incompleteDayEntries].sort(
+          (a, b) =>
+            new Date(a.clock_in_time).getTime() -
+            new Date(b.clock_in_time).getTime()
+        );
+        const firstEntry = allDayEntries[0];
+        let timeIn: string | null = null;
+        let timeOut: string | null = null;
+        if (status !== "LWOP" && status !== "LEAVE" && allDayEntries.length > 0) {
+          const inParts = allDayEntries.map((e) =>
+            formatDate(parseISO(e.clock_in_time), "hh:mm a")
+          );
+          const outParts = allDayEntries.map((e) =>
+            e.clock_out_time
+              ? formatDate(parseISO(e.clock_out_time), "hh:mm a")
+              : "—"
+          );
+          timeIn = inParts.join(", ");
+          timeOut = outParts.join(", ");
+        }
 
         let schedIn: string | null = null;
         let schedOut: string | null = null;
@@ -1503,16 +1410,8 @@ export default function BundyClockPage() {
           bh = 8;
         }
 
-        // Saturday Regular Work Day: Set BH = 8 even if employee didn't work
-        // Per Philippine labor law, office-based employees are paid 6 days/week (Mon-Sat)
-        // For office-based: Saturday is a regular work day - paid even if not worked
-        // For client-based: Saturday is a normal workday - must have logs (no automatic BH = 8)
-        if (dayType === "regular" && bh === 0 && dayEntries.length === 0 && dayOfWeek === 6 && !isClientBased) {
-          bh = 8; // Office-based: Regular work day: 8 hours even if not worked (paid 6 days/week)
-        }
-
-        // Note: Client-based employees do NOT get automatic BH = 8 for Saturday or Sunday
-        // They must log time on all 6 workdays (non-rest days) or be marked as ABSENT
+      // Note: Employees do NOT get automatic BH for Saturday or Sunday.
+      // They must log time on all workdays or be marked as ABSENT/rest day.
 
         const lt = 0;
         // Calculate UT (Undertime) - only if BH < 8 hours
@@ -1670,19 +1569,29 @@ export default function BundyClockPage() {
     try {
       if (action === "in") {
         console.log("Starting clock in process...");
-        // Note: The database function will prevent clock-in if there's an incomplete entry
-        // from a previous day. User must file a failure-to-log request first.
+        // Prevent clock-in if there's an open punch from a previous day (user must file failure-to-log first)
+        const { data: serverTimeData, error: timeError } =
+          await supabase.rpc("get_server_time");
+        if (timeError || !serverTimeData) {
+          toast.error("Could not get server time. Please try again.");
+          return false;
+        }
+        const serverTime = new Date(serverTimeData as string).toISOString();
 
-        console.log("Calling employee_clock_in RPC...");
-        const { data: clockInData, error: clockInError } = await supabase.rpc(
-          "employee_clock_in",
-          {
-            p_employee_id: employee.id,
-            p_location: locationString,
-            p_device: navigator.userAgent?.slice(0, 255) || null,
-            p_ip: clientIp,
-          } as any
-        );
+        const { data: insertData, error: clockInError } = await supabase
+          .from("time_entries")
+          .insert({
+            employee_id: employee.id,
+            punch_type: "in",
+            punched_at: serverTime,
+            lat: location.lat,
+            lng: location.lng,
+            device_info:
+              (navigator.userAgent?.slice(0, 255) || null) +
+              (clientIp ? ` | IP: ${clientIp}` : ""),
+          })
+          .select("id, punched_at")
+          .single();
 
         if (clockInError) {
           console.error("Clock in error:", clockInError);
@@ -1692,57 +1601,24 @@ export default function BundyClockPage() {
           return false;
         }
 
-        const clockInResult = clockInData as Array<{
-          success: boolean;
-          error_message?: string;
-          entry_id?: string;
-        }> | null;
-
-        if (
-          !clockInResult ||
-          clockInResult.length === 0 ||
-          !clockInResult[0].success
-        ) {
-          const errorMsg =
-            clockInResult?.[0]?.error_message || "Failed to clock in";
-          console.error("Clock in failed:", errorMsg);
-          toast.error(errorMsg);
+        if (!insertData) {
+          toast.error("Failed to create clock-in entry");
           return false;
         }
 
-        const entryId = clockInResult[0].entry_id;
-        if (!entryId) {
-          console.error("No entry ID returned from clock in");
-          toast.error("Failed to get entry ID");
-          return false;
-        }
-
-        console.log("Clock in successful, fetching entry...", entryId);
-
-        // Fetch the created entry
-        const { data: entryData, error: fetchError } = await supabase
-          .from("time_clock_entries")
-          .select("*")
-          .eq("id", entryId)
-          .maybeSingle();
-
-        // Update device/IP details (best effort)
-        await (supabase.from("time_clock_entries") as any)
-          .update({
-            clock_in_device: navigator.userAgent?.slice(0, 255) || null,
-            clock_in_ip: clientIp,
-          })
-          .eq("id", entryId);
-
-        if (fetchError || !entryData) {
-          console.error("Error fetching created entry:", fetchError);
-          // Still show success since the entry was created
-          toast.success("Clocked in successfully!");
-        } else {
-          console.log("Clock in successful, updating UI...");
-          setCurrentEntry(entryData);
-          toast.success("Clocked in successfully!");
-        }
+        const punchedAt = (insertData as { id: string; punched_at: string })
+          .punched_at;
+        const entryId = (insertData as { id: string }).id;
+        const clockInEntry: TimeEntrySession = {
+          id: entryId,
+          clock_in_time: punchedAt,
+          clock_out_time: null,
+          clock_in_date_ph: getDateInManilaTimezone(punchedAt),
+          status: "clocked_in",
+          total_hours: null,
+        };
+        setCurrentEntry(clockInEntry as any);
+        toast.success("Clocked in successfully!");
 
         // Don't await these - let them run in background to avoid blocking
         fetchEntries().catch((err) =>
@@ -1771,17 +1647,26 @@ export default function BundyClockPage() {
         return false;
       }
 
-      console.log("Calling employee_clock_out RPC...");
-      const { data: clockOutData, error: clockOutError } = await supabase.rpc(
-        "employee_clock_out",
-        {
-          p_employee_id: employee.id,
-          p_entry_id: currentEntry.id,
-          p_location: locationString,
-          p_device: navigator.userAgent?.slice(0, 255) || null,
-          p_ip: clientIp,
-        } as any
-      );
+      const { data: serverTimeData, error: timeError } =
+        await supabase.rpc("get_server_time");
+      if (timeError || !serverTimeData) {
+        toast.error("Could not get server time. Please try again.");
+        return false;
+      }
+      const serverTime = new Date(serverTimeData as string).toISOString();
+
+      const { error: clockOutError } = await supabase
+        .from("time_entries")
+        .insert({
+          employee_id: employee.id,
+          punch_type: "out",
+          punched_at: serverTime,
+          lat: location.lat,
+          lng: location.lng,
+          device_info:
+            (navigator.userAgent?.slice(0, 255) || null) +
+            (clientIp ? ` | IP: ${clientIp}` : ""),
+        });
 
       if (clockOutError) {
         console.error("Clock out error:", clockOutError);
@@ -1791,35 +1676,14 @@ export default function BundyClockPage() {
         return false;
       }
 
-      const clockOutResult = clockOutData as Array<{
-        success: boolean;
-        error_message?: string;
-        warning_message?: string;
-        device_mismatch?: boolean;
-      }> | null;
-
-      if (
-        !clockOutResult ||
-        clockOutResult.length === 0 ||
-        !clockOutResult[0].success
-      ) {
-        const errorMsg =
-          clockOutResult?.[0]?.error_message || "Failed to clock out";
-        console.error("Clock out failed:", errorMsg);
-        toast.error(errorMsg);
-        return false;
-      }
-
-      console.log("Clock out successful, updating UI...");
       toast.success("Clocked out successfully!");
       setCurrentEntry(null);
 
-      // Don't await these - let them run in background to avoid blocking
+      // Refresh table and attendance only. Do NOT call checkClockStatus() here:
+      // it can race with the insert and, if it runs before the new "out" punch
+      // is visible, it may set currentEntry back to the open "in", leaving TIME OUT active.
       fetchEntries().catch((err) =>
         console.error("Error fetching entries:", err)
-      );
-      checkClockStatus().catch((err) =>
-        console.error("Error checking clock status:", err)
       );
       // Refresh attendance data
       loadAttendanceData().catch((err) =>
@@ -1908,6 +1772,12 @@ export default function BundyClockPage() {
     enabled: initialFetchComplete,
   });
 
+  const todaySessions = useMemo(() => {
+    if (!currentTime) return [];
+    const todayStr = getDateInManilaTimezone(currentTime);
+    return entries.filter((e) => getDateInManilaTimezone(e.clock_in_time) === todayStr);
+  }, [entries, currentTime]);
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -1960,7 +1830,7 @@ export default function BundyClockPage() {
               </Button>
               <VStack gap="0" align="center">
                 <Caption className="uppercase tracking-widest">
-                  Bi-Monthly Period
+                  Weekly Cutoff (Wed – Tue)
                 </Caption>
                 <p className="text-lg font-semibold text-gray-800">
                   {formatBiMonthlyPeriod(periodStart, periodEnd)}
@@ -1979,7 +1849,7 @@ export default function BundyClockPage() {
             </div>
             <div className="text-sm text-gray-500 space-y-1">
               <div>
-                Allotted SIL Credits: <span className="font-semibold text-gray-900">10</span>
+                Allotted SIL Credits: <span className="font-semibold text-gray-900">5</span>
               </div>
               <div>
                 Available SIL Credits:{" "}
@@ -2087,6 +1957,54 @@ export default function BundyClockPage() {
           </div>
         </div>
       </Card>
+
+      {/* Today's detailed time in / out list */}
+      <CardSection title="Today’s Time In / Out">
+        {todaySessions.length === 0 ? (
+          <BodySmall className="text-gray-500">
+            No time in or time out recorded yet for today.
+          </BodySmall>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-xs">
+              <thead>
+                <tr className="border-b bg-gray-50">
+                  <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">
+                    #
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">
+                    Time In
+                  </th>
+                  <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">
+                    Time Out
+                  </th>
+                  <th className="px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wide">
+                    Hours
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {todaySessions.map((entry, index) => (
+                  <tr key={entry.id} className="border-b hover:bg-gray-50/50">
+                    <td className="px-2 py-1.5 text-xs">{index + 1}</td>
+                    <td className="px-2 py-1.5 text-xs">
+                      {formatDate(new Date(entry.clock_in_time), "hh:mm a")}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs">
+                      {entry.clock_out_time
+                        ? formatDate(new Date(entry.clock_out_time), "hh:mm a")
+                        : "—"}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-right">
+                      {entry.total_hours != null ? entry.total_hours.toFixed(2) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardSection>
 
       {/* Time Attendance and Calendar Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
@@ -2216,36 +2134,54 @@ export default function BundyClockPage() {
                     );
                   })
                 )}
-                {/* Summary Row - Per cutoff: max 104 hours / 13 days for Days Work and Hours Work */}
+                {/* Summary Row - Weekly (Wednesday to Tuesday) based on company cutoff */}
                 {attendanceDays.length > 0 && (() => {
-                  const rawBH = attendanceDays.reduce((sum, d) => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  // Find current week's Wednesday (0=Sun,...,3=Wed)
+                  const weekStart = new Date(today);
+                  while (weekStart.getDay() !== 3) {
+                    weekStart.setDate(weekStart.getDate() - 1);
+                  }
+                  const weekEnd = new Date(weekStart);
+                  weekEnd.setDate(weekEnd.getDate() + 6); // Wednesday + 6 = Tuesday
+                  const weekStartStr = formatDate(weekStart, "yyyy-MM-dd");
+                  const weekEndStr = formatDate(weekEnd, "yyyy-MM-dd");
+
+                  const totalBH = attendanceDays.reduce((sum, d) => {
+                    if (d.date < weekStartStr || d.date > weekEndStr) return sum;
                     if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") return sum;
                     return sum + d.bh;
                   }, 0);
-                  const totalBH = Math.min(104, rawBH);
                   const daysWork = totalBH / 8;
+                  const totalOT = attendanceDays
+                    .filter((d) => d.date >= weekStartStr && d.date <= weekEndStr)
+                    .reduce((sum, d) => sum + d.ot, 0);
+                  const totalUT = attendanceDays
+                    .filter((d) => d.date >= weekStartStr && d.date <= weekEndStr)
+                    .reduce((sum, d) => sum + d.ut, 0);
+                  const totalND = attendanceDays
+                    .filter((d) => d.date >= weekStartStr && d.date <= weekEndStr)
+                    .reduce((sum, d) => sum + d.nd, 0);
+
                   return (
-                  <tr className="border-t-2 font-semibold bg-gray-50">
-                    <td colSpan={5} className="px-2 py-1.5 text-xs">
-                      Days Work: {Math.round(daysWork)}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-right">
-                      {totalBH.toFixed(1)}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-right">
-                      {attendanceDays
-                        .reduce((sum, d) => sum + d.ot, 0)
-                        .toFixed(2)}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-right">
-                      {attendanceDays.reduce((sum, d) => sum + d.ut, 0)}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-right">
-                      {attendanceDays
-                        .reduce((sum, d) => sum + d.nd, 0)
-                        .toFixed(2)}
-                    </td>
-                  </tr>
+                    <tr className="border-t-2 font-semibold bg-gray-50">
+                      <td colSpan={5} className="px-2 py-1.5 text-xs">
+                        Days Work (Wed–Tue): {Math.round(daysWork)}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-right">
+                        {totalBH.toFixed(1)}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-right">
+                        {totalOT.toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-right">
+                        {totalUT}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-right">
+                        {totalND.toFixed(2)}
+                      </td>
+                    </tr>
                   );
                 })()}
               </tbody>

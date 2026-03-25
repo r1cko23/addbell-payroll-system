@@ -29,11 +29,12 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 interface Vendor {
   id: string;
+  company_id?: string | null;
   name: string;
-  tin: string;
-  address: string;
-  phone: string;
-  email: string;
+  tin: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
   is_active: boolean;
   created_at: string;
 }

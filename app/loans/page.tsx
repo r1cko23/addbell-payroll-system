@@ -69,16 +69,12 @@ interface EmployeeLoan {
     | "other";
   original_balance: number;
   current_balance: number;
-  monthly_payment: number;
-  total_terms: number;
-  remaining_terms: number;
+  weekly_deduction_amount: number;
+  total_terms?: number;
+  remaining_terms?: number;
   effectivity_date: string;
-  cutoff_assignment: "first" | "second" | "both";
-  deduct_bi_monthly: boolean;
   is_active: boolean;
   notes?: string;
-  created_by?: string;
-  updated_by?: string;
   created_at?: string;
   updated_at?: string;
   employee?: Employee;
@@ -122,12 +118,10 @@ export default function LoansPage() {
       | "other",
     original_balance: "",
     current_balance: "",
-    monthly_payment: "",
+    weekly_deduction_amount: "",
     total_terms: "",
     remaining_terms: "",
     effectivity_date: "",
-    cutoff_assignment: "first" as "first" | "second" | "both",
-    deduct_bi_monthly: true,
     is_active: true,
     notes: "",
   });
@@ -137,16 +131,17 @@ export default function LoansPage() {
     loadLoans();
   }, []);
 
-  // Auto-calculate monthly payment when original balance or total terms change
+  // Auto-calculate weekly deduction when original balance or total terms change (e.g. 4 weeks per month)
   useEffect(() => {
     const originalBalance = parseFloat(formData.original_balance) || 0;
     const totalTerms = parseInt(formData.total_terms) || 0;
 
     if (originalBalance > 0 && totalTerms > 0) {
-      const calculatedMonthlyPayment = originalBalance / totalTerms;
+      const weeksTotal = totalTerms * 4; // approximate: 4 weeks per month
+      const calculatedWeekly = originalBalance / weeksTotal;
       setFormData((prev) => ({
         ...prev,
-        monthly_payment: calculatedMonthlyPayment.toFixed(2),
+        weekly_deduction_amount: calculatedWeekly.toFixed(2),
       }));
     }
   }, [formData.original_balance, formData.total_terms]);
@@ -180,8 +175,7 @@ export default function LoansPage() {
           employee:employees(id, employee_id, full_name)
         `
         )
-        .order("remaining_terms", { ascending: true })
-        .order("created_at", { ascending: false }); // Secondary sort by creation date
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setLoans(data || []);
@@ -201,12 +195,10 @@ export default function LoansPage() {
       loan_type: "company",
       original_balance: "",
       current_balance: "",
-      monthly_payment: "",
+      weekly_deduction_amount: "",
       total_terms: defaultTerms.toString(),
       remaining_terms: defaultTerms.toString(),
       effectivity_date: "",
-      cutoff_assignment: "first",
-      deduct_bi_monthly: true,
       is_active: true,
       notes: "",
     });
@@ -220,12 +212,10 @@ export default function LoansPage() {
       loan_type: loan.loan_type,
       original_balance: loan.original_balance.toString(),
       current_balance: loan.current_balance.toString(),
-      monthly_payment: loan.monthly_payment.toString(),
-      total_terms: loan.total_terms.toString(),
-      remaining_terms: loan.remaining_terms.toString(),
+      weekly_deduction_amount: (loan.weekly_deduction_amount ?? 0).toString(),
+      total_terms: (loan.total_terms ?? 0).toString(),
+      remaining_terms: (loan.remaining_terms ?? 0).toString(),
       effectivity_date: loan.effectivity_date,
-      cutoff_assignment: loan.cutoff_assignment,
-      deduct_bi_monthly: loan.deduct_bi_monthly ?? true,
       is_active: loan.is_active ?? true,
       notes: loan.notes || "",
     });
@@ -253,9 +243,9 @@ export default function LoansPage() {
   function handleLoanTypeChange(loanType: string) {
     const defaultTerms = calculateDefaultTerms(loanType);
     const originalBalance = parseFloat(formData.original_balance) || 0;
-    const calculatedMonthlyPayment =
+    const calculatedWeeklyDeduction =
       originalBalance > 0 && defaultTerms > 0
-        ? originalBalance / defaultTerms
+        ? originalBalance / (defaultTerms * 4)
         : 0;
 
     setFormData({
@@ -263,10 +253,10 @@ export default function LoansPage() {
       loan_type: loanType as any,
       total_terms: defaultTerms.toString(),
       remaining_terms: formData.remaining_terms || defaultTerms.toString(),
-      monthly_payment:
-        calculatedMonthlyPayment > 0
-          ? calculatedMonthlyPayment.toFixed(2)
-          : formData.monthly_payment,
+      weekly_deduction_amount:
+        calculatedWeeklyDeduction > 0
+          ? calculatedWeeklyDeduction.toFixed(2)
+          : formData.weekly_deduction_amount,
     });
   }
 
@@ -298,15 +288,12 @@ export default function LoansPage() {
         loan_type: loanData.loan_type,
         original_balance: parseFloat(loanData.original_balance.toString()),
         current_balance: parseFloat(loanData.current_balance.toString()),
-        monthly_payment: parseFloat(loanData.monthly_payment.toString()),
-        total_terms: parseInt(loanData.total_terms.toString()),
-        remaining_terms: parseInt(loanData.remaining_terms.toString()),
+        weekly_deduction_amount: parseFloat(loanData.weekly_deduction_amount.toString()),
+        total_terms: loanData.total_terms != null ? parseInt(loanData.total_terms.toString()) : null,
+        remaining_terms: loanData.remaining_terms != null ? parseInt(loanData.remaining_terms.toString()) : null,
         effectivity_date: loanData.effectivity_date,
-        cutoff_assignment: loanData.cutoff_assignment,
-        deduct_bi_monthly: loanData.deduct_bi_monthly ?? true,
         is_active: loanData.is_active ?? true,
         notes: loanData.notes || null,
-        updated_by: userData.user.id,
       } as Record<string, unknown>;
 
       console.log("Updating loan with data:", {
@@ -419,24 +406,13 @@ export default function LoansPage() {
         setSubmitting(false);
         return;
       }
-      // Validate monthly payment (should be auto-calculated, but check anyway)
-      const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
-      if (monthlyPayment <= 0) {
+      const weeklyDeduction = parseFloat(formData.weekly_deduction_amount) || 0;
+      if (weeklyDeduction <= 0) {
         toast.error(
-          "Monthly payment must be greater than 0. Please check Original Balance and Total Terms."
+          "Weekly deduction amount must be greater than 0. Check Original Balance and Total Terms."
         );
         setSubmitting(false);
         return;
-      }
-
-      // Verify calculation is correct (optional check)
-      const expectedMonthlyPayment =
-        parseFloat(formData.original_balance) / parseInt(formData.total_terms);
-      if (Math.abs(monthlyPayment - expectedMonthlyPayment) > 0.01) {
-        // Allow slight rounding differences but warn if significantly different
-        console.warn(
-          "Monthly payment doesn't match calculated value. Using provided value."
-        );
       }
       if (!formData.total_terms || parseInt(formData.total_terms) <= 0) {
         toast.error("Please enter valid total terms");
@@ -511,12 +487,10 @@ export default function LoansPage() {
         loan_type: formData.loan_type,
         original_balance: parseFloat(formData.original_balance),
         current_balance: parseFloat(formData.current_balance),
-        monthly_payment: parseFloat(formData.monthly_payment),
+        weekly_deduction_amount: parseFloat(formData.weekly_deduction_amount),
         total_terms: totalTerms,
         remaining_terms: remainingTerms,
         effectivity_date: formData.effectivity_date,
-        cutoff_assignment: formData.cutoff_assignment,
-        deduct_bi_monthly: formData.deduct_bi_monthly,
         is_active: formData.is_active,
         notes: formData.notes || null,
       };
@@ -542,16 +516,16 @@ export default function LoansPage() {
             )} → ${formatCurrency(parseFloat(formData.current_balance))}`
           );
         }
-        if (parseInt(formData.total_terms) !== editingLoan.total_terms) {
+        if (parseInt(formData.total_terms) !== (editingLoan.total_terms ?? 0)) {
           criticalChanges.push(
-            `Total Terms: ${editingLoan.total_terms} → ${formData.total_terms}`
+            `Total Terms: ${editingLoan.total_terms ?? 0} → ${formData.total_terms}`
           );
         }
         if (
-          parseInt(formData.remaining_terms) !== editingLoan.remaining_terms
+          parseInt(formData.remaining_terms) !== (editingLoan.remaining_terms ?? 0)
         ) {
           criticalChanges.push(
-            `Remaining Terms: ${editingLoan.remaining_terms} → ${formData.remaining_terms}`
+            `Remaining Terms: ${editingLoan.remaining_terms ?? 0} → ${formData.remaining_terms}`
           );
         }
 
@@ -578,9 +552,9 @@ export default function LoansPage() {
           return;
         }
 
-        // Verify user role from public.users table
+        // Verify user role from profiles table
         const { data: userRecord, error: userError } = await supabase
-          .from("users")
+          .from("profiles")
           .select("id, role, is_active")
           .eq("id", userData.user.id)
           .single();
@@ -628,8 +602,16 @@ export default function LoansPage() {
           .from("employee_loans")
           // @ts-ignore - employee_loans table type may not be in generated types
           .insert({
-            ...loanData,
-            created_by: userData.user.id,
+            employee_id: loanData.employee_id,
+            loan_type: loanData.loan_type,
+            original_balance: loanData.original_balance,
+            current_balance: loanData.current_balance,
+            weekly_deduction_amount: loanData.weekly_deduction_amount,
+            total_terms: loanData.total_terms ?? null,
+            remaining_terms: loanData.remaining_terms ?? null,
+            effectivity_date: loanData.effectivity_date,
+            is_active: loanData.is_active,
+            notes: loanData.notes,
           })
           .select();
 
@@ -741,7 +723,7 @@ export default function LoansPage() {
         (logsData || []).map(async (log: any) => {
           if (log.user_id) {
             const { data: userData } = await supabase
-              .from("users")
+              .from("profiles")
               .select("id, email, full_name")
               .eq("id", log.user_id)
               .single();
@@ -799,24 +781,8 @@ export default function LoansPage() {
           const isFirstCutoff = periodStart.getDate() <= 15;
           const isSecondCutoff = periodStart.getDate() >= 16;
 
-          // Check if this cutoff should have a payment based on loan's cutoff_assignment
-          const shouldHavePayment =
-            loan.cutoff_assignment === "both" ||
-            (loan.cutoff_assignment === "first" && isFirstCutoff) ||
-            (loan.cutoff_assignment === "second" && isSecondCutoff);
-
-          if (!shouldHavePayment) continue;
-
-          // Calculate expected payment amount based on deduct_bi_monthly flag
-          const deductBiMonthly = loan.deduct_bi_monthly !== false;
-          const expectedPayment =
-            loan.cutoff_assignment === "both"
-              ? (deductBiMonthly
-                  ? parseFloat(loan.monthly_payment.toString()) / 2
-                  : parseFloat(loan.monthly_payment.toString()))
-              : (deductBiMonthly
-                  ? parseFloat(loan.monthly_payment.toString()) / 2
-                  : parseFloat(loan.monthly_payment.toString()));
+          // Loans are deducted weekly
+          const expectedPayment = parseFloat((loan.weekly_deduction_amount ?? 0).toString());
 
           let paymentAmount = 0;
 
@@ -1082,11 +1048,12 @@ export default function LoansPage() {
                             {formatCurrency(loan.current_balance)}
                           </TableCell>
                           <TableCell>
-                            {formatCurrency(loan.monthly_payment)}
+                            {formatCurrency(loan.weekly_deduction_amount ?? 0)}
                           </TableCell>
                           <TableCell>
-                            {loan.total_terms - loan.remaining_terms} /{" "}
-                            {loan.total_terms}
+                            {(loan.total_terms ?? 0) -
+                              (loan.remaining_terms ?? 0)}{" "}
+                            / {loan.total_terms ?? 0}
                           </TableCell>
                           <TableCell>
                             {format(
@@ -1096,11 +1063,7 @@ export default function LoansPage() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {loan.cutoff_assignment === "first"
-                                ? "1st Cutoff"
-                                : loan.cutoff_assignment === "second"
-                                ? "2nd Cutoff"
-                                : "Both"}
+                                Weekly
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -1257,7 +1220,7 @@ export default function LoansPage() {
                         parseFloat(e.target.value) || 0;
                       const totalTerms = parseInt(formData.total_terms) || 1;
                       const remainingTerms = parseInt(formData.remaining_terms) || 0;
-                      const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
+                      const weeklyDeduction = parseFloat(formData.weekly_deduction_amount) || 0;
 
                       // Calculate terms paid
                       const termsPaid = totalTerms - remainingTerms;
@@ -1265,27 +1228,26 @@ export default function LoansPage() {
                       // Recalculate monthly payment based on new original balance (if not manually set)
                       // Only auto-calculate if monthly payment is currently 0 or matches the old calculation
                       const oldOriginalBalance = parseFloat(formData.original_balance) || 0;
-                      const expectedMonthlyPayment = oldOriginalBalance > 0 && totalTerms > 0
-                        ? oldOriginalBalance / totalTerms
+                      const weeksTotal = totalTerms * 4;
+                      const expectedWeekly = weeksTotal > 0 && oldOriginalBalance > 0
+                        ? oldOriginalBalance / weeksTotal
                         : 0;
-                      const isAutoCalculated = Math.abs(monthlyPayment - expectedMonthlyPayment) < 0.01 || monthlyPayment === 0;
+                      const isAutoCalculated = Math.abs(weeklyDeduction - expectedWeekly) < 0.01 || weeklyDeduction === 0;
+                      const newWeeklyDeduction = isAutoCalculated && newOriginalBalance > 0 && weeksTotal > 0
+                        ? newOriginalBalance / weeksTotal
+                        : weeklyDeduction;
 
-                      const newMonthlyPayment = isAutoCalculated && newOriginalBalance > 0 && totalTerms > 0
-                        ? newOriginalBalance / totalTerms
-                        : monthlyPayment; // Keep manual monthly payment if it was set
-
-                      // Recalculate current balance based on new original balance and terms paid
-                      // current_balance = original_balance - (monthly_payment * terms_paid)
+                      const weeksPaid = termsPaid * 4;
                       const newCurrentBalance = Math.max(
                         0,
-                        newOriginalBalance - (newMonthlyPayment * termsPaid)
+                        newOriginalBalance - (newWeeklyDeduction * weeksPaid)
                       );
 
                       setFormData({
                         ...formData,
                         original_balance: e.target.value,
                         current_balance: newCurrentBalance.toFixed(2),
-                        monthly_payment: newMonthlyPayment.toFixed(2),
+                        weekly_deduction_amount: newWeeklyDeduction.toFixed(2),
                       });
                     }}
                     placeholder="0.00"
@@ -1301,18 +1263,14 @@ export default function LoansPage() {
                     onChange={(e) => {
                       const newCurrentBalance = parseFloat(e.target.value) || 0;
                       const originalBalance = parseFloat(formData.original_balance) || 0;
-                      const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
+                      const weeklyDeduction = parseFloat(formData.weekly_deduction_amount) || 0;
                       const totalTerms = parseInt(formData.total_terms) || 1;
 
-                      // If monthly payment is set, calculate remaining terms from current balance
-                      if (monthlyPayment > 0 && originalBalance > 0) {
-                        // Calculate how much has been paid
+                      // If weekly deduction is set, calculate remaining terms from current balance
+                      if (weeklyDeduction > 0 && originalBalance > 0) {
                         const amountPaid = originalBalance - newCurrentBalance;
-
-                        // Calculate terms paid (round to nearest integer)
-                        const termsPaid = Math.round(amountPaid / monthlyPayment);
-
-                        // Calculate remaining terms
+                        const weeksPaid = Math.round(amountPaid / weeklyDeduction);
+                        const termsPaid = Math.floor(weeksPaid / 4);
                         const newRemainingTerms = Math.max(
                           0,
                           Math.min(totalTerms, totalTerms - termsPaid)
@@ -1338,46 +1296,42 @@ export default function LoansPage() {
                     <br />
                     Or auto-calculates Current Balance when you set Remaining Terms
                     <br />
-                    Formula: Current Balance = Original Balance - (Monthly Payment × Terms Paid)
+                    Formula: Current Balance = Original Balance - (Weekly Deduction × Weeks Paid)
                   </Caption>
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="monthly_payment">
-                  Monthly Payment *
+                <Label htmlFor="weekly_deduction_amount">
+                  Weekly Deduction Amount *
                 </Label>
                 <Input
-                  id="monthly_payment"
+                  id="weekly_deduction_amount"
                   type="number"
                   step="0.01"
-                  value={formData.monthly_payment}
+                  value={formData.weekly_deduction_amount}
                   onChange={(e) => {
-                    const newMonthlyPayment = parseFloat(e.target.value) || 0;
+                    const newWeeklyDeduction = parseFloat(e.target.value) || 0;
                     const originalBalance = parseFloat(formData.original_balance) || 0;
                     const totalTerms = parseInt(formData.total_terms) || 1;
                     const remainingTerms = parseInt(formData.remaining_terms) || 0;
-
-                    // Calculate terms paid
                     const termsPaid = totalTerms - remainingTerms;
-
-                    // Recalculate current balance based on new monthly payment
-                    // current_balance = original_balance - (monthly_payment * terms_paid)
+                    const weeksPaid = termsPaid * 4;
                     const newCurrentBalance = Math.max(
                       0,
-                      originalBalance - (newMonthlyPayment * termsPaid)
+                      originalBalance - (newWeeklyDeduction * weeksPaid)
                     );
 
                     setFormData({
                       ...formData,
-                      monthly_payment: e.target.value,
+                      weekly_deduction_amount: e.target.value,
                       current_balance: newCurrentBalance.toFixed(2),
                     });
                   }}
                   placeholder="0.00"
                 />
                 <Caption className="text-xs text-gray-500 mt-1">
-                  Auto-calculated as Original Balance ÷ Total Terms (can be manually adjusted)
+                  Deducted every week (Wed–Tue cutoff). Auto-calculated from Original Balance ÷ (Total Terms × 4).
                 </Caption>
               </div>
 
@@ -1408,28 +1362,24 @@ export default function LoansPage() {
                         parseFloat(formData.original_balance) || 0;
                       const remainingTerms = parseInt(formData.remaining_terms) || 0;
 
-                      // Recalculate monthly payment when total terms changes
-                      const newMonthlyPayment =
+                      const newWeeklyDeduction =
                         originalBalance > 0 && newTotalTerms > 0
-                          ? originalBalance / newTotalTerms
+                          ? originalBalance / (newTotalTerms * 4)
                           : 0;
-
-                      // Calculate terms paid with new total terms
                       const termsPaid = newTotalTerms - remainingTerms;
-
-                      // Recalculate current balance based on new total terms
+                      const weeksPaid = termsPaid * 4;
                       const newCurrentBalance = Math.max(
                         0,
-                        originalBalance - (newMonthlyPayment * termsPaid)
+                        originalBalance - (newWeeklyDeduction * weeksPaid)
                       );
 
                       setFormData({
                         ...formData,
                         total_terms: e.target.value,
-                        monthly_payment:
-                          newMonthlyPayment > 0
-                            ? newMonthlyPayment.toFixed(2)
-                            : formData.monthly_payment,
+                        weekly_deduction_amount:
+                          newWeeklyDeduction > 0
+                            ? newWeeklyDeduction.toFixed(2)
+                            : formData.weekly_deduction_amount,
                         current_balance: newCurrentBalance.toFixed(2),
                       });
                     }}
@@ -1451,16 +1401,15 @@ export default function LoansPage() {
                         const newRemainingTerms = parseInt(value) || 0;
                         const totalTerms = parseInt(formData.total_terms) || 1;
                         const originalBalance = parseFloat(formData.original_balance) || 0;
-                        const monthlyPayment = parseFloat(formData.monthly_payment) || 0;
+                        const weeklyDeduction = parseFloat(formData.weekly_deduction_amount) || 0;
 
                         // Calculate terms paid
                         const termsPaid = totalTerms - newRemainingTerms;
 
-                        // Recalculate current balance when remaining terms changes
-                        // current_balance = original_balance - (monthly_payment * terms_paid)
+                        const weeksPaid = termsPaid * 4;
                         const newCurrentBalance = Math.max(
                           0,
-                          originalBalance - (monthlyPayment * termsPaid)
+                          originalBalance - (weeklyDeduction * weeksPaid)
                         );
 
                         setFormData({
@@ -1490,51 +1439,9 @@ export default function LoansPage() {
                     }
                   />
                 </div>
-                <div>
-                  <Label htmlFor="cutoff_assignment">Cutoff Assignment *</Label>
-                  <Select
-                    value={formData.cutoff_assignment}
-                    onValueChange={(value: any) =>
-                      setFormData({
-                        ...formData,
-                        cutoff_assignment: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="first">1st Cutoff (1-15)</SelectItem>
-                      <SelectItem value="second">2nd Cutoff (16-31)</SelectItem>
-                      <SelectItem value="both">Both Cutoffs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               <div className="flex flex-col gap-3">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="deduct_bi_monthly"
-                    checked={formData.deduct_bi_monthly}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        deduct_bi_monthly: e.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  />
-                  <Label htmlFor="deduct_bi_monthly" className="font-normal cursor-pointer">
-                    Deduct Bi-Monthly (Divide by 2)
-                  </Label>
-                  <Caption className="text-xs text-gray-500 ml-2">
-                    If checked, monthly payment is divided by 2 per cutoff (e.g., ₱1,000/month = ₱500 per cutoff).
-                    If unchecked, full monthly payment is deducted per cutoff.
-                  </Caption>
-                </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -1797,7 +1704,7 @@ export default function LoansPage() {
                         </BodySmall>
                         <div className="font-semibold">
                           {formatCurrency(
-                            selectedLoanForHistory.monthly_payment
+                            selectedLoanForHistory.weekly_deduction_amount ?? 0
                           )}
                         </div>
                       </div>
@@ -1808,9 +1715,9 @@ export default function LoansPage() {
                           Terms Paid
                         </BodySmall>
                         <div className="font-semibold">
-                          {selectedLoanForHistory.total_terms -
-                            selectedLoanForHistory.remaining_terms}{" "}
-                          / {selectedLoanForHistory.total_terms}
+                          {(selectedLoanForHistory.total_terms ?? 0) -
+                            (selectedLoanForHistory.remaining_terms ?? 0)}{" "}
+                          / {selectedLoanForHistory.total_terms ?? 0}
                         </div>
                       </div>
                       <div>

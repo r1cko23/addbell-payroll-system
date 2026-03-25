@@ -19,6 +19,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
 import { formatDateDisplay } from "@/utils/holidays";
+import { formatRoleName } from "@/lib/formatRoleName";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,7 +52,7 @@ interface User {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "hr" | "approver" | "viewer";
+  role: string;
   is_active: boolean;
   can_access_salary?: boolean | null;
   profile_picture_url: string | null;
@@ -98,12 +99,19 @@ export default function SettingsPage() {
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [showOTDetailsModal, setShowOTDetailsModal] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
-  const [newUser, setNewUser] = useState({
+  const [newUser, setNewUser] = useState<{
+    email: string;
+    full_name: string;
+    password: string;
+    /** profiles.role — may include values beyond the add-user Select (e.g. upper_management) */
+    role: string;
+    ot_groups: string[];
+  }>({
     email: "",
     full_name: "",
     password: "",
-    role: "hr" as "admin" | "hr" | "approver" | "viewer",
-    ot_groups: [] as string[],
+    role: "hr",
+    ot_groups: [],
   });
   const [userToDeactivate, setUserToDeactivate] = useState<User | null>(null);
   const [userToActivate, setUserToActivate] = useState<User | null>(null);
@@ -129,7 +137,7 @@ export default function SettingsPage() {
 
       if (user) {
         const { data: userData } = await supabase
-          .from("users")
+          .from("profiles")
           .select("*")
           .eq("id", user.id)
           .single();
@@ -137,13 +145,11 @@ export default function SettingsPage() {
         setCurrentUser(userData);
       }
 
-      // Load all users (admin can see all, including inactive)
-      // First check current user to debug
       const { data: { user: authUser } } = await supabase.auth.getUser();
       console.log("Current auth user:", authUser?.id, authUser?.email);
 
       const { data: usersData, error: usersError } = await supabase
-        .from("users")
+        .from("profiles")
         .select("*")
         .order("full_name", { ascending: true });
 
@@ -165,122 +171,24 @@ export default function SettingsPage() {
       if (!usersData || usersData.length === 0) {
         console.warn("No users returned from query - checking RLS policies");
         setUsers([]);
-        // Don't return early - still load holidays and groups
       }
 
-      // Load holidays (filter by date range instead of year column)
-      // Use current year dynamically
-      const currentYear = new Date().getFullYear();
-      const yearStart = new Date(currentYear, 0, 1).toISOString().split('T')[0];
-      const yearEnd = new Date(currentYear, 11, 31).toISOString().split('T')[0];
-      const { data: holidaysData, error: holidaysError } = await supabase
-        .from("holidays")
-        .select("*")
-        .gte("holiday_date", yearStart)
-        .lte("holiday_date", yearEnd)
-        .order("holiday_date");
+      // Schema does not include holidays or overtime_groups tables
+      setHolidays([]);
+      setOvertimeGroups([]);
 
-      if (holidaysError) {
-        console.error("Error loading holidays:", holidaysError);
-        // Don't throw - just set empty array
-        setHolidays([]);
-      } else {
-        setHolidays(holidaysData || []);
-      }
-
-      // Load overtime groups (don't throw on error - just log it)
-      const { data: groupsData, error: groupsError } = await supabase
-        .from("overtime_groups")
-        .select("id, name, description")
-        .order("name");
-
-      if (groupsError) {
-        console.error("Error loading overtime groups:", groupsError);
-        // Don't throw - just set empty array so users can still be displayed
-        setOvertimeGroups([]);
-      } else {
-        setOvertimeGroups(groupsData || []);
-      }
-
-      // Load users with their assigned OT groups (after groups are loaded)
+      // Load users (OT group assignment UI will show empty)
       // IMPORTANT: Set users immediately, even if group loading fails
       if (!usersData || usersData.length === 0) {
         console.warn("No users data available - setting empty array");
         setUsers([]);
       } else {
-        console.log(`Processing ${usersData.length} users with OT groups...`);
-        // Set users immediately with empty groups as fallback
-        const usersWithEmptyGroups = usersData.map((user: any) => ({ ...user, assigned_ot_groups: [] }));
-        console.log(`✅ Setting ${usersWithEmptyGroups.length} users immediately`);
-        console.log("Sample user being set:", usersWithEmptyGroups[0]);
+        const usersWithEmptyGroups = usersData.map((user: any) => ({
+          ...user,
+          assigned_ot_groups: [] as any[],
+          employee_specific_assignments: [] as any[],
+        }));
         setUsers(usersWithEmptyGroups);
-        console.log("✅ setUsers() called successfully");
-
-        try {
-          const usersWithGroups = await Promise.all(
-            usersData.map(async (user: any) => {
-              try {
-                // Find groups where this user is approver or viewer
-                const { data: approverGroups, error: approverError } = await supabase
-                  .from("overtime_groups")
-                  .select("id, name, approver_id, viewer_id")
-                  .eq("approver_id", user.id);
-
-                if (approverError) {
-                  console.warn(`Error loading approver groups for ${user.email}:`, approverError);
-                }
-
-                const { data: viewerGroups, error: viewerError } = await supabase
-                  .from("overtime_groups")
-                  .select("id, name, approver_id, viewer_id")
-                  .eq("viewer_id", user.id);
-
-                if (viewerError) {
-                  console.warn(`Error loading viewer groups for ${user.email}:`, viewerError);
-                }
-
-                const assignedGroups = [
-                  ...(approverGroups || []),
-                  ...(viewerGroups || []).filter(
-                    (vg: any) => !(approverGroups || []).some((ag: any) => ag.id === vg.id)
-                  ),
-                ];
-
-                // Also find employee-specific assignments (where this user is directly assigned as approver or viewer)
-                const { data: employeeAssignments, error: employeeError } = await supabase
-                  .from("employees")
-                  .select("id, employee_id, full_name, overtime_approver_id, overtime_viewer_id")
-                  .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
-
-                if (employeeError) {
-                  console.warn(`Error loading employee assignments for ${user.email}:`, employeeError);
-                }
-
-                return {
-                  ...user,
-                  assigned_ot_groups: assignedGroups,
-                  employee_specific_assignments: employeeAssignments || [],
-                };
-              } catch (userError) {
-                console.error(`Error processing user ${user.email}:`, userError);
-                // Return user without groups if there's an error
-                return {
-                  ...user,
-                  assigned_ot_groups: [],
-                  employee_specific_assignments: [],
-                };
-              }
-            })
-          );
-
-          console.log(`✅ Successfully processed ${usersWithGroups.length} users with groups`);
-          console.log("Updating users state with groups:", usersWithGroups.length);
-          setUsers(usersWithGroups);
-        } catch (groupError) {
-          console.error("❌ Error loading user groups:", groupError);
-          // Users are already set above, so this is just a warning
-          console.warn("Users displayed without OT group assignments");
-        }
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -291,23 +199,16 @@ export default function SettingsPage() {
   }
 
   const isAdmin = currentUser?.role === "admin";
-
-  // Helper function to format role names nicely
-  function formatRoleName(role: string): string {
-    const roleMap: Record<string, string> = {
-      admin: "Admin",
-      hr: "HR",
-      approver: "Approver",
-      viewer: "Viewer",
-    };
-    return roleMap[role] || role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-  }
+  const isUpperManagement = currentUser?.role === "upper_management";
+  const canManageAccessControl = isAdmin || isUpperManagement;
 
   async function assignUserToOTGroups(
     userId: string,
     userRole: "approver" | "viewer",
     groupIds: string[]
   ) {
+    // Schema does not include overtime_groups table — no-op
+    if (overtimeGroups.length === 0) return;
     // First, remove user from all groups
     if (userRole === "approver") {
       await (supabase.from("overtime_groups") as any)
@@ -629,7 +530,7 @@ export default function SettingsPage() {
                   </HStack>
                   <HStack gap="3" align="center">
                     <BodySmall className="w-16 text-left">Role:</BodySmall>
-                    <Badge variant={isAdmin ? "default" : "secondary"}>
+                    <Badge variant={canManageAccessControl ? "default" : "secondary"}>
                       {formatRoleName(currentUser?.role || "")}
                     </Badge>
                   </HStack>
@@ -639,8 +540,8 @@ export default function SettingsPage() {
           </VStack>
         </CardSection>
 
-        {/* User Management (Admin Only) */}
-        {isAdmin && (
+        {/* User Management (Admin & Upper Management — same level as admin) */}
+        {canManageAccessControl && (
           <CardSection
             title="User Management"
             description="Manage system users"
@@ -709,9 +610,7 @@ export default function SettingsPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <Badge
                           variant={
-                            user.role === "admin"
-                              ? "default"
-                              : false
+                            user.role === "admin" || user.role === "upper_management"
                               ? "default"
                               : "secondary"
                           }
@@ -727,8 +626,8 @@ export default function SettingsPage() {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {user.role === "admin" ? (
-                          <Badge variant="default">Yes (Admin)</Badge>
+                        {user.role === "admin" || user.role === "upper_management" ? (
+                          <Badge variant="default">Yes (Full access)</Badge>
                         ) : user.can_access_salary ? (
                           <Badge variant="default">Yes</Badge>
                         ) : (
@@ -736,7 +635,7 @@ export default function SettingsPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        {user.role === "approver" || user.role === "viewer" || user.role === "admin" ? (
+                        {user.role === "approver" || user.role === "viewer" || user.role === "admin" || user.role === "upper_management" ? (
                           <div className="flex items-center gap-2">
                             {/* Summary badges */}
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -758,10 +657,10 @@ export default function SettingsPage() {
                                   {user.employee_specific_assignments.length} {user.employee_specific_assignments.length === 1 ? 'employee' : 'employees'}
                                 </Badge>
                               )}
-                              {user.role === "admin" &&
+                              {(user.role === "admin" || user.role === "upper_management") &&
                                (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
                                (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
-                                <Caption className="text-muted-foreground">Admin (all access)</Caption>
+                                <Caption className="text-muted-foreground">Full access</Caption>
                               )}
                               {(user.role === "approver" || user.role === "viewer") &&
                                (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
@@ -850,12 +749,12 @@ export default function SettingsPage() {
                                 Manage OT Groups
                               </DropdownMenuItem>
                             )}
-                            {user.role !== "admin" && (
+                            {(user.role !== "admin" && user.role !== "upper_management") && (
                               <DropdownMenuItem
                                 onClick={async () => {
                                   try {
                                     const { error } = await (
-                                      supabase.from("users") as any
+                                      supabase.from("profiles") as any
                                     )
                                       .update({
                                         can_access_salary:
@@ -925,11 +824,11 @@ export default function SettingsPage() {
           </CardSection>
         )}
 
-        {/* Permissions Management (Admin Only) */}
-        {isAdmin && (
+        {/* Permissions / CRUD Matrix (Admin & Upper Management) */}
+        {canManageAccessControl && (
           <CardSection
-            title="Access Control (ACL/RBAC)"
-            description="Configure granular CRUD permissions for each user"
+            title="Access Control (CRUD Matrix)"
+            description="Configure Create, Read, Update, Delete per page for each user with dashboard access"
           >
             <PermissionsManager
               users={users}
@@ -1040,7 +939,7 @@ export default function SettingsPage() {
                 setCreatingUser(true);
                 try {
                   // Update user role if changed
-                  const { error: updateError } = await (supabase.from("users") as any)
+                  const { error: updateError } = await (supabase.from("profiles") as any)
                     .update({ role: newUser.role })
                     .eq("id", editingUser.id);
 
@@ -1176,7 +1075,7 @@ export default function SettingsPage() {
                 <Label htmlFor="role">Role *</Label>
                 <Select
                   value={newUser.role}
-                  onValueChange={(value: "admin" | "hr" | "approver" | "viewer") =>
+                  onValueChange={(value: string) =>
                     setNewUser({ ...newUser, role: value })
                   }
                   disabled={creatingUser}

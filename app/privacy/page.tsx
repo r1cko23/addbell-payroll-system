@@ -272,7 +272,7 @@ export default function PrivacyNoticePage() {
                     <li><strong>Operations Manager (Supervisor/Account Manager):</strong> Project management oversight, employee supervision, fund request approval (Project Manager step), schedule management, and leave/overtime approvals for assigned groups</li>
                     <li><strong>HR:</strong> Human Resources staff with employee management, payroll processing, leave/overtime approvals, and access to employee records</li>
                     <li><strong>Purchasing Officer:</strong> Fund request approval (Purchasing Officer step), procurement management, and supplier/vendor coordination</li>
-                    <li><strong>Employee:</strong> Access to own data, project assignments, time tracking per project, leave requests, and payslip viewing</li>
+                    <li><strong>Employee:</strong> Access to own data, project assignments, location-based time tracking, leave requests, and payslip viewing</li>
                   </ul>
                 </li>
                 <li>Row-level security (RLS) policies</li>

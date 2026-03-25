@@ -39,25 +39,17 @@ export function useEmployeeLeaveCredits({
 
     try {
       setLoading(true);
-      const { data, error: fetchError } = await supabase.rpc(
-        "get_employee_leave_credits",
-        {
-          p_employee_uuid: employeeId,
-        } as any
-      );
+      const { data, error: fetchError } = await supabase
+        .from("employees")
+        .select("sil_credits")
+        .eq("id", employeeId)
+        .maybeSingle();
 
       if (fetchError) {
         throw fetchError;
       }
 
-      const creditsData = data as Array<{
-        sil_credits: number | null;
-      }> | null;
-
-      const credits =
-        creditsData && creditsData.length > 0
-          ? Number(creditsData[0].sil_credits ?? 0)
-          : 0;
+      const credits = data?.sil_credits != null ? Number(data.sil_credits) : 0;
 
       // Update cache
       cacheRef.current[employeeId] = {
@@ -108,24 +100,8 @@ export function useHolidays(startDate: string, endDate: string) {
     const fetchHolidays = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("holidays")
-          .select("holiday_date, name, is_regular")
-          .gte("holiday_date", startDate)
-          .lte("holiday_date", endDate)
-          .eq("is_active", true); // Only fetch active holidays
-
-        if (error) throw error;
-
-        // Normalize holidays to ensure consistent date format
-        const { normalizeHolidays } = await import("@/utils/holidays");
-        const formattedHolidays = normalizeHolidays(
-          (data || []).map((h: any) => ({
-            date: h.holiday_date,
-            name: h.name,
-            type: h.is_regular ? "regular" : "non-working",
-          }))
-        );
+        // Schema does not include holidays table — use empty list
+        const formattedHolidays: { date: string; name: string; type: "regular" | "non-working" }[] = [];
 
         cacheRef.current[cacheKey] = {
           data: formattedHolidays,

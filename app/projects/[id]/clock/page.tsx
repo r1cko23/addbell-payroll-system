@@ -18,9 +18,9 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 
 interface Project {
   id: string;
-  project_code: string;
-  project_name: string;
-  project_status: string;
+  code: string;
+  name: string;
+  status: string;
 }
 
 interface ActiveTimeEntry {
@@ -59,7 +59,7 @@ export default function ProjectClockPage() {
     try {
       const { data, error } = await supabase
         .from("projects")
-        .select("id, project_code, project_name, project_status")
+        .select("id, code, name, status")
         .eq("id", projectId)
         .single();
 
@@ -259,7 +259,7 @@ export default function ProjectClockPage() {
             Project Time Clock
           </h1>
           <p className="text-muted-foreground text-sm">
-            {project.project_name} ({project.project_code})
+            {project.name} ({project.code})
           </p>
         </div>
       </div>
@@ -346,7 +346,7 @@ export default function ProjectClockPage() {
 
               <Button
                 onClick={handleClockIn}
-                disabled={clocking || project.project_status !== "active"}
+                disabled={clocking || project.status !== "active"}
                 className="w-full"
                 size="lg"
               >
@@ -354,7 +354,7 @@ export default function ProjectClockPage() {
                 {clocking ? "Processing..." : "Clock In"}
               </Button>
 
-              {project.project_status !== "active" && (
+              {project.status !== "active" && (
                 <p className="text-sm text-muted-foreground text-center">
                   This project is not active. Only active projects allow clock in.
                 </p>

@@ -25,6 +25,7 @@ import {
   ClipboardText,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
+import { formatRoleName } from "@/lib/formatRoleName";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions, type ModuleName } from "@/lib/hooks/usePermissions";
 
@@ -316,7 +317,10 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
           <div className="flex flex-col items-center justify-center h-32 text-sm text-muted-foreground p-4">
             <WarningCircle className="h-8 w-8 mb-2" />
             <p>No navigation items available</p>
-            <p className="text-xs mt-1">Role: {role || 'loading...'}</p>
+            <p className="text-xs mt-1">
+              Role:{" "}
+              {role ? formatRoleName(role) : "loading..."}
+            </p>
           </div>
         ) : (
           filteredNavGroups

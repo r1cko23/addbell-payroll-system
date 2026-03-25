@@ -73,6 +73,12 @@ export default function ProjectDetailPage() {
 
   const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
   const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [assignEmployeeId, setAssignEmployeeId] = useState("");
+  const [assignRole, setAssignRole] = useState("");
+  const [assignStartDate, setAssignStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [assignEndDate, setAssignEndDate] = useState("");
+  const [employeesList, setEmployeesList] = useState<{ id: string; employee_code: string; first_name: string; last_name: string }[]>([]);
 
   const [costType, setCostType] = useState("material");
   const [costCategory, setCostCategory] = useState("");
@@ -163,7 +169,51 @@ export default function ProjectDetailPage() {
     fetchProjectData();
   };
 
-  const canManage = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "operations_manager";
+  const openAssignDialog = async () => {
+    setAssignEmployeeId("");
+    setAssignRole("");
+    setAssignStartDate(format(new Date(), "yyyy-MM-dd"));
+    setAssignEndDate("");
+    const { data } = await supabase.from("employees").select("id, employee_code, first_name, last_name").order("last_name");
+    setEmployeesList(data ?? []);
+    setIsAssignDialogOpen(true);
+  };
+
+  const handleAssignEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignEmployeeId.trim() || !assignStartDate.trim()) {
+      toast.error("Select an employee and start date.");
+      return;
+    }
+    const assignedIds = new Set(assignments.map((a) => a.employee_id));
+    if (assignedIds.has(assignEmployeeId)) {
+      toast.error("This employee is already assigned to the project.");
+      return;
+    }
+    try {
+      const { error } = await supabase.from("project_assignments").insert({
+        project_id: projectId,
+        employee_id: assignEmployeeId,
+        role: assignRole.trim() || null,
+        start_date: assignStartDate,
+        end_date: assignEndDate.trim() || null,
+        is_active: true,
+      } as never);
+      if (error) throw error;
+      toast.success("Employee assigned to project.");
+      setIsAssignDialogOpen(false);
+      fetchProjectData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to assign employee");
+    }
+  };
+
+  // Only upper management and project managers can edit project (costs, progress, etc.)
+  const canManage =
+    profile?.role === "admin" ||
+    profile?.role === "upper_management" ||
+    profile?.role === "operations_manager" ||
+    profile?.role === "project_manager";
   const budget = project ? (project.budget_labor ?? 0) + (project.budget_materials ?? 0) + (project.budget_subcontract ?? 0) + (project.budget_other ?? 0) : 0;
   const profit = (project?.contract_value ?? 0) - totalCost;
   const profitMargin = project?.contract_value ? (profit / project.contract_value) * 100 : 0;
@@ -328,7 +378,41 @@ export default function ProjectDetailPage() {
           </TabsContent>
 
           <TabsContent value="team" className="space-y-4">
-            <div className="flex justify-between items-center"><h3 className="text-lg font-semibold">Assigned Employees</h3></div>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Assigned Employees</h3>
+              {canManage && (
+                <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button onClick={openAssignDialog}><Plus className="h-4 w-4 mr-2" />Assign Employee</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Assign Employee to Project</DialogTitle><DialogDescription>Add an employee to this project&apos;s team.</DialogDescription></DialogHeader>
+                    <form onSubmit={handleAssignEmployee} className="space-y-4">
+                      <div>
+                        <Label>Employee *</Label>
+                        <Select value={assignEmployeeId} onValueChange={setAssignEmployeeId} required>
+                          <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
+                          <SelectContent>
+                            {employeesList.filter((emp) => !assignments.some((a) => a.employee_id === emp.id)).map((emp) => (
+                              <SelectItem key={emp.id} value={emp.id}>{emp.last_name}, {emp.first_name} ({emp.employee_code})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {employeesList.filter((emp) => !assignments.some((a) => a.employee_id === emp.id)).length === 0 && employeesList.length > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">All employees are already assigned to this project.</p>
+                        )}
+                      </div>
+                      <div><Label>Role</Label><Input value={assignRole} onChange={(e) => setAssignRole(e.target.value)} placeholder="e.g. Foreman, Electrician" /></div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><Label>Start Date *</Label><Input type="date" value={assignStartDate} onChange={(e) => setAssignStartDate(e.target.value)} required /></div>
+                        <div><Label>End Date</Label><Input type="date" value={assignEndDate} onChange={(e) => setAssignEndDate(e.target.value)} /></div>
+                      </div>
+                      <DialogFooter><Button type="button" variant="outline" onClick={() => setIsAssignDialogOpen(false)}>Cancel</Button><Button type="submit">Assign</Button></DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
             <Card><CardContent className="p-0">
               <Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Role</TableHead><TableHead>Start Date</TableHead><TableHead>End Date</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                 <TableBody>{assignments.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No employees assigned</TableCell></TableRow> :
@@ -345,7 +429,13 @@ export default function ProjectDetailPage() {
           </TabsContent>
 
           <TabsContent value="time-entries" className="space-y-4">
-            <h3 className="text-lg font-semibold">Time Entries</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Time Entries</h3>
+              <Link href={`/projects/${projectId}/clock`}>
+                <Button variant="outline"><Clock className="h-4 w-4 mr-2" />Clock in / out for this project</Button>
+              </Link>
+            </div>
+            <p className="text-sm text-muted-foreground">Time entries here are only for shifts recorded on the <strong>Project Time Clock</strong>. Use the button above to clock in or out for this project so your time is tied to it.</p>
             <Card><CardContent className="p-0">
               <Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Clock In</TableHead><TableHead>Clock Out</TableHead><TableHead className="text-right">Regular</TableHead><TableHead className="text-right">OT</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                 <TableBody>{timeEntries.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No time entries</TableCell></TableRow> :

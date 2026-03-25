@@ -203,7 +203,6 @@ export default function PurchaseOrderPage() {
       let companyId: string | null = null;
       const { data: co } = await supabase.from("companies").select("id").limit(1).single();
       companyId = co?.id ?? null;
-      if (!companyId) { toast.error("No company found."); setIsSavingPO(false); return; }
 
       const normalized = normalizePOData({ ...poData, printTimestamp: new Date().toISOString() });
       const itemsPayload = normalized.items.map((it) => ({

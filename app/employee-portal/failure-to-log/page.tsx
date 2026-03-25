@@ -40,10 +40,7 @@ interface FailureToLog {
   status: "pending" | "approved" | "rejected" | "cancelled";
   rejection_reason: string | null;
   created_at: string;
-  time_clock_entries?: {
-    clock_in_time: string;
-    clock_out_time: string | null;
-  };
+  time_entries?: { punched_at: string; punch_type: string } | { punched_at: string }[];
 }
 
 export default function FailureToLogPage() {
@@ -79,65 +76,54 @@ export default function FailureToLogPage() {
   }, [router]);
 
   async function fetchTimeEntries(employeeId: string) {
-    const { data, error } = await supabase
-      .from("time_clock_entries")
-      .select("id, clock_in_time, clock_out_time, status")
-      .eq("employee_id", employeeId)
-      .order("clock_in_time", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      console.error("Error fetching time entries:", error);
-    } else {
-      setTimeEntries(data || []);
-    }
+    const { fetchSessionsForEmployee } = await import("@/lib/timeEntries");
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 60);
+    const sessions = await fetchSessionsForEmployee(
+      supabase,
+      employeeId,
+      start.toISOString(),
+      end.toISOString()
+    );
+    setTimeEntries(sessions);
   }
 
   async function fetchFailureToLogRequests(employeeId: string) {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("failure_to_log")
-      .select(
-        `
-        *,
-        time_clock_entries (
-          clock_in_time,
-          clock_out_time
-        )
-      `
-      )
-      .eq("employee_id", employeeId)
-      .order("created_at", { ascending: false });
+    const response = await fetch(
+      `/api/employee-portal/failure-to-log?employee_id=${encodeURIComponent(
+        employeeId
+      )}`
+    );
+    const payload = await response.json();
 
-    if (error) {
-      console.error("Error fetching failure to log requests:", error);
+    if (!response.ok) {
+      console.error("Error fetching failure to log requests:", payload);
       toast.error("Failed to load requests");
     } else {
-      setRequests(data || []);
+      setRequests(payload.requests || []);
     }
     setLoading(false);
   }
 
   async function handleCancel(requestId: string) {
     setCancelLoading(true);
-    const { data, error } = await (supabase.from("failure_to_log") as any)
-      .update({ status: "cancelled" })
-      .eq("id", requestId)
-      .eq("employee_id", employee?.id || "")
-      .eq("status", "pending")
-      .select()
-      .maybeSingle();
+    const response = await fetch("/api/employee-portal/failure-to-log", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: requestId,
+        employee_id: employee?.id || "",
+      }),
+    });
+    const payload = await response.json();
 
     setCancelLoading(false);
 
-    if (error) {
-      console.error("Error cancelling request:", error);
+    if (!response.ok) {
+      console.error("Error cancelling request:", payload);
       toast.error("Failed to cancel request");
-      return;
-    }
-
-    if (!data) {
-      toast.error("Could not cancel; request may no longer be pending.");
       return;
     }
 
@@ -183,21 +169,25 @@ export default function FailureToLogPage() {
 
     setSubmitting(true);
 
-    const { error } = await (supabase.from("failure_to_log") as any).insert({
-      employee_id: employee.id,
-      time_entry_id: selectedTimeEntryId || null,
-      missed_date: missedDate || null,
-      actual_clock_in_time: actualClockInTime,
-      actual_clock_out_time: actualClockOutTime,
-      entry_type: entryType,
-      reason: reason.trim(),
-      status: "pending",
+    const response = await fetch("/api/employee-portal/failure-to-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        employee_id: employee.id,
+        time_entry_id: selectedTimeEntryId || null,
+        missed_date: missedDate || null,
+        actual_clock_in_time: actualClockInTime,
+        actual_clock_out_time: actualClockOutTime,
+        entry_type: entryType,
+        reason: reason.trim(),
+      }),
     });
+    const payload = await response.json();
 
     setSubmitting(false);
 
-    if (error) {
-      console.error("Error submitting failure to log request:", error);
+    if (!response.ok) {
+      console.error("Error submitting failure to log request:", payload);
       toast.error("Failed to submit request");
       return;
     }

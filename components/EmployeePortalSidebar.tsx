@@ -68,6 +68,7 @@ const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
     icon: User,
     defaultOpen: true,
     items: [
+      { name: "Project Assignments", href: "/employee-portal/project-time", icon: Clock },
       { name: "My Information", href: "/employee-portal/info", icon: User },
       {
         name: "Payslips",
@@ -139,13 +140,14 @@ export function EmployeePortalSidebar({
           employeeId: employee.employee_id,
         });
 
-        // Use RPC function to bypass RLS (same approach as get_employee_profile)
-        const { data, error } = await supabase.rpc("get_employee_type_and_position", {
-          p_employee_uuid: employee.id,
-        } as any);
+        const { data: employeeData, error } = await supabase
+          .from("employees")
+          .select("position, employment_type, full_name")
+          .eq("id", employee.id)
+          .maybeSingle();
 
         if (error) {
-          console.error("EmployeePortalSidebar - Error fetching employee via RPC:", {
+          console.error("EmployeePortalSidebar - Error fetching employee:", {
             error,
             uuid: employee.id,
             employeeId: employee.employee_id,
@@ -156,11 +158,8 @@ export function EmployeePortalSidebar({
           return;
         }
 
-        // RPC returns array, get first result
-        const employeeData = Array.isArray(data) && data.length > 0 ? data[0] : null;
-
         if (!employeeData) {
-          console.warn("EmployeePortalSidebar - No employee data returned from RPC");
+          console.warn("EmployeePortalSidebar - No employee data returned");
           setLoadingEmployeeType(false);
           return;
         }
@@ -169,15 +168,15 @@ export function EmployeePortalSidebar({
         const normalizedPosition = (employeeData.position || "").trim().toUpperCase();
         const hasAccountSupervisor = normalizedPosition.includes("ACCOUNT SUPERVISOR");
 
-        // Check if employee is client-based AND Account Supervisor
+        // Check if employee is client-based AND Account Supervisor (employment_type = DB column)
         const isClientBasedAccountSupervisor =
-          employeeData.employee_type === "client-based" && hasAccountSupervisor;
+          employeeData.employment_type === "client-based" && hasAccountSupervisor;
 
         console.log("EmployeePortalSidebar - Employee check:", {
           employeeId: employee.id,
           employeeIdFromSession: employee.employee_id,
           employeeName: employeeData.full_name,
-          employeeType: employeeData.employee_type,
+          employeeType: employeeData.employment_type,
           position: employeeData.position,
           normalizedPosition,
           hasAccountSupervisor,

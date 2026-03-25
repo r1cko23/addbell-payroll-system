@@ -43,6 +43,8 @@ interface Deductions {
   employee_id: string;
   period_start: string;
   period_end?: string;
+  uniform_amount?: number;
+  gas_amount?: number;
   vale_amount: number;
   sss_salary_loan: number;
   sss_calamity_loan: number;
@@ -67,6 +69,8 @@ export default function DeductionsPage() {
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
+    uniform_amount: "0",
+    gas_amount: "0",
     vale_amount: "0",
     sss_salary_loan: "0",
     sss_calamity_loan: "0",
@@ -144,6 +148,8 @@ export default function DeductionsPage() {
 
       if (data) {
         const deductionData = data as {
+          uniform_amount?: number;
+          gas_amount?: number;
           vale_amount: number;
           sss_salary_loan: number;
           sss_calamity_loan: number;
@@ -178,6 +184,8 @@ export default function DeductionsPage() {
         }
 
         setFormData({
+          uniform_amount: (deductionData.uniform_amount ?? 0).toString(),
+          gas_amount: (deductionData.gas_amount ?? 0).toString(),
           vale_amount: deductionData.vale_amount.toString(),
           sss_salary_loan: deductionData.sss_salary_loan.toString(),
           sss_calamity_loan: deductionData.sss_calamity_loan.toString(),
@@ -223,6 +231,8 @@ export default function DeductionsPage() {
 
   function resetForm() {
     setFormData({
+      uniform_amount: "0",
+      gas_amount: "0",
       vale_amount: "0",
       sss_salary_loan: "0",
       sss_calamity_loan: "0",
@@ -258,6 +268,8 @@ export default function DeductionsPage() {
         period_start: periodStartStr,
         period_end: periodEndStr,
         period_type: "bimonthly",
+        uniform_amount: roundTo2Decimals(parseFloat(formData.uniform_amount) || 0),
+        gas_amount: roundTo2Decimals(parseFloat(formData.gas_amount) || 0),
         vale_amount: roundTo2Decimals(parseFloat(formData.vale_amount) || 0),
         sss_salary_loan: roundTo2Decimals(parseFloat(formData.sss_salary_loan) || 0),
         sss_calamity_loan: roundTo2Decimals(parseFloat(formData.sss_calamity_loan) || 0),
@@ -311,6 +323,8 @@ export default function DeductionsPage() {
   }
 
   const weeklyTotal =
+    parseFloat(formData.uniform_amount || "0") +
+    parseFloat(formData.gas_amount || "0") +
     parseFloat(formData.vale_amount || "0") +
     parseFloat(formData.sss_salary_loan || "0") +
     parseFloat(formData.sss_calamity_loan || "0") +
@@ -426,6 +440,34 @@ export default function DeductionsPage() {
               )}`}
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <VStack gap="2" align="start">
+                  <Label>Uniform</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.uniform_amount}
+                    onChange={(e) =>
+                      setFormData({ ...formData, uniform_amount: e.target.value })
+                    }
+                  />
+                  <Caption>Recurring weekly deduction</Caption>
+                </VStack>
+
+                <VStack gap="2" align="start">
+                  <Label>Gas</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.gas_amount}
+                    onChange={(e) =>
+                      setFormData({ ...formData, gas_amount: e.target.value })
+                    }
+                  />
+                  <Caption>Recurring weekly deduction</Caption>
+                </VStack>
+
                 <VStack gap="2" align="start">
                   <Label>Vale</Label>
                   <Input

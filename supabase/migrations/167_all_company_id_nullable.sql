@@ -1,0 +1,9 @@
+-- Only one company (Addbell); make company_id optional everywhere.
+ALTER TABLE public.cost_codes ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.departments ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.employees ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.fund_requests ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.payroll_runs ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.positions ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.projects ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE public.purchase_orders ALTER COLUMN company_id DROP NOT NULL;

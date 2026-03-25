@@ -71,53 +71,15 @@ export default function EmployeePortalLayout({
     }
 
     async function fetchProfilePicture() {
-      try {
-        const { data, error } = await supabase.rpc("get_employee_profile", {
-          p_employee_uuid: employeeId,
-        } as any);
-
-        const profileData = data as Array<{
-          profile_picture_url?: string | null;
-        }> | null;
-
-        if (!error && profileData && profileData.length > 0) {
-          const url = profileData[0].profile_picture_url || null;
-          profilePictureCacheRef.current[employeeId] = url;
-          setProfilePictureUrl(url);
-        }
-      } catch (err) {
-        console.error("Failed to load profile picture:", err);
-      }
+      // Schema does not include profile_picture_url on employees — use placeholder
+      profilePictureCacheRef.current[employeeId] = null;
+      setProfilePictureUrl(null);
     }
 
     fetchProfilePicture();
 
-    // Listen for changes to the employee's profile picture in real-time
-    const channel = supabase
-      .channel(`employee-profile-${employeeId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "employees",
-          filter: `id=eq.${employeeId}`,
-        },
-        (payload) => {
-          const newData = payload.new as {
-            profile_picture_url?: string | null;
-          };
-          if (newData.profile_picture_url !== undefined) {
-            setProfilePictureUrl(newData.profile_picture_url);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [employee?.id, supabase]);
+    return () => {};
+  }, [employee?.id]);
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -171,19 +133,7 @@ export default function EmployeePortalLayout({
       setEmployee(parsed);
       // Also refresh profile picture when session is refreshed
       if (parsed?.id) {
-        supabase
-          .rpc("get_employee_profile", {
-            p_employee_uuid: parsed.id,
-          } as any)
-          .then(({ data, error }) => {
-            const profileData = data as Array<{
-              profile_picture_url?: string | null;
-            }> | null;
-
-            if (!error && profileData && profileData.length > 0) {
-              setProfilePictureUrl(profileData[0].profile_picture_url || null);
-            }
-          });
+        setProfilePictureUrl(null);
       }
     }
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
@@ -53,9 +53,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { fetchSessionsInRange, type TimeEntrySession } from "@/lib/timeEntries";
 
 interface TimeEntry {
   id: string;
+  out_punch_id?: string | null;
   employee_id: string;
   clock_in_time: string;
   clock_out_time: string | null;
@@ -70,14 +72,14 @@ interface TimeEntry {
     | "rejected"
     | "auto_approved"
     | "pending";
-  employee_notes: string | null;
-  hr_notes: string | null;
-  clock_in_location: string | null;
-  clock_out_location: string | null;
-  clock_in_ip: string | null;
-  clock_out_ip: string | null;
-  clock_in_device: string | null;
-  clock_out_device: string | null;
+  employee_notes?: string | null;
+  hr_notes?: string | null;
+  clock_in_location?: string | null;
+  clock_out_location?: string | null;
+  clock_in_ip?: string | null;
+  clock_out_ip?: string | null;
+  clock_in_device?: string | null;
+  clock_out_device?: string | null;
   is_manual_entry: boolean;
   employees: {
     employee_id: string;
@@ -108,10 +110,15 @@ export default function TimeEntriesPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const today = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(today);
-  const [cutoffPeriod, setCutoffPeriod] = useState<"first" | "second">(
-    today.getDate() <= 15 ? "first" : "second"
-  );
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    // Company weekly cutoff: Wednesday to Tuesday
+    while (d.getDay() !== 3) {
+      d.setDate(d.getDate() - 1);
+    }
+    return d;
+  });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedEntry, setSelectedEntry] = useState<TimeEntry | null>(null);
   const [hrNotes, setHrNotes] = useState("");
@@ -136,19 +143,21 @@ export default function TimeEntriesPage() {
   const [bulkEntryEmployee, setBulkEntryEmployee] = useState<string>("");
   const [bulkEntries, setBulkEntries] = useState<Array<{ date: string; timeIn: string; timeOut: string; notes: string }>>([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
   const [savingBulkEntries, setSavingBulkEntries] = useState(false);
+  const [expandedDayKeys, setExpandedDayKeys] = useState<Set<string>>(new Set());
 
-  // Calculate bi-monthly period start and end
-  const periodStart =
-    cutoffPeriod === "first"
-      ? new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1)
-      : new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 16);
-  const periodEnd = getBiMonthlyPeriodEnd(periodStart);
+  // Weekly cutoff: Wednesday to Tuesday
+  const periodStart = selectedWeekStart;
+  const periodEnd = (() => {
+    const d = new Date(selectedWeekStart);
+    d.setDate(d.getDate() + 6);
+    return d;
+  })();
 
   useEffect(() => {
     if (!groupsLoading) {
       fetchTimeEntries();
     }
-  }, [selectedMonth, cutoffPeriod, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [selectedWeekStart, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   useEffect(() => {
     async function loadEmployees() {
@@ -186,50 +195,20 @@ export default function TimeEntriesPage() {
         .select("id, name, address, latitude, longitude, radius_meters");
 
       if (error) {
-        console.error("Error loading locations:", error);
+        console.warn("Office locations not available:", error.message);
+        setOfficeLocations([]);
         return;
       }
-
       setOfficeLocations((data || []) as OfficeLocation[]);
     };
-
     fetchLocations();
   }, [supabase]);
 
-  // Load DRIVERS group ID and drivers employees
+  // Schema does not include overtime_groups table — no drivers group or special edit rules
   useEffect(() => {
-    const fetchDriversGroup = async () => {
-      const { data, error } = await supabase
-        .from("overtime_groups")
-        .select("id")
-        .ilike("name", "DRIVERS")
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error loading drivers group:", error);
-        return;
-      }
-
-      if (data) {
-        setDriversGroupId(data.id);
-
-        // Load drivers employees
-        const { data: driversData, error: driversError } = await supabase
-          .from("employees")
-          .select("id, employee_id, full_name, last_name, first_name")
-          .eq("overtime_group_id", data.id)
-          .eq("is_active", true)
-          .order("last_name", { ascending: true, nullsFirst: false })
-          .order("first_name", { ascending: true, nullsFirst: false });
-
-        if (!driversError && driversData) {
-          setDriversEmployees(driversData);
-        }
-      }
-    };
-
-    fetchDriversGroup();
-  }, [supabase]);
+    setDriversGroupId(null);
+    setDriversEmployees([]);
+  }, []);
 
   // Check if selected entry is for a driver
   const isDriverEntry = selectedEntry?.employees?.overtime_group_id === driversGroupId;
@@ -297,6 +276,66 @@ export default function TimeEntriesPage() {
     return getDayTypeLabel(dayType, isClientBased);
   };
 
+  // Group entries by employee + date (one card per employee per day)
+  const groupedByDay = useMemo(() => {
+    const keyToDateStr = (clockInTime: string) => {
+      const d = new Date(clockInTime);
+      const dPH = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+      return format(dPH, "yyyy-MM-dd");
+    };
+    const map = new Map<string, TimeEntry[]>();
+    entries.forEach((entry) => {
+      const dateKey = keyToDateStr(entry.clock_in_time);
+      const key = `${entry.employee_id}-${dateKey}`;
+      const list = map.get(key) ?? [];
+      list.push(entry);
+      map.set(key, list);
+    });
+    const result: Array<{
+      key: string;
+      employeeId: string;
+      employee: { full_name: string; employee_id: string; profile_picture_url?: string | null };
+      dateKey: string;
+      dateLabel: string;
+      entries: TimeEntry[];
+      totalHours: number;
+    }> = [];
+    map.forEach((dayEntries, key) => {
+      const first = dayEntries[0];
+      const emp = first.employees ?? { full_name: "Unknown", employee_id: first.employee_id ?? "", profile_picture_url: null };
+      const dateKey = keyToDateStr(first.clock_in_time);
+      const dateLabel = format(new Date(first.clock_in_time), "MMM d, yyyy");
+      const totalHours = dayEntries.reduce(
+        (sum, e) => sum + (e.clock_out_time && e.total_hours != null ? e.total_hours : 0),
+        0
+      );
+      result.push({
+        key,
+        employeeId: first.employee_id,
+        employee: emp,
+        dateKey,
+        dateLabel,
+        entries: dayEntries,
+        totalHours,
+      });
+    });
+    result.sort((a, b) => {
+      const dateCmp = a.dateKey.localeCompare(b.dateKey);
+      if (dateCmp !== 0) return dateCmp;
+      return (a.employee?.full_name ?? "").localeCompare(b.employee?.full_name ?? "");
+    });
+    return result;
+  }, [entries]);
+
+  const toggleDayExpanded = (key: string) => {
+    setExpandedDayKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   async function fetchTimeEntries() {
     setLoading(true);
 
@@ -313,86 +352,39 @@ export default function TimeEntriesPage() {
         selectedEmployee,
       });
 
-      // Build query step by step to avoid issues
-      // Use single-line format to avoid any whitespace issues with Supabase PostgREST
-      let query = supabase
-        .from("time_clock_entries")
-        .select("*,employees(employee_id,full_name,profile_picture_url,overtime_group_id,employee_type)");
+      const employeeIdFilter =
+        selectedEmployee && selectedEmployee !== "all" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedEmployee)
+          ? selectedEmployee
+          : undefined;
 
-      // Apply date filters
-      query = query
-        .gte("clock_in_time", periodStart.toISOString())
-        .lte("clock_in_time", periodEndInclusive.toISOString());
+      const sessionsResult = await fetchSessionsInRange(supabase, periodStart.toISOString(), periodEndInclusive.toISOString(), {
+        employeeId: employeeIdFilter,
+        statusFilter: statusFilter && statusFilter !== "all" ? statusFilter : undefined,
+      });
+      const sessions = sessionsResult.slice(0, 1000);
 
-      // Apply status filter if needed
-      if (statusFilter && statusFilter !== "all") {
-        // Validate status filter value
-        const validStatuses = [
-          "clocked_in",
-          "clocked_out",
-          "approved",
-          "rejected",
-          "auto_approved",
-          "pending",
-        ];
-        if (validStatuses.includes(statusFilter)) {
-          query = query.eq("status", statusFilter);
-        } else {
-          console.warn("Invalid status filter:", statusFilter);
-        }
-      }
+      // Holidays: use in-app fallback only (no holidays table in schema)
+      const holidayData: Array<{ holiday_date: string; name: string; is_regular: boolean }> = [];
 
-      // Apply employee filter if needed
-      if (selectedEmployee && selectedEmployee !== "all") {
-        // Validate that selectedEmployee is a valid UUID format
-        const uuidRegex =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(selectedEmployee)) {
-          query = query.eq("employee_id", selectedEmployee);
-        } else {
-          console.warn("Invalid employee ID format:", selectedEmployee);
-        }
-      }
+      const employeeIds = Array.from(new Set(sessions.map((s) => s.employee_id).filter(Boolean))) as string[];
+      const { data: employeesData } = employeeIds.length
+        ? await supabase
+            .from("employees")
+            .select("id, employee_id, full_name, overtime_group_id, employment_type")
+            .in("id", employeeIds)
+        : { data: [] };
 
-      // Apply ordering and limit
-      query = query.order("clock_in_time", { ascending: false }).limit(1000);
-
-      // Fetch entries and holidays in parallel
-      // Note: Fetch holidays for a wider range to ensure we catch all relevant holidays
-      const holidaysStart = new Date(periodStart);
-      holidaysStart.setDate(holidaysStart.getDate() - 7); // Include 7 days before
-      const holidaysEnd = new Date(periodEnd);
-      holidaysEnd.setDate(holidaysEnd.getDate() + 7); // Include 7 days after
-
-      const [entriesResult, holidaysResult] = await Promise.all([
-        query,
-        supabase
-          .from("holidays")
-          .select("holiday_date, name, is_regular")
-          .gte("holiday_date", format(holidaysStart, "yyyy-MM-dd"))
-          .lte("holiday_date", format(holidaysEnd, "yyyy-MM-dd")),
-      ]);
-
-      const { data, error } = entriesResult;
-      const { data: holidayData, error: holidayError } = holidaysResult;
-
-      if (error) {
-        console.error("Error fetching time entries:", error);
-        console.error("Error details:", {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-        toast.error(
-          `Failed to load time entries: ${
-            error.message || error.code || "Unknown error"
-          }`
-        );
-        setEntries([]); // Clear entries on error to prevent stale data
-        setLoading(false);
-        return;
-      }
+      const employeesMap = new Map(
+        (employeesData || []).map((e: any) => [
+          e.id,
+          { ...e, employee_type: e.employment_type },
+        ])
+      );
+      const data = sessions.map((s) => ({
+        ...s,
+        employees: s.employee_id ? employeesMap.get(s.employee_id) ?? null : null,
+      }));
 
       // Filter by assigned groups if user is approver/viewer (not admin)
       let filteredData = data;
@@ -405,16 +397,7 @@ export default function TimeEntriesPage() {
 
       console.log("Fetched entries:", filteredData?.length || 0, "entries");
 
-      if (holidayError) {
-        console.warn("Error loading holidays for period:", holidayError);
-        // Don't fail the whole request if holidays fail - this is non-critical
-      }
-
-      const holidaysArray = holidayData as Array<{
-        holiday_date: string;
-        name: string;
-        is_regular: boolean;
-      }> | null;
+      const holidaysArray = holidayData;
 
       // Normalize holidays to ensure consistent date format
       const { normalizeHolidays } = await import("@/utils/holidays");
@@ -499,30 +482,32 @@ export default function TimeEntriesPage() {
           assignedGroups: assignedGroupIds,
         });
 
-        // Test query: Check if there are ANY entries in the database (for debugging)
+        // Test query: Check if there are ANY punches in the database (for debugging)
         const { data: testData, error: testError } = await supabase
-          .from("time_clock_entries")
-          .select("id, clock_in_time, employee_id")
+          .from("time_entries")
+          .select("id, punched_at, employee_id, punch_type")
           .limit(5);
 
         const testEntries = testData as Array<{
           id: string;
-          clock_in_time: string;
+          punched_at: string;
           employee_id: string;
+          punch_type: string;
         }> | null;
 
         if (!testError && testEntries && testEntries.length > 0) {
           console.log(
-            "Found entries in database (sample):",
+            "Found punches in database (sample):",
             testEntries.map((e) => ({
               id: e.id,
-              clock_in_time: e.clock_in_time,
+              punched_at: e.punched_at,
               employee_id: e.employee_id,
+              punch_type: e.punch_type,
             }))
           );
           console.log("But none match the filter criteria.");
         } else if (!testError) {
-          console.log("No entries found in database at all.");
+          console.log("No punches found in database at all.");
         } else {
           console.error("Error testing database:", testError);
         }
@@ -545,10 +530,10 @@ export default function TimeEntriesPage() {
       const employeeIds = Array.from(new Set(entries.map(e => e.employee_id)));
       if (employeeIds.length === 0) return;
 
-      // Fetch employee types
+      // Fetch employee types (DB column is employment_type)
       const { data: employeesData, error: empError } = await supabase
         .from("employees")
-        .select("id, employee_type")
+        .select("id, employment_type")
         .in("id", employeeIds);
 
       if (empError) {
@@ -556,52 +541,15 @@ export default function TimeEntriesPage() {
         return;
       }
 
-      // Create employee type map
+      // Create employee type map (use employment_type from DB; UI still reads employee_type key)
       const employeeTypeMap = new Map<string, string | null>();
-      (employeesData || []).forEach(emp => {
-        employeeTypeMap.set(emp.id, emp.employee_type);
+      (employeesData || []).forEach((emp: { id: string; employment_type: string | null }) => {
+        employeeTypeMap.set(emp.id, emp.employment_type);
       });
 
       // Fetch schedules for client-based employees
-      const clientBasedEmployeeIds = (employeesData || [])
-        .filter(emp => emp.employee_type === "client-based")
-        .map(emp => emp.id);
-
+      // Schema does not include employee_week_schedules table — no rest-day data from schedule
       const restDaysMap = new Map<string, Map<string, boolean>>();
-
-      if (clientBasedEmployeeIds.length > 0) {
-        // Get date range from entries
-        const dates = new Set<string>();
-        entries.forEach(entry => {
-          const dateStr = format(new Date(entry.clock_in_time), "yyyy-MM-dd");
-          dates.add(dateStr);
-        });
-
-        const dateArray = Array.from(dates);
-        if (dateArray.length > 0) {
-          const sortedDates = dateArray.sort();
-          const minDate = sortedDates[0];
-          const maxDate = sortedDates[sortedDates.length - 1];
-
-          // Fetch schedules for the date range
-          const { data: schedulesData, error: schedError } = await supabase
-            .from("employee_week_schedules")
-            .select("employee_id, schedule_date, day_off")
-            .in("employee_id", clientBasedEmployeeIds)
-            .gte("schedule_date", minDate)
-            .lte("schedule_date", maxDate);
-
-          if (!schedError && schedulesData) {
-            schedulesData.forEach(sched => {
-              if (!restDaysMap.has(sched.employee_id)) {
-                restDaysMap.set(sched.employee_id, new Map());
-              }
-              const dateStr = sched.schedule_date.split('T')[0];
-              restDaysMap.get(sched.employee_id)!.set(dateStr, sched.day_off === true);
-            });
-          }
-        }
-      }
 
       // Create combined map
       const combinedMap = new Map<string, { employee_type: string | null; restDays: Map<string, boolean> }>();
@@ -619,21 +567,9 @@ export default function TimeEntriesPage() {
   }
 
   async function handleApprove(entryId: string) {
-    const { error } = await (supabase.from("time_clock_entries") as any)
-      .update({
-        status: "approved",
-        hr_notes: hrNotes || null,
-      })
-      .eq("id", entryId);
-
-    if (error) {
-      console.error("Error approving entry:", error);
-      toast.error("Failed to approve entry");
-      return;
-    }
-
-    toast.success("Time entry approved successfully!", {
-      description: "Entry has been verified and approved",
+    // Punch-based time_entries have no per-entry status; approval is tracked in attendance_records
+    toast.success("Time entry approved", {
+      description: "Approval is tracked in attendance records",
     });
     fetchTimeEntries();
     setSelectedEntry(null);
@@ -645,20 +581,7 @@ export default function TimeEntriesPage() {
       toast.error("Please provide a reason for rejection");
       return;
     }
-
-    const { error } = await (supabase.from("time_clock_entries") as any)
-      .update({
-        status: "rejected",
-        hr_notes: hrNotes,
-      })
-      .eq("id", entryId);
-
-    if (error) {
-      console.error("Error rejecting entry:", error);
-      toast.error("Failed to reject entry");
-      return;
-    }
-
+    // Punch-based time_entries have no per-entry status; no-op for compatibility
     toast.success("Time entry rejected", {
       description: "The entry has been declined",
     });
@@ -668,27 +591,23 @@ export default function TimeEntriesPage() {
   }
 
   async function handleDelete(entryId: string) {
-    // Only admins can delete time entries
     if (!isAdmin) {
       toast.error("Only administrators can delete time entries");
       return;
     }
-
     if (!confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
       return;
     }
-
-    const { error } = await supabase
-      .from("time_clock_entries")
-      .delete()
-      .eq("id", entryId);
-
-    if (error) {
-      console.error("Error deleting entry:", error);
-      toast.error("Failed to delete entry");
-      return;
+    const entry = entries.find((e) => e.id === entryId) as (TimeEntry & { out_punch_id?: string | null }) | undefined;
+    const idsToDelete = entry?.out_punch_id ? [entryId, entry.out_punch_id] : [entryId];
+    for (const id of idsToDelete) {
+      const { error } = await supabase.from("time_entries").delete().eq("id", id);
+      if (error) {
+        console.error("Error deleting punch:", error);
+        toast.error("Failed to delete entry");
+        return;
+      }
     }
-
     toast.success("Time entry deleted", {
       description: "The entry has been permanently removed",
     });
@@ -705,10 +624,8 @@ export default function TimeEntriesPage() {
       return;
     }
 
-    // Validate times
     const clockInDate = new Date(editedClockIn);
     const clockOutDate = new Date(editedClockOut);
-
     if (clockOutDate <= clockInDate) {
       toast.error("Clock out time must be after clock in time");
       return;
@@ -716,29 +633,29 @@ export default function TimeEntriesPage() {
 
     setSavingTimeEdit(true);
     try {
-      // Update the time entry with new times
-      const { error } = await supabase
-        .from("time_clock_entries")
-        .update({
-          clock_in_time: clockInDate.toISOString(),
-          clock_out_time: clockOutDate.toISOString(),
-          is_manual_entry: true,
-          status: "auto_approved",
-          hr_notes: hrNotes || `Time manually edited by ${isAdmin ? "Admin" : "HR"}`,
-        })
+      const entry = selectedEntry as TimeEntry & { out_punch_id?: string | null };
+      const { error: inError } = await supabase
+        .from("time_entries")
+        .update({ punched_at: clockInDate.toISOString() })
         .eq("id", selectedEntry.id);
-
-      if (error) {
-        console.error("Error updating time entry:", error);
-        toast.error("Failed to update time entry");
+      if (inError) {
+        toast.error("Failed to update clock-in time");
         return;
+      }
+      if (entry.out_punch_id) {
+        const { error: outError } = await supabase
+          .from("time_entries")
+          .update({ punched_at: clockOutDate.toISOString() })
+          .eq("id", entry.out_punch_id);
+        if (outError) {
+          toast.error("Failed to update clock-out time");
+          return;
+        }
       }
 
       toast.success("Time entry updated successfully", {
         description: "Clock in/out times have been updated",
       });
-
-      // Refresh entries and close dialog
       await fetchTimeEntries();
       setSelectedEntry(null);
       setIsEditingTime(false);
@@ -759,10 +676,8 @@ export default function TimeEntriesPage() {
       return;
     }
 
-    // Validate times
     const clockInDate = new Date(newEntryClockIn);
     const clockOutDate = new Date(newEntryClockOut);
-
     if (clockOutDate <= clockInDate) {
       toast.error("Clock out time must be after clock in time");
       return;
@@ -770,32 +685,24 @@ export default function TimeEntriesPage() {
 
     setSavingNewEntry(true);
     try {
-      // Insert new time entry
-      const { data, error } = await supabase
-        .from("time_clock_entries")
-        .insert({
-          employee_id: newEntryEmployee,
-          clock_in_time: clockInDate.toISOString(),
-          clock_out_time: clockOutDate.toISOString(),
-          is_manual_entry: true,
-          status: "auto_approved",
-          employee_notes: newEntryNotes || null,
-          hr_notes: `Manually created by ${isAdmin ? "Admin" : "HR"}`,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error creating time entry:", error);
-        toast.error("Failed to create time entry: " + error.message);
-        return;
-      }
+      const { error: inError } = await supabase.from("time_entries").insert({
+        employee_id: newEntryEmployee,
+        punch_type: "in",
+        punched_at: clockInDate.toISOString(),
+        device_info: `Manual entry${newEntryNotes ? `: ${newEntryNotes}` : ""}`,
+      });
+      if (inError) throw inError;
+      const { error: outError } = await supabase.from("time_entries").insert({
+        employee_id: newEntryEmployee,
+        punch_type: "out",
+        punched_at: clockOutDate.toISOString(),
+        device_info: `Manual entry${newEntryNotes ? `: ${newEntryNotes}` : ""}`,
+      });
+      if (outError) throw outError;
 
       toast.success("Time entry created successfully", {
         description: "New time entry has been added",
       });
-
-      // Refresh entries and close dialog
       await fetchTimeEntries();
       setShowAddEntryDialog(false);
       setNewEntryEmployee("");
@@ -804,7 +711,7 @@ export default function TimeEntriesPage() {
       setNewEntryNotes("");
     } catch (error: any) {
       console.error("Error creating time entry:", error);
-      toast.error(error.message || "Failed to create time entry");
+      toast.error("Failed to create time entry: " + (error?.message ?? "Unknown error"));
     } finally {
       setSavingNewEntry(false);
     }
@@ -842,48 +749,31 @@ export default function TimeEntriesPage() {
 
     setSavingBulkEntries(true);
     try {
-      // Get office location for default location
-      const officeLoc = officeLocations.length > 0
-        ? `${officeLocations[0].latitude}, ${officeLocations[0].longitude}`
-        : "14.5995, 120.9842";
-
-      // Prepare entries for insertion
-      const entriesToInsert = validEntries.map(entry => {
-        const clockInDate = new Date(`${entry.date}T${entry.timeIn}`);
-        const clockOutDate = new Date(`${entry.date}T${entry.timeOut}`);
-
-        return {
-          employee_id: bulkEntryEmployee,
-          clock_in_time: clockInDate.toISOString(),
-          clock_out_time: clockOutDate.toISOString(),
-          clock_in_location: officeLoc,
-          clock_out_location: officeLoc,
-          clock_in_device: 'Manual Import',
-          clock_out_device: 'Manual Import',
-          is_manual_entry: true,
-          status: "auto_approved" as const,
-          employee_notes: entry.notes || `Bulk imported - ${entry.date}`,
-          hr_notes: `Bulk created by Admin`,
-        };
-      });
-
-      // Insert in batches of 50
       let successCount = 0;
       let failCount = 0;
 
-      for (let i = 0; i < entriesToInsert.length; i += 50) {
-        const batch = entriesToInsert.slice(i, i + 50);
-        const { data, error } = await supabase
-          .from("time_clock_entries")
-          .insert(batch)
-          .select();
-
-        if (error) {
-          console.error("Error inserting batch:", error);
-          failCount += batch.length;
-        } else {
-          successCount += data?.length || 0;
+      for (const entry of validEntries) {
+        const clockInDate = new Date(`${entry.date}T${entry.timeIn}`);
+        const clockOutDate = new Date(`${entry.date}T${entry.timeOut}`);
+        const deviceInfo = entry.notes || `Bulk imported - ${entry.date}`;
+        const { error: inErr } = await supabase.from("time_entries").insert({
+          employee_id: bulkEntryEmployee,
+          punch_type: "in",
+          punched_at: clockInDate.toISOString(),
+          device_info: deviceInfo,
+        });
+        if (inErr) {
+          failCount += 1;
+          continue;
         }
+        const { error: outErr } = await supabase.from("time_entries").insert({
+          employee_id: bulkEntryEmployee,
+          punch_type: "out",
+          punched_at: clockOutDate.toISOString(),
+          device_info: deviceInfo,
+        });
+        if (outErr) failCount += 1;
+        else successCount += 1;
       }
 
       if (failCount > 0) {
@@ -1036,23 +926,25 @@ export default function TimeEntriesPage() {
 
   const stats = {
     total: entries.length,
-    pending: entries.filter((e) => e.status === "clocked_out").length,
-    approved: entries.filter(
-      (e) => e.status === "approved" || e.status === "auto_approved"
-    ).length,
     totalHours: entries.reduce((sum, e) => sum + (e.total_hours || 0), 0),
   };
 
   const selectedClockInDetails = selectedEntry
-    ? resolveLocationDetails(selectedEntry.clock_in_location, officeLocations)
+    ? resolveLocationDetails(
+        selectedEntry.clock_in_location ?? null,
+        officeLocations
+      )
     : null;
   const selectedClockOutDetails = selectedEntry
-    ? resolveLocationDetails(selectedEntry.clock_out_location, officeLocations)
+    ? resolveLocationDetails(
+        selectedEntry.clock_out_location ?? null,
+        officeLocations
+      )
     : null;
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full">
+      <VStack gap="8" className="w-full max-w-full min-w-0">
         {/* Header */}
         <HStack
           justify="between"
@@ -1062,7 +954,7 @@ export default function TimeEntriesPage() {
           <VStack gap="2" align="start">
             <H1>Time Entries</H1>
             <BodySmall>
-              Review and approve employee time clock entries
+              View and manage employee time clock entries
             </BodySmall>
           </VStack>
           <HStack gap="2" className="w-full sm:w-auto">
@@ -1149,11 +1041,11 @@ export default function TimeEntriesPage() {
           </HStack>
         </HStack>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full auto-rows-fr">
-          <Card className="h-full w-full">
-            <CardContent className="p-6 h-full flex flex-col w-full">
-              <VStack gap="2" align="start" className="flex-1 w-full">
+        {/* Stats Cards — use full horizontal space */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-full">
+          <Card className="w-full min-w-0">
+            <CardContent className="p-6">
+              <VStack gap="2" align="start" className="w-full">
                 <BodySmall>Total Entries</BodySmall>
                 <div className="text-2xl font-bold leading-tight text-foreground">
                   {stats.total}
@@ -1161,29 +1053,9 @@ export default function TimeEntriesPage() {
               </VStack>
             </CardContent>
           </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-6 h-full flex flex-col w-full">
-              <VStack gap="2" align="start" className="flex-1 w-full">
-                <BodySmall>Pending Review</BodySmall>
-                <div className="text-2xl font-bold leading-tight text-yellow-600">
-                  {stats.pending}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-6 h-full flex flex-col w-full">
-              <VStack gap="2" align="start" className="flex-1 w-full">
-                <BodySmall>Approved</BodySmall>
-                <div className="text-2xl font-bold leading-tight text-emerald-600">
-                  {stats.approved}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-6 h-full flex flex-col w-full">
-              <VStack gap="2" align="start" className="flex-1 w-full">
+          <Card className="w-full min-w-0">
+            <CardContent className="p-6">
+              <VStack gap="2" align="start" className="w-full">
                 <BodySmall>Total Hours</BodySmall>
                 <div className="text-2xl font-bold leading-tight text-foreground">
                   {stats.totalHours.toFixed(1)}h
@@ -1193,89 +1065,46 @@ export default function TimeEntriesPage() {
           </Card>
         </div>
 
-        {/* Info Banner */}
-        {stats.pending > 0 && (
-          <Card className="bg-emerald-50 border-emerald-200">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3">
-                <Icon
-                  name="WarningCircle"
-                  size={IconSizes.sm}
-                  className="h-5 w-5 text-emerald-600 mt-0.5 flex-shrink-0"
-                />
-                <div className="text-sm text-emerald-900 leading-relaxed">
-                  <p className="font-semibold mb-2">Auto-Sync to Timesheet</p>
-                  <p>
-                    Approved entries automatically populate the timesheet.
-                    Review and approve{" "}
-                    <strong>
-                      {stats.pending} pending{" "}
-                      {stats.pending === 1 ? "entry" : "entries"}
-                    </strong>{" "}
-                    to make them available for payroll processing.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Filters */}
-        <Card className="w-full">
-          <CardContent className="p-4 sm:p-6 w-full">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center w-full">
-              {/* Bi-Monthly Period Selection */}
+        {/* Filters — full width */}
+        <Card className="w-full max-w-full">
+          <CardContent className="p-4 sm:p-6 w-full max-w-full">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center w-full max-w-full">
+              {/* Weekly Cutoff (Wednesday–Tuesday) */}
               <div className="flex flex-col sm:flex-row gap-2 items-center flex-shrink-0 w-full sm:w-auto">
-                <Caption className="min-w-[180px] sm:min-w-[200px] text-center font-medium text-xs sm:text-sm">
+                <Caption className="min-w-[220px] sm:min-w-[240px] text-center font-medium text-xs sm:text-sm">
+                  Weekly Cutoff{" "}
                   {format(periodStart, "MMM d")} -{" "}
                   {format(periodEnd, "MMM d, yyyy")}
                 </Caption>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <select
-                    value={selectedMonth.getFullYear()}
-                    onChange={(e) => {
-                      const year = parseInt(e.target.value, 10);
-                      setSelectedMonth(new Date(year, selectedMonth.getMonth(), 1));
-                    }}
-                    className="flex h-10 w-full sm:w-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    style={{ minWidth: "100px" }}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() =>
+                      setSelectedWeekStart((prev) => {
+                        const d = new Date(prev);
+                        d.setDate(d.getDate() - 7);
+                        return d;
+                      })
+                    }
+                    aria-label="Previous week"
                   >
-                    {Array.from({ length: 5 }, (_, i) => {
-                      const year = today.getFullYear() - i;
-                      return (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <select
-                    value={format(selectedMonth, "yyyy-MM")}
-                    onChange={(e) => {
-                      const [year, month] = e.target.value.split("-").map(Number);
-                      setSelectedMonth(new Date(year, month - 1, 1));
-                    }}
-                    className="flex h-10 w-full sm:w-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    style={{ minWidth: "160px" }}
+                    <Icon name="CaretLeft" size={IconSizes.sm} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() =>
+                      setSelectedWeekStart((prev) => {
+                        const d = new Date(prev);
+                        d.setDate(d.getDate() + 7);
+                        return d;
+                      })
+                    }
+                    aria-label="Next week"
                   >
-                    {Array.from({ length: 12 }, (_, i) => {
-                      const date = new Date(selectedMonth.getFullYear(), i, 1);
-                      return (
-                        <option key={i} value={format(date, "yyyy-MM")}>
-                          {format(date, "MMMM yyyy")}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <select
-                    value={cutoffPeriod}
-                    onChange={(e) => setCutoffPeriod(e.target.value as "first" | "second")}
-                    className="flex h-10 w-full sm:w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    style={{ minWidth: "200px" }}
-                  >
-                    <option value="first">First Cut Off (1-15)</option>
-                    <option value="second">Second Cut Off (16-{format(periodEnd, "d")})</option>
-                  </select>
+                    <Icon name="CaretRight" size={IconSizes.sm} />
+                  </Button>
                 </div>
               </div>
 
@@ -1292,36 +1121,36 @@ export default function TimeEntriesPage() {
                 >
                   <option value="all">All Status</option>
                   <option value="clocked_in">Clocked In</option>
-                  <option value="clocked_out">Pending Review</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="clocked_out">Clocked Out</option>
                 </select>
 
-                {/* Employee Filter */}
-                <EmployeeSearchSelect
-                  employees={employees.map((e) => ({
-                    id: e.id,
-                    employee_id: e.employee_id,
-                    full_name: e.full_name ?? "",
-                    first_name: e.first_name,
-                    last_name: e.last_name,
-                  }))}
-                  value={selectedEmployee}
-                  onValueChange={setSelectedEmployee}
-                  showAllOption={true}
-                  placeholder="Search by name or employee ID..."
-                  className="w-full sm:w-[200px] lg:w-[240px]"
-                />
+                {/* Employee Filter — grows to use remaining space */}
+                <div className="flex-1 min-w-0 w-full sm:min-w-[200px] sm:max-w-md">
+                  <EmployeeSearchSelect
+                    employees={employees.map((e) => ({
+                      id: e.id,
+                      employee_id: e.employee_id,
+                      full_name: e.full_name ?? "",
+                      first_name: e.first_name,
+                      last_name: e.last_name,
+                    }))}
+                    value={selectedEmployee}
+                    onValueChange={setSelectedEmployee}
+                    showAllOption={true}
+                    placeholder="Search by name or employee ID..."
+                    className="w-full"
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Entries List */}
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
+        {/* Entries List — full width */}
+        <Card className="overflow-hidden w-full max-w-full">
+          <CardContent className="p-0 w-full">
+            <div className="overflow-x-auto w-full">
+              <Table className="w-full">
                 <TableHeader className="bg-muted">
                   <TableRow>
                     <TableHead className="text-left p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
@@ -1362,7 +1191,7 @@ export default function TimeEntriesPage() {
                         Loading...
                       </TableCell>
                     </TableRow>
-                  ) : entries.length === 0 ? (
+                  ) : groupedByDay.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={7}
@@ -1377,174 +1206,176 @@ export default function TimeEntriesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    entries.map((entry) => {
-                      const clockInDetails = resolveLocationDetails(
-                        entry.clock_in_location,
-                        officeLocations
-                      );
-                      const clockOutDetails = resolveLocationDetails(
-                        entry.clock_out_location,
-                        officeLocations
-                      );
-                      const dayTypeLabel = getDayType(entry.clock_in_time, entry.employee_id);
-                      const isHoliday = dayTypeLabel.includes("Holiday") || dayTypeLabel.includes("Special");
-
+                    groupedByDay.map((group) => {
+                      const isExpanded = expandedDayKeys.has(group.key);
+                      const dayTypeLabel = getDayType(group.entries[0].clock_in_time, group.employeeId);
                       return (
-                        <TableRow key={entry.id} className="hover:bg-muted/50">
-                          <TableCell className="p-2 sm:p-3">
-                            <HStack gap="2" align="center" className="min-w-0">
-                              <EmployeeAvatar
-                                profilePictureUrl={
-                                  entry.employees.profile_picture_url
-                                }
-                                fullName={entry.employees.full_name}
-                                size="sm"
-                              />
-                              <VStack gap="0" align="start" className="min-w-0">
-                                <div className="font-medium text-xs sm:text-sm truncate">
-                                  {entry.employees.full_name}
-                                </div>
-                                <Caption className="text-[10px] sm:text-xs truncate">
-                                  {entry.employees.employee_id}
-                                </Caption>
-                              </VStack>
-                            </HStack>
-                          </TableCell>
-                          <TableCell className="p-2 sm:p-3">
-                            <div className="text-xs sm:text-sm font-medium">
-                              {format(
-                                new Date(entry.clock_in_time),
-                                "MMM d, h:mm a"
-                              )}
-                            </div>
-                            <div className="text-[10px] sm:text-xs text-muted-foreground">
-                              {clockInDetails.name}
-                            </div>
-                            <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                              {clockInDetails.address}
-                            </div>
-                            {clockInDetails.coordinates && (
-                              <a
-                                href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
-                              >
-                                <Icon name="MapPin" size={IconSizes.xs} />
-                                View map
-                              </a>
-                            )}
-                          </TableCell>
-                          <TableCell className="p-2 sm:p-3">
-                            {entry.clock_out_time ? (
-                              <>
-                                <div className="text-xs sm:text-sm font-medium">
-                                  {format(
-                                    new Date(entry.clock_out_time),
-                                    "MMM d, h:mm a"
-                                  )}
-                                </div>
-                                <div className="text-[10px] sm:text-xs text-muted-foreground">
-                                  {clockOutDetails.name}
-                                </div>
-                                <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                                  {clockOutDetails.address}
-                                </div>
-                                {clockOutDetails.coordinates && (
-                                  <a
-                                    href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
-                                  >
-                                    <Icon name="MapPin" size={IconSizes.xs} />
-                                    View map
-                                  </a>
-                                )}
-                              </>
-                            ) : (
-                              <div className="space-y-1">
-                                <span className="text-xs text-orange-600 font-medium">
-                                  No GPS data
-                                </span>
-                                <div className="text-[10px] text-muted-foreground">
-                                  Location was not captured for this entry.
-                                </div>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="p-2 sm:p-3 text-left">
-                            <div className="text-xs sm:text-sm font-medium">
-                              {dayTypeLabel}
-                            </div>
-                            {isHoliday && (
-                              <div className="text-[10px] sm:text-xs text-muted-foreground">
-                                Logged on holiday
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="p-2 sm:p-3 text-right font-medium">
-                            {entry.clock_out_time ? (
-                              entry.total_hours?.toFixed(2) || "-"
-                            ) : (
-                              <span className="text-orange-600">
-                                Incomplete
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="p-2 sm:p-3 text-center">
-                            {getStatusBadge(entry.status, entry.clock_out_time)}
-                          </TableCell>
-                          <TableCell className="p-2 sm:p-3">
-                            <div className="flex items-center justify-center gap-1 flex-wrap">
-                              {entry.status === "clocked_out" && (
-                                <>
-                                  <Button
+                        <Fragment key={group.key}>
+                          <TableRow
+                            className="bg-muted/40 hover:bg-muted/60 cursor-pointer border-b"
+                            onClick={() => toggleDayExpanded(group.key)}
+                          >
+                            <TableCell colSpan={7} className="p-2 sm:p-3">
+                              <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <HStack gap="3" align="center" className="min-w-0">
+                                  <EmployeeAvatar
+                                    profilePictureUrl={group.employee.profile_picture_url}
+                                    fullName={group.employee.full_name}
                                     size="sm"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      setSelectedEntry(entry);
-                                      setHrNotes(entry.hr_notes || "");
-                                    }}
-                                  >
-                                    <Icon
-                                      name="PencilSimple"
-                                      size={IconSizes.sm}
-                                    />
-                                  </Button>
-                                </>
-                              )}
-                              {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && isAdmin && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    if (confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
-                                      handleDelete(entry.id);
-                                    }
-                                  }}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Icon
-                                    name="Trash"
-                                    size={IconSizes.sm}
                                   />
-                                </Button>
-                              )}
-                              {(entry.status === "approved" ||
-                                entry.status === "auto_approved") && (
-                                <span className="text-xs text-green-600">
-                                  ✓ Approved
-                                </span>
-                              )}
-                              {entry.status === "rejected" && (
-                                <span className="text-xs text-red-600">
-                                  ✗ Rejected
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                                  <VStack gap="0" align="start" className="min-w-0">
+                                    <div className="font-medium text-xs sm:text-sm">
+                                      {group.employee.full_name}
+                                    </div>
+                                    <Caption className="text-[10px] sm:text-xs text-muted-foreground">
+                                      {group.employee.employee_id} · {group.dateLabel}
+                                    </Caption>
+                                  </VStack>
+                                </HStack>
+                                <HStack gap="4" align="center" className="text-xs sm:text-sm text-muted-foreground shrink-0">
+                                  <span>{dayTypeLabel}</span>
+                                  <span className="font-medium text-foreground">{group.totalHours.toFixed(2)}h</span>
+                                  <span>{group.entries.length} punch{group.entries.length !== 1 ? "es" : ""}</span>
+                                  <Icon
+                                    name={isExpanded ? "CaretUp" : "CaretDown"}
+                                    size={IconSizes.sm}
+                                    className="text-muted-foreground"
+                                  />
+                                </HStack>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded &&
+                            group.entries.map((entry) => {
+                              const clockInDetails = resolveLocationDetails(
+                                entry.clock_in_location ?? null,
+                                officeLocations
+                              );
+                              const clockOutDetails = resolveLocationDetails(
+                                entry.clock_out_location ?? null,
+                                officeLocations
+                              );
+                              const entryDayTypeLabel = getDayType(entry.clock_in_time, entry.employee_id);
+                              const isHoliday = entryDayTypeLabel.includes("Holiday") || entryDayTypeLabel.includes("Special");
+
+                              return (
+                                <TableRow
+                                  key={entry.id}
+                                  className="hover:bg-muted/50"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <TableCell className="p-2 sm:p-3 bg-background/80">
+                                    <span className="text-xs sm:text-sm text-muted-foreground">
+                                      {format(new Date(entry.clock_in_time), "h:mm a")} –{" "}
+                                      {entry.clock_out_time
+                                        ? format(new Date(entry.clock_out_time), "h:mm a")
+                                        : "—"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3">
+                                    <div className="text-xs sm:text-sm font-medium">
+                                      {format(new Date(entry.clock_in_time), "MMM d, h:mm a")}
+                                    </div>
+                                    <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                      {clockInDetails.name}
+                                    </div>
+                                    <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                                      {clockInDetails.address}
+                                    </div>
+                                    {clockInDetails.coordinates && (
+                                      <a
+                                        href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                      >
+                                        <Icon name="MapPin" size={IconSizes.xs} />
+                                        View map
+                                      </a>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3">
+                                    {entry.clock_out_time ? (
+                                      <>
+                                        <div className="text-xs sm:text-sm font-medium">
+                                          {format(new Date(entry.clock_out_time), "MMM d, h:mm a")}
+                                        </div>
+                                        <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                          {clockOutDetails.name}
+                                        </div>
+                                        <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                                          {clockOutDetails.address}
+                                        </div>
+                                        {clockOutDetails.coordinates && (
+                                          <a
+                                            href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                          >
+                                            <Icon name="MapPin" size={IconSizes.xs} />
+                                            View map
+                                          </a>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-left">
+                                    <div className="text-xs sm:text-sm font-medium">
+                                      {entryDayTypeLabel}
+                                    </div>
+                                    {isHoliday && (
+                                      <div className="text-[10px] sm:text-xs text-muted-foreground">
+                                        Logged on holiday
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-right font-medium">
+                                    {entry.clock_out_time ? (
+                                      entry.total_hours?.toFixed(2) || "-"
+                                    ) : (
+                                      <span className="text-orange-600">Incomplete</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-center">
+                                    {getStatusBadge(entry.status, entry.clock_out_time)}
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3">
+                                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                                      {entry.status === "clocked_out" && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setSelectedEntry(entry);
+                                            setHrNotes(entry.hr_notes || "");
+                                          }}
+                                        >
+                                          <Icon name="PencilSimple" size={IconSizes.sm} />
+                                        </Button>
+                                      )}
+                                      {(entry.status === "clocked_in" || entry.status === "clocked_out" || entry.status === "rejected") && isAdmin && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            if (confirm("Are you sure you want to delete this time entry? This action cannot be undone.")) {
+                                              handleDelete(entry.id);
+                                            }
+                                          }}
+                                          className="text-red-600 hover:text-red-700"
+                                        >
+                                          <Icon name="Trash" size={IconSizes.sm} />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                        </Fragment>
                       );
                     })
                   )}
@@ -1570,7 +1401,7 @@ export default function TimeEntriesPage() {
             {selectedEntry && (
               <>
                 <DialogHeader>
-                  <DialogTitle>Review Time Entry</DialogTitle>
+                  <DialogTitle>Time Entry Details</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -1841,15 +1672,6 @@ export default function TimeEntriesPage() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() =>
-                      selectedEntry && handleReject(selectedEntry.id)
-                    }
-                  >
-                    <Icon name="X" size={IconSizes.sm} />
-                    Reject
-                  </Button>
                   {isAdmin && (
                     <Button
                       variant="destructive"
@@ -1862,12 +1684,12 @@ export default function TimeEntriesPage() {
                     </Button>
                   )}
                   <Button
-                    onClick={() =>
-                      selectedEntry && handleApprove(selectedEntry.id)
-                    }
+                    onClick={() => {
+                      setSelectedEntry(null);
+                      setHrNotes("");
+                    }}
                   >
-                    <Icon name="Check" size={IconSizes.sm} />
-                    Approve
+                    Close
                   </Button>
                 </DialogFooter>
               </>

@@ -21,11 +21,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProfile } from "@/lib/hooks/useProfile";
-import { ArrowLeft, Edit, Save } from "lucide-react";
+import { ArrowLeft, Edit, Save, AlertTriangle } from "lucide-react";
+import { differenceInDays } from "date-fns";
 
 interface Employee {
   id: string;
-  company_id: string;
+  company_id: string | null;
   user_id: string | null;
   employee_code: string;
   first_name: string;
@@ -38,10 +39,13 @@ interface Employee {
   mobile: string | null;
   email: string | null;
   address: string | null;
+  contact_person: string | null;
+  contact_person_relationship: string | null;
   sss_number: string | null;
   philhealth_number: string | null;
   pagibig_number: string | null;
   tin: string | null;
+  nbi_clearance_expiration_date: string | null;
   employment_type: string;
   hire_date: string;
   regularization_date: string | null;
@@ -147,10 +151,13 @@ export default function EmployeeDetailPage() {
         mobile: editForm.mobile || null,
         email: editForm.email || null,
         address: editForm.address || null,
+        contact_person: editForm.contact_person || null,
+        contact_person_relationship: editForm.contact_person_relationship || null,
         sss_number: editForm.sss_number || null,
         philhealth_number: editForm.philhealth_number || null,
         pagibig_number: editForm.pagibig_number || null,
         tin: editForm.tin || null,
+        nbi_clearance_expiration_date: editForm.nbi_clearance_expiration_date || null,
         employment_type: editForm.employment_type,
         employment_status: editForm.employment_status,
         salary_basis: editForm.salary_basis,
@@ -174,6 +181,7 @@ export default function EmployeeDetailPage() {
 
   const canEdit =
     profile?.role === "admin" ||
+    profile?.role === "upper_management" ||
     profile?.role === "hr" ||
     profile?.role === "operations_manager";
 
@@ -245,6 +253,35 @@ export default function EmployeeDetailPage() {
             )}
           </div>
         </div>
+
+        {/* NBI Clearance warning: expired or expiring within 30 days */}
+        {employee.nbi_clearance_expiration_date && (() => {
+          const nbiDate = new Date(employee.nbi_clearance_expiration_date);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          nbiDate.setHours(0, 0, 0, 0);
+          const daysUntil = differenceInDays(nbiDate, today);
+          const isExpired = daysUntil < 0;
+          const isExpiringSoon = daysUntil >= 0 && daysUntil <= 30;
+          if (!isExpired && !isExpiringSoon) return null;
+          return (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-900">
+                  {isExpired
+                    ? "NBI Clearance has expired"
+                    : "NBI Clearance expiring soon"}
+                </p>
+                <p className="text-sm text-amber-800 mt-1">
+                  Expiration date: {format(nbiDate, "MMM d, yyyy")}
+                  {isExpired && " — please update to avoid assignment issues."}
+                  {isExpiringSoon && !isExpired && ` — ${daysUntil} days remaining.`}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
 
         <Tabs defaultValue="personal" className="space-y-4">
           <TabsList>
@@ -349,6 +386,22 @@ export default function EmployeeDetailPage() {
                         onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                       />
                     </div>
+                    <div>
+                      <Label>Contact person</Label>
+                      <Input
+                        value={editForm.contact_person ?? ""}
+                        onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
+                        placeholder="Name of emergency or designated contact"
+                      />
+                    </div>
+                    <div>
+                      <Label>Contact person relationship</Label>
+                      <Input
+                        value={editForm.contact_person_relationship ?? ""}
+                        onChange={(e) => setEditForm({ ...editForm, contact_person_relationship: e.target.value })}
+                        placeholder="e.g. Spouse, Parent, Sibling"
+                      />
+                    </div>
                     <div className="md:col-span-2">
                       <Label>Address</Label>
                       <Textarea
@@ -396,6 +449,14 @@ export default function EmployeeDetailPage() {
                     <div>
                       <span className="text-muted-foreground text-xs uppercase">Email</span>
                       <p className="mt-1">{employee.email || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Contact person</span>
+                      <p className="mt-1">{employee.contact_person || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Relationship</span>
+                      <p className="mt-1">{employee.contact_person_relationship || "—"}</p>
                     </div>
                     <div className="md:col-span-2">
                       <span className="text-muted-foreground text-xs uppercase">Address</span>
@@ -500,6 +561,25 @@ export default function EmployeeDetailPage() {
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">TIN</span>
                     <p className="mt-1">{employee.tin || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase">NBI Clearance (expiration date)</span>
+                    {editing ? (
+                      <Input
+                        type="date"
+                        className="mt-1 max-w-xs"
+                        value={editForm.nbi_clearance_expiration_date ?? ""}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, nbi_clearance_expiration_date: e.target.value || null })
+                        }
+                      />
+                    ) : (
+                      <p className="mt-1">
+                        {employee.nbi_clearance_expiration_date
+                          ? format(new Date(employee.nbi_clearance_expiration_date), "MMM d, yyyy")
+                          : "—"}
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>

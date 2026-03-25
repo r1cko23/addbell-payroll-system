@@ -9,7 +9,6 @@ import { H1, H2, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { formatCurrency } from "@/utils/format";
@@ -49,7 +48,6 @@ interface Payslip {
 
 export default function EmployeePayslipsPage() {
   const { employee } = useEmployeeSession();
-  const supabase = createClient();
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
@@ -63,17 +61,20 @@ export default function EmployeePayslipsPage() {
   async function loadPayslips() {
     try {
       setLoading(true);
-      const { data, error } = await supabase.rpc("get_employee_payslips", {
-        p_employee_uuid: employee.id,
-      } as any);
+      const response = await fetch(
+        `/api/employee-portal/payslips?employee_id=${encodeURIComponent(
+          employee.id
+        )}`
+      );
+      const payload = await response.json();
 
-      if (error) {
-        console.error("Error loading payslips:", error);
+      if (!response.ok) {
+        console.error("Error loading payslips:", payload);
         toast.error("Failed to load payslips");
         return;
       }
 
-      const payslipData = (data as Payslip[]) || [];
+      const payslipData = (payload.payslips as Payslip[]) || [];
       setPayslips(payslipData);
     } catch (err) {
       console.error("Exception loading payslips:", err);

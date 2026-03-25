@@ -43,6 +43,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
+import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 
 interface LeaveDocument {
@@ -90,7 +91,6 @@ interface LeaveRequest {
     profile_picture_url?: string | null;
     sil_credits: number;
     overtime_group_id?: string | null;
-    overtime_approver_id?: string | null;
   };
   leave_request_documents?: LeaveDocument[];
 }
@@ -100,6 +100,9 @@ export default function LeaveApprovalPage() {
   const router = useRouter();
   const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
+
+  /** PM / ops managers are scoped by overtime group assignment (useAssignedGroups), not org-wide. */
+  const seesAllLeaveRequests = isAdmin || isHR;
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
@@ -147,11 +150,11 @@ export default function LeaveApprovalPage() {
     if (!groupsLoading) {
       loadEmployees();
     }
-  }, [assignedGroupIds, groupsLoading, isAdmin]);
+  }, [assignedGroupIds, groupsLoading, isAdmin, isHR, role]);
 
   async function loadEmployees() {
-    // Admin and HR see all employees
-    if (isAdmin || isHR) {
+    // Admin, HR, project/ops managers see all employees
+    if (seesAllLeaveRequests) {
       const { data, error } = await supabase
         .from("employees")
         .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
@@ -167,7 +170,7 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    // For approvers/viewers: get employees from assigned groups AND individual assignments
+    // For approvers/viewers: get employees from assigned groups
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -190,18 +193,8 @@ export default function LeaveApprovalPage() {
       }
     }
 
-    // Get employees where user is assigned as individual approver or viewer
-    const { data: individualEmployees, error: individualError } = await supabase
-      .from("employees")
-      .select("id")
-      .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
-
-    const individualEmployeeIds = (individualEmployees || []).map((e) => e.id);
-
-    // Combine and deduplicate employee IDs
-    const allEmployeeIds = Array.from(
-      new Set([...groupEmployeeIds, ...individualEmployeeIds])
-    );
+    // Deduplicate employee IDs from group assignments
+    const allEmployeeIds = Array.from(new Set(groupEmployeeIds));
 
     if (allEmployeeIds.length === 0) {
       setEmployees([]);
@@ -235,27 +228,8 @@ export default function LeaveApprovalPage() {
 
     setCurrentUserId(user.id);
 
-    // Try using the RPC function first (bypasses RLS)
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
-      "get_user_role"
-    );
-
-    if (!rpcError && rpcData !== null && rpcData !== undefined) {
-      console.log("User role fetched via RPC:", rpcData);
-      setUserRole(rpcData as string);
-      return;
-    }
-
-    console.log(
-      "RPC failed, trying direct query. RPC error:",
-      rpcError,
-      "RPC data:",
-      rpcData
-    );
-
-    // Fallback to direct query
     const { data, error } = await supabase
-      .from("users")
+      .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
@@ -266,11 +240,7 @@ export default function LeaveApprovalPage() {
     }
 
     if (data) {
-      const userData = data as { role: string };
-      console.log("User role fetched via query:", userData.role);
-      setUserRole(userData.role);
-    } else {
-      console.log("No role data found");
+      setUserRole((data as { role: string }).role);
     }
   }
 
@@ -298,14 +268,7 @@ export default function LeaveApprovalPage() {
           full_name,
           profile_picture_url,
           sil_credits,
-          overtime_group_id,
-          overtime_approver_id
-        ),
-        leave_request_documents (
-          id,
-          file_name,
-          file_type,
-          file_size
+          overtime_group_id
         )
       `
       )
@@ -342,32 +305,21 @@ export default function LeaveApprovalPage() {
     }
 
     // Filter by assigned groups:
-    // - Admin: See all (no filtering)
-    // - HR: Always see all (bypass group filtering, even if assigned to groups)
-    // - Approver/Viewer: Filter by assigned groups only
+    // - Admin / upper_management / HR / PM / ops: see all
+    // - Approver/Viewer: filter by assigned groups only
     let filteredData = data;
-    if (!isAdmin && !isHR) {
-      // Only approver/viewer users filter by groups AND individual assignments
+    if (!seesAllLeaveRequests) {
+      // Only approver/viewer users filter by groups
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (user) {
-        // Get employee IDs where user is assigned as individual approver or viewer
-        const { data: individualEmployees } = await supabase
-          .from("employees")
-          .select("id")
-          .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
-
-        const individualEmployeeIds = new Set(
-          (individualEmployees || []).map((e) => e.id)
-        );
-
-        // Need to fetch employee group IDs and individual assignments for filtering
+        // Need to fetch employee group IDs for filtering
         const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
         const { data: employeesData } = await supabase
           .from("employees")
-          .select("id, overtime_group_id, overtime_approver_id, overtime_viewer_id")
+          .select("id, overtime_group_id")
           .in("id", employeeIds);
 
         const employeeGroupMap = new Map(
@@ -376,28 +328,54 @@ export default function LeaveApprovalPage() {
 
         filteredData = data.filter((req: any) => {
           const employeeGroupId = employeeGroupMap.get(req.employee_id);
-          const employeeId = req.employee_id;
-
-          // Check if employee is in assigned groups OR has user as individual approver/viewer
+          // Check if employee is in assigned groups
           const matchesGroup =
             employeeGroupId && assignedGroupIds.includes(employeeGroupId);
-          const matchesIndividual =
-            employeeId && individualEmployeeIds.has(employeeId);
-
-          return matchesGroup || matchesIndividual;
+          return matchesGroup;
         });
       } else {
         filteredData = [];
       }
     }
-    // Admin and HR always see all (filteredData remains as data)
+    // Broad-scope roles always see all (filteredData remains as data)
 
     const requestsData = filteredData as any[];
+
+    // Load supporting documents separately to avoid relying on DB FK metadata
+    // for nested selects (which may be missing in schema cache).
+    let docsByRequestId: Record<string, LeaveDocument[]> = {};
+    if (requestsData.length > 0) {
+      const requestIds = requestsData.map((r) => r.id);
+      const { data: docs, error: docsError } = await supabase
+        .from("leave_request_documents")
+        .select("id, leave_request_id, file_name, file_type, file_size")
+        .in("leave_request_id", requestIds);
+
+      if (!docsError && docs) {
+        docsByRequestId = (docs as LeaveDocument[]).reduce(
+          (acc, doc) => {
+            if (!acc[doc.leave_request_id]) acc[doc.leave_request_id] = [];
+            acc[doc.leave_request_id].push(doc);
+            return acc;
+          },
+          {} as Record<string, LeaveDocument[]>
+        );
+      } else if (
+        docsError &&
+        !isSchemaMissingTableOrRelationError(docsError)
+      ) {
+        console.error("Error fetching leave request documents:", docsError);
+      }
+    }
 
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    setRequests(cleaned as any);
+    const withDocs = cleaned.map((r: any) => ({
+      ...r,
+      leave_request_documents: docsByRequestId[r.id] || [],
+    }));
+    setRequests(withDocs as any);
 
     // Load manager names for approved items
     const managerIds = Array.from(
@@ -437,9 +415,8 @@ export default function LeaveApprovalPage() {
   }
 
   async function loadApproverNames(ids: string[]) {
-    // Primary: users table (auth profiles), fallback: employees
     const { data: userData, error: userError } = await supabase
-      .from("users")
+      .from("profiles")
       .select("id, full_name, email")
       .in("id", ids);
 
@@ -484,7 +461,7 @@ export default function LeaveApprovalPage() {
 
   async function loadHrApproverNames(ids: string[]) {
     const { data: userData, error: userError } = await supabase
-      .from("users")
+      .from("profiles")
       .select("id, full_name, email")
       .in("id", ids);
 
@@ -528,9 +505,8 @@ export default function LeaveApprovalPage() {
   }
 
   async function loadRejectedByNames(ids: string[]) {
-    // Primary: users table (auth profiles), fallback: employees
     const { data: userData, error: userError } = await supabase
-      .from("users")
+      .from("profiles")
       .select("id, full_name, email")
       .in("id", ids);
 
@@ -583,8 +559,16 @@ export default function LeaveApprovalPage() {
 
     setDownloadingDocId(null);
 
-    if (error || !data) {
-      console.error("Error fetching document:", error);
+    if (error) {
+      if (isSchemaMissingTableOrRelationError(error)) {
+        toast.error("Document storage is not configured");
+      } else {
+        console.error("Error fetching document:", error);
+        toast.error("Unable to fetch document");
+      }
+      return;
+    }
+    if (!data) {
       toast.error("Unable to fetch document");
       return;
     }
@@ -632,16 +616,45 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    // Use RPC function for approval (handles authorization and SIL credit deduction)
-    const { error } = await supabase.rpc("approve_leave_request", {
-      p_request_id: request.id,
-      p_level: level,
-    });
+    const now = new Date().toISOString();
+    let finalError = null;
 
-    if (error) {
-      console.error("Error approving request:", error);
+    if (level === "manager") {
+      const patch: Record<string, unknown> = {
+        status: "approved_by_manager",
+        account_manager_id: user.id,
+        account_manager_approved_at: now,
+      };
+      if (notes.trim()) {
+        patch.account_manager_notes = notes.trim();
+      }
+      const { error } = await supabase
+        .from("leave_requests")
+        .update(patch)
+        .eq("id", request.id)
+        .eq("status", "pending");
+      finalError = error;
+    } else {
+      const patch: Record<string, unknown> = {
+        status: "approved_by_hr",
+        hr_approved_by: user.id,
+        hr_approved_at: now,
+      };
+      if (notes.trim()) {
+        patch.hr_notes = notes.trim();
+      }
+      const { error } = await supabase
+        .from("leave_requests")
+        .update(patch)
+        .eq("id", request.id)
+        .eq("status", "approved_by_manager");
+      finalError = error;
+    }
+
+    if (finalError) {
+      console.error("Error approving request:", finalError);
       toast.error("Failed to approve leave request", {
-        description: error.message || "An error occurred while approving the request",
+        description: finalError.message || "An error occurred while approving the request",
       });
       return;
     }
@@ -677,16 +690,21 @@ export default function LeaveApprovalPage() {
     const request = requests.find((r) => r.id === requestId);
     const employeeName = request?.employees?.full_name || "Employee";
 
-    // Use RPC function for rejection (handles authorization)
-    const { error } = await supabase.rpc("reject_leave_request", {
-      p_request_id: requestId,
-      p_reason: rejectionReason.trim(),
-    });
+    const now = new Date().toISOString();
+    const { error: finalError } = await supabase
+      .from("leave_requests")
+      .update({
+        status: "rejected",
+        rejection_reason: rejectionReason.trim(),
+        rejected_by: user.id,
+        rejected_at: now,
+      })
+      .eq("id", requestId);
 
-    if (error) {
-      console.error("Error rejecting request:", error);
+    if (finalError) {
+      console.error("Error rejecting request:", finalError);
       toast.error("Failed to reject leave request", {
-        description: error.message || "An error occurred while rejecting the request",
+        description: finalError.message || "An error occurred while rejecting the request",
       });
       return;
     }
@@ -705,7 +723,7 @@ export default function LeaveApprovalPage() {
   useEffect(() => {
     if (!normalizedRole || groupsLoading) return;
     fetchRequests();
-  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR, role]);
 
   // Show loading state while checking role
   if (roleLoading) {
@@ -722,13 +740,21 @@ export default function LeaveApprovalPage() {
     );
   }
 
-  // Only allow admin, hr, approver, and viewer
-  if (role !== "admin" && role !== "hr" && role !== "approver" && role !== "viewer") {
+  // Allow admin, upper_management (treated as admin), hr, approver, and viewer
+  if (
+    role !== "admin" &&
+    role !== "upper_management" &&
+    role !== "hr" &&
+    role !== "approver" &&
+    role !== "viewer" &&
+    role !== "project_manager" &&
+    role !== "operations_manager"
+  ) {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Admins, HR, Account Managers, Approvers, and Viewers can access leave approvals.
+            Only Upper Management, HR, Project Managers, Approvers, and Viewers can access leave approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -758,7 +784,7 @@ export default function LeaveApprovalPage() {
     }
 
     // Admin can approve any pending or manager-approved request
-    if (normalizedRole === "admin") {
+    if (normalizedRole === "admin" || normalizedRole === "upper_management") {
       const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
       console.log(`canApprove (admin):`, {
         status: request.status,
@@ -769,6 +795,18 @@ export default function LeaveApprovalPage() {
 
     if (normalizedRole === "approver") {
       // Account managers and approvers approve pending requests
+      const canApproveResult = request.status === "pending";
+      console.log(`canApprove (${normalizedRole} on pending):`, {
+        status: request.status,
+        canApprove: canApproveResult,
+      });
+      return canApproveResult;
+    }
+
+    if (
+      normalizedRole === "project_manager" ||
+      normalizedRole === "operations_manager"
+    ) {
       const canApproveResult = request.status === "pending";
       console.log(`canApprove (${normalizedRole} on pending):`, {
         status: request.status,
@@ -1056,7 +1094,7 @@ export default function LeaveApprovalPage() {
                         </span>
                         {request.leave_type === "SIL" && request.employees && (
                           <Caption>
-                            Available SIL Credits: {request.employees.sil_credits} (Allotted: 10)
+                            Available SIL Credits: {request.employees.sil_credits} (Allotted: 5)
                           </Caption>
                         )}
                       </HStack>
@@ -1187,14 +1225,18 @@ export default function LeaveApprovalPage() {
                           // HR group approvers approve at "hr" level (second step: approved_by_manager → approved_by_hr)
                           // Admin can approve at either level based on request status
                           const approvalLevel =
-                            normalizedRole === "approver" || (normalizedRole === "admin" && request.status === "pending")
+                            normalizedRole === "approver" ||
+                            ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
+                              request.status === "pending")
                               ? "manager"
                               : "hr";
                           handleApprove(request, approvalLevel);
                         }}
                       >
                         <Icon name="Check" size={IconSizes.sm} />
-                        {normalizedRole === "approver" || (normalizedRole === "admin" && request.status === "pending")
+                        {normalizedRole === "approver" ||
+                        ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
+                          request.status === "pending")
                           ? "Approve (Manager)"
                           : "Approve (HR)"}
                       </Button>
@@ -1293,7 +1335,7 @@ export default function LeaveApprovalPage() {
                             Allotted SIL Credits
                           </div>
                           <div className="font-semibold text-gray-900">
-                            10 credits
+                            5 credits
                           </div>
                         </div>
                         <div>
@@ -1521,14 +1563,18 @@ export default function LeaveApprovalPage() {
                             // HR group approvers approve at "hr" level (second step: approved_by_manager → approved_by_hr)
                             // Admin can approve at either level based on request status
                             const approvalLevel =
-                              normalizedRole === "approver" || (normalizedRole === "admin" && selectedRequest.status === "pending")
+                              normalizedRole === "approver" ||
+                              ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
+                                selectedRequest.status === "pending")
                                 ? "manager"
                                 : "hr";
                             handleApprove(selectedRequest, approvalLevel);
                           }}
                         >
                           <Icon name="Check" size={IconSizes.sm} />
-                          {normalizedRole === "approver" || (normalizedRole === "admin" && selectedRequest.status === "pending")
+                          {normalizedRole === "approver" ||
+                          ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
+                            selectedRequest.status === "pending")
                             ? "Approve (Manager)"
                             : "Approve (HR)"}
                         </Button>

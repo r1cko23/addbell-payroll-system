@@ -47,4 +47,41 @@ test.describe("Leave Request (Employee Portal)", () => {
       await expect(page.locator('text=Half-Day Leave Options')).toBeVisible({ timeout: 3000 });
     }
   });
+
+  test("Can submit and cancel LWOP request", async ({ page }) => {
+    await page.getByRole("radio", { name: /LWOP/ }).click();
+
+    // Pick a likely enabled weekday date button.
+    const candidateDays = ["27", "28", "26", "25", "24"];
+    let picked = false;
+    for (const d of candidateDays) {
+      const dayBtn = page.locator(`button:has-text("${d}")`).first();
+      if ((await dayBtn.count()) > 0) {
+        await dayBtn.click();
+        picked = true;
+        break;
+      }
+    }
+    expect(picked).toBeTruthy();
+
+    await page.fill(
+      'textarea[placeholder="Provide reason for leave request..."]',
+      `Playwright LWOP test ${Date.now()}`
+    );
+
+    await page.click('button:has-text("Submit Leave Request")');
+    await expect(page.locator("text=Leave request submitted successfully")).toBeVisible({
+      timeout: 10000,
+    });
+
+    // Cancel the newly submitted request to keep test data clean.
+    const cancelBtn = page.locator('button:has-text("Cancel")').first();
+    if ((await cancelBtn.count()) > 0) {
+      await cancelBtn.click();
+      await page.click('button:has-text("Cancel request")');
+      await expect(page.locator("text=Leave request cancelled")).toBeVisible({
+        timeout: 10000,
+      });
+    }
+  });
 });

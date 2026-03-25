@@ -1170,29 +1170,55 @@ function PayslipDetailedBreakdownComponent({
       return sum;
     }, 0);
 
-    // Per cutoff: 104 hours max (13 days × 8). Do not exceed 104 hours / 13 days for Days Work or Hours Work.
-    const totalBHForDaysWork = Math.min(104, Math.max(basePayHours, actualTotalBH));
-    let daysWorked = totalBHForDaysWork / 8;
+    // For hourly operations, Hours Worked should match actual BH from time attendance.
+    // Do NOT inflate with base-pay hours or cap it; Time Attendance is the source of truth.
+    const totalBHForHoursWork = actualTotalBH;
+    const hoursWorked = totalBHForHoursWork;
 
     // #region agent log
     const _jan1 = attendanceData.find((d: { date: string }) => d.date === "2026-01-01");
     if (_jan1 || (periodStart && periodEnd && format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
-      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "PayslipDetailedBreakdown.tsx:DaysWork", message: "Payslip Days Work", data: { periodStart: periodStart ? format(periodStart, "yyyy-MM-dd") : null, periodEnd: periodEnd ? format(periodEnd, "yyyy-MM-dd") : null, employeeName: employee?.full_name, jan1: _jan1 ? { date: (_jan1 as any).date, dayType: (_jan1 as any).dayType, regularHours: (_jan1 as any).regularHours } : null, basePayHours, actualTotalBH, totalBHForDaysWork, daysWorked }, hypothesisId: "H2", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
+      fetch(
+        "http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            location: "PayslipDetailedBreakdown.tsx:DaysWork",
+            message: "Payslip Days Work",
+            data: {
+              periodStart: periodStart
+                ? format(periodStart, "yyyy-MM-dd")
+                : null,
+              periodEnd: periodEnd ? format(periodEnd, "yyyy-MM-dd") : null,
+              employeeName: employee?.full_name,
+              jan1: _jan1
+                ? {
+                    date: (_jan1 as any).date,
+                    dayType: (_jan1 as any).dayType,
+                    regularHours: (_jan1 as any).regularHours,
+                  }
+                : null,
+              basePayHours,
+              actualTotalBH,
+              totalBHForHoursWork,
+              hoursWorked,
+            },
+            hypothesisId: "H2",
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+          }),
+        }
+      ).catch(() => {});
     }
     // #endregion
 
-    // Hours Work and Days Work per cutoff must not exceed 104 hours / 13 days.
-
-    // Ensure basicSalary = daysWorked × daily rate (all days worked including holidays)
-    // This ensures consistency: basicSalary should equal daysWorked × ratePerDay
-    // The basicSalary was calculated by summing individual days, but we verify it matches daysWorked × ratePerDay
-    // IMPORTANT: Use rounded daily rate to match displayed value (ensures Daily Rate × Days = Basic Salary)
-    const roundedRatePerDay = Math.round(ratePerDay * 100) / 100;
-    const expectedBasicSalary = daysWorked * roundedRatePerDay;
+    // Ensure basicSalary = hoursWorked × hourly rate (all hours worked including holidays)
+    // IMPORTANT: Use rounded hourly rate to match displayed value (ensures Hourly Rate × Hours = Basic Salary)
+    const roundedRatePerHour = Math.round(ratePerHour * 100) / 100;
+    const expectedBasicSalary = hoursWorked * roundedRatePerHour;
     // Use the calculated basicSalary if it's close to expected, otherwise use expected
-    // This handles any rounding differences
     if (Math.abs(basicSalary - expectedBasicSalary) > 0.01) {
-      // If there's a significant difference, use the expected calculation
       basicSalary = expectedBasicSalary;
     }
     // Round basicSalary to 2 decimal places before using in further calculations
@@ -1207,7 +1233,7 @@ function PayslipDetailedBreakdownComponent({
           useBasePayMethod,
           basePayHours,
           absences,
-          daysWorked,
+          hoursWorked,
           totalRegularHours,
           employeeName: employee.full_name,
         });
@@ -1327,12 +1353,9 @@ function PayslipDetailedBreakdownComponent({
           roundedBreakdown.specialHoliday);
     const totalGrossPay = Math.round(totalGrossPayUnroundedRounded * 100) / 100;
 
-    // Per cutoff: Hours Work must not exceed 104
-    const cappedTotalHours = Math.min(104, totalHours);
-
     return {
-      totalHours: cappedTotalHours,
-      daysWorked,
+      totalHours,
+      hoursWorked,
       basicSalary,
       totalRegularHours,
       breakdown,
@@ -1360,7 +1383,7 @@ function PayslipDetailedBreakdownComponent({
 
   const {
     totalHours,
-    daysWorked,
+    hoursWorked,
     basicSalary,
     totalRegularHours,
     breakdown,
@@ -1414,10 +1437,7 @@ function PayslipDetailedBreakdownComponent({
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">
-                    Days Work
-                  </th>
-                  <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700">
-                    Daily Rate
+                    Hours Worked
                   </th>
                   <th className="px-2 py-1.5 text-right text-xs font-semibold text-gray-700">
                     Hourly Rate
@@ -1433,10 +1453,7 @@ function PayslipDetailedBreakdownComponent({
               <tbody>
                 <tr className="bg-white hover:bg-gray-50 transition-colors">
                   <td className="px-2 py-1.5 text-xs font-medium text-gray-900">
-                    {Math.round(daysWorked)}
-                  </td>
-                  <td className="px-2 py-1.5 text-xs text-right font-semibold text-gray-700">
-                    {formatCurrency(ratePerDay)}
+                    {hoursWorked.toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-mono text-gray-700">
                     {(Math.round(ratePerHour * 100) / 100).toFixed(2)}
@@ -1549,10 +1566,10 @@ function PayslipDetailedBreakdownComponent({
 
                   return (
                     <>
-                      {/* 1. Hours Work = Regular work only (104 hrs / 13 days per cutoff). Amount matches Basic Salary (days × daily rate) to avoid rounding to whole pesos. */}
+                      {/* 1. Hours Work (Regular) = actual BH from Time Attendance for this cutoff. */}
                       {renderEarningRow(
                         "1. Hours Work (Regular)",
-                        totalHours,
+                      hoursWorked,
                         "—",
                         basicSalary
                       )}

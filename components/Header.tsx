@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { formatRoleName } from "@/lib/formatRoleName";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -205,8 +206,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <span className="text-sm font-medium text-foreground">
                     {userFullName || user?.email}
                   </span>
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {userRole}
+                  <span className="text-xs text-muted-foreground">
+                    {formatRoleName(userRole)}
                   </span>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />

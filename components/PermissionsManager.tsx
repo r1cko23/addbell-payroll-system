@@ -42,7 +42,7 @@ interface User {
   id: string;
   email: string;
   full_name: string;
-  role: "admin" | "hr" | "approver" | "viewer";
+  role: string;
   is_active: boolean;
   permissions: UserPermissions | null;
 }
@@ -84,10 +84,14 @@ export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsMa
     return grouped;
   }, []);
 
-  // Filter out admin users (they always have full access)
+  // Users that can be edited (admin and upper_management always have full access)
   const editableUsers = useMemo(() => {
-    return users.filter((user) => user.role !== "admin");
+    return users.filter(
+      (user) => user.role !== "admin" && user.role !== "upper_management"
+    );
   }, [users]);
+
+  const [viewMode, setViewMode] = useState<"category" | "matrix">("matrix");
 
   // Get effective permissions for a user (custom or role defaults)
   const getEffectivePermissions = (user: User): UserPermissions => {
@@ -189,7 +193,7 @@ export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsMa
 
       // Save to database - only store customizations, or null if using defaults
       const { error } = await supabase
-        .from("users")
+        .from("profiles")
         .update({
           permissions: hasCustomizations ? customPerms : null,
         })
@@ -280,7 +284,7 @@ export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsMa
                 <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
                   <Icon name="ShieldCheck" size={IconSizes.md} className="mx-auto mb-2 opacity-50" />
                   <p>No users to configure permissions for.</p>
-                  <Caption>Admin users always have full access.</Caption>
+                  <Caption>Admin and Upper Management always have full access and are not listed.</Caption>
                 </td>
               </tr>
             ) : (
@@ -382,9 +386,9 @@ export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsMa
 
           {editingPermissions && (
             <VStack gap="6" className="mt-4">
-              {/* Quick Actions */}
-              <HStack justify="between" align="center" className="border-b pb-4">
-                <HStack gap="2">
+              {/* Quick Actions + View Toggle */}
+              <HStack justify="between" align="center" className="border-b pb-4 flex-wrap gap-2">
+                <HStack gap="2" className="flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -394,6 +398,24 @@ export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsMa
                     <Icon name="ArrowCounterClockwise" size={IconSizes.sm} className="mr-2" />
                     Reset to Defaults
                   </Button>
+                  <HStack gap="1" className="border rounded-md p-0.5">
+                    <Button
+                      variant={viewMode === "matrix" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setViewMode("matrix")}
+                    >
+                      CRUD Matrix
+                    </Button>
+                    <Button
+                      variant={viewMode === "category" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setViewMode("category")}
+                    >
+                      By Category
+                    </Button>
+                  </HStack>
                 </HStack>
                 {hasChanges && (
                   <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
@@ -402,8 +424,88 @@ export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsMa
                 )}
               </HStack>
 
+              {/* CRUD Matrix: single table, one row per page */}
+              {viewMode === "matrix" && (
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm font-medium">
+                      CRUD Matrix — tick Create, Read, Update, Delete per page
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Rows = pages/functions; columns = actions. Only users with dashboard access are listed above.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="overflow-x-auto border rounded-md">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 border-b">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-medium">Page / Function</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Create</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Read</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Update</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {MODULE_INFO.map((moduleInfo) => {
+                            const moduleKey = moduleInfo.key;
+                            const perms = editingPermissions[moduleKey];
+                            if (!perms) return null;
+                            const isFullyEnabled = isModuleFullyEnabled(moduleKey);
+                            const isPartial = isModulePartiallyEnabled(moduleKey);
+                            return (
+                              <tr
+                                key={moduleKey}
+                                className="hover:bg-muted/30"
+                              >
+                                <td className="px-4 py-2">
+                                  <HStack gap="2" align="center">
+                                    <Checkbox
+                                      id={`m-${moduleKey}-all`}
+                                      checked={isFullyEnabled}
+                                      ref={(ref) => {
+                                        if (ref) (ref as any).indeterminate = isPartial;
+                                      }}
+                                      onCheckedChange={(checked) =>
+                                        handleToggleModuleAll(moduleKey, checked === true)
+                                      }
+                                      disabled={saving}
+                                    />
+                                    <Label
+                                      htmlFor={`m-${moduleKey}-all`}
+                                      className="font-medium cursor-pointer"
+                                    >
+                                      {moduleInfo.label}
+                                    </Label>
+                                  </HStack>
+                                </td>
+                                {(["create", "read", "update", "delete"] as ActionName[]).map(
+                                  (action) => (
+                                    <td key={action} className="px-3 py-2 text-center">
+                                      <Checkbox
+                                        id={`m-${moduleKey}-${action}`}
+                                        checked={perms[action]}
+                                        onCheckedChange={() =>
+                                          handleTogglePermission(moduleKey, action)
+                                        }
+                                        disabled={saving}
+                                      />
+                                    </td>
+                                  )
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Permissions Grid by Category */}
-              {CATEGORY_ORDER.map((category) => {
+              {viewMode === "category" && CATEGORY_ORDER.map((category) => {
                 const modules = modulesByCategory[category];
                 if (!modules || modules.length === 0) return null;
 

@@ -4,14 +4,12 @@
  */
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "./useCurrentUser";
 
 // Define all available modules in the system
 export const MODULES = {
   dashboard: "dashboard",
   employees: "employees",
-  schedules: "schedules",
   loans: "loans",
   payslips: "payslips",
   timesheet: "timesheet",
@@ -24,6 +22,9 @@ export const MODULES = {
   reports: "reports",
   settings: "settings",
   user_management: "user_management",
+  clients: "clients",
+  projects: "projects",
+  vendors: "vendors",
 } as const;
 
 export type ModuleName = (typeof MODULES)[keyof typeof MODULES];
@@ -69,12 +70,6 @@ export const MODULE_INFO: ModuleInfo[] = [
     key: "employees",
     label: "Employees",
     description: "Employee directory and management",
-    category: "people",
-  },
-  {
-    key: "schedules",
-    label: "Schedules",
-    description: "Employee work schedules",
     category: "people",
   },
   {
@@ -149,6 +144,24 @@ export const MODULE_INFO: ModuleInfo[] = [
     description: "Admin user accounts and permissions",
     category: "settings",
   },
+  {
+    key: "clients",
+    label: "Clients",
+    description: "Client companies and contacts",
+    category: "admin",
+  },
+  {
+    key: "projects",
+    label: "Projects",
+    description: "Construction projects and tracking",
+    category: "admin",
+  },
+  {
+    key: "vendors",
+    label: "Vendors",
+    description: "Suppliers and vendors",
+    category: "admin",
+  },
 ];
 
 // Full admin permissions (admin + upper_management per Addbell roles)
@@ -166,7 +179,6 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
   hr: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: true, read: true, update: true, delete: false },
-    schedules: { create: true, read: true, update: true, delete: true },
     loans: { create: true, read: true, update: true, delete: false },
     payslips: { create: true, read: true, update: true, delete: false },
     timesheet: { create: false, read: true, update: true, delete: false },
@@ -179,12 +191,14 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: true, update: false, delete: false },
     settings: { create: false, read: true, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
+    projects: { create: false, read: true, update: false, delete: false },
+    vendors: { create: true, read: true, update: true, delete: false },
   },
   // Addbell: Operations Manager - project oversight, approvals, fund requests
   operations_manager: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: false, read: true, update: true, delete: false },
-    schedules: { create: true, read: true, update: true, delete: true },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: true, update: false, delete: false },
     timesheet: { create: false, read: true, update: true, delete: false },
@@ -197,12 +211,14 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: true, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
+    projects: { create: true, read: true, update: true, delete: true },
+    vendors: { create: true, read: true, update: true, delete: false },
   },
   // Addbell: Purchasing Officer - fund request approval, limited dashboard
   purchasing_officer: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: false, read: true, update: false, delete: false },
-    schedules: { create: false, read: false, update: false, delete: false },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: true, update: false, delete: false },
     timesheet: { create: false, read: false, update: false, delete: false },
@@ -215,11 +231,13 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
+    projects: { create: false, read: true, update: false, delete: false },
+    vendors: { create: false, read: true, update: false, delete: false },
   },
   approver: {
     dashboard: { create: false, read: false, update: false, delete: false },
     employees: { create: false, read: false, update: false, delete: false },
-    schedules: { create: false, read: true, update: false, delete: false },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: false, update: false, delete: false },
     timesheet: { create: false, read: true, update: false, delete: false },
@@ -232,11 +250,13 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
+    projects: { create: false, read: true, update: false, delete: false },
+    vendors: { create: false, read: true, update: false, delete: false },
   },
   viewer: {
     dashboard: { create: false, read: false, update: false, delete: false },
     employees: { create: false, read: false, update: false, delete: false },
-    schedules: { create: false, read: true, update: false, delete: false },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: false, update: false, delete: false },
     timesheet: { create: false, read: true, update: false, delete: false },
@@ -249,6 +269,28 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
+    projects: { create: false, read: true, update: false, delete: false },
+    vendors: { create: false, read: true, update: false, delete: false },
+  },
+  project_manager: {
+    dashboard: { create: false, read: true, update: false, delete: false },
+    employees: { create: false, read: true, update: true, delete: false },
+    loans: { create: false, read: false, update: false, delete: false },
+    payslips: { create: false, read: true, update: false, delete: false },
+    timesheet: { create: false, read: true, update: true, delete: false },
+    time_entries: { create: true, read: true, update: true, delete: true },
+    leave_approval: { create: false, read: true, update: true, delete: false },
+    overtime_approval: { create: false, read: true, update: true, delete: false },
+    failure_to_log: { create: false, read: true, update: true, delete: false },
+    audit: { create: false, read: true, update: false, delete: false },
+    bir_reports: { create: false, read: false, update: false, delete: false },
+    reports: { create: false, read: true, update: false, delete: false },
+    settings: { create: false, read: false, update: false, delete: false },
+    user_management: { create: false, read: false, update: false, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
+    projects: { create: true, read: true, update: true, delete: true },
+    vendors: { create: true, read: true, update: true, delete: false },
   },
 };
 
@@ -283,8 +325,6 @@ export function usePermissions(): UsePermissionsReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClient();
-
   const fetchPermissions = useCallback(async () => {
     if (!user) {
       setPermissions(null);
@@ -307,27 +347,15 @@ export function usePermissions(): UsePermissionsReturn {
       setLoading(true);
       setError(null);
 
-      // Call the RPC function to get merged permissions
-      const { data, error: rpcError } = await supabase.rpc("get_user_permissions", {
-        p_user_id: user.id,
-      });
-
-      if (rpcError) {
-        console.error("Error fetching permissions:", rpcError);
-        // Fall back to role-based defaults
-        const defaultPerms = DEFAULT_PERMISSIONS[user.role || "viewer"] || EMPTY_PERMISSIONS;
-        setPermissions(defaultPerms);
-        setError(rpcError.message);
-      } else {
-        const perms = data as UserPermissions;
-        setPermissions(perms);
-        // Update cache
-        permissionsCache = {
-          userId: user.id,
-          permissions: perms,
-          timestamp: Date.now(),
-        };
-      }
+      const defaultPerms =
+        DEFAULT_PERMISSIONS[user.role || "viewer"] || EMPTY_PERMISSIONS;
+      setPermissions(defaultPerms);
+      setError(null);
+      permissionsCache = {
+        userId: user.id,
+        permissions: defaultPerms,
+        timestamp: Date.now(),
+      };
     } catch (err: any) {
       console.error("Error fetching permissions:", err);
       // Fall back to role-based defaults
@@ -337,7 +365,7 @@ export function usePermissions(): UsePermissionsReturn {
     } finally {
       setLoading(false);
     }
-  }, [user, supabase]);
+  }, [user]);
 
   useEffect(() => {
     if (!userLoading) {

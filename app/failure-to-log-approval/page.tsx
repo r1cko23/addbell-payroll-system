@@ -39,6 +39,7 @@ import { formatPHTime } from "@/utils/format";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { fetchEmployeeIdsForOtApproverOrViewer } from "@/lib/employeeOvertimeAssignments";
 
 interface FailureToLog {
   id: string;
@@ -72,6 +73,13 @@ export default function FailureToLogApprovalPage() {
   const router = useRouter();
   const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
+
+  const canActOnFailureToLog =
+    isAdmin ||
+    isHR ||
+    role === "approver" ||
+    role === "project_manager" ||
+    role === "operations_manager";
 
   // HR can approve all failure-to-log requests (no group assignment required)
 
@@ -111,12 +119,12 @@ export default function FailureToLogApprovalPage() {
     if (!groupsLoading) {
       loadEmployees();
     }
-  }, [assignedGroupIds, groupsLoading, isAdmin]);
+  }, [assignedGroupIds, groupsLoading, isAdmin, isHR]);
 
   async function loadEmployees() {
     if (groupsLoading) return;
 
-    // Admin and HR see all employees
+    // Admin and HR see all employees (filters); others see group / individual scope
     if (isAdmin || isHR) {
       const { data, error } = await supabase
         .from("employees")
@@ -156,13 +164,10 @@ export default function FailureToLogApprovalPage() {
       }
     }
 
-    // Get employees where user is assigned as individual approver or viewer
-    const { data: individualEmployees, error: individualError } = await supabase
-      .from("employees")
-      .select("id")
-      .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
-
-    const individualEmployeeIds = (individualEmployees || []).map((e) => e.id);
+    const individualEmployeeIds = await fetchEmployeeIdsForOtApproverOrViewer(
+      supabase,
+      user.id
+    );
 
     // Combine and deduplicate employee IDs
     const allEmployeeIds = Array.from(
@@ -256,15 +261,11 @@ export default function FailureToLogApprovalPage() {
       } = await supabase.auth.getUser();
 
       if (user) {
-        // Get employee IDs where user is assigned as individual approver or viewer
-        const { data: individualEmployees } = await supabase
-          .from("employees")
-          .select("id")
-          .or(`overtime_approver_id.eq.${user.id},overtime_viewer_id.eq.${user.id}`);
-
-        const individualEmployeeIds = new Set(
-          (individualEmployees || []).map((e) => e.id)
+        const individualIds = await fetchEmployeeIdsForOtApproverOrViewer(
+          supabase,
+          user.id
         );
+        const individualEmployeeIds = new Set(individualIds);
 
         // Need to fetch employee group IDs for filtering
         const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
@@ -323,9 +324,8 @@ export default function FailureToLogApprovalPage() {
   async function loadApproverNames(ids: string[]) {
     if (ids.length === 0) return;
 
-    // Primary: users table (auth profiles), fallback: employees
     const { data: userData, error: userError } = await supabase
-      .from("users")
+      .from("profiles")
       .select("id, full_name, email")
       .in("id", ids);
 
@@ -426,17 +426,23 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    // Use RPC function for approval (handles authorization and time entry update)
-    const { error } = await supabase.rpc("approve_failure_to_log", {
-      p_request_id: requestId,
-      p_correct_clock_in_time: requestData.actual_clock_in_time || null,
-      p_correct_clock_out_time: requestData.actual_clock_out_time || null,
-    });
+    const now = new Date().toISOString();
+    const { error: finalError } = await supabase
+      .from("failure_to_log")
+      .update({
+        status: "approved",
+        approved_by: user.id,
+        account_manager_id: user.id,
+        approved_at: now,
+        updated_at: now,
+      })
+      .eq("id", requestId)
+      .eq("status", "pending");
 
-    if (error) {
-      console.error("Error approving request:", error);
+    if (finalError) {
+      console.error("Error approving request:", finalError);
       toast.error("Failed to approve failure to log request", {
-        description: error.message || "An error occurred while approving the request",
+        description: finalError.message || "An error occurred while approving the request",
       });
       setApproveLoading(false);
       return;
@@ -463,16 +469,25 @@ export default function FailureToLogApprovalPage() {
     const request = requests.find((r) => r.id === requestId);
     const employeeName = request?.employees?.full_name || "Employee";
 
-    // Use RPC function for rejection (handles authorization)
-    const { error } = await supabase.rpc("reject_failure_to_log", {
-      p_request_id: requestId,
-      p_reason: rejectionReason.trim() || null,
-    });
+    const now = new Date().toISOString();
+    const { error: finalError } = await supabase
+      .from("failure_to_log")
+      .update({
+        status: "rejected",
+        approved_by: user.id,
+        account_manager_id: user.id,
+        approved_at: now,
+        updated_at: now,
+        rejection_reason:
+          rejectionReason.trim() || "Request rejected",
+      })
+      .eq("id", requestId)
+      .eq("status", "pending");
 
-    if (error) {
-      console.error("Error rejecting request:", error);
+    if (finalError) {
+      console.error("Error rejecting request:", finalError);
       toast.error("Failed to reject failure to log request", {
-        description: error.message || "An error occurred while rejecting the request",
+        description: finalError.message || "An error occurred while rejecting the request",
       });
       return;
     }
@@ -755,8 +770,7 @@ export default function FailureToLogApprovalPage() {
                       {request.status.toUpperCase()}
                     </Badge>
                   </HStack>
-                  {request.status === "pending" &&
-                    (role === "admin" || role === "hr" || role === "approver") && (
+                  {request.status === "pending" && canActOnFailureToLog && (
                     <HStack
                       gap="2"
                       align="center"
@@ -966,8 +980,7 @@ export default function FailureToLogApprovalPage() {
               >
                 Close
               </Button>
-              {selectedRequest?.status === "pending" &&
-                (role === "admin" || role === "hr" || role === "approver") && (
+              {selectedRequest?.status === "pending" && canActOnFailureToLog && (
                 <div className="flex gap-2">
                   <Button
                     variant="destructive"

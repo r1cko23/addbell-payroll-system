@@ -62,7 +62,7 @@ export function resolveLocationDetails(
   if (!coords) {
     return {
       name: 'No GPS data',
-      address: 'Location was not captured for this entry.',
+      address: 'Location was not captured (e.g. punch from biometric device, admin clock, or location permission not granted).',
       coordinates: null,
       isWithinAllowedArea: false,
     };

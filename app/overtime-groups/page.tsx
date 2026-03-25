@@ -109,7 +109,18 @@ export default function OvertimeGroupsPage() {
         .from("users")
         .select("id, full_name, email, role")
         .eq("is_active", true)
-        .in("role", ["admin", "hr", "account_manager", "ot_approver", "ot_viewer"])
+        .in("role", [
+          "admin",
+          "hr",
+          "upper_management",
+          "account_manager",
+          "operations_manager",
+          "project_manager",
+          "approver",
+          "viewer",
+          "ot_approver",
+          "ot_viewer",
+        ])
         .order("full_name");
 
       if (usersError) throw usersError;

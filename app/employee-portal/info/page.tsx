@@ -76,15 +76,36 @@ export default function EmployeeInfoPage() {
   useEffect(() => {
     const fetchInfo = async () => {
       try {
-        const { data, error } = await supabase.rpc("get_employee_profile", {
-          p_employee_uuid: employee.id,
-        } as any);
+        const { data, error } = await supabase
+          .from("employees")
+          .select(
+            "employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
+          )
+          .eq("id", employee.id)
+          .maybeSingle();
 
         if (error) throw error;
 
-        const profileData = data as Array<EmployeeInfo> | null;
-        if (profileData && profileData.length > 0) {
-          setInfo(profileData[0]);
+        if (data) {
+          setInfo({
+            employee_id: data.employee_code ?? employee.employee_id,
+            full_name: data.full_name ?? employee.full_name,
+            first_name: data.first_name ?? null,
+            last_name: data.last_name ?? null,
+            middle_initial: data.middle_name ? data.middle_name.charAt(0).toUpperCase() : null,
+            assigned_hotel: null,
+            assigned_locations: [],
+            address: data.address ?? null,
+            birth_date: data.date_of_birth ?? null,
+            tin_number: data.tin ?? null,
+            sss_number: data.sss_number ?? null,
+            philhealth_number: data.philhealth_number ?? null,
+            pagibig_number: data.pagibig_number ?? null,
+            hmo_provider: null,
+            profile_picture_url: null,
+            is_active: data.is_active ?? true,
+            created_at: data.created_at ?? employee.loginTime,
+          });
         } else {
           setInfo(fallbackInfo);
           setErrorMessage(
@@ -103,7 +124,7 @@ export default function EmployeeInfoPage() {
     };
 
     fetchInfo();
-  }, [employee.id, fallbackInfo, supabase]);
+  }, [employee.id, employee.employee_id, employee.full_name, employee.loginTime, fallbackInfo, supabase]);
 
   if (loading || !info) {
     return (
@@ -238,15 +259,33 @@ export default function EmployeeInfoPage() {
               onUploadComplete={async () => {
                 // Reload employee info
                 try {
-                  const { data, error } = await supabase.rpc(
-                    "get_employee_profile",
-                    {
-                      p_employee_uuid: employee.id,
-                    } as any
-                  );
-                  const profileData = data as Array<EmployeeInfo> | null;
-                  if (!error && profileData && profileData.length > 0) {
-                    setInfo(profileData[0]);
+                  const { data, error } = await supabase
+                    .from("employees")
+                    .select(
+                      "employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
+                    )
+                    .eq("id", employee.id)
+                    .maybeSingle();
+                  if (!error && data) {
+                    setInfo({
+                      employee_id: data.employee_code ?? employee.employee_id,
+                      full_name: data.full_name ?? employee.full_name,
+                      first_name: data.first_name ?? null,
+                      last_name: data.last_name ?? null,
+                      middle_initial: data.middle_name ? data.middle_name.charAt(0).toUpperCase() : null,
+                      assigned_hotel: null,
+                      assigned_locations: [],
+                      address: data.address ?? null,
+                      birth_date: data.date_of_birth ?? null,
+                      tin_number: data.tin ?? null,
+                      sss_number: data.sss_number ?? null,
+                      philhealth_number: data.philhealth_number ?? null,
+                      pagibig_number: data.pagibig_number ?? null,
+                      hmo_provider: null,
+                      profile_picture_url: null,
+                      is_active: data.is_active ?? true,
+                      created_at: data.created_at ?? employee.loginTime,
+                    });
                   }
                 } catch (err) {
                   console.error("Failed to reload employee info:", err);

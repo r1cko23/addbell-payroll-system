@@ -1,6 +1,7 @@
 /**
- * Custom hook to get the current user's assigned overtime groups
- * Returns group IDs where the user is assigned as approver or viewer
+ * Overtime group IDs where the current user is approver or viewer on `overtime_groups`.
+ * Used to scope OT / leave / failure-to-log / time entries for non–HR admins.
+ * Admin, upper_management, and HR get an empty list (pages treat that as “no group filter” when combined with sees-all flags).
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -13,18 +14,23 @@ interface AssignedGroupsData {
   refetch: () => void;
 }
 
+const BROAD_ACCESS_ROLES = new Set([
+  "admin",
+  "upper_management",
+  "hr",
+]);
+
 export function useAssignedGroups(): AssignedGroupsData {
   const [groupIds, setGroupIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createClient();
 
   const fetchAssignedGroups = useCallback(async () => {
+    const supabase = createClient();
     try {
       setLoading(true);
       setError(null);
 
-      // Get current authenticated user
       const {
         data: { user },
         error: authError,
@@ -40,56 +46,36 @@ export function useAssignedGroups(): AssignedGroupsData {
         return;
       }
 
-      // Get user role to check if they're admin or HR (both see all)
-      const { data: userData, error: userError } = await supabase
-        .from("users")
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
         .select("role")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
-      if (userError) {
-        throw userError;
+      if (profileError) {
+        throw profileError;
       }
 
-      // Admins see all groups (return empty array means no filtering)
-      // HR users need to have group assignments returned to check if they're group approvers
-      // (HR users bypass group filtering for viewing, but need group approver status for approval)
-      if (userData?.role === "admin") {
+      const role = (profile?.role as string | undefined)?.trim().toLowerCase();
+      if (role && BROAD_ACCESS_ROLES.has(role)) {
         setGroupIds([]);
         setLoading(false);
         return;
       }
 
-      // Find groups where this user is approver or viewer
-      // This applies to both HR and approver/viewer roles
-      const { data: approverGroups, error: approverError } = await supabase
+      const { data: groups, error: groupsError } = await supabase
         .from("overtime_groups")
         .select("id")
-        .eq("approver_id", user.id);
+        .eq("is_active", true)
+        .or(`approver_id.eq.${user.id},viewer_id.eq.${user.id}`);
 
-      if (approverError) {
-        throw approverError;
+      if (groupsError) {
+        throw groupsError;
       }
 
-      const { data: viewerGroups, error: viewerError } = await supabase
-        .from("overtime_groups")
-        .select("id")
-        .eq("viewer_id", user.id);
-
-      if (viewerError) {
-        throw viewerError;
-      }
-
-      // Combine unique group IDs
-      const allGroupIds = [
-        ...(approverGroups || []).map((g) => g.id),
-        ...(viewerGroups || []).map((g) => g.id),
-      ];
-      const uniqueGroupIds = Array.from(new Set(allGroupIds));
-
-      setGroupIds(uniqueGroupIds);
+      setGroupIds((groups || []).map((g) => g.id).filter(Boolean));
     } catch (err) {
-      console.error("Error fetching assigned groups:", err);
+      console.error("Error fetching assigned overtime groups:", err);
       setError(err instanceof Error ? err.message : "Unknown error");
       setGroupIds([]);
     } finally {

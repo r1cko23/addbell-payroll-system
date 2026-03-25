@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import { calculateMonthlySalary } from "@/utils/ph-deductions";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
+import { fetchSessionsInRange } from "@/lib/timeEntries";
 
 export async function POST(request: NextRequest) {
   try {
@@ -115,28 +116,22 @@ export async function POST(request: NextRequest) {
       (existingTimesheets || []).map((t) => [t.employee_id, t])
     );
 
-    // Batch fetch all clock entries for all employees at once
-    const { data: allClockEntries, error: clockError } = await supabase
-      .from("time_clock_entries")
-      .select(
-        "id, clock_in_time, clock_out_time, regular_hours, overtime_hours, total_night_diff_hours, status, employee_id"
-      )
-      .in("employee_id", employeeIds)
-      .gte("clock_in_time", `${period_start}T00:00:00`)
-      .lte("clock_in_time", `${period_end}T23:59:59`)
-      .order("clock_in_time", { ascending: true });
+    const periodStartISO = `${period_start}T00:00:00`;
+    const periodEndISO = `${period_end}T23:59:59`;
+    const allSessions = await fetchSessionsInRange(
+      supabase,
+      periodStartISO,
+      periodEndISO
+    );
 
-    if (clockError) {
-      throw clockError;
-    }
-
-    // Group clock entries by employee_id
     const clockEntriesByEmployee = new Map<string, any[]>();
-    (allClockEntries || []).forEach((entry) => {
-      if (!clockEntriesByEmployee.has(entry.employee_id)) {
-        clockEntriesByEmployee.set(entry.employee_id, []);
+    allSessions.forEach((entry) => {
+      const eid = entry.employee_id;
+      if (!eid) return;
+      if (!clockEntriesByEmployee.has(eid)) {
+        clockEntriesByEmployee.set(eid, []);
       }
-      clockEntriesByEmployee.get(entry.employee_id)!.push(entry);
+      clockEntriesByEmployee.get(eid)!.push(entry);
     });
 
     // Batch fetch all existing timesheets for rate calculation (only for employees that need it)

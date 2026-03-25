@@ -34,7 +34,7 @@ import {
 
 interface PayrollRun {
   id: string;
-  company_id: string;
+  company_id: string | null;
   cutoff_start: string;
   cutoff_end: string;
   pay_date: string | null;

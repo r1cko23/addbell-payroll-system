@@ -104,7 +104,6 @@ export default function ProjectsPage() {
     let companyId: string | null = null;
     const { data: co } = await supabase.from("companies").select("id").limit(1).single();
     companyId = co?.id ?? null;
-    if (!companyId) { toast.error("No company found."); return; }
 
     const payload = {
       company_id: companyId,
@@ -130,7 +129,12 @@ export default function ProjectsPage() {
     fetchProjects();
   };
 
-  const canManage = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "operations_manager";
+  // Only upper management and project managers can create/edit/delete projects
+  const canManage =
+    profile?.role === "admin" ||
+    profile?.role === "upper_management" ||
+    profile?.role === "operations_manager" ||
+    profile?.role === "project_manager";
 
   const filteredProjects = projects.filter((p) => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;

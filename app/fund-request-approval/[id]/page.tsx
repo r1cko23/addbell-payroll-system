@@ -10,10 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import type { FundRequestRow } from "@/types/fund-request";
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending (Project Manager)",
-  project_manager_approved: "Approved by Project Manager (Purchasing Officer)",
-  purchasing_officer_approved: "Approved by Purchasing Officer (Management)",
-  management_approved: "Approved by Management",
+  pending: "Pending (Operations Manager)",
+  project_manager_approved: "Approved by Operations Manager (Purchasing Officer)",
+  purchasing_officer_approved: "Approved by Purchasing Officer (Upper Management)",
+  management_approved: "Approved by Upper Management",
   rejected: "Rejected",
 };
 
@@ -226,7 +226,7 @@ export default function FundRequestApprovalDetailPage() {
               <ul className="space-y-2 text-sm">
                 {request.project_manager_approved_at && (
                   <li>
-                    <span className="font-medium">Project Manager:</span>{" "}
+                    <span className="font-medium">Operations Manager:</span>{" "}
                     {approverNames[request.project_manager_approved_by ?? ""] ?? "—"} on{" "}
                     {format(new Date(request.project_manager_approved_at), "MMM d, yyyy")} at{" "}
                     {format(new Date(request.project_manager_approved_at), "h:mm a")}
@@ -242,7 +242,7 @@ export default function FundRequestApprovalDetailPage() {
                 )}
                 {request.management_approved_at && (
                   <li>
-                    <span className="font-medium">Management:</span>{" "}
+                    <span className="font-medium">Upper Management:</span>{" "}
                     {approverNames[request.management_approved_by ?? ""] ?? "—"} on{" "}
                     {format(new Date(request.management_approved_at), "MMM d, yyyy")} at{" "}
                     {format(new Date(request.management_approved_at), "h:mm a")}

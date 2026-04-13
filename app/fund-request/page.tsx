@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { useEmployeeSession } from '@/contexts/EmployeeSessionContext';
+import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { format } from 'date-fns';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +21,12 @@ import {
 } from '@/components/ui/select';
 import { Search, Plus } from 'lucide-react';
 import type { FundRequestRow } from '@/types/fund-request';
+import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending (PM)',
-  project_manager_approved: 'PM Approved (PO)',
-  purchasing_officer_approved: 'PO Approved (Mgmt)',
+  pending: 'Pending (Operations Manager)',
+  project_manager_approved: 'Approved by Operations Manager (Purchasing)',
+  purchasing_officer_approved: 'Approved by Purchasing Officer (Upper Management)',
   management_approved: 'Approved',
   rejected: 'Rejected',
 };
@@ -37,7 +38,8 @@ type FundRequestWithProject = FundRequestRow & {
 export default function FundRequestListPage() {
   const pathname = usePathname();
   const { profile, loading: profileLoading } = useProfile();
-  const session = useEmployeeSession();
+  const session = useOptionalEmployeeSession();
+  const normalizedRole = (profile?.role || '').trim().toLowerCase();
   const isPortal = (pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal')) ?? false;
   const [rows, setRows] = useState<FundRequestWithProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,21 +54,20 @@ export default function FundRequestListPage() {
     if (session?.employee?.id || !profile?.id || isPortal) return;
     let active = true;
     setResolvingLinkedEmployee(true);
-    supabase
-      .from('employees')
-      .select('id')
-      .eq('user_id', profile.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active) {
-          setLinkedEmployeeId(data?.id ?? null);
-          setResolvingLinkedEmployee(false);
-        }
-      });
+    resolveLinkedEmployee(supabase, {
+      userId: profile.id,
+      email: profile.email,
+      fullName: profile.full_name,
+    }).then((data) => {
+      if (active) {
+        setLinkedEmployeeId(data?.id ?? null);
+        setResolvingLinkedEmployee(false);
+      }
+    });
     return () => {
       active = false;
     };
-  }, [isPortal, profile?.id, session?.employee?.id, supabase]);
+  }, [isPortal, profile?.email, profile?.full_name, profile?.id, session?.employee?.id, supabase]);
 
   useEffect(() => {
     if (profileLoading || resolvingLinkedEmployee) return;
@@ -91,7 +92,13 @@ export default function FundRequestListPage() {
   const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loadingState) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
 
-  const canCreate = Boolean(employeeId);
+  const canCreateFromDashboard =
+    normalizedRole === 'operations_manager' ||
+    normalizedRole === 'purchasing_officer' ||
+    normalizedRole === 'hr' ||
+    normalizedRole === 'admin' ||
+    normalizedRole === 'upper_management';
+  const canCreate = isPortal ? Boolean(employeeId) : canCreateFromDashboard;
   const base = pathname?.startsWith('/employee-portal') ? '/employee-portal/fund-request' : isPortal ? '/app/fund-request' : '/fund-request';
 
   const filteredRows = rows.filter((r) => {
@@ -140,9 +147,9 @@ export default function FundRequestListPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="pending">Pending (PM)</SelectItem>
-            <SelectItem value="project_manager_approved">PM Approved</SelectItem>
-            <SelectItem value="purchasing_officer_approved">PO Approved</SelectItem>
+            <SelectItem value="pending">Pending (Operations Manager)</SelectItem>
+            <SelectItem value="project_manager_approved">Approved by Operations Manager</SelectItem>
+            <SelectItem value="purchasing_officer_approved">Approved by Purchasing Officer</SelectItem>
             <SelectItem value="management_approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
@@ -155,7 +162,18 @@ export default function FundRequestListPage() {
             <div className="p-8 text-center text-muted-foreground">Loading...</div>
           ) : filteredRows.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm || statusFilter !== 'all' ? 'No fund requests match your filters.' : 'No fund requests yet.'}
+              {searchTerm || statusFilter !== 'all' ? (
+                'No fund requests match your filters.'
+              ) : (
+                <div className="space-y-2">
+                  <p>No fund requests yet.</p>
+                  {!isPortal && canCreateFromDashboard ? (
+                    <p className="text-sm">
+                      Use <span className="font-medium">New Request</span> to create one from the dashboard.
+                    </p>
+                  ) : null}
+                </div>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

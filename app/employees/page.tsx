@@ -73,15 +73,10 @@ interface Employee {
   bank_account_number: string | null;
   created_at: string;
   updated_at: string;
-  /** Overtime / approval routing: must match an `overtime_groups` row. */
+  /** Retained for historical records; no longer used in approval routing UI. */
   overtime_group_id?: string | null;
   departments: { name: string } | null;
   positions: { name: string; job_grade: string | null } | null;
-}
-
-interface OvertimeGroupOption {
-  id: string;
-  name: string;
 }
 
 interface Department {
@@ -156,7 +151,6 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
-  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroupOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -224,7 +218,6 @@ export default function EmployeesPage() {
     fetchEmployees();
     fetchDepartments();
     fetchPositions();
-    fetchOvertimeGroups();
   }, [permissionsLoading, canRead]);
 
   if (!permissionsLoading && !canRead("employees")) {
@@ -266,20 +259,6 @@ export default function EmployeesPage() {
       if (error) throw error;
       setPositions(data || []);
     } catch { setPositions([]); }
-  }
-
-  async function fetchOvertimeGroups() {
-    try {
-      const { data, error } = await supabase
-        .from("overtime_groups")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      setOvertimeGroups(data || []);
-    } catch {
-      setOvertimeGroups([]);
-    }
   }
 
   async function openAddModal() {
@@ -464,17 +443,31 @@ export default function EmployeesPage() {
     }
   }
 
-  const filteredEmployees = employees.filter((emp) => {
-    const name = fullName(emp).toLowerCase();
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      name.includes(term) ||
-      emp.company_id_no.toLowerCase().includes(term) ||
-      emp.employee_code.toLowerCase().includes(term) ||
-      (emp.email || "").toLowerCase().includes(term);
-    const matchesStatus = statusFilter === "all" || emp.employment_status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredEmployees = employees
+    .filter((emp) => {
+      const name = fullName(emp).toLowerCase();
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        name.includes(term) ||
+        emp.company_id_no.toLowerCase().includes(term) ||
+        emp.employee_code.toLowerCase().includes(term) ||
+        (emp.email || "").toLowerCase().includes(term);
+      const matchesStatus =
+        statusFilter === "all" || emp.employment_status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const lastNameCompare = (a.last_name || "").localeCompare(
+        b.last_name || "",
+        undefined,
+        { sensitivity: "base" }
+      );
+      if (lastNameCompare !== 0) return lastNameCompare;
+
+      return fullName(a).localeCompare(fullName(b), undefined, {
+        sensitivity: "base",
+      });
+    });
 
   async function exportEmployeeMasterlistToPDF() {
     setGeneratingPDF(true);
@@ -908,30 +901,6 @@ export default function EmployeesPage() {
                       {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.job_grade ? ` (${p.job_grade})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Subcon</Label>
-                  <Select
-                    value={formData.overtime_group_id || "none"}
-                    onValueChange={(v) =>
-                      setFormData({ ...formData, overtime_group_id: v === "none" ? "" : v })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="None — assign on Overtime Groups page" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None</SelectItem>
-                      {overtimeGroups.map((g) => (
-                        <SelectItem key={g.id} value={g.id}>
-                          {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Caption className="text-muted-foreground">
-                    Used for OT, leave, and failure-to-log approvals.
-                  </Caption>
                 </div>
               </div>
 

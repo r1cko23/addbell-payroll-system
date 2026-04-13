@@ -286,23 +286,20 @@
 - User management (CRUD)
 - Role assignment
 - User activation/deactivation
-- OT group assignment
+- Employee-specific OT assignment
 - Holiday management (Admin only)
 - Profile picture management
 
 ---
 
-#### `/overtime-groups` - Overtime Groups Management
+#### `/overtime-groups` - Retired
 
 | Role | Access | Features Available |
 |------|--------|-------------------|
-| **Admin** | ✅ Full | • View all OT groups<br>• Create/edit OT groups<br>• Assign approvers/viewers to groups<br>• Manage group assignments<br>• Create OT approver/viewer accounts |
-| **HR** | ❌ No Access | Redirected to dashboard |
-| **Approver** | ❌ No Access | Redirected to dashboard |
-| **Viewer** | ❌ No Access | Redirected to dashboard |
+| **All roles** | ⚠️ Informational only | Group-based routing has been removed; the page now links users back to settings |
 
 **Access Control:**
-- Admin only
+- Retired page kept only to avoid broken links
 
 **Key Functions:**
 - OT group CRUD operations
@@ -493,26 +490,25 @@
   - Employee salary information
 - Admin always has salary access
 
-### Group-Based Filtering
-- **Approver/Viewer**: Filtered by `assignedGroupIds` (from `overtime_groups` table)
-- **Admin/HR**: Bypass group restrictions, see all employees
-- Group assignments managed via `/overtime-groups` (Admin only)
+### First-Approver Routing
+- `ADMIN STAFF`, `HR Assistant`, `Project Coordinator`, and `Industrial Engineer` route to **HR** first
+- All other employees route to **Operations Manager** first
+- Group-based routing is no longer used for request approvals
 
 ### Approval Workflows
 
 #### Leave Requests (2-Step)
-1. **Manager/Approver Level**: Approve `pending` → `approved_by_manager`
-2. **HR Level**: Approve `approved_by_manager` → `approved_by_hr`
+1. **First Approval**: Operations Manager approves most `pending` requests, while HR directly approves excluded-position requests
+2. **HR Level**: HR approves `approved_by_manager` → `approved_by_hr` for the standard two-step flow
 - Admin can approve at either level
-- HR can approve at both levels (pending or approved_by_manager)
-- Approver can only approve pending requests
+- HR can approve excluded pending requests and the final HR stage
 
 #### OT Requests (1-Step)
-- Admin/HR/Approver: Approve `pending` → `approved`
-- Viewer: Read-only access
+- Operations Manager or HR approves `pending` → `approved` based on employee position
+- Admin and Upper Management retain broad visibility
 
 #### Failure-to-Log (1-Step)
-- Admin/HR/Approver: Approve `pending` → `approved`
+- Operations Manager or HR approves `pending` → `approved` based on employee position
 - Updates time clock entries automatically
 
 ---
@@ -521,7 +517,7 @@
 
 ### Redirects
 - **Approver/Viewer** accessing `/dashboard` → Redirected to `/overtime-approval`
-- **Non-admin** accessing `/overtime-groups` → Redirected to `/dashboard`
+- `/overtime-groups` remains as a retired informational page
 - **Non-admin/HR** accessing `/audit` → Redirected to `/dashboard`
 - **Non-admin/HR** accessing `/bir-reports` → Redirected to `/dashboard`
 - **HR without salary access** accessing `/payslips` → Redirected to `/dashboard`

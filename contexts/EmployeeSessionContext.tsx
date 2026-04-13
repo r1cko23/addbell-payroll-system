@@ -39,3 +39,7 @@ export function useEmployeeSession() {
   }
   return context;
 }
+
+export function useOptionalEmployeeSession() {
+  return useContext(EmployeeSessionContext);
+}

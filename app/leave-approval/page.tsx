@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
-import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import {
   Card,
   CardContent,
@@ -46,6 +45,10 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { MetricCard } from "@/components/ui/metric-card";
+import {
+  isHrFirstApproverPosition,
+  normalizePositionName,
+} from "@/lib/requestApprovalRouting";
 
 interface LeaveDocument {
   id: string;
@@ -91,7 +94,7 @@ interface LeaveRequest {
     full_name: string;
     profile_picture_url?: string | null;
     sil_credits: number;
-    overtime_group_id?: string | null;
+    positions?: { name: string | null } | null;
   };
   leave_request_documents?: LeaveDocument[];
 }
@@ -99,11 +102,13 @@ interface LeaveRequest {
 export default function LeaveApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { isAdmin, role, isHR, isApprover, isViewer, loading: roleLoading } = useUserRole();
-  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-
-  /** PM / ops managers are scoped by overtime group assignment (useAssignedGroups), not org-wide. */
-  const seesAllLeaveRequests = isAdmin || isHR;
+  const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
+  const normalizedRole = role?.trim().toLowerCase() || "";
+  const canManageLeave =
+    isAdmin ||
+    normalizedRole === "upper_management" ||
+    isHR ||
+    normalizedRole === "operations_manager";
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
@@ -130,6 +135,33 @@ export default function LeaveApprovalPage() {
     Record<string, string>
   >({});
 
+  const getRequestPositionName = (request: LeaveRequest): string =>
+    normalizePositionName(request.employees?.positions?.name);
+
+  const getApprovalLevel = (
+    request: LeaveRequest
+  ): "manager" | "hr" | null => {
+    const isHrFirst = isHrFirstApproverPosition(getRequestPositionName(request));
+
+    if (request.status === "approved_by_manager") {
+      return normalizedRole === "hr" || isAdmin || normalizedRole === "upper_management"
+        ? "hr"
+        : null;
+    }
+
+    if (request.status !== "pending") return null;
+    if (isAdmin || normalizedRole === "upper_management") {
+      return isHrFirst ? "hr" : "manager";
+    }
+    if (normalizedRole === "operations_manager") {
+      return isHrFirst ? null : "manager";
+    }
+    if (normalizedRole === "hr") {
+      return isHrFirst ? "hr" : null;
+    }
+    return null;
+  };
+
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
 
@@ -148,65 +180,19 @@ export default function LeaveApprovalPage() {
   }, []);
 
   useEffect(() => {
-    if (!groupsLoading) {
+    if (canManageLeave) {
       loadEmployees();
     }
-  }, [assignedGroupIds, groupsLoading, isAdmin, isHR, role]);
+  }, [canManageLeave, isAdmin, isHR, normalizedRole]);
 
   async function loadEmployees() {
-    // Admin, HR, project/ops managers see all employees
-    if (seesAllLeaveRequests) {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-        .order("last_name", { ascending: true, nullsFirst: false })
-        .order("first_name", { ascending: true, nullsFirst: false });
-
-      if (error) {
-        console.error("Failed to load employees", error);
-        return;
-      }
-
-      setEmployees(data || []);
-      return;
-    }
-
-    // For approvers/viewers: get employees from assigned groups
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!canManageLeave) {
       setEmployees([]);
       return;
     }
-
-    // Get employees from assigned groups
-    let groupEmployeeIds: string[] = [];
-    if (assignedGroupIds.length > 0) {
-      const { data: groupEmployees, error: groupError } = await supabase
-        .from("employees")
-        .select("id")
-        .in("overtime_group_id", assignedGroupIds);
-
-      if (!groupError && groupEmployees) {
-        groupEmployeeIds = groupEmployees.map((e) => e.id);
-      }
-    }
-
-    // Deduplicate employee IDs from group assignments
-    const allEmployeeIds = Array.from(new Set(groupEmployeeIds));
-
-    if (allEmployeeIds.length === 0) {
-      setEmployees([]);
-      return;
-    }
-
-    // Fetch full employee data
     const { data, error } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-      .in("id", allEmployeeIds)
+      .select("id, employee_id, full_name, last_name, first_name, positions:position_id ( name )")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -215,7 +201,17 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    setEmployees(data || []);
+    const filteredEmployees = (data || []).filter((employee: any) => {
+      if (isAdmin || normalizedRole === "upper_management" || isHR) {
+        return true;
+      }
+      if (normalizedRole === "operations_manager") {
+        return !isHrFirstApproverPosition(employee.positions?.name);
+      }
+      return false;
+    });
+
+    setEmployees(filteredEmployees);
   }
 
   async function fetchUserRole() {
@@ -269,7 +265,9 @@ export default function LeaveApprovalPage() {
           full_name,
           profile_picture_url,
           sil_credits,
-          overtime_group_id
+          positions:position_id (
+            name
+          )
         )
       `
       )
@@ -305,40 +303,22 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups:
-    // - Admin / upper_management / HR / PM / ops: see all
-    // - Approver/Viewer: filter by assigned groups only
     let filteredData = data;
-    if (!seesAllLeaveRequests) {
-      // Only approver/viewer users filter by groups
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        // Need to fetch employee group IDs for filtering
-        const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
-        const { data: employeesData } = await supabase
-          .from("employees")
-          .select("id, overtime_group_id")
-          .in("id", employeeIds);
-
-        const employeeGroupMap = new Map(
-          (employeesData || []).map((emp: any) => [emp.id, emp.overtime_group_id])
+    if (!isAdmin && normalizedRole !== "upper_management") {
+      filteredData = data.filter((request: any) => {
+        const isHrFirst = isHrFirstApproverPosition(
+          request.employees?.positions?.name
         );
 
-        filteredData = data.filter((req: any) => {
-          const employeeGroupId = employeeGroupMap.get(req.employee_id);
-          // Check if employee is in assigned groups
-          const matchesGroup =
-            employeeGroupId && assignedGroupIds.includes(employeeGroupId);
-          return matchesGroup;
-        });
-      } else {
-        filteredData = [];
-      }
+        if (normalizedRole === "operations_manager") {
+          return !isHrFirst;
+        }
+        if (normalizedRole === "hr") {
+          return request.status === "pending" ? isHrFirst : true;
+        }
+        return false;
+      });
     }
-    // Broad-scope roles always see all (filteredData remains as data)
 
     const requestsData = filteredData as any[];
 
@@ -600,19 +580,22 @@ export default function LeaveApprovalPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Enforce 2-step approval: manager/OT approver first, then HR
-    // HR group approvers can ONLY approve at HR level (approved_by_manager → approved_by_hr)
-    if (level === "hr" && request.status !== "approved_by_manager") {
+    const isHrFirst = isHrFirstApproverPosition(getRequestPositionName(request));
+
+    if (
+      level === "hr" &&
+      request.status !== "approved_by_manager" &&
+      !(request.status === "pending" && isHrFirst)
+    ) {
       toast.error("Approval workflow error", {
-        description: "HR can only approve requests that have been approved by manager first",
+        description: "HR can only approve eligible pending requests or those already approved by Operations Manager",
       });
       return;
     }
 
-    // Enforce that manager/OT approver can only approve pending requests
-    if (level === "manager" && request.status !== "pending") {
+    if (level === "manager" && (request.status !== "pending" || isHrFirst)) {
       toast.error("Invalid request status", {
-        description: "Manager/OT approver can only approve pending requests",
+        description: "Operations Manager can only approve pending requests outside the HR-first positions",
       });
       return;
     }
@@ -648,7 +631,7 @@ export default function LeaveApprovalPage() {
         .from("leave_requests")
         .update(patch)
         .eq("id", request.id)
-        .eq("status", "approved_by_manager");
+        .eq("status", request.status);
       finalError = error;
     }
 
@@ -662,11 +645,13 @@ export default function LeaveApprovalPage() {
 
     const employeeName = request.employees?.full_name || "Employee";
     toast.success(
-      `Leave request ${level === "manager" ? "approved by manager" : "approved by HR"}!`,
+      `Leave request ${level === "manager" ? "approved by Operations Manager" : "approved by HR"}!`,
       {
         description: `${employeeName}'s ${request.leave_type} request for ${
           request.total_days || 0
-        } day(s) has been ${level === "manager" ? "approved. Awaiting HR approval." : "fully approved."}`,
+        } day(s) has been ${
+          level === "manager" ? "approved. Awaiting HR approval." : "fully approved."
+        }`,
       }
     );
     fetchRequests();
@@ -718,13 +703,11 @@ export default function LeaveApprovalPage() {
     setRejectionReason("");
   }
 
-  const normalizedRole = userRole?.trim().toLowerCase() || "";
-
   // This useEffect must be called before any conditional returns (React hooks rule)
   useEffect(() => {
-    if (!normalizedRole || groupsLoading) return;
+    if (!normalizedRole || !canManageLeave) return;
     fetchRequests();
-  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR, role]);
+  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, canManageLeave, isAdmin, isHR]);
 
   // Show loading state while checking role
   if (roleLoading) {
@@ -741,21 +724,12 @@ export default function LeaveApprovalPage() {
     );
   }
 
-  // Allow admin, upper_management (treated as admin), hr, approver, and viewer
-  if (
-    role !== "admin" &&
-    role !== "upper_management" &&
-    role !== "hr" &&
-    role !== "approver" &&
-    role !== "viewer" &&
-    role !== "project_manager" &&
-    role !== "operations_manager"
-  ) {
+  if (!canManageLeave) {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Upper Management, HR, Project Managers, Approvers, and Viewers can access leave approvals.
+            Only Admin, Upper Management, HR, and Operations Managers can access leave approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -773,64 +747,7 @@ export default function LeaveApprovalPage() {
   };
 
   const canApprove = (request: LeaveRequest): boolean => {
-    // Don't show buttons until user role is loaded
-    if (!normalizedRole) {
-      console.log("canApprove: userRole not loaded yet");
-      return false;
-    }
-
-    // Viewers can only view, not approve
-    if (normalizedRole === "viewer") {
-      return false;
-    }
-
-    // Admin can approve any pending or manager-approved request
-    if (normalizedRole === "admin" || normalizedRole === "upper_management") {
-      const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
-      console.log(`canApprove (admin):`, {
-        status: request.status,
-        canApprove: canApproveResult,
-      });
-      return canApproveResult;
-    }
-
-    if (normalizedRole === "approver") {
-      // Account managers and approvers approve pending requests
-      const canApproveResult = request.status === "pending";
-      console.log(`canApprove (${normalizedRole} on pending):`, {
-        status: request.status,
-        canApprove: canApproveResult,
-      });
-      return canApproveResult;
-    }
-
-    if (
-      normalizedRole === "project_manager" ||
-      normalizedRole === "operations_manager"
-    ) {
-      const canApproveResult = request.status === "pending";
-      console.log(`canApprove (${normalizedRole} on pending):`, {
-        status: request.status,
-        canApprove: canApproveResult,
-      });
-      return canApproveResult;
-    }
-
-    if (normalizedRole === "hr") {
-      // HR can approve all requests (both steps), including own direct reports - same as admin
-      const canApproveResult = request.status === "pending" || request.status === "approved_by_manager";
-      console.log("canApprove (hr - both steps):", {
-        status: request.status,
-        canApprove: canApproveResult,
-      });
-      return canApproveResult;
-    }
-
-    console.log(
-      "canApprove: userRole does not match any condition:",
-      normalizedRole
-    );
-    return false;
+    return getApprovalLevel(request) !== null;
   };
 
   return (
@@ -1169,23 +1086,14 @@ export default function LeaveApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // OT Approvers approve at "manager" level (first step: pending → approved_by_manager)
-                          // HR group approvers approve at "hr" level (second step: approved_by_manager → approved_by_hr)
-                          // Admin can approve at either level based on request status
-                          const approvalLevel =
-                            normalizedRole === "approver" ||
-                            ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
-                              request.status === "pending")
-                              ? "manager"
-                              : "hr";
+                          const approvalLevel = getApprovalLevel(request);
+                          if (!approvalLevel) return;
                           handleApprove(request, approvalLevel);
                         }}
                       >
                         <Icon name="Check" size={IconSizes.sm} />
-                        {normalizedRole === "approver" ||
-                        ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
-                          request.status === "pending")
-                          ? "Approve (Manager)"
+                        {getApprovalLevel(request) === "manager"
+                          ? "Approve (Operations Manager)"
                           : "Approve (HR)"}
                       </Button>
                     </HStack>
@@ -1507,23 +1415,14 @@ export default function LeaveApprovalPage() {
                         </Button>
                         <Button
                           onClick={() => {
-                            // OT Approvers approve at "manager" level (first step: pending → approved_by_manager)
-                            // HR group approvers approve at "hr" level (second step: approved_by_manager → approved_by_hr)
-                            // Admin can approve at either level based on request status
-                            const approvalLevel =
-                              normalizedRole === "approver" ||
-                              ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
-                                selectedRequest.status === "pending")
-                                ? "manager"
-                                : "hr";
+                            const approvalLevel = getApprovalLevel(selectedRequest);
+                            if (!approvalLevel) return;
                             handleApprove(selectedRequest, approvalLevel);
                           }}
                         >
                           <Icon name="Check" size={IconSizes.sm} />
-                          {normalizedRole === "approver" ||
-                          ((normalizedRole === "admin" || normalizedRole === "upper_management") &&
-                            selectedRequest.status === "pending")
-                            ? "Approve (Manager)"
+                          {getApprovalLevel(selectedRequest) === "manager"
+                            ? "Approve (Operations Manager)"
                             : "Approve (HR)"}
                         </Button>
                       </DialogFooter>

@@ -20,13 +20,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
-import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { toast } from "sonner";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
-import { fetchEmployeeIdsForOtApproverOrViewer } from "@/lib/employeeOvertimeAssignments";
+import {
+  isHrFirstApproverPosition,
+  normalizePositionName,
+} from "@/lib/requestApprovalRouting";
 
 type OvertimeDocument = {
   id: string;
@@ -55,28 +57,23 @@ type OTRequest = {
     full_name: string;
     employee_id: string;
     profile_picture_url?: string | null;
-    overtime_group_id?: string | null;
+    positions?: { name: string | null } | null;
   };
 };
 
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { isAdmin, role, isHR, isApprover, isViewer, isRestrictedAccess, loading: roleLoading } = useUserRole();
-  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-
-  /** See every OT request (no group filter). PM / ops managers use assigned overtime groups instead. */
-  const seesAllOvertimeRequests = isAdmin || isHR;
+  const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
+  const normalizedRole = (role || "").trim().toLowerCase();
+  const canManageOvertime =
+    isAdmin ||
+    normalizedRole === "upper_management" ||
+    isHR ||
+    normalizedRole === "operations_manager";
 
   /** May approve or reject pending OT (not viewers). */
-  const canActOnPendingOvertime =
-    isAdmin ||
-    isHR ||
-    role === "approver" ||
-    role === "project_manager" ||
-    role === "operations_manager";
-
-  // HR can approve all OT requests (no group assignment required)
+  const canActOnPendingOvertime = canManageOvertime;
 
   // All hooks must be declared before any conditional returns
   const [loading, setLoading] = useState(true);
@@ -93,6 +90,25 @@ export default function OvertimeApprovalPage() {
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
+
+  const getEmployeePositionName = (request: OTRequest): string => {
+    if (Array.isArray(request.employees)) {
+      return normalizePositionName(request.employees[0]?.positions?.name);
+    }
+    return normalizePositionName(request.employees?.positions?.name);
+  };
+
+  const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
+    if (request.status !== "pending") return false;
+    if (isAdmin || normalizedRole === "upper_management") return true;
+    if (normalizedRole === "operations_manager") {
+      return !isHrFirstApproverPosition(getEmployeePositionName(request));
+    }
+    if (isHR) {
+      return isHrFirstApproverPosition(getEmployeePositionName(request));
+    }
+    return false;
+  };
 
   // HR users also have approver permissions, so they can access this page
   // Allow approver, HR, and viewer roles
@@ -174,7 +190,9 @@ export default function OvertimeApprovalPage() {
           full_name,
           employee_id,
           profile_picture_url,
-          overtime_group_id
+          positions:position_id (
+            name
+          )
         )
       `
       )
@@ -237,83 +255,16 @@ export default function OvertimeApprovalPage() {
       }
     }
 
-    // Filter by assigned groups AND individual approver assignments:
-    // - Admin / upper_management / HR: see all (seesAllOvertimeRequests)
-    // - PM / ops / approver / viewer: assigned overtime_groups and/or per-employee approver columns
     let filteredData: OTRequest[] | null = dataWithDocs;
-    if (!seesAllOvertimeRequests && dataWithDocs.length > 0) {
-      const data = dataWithDocs;
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        filteredData = [];
-      } else {
-        const individualIds = await fetchEmployeeIdsForOtApproverOrViewer(
-          supabase,
-          user.id
-        );
-        const individualEmployeeIds = new Set(individualIds);
-
-        console.log("Filtering requests for approver/viewer:", {
-          totalRequests: data.length,
-          assignedGroupIds: assignedGroupIds,
-          individualEmployeeIds: Array.from(individualEmployeeIds),
-          isAdmin: isAdmin,
-          isHR: isHR,
-        });
-
-        filteredData = data.filter((req: any) => {
-          // Handle both array and object formats for employees relationship
-          let employeeGroupId = null;
-          let employeeId = null;
-          let employeeName = "Unknown";
-
-          if (Array.isArray(req.employees)) {
-            employeeGroupId = req.employees[0]?.overtime_group_id;
-            employeeId = req.employees[0]?.id;
-            employeeName = req.employees[0]?.full_name || "Unknown";
-          } else if (req.employees) {
-            employeeGroupId = req.employees.overtime_group_id;
-            employeeId = req.employees.id;
-            employeeName = req.employees.full_name || "Unknown";
-          }
-
-          // Check if employee is in assigned groups OR has user as individual approver/viewer
-          const matchesGroup =
-            employeeGroupId && assignedGroupIds.includes(employeeGroupId);
-          const matchesIndividual =
-            employeeId && individualEmployeeIds.has(employeeId);
-
-          const matches = matchesGroup || matchesIndividual;
-
-          if (!matches) {
-            console.log(
-              `Filtered out: ${employeeName} (group: ${employeeGroupId || "NULL"}, individual: ${matchesIndividual})`
-            );
-          }
-
-          return matches;
-        });
-
-        console.log("Filtered requests:", {
-          before: data.length,
-          after: filteredData.length,
-          filteredOut: data.length - filteredData.length,
-        });
-      }
+    if (!isAdmin && normalizedRole !== "upper_management") {
+      filteredData = dataWithDocs.filter((request) =>
+        normalizedRole === "operations_manager"
+          ? !isHrFirstApproverPosition(getEmployeePositionName(request))
+          : isHR
+            ? isHrFirstApproverPosition(getEmployeePositionName(request))
+            : false
+      );
     }
-    // Admin and HR always see all (filteredData remains as data)
-
-    console.log("OT Requests loaded:", {
-      count: filteredData?.length || 0,
-      dateRange: `${weekStartStr} to ${weekEndStr}`,
-      statusFilter,
-      selectedEmployee,
-      assignedGroups: assignedGroupIds,
-      isAdmin: isAdmin,
-    });
     const requestsData = filteredData as Array<{
       status: string;
       account_manager_id?: string | null;
@@ -341,72 +292,19 @@ export default function OvertimeApprovalPage() {
   };
 
   useEffect(() => {
-    if (!groupsLoading) {
+    if (canManageOvertime) {
       loadEmployees();
     }
-  }, [assignedGroupIds, groupsLoading, isAdmin, isHR, role]);
+  }, [canManageOvertime, isAdmin, isHR, normalizedRole]);
 
   async function loadEmployees() {
-    // Admin, HR, project/ops managers see all employees (for filters)
-    if (seesAllOvertimeRequests) {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-        .order("last_name", { ascending: true, nullsFirst: false })
-        .order("first_name", { ascending: true, nullsFirst: false });
-
-      if (error) {
-        console.error("Failed to load employees", error);
-        return;
-      }
-
-      setEmployees(data || []);
-      return;
-    }
-
-    // For approvers/viewers: get employees from assigned groups AND individual assignments
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!canManageOvertime) {
       setEmployees([]);
       return;
     }
-
-    // Get employees from assigned groups
-    let groupEmployeeIds: string[] = [];
-    if (assignedGroupIds.length > 0) {
-      const { data: groupEmployees, error: groupError } = await supabase
-        .from("employees")
-        .select("id")
-        .in("overtime_group_id", assignedGroupIds);
-
-      if (!groupError && groupEmployees) {
-        groupEmployeeIds = groupEmployees.map((e) => e.id);
-      }
-    }
-
-    const individualEmployeeIds = await fetchEmployeeIdsForOtApproverOrViewer(
-      supabase,
-      user.id
-    );
-
-    // Combine and deduplicate employee IDs
-    const allEmployeeIds = Array.from(
-      new Set([...groupEmployeeIds, ...individualEmployeeIds])
-    );
-
-    if (allEmployeeIds.length === 0) {
-      setEmployees([]);
-      return;
-    }
-
-    // Fetch full employee data
     const { data, error } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-      .in("id", allEmployeeIds)
+      .select("id, employee_id, full_name, last_name, first_name, positions:position_id ( name )")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -415,7 +313,19 @@ export default function OvertimeApprovalPage() {
       return;
     }
 
-    setEmployees(data || []);
+    const filteredEmployees = (data || []).filter((employee: any) => {
+      const positionName = normalizePositionName(employee.positions?.name);
+      if (isAdmin || normalizedRole === "upper_management") return true;
+      if (normalizedRole === "operations_manager") {
+        return !isHrFirstApproverPosition(positionName);
+      }
+      if (isHR) {
+        return isHrFirstApproverPosition(positionName);
+      }
+      return false;
+    });
+
+    setEmployees(filteredEmployees);
   }
 
   async function loadApproverNames(ids: string[]) {
@@ -468,31 +378,25 @@ export default function OvertimeApprovalPage() {
   useEffect(() => {
     const canLoadOtRequests =
       role &&
-      !groupsLoading &&
       (role === "admin" ||
         role === "upper_management" ||
         role === "hr" ||
-        role === "approver" ||
-        role === "viewer" ||
-        role === "project_manager" ||
         role === "operations_manager");
 
     if (canLoadOtRequests) {
-      console.log("Loading requests with:", {
-        role,
-        isAdmin,
-        isHR,
-        assignedGroupIds,
-        groupsLoading,
-      });
       loadRequests();
     }
-  }, [selectedWeek, statusFilter, selectedEmployee, role, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [selectedWeek, statusFilter, selectedEmployee, role, isAdmin, isHR, normalizedRole]);
 
   const handleApprove = async (id: string) => {
     setActioningId(id);
     // Get request details for toast message
     const request = requests.find((r) => r.id === id);
+    if (!request || !canCurrentUserActOnRequest(request)) {
+      toast.error("You do not have permission to approve this request.");
+      setActioningId(null);
+      return;
+    }
     const employeeName = request?.employees?.full_name || "Employee";
 
     const {
@@ -534,6 +438,11 @@ export default function OvertimeApprovalPage() {
     setActioningId(id);
     // Get request details for toast message
     const request = requests.find((r) => r.id === id);
+    if (!request || !canCurrentUserActOnRequest(request)) {
+      toast.error("You do not have permission to reject this request.");
+      setActioningId(null);
+      return;
+    }
     const employeeName = request?.employees?.full_name || "Employee";
 
     const {
@@ -571,8 +480,8 @@ export default function OvertimeApprovalPage() {
     setActioningId(null);
   };
 
-  // Show loading state while checking role or loading groups
-  if (roleLoading || groupsLoading) {
+  // Show loading state while checking role access
+  if (roleLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -586,20 +495,12 @@ export default function OvertimeApprovalPage() {
     );
   }
 
-  // Only allow admins, HR, approvers, and viewers
-  if (
-    role !== "upper_management" &&
-    role !== "hr" &&
-    role !== "approver" &&
-    role !== "viewer" &&
-    role !== "project_manager" &&
-    role !== "operations_manager"
-  ) {
+  if (!canManageOvertime) {
     return (
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Project Managers, HR, Upper Management, OT Approvers, and OT Viewers can access OT approvals.
+            Only Admin, Upper Management, HR, and Operations Managers can access OT approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -852,7 +753,7 @@ export default function OvertimeApprovalPage() {
                         {req.status.toUpperCase()}
                       </Badge>
                     </HStack>
-                    {req.status === "pending" && canActOnPendingOvertime && (
+                    {canActOnPendingOvertime && canCurrentUserActOnRequest(req) && (
                         <HStack
                           gap="2"
                           align="center"
@@ -1087,7 +988,7 @@ export default function OvertimeApprovalPage() {
               >
                 Close
               </Button>
-              {selected?.status === "pending" && canActOnPendingOvertime && (
+              {selected && canActOnPendingOvertime && canCurrentUserActOnRequest(selected) && (
                   <div className="flex gap-2">
                     <Button
                       variant="destructive"

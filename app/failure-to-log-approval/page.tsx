@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
-import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import {
   Card,
   CardContent,
@@ -39,8 +38,11 @@ import { formatPHTime } from "@/utils/format";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { fetchEmployeeIdsForOtApproverOrViewer } from "@/lib/employeeOvertimeAssignments";
 import { MetricCard } from "@/components/ui/metric-card";
+import {
+  isHrFirstApproverPosition,
+  normalizePositionName,
+} from "@/lib/requestApprovalRouting";
 
 interface FailureToLog {
   id: string;
@@ -62,6 +64,7 @@ interface FailureToLog {
     employee_id: string;
     full_name: string;
     profile_picture_url?: string | null;
+    positions?: { name: string | null } | null;
   };
   time_clock_entries?: {
     clock_in_time: string;
@@ -73,16 +76,14 @@ export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
   const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
-  const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
-
-  const canActOnFailureToLog =
+  const normalizedRole = (role || "").trim().toLowerCase();
+  const canManageFailureToLog =
     isAdmin ||
+    normalizedRole === "upper_management" ||
     isHR ||
-    role === "approver" ||
-    role === "project_manager" ||
-    role === "operations_manager";
+    normalizedRole === "operations_manager";
 
-  // HR can approve all failure-to-log requests (no group assignment required)
+  const canActOnFailureToLog = canManageFailureToLog;
 
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
@@ -102,6 +103,21 @@ export default function FailureToLogApprovalPage() {
     {}
   );
 
+  const getEmployeePositionName = (request: FailureToLog): string =>
+    normalizePositionName(request.employees?.positions?.name);
+
+  const canCurrentUserActOnRequest = (request: FailureToLog): boolean => {
+    if (request.status !== "pending") return false;
+    if (isAdmin || normalizedRole === "upper_management") return true;
+    if (normalizedRole === "operations_manager") {
+      return !isHrFirstApproverPosition(getEmployeePositionName(request));
+    }
+    if (isHR) {
+      return isHrFirstApproverPosition(getEmployeePositionName(request));
+    }
+    return false;
+  };
+
   // HR users also have approver permissions, so they can access this page
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
@@ -117,74 +133,19 @@ export default function FailureToLogApprovalPage() {
   };
 
   useEffect(() => {
-    if (!groupsLoading) {
+    if (canManageFailureToLog) {
       loadEmployees();
     }
-  }, [assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [canManageFailureToLog, isAdmin, isHR, normalizedRole]);
 
   async function loadEmployees() {
-    if (groupsLoading) return;
-
-    // Admin and HR see all employees (filters); others see group / individual scope
-    if (isAdmin || isHR) {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-        .order("last_name", { ascending: true, nullsFirst: false })
-        .order("first_name", { ascending: true, nullsFirst: false });
-
-      if (error) {
-        console.error("Failed to load employees", error);
-        return;
-      }
-
-      setEmployees(data || []);
-      return;
-    }
-
-    // For approvers/viewers: get employees from assigned groups AND individual assignments
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!canManageFailureToLog) {
       setEmployees([]);
       return;
     }
-
-    // Get employees from assigned groups
-    let groupEmployeeIds: string[] = [];
-    if (assignedGroupIds.length > 0) {
-      const { data: groupEmployees, error: groupError } = await supabase
-        .from("employees")
-        .select("id")
-        .in("overtime_group_id", assignedGroupIds);
-
-      if (!groupError && groupEmployees) {
-        groupEmployeeIds = groupEmployees.map((e) => e.id);
-      }
-    }
-
-    const individualEmployeeIds = await fetchEmployeeIdsForOtApproverOrViewer(
-      supabase,
-      user.id
-    );
-
-    // Combine and deduplicate employee IDs
-    const allEmployeeIds = Array.from(
-      new Set([...groupEmployeeIds, ...individualEmployeeIds])
-    );
-
-    if (allEmployeeIds.length === 0) {
-      setEmployees([]);
-      return;
-    }
-
-    // Fetch full employee data
     const { data, error } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, overtime_group_id, last_name, first_name")
-      .in("id", allEmployeeIds)
+      .select("id, employee_id, full_name, last_name, first_name, positions:position_id ( name )")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -193,14 +154,26 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    setEmployees(data || []);
+    const filteredEmployees = (data || []).filter((employee: any) => {
+      const positionName = normalizePositionName(employee.positions?.name);
+      if (isAdmin || normalizedRole === "upper_management") return true;
+      if (normalizedRole === "operations_manager") {
+        return !isHrFirstApproverPosition(positionName);
+      }
+      if (isHR) {
+        return isHrFirstApproverPosition(positionName);
+      }
+      return false;
+    });
+
+    setEmployees(filteredEmployees);
   }
 
   useEffect(() => {
-    if (!groupsLoading) {
+    if (canManageFailureToLog) {
       fetchRequests();
     }
-  }, [statusFilter, selectedWeek, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [statusFilter, selectedWeek, selectedEmployee, canManageFailureToLog, isAdmin, isHR, normalizedRole]);
 
   async function fetchRequests() {
     setLoading(true);
@@ -220,7 +193,10 @@ export default function FailureToLogApprovalPage() {
         employees (
           employee_id,
           full_name,
-          profile_picture_url
+          profile_picture_url,
+          positions:position_id (
+            name
+          )
         ),
         time_clock_entries (
           clock_in_time,
@@ -250,52 +226,16 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    // Filter by assigned groups:
-    // - Admin: See all (no filtering)
-    // - HR: Always see all (bypass group filtering, even if assigned to groups)
-    // - Approver/Viewer: Filter by assigned groups only
     let filteredData = data;
-    if (!isAdmin && !isHR && data) {
-      // Only approver/viewer users filter by groups AND individual assignments
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const individualIds = await fetchEmployeeIdsForOtApproverOrViewer(
-          supabase,
-          user.id
-        );
-        const individualEmployeeIds = new Set(individualIds);
-
-        // Need to fetch employee group IDs for filtering
-        const employeeIds = Array.from(new Set(data.map((r: any) => r.employee_id)));
-        const { data: employeesData } = await supabase
-          .from("employees")
-          .select("id, overtime_group_id")
-          .in("id", employeeIds);
-
-        const employeeGroupMap = new Map(
-          (employeesData || []).map((emp: any) => [emp.id, emp.overtime_group_id])
-        );
-
-        filteredData = data.filter((req: any) => {
-          const employeeGroupId = employeeGroupMap.get(req.employee_id);
-          const employeeId = req.employee_id;
-
-          // Check if employee is in assigned groups OR has user as individual approver/viewer
-          const matchesGroup =
-            employeeGroupId && assignedGroupIds.includes(employeeGroupId);
-          const matchesIndividual =
-            employeeId && individualEmployeeIds.has(employeeId);
-
-          return matchesGroup || matchesIndividual;
-        });
-      } else {
-        filteredData = [];
-      }
+    if (!isAdmin && normalizedRole !== "upper_management" && data) {
+      filteredData = data.filter((request: any) =>
+        normalizedRole === "operations_manager"
+          ? !isHrFirstApproverPosition(request.employees?.positions?.name)
+          : isHR
+            ? isHrFirstApproverPosition(request.employees?.positions?.name)
+            : false
+      );
     }
-    // Admin and HR always see all (filteredData remains as data)
 
     const requestsData = filteredData as Array<{
       status: string;
@@ -371,6 +311,12 @@ export default function FailureToLogApprovalPage() {
 
   async function handleApprove(requestId: string) {
     setApproveLoading(true);
+    const selectedFailureToLog = requests.find((request) => request.id === requestId);
+    if (!selectedFailureToLog || !canCurrentUserActOnRequest(selectedFailureToLog)) {
+      toast.error("You do not have permission to approve this request.");
+      setApproveLoading(false);
+      return;
+    }
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -461,6 +407,11 @@ export default function FailureToLogApprovalPage() {
   }
 
   async function handleReject(requestId: string) {
+    const selectedFailureToLog = requests.find((request) => request.id === requestId);
+    if (!selectedFailureToLog || !canCurrentUserActOnRequest(selectedFailureToLog)) {
+      toast.error("You do not have permission to reject this request.");
+      return;
+    }
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -507,6 +458,32 @@ export default function FailureToLogApprovalPage() {
     approved: requests.filter((r) => r.status === "approved").length,
     rejected: requests.filter((r) => r.status === "rejected").length,
   };
+
+  if (roleLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Icon
+            name="ArrowsClockwise"
+            size={IconSizes.lg}
+            className="animate-spin text-muted-foreground"
+          />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!canManageFailureToLog) {
+    return (
+      <DashboardLayout>
+        <VStack gap="4" className="p-8">
+          <BodySmall>
+            Only Admin, Upper Management, HR, and Operations Managers can access failure to log approvals.
+          </BodySmall>
+        </VStack>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -736,7 +713,7 @@ export default function FailureToLogApprovalPage() {
                       {request.status.toUpperCase()}
                     </Badge>
                   </HStack>
-                  {request.status === "pending" && canActOnFailureToLog && (
+                  {canActOnFailureToLog && canCurrentUserActOnRequest(request) && (
                     <HStack
                       gap="2"
                       align="center"
@@ -922,7 +899,7 @@ export default function FailureToLogApprovalPage() {
                     </div>
                   )}
 
-                {selectedRequest.status === "pending" && (
+                {selectedRequest && canCurrentUserActOnRequest(selectedRequest) && (
                   <div className="space-y-2">
                     <Label htmlFor="rejection-reason">Rejection reason</Label>
                     <textarea
@@ -946,7 +923,7 @@ export default function FailureToLogApprovalPage() {
               >
                 Close
               </Button>
-              {selectedRequest?.status === "pending" && canActOnFailureToLog && (
+              {selectedRequest && canActOnFailureToLog && canCurrentUserActOnRequest(selectedRequest) && (
                 <div className="flex gap-2">
                   <Button
                     variant="destructive"

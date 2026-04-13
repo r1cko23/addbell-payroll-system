@@ -40,10 +40,10 @@ This document outlines the role-based access control (RBAC) system tailored to A
 **Key Permissions:**
 - ✅ Project management (view, create, edit projects)
 - ✅ Client management (view, create, edit clients)
-- ✅ Fund request approval (Project Manager step - first approval)
+- ✅ Fund request approval (first approval for non-excluded employees)
 - ✅ Schedule management (view and edit employee schedules)
-- ✅ Leave/Overtime approvals (for assigned employee groups)
-- ✅ Failure-to-log approvals (for assigned groups)
+- ✅ Leave/Overtime approvals (first approver for most employees)
+- ✅ Failure-to-log approvals (first approver for most employees)
 - ✅ Project progress tracking
 - ✅ Project cost tracking
 - ✅ Employee assignment to projects
@@ -56,10 +56,10 @@ This document outlines the role-based access control (RBAC) system tailored to A
 - Dashboard (workforce overview)
 - Projects (clients, projects, project details)
 - Schedules
-- Leave approval (for assigned groups)
-- Overtime approval (for assigned groups)
-- Failure-to-log approval (for assigned groups)
-- Fund request approval (Project Manager step)
+- Leave approval
+- Overtime approval
+- Failure-to-log approval
+- Fund request approval
 - Project time entries
 - Project costs
 

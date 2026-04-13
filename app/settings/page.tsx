@@ -73,12 +73,6 @@ interface User {
   }[];
 }
 
-interface OvertimeGroup {
-  id: string;
-  name: string;
-  description: string | null;
-}
-
 interface Holiday {
   id: string;
   holiday_date: string;
@@ -91,7 +85,6 @@ export default function SettingsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedOTGroups, setSelectedOTGroups] = useState<string[]>([]);
@@ -175,8 +168,6 @@ export default function SettingsPage() {
 
       // Schema does not include holidays or overtime_groups tables
       setHolidays([]);
-      setOvertimeGroups([]);
-
       // Load users (OT group assignment UI will show empty)
       // IMPORTANT: Set users immediately, even if group loading fails
       if (!usersData || usersData.length === 0) {
@@ -201,40 +192,6 @@ export default function SettingsPage() {
   const isAdmin = currentUser?.role === "admin";
   const isUpperManagement = currentUser?.role === "upper_management";
   const canManageAccessControl = isAdmin || isUpperManagement;
-
-  async function assignUserToOTGroups(
-    userId: string,
-    userRole: "approver" | "viewer",
-    groupIds: string[]
-  ) {
-    // Schema does not include overtime_groups table — no-op
-    if (overtimeGroups.length === 0) return;
-    // First, remove user from all groups
-    if (userRole === "approver") {
-      await (supabase.from("overtime_groups") as any)
-        .update({ approver_id: null })
-        .eq("approver_id", userId);
-    } else {
-      await (supabase.from("overtime_groups") as any)
-        .update({ viewer_id: null })
-        .eq("viewer_id", userId);
-    }
-
-    // Then assign to selected groups
-    for (const groupId of groupIds) {
-      const updateField = userRole === "approver" ? "approver_id" : "viewer_id";
-      const updateData: any = {};
-      updateData[updateField] = userId;
-
-      const { error } = await (supabase.from("overtime_groups") as any)
-        .update(updateData)
-        .eq("id", groupId);
-
-      if (error) {
-        throw new Error(`Failed to assign to group: ${error.message}`);
-      }
-    }
-  }
 
   async function handleCreateUser() {
     console.log("handleCreateUser called", {
@@ -314,26 +271,6 @@ export default function SettingsPage() {
           ? `${data.error}: ${data.details}`
           : data.error || "Failed to create user";
         throw new Error(errorMessage);
-      }
-
-      // If Approver/Viewer, assign to selected groups
-      if ((newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length > 0) {
-        try {
-          await assignUserToOTGroups(data.user.id, newUser.role, selectedOTGroups);
-        } catch (error: any) {
-          console.error("Error assigning OT groups:", error);
-          toast.error("User created but failed to assign OT groups: " + error.message);
-        }
-      }
-
-      // If editing user and role changed to Approver/Viewer, update groups
-      if (editingUser && (newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length > 0) {
-        try {
-          await assignUserToOTGroups(editingUser.id, newUser.role, selectedOTGroups);
-        } catch (error: any) {
-          console.error("Error updating OT groups:", error);
-          toast.error("Failed to update OT groups: " + error.message);
-        }
       }
 
       toast.success(`User created successfully!`, {
@@ -639,15 +576,6 @@ export default function SettingsPage() {
                           <div className="flex items-center gap-2">
                             {/* Summary badges */}
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {user.assigned_ot_groups && user.assigned_ot_groups.length > 0 && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs bg-green-50 text-green-700 border-green-200"
-                                >
-                                  <Icon name="UsersThree" size={IconSizes.xs} className="mr-1" />
-                                  {user.assigned_ot_groups.length} {user.assigned_ot_groups.length === 1 ? 'group' : 'groups'}
-                                </Badge>
-                              )}
                               {user.employee_specific_assignments && user.employee_specific_assignments.length > 0 && (
                                 <Badge
                                   variant="outline"
@@ -658,19 +586,16 @@ export default function SettingsPage() {
                                 </Badge>
                               )}
                               {(user.role === "admin" || user.role === "upper_management") &&
-                               (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
                                (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
                                 <Caption className="text-muted-foreground">Full access</Caption>
                               )}
                               {(user.role === "approver" || user.role === "viewer") &&
-                               (!user.assigned_ot_groups || user.assigned_ot_groups.length === 0) &&
                                (!user.employee_specific_assignments || user.employee_specific_assignments.length === 0) && (
                                 <Caption className="text-muted-foreground">None</Caption>
                               )}
                             </div>
                             {/* View details button */}
-                            {((user.assigned_ot_groups && user.assigned_ot_groups.length > 0) ||
-                              (user.employee_specific_assignments && user.employee_specific_assignments.length > 0)) && (
+                            {(user.employee_specific_assignments && user.employee_specific_assignments.length > 0) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -729,24 +654,6 @@ export default function SettingsPage() {
                                   className="mr-2"
                                 />
                                 Activate
-                              </DropdownMenuItem>
-                            )}
-                            {(user.role === "approver" || user.role === "viewer") && (
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setEditingUser(user);
-                                  // Get currently assigned groups
-                                  const assignedGroupIds = user.assigned_ot_groups?.map(g => g.id) || [];
-                                  setSelectedOTGroups(assignedGroupIds);
-                                  setShowUserModal(true);
-                                }}
-                              >
-                                <Icon
-                                  name="UsersThree"
-                                  size={IconSizes.sm}
-                                  className="mr-2"
-                                />
-                                Manage OT Groups
                               </DropdownMenuItem>
                             )}
                             {(user.role !== "admin" && user.role !== "upper_management") && (
@@ -913,9 +820,9 @@ export default function SettingsPage() {
               full_name: editingUser.full_name,
               password: "", // Don't pre-fill password
               role: editingUser.role,
-              ot_groups: editingUser.assigned_ot_groups?.map(g => g.id) || [],
+              ot_groups: [],
             });
-            setSelectedOTGroups(editingUser.assigned_ot_groups?.map(g => g.id) || []);
+            setSelectedOTGroups([]);
           }
         }}
       >
@@ -928,12 +835,6 @@ export default function SettingsPage() {
               e.preventDefault();
               e.stopPropagation();
 
-              // Validate OT groups for Approver/Viewer roles
-              if ((newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length === 0) {
-                toast.error("Please select at least one OT group for Approver/Viewer roles");
-                return;
-              }
-
               // If editing, update user without password
               if (editingUser) {
                 setCreatingUser(true);
@@ -944,11 +845,6 @@ export default function SettingsPage() {
                     .eq("id", editingUser.id);
 
                   if (updateError) throw updateError;
-
-                  // Update OT groups if Approver/Viewer
-                  if ((newUser.role === "approver" || newUser.role === "viewer") && selectedOTGroups.length > 0) {
-                    await assignUserToOTGroups(editingUser.id, newUser.role, selectedOTGroups);
-                  }
 
                   toast.success("User updated successfully!");
                   setShowUserModal(false);
@@ -1092,47 +988,6 @@ export default function SettingsPage() {
                 </Select>
               </VStack>
 
-              {/* OT Groups Assignment (only for Approver/Viewer roles) */}
-              {(newUser.role === "approver" || newUser.role === "viewer" || editingUser) && (
-                <VStack gap="2" align="start" className="w-full">
-                  <Label htmlFor="ot_groups">
-                    OT Groups Assignment *
-                    <BodySmall className="text-muted-foreground mt-1">
-                      Select which employee groups this {newUser.role === "approver" ? "approver" : "viewer"} can manage
-                    </BodySmall>
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2 w-full max-h-48 overflow-y-auto border rounded-md p-2">
-                    {overtimeGroups.map((group) => (
-                      <label
-                        key={group.id}
-                        className="flex items-center space-x-2 cursor-pointer hover:bg-accent p-2 rounded"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedOTGroups.includes(group.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedOTGroups([...selectedOTGroups, group.id]);
-                            } else {
-                              setSelectedOTGroups(
-                                selectedOTGroups.filter((id) => id !== group.id)
-                              );
-                            }
-                          }}
-                          disabled={creatingUser}
-                          className="rounded border-gray-300"
-                        />
-                        <BodySmall className="text-sm">{group.name}</BodySmall>
-                      </label>
-                    ))}
-                  </div>
-                  {selectedOTGroups.length === 0 && (
-                    <Caption className="text-destructive">
-                      Please select at least one OT group
-                    </Caption>
-                  )}
-                </VStack>
-              )}
             </VStack>
             <DialogFooter className="mt-6">
               <Button
@@ -1356,42 +1211,6 @@ export default function SettingsPage() {
           </DialogHeader>
 
           <VStack gap="6" className="mt-4">
-            {/* Group-based assignments */}
-            {editingUser?.assigned_ot_groups && editingUser.assigned_ot_groups.length > 0 && (
-              <div>
-                <H4 className="mb-3 flex items-center gap-2">
-                  <Icon name="UsersThree" size={IconSizes.md} className="text-green-600" />
-                  Group-Based Assignments ({editingUser.assigned_ot_groups.length})
-                </H4>
-                <div className="space-y-2">
-                  {editingUser.assigned_ot_groups.map((group) => (
-                    <Card key={group.id} className="p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={
-                              group.approver_id === editingUser.id
-                                ? "bg-green-50 text-green-700 border-green-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }
-                          >
-                            {group.approver_id === editingUser.id ? "Approver" : "Viewer"}
-                          </Badge>
-                          <BodySmall className="font-medium">{group.name}</BodySmall>
-                        </div>
-                        <Caption className="text-muted-foreground">
-                          {group.approver_id === editingUser.id
-                            ? "Can approve OT requests"
-                            : "Can view OT requests"}
-                        </Caption>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Employee-specific assignments */}
             {editingUser?.employee_specific_assignments && editingUser.employee_specific_assignments.length > 0 && (
               <div>
@@ -1432,8 +1251,7 @@ export default function SettingsPage() {
             )}
 
             {/* No assignments */}
-            {(!editingUser?.assigned_ot_groups || editingUser.assigned_ot_groups.length === 0) &&
-             (!editingUser?.employee_specific_assignments || editingUser.employee_specific_assignments.length === 0) && (
+            {(!editingUser?.employee_specific_assignments || editingUser.employee_specific_assignments.length === 0) && (
               <div className="text-center py-8">
                 <Icon name="User" size={IconSizes.lg} className="mx-auto mb-2 opacity-50 text-muted-foreground" />
                 <BodySmall className="text-muted-foreground">No OT assignments</BodySmall>

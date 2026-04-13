@@ -30,7 +30,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
-
 type RowWithRequester = FundRequestRow & {
   employees: {
     employee_id: string;
@@ -46,15 +45,15 @@ const NEXT_STATUS: Record<string, FundRequestRow["status"]> = {
 };
 
 const STEP_LABEL: Record<string, string> = {
-  pending: "Pending PM",
-  project_manager_approved: "Pending PO",
-  purchasing_officer_approved: "Pending Management",
+  pending: "Pending Operations Manager",
+  project_manager_approved: "Pending Purchasing",
+  purchasing_officer_approved: "Pending Upper Management",
 };
 
 const STATUS_LABEL_ALL: Record<string, string> = {
-  pending: "Pending (PM)",
-  project_manager_approved: "Pending (PO)",
-  purchasing_officer_approved: "Pending (Management)",
+  pending: "Pending (Operations Manager)",
+  project_manager_approved: "Pending (Purchasing)",
+  purchasing_officer_approved: "Pending (Upper Management)",
   management_approved: "Approved",
   rejected: "Rejected",
 };
@@ -106,12 +105,11 @@ export default function FundRequestApprovalPage() {
     {},
   );
 
-  // Statuses this role can act on: PM sees only pending, PO only after PM approval, Management only after PO
   const getActionableStatuses = (): FundRequestRow["status"][] => {
     const role = profile?.role;
     if (role === "operations_manager") return ["pending"];
     if (role === "purchasing_officer") return ["project_manager_approved"];
-    if (role === "hr" || role === "admin" || role === "upper_management")
+    if (role === "admin" || role === "upper_management")
       return ["purchasing_officer_approved"];
     return [];
   };
@@ -333,7 +331,6 @@ export default function FundRequestApprovalPage() {
   if (profileLoading)
     return <div className="animate-pulse h-8 w-48 bg-slate-200 rounded" />;
   const canManage =
-    profile?.role === "hr" ||
     profile?.role === "admin" ||
     profile?.role === "upper_management" ||
     profile?.role === "purchasing_officer" ||
@@ -430,7 +427,7 @@ export default function FundRequestApprovalPage() {
         <Badge variant="outline" className="font-normal">Approvals</Badge>
         <h1 className="text-2xl font-semibold tracking-tight">Fund request approvals</h1>
         <p className="text-sm text-muted-foreground">
-          Move requests through PM, Purchasing, and Management approval stages, or reject with a reason.
+          Move requests through Operations, Purchasing, and Upper Management stages, or reject with a reason.
         </p>
       </div>
 
@@ -438,17 +435,17 @@ export default function FundRequestApprovalPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <SummaryStatCard label="Total Requests" value={total} />
         <SummaryStatCard
-          label="Pending (PM)"
+          label="Pending (Operations)"
           value={pendingPm}
           highlight="pending"
         />
         <SummaryStatCard
-          label="Pending (PO)"
+          label="Pending (Purchasing)"
           value={pendingPo}
           highlight="pending"
         />
         <SummaryStatCard
-          label="Pending (Management)"
+          label="Pending (Upper Management)"
           value={pendingMgmt}
           highlight="pending"
         />
@@ -908,7 +905,7 @@ export default function FundRequestApprovalPage() {
                             {r.project_manager_approved_at && (
                               <li>
                                 <span className="font-medium">
-                                  Project Manager:
+                                  Operations Manager:
                                 </span>{" "}
                                 {approverNames[
                                   r.project_manager_approved_by ?? ""
@@ -947,7 +944,7 @@ export default function FundRequestApprovalPage() {
                             )}
                             {r.management_approved_at && (
                               <li>
-                                <span className="font-medium">Management:</span>{" "}
+                                <span className="font-medium">Upper Management:</span>{" "}
                                 {approverNames[
                                   r.management_approved_by ?? ""
                                 ] ?? "—"}{" "}

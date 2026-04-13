@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
-import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useOptionalEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -21,6 +21,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  EmployeeSearchSelect,
+  type EmployeeOption,
+} from "@/components/EmployeeSearchSelect";
+import { resolveLinkedEmployee } from "@/lib/resolveLinkedEmployee";
 
 const PURPOSE_OPTIONS = [
   "Material Purchase",
@@ -78,7 +83,7 @@ function getSubmissionWorkflow(
     management_approved_by: null,
     management_approved_at: null,
     workflowLabel:
-      "Addbell Technical Services, Inc. — Requester → Project Manager → Purchasing Officer → Upper Management",
+      "Addbell Technical Services, Inc. — Requester → Operations Manager → Purchasing Officer → Upper Management",
   };
 }
 
@@ -86,11 +91,20 @@ export default function NewFundRequestPage() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: userLoading } = useCurrentUser();
-  const session = useEmployeeSession();
+  const session = useOptionalEmployeeSession();
   const supabase = createClient();
   const [linkedEmployeeId, setLinkedEmployeeId] = useState<string | null>(null);
   const [resolvingLinkedEmployee, setResolvingLinkedEmployee] = useState(false);
-  const employeeId = session?.employee?.id ?? linkedEmployeeId;
+  const [requesterEmployees, setRequesterEmployees] = useState<EmployeeOption[]>(
+    []
+  );
+  const [selectedRequesterEmployeeId, setSelectedRequesterEmployeeId] =
+    useState<string>("");
+  const employeeId =
+    session?.employee?.id ??
+    linkedEmployeeId ??
+    selectedRequesterEmployeeId ??
+    null;
   const isPortal = (pathname?.startsWith("/app") || pathname?.startsWith("/employee-portal")) ?? false;
   const base = pathname?.startsWith("/employee-portal") ? "/employee-portal/fund-request" : isPortal ? "/app/fund-request" : "/fund-request";
 
@@ -127,26 +141,26 @@ export default function NewFundRequestPage() {
     if (session?.employee?.id || !user?.id || isPortal) return;
     let active = true;
     setResolvingLinkedEmployee(true);
-    supabase
-      .from("employees")
-      .select("id, first_name, last_name")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!active) return;
-        setLinkedEmployeeId(data?.id ?? null);
-        const fullName = [data?.first_name, data?.last_name]
-          .filter(Boolean)
-          .join(" ");
-        if (fullName) {
-          setRequesterName(fullName);
-        }
-        setResolvingLinkedEmployee(false);
-      });
+    resolveLinkedEmployee(supabase, {
+      userId: user.id,
+      email: user.email,
+      fullName: user.full_name,
+    }).then((data) => {
+      if (!active) return;
+      setLinkedEmployeeId(data?.id ?? null);
+      const fullName =
+        [data?.first_name, data?.last_name].filter(Boolean).join(" ") ||
+        data?.full_name ||
+        "";
+      if (fullName) {
+        setRequesterName(fullName);
+      }
+      setResolvingLinkedEmployee(false);
+    });
     return () => {
       active = false;
     };
-  }, [isPortal, session?.employee?.id, supabase, user?.id]);
+  }, [isPortal, session?.employee?.id, supabase, user?.email, user?.full_name, user?.id]);
 
   useEffect(() => {
     supabase
@@ -155,6 +169,35 @@ export default function NewFundRequestPage() {
       .order("name")
       .then(({ data }) => setProjects((data as ProjectOption[]) ?? []));
   }, [supabase]);
+
+  useEffect(() => {
+    if (isPortal || session?.employee?.id || linkedEmployeeId) return;
+
+    supabase
+      .from("employees")
+      .select("id, employee_id, full_name, first_name, last_name")
+      .order("last_name", { ascending: true, nullsFirst: false })
+      .order("first_name", { ascending: true, nullsFirst: false })
+      .then(({ data }) => setRequesterEmployees((data as EmployeeOption[]) ?? []));
+  }, [isPortal, linkedEmployeeId, session?.employee?.id, supabase]);
+
+  useEffect(() => {
+    if (!selectedRequesterEmployeeId) return;
+    const selectedEmployee = requesterEmployees.find(
+      (employee) => employee.id === selectedRequesterEmployeeId
+    );
+    if (!selectedEmployee) return;
+
+    const nextRequesterName =
+      selectedEmployee.full_name ||
+      [selectedEmployee.first_name, selectedEmployee.last_name]
+        .filter(Boolean)
+        .join(" ");
+
+    if (nextRequesterName) {
+      setRequesterName(nextRequesterName);
+    }
+  }, [requesterEmployees, selectedRequesterEmployeeId]);
 
   const handleProjectSelect = (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -180,7 +223,7 @@ export default function NewFundRequestPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!employeeId) {
-      toast.error("Employee not found.");
+      toast.error("Select your employee record before submitting.");
       return;
     }
     const purposeValue = purposeOption === "Others" ? purposeOther.trim() : purposeOption;
@@ -206,6 +249,15 @@ export default function NewFundRequestPage() {
         toast.error("Add at least one detail with amount.");
         setSubmitting(false);
         return;
+      }
+
+      if (!session?.employee?.id && !linkedEmployeeId && selectedRequesterEmployeeId && user?.id) {
+        await supabase
+          .from("employees")
+          .update({ user_id: user.id })
+          .eq("id", selectedRequesterEmployeeId)
+          .is("user_id", null);
+        setLinkedEmployeeId(selectedRequesterEmployeeId);
       }
 
       let companyId: string | null = null;
@@ -260,14 +312,6 @@ export default function NewFundRequestPage() {
 
   const loading = (userLoading || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
-  if (!employeeId) {
-    const msg = (
-      <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-amber-800">
-        Your account is not linked to an employee. Contact HR.
-      </div>
-    );
-    return isPortal ? msg : <DashboardLayout>{msg}</DashboardLayout>;
-  }
 
   const formContent = (
     <div className="flex flex-col min-h-0 max-h-[calc(100vh-6rem)] w-full max-w-6xl gap-4 overflow-hidden">
@@ -287,9 +331,27 @@ export default function NewFundRequestPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Requested by</Label>
-                    <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                      {requesterName || "Loading..."}
-                    </div>
+                    {employeeId ? (
+                      <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                        {requesterName || "Loading..."}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <EmployeeSearchSelect
+                          employees={requesterEmployees}
+                          value={selectedRequesterEmployeeId}
+                          onValueChange={(value) =>
+                            setSelectedRequesterEmployeeId(value === "all" ? "" : value)
+                          }
+                          showAllOption={false}
+                          placeholder="Search your employee name or ID..."
+                        />
+                        <p className="text-xs text-amber-700">
+                          This dashboard account is not linked yet. Select your employee
+                          record once to continue.
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label htmlFor="request_date">Date</Label>

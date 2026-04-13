@@ -6,7 +6,7 @@ import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { VStack } from "@/components/ui/stack";
+import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -29,6 +29,16 @@ interface RecentEmployee {
   hire_date: string;
   employment_status: string;
   departments: { name: string } | null;
+}
+
+function normalizeEmploymentTypeLabel(value: string | null | undefined) {
+  const normalized = (value || "").trim().toLowerCase();
+  if (!normalized) return "Unspecified";
+  if (normalized === "regular") return "Regular";
+  return normalized
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export default function HRDashboard() {
@@ -69,7 +79,7 @@ export default function HRDashboard() {
       (allEmps || []).forEach((emp: any) => {
         const dept = emp.departments?.name || "Unassigned";
         deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
-        const type = emp.employment_type || "unknown";
+        const type = normalizeEmploymentTypeLabel(emp.employment_type);
         typeMap.set(type, (typeMap.get(type) || 0) + 1);
       });
 
@@ -94,7 +104,7 @@ export default function HRDashboard() {
 
   return (
     <VStack gap="8" className="w-full pb-16">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <HStack justify="between" align="start" className="flex-col gap-4 lg:flex-row">
         <div className="space-y-1">
           <Badge variant="outline" className="font-normal">Workforce overview</Badge>
           <H1>People snapshot</H1>
@@ -107,32 +117,40 @@ export default function HRDashboard() {
             <Button size="sm">Open employees</Button>
           </Link>
         </div>
-      </div>
+      </HStack>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <MetricCard
+          className="xl:col-span-3"
           label="Employees"
           value={totalEmployees}
           meta={`${activeEmployees} active · ${inactiveEmployees} inactive`}
           icon={<Icon name="UsersThree" size={IconSizes.sm} />}
         />
         <MetricCard
+          className="xl:col-span-3"
           label="Departments"
           value={deptStats.length}
           meta="Teams with assigned employees"
           icon={<Icon name="Users" size={IconSizes.sm} />}
         />
-        <Card className="rounded-2xl border bg-card/90 shadow-sm">
+        <Card className="rounded-2xl border bg-card/90 shadow-sm xl:col-span-6">
           <CardHeader className="pb-3">
             <CardDescription>Employment types</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {typeBreakdown.map((t) => (
-                <Badge key={t.type} variant="outline" className="capitalize text-xs">
-                  {t.type}: {t.count}
-                </Badge>
+                <div key={t.type} className="rounded-xl border bg-background/80 p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Employment type
+                  </p>
+                  <HStack justify="between" align="end" className="mt-2">
+                    <p className="text-base font-semibold">{t.type}</p>
+                    <p className="text-2xl font-semibold tabular-nums">{t.count}</p>
+                  </HStack>
+                </div>
               ))}
               {typeBreakdown.length === 0 && <p className="text-xs text-muted-foreground">No data</p>}
             </div>
@@ -141,8 +159,8 @@ export default function HRDashboard() {
       </div>
 
       {/* Department Breakdown & Recent Hires */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CardSection title="By department" description="Active employee count per department.">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <CardSection title="By department" description="Active employee count per department." className="xl:col-span-4">
           {deptStats.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No department data.</p>
           ) : (
@@ -162,7 +180,7 @@ export default function HRDashboard() {
           )}
         </CardSection>
 
-        <CardSection title="Recent hires" description="Latest employees by hire date.">
+        <CardSection title="Recent hires" description="Latest employees by hire date." className="xl:col-span-8">
           {recentHires.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No employees yet.</p>
           ) : (

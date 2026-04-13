@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/lib/hooks/useProfile';
-import { useEmployeeSession } from '@/contexts/EmployeeSessionContext';
+import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { format } from 'date-fns';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,10 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import type { FundRequestRow } from '@/types/fund-request';
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending (Project Manager)',
-  project_manager_approved: 'Approved by Project Manager (Purchasing Officer)',
-  purchasing_officer_approved: 'Approved by Purchasing Officer (Management)',
-  management_approved: 'Approved by Management',
+  pending: 'Pending (Operations Manager)',
+  project_manager_approved: 'Approved by Operations Manager (Purchasing Officer)',
+  purchasing_officer_approved: 'Approved by Purchasing Officer (Upper Management)',
+  management_approved: 'Approved by Upper Management',
   rejected: 'Rejected',
 };
 
@@ -27,7 +27,7 @@ export default function FundRequestDetailPage() {
   const params = useParams();
   const pathname = usePathname();
   const { profile, loading: profileLoading } = useProfile();
-  const session = useEmployeeSession();
+  const session = useOptionalEmployeeSession();
   const supabase = createClient();
   const isPortal = (pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal')) ?? false;
   const base = pathname?.startsWith('/employee-portal') ? '/employee-portal/fund-request' : isPortal ? '/app/fund-request' : '/fund-request';

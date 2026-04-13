@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
 import { H1, BodySmall } from "@/components/ui/typography";
+import { usePermissions } from "@/lib/hooks/usePermissions";
+import { useProfile } from "@/lib/hooks/useProfile";
 
 interface DashboardStats {
   totalEmployees: number;
@@ -71,11 +73,18 @@ const statusStyles: Record<string, string> = {
 
 export default function AdminDashboard() {
   const supabase = createClient();
+  const { canCreate, canRead } = usePermissions();
+  const { profile } = useProfile();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentFR, setRecentFR] = useState<RecentFundRequest[]>([]);
   const [recentPO, setRecentPO] = useState<RecentPO[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const canReadPurchaseOrders = canRead("purchase_orders");
+  const canCreatePurchaseOrders = canCreate("purchase_orders");
+  const canReadPayslips = canRead("payslips");
+  const canReadEmployees = canRead("employees");
+  const showFundRequestActions = Boolean(profile);
 
   useEffect(() => {
     fetchDashboard();
@@ -150,9 +159,11 @@ export default function AdminDashboard() {
           </BodySmall>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link href="/fund-request-approval">
-            <Button variant="outline" size="sm">Fund Requests</Button>
-          </Link>
+          {showFundRequestActions ? (
+            <Link href="/fund-request-approval">
+              <Button variant="outline" size="sm">Fund Requests</Button>
+            </Link>
+          ) : null}
           <Link href="/purchase-order">
             <Button size="sm">Purchase Orders</Button>
           </Link>
@@ -286,9 +297,11 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
-          <div className="flex justify-end mt-2">
-            <Link href="/purchase-order"><Button variant="ghost" size="sm">View All →</Button></Link>
-          </div>
+          {canReadPurchaseOrders ? (
+            <div className="flex justify-end mt-2">
+              <Link href="/purchase-order"><Button variant="ghost" size="sm">View All →</Button></Link>
+            </div>
+          ) : null}
         </CardSection>
       </div>
 
@@ -297,10 +310,23 @@ export default function AdminDashboard() {
         <CardHeader><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Link href="/payroll"><Button variant="outline" size="sm"><Icon name="Receipt" size={IconSizes.sm} className="mr-2" />Run Payroll</Button></Link>
-            <Link href="/fund-request/new"><Button variant="outline" size="sm"><Icon name="Plus" size={IconSizes.sm} className="mr-2" />New Fund Request</Button></Link>
-            <Link href="/purchase-order"><Button variant="outline" size="sm"><Icon name="Plus" size={IconSizes.sm} className="mr-2" />New Purchase Order</Button></Link>
-            <Link href="/employees"><Button variant="outline" size="sm"><Icon name="UsersThree" size={IconSizes.sm} className="mr-2" />Manage Employees</Button></Link>
+            {canReadPayslips ? (
+              <Link href="/payroll"><Button variant="outline" size="sm"><Icon name="Receipt" size={IconSizes.sm} className="mr-2" />Run Payroll</Button></Link>
+            ) : null}
+            {showFundRequestActions ? (
+              <Link href="/fund-request/new"><Button variant="outline" size="sm"><Icon name="Plus" size={IconSizes.sm} className="mr-2" />New Fund Request</Button></Link>
+            ) : null}
+            {canReadPurchaseOrders ? (
+              <Link href="/purchase-order">
+                <Button variant="outline" size="sm">
+                  <Icon name={canCreatePurchaseOrders ? "Plus" : "FileText"} size={IconSizes.sm} className="mr-2" />
+                  {canCreatePurchaseOrders ? "New Purchase Order" : "View Purchase Orders"}
+                </Button>
+              </Link>
+            ) : null}
+            {canReadEmployees ? (
+              <Link href="/employees"><Button variant="outline" size="sm"><Icon name="UsersThree" size={IconSizes.sm} className="mr-2" />Manage Employees</Button></Link>
+            ) : null}
             <Link href="/projects"><Button variant="outline" size="sm"><Icon name="ChartLineUp" size={IconSizes.sm} className="mr-2" />View Projects</Button></Link>
           </div>
         </CardContent>

@@ -29,6 +29,7 @@ import {
 import { Printer, Plus, Trash2, FileDown, Hash, Save, Search, ArrowLeft, List } from "lucide-react";
 import { toast } from "sonner";
 import { normalizePOData } from "@/utils/po-format";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 
 const emptyVendor: PurchaseOrderVendor = { name: "", contactPerson: "", tin: "", address: "", phone: "", email: "" };
 const emptyItem = (n: number): PurchaseOrderLineItem => ({ itemNo: n, description: "", qty: "", unitPrice: 0, totalAmount: 0 });
@@ -76,7 +77,10 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive"> = {
 
 export default function PurchaseOrderPage() {
   const supabase = createClient();
+  const { canCreate, canRead, loading: permissionsLoading } = usePermissions();
   const [view, setView] = useState<"list" | "create">("list");
+  const canReadPurchaseOrders = canRead("purchase_orders");
+  const canCreatePurchaseOrders = canCreate("purchase_orders");
 
   // ----- LIST STATE -----
   const [poList, setPoList] = useState<PORow[]>([]);
@@ -94,7 +98,16 @@ export default function PurchaseOrderPage() {
     setListLoading(false);
   }, [supabase]);
 
-  useEffect(() => { fetchPOList(); }, [fetchPOList]);
+  useEffect(() => {
+    if (permissionsLoading || !canReadPurchaseOrders) return;
+    fetchPOList();
+  }, [canReadPurchaseOrders, fetchPOList, permissionsLoading]);
+
+  useEffect(() => {
+    if (!canCreatePurchaseOrders && view === "create") {
+      setView("list");
+    }
+  }, [canCreatePurchaseOrders, view]);
 
   const filteredPOs = poList.filter((po) => {
     if (statusFilter !== "all" && po.status !== statusFilter) return false;
@@ -131,7 +144,7 @@ export default function PurchaseOrderPage() {
   const [isSavingPO, setIsSavingPO] = useState(false);
 
   useEffect(() => {
-    if (view !== "create") return;
+    if (view !== "create" || !canCreatePurchaseOrders) return;
     (async () => {
       const [vRes, pRes] = await Promise.all([
         supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email").eq("is_active", true).order("name"),
@@ -192,6 +205,10 @@ export default function PurchaseOrderPage() {
   };
 
   const handleSaveAndPost = useCallback(async () => {
+    if (!canCreatePurchaseOrders) {
+      toast.error("You only have view access to purchase orders.");
+      return;
+    }
     if (!selectedProjectId) { toast.error("Select a project before saving PO."); return; }
     if (!selectedVendorId) { toast.error("Select a vendor before saving PO."); return; }
     if (!poNumber.trim()) { toast.error("Generate a PO number first."); return; }
@@ -246,7 +263,7 @@ export default function PurchaseOrderPage() {
     } finally {
       setIsSavingPO(false);
     }
-  }, [poData, poNumber, selectedProjectId, selectedVendorId, supabase, fetchPOList]);
+  }, [canCreatePurchaseOrders, poData, poNumber, selectedProjectId, selectedVendorId, supabase, fetchPOList]);
 
   const handlePrint = useCallback(() => {
     if (!printRef.current) { toast.error("Print content not ready."); return; }
@@ -291,9 +308,13 @@ export default function PurchaseOrderPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Purchase Orders</h1>
-          <p className="text-muted-foreground text-sm mt-1">Create, view, and manage purchase orders.</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {canCreatePurchaseOrders ? "Create, view, and manage purchase orders." : "View purchase orders."}
+          </p>
         </div>
-        <Button onClick={() => setView("create")}><Plus className="h-4 w-4 mr-2" />New PO</Button>
+        {canCreatePurchaseOrders ? (
+          <Button onClick={() => setView("create")}><Plus className="h-4 w-4 mr-2" />New PO</Button>
+        ) : null}
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
@@ -480,9 +501,23 @@ export default function PurchaseOrderPage() {
     </div>
   );
 
-  return (
-    <DashboardLayout>
-      {view === "list" ? listView : createView}
-    </DashboardLayout>
-  );
+  if (permissionsLoading) {
+    return (
+      <DashboardLayout>
+        <div className="p-8 text-center text-muted-foreground">Loading purchase orders...</div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!canReadPurchaseOrders) {
+    return (
+      <DashboardLayout>
+        <div className="p-8 text-center text-muted-foreground">
+          You do not have access to view purchase orders.
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return <DashboardLayout>{view === "list" ? listView : createView}</DashboardLayout>;
 }

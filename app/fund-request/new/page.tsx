@@ -35,13 +35,62 @@ const DETAIL_ROWS = 5;
 type DetailRow = { description: string; amount: string };
 type ProjectOption = { id: string; code: string; name: string; site_address: string | null; contract_value: number | null };
 
+function getSubmissionWorkflow(
+  role: string | undefined,
+  isPortal: boolean,
+  currentUserId: string | null
+) {
+  const timestamp = new Date().toISOString();
+  if (!isPortal && role === "operations_manager" && currentUserId) {
+    return {
+      status: "project_manager_approved",
+      project_manager_approved_by: currentUserId,
+      project_manager_approved_at: timestamp,
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      management_approved_by: null,
+      management_approved_at: null,
+      workflowLabel:
+        "Addbell Technical Services, Inc. — Requester/Operations Manager → Purchasing Officer → Upper Management",
+    };
+  }
+
+  if (!isPortal && role === "purchasing_officer" && currentUserId) {
+    return {
+      status: "purchasing_officer_approved",
+      project_manager_approved_by: null,
+      project_manager_approved_at: null,
+      purchasing_officer_approved_by: currentUserId,
+      purchasing_officer_approved_at: timestamp,
+      management_approved_by: null,
+      management_approved_at: null,
+      workflowLabel:
+        "Addbell Technical Services, Inc. — Requester/Purchasing Officer → Upper Management",
+    };
+  }
+
+  return {
+    status: "pending",
+    project_manager_approved_by: null,
+    project_manager_approved_at: null,
+    purchasing_officer_approved_by: null,
+    purchasing_officer_approved_at: null,
+    management_approved_by: null,
+    management_approved_at: null,
+    workflowLabel:
+      "Addbell Technical Services, Inc. — Requester → Project Manager → Purchasing Officer → Upper Management",
+  };
+}
+
 export default function NewFundRequestPage() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: userLoading } = useCurrentUser();
   const session = useEmployeeSession();
   const supabase = createClient();
-  const employeeId = session?.employee?.id ?? null;
+  const [linkedEmployeeId, setLinkedEmployeeId] = useState<string | null>(null);
+  const [resolvingLinkedEmployee, setResolvingLinkedEmployee] = useState(false);
+  const employeeId = session?.employee?.id ?? linkedEmployeeId;
   const isPortal = (pathname?.startsWith("/app") || pathname?.startsWith("/employee-portal")) ?? false;
   const base = pathname?.startsWith("/employee-portal") ? "/employee-portal/fund-request" : isPortal ? "/app/fund-request" : "/fund-request";
 
@@ -62,12 +111,42 @@ export default function NewFundRequestPage() {
   const [urgentReason, setUrgentReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const workflow = getSubmissionWorkflow(user?.role, isPortal, user?.id ?? null);
 
   useEffect(() => {
     if (session?.employee?.full_name) {
       setRequesterName(session.employee.full_name);
+      return;
     }
-  }, [session?.employee?.full_name]);
+    if (user?.full_name) {
+      setRequesterName(user.full_name);
+    }
+  }, [session?.employee?.full_name, user?.full_name]);
+
+  useEffect(() => {
+    if (session?.employee?.id || !user?.id || isPortal) return;
+    let active = true;
+    setResolvingLinkedEmployee(true);
+    supabase
+      .from("employees")
+      .select("id, first_name, last_name")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        setLinkedEmployeeId(data?.id ?? null);
+        const fullName = [data?.first_name, data?.last_name]
+          .filter(Boolean)
+          .join(" ");
+        if (fullName) {
+          setRequesterName(fullName);
+        }
+        setResolvingLinkedEmployee(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isPortal, session?.employee?.id, supabase, user?.id]);
 
   useEffect(() => {
     supabase
@@ -152,12 +231,24 @@ export default function NewFundRequestPage() {
         total_requested_amount: totalRequested,
         date_needed: dateNeeded || null,
         urgent_reason: urgentReason.trim() || null,
-        status: "pending",
+        status: workflow.status,
+        project_manager_approved_by: workflow.project_manager_approved_by,
+        project_manager_approved_at: workflow.project_manager_approved_at,
+        purchasing_officer_approved_by: workflow.purchasing_officer_approved_by,
+        purchasing_officer_approved_at: workflow.purchasing_officer_approved_at,
+        management_approved_by: workflow.management_approved_by,
+        management_approved_at: workflow.management_approved_at,
       };
 
       const { error } = await supabase.from("fund_requests").insert(payload as never);
       if (error) throw error;
-      toast.success("Fund request submitted.");
+      toast.success(
+        workflow.status === "pending"
+          ? "Fund request submitted."
+          : workflow.status === "project_manager_approved"
+            ? "Fund request submitted and sent directly to Purchasing Officer."
+            : "Fund request submitted and sent directly to Upper Management."
+      );
       router.push(base);
       router.refresh();
     } catch (err: unknown) {
@@ -167,7 +258,7 @@ export default function NewFundRequestPage() {
     }
   };
 
-  const loading = userLoading && !session?.employee?.id;
+  const loading = (userLoading || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
   if (!employeeId) {
     const msg = (
@@ -186,9 +277,7 @@ export default function NewFundRequestPage() {
       <Card className="flex flex-1 flex-col min-h-0 overflow-hidden">
         <CardHeader className="pb-4 shrink-0">
           <CardTitle>Fund Request Form</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Addbell Technical Services, Inc. — Requester → Project Manager → Purchasing Officer → Upper Management
-          </p>
+          <p className="text-sm text-muted-foreground">{workflow.workflowLabel}</p>
         </CardHeader>
         <CardContent className="overflow-y-auto min-h-0 flex-1">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">

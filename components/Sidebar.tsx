@@ -111,7 +111,7 @@ const navGroups: NavGroup[] = [
         name: "Purchase Order",
         href: "/purchase-order",
         icon: FileText,
-        permissionModule: "payslips",
+        permissionModule: "purchase_orders",
       },
     ],
   },

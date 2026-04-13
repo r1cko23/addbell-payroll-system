@@ -10,8 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useProfile } from "@/lib/hooks/useProfile";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 
 interface PODetail {
   id: string;
@@ -56,11 +56,13 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive"> = {
 export default function PurchaseOrderDetailPage() {
   const params = useParams();
   const supabase = createClient();
-  const { profile } = useProfile();
+  const { canRead, canUpdate, loading: permissionsLoading } = usePermissions();
   const [po, setPo] = useState<PODetail | null>(null);
   const [items, setItems] = useState<POItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const canReadPurchaseOrders = canRead("purchase_orders");
+  const canManageStatus = canUpdate("purchase_orders");
 
   useEffect(() => {
     const id = params?.id as string;
@@ -76,9 +78,11 @@ export default function PurchaseOrderDetailPage() {
     })();
   }, [params?.id, supabase]);
 
-  const canManageStatus = profile?.role === "admin" || profile?.role === "hr" || profile?.role === "upper_management" || profile?.role === "purchasing_officer" || profile?.role === "operations_manager";
-
   const handleStatusChange = async (newStatus: string) => {
+    if (!canManageStatus) {
+      toast.error("You only have view access to purchase orders.");
+      return;
+    }
     if (!po) return;
     setActing(true);
     const { error } = await supabase.from("purchase_orders").update({ status: newStatus, updated_at: new Date().toISOString() } as never).eq("id", po.id);
@@ -89,7 +93,15 @@ export default function PurchaseOrderDetailPage() {
     setActing(false);
   };
 
-  if (loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
+  if (permissionsLoading || loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
+  if (!canReadPurchaseOrders) return (
+    <DashboardLayout>
+      <div className="space-y-4">
+        <Link href="/purchase-order" className="text-muted-foreground hover:text-foreground text-sm">← Back</Link>
+        <p className="text-muted-foreground">You do not have access to view purchase orders.</p>
+      </div>
+    </DashboardLayout>
+  );
   if (!po) return (
     <DashboardLayout>
       <div className="space-y-4">

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2, FileText } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
@@ -54,6 +55,7 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
+  const { canCreate } = usePermissions();
 
   const [project, setProject] = useState<Project | null>(null);
   const [costs, setCosts] = useState<ProjectCost[]>([]);
@@ -77,6 +79,8 @@ export default function ProjectDetailPage() {
   const [assignStartDate, setAssignStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [assignEndDate, setAssignEndDate] = useState("");
   const [employeesList, setEmployeesList] = useState<{ id: string; company_id_no: string; first_name: string; last_name: string }[]>([]);
+  const canCreatePurchaseOrders = canCreate("purchase_orders");
+  const showFundRequests = Boolean(profile);
 
   const [costType, setCostType] = useState("material");
   const [costCategory, setCostCategory] = useState("");
@@ -264,7 +268,7 @@ export default function ProjectDetailPage() {
         <Tabs defaultValue="costs" className="space-y-4">
           <TabsList>
             <TabsTrigger value="costs">Costs</TabsTrigger>
-            <TabsTrigger value="fund-requests">Fund Requests</TabsTrigger>
+            {showFundRequests ? <TabsTrigger value="fund-requests">Fund Requests</TabsTrigger> : null}
             <TabsTrigger value="purchase-orders">Purchase Orders</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="progress">Progress</TabsTrigger>
@@ -331,30 +335,34 @@ export default function ProjectDetailPage() {
             </CardContent></Card>
           </TabsContent>
 
-          <TabsContent value="fund-requests" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Fund Requests</h3>
-              <Button asChild><Link href="/fund-request/new"><Plus className="h-4 w-4 mr-2" />New Request</Link></Button>
-            </div>
-            <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-                <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests for this project</TableCell></TableRow> :
-                  fundRequests.map((fr) => (
-                    <TableRow key={fr.id}>
-                      <TableCell>{format(new Date(fr.request_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell>{fr.purpose}</TableCell>
-                      <TableCell className="text-right font-medium">₱{Number(fr.total_requested_amount).toLocaleString()}</TableCell>
-                      <TableCell><Badge variant={fr.status === "management_approved" ? "default" : fr.status === "rejected" ? "destructive" : "secondary"} className="text-xs capitalize">{fr.status.replace(/_/g, " ")}</Badge></TableCell>
-                      <TableCell><Link href={`/fund-request/${fr.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
-                    </TableRow>
-                  ))}</TableBody></Table>
-            </CardContent></Card>
-          </TabsContent>
+          {showFundRequests ? (
+            <TabsContent value="fund-requests" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">Fund Requests</h3>
+                <Button asChild><Link href="/fund-request/new"><Plus className="h-4 w-4 mr-2" />New Request</Link></Button>
+              </div>
+              <Card><CardContent className="p-0">
+                <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+                  <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests for this project</TableCell></TableRow> :
+                    fundRequests.map((fr) => (
+                      <TableRow key={fr.id}>
+                        <TableCell>{format(new Date(fr.request_date), "MMM d, yyyy")}</TableCell>
+                        <TableCell>{fr.purpose}</TableCell>
+                        <TableCell className="text-right font-medium">₱{Number(fr.total_requested_amount).toLocaleString()}</TableCell>
+                        <TableCell><Badge variant={fr.status === "management_approved" ? "default" : fr.status === "rejected" ? "destructive" : "secondary"} className="text-xs capitalize">{fr.status.replace(/_/g, " ")}</Badge></TableCell>
+                        <TableCell><Link href={`/fund-request/${fr.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
+                      </TableRow>
+                    ))}</TableBody></Table>
+              </CardContent></Card>
+            </TabsContent>
+          ) : null}
 
           <TabsContent value="purchase-orders" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Purchase Orders</h3>
-              <Button asChild><Link href="/purchase-order"><Plus className="h-4 w-4 mr-2" />New PO</Link></Button>
+              {canCreatePurchaseOrders ? (
+                <Button asChild><Link href="/purchase-order"><Plus className="h-4 w-4 mr-2" />New PO</Link></Button>
+              ) : null}
             </div>
             <Card><CardContent className="p-0">
               <Table><TableHeader><TableRow><TableHead>PO Number</TableHead><TableHead>Date</TableHead><TableHead>Vendor</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>

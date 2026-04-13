@@ -43,12 +43,39 @@ export default function FundRequestListPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [linkedEmployeeId, setLinkedEmployeeId] = useState<string | null>(null);
+  const [resolvingLinkedEmployee, setResolvingLinkedEmployee] = useState(false);
   const supabase = createClient();
-  const employeeId = session?.employee?.id ?? null;
+  const employeeId = session?.employee?.id ?? linkedEmployeeId;
 
   useEffect(() => {
-    if (!employeeId && !profile && !profileLoading) return;
+    if (session?.employee?.id || !profile?.id || isPortal) return;
+    let active = true;
+    setResolvingLinkedEmployee(true);
+    supabase
+      .from('employees')
+      .select('id')
+      .eq('user_id', profile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) {
+          setLinkedEmployeeId(data?.id ?? null);
+          setResolvingLinkedEmployee(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [isPortal, profile?.id, session?.employee?.id, supabase]);
+
+  useEffect(() => {
+    if (profileLoading || resolvingLinkedEmployee) return;
     const fetchData = async () => {
+      if (!employeeId) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
       let query = supabase
         .from('fund_requests')
         .select('*, projects ( name, code )')
@@ -59,9 +86,9 @@ export default function FundRequestListPage() {
       setLoading(false);
     };
     fetchData();
-  }, [employeeId, profile, profileLoading, supabase]);
+  }, [employeeId, profileLoading, resolvingLinkedEmployee, supabase]);
 
-  const loadingState = profileLoading && !session?.employee?.id;
+  const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loadingState) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
 
   const canCreate = Boolean(employeeId);

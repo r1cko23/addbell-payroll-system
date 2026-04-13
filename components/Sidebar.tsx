@@ -44,7 +44,7 @@ type NavGroup = {
   defaultOpen?: boolean;
 };
 
-const HIDDEN_GROUPS = new Set(["Payroll", "Reports"]);
+const HIDDEN_GROUPS = new Set(["Payroll", "Reports", "Admin"]);
 
 const navGroups: NavGroup[] = [
   {
@@ -218,7 +218,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
           return canRead(item.permissionModule);
         });
 
-        // Special case: Executive Dashboard only for admin (even if dashboard read is enabled)
+        // Hide the executive dashboard in the UI for now.
         if (group.label === "Overview") {
           const nonExecutiveItems = filteredItems.filter(
             (item) => !item.href.includes("?type=executive")

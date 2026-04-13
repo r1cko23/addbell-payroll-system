@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import {
   successResponse,
   badRequestResponse,
@@ -8,6 +7,9 @@ import {
   errorResponse,
   validateRequiredFields,
 } from "@/lib/api-utils";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,29 +37,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createServerComponentClient({ cookies });
-
-    // Use the secure RPC function to change password
-    // This function verifies the current password and updates it securely
-    const { data, error } = await supabase.rpc("change_employee_password", {
-      p_employee_id: employee_id,
-      p_current_password: current_password.trim(),
-      p_new_password: new_password.trim(),
-    });
-
-    if (error) {
-      console.error("Error changing password:", error);
-      return errorResponse(
-        error.message || "Failed to change password"
-      );
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      return errorResponse("Server not configured", { status: 500 });
     }
 
-    // Check the result from the RPC function
-    const result = Array.isArray(data) ? data[0] : data;
-    if (!result?.success) {
-      return unauthorizedResponse(
-        result?.error_message || "Failed to change password"
-      );
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: employeeRow, error: employeeError } = await supabase
+      .from("employees")
+      .select("id, portal_password")
+      .eq("id", employee_id)
+      .maybeSingle();
+
+    if (employeeError) {
+      console.error("Error loading employee for password change:", employeeError);
+      return errorResponse(employeeError.message || "Failed to verify employee password");
+    }
+
+    if (!employeeRow) {
+      return unauthorizedResponse("Employee not found");
+    }
+
+    if ((employeeRow as { portal_password?: string | null }).portal_password !== current_password.trim()) {
+      return unauthorizedResponse("Current password is incorrect");
+    }
+
+    const { error: updateError } = await supabase
+      .from("employees")
+      .update({
+        portal_password: new_password.trim(),
+      } as never)
+      .eq("id", employee_id);
+
+    if (updateError) {
+      console.error("Error updating employee portal password:", updateError);
+      return errorResponse(updateError.message || "Failed to change password");
     }
 
     return successResponse({

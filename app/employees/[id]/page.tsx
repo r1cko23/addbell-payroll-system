@@ -120,6 +120,9 @@ export default function EmployeeDetailPage() {
   const [clockSelectedIds, setClockSelectedIds] = useState<string[]>([]);
   const [clockLoading, setClockLoading] = useState(false);
   const [clockSaving, setClockSaving] = useState(false);
+  const [portalPasswordInput, setPortalPasswordInput] = useState("");
+  const [portalSaving, setPortalSaving] = useState(false);
+  const [portalTempPassword, setPortalTempPassword] = useState<string | null>(null);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -268,6 +271,49 @@ export default function EmployeeDetailPage() {
     }
   };
 
+  const resetPortalPassword = async (useDefaultPassword: boolean) => {
+    if (!employeeId) return;
+    if (!useDefaultPassword && portalPasswordInput.trim().length < 4) {
+      toast.error("Custom portal password must be at least 4 characters long.");
+      return;
+    }
+
+    setPortalSaving(true);
+    try {
+      const res = await fetch("/api/hr/employee-portal-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          new_password: useDefaultPassword ? undefined : portalPasswordInput.trim(),
+          use_default_password: useDefaultPassword,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        temporary_password?: string;
+      };
+
+      if (!res.ok) {
+        toast.error(json.error || "Could not reset portal password.");
+        return;
+      }
+
+      setPortalTempPassword(json.temporary_password ?? null);
+      setPortalPasswordInput("");
+      toast.success(
+        useDefaultPassword
+          ? "Employee portal password reset to company ID no."
+          : "Employee portal password updated."
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not reset employee portal password.");
+    } finally {
+      setPortalSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -382,6 +428,7 @@ export default function EmployeeDetailPage() {
                 Clock access
               </TabsTrigger>
             )}
+            {canEdit && <TabsTrigger value="portal-access">Portal Access</TabsTrigger>}
           </TabsList>
 
           {/* Personal Info */}
@@ -847,6 +894,68 @@ export default function EmployeeDetailPage() {
                         </Button>
                       </div>
                     </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {canEdit && (
+            <TabsContent value="portal-access">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Employee Portal Access</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="rounded-lg border bg-muted/20 p-4 text-sm">
+                    <p className="font-medium">Portal login identifier</p>
+                    <p className="mt-1 font-mono">{employee.employee_code}</p>
+                    <p className="mt-3 text-muted-foreground">
+                      Employees can change their own password inside the employee portal. If they
+                      forget it, HR can reset it here.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-portal-password">Set custom temporary password</Label>
+                    <Input
+                      id="custom-portal-password"
+                      type="text"
+                      value={portalPasswordInput}
+                      onChange={(e) => setPortalPasswordInput(e.target.value)}
+                      placeholder="Enter a temporary portal password"
+                      disabled={portalSaving}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use at least 4 characters. Share this temporary password with the employee.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => resetPortalPassword(true)}
+                      disabled={portalSaving}
+                    >
+                      {portalSaving ? "Saving..." : "Reset to Company ID No."}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => resetPortalPassword(false)}
+                      disabled={portalSaving || portalPasswordInput.trim().length < 4}
+                    >
+                      {portalSaving ? "Saving..." : "Set Custom Password"}
+                    </Button>
+                  </div>
+
+                  {portalTempPassword && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-sm font-medium text-emerald-900">
+                        Temporary employee portal password
+                      </p>
+                      <p className="mt-2 font-mono text-emerald-900">{portalTempPassword}</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>

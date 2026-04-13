@@ -213,7 +213,7 @@ export default function EmployeeInfoPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          employee_id: employee.employee_id,
+          employee_id: employee.id,
           current_password: currentPassword.trim(),
           new_password: newPassword.trim(),
         }),

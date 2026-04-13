@@ -32,14 +32,37 @@ export function LoginPageClient() {
     setAdminError("");
     setEmployeeError("");
 
-    // Check for password reset errors in URL hash (Supabase redirects here with errors)
+    // Forward password recovery links that land on /login to /reset-password.
+    // Supabase may deliver either:
+    // - query-based PKCE links (?code=...&type=recovery)
+    // - hash-based links (#access_token=...&refresh_token=...&type=recovery)
     if (typeof window !== "undefined") {
+      const currentUrl = new URL(window.location.href);
       const hash = window.location.hash || "";
+      const searchType = currentUrl.searchParams.get("type");
+      const searchCode = currentUrl.searchParams.get("code");
+
+      if (searchType === "recovery" && searchCode) {
+        const resetUrl = new URL("/reset-password", window.location.origin);
+        resetUrl.search = currentUrl.search;
+        router.replace(resetUrl.pathname + resetUrl.search);
+        return;
+      }
+
       if (hash.startsWith("#")) {
         const params = new URLSearchParams(hash.slice(1));
+        const type = params.get("type");
         const error = params.get("error");
         const errorCode = params.get("error_code");
-        const errorDescription = params.get("error_description");
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+
+        if (type === "recovery" && accessToken && refreshToken) {
+          const resetUrl = new URL("/reset-password", window.location.origin);
+          resetUrl.hash = hash;
+          router.replace(resetUrl.pathname + resetUrl.hash);
+          return;
+        }
 
         // If there's a password reset error, redirect to reset password page with error
         if (error && (errorCode === "otp_expired" || error === "access_denied")) {

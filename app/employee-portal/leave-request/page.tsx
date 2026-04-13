@@ -45,11 +45,7 @@ interface LeaveDocument {
 
 interface LeaveRequest {
   id: string;
-  leave_type:
-    | "SIL"
-    | "LWOP"
-    | "Maternity Leave"
-    | "Paternity Leave";
+  leave_type: "SIL" | "LWOP";
   start_date: string;
   end_date: string;
   selected_dates?: string[] | null;
@@ -72,9 +68,9 @@ interface LeaveRequest {
 
 interface EmployeeInfo {
   sil_credits: number;
-  maternity_credits: number;
-  paternity_credits: number;
 }
+
+const DEFAULT_EMPLOYEE_SIL_CREDITS = 5;
 
 export default function LeaveRequestPage() {
   const router = useRouter();
@@ -90,9 +86,7 @@ export default function LeaveRequestPage() {
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
 
   // Form state
-  const [leaveType, setLeaveType] = useState<
-    "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave"
-  >("SIL");
+  const [leaveType, setLeaveType] = useState<"SIL" | "LWOP">("SIL");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [halfDayDates, setHalfDayDates] = useState<Set<string>>(new Set()); // Track which dates are half-day
   const [startDate, setStartDate] = useState("");
@@ -260,33 +254,27 @@ export default function LeaveRequestPage() {
       if (error) {
         console.error("Error fetching employee leave credits:", error);
         setEmployeeInfo({
-          sil_credits: 0,
-          maternity_credits: 0,
-          paternity_credits: 0,
+          sil_credits: DEFAULT_EMPLOYEE_SIL_CREDITS,
         });
         return;
       }
 
       if (data) {
+        const rawCredits = Number(data.sil_credits ?? 0);
         setEmployeeInfo({
-          sil_credits: Number(data.sil_credits ?? 0),
-          maternity_credits: 0,
-          paternity_credits: 0,
+          sil_credits:
+            rawCredits > 0 ? rawCredits : DEFAULT_EMPLOYEE_SIL_CREDITS,
         });
       } else {
         setEmployeeInfo({
-          sil_credits: 0,
-          maternity_credits: 0,
-          paternity_credits: 0,
+          sil_credits: DEFAULT_EMPLOYEE_SIL_CREDITS,
         });
       }
     } catch (err) {
       console.error("Error fetching employee info:", err);
       // Set default values instead of null to prevent infinite loading state
       setEmployeeInfo({
-        sil_credits: 0,
-        maternity_credits: 0,
-        paternity_credits: 0,
+        sil_credits: DEFAULT_EMPLOYEE_SIL_CREDITS,
       });
     }
   }
@@ -368,24 +356,6 @@ export default function LeaveRequestPage() {
       if (calculatedDays > silCredits) {
         toast.error(
           `Insufficient SIL credits. You have ${silCredits.toFixed(2)} credit(s) but filed for ${calculatedDays.toFixed(2)} day(s). Please adjust your dates or select LWOP instead.`
-        );
-        return;
-      }
-    }
-
-    if (leaveType === "Maternity Leave") {
-      if (calculatedDays > maternityDays) {
-        toast.error(
-          `Insufficient Maternity Leave credits. Available: ${maternityDays}`
-        );
-        return;
-      }
-    }
-
-    if (leaveType === "Paternity Leave") {
-      if (calculatedDays > paternityDays) {
-        toast.error(
-          `Insufficient Paternity Leave credits. Available: ${paternityDays}`
         );
         return;
       }
@@ -573,8 +543,6 @@ export default function LeaveRequestPage() {
     employeeInfo?.sil_credits !== null
       ? Number(employeeInfo.sil_credits)
       : null;
-  const maternityDays = employeeInfo?.maternity_credits ?? 0;
-  const paternityDays = employeeInfo?.paternity_credits ?? 0;
 
   // Include cancelled in history so employees can see all past requests
   const visibleRequests = requests;
@@ -681,44 +649,6 @@ export default function LeaveRequestPage() {
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-pink-500 hover:shadow-md transition-shadow">
-            <CardContent className="w-full p-5">
-              <VStack gap="2" align="start" className="w-full">
-                <HStack gap="2" align="center">
-                  <Icon
-                    name="User"
-                    size={IconSizes.sm}
-                    className="text-pink-600"
-                  />
-                  <BodySmall className="font-medium text-muted-foreground">
-                    Maternity Days
-                  </BodySmall>
-                </HStack>
-                <div className="text-3xl font-bold text-pink-600">
-                  {maternityDays.toFixed(2)}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="w-full h-full border-l-4 border-l-purple-500 hover:shadow-md transition-shadow">
-            <CardContent className="w-full p-5">
-              <VStack gap="2" align="start" className="w-full">
-                <HStack gap="2" align="center">
-                  <Icon
-                    name="UsersThree"
-                    size={IconSizes.sm}
-                    className="text-purple-600"
-                  />
-                  <BodySmall className="font-medium text-muted-foreground">
-                    Paternity Days
-                  </BodySmall>
-                </HStack>
-                <div className="text-3xl font-bold text-purple-600">
-                  {paternityDays.toFixed(2)}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Request Form */}
@@ -768,30 +698,6 @@ export default function LeaveRequestPage() {
                       />
                       <span>LWOP (Leave Without Pay)</span>
                     </label>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        value="Maternity Leave"
-                        checked={leaveType === "Maternity Leave"}
-                        onChange={(e) =>
-                          setLeaveType(e.target.value as typeof leaveType)
-                        }
-                        className="h-4 w-4"
-                      />
-                      <span>Maternity Leave</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        value="Paternity Leave"
-                        checked={leaveType === "Paternity Leave"}
-                        onChange={(e) =>
-                          setLeaveType(e.target.value as typeof leaveType)
-                        }
-                        className="h-4 w-4"
-                      />
-                      <span>Paternity Leave</span>
-                    </label>
                   </div>
                   <div className="text-xs text-muted-foreground space-y-1">
                     {leaveType === "SIL" && (
@@ -814,28 +720,6 @@ export default function LeaveRequestPage() {
                           </p>
                         )}
                       </>
-                    )}
-                    {leaveType === "Maternity Leave" && (
-                      <p>
-                        Available Maternity days:{" "}
-                        <strong>{maternityDays}</strong>
-                        {maternityDays === 0 && (
-                          <span className="text-red-600 font-medium ml-1">
-                            (no allocation)
-                          </span>
-                        )}
-                      </p>
-                    )}
-                    {leaveType === "Paternity Leave" && (
-                      <p>
-                        Available Paternity days:{" "}
-                        <strong>{paternityDays}</strong>
-                        {paternityDays === 0 && (
-                          <span className="text-red-600 font-medium ml-1">
-                            (no allocation)
-                          </span>
-                        )}
-                      </p>
                     )}
                   </div>
                 </div>

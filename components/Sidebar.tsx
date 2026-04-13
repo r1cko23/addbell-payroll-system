@@ -103,9 +103,9 @@ const navGroups: NavGroup[] = [
       },
       {
         name: "Fund Requests",
-        href: "/fund-request-approval",
+        href: "/fund-request",
         icon: Receipt,
-        permissionModule: "payslips",
+        permissionModule: "fund_requests",
       },
       {
         name: "Purchase Order",

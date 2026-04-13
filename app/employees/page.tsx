@@ -910,7 +910,7 @@ export default function EmployeesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>Overtime group (approvals)</Label>
+                  <Label>Subcon</Label>
                   <Select
                     value={formData.overtime_group_id || "none"}
                     onValueChange={(v) =>

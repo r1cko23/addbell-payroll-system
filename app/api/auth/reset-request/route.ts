@@ -54,24 +54,28 @@ export async function POST(req: NextRequest) {
 
   // Throttle checks
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data: recent, error: recentError } = await supabaseAdmin
-    .from("password_reset_requests")
-    .select("requested_at")
-    .eq("email", email)
-    .gte("requested_at", since)
-    .order("requested_at", { ascending: false });
+  try {
+    const { data: recent, error: recentError } = await supabaseAdmin
+      .from("password_reset_requests")
+      .select("requested_at")
+      .eq("email", email)
+      .gte("requested_at", since)
+      .order("requested_at", { ascending: false });
 
-  if (!recentError && recent) {
-    if (recent.length >= DAILY_LIMIT) {
-      return NextResponse.json({ ok: true });
-    }
-    const last = recent[0];
-    if (last?.requested_at) {
-      const lastTs = new Date(last.requested_at).getTime();
-      if (Date.now() - lastTs < MIN_GAP_MS) {
+    if (!recentError && recent) {
+      if (recent.length >= DAILY_LIMIT) {
         return NextResponse.json({ ok: true });
       }
+      const last = recent[0];
+      if (last?.requested_at) {
+        const lastTs = new Date(last.requested_at).getTime();
+        if (Date.now() - lastTs < MIN_GAP_MS) {
+          return NextResponse.json({ ok: true });
+        }
+      }
     }
+  } catch (err) {
+    console.error("reset-request throttle check error", err);
   }
 
   const base =
@@ -101,12 +105,16 @@ export async function POST(req: NextRequest) {
   // Record the attempt (success flag for observability)
   const requesterIp = getClientIp(req);
   const userAgent = req.headers.get("user-agent") || null;
-  await supabaseAdmin.from("password_reset_requests").insert({
-    email,
-    requester_ip: requesterIp,
-    user_agent: userAgent,
-    success,
-  });
+  try {
+    await supabaseAdmin.from("password_reset_requests").insert({
+      email,
+      requester_ip: requesterIp,
+      user_agent: userAgent,
+      success,
+    });
+  } catch (err) {
+    console.error("reset-request audit insert error", err);
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
     const admin = getAdminClient();
     const { data, error } = await admin
       .from("employees")
-      .select("position, employment_type, job_level")
+      .select(
+        "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at, position, employment_type, job_level"
+      )
       .eq("id", employeeId)
       .maybeSingle();
 
@@ -37,6 +39,20 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({
+      company_id_no: data?.company_id_no ?? null,
+      employee_code: data?.employee_code ?? null,
+      full_name: data?.full_name ?? null,
+      first_name: data?.first_name ?? null,
+      last_name: data?.last_name ?? null,
+      middle_name: data?.middle_name ?? null,
+      address: data?.address ?? null,
+      date_of_birth: data?.date_of_birth ?? null,
+      tin: data?.tin ?? null,
+      sss_number: data?.sss_number ?? null,
+      philhealth_number: data?.philhealth_number ?? null,
+      pagibig_number: data?.pagibig_number ?? null,
+      is_active: data?.is_active ?? null,
+      created_at: data?.created_at ?? null,
       position: data?.position ?? null,
       employment_type: data?.employment_type ?? null,
       job_level: data?.job_level ?? null,

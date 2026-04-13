@@ -7,7 +7,6 @@ import { H1, H2, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
-import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
@@ -38,7 +37,6 @@ interface EmployeeInfo {
 
 export default function EmployeeInfoPage() {
   const { employee } = useEmployeeSession();
-  const supabase = createClient();
   const [info, setInfo] = useState<EmployeeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -77,17 +75,30 @@ export default function EmployeeInfoPage() {
   useEffect(() => {
     const fetchInfo = async () => {
       try {
-        const { data, error } = await supabase
-          .from("employees")
-          .select(
-            "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
-          )
-          .eq("id", employee.id)
-          .maybeSingle();
+        const res = await fetch(
+          `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employee.id)}`
+        );
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          company_id_no?: string | null;
+          employee_code?: string | null;
+          full_name?: string | null;
+          first_name?: string | null;
+          last_name?: string | null;
+          middle_name?: string | null;
+          address?: string | null;
+          date_of_birth?: string | null;
+          tin?: string | null;
+          sss_number?: string | null;
+          philhealth_number?: string | null;
+          pagibig_number?: string | null;
+          is_active?: boolean | null;
+          created_at?: string | null;
+        };
 
-        if (error) throw error;
+        if (!res.ok) throw new Error(data.error || "Failed to load profile");
 
-        if (data) {
+        if (data && (data.full_name || data.company_id_no || data.employee_code)) {
           setInfo({
             employee_id: data.company_id_no ?? data.employee_code ?? employee.employee_id,
             full_name: data.full_name ?? employee.full_name,
@@ -125,7 +136,7 @@ export default function EmployeeInfoPage() {
     };
 
     fetchInfo();
-  }, [employee.id, employee.employee_id, employee.full_name, employee.loginTime, fallbackInfo, supabase]);
+  }, [employee.id, employee.employee_id, employee.full_name, employee.loginTime, fallbackInfo]);
 
   if (loading || !info) {
     return (
@@ -266,14 +277,26 @@ export default function EmployeeInfoPage() {
               onUploadComplete={async () => {
                 // Reload employee info
                 try {
-                  const { data, error } = await supabase
-                    .from("employees")
-                    .select(
-                      "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at"
-                    )
-                    .eq("id", employee.id)
-                    .maybeSingle();
-                  if (!error && data) {
+                  const res = await fetch(
+                    `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employee.id)}`
+                  );
+                  const data = (await res.json().catch(() => ({}))) as {
+                    company_id_no?: string | null;
+                    employee_code?: string | null;
+                    full_name?: string | null;
+                    first_name?: string | null;
+                    last_name?: string | null;
+                    middle_name?: string | null;
+                    address?: string | null;
+                    date_of_birth?: string | null;
+                    tin?: string | null;
+                    sss_number?: string | null;
+                    philhealth_number?: string | null;
+                    pagibig_number?: string | null;
+                    is_active?: boolean | null;
+                    created_at?: string | null;
+                  };
+                  if (res.ok && data) {
                     setInfo({
                       employee_id: data.company_id_no ?? data.employee_code ?? employee.employee_id,
                       full_name: data.full_name ?? employee.full_name,

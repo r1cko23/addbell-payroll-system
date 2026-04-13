@@ -142,8 +142,6 @@ This page shows:
 
 - `SIL`
 - `LWOP`
-- `Maternity Leave`
-- `Paternity Leave`
 
 ### How to file leave
 
@@ -174,7 +172,7 @@ This page shows:
 Use `Leave Request` when:
 
 - you will be absent for approved leave
-- you are formally requesting SIL, LWOP, maternity leave, or paternity leave
+- you are formally requesting SIL or LWOP
 
 Do not use `Leave Request` for a missed time in or time out. Use `Failure to Log` for that instead.
 

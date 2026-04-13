@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Employee Portal Guidebook</title>
+  <style>
+    :root {
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --accent: #0f766e;
+      --bg-soft: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      line-height: 1.6;
+      background: white;
+    }
+    main {
+      max-width: 840px;
+      margin: 0 auto;
+      padding: 36px 40px 56px;
+    }
+    h1, h2, h3 {
+      line-height: 1.25;
+      margin-top: 1.35em;
+      margin-bottom: 0.55em;
+      color: #111827;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 30px;
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 10px;
+    }
+    h2 {
+      font-size: 22px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 17px;
+      color: #0f172a;
+      page-break-after: avoid;
+    }
+    p, li {
+      font-size: 13px;
+    }
+    p {
+      margin: 0 0 10px;
+    }
+    ul, ol {
+      margin: 0 0 12px 22px;
+      padding: 0;
+    }
+    li + li {
+      margin-top: 4px;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+    code {
+      background: var(--bg-soft);
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.95em;
+    }
+    strong {
+      color: #111827;
+    }
+    figure {
+      margin: 18px 0 24px;
+      page-break-inside: avoid;
+    }
+    img {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: block;
+      background: white;
+    }
+    figcaption {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 12px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: var(--bg-soft);
+    }
+    @page {
+      size: A4;
+      margin: 18mm 14mm;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Employee Portal Guidebook</h1>
+<p>This guide is for employees using the Addbell employee portal for attendance and self-service tasks.</p>
+<p>This guide covers:</p>
+<ul><li>logging into the employee portal</li><li>using the <code>Bundy Clock</code> for time in and time out</li><li>filing <code>Leave Request</code></li><li>filing <code>Failure to Log</code></li><li>filing <code>OT Filing</code></li><li>viewing <code>My Information</code></li><li>changing your portal password</li><li>viewing <code>Payslips</code></li><li>checking <code>Project Assignments</code></li></ul>
+<p>This guide does <strong>not</strong> cover:</p>
+<ul><li><code>Fund Request</code></li><li><code>Purchase Order</code></li></ul>
+<p>Screens may vary slightly depending on your assigned access, available data, and HR setup, but the overall flow stays the same.</p>
+<hr />
+<h2>Before you start</h2>
+<p>Prepare these first:</p>
+<ul><li>your <code>Employee ID</code></li><li>your current employee portal password</li><li>location services enabled on your phone or computer if you will use <code>Bundy Clock</code></li><li>any supporting document needed for leave or overtime, if HR requires one</li></ul>
+<p>Important reminders:</p>
+<ul><li>if you forgot your password, ask HR to reset it for you</li><li>if you know your current password, you can change it yourself in <code>My Information</code></li><li><code>Bundy Clock</code> depends on your GPS/location and approved work site assignment</li></ul>
+<hr />
+<h2>1. Sign in to the employee portal</h2>
+<ol><li>Open the login page.</li><li>Switch to <code>Employee</code>.</li><li>Enter your <code>Employee ID</code>.</li><li>Enter your password.</li><li>Click <code>Sign In</code>.</li></ol>
+<figure><img src="assets/employee-portal/employee-login.png" alt="Employee login screen" /><figcaption>Employee login screen</figcaption></figure>
+<p>After login, you will enter the employee workspace and can open attendance, requests, payslips, and profile tools from the left sidebar.</p>
+<hr />
+<h2>2. Understand the employee portal menu</h2>
+<p>The employee portal sidebar is organized into these sections:</p>
+<ul><li><code>Time &amp; Attendance</code></li><li><code>Requests</code></li><li><code>Information</code></li></ul>
+<p>Main employee functions available today:</p>
+<ul><li><code>Bundy Clock</code></li><li><code>Leave Request</code></li><li><code>OT Filing</code></li><li><code>Failure to Log</code></li><li><code>Project Assignments</code></li><li><code>My Information</code></li><li><code>Payslips</code></li></ul>
+<p>If a page is empty, that usually means:</p>
+<ul><li>you do not have any records yet</li><li>HR has not created data for that section yet</li><li>your current work location or project assignment has not been set up yet</li></ul>
+<hr />
+<h2>3. Use Bundy Clock for time in and time out</h2>
+<p>Open <code>Bundy Clock</code> from the sidebar to record attendance.</p>
+<p>What you will see on this page:</p>
+<ul><li>the current time and date</li><li>the current weekly cutoff period</li><li>your allotted and available SIL credits</li><li><code>Time In</code> and <code>Time Out</code> buttons</li><li>your location status</li><li>your <code>Today’s Time In / Out</code> summary</li><li>your weekly <code>Time Attendance</code> table and calendar</li></ul>
+<figure><img src="assets/employee-portal/bundy-clock.png" alt="Bundy Clock page" /><figcaption>Bundy Clock page</figcaption></figure>
+<h3>How to time in or time out</h3>
+<ol><li>Open <code>Bundy Clock</code>.</li><li>Check the location status message.</li><li>If your location is accepted, click <code>Time In</code> at the start of work.</li><li>Click <code>Time Out</code> when your shift ends.</li></ol>
+<h3>If the page says location is not allowed</h3>
+<p>That means the portal sees that you are:</p>
+<ul><li>outside the allowed work site radius, or</li><li>not yet assigned to a valid clock location, or</li><li>using a device with location services disabled</li></ul>
+<p>What to do:</p>
+<ul><li>enable GPS or location access on your device</li><li>move into the approved work site area</li><li>ask HR if your clock location assignment needs to be updated</li></ul>
+<h3>Bundy Clock tips</h3>
+<ul><li>do not time in and out repeatedly unless HR told you to do so</li><li>review <code>Today’s Time In / Out</code> right after punching</li><li>use <code>Failure to Log</code> if a punch was missed or incorrect</li></ul>
+<hr />
+<h2>4. File a leave request</h2>
+<p>Open <code>Leave Request</code> from the sidebar when you need to request leave.</p>
+<p>This page shows:</p>
+<ul><li>leave counters and credits</li><li>the leave filing form</li><li>date selection calendar</li><li>your leave history and statuses</li></ul>
+<figure><img src="assets/employee-portal/leave-request.png" alt="Leave Request page" /><figcaption>Leave Request page</figcaption></figure>
+<h3>Leave types available</h3>
+<ul><li><code>SIL</code></li><li><code>LWOP</code></li></ul>
+<h3>How to file leave</h3>
+<ol><li>Open <code>Leave Request</code>.</li><li>Choose the leave type.</li><li>Select one or more dates on the calendar.</li><li>Enter your reason.</li><li>Attach a supporting document if needed.</li><li>Click <code>Submit Leave Request</code>.</li></ol>
+<h3>Leave request rules to know</h3>
+<ul><li>weekends and holidays are not counted the same way as regular workdays</li><li><code>LWOP</code> can show half-day options after you select dates</li><li>supporting files must be <code>PDF</code>, <code>DOC</code>, or <code>DOCX</code></li><li>the file size limit is <code>5MB</code></li></ul>
+<h3>Leave request statuses</h3>
+<ul><li><code>pending</code>: waiting for approval</li><li><code>approved_by_manager</code>: manager approved, waiting for HR</li><li><code>approved_by_hr</code>: fully approved</li><li><code>rejected</code>: denied</li><li><code>cancelled</code>: cancelled by the employee before final processing</li></ul>
+<h3>When to use leave vs failure to log</h3>
+<p>Use <code>Leave Request</code> when:</p>
+<ul><li>you will be absent for approved leave</li><li>you are formally requesting SIL or LWOP</li></ul>
+<p>Do not use <code>Leave Request</code> for a missed time in or time out. Use <code>Failure to Log</code> for that instead.</p>
+<hr />
+<h2>5. File a failure to log request</h2>
+<p>Open <code>Failure to Log</code> when you forgot to record a punch or your time entry needs correction.</p>
+<p>This page shows:</p>
+<ul><li>request counters</li><li>the correction request form</li><li>your request history</li></ul>
+<figure><img src="assets/employee-portal/failure-to-log.png" alt="Failure to Log page" /><figcaption>Failure to Log page</figcaption></figure>
+<h3>When to use Failure to Log</h3>
+<p>Use this page if:</p>
+<ul><li>you forgot to <code>Time In</code></li><li>you forgot to <code>Time Out</code></li><li>both time in and time out were missed</li></ul>
+<h3>How to file a failure to log request</h3>
+<ol><li>Open <code>Failure to Log</code>.</li><li>Choose the <code>Log Type</code>:</li></ol>
+<ul><li><code>Time In</code></li><li><code>Time Out</code></li><li><code>Time In &amp; Out</code></li></ul>
+<ol><li>Enter the correct date.</li><li>Enter the missing time or times.</li><li>Enter a clear reason.</li><li>Click <code>Submit Request</code>.</li></ol>
+<h3>Best practice for the reason field</h3>
+<p>Write a short but specific explanation, such as:</p>
+<ul><li>forgot to punch after arriving on site</li><li>phone battery died before clocking out</li><li>location service failed during clock out</li></ul>
+<h3>Failure to Log statuses</h3>
+<ul><li><code>pending</code>: under review</li><li><code>approved</code>: correction accepted</li><li><code>rejected</code>: correction denied</li><li><code>cancelled</code>: request cancelled by the employee</li></ul>
+<hr />
+<h2>6. File overtime</h2>
+<p>Open <code>OT Filing</code> when you need approval for overtime work.</p>
+<p>This page shows:</p>
+<ul><li>the overtime filing form</li><li>auto-calculated total hours</li><li>your overtime request history</li></ul>
+<figure><img src="assets/employee-portal/overtime.png" alt="OT Filing page" /><figcaption>OT Filing page</figcaption></figure>
+<h3>How to file overtime</h3>
+<ol><li>Open <code>OT Filing</code>.</li><li>Enter the <code>OT Date</code>.</li><li>Enter the <code>Start Time</code>.</li><li>Enter the <code>End Time</code>.</li><li>If the overtime spans beyond the next day or across more than one date, fill <code>End Date</code>.</li><li>Review the <code>Total Hours (auto)</code> field.</li><li>Enter the reason for overtime.</li><li>Attach a supporting document if needed.</li><li>Click <code>Submit OT Request</code>.</li></ol>
+<h3>Overtime rules to know</h3>
+<ul><li>total hours are calculated automatically from your start and end time</li><li>overnight OT can roll into the next day</li><li>supporting files must be <code>PDF</code>, <code>DOC</code>, or <code>DOCX</code></li><li>the file size limit is <code>5MB</code></li></ul>
+<h3>Overtime request statuses</h3>
+<ul><li><code>pending</code>: waiting for approval</li><li><code>approved</code>: accepted</li><li><code>rejected</code>: denied</li></ul>
+<hr />
+<h2>7. Review your employee information</h2>
+<p>Open <code>My Information</code> to review the profile details HR has on file for you.</p>
+<p>This page can include:</p>
+<ul><li>employee ID</li><li>full name</li><li>address</li><li>birth date</li><li>government numbers</li><li>status</li><li>assigned locations</li><li>profile picture upload</li><li>password change form</li></ul>
+<figure><img src="assets/employee-portal/employee-information.png" alt="My Information page" /><figcaption>My Information page</figcaption></figure>
+<h3>What employees can do here</h3>
+<ul><li>review HR profile details</li><li>upload or replace a profile picture</li><li>change their own portal password</li></ul>
+<h3>How to change your password</h3>
+<ol><li>Open <code>My Information</code>.</li><li>Open the <code>Change password</code> section.</li><li>Enter your current password.</li><li>Enter your new password.</li><li>Confirm the new password.</li><li>Click <code>Update Password</code>.</li></ol>
+<p>Password rules on this page:</p>
+<ul><li>the new password must be at least <code>4 characters</code></li><li>the new password must match the confirmation field</li><li>the new password must be different from the current password</li></ul>
+<p>If you forgot your current password, contact HR. Employees cannot self-change the password without knowing the current one.</p>
+<hr />
+<h2>8. View payslips</h2>
+<p>Open <code>Payslips</code> from the sidebar to view available payroll records.</p>
+<p>This page is where employees will:</p>
+<ul><li>review released payslips</li><li>open a payslip</li><li>review breakdowns</li><li>download or print payslips when available</li></ul>
+<figure><img src="assets/employee-portal/payslips.png" alt="Payslips page" /><figcaption>Payslips page</figcaption></figure>
+<p>If you see <code>No Payslips Found</code>, it usually means:</p>
+<ul><li>HR has not yet generated your payslip</li><li>your payslip is not yet approved or released</li><li>there is no payroll record yet for the selected period</li></ul>
+<p>If a payslip is available, use the view or download actions shown on the page.</p>
+<hr />
+<h2>9. Check project assignments</h2>
+<p>Open <code>Project Assignments</code> to see where you are currently assigned.</p>
+<p>This page is informational. It helps you confirm project placement, but employees do <strong>not</strong> clock in and out per project anymore.</p>
+<figure><img src="assets/employee-portal/project-assignments.png" alt="Project Assignments page" /><figcaption>Project Assignments page</figcaption></figure>
+<p>Important note:</p>
+<ul><li>attendance is based on your approved work location and <code>Bundy Clock</code></li><li>project assignment visibility does not replace time in and time out</li></ul>
+<p>If no project appears, ask your supervisor or HR to verify your assignment in the main system.</p>
+<hr />
+<h2>10. Common status meanings</h2>
+<p>| Area | Status | Meaning | |---|---|---| | Leave | <code>pending</code> | Waiting for review | | Leave | <code>approved_by_manager</code> | Manager approved, still waiting for HR | | Leave | <code>approved_by_hr</code> | Fully approved | | Leave / OT / Failure to Log | <code>rejected</code> | Request was denied | | Leave / Failure to Log | <code>cancelled</code> | Request was cancelled | | OT | <code>approved</code> | Overtime request accepted | | Payslip | <code>draft</code> | Not yet finalized for release | | Payslip | <code>approved</code> | Prepared and approved | | Payslip | <code>paid</code> | Completed payroll record |</p>
+<hr />
+<h2>11. Troubleshooting</h2>
+<h3>I cannot log in</h3>
+<ul><li>confirm you are using <code>Employee</code> mode, not <code>Admin / HR</code></li><li>recheck your <code>Employee ID</code></li><li>recheck your password</li><li>if you forgot the password, ask HR to reset it</li></ul>
+<h3>I cannot time in or time out</h3>
+<ul><li>enable location services</li><li>move inside the approved work site radius</li><li>refresh the page</li><li>ask HR to verify your assigned clock location</li></ul>
+<h3>My leave or overtime request is not moving</h3>
+<ul><li>check the status on the page</li><li>if it is still <code>pending</code>, follow up with your supervisor or HR</li><li>if it is <code>rejected</code>, review the reason and refile if needed</li></ul>
+<h3>My information is incomplete</h3>
+<ul><li>some fields depend on HR records</li><li>ask HR to update your employee profile in the main system</li></ul>
+<h3>My payslip is missing</h3>
+<ul><li>wait for HR to generate and release payroll</li><li>ask HR if the payroll period has already been processed</li></ul>
+<hr />
+<h2>12. Best practices for employees</h2>
+<ul><li>always use <code>Bundy Clock</code> when arriving and leaving</li><li>file <code>Failure to Log</code> as soon as you notice a missed punch</li><li>use <code>Leave Request</code> only for actual leave filing</li><li>use <code>OT Filing</code> only for overtime that needs approval</li><li>keep your password private</li><li>review your <code>My Information</code> page regularly so HR can correct missing details early</li></ul>
+  </main>
+</body>
+</html>

@@ -288,15 +288,20 @@ export default function EmployeePayslipsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="py-2">
+      <div className="mx-auto max-w-6xl">
         <CardSection>
           <HStack align="center" justify="between" className="mb-6">
-            <H1>My Payslips</H1>
+            <VStack gap="1" align="start">
+              <H1>My payslips</H1>
+              <BodySmall className="text-muted-foreground">
+                View payroll periods, review breakdowns, and print your approved payslips.
+              </BodySmall>
+            </VStack>
             <Icon
               name="CalendarBlank"
               size={IconSizes.lg}
-              className="text-emerald-600"
+              className="text-primary"
             />
           </HStack>
 

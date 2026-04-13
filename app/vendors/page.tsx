@@ -31,6 +31,7 @@ interface Vendor {
   id: string;
   company_id?: string | null;
   name: string;
+  contact_person: string | null;
   tin: string | null;
   address: string | null;
   phone: string | null;
@@ -48,6 +49,7 @@ export default function VendorsPage() {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
 
   const [name, setName] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
   const [tin, setTin] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
@@ -80,6 +82,7 @@ export default function VendorsPage() {
     if (vendor) {
       setEditingVendor(vendor);
       setName(vendor.name);
+      setContactPerson(vendor.contact_person || "");
       setTin(vendor.tin || "");
       setAddress(vendor.address || "");
       setPhone(vendor.phone || "");
@@ -88,6 +91,7 @@ export default function VendorsPage() {
     } else {
       setEditingVendor(null);
       setName("");
+      setContactPerson("");
       setTin("");
       setAddress("");
       setPhone("");
@@ -113,6 +117,7 @@ export default function VendorsPage() {
     try {
       const payload = {
         name: name.trim(),
+        contact_person: contactPerson.trim() || null,
         tin: tin.trim() || "",
         address: address.trim() || "",
         phone: phone.trim() || "",
@@ -163,6 +168,7 @@ export default function VendorsPage() {
     const s = searchTerm.toLowerCase();
     return (
       v.name.toLowerCase().includes(s) ||
+      (v.contact_person && v.contact_person.toLowerCase().includes(s)) ||
       (v.tin && v.tin.includes(s)) ||
       (v.email && v.email.toLowerCase().includes(s))
     );
@@ -190,7 +196,7 @@ export default function VendorsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, TIN, or email..."
+                  placeholder="Search by name, contact, TIN, or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -212,6 +218,7 @@ export default function VendorsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>Contact Person</TableHead>
                     <TableHead>TIN</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Status</TableHead>
@@ -222,6 +229,9 @@ export default function VendorsPage() {
                   {filteredVendors.map((vendor) => (
                     <TableRow key={vendor.id}>
                       <TableCell className="font-medium">{vendor.name}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {vendor.contact_person || "—"}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {vendor.tin || "—"}
                       </TableCell>
@@ -284,6 +294,15 @@ export default function VendorsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Vendor or supplier name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact_person">Contact Person</Label>
+              <Input
+                id="contact_person"
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                placeholder="Primary contact person"
               />
             </div>
             <div className="space-y-2">

@@ -13,6 +13,7 @@ import {
 } from "@/contexts/EmployeeSessionContext";
 import { SignOut, List } from "phosphor-react";
 import { EmployeePortalSidebar } from "@/components/EmployeePortalSidebar";
+import { Badge } from "@/components/ui/badge";
 
 export default function EmployeePortalLayout({
   children,
@@ -161,7 +162,7 @@ export default function EmployeePortalLayout({
 
   if (loading || !employee) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(to_bottom,hsl(var(--muted)/0.45),hsl(var(--background))_18%)]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
       </div>
     );
@@ -175,7 +176,7 @@ export default function EmployeePortalLayout({
         refreshSession,
       }}
     >
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(to_bottom,hsl(var(--muted)/0.45),hsl(var(--background))_18%)] flex">
         {/* Sidebar - Desktop */}
         <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 z-40">
           <EmployeePortalSidebar />
@@ -185,27 +186,27 @@ export default function EmployeePortalLayout({
         {isSidebarOpen && (
           <>
             <div
-              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              className="fixed inset-0 bg-background/70 backdrop-blur-sm z-40 lg:hidden"
               onClick={() => setIsSidebarOpen(false)}
             />
-            <aside className="fixed left-0 top-0 bottom-0 z-50 lg:hidden w-64 shadow-xl">
+            <aside className="fixed left-0 top-0 bottom-0 z-50 lg:hidden w-72 shadow-xl">
               <EmployeePortalSidebar onClose={() => setIsSidebarOpen(false)} />
             </aside>
           </>
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col lg:pl-64">
+        <div className="flex-1 flex flex-col lg:pl-72">
           {/* Header */}
-          <header className="bg-white border-b shadow-sm sticky top-0 z-30 backdrop-blur-sm bg-white/95">
-            <div className="w-full px-4 md:px-6 lg:px-8 py-4">
+          <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+            <div className="w-full px-4 py-4 md:px-6 lg:px-8">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   {/* Mobile Menu Button */}
                   <Button
                     variant="ghost"
                     size="lg"
-                    className="lg:hidden inline-flex items-center gap-2 border border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 active:bg-emerald-100 min-h-[40px] px-4"
+                    className="lg:hidden inline-flex items-center gap-2 rounded-xl border border-border bg-card text-foreground hover:bg-accent min-h-[40px] px-4"
                     onClick={() => setIsSidebarOpen((prev) => !prev)}
                     aria-expanded={isSidebarOpen}
                     aria-label="Toggle navigation menu"
@@ -220,14 +221,14 @@ export default function EmployeePortalLayout({
                   {/* Profile */}
                   <Link
                     href="/employee-portal/bundy"
-                    className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                    className="flex items-center gap-3 rounded-2xl transition-opacity"
                   >
-                    <Avatar className="w-12 h-12 border-2 border-emerald-600 shadow-sm hover:shadow-md transition-shadow">
+                    <Avatar className="h-11 w-11 border shadow-sm transition-shadow">
                       <AvatarImage
                         src={profilePictureUrl || undefined}
                         alt={employee.full_name}
                       />
-                      <AvatarFallback className="bg-emerald-600 text-white text-xl font-bold">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-lg font-bold">
                         {employee.full_name
                           .split(" ")
                           .map((part) => part[0])
@@ -237,12 +238,17 @@ export default function EmployeePortalLayout({
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="text-lg font-semibold text-gray-900">
+                      <p className="text-base font-semibold text-foreground">
                         {employee.full_name}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        ID: {employee.employee_id}
-                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary" className="font-normal">
+                          ID {employee.employee_id}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Employee workspace
+                        </span>
+                      </div>
                     </div>
                   </Link>
                 </div>
@@ -252,7 +258,7 @@ export default function EmployeePortalLayout({
                   variant="secondary"
                   size="lg"
                   onClick={handleLogout}
-                  className="inline-flex items-center gap-2 min-h-[40px] px-4 hover:bg-gray-100 active:bg-gray-200"
+                  className="inline-flex items-center gap-2 min-h-[40px] rounded-xl px-4"
                   aria-label="Logout"
                 >
                   <SignOut className="h-4 w-4" weight="bold" />
@@ -263,8 +269,10 @@ export default function EmployeePortalLayout({
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-6">
-            {children}
+          <main className="flex-1">
+            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 lg:px-8">
+              {children}
+            </div>
           </main>
         </div>
         <Toaster

@@ -610,9 +610,9 @@ export default function OvertimeApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
-          <H1>OT Approvals</H1>
+          <H1>OT approvals</H1>
           <BodySmall>
-            Approve or reject employee-filed OT.
+            Review overtime filings, filter by employee and week, and act on pending requests.
           </BodySmall>
         </VStack>
 

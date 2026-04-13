@@ -99,6 +99,7 @@ export function normalizeText(input: string): string {
 function normalizeVendor(v: PurchaseOrderVendor): PurchaseOrderVendor {
   return {
     name: normalizeText(v.name),
+    contactPerson: normalizeText(v.contactPerson),
     tin: trimAndCollapse(v.tin),
     address: normalizeMultiline(v.address),
     phone: trimAndCollapse(v.phone),

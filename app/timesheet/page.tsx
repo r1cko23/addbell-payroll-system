@@ -1431,9 +1431,13 @@ export default function TimesheetPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
-        {/* Header with Title and Controls */}
-        <div className="flex items-center justify-between w-full flex-col gap-3 md:flex-row">
-          <H1>TIME ATTENDANCE</H1>
+        <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
+          <VStack gap="2" align="start">
+            <H1>Timesheet</H1>
+            <BodySmall>
+              Review attendance by cutoff week, inspect schedules, and prepare payroll-ready records.
+            </BodySmall>
+          </VStack>
           <HStack gap="3" align="center" className="flex-wrap justify-end">
             {/* Year Selector */}
             <Select

@@ -1,0 +1,235 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e4]:
+        - img "Addbell Technical Services, Inc." [ref=e7]
+        - navigation [ref=e8]:
+          - button "Overview" [ref=e10] [cursor=pointer]:
+            - generic [ref=e11]:
+              - img [ref=e12]
+              - text: Overview
+            - img [ref=e17]
+          - button "Projects" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]:
+              - img [ref=e23]
+              - text: Projects
+            - img [ref=e27]
+          - button "People" [ref=e31] [cursor=pointer]:
+            - generic [ref=e32]:
+              - img [ref=e33]
+              - text: People
+            - img [ref=e41]
+          - button "Time & Attendance" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]:
+              - img [ref=e47]
+              - text: Time & Attendance
+            - img [ref=e52]
+          - generic [ref=e55]:
+            - button "Requests & Approvals" [expanded] [ref=e56] [cursor=pointer]:
+              - generic [ref=e57]:
+                - img [ref=e58]
+                - text: Requests & Approvals
+              - img [ref=e62]
+            - generic [ref=e65]:
+              - link "Leave Approvals" [ref=e66] [cursor=pointer]:
+                - /url: /leave-approval
+                - img [ref=e67]
+                - text: Leave Approvals
+              - link "OT Approvals" [ref=e71] [cursor=pointer]:
+                - /url: /overtime-approval
+                - img [ref=e72]
+                - text: OT Approvals
+              - link "Fund Requests" [ref=e77] [cursor=pointer]:
+                - /url: /fund-request-approval
+                - img [ref=e78]
+                - text: Fund Requests
+              - link "Purchase Order" [ref=e81] [cursor=pointer]:
+                - /url: /purchase-order
+                - img [ref=e82]
+                - text: Purchase Order
+          - button "Admin" [ref=e87] [cursor=pointer]:
+            - generic [ref=e88]:
+              - img [ref=e89]
+              - text: Admin
+            - img [ref=e93]
+          - button "Settings" [ref=e97] [cursor=pointer]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - text: Settings
+            - img [ref=e103]
+        - generic [ref=e106]:
+          - paragraph [ref=e107]:
+            - text: © 2025 Addbell Technical Services, Inc.
+            - text: All rights reserved
+          - link "Privacy Notice" [ref=e109] [cursor=pointer]:
+            - /url: /privacy
+    - generic [ref=e110]:
+      - banner [ref=e111]:
+        - button "MS Melanie Sapinoso HR" [ref=e114] [cursor=pointer]:
+          - generic [ref=e116]: MS
+          - generic [ref=e117]:
+            - generic [ref=e118]: Melanie Sapinoso
+            - generic [ref=e119]: HR
+          - img
+      - main [ref=e120]:
+        - generic [ref=e122]:
+          - generic [ref=e123]:
+            - generic [ref=e124]:
+              - button [ref=e125] [cursor=pointer]:
+                - img
+              - generic [ref=e126]:
+                - heading "New Purchase Order" [level=1] [ref=e127]
+                - paragraph [ref=e128]: Create a PO with Addbell branding
+            - generic [ref=e129]:
+              - button "Save PO" [ref=e130] [cursor=pointer]:
+                - img
+                - text: Save PO
+              - button "PDF..." [disabled]: PDF...
+              - button "Print..." [disabled]: Print...
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - generic [ref=e134]: PO & Project
+              - generic [ref=e135]:
+                - generic [ref=e136]:
+                  - text: Quick fill from existing
+                  - generic [ref=e137]:
+                    - combobox [ref=e138] [cursor=pointer]:
+                      - generic: Select project...
+                      - img [ref=e139]
+                    - combobox [ref=e141] [cursor=pointer]:
+                      - generic: Select vendor...
+                      - img [ref=e142]
+                - generic [ref=e144]:
+                  - generic [ref=e145]:
+                    - text: PO Number
+                    - textbox "PO Number" [ref=e146]:
+                      - /placeholder: e.g. PROJ-VEND-2026-0001
+                      - text: PROJ-VEND-2026-0001
+                  - button "Generate" [ref=e147] [cursor=pointer]:
+                    - img
+                    - text: Generate
+                - generic [ref=e148]:
+                  - text: Date
+                  - textbox "Date" [ref=e149]: Mar. 25, 2026
+                - generic [ref=e150]:
+                  - text: Project Title
+                  - textbox "Project Title" [ref=e151]
+                - generic [ref=e152]:
+                  - text: Requisitioner
+                  - textbox "Requisitioner" [ref=e153]
+                - generic [ref=e154]:
+                  - text: Deliver To
+                  - textbox "Deliver To" [ref=e155]
+            - generic [ref=e156]:
+              - generic [ref=e158]: Vendor Information
+              - generic [ref=e159]:
+                - generic [ref=e160]:
+                  - text: Vendor Name
+                  - textbox [ref=e161]
+                - generic [ref=e162]:
+                  - text: TIN
+                  - textbox [ref=e163]
+                - generic [ref=e164]:
+                  - text: Address
+                  - textbox [ref=e165]
+                - generic [ref=e166]:
+                  - text: Phone
+                  - textbox [ref=e167]
+                - generic [ref=e168]:
+                  - text: Email
+                  - textbox [ref=e169]
+            - generic [ref=e170]:
+              - generic [ref=e171]:
+                - generic [ref=e173]: Line Items
+                - button "Add Item" [ref=e174] [cursor=pointer]:
+                  - img
+                  - text: Add Item
+              - generic [ref=e175]:
+                - generic [ref=e176]:
+                  - generic [ref=e177]:
+                    - generic [ref=e178]: "1"
+                    - button [disabled]:
+                      - img
+                  - generic [ref=e179]:
+                    - text: Description
+                    - textbox [ref=e180]
+                  - generic [ref=e181]:
+                    - text: Qty
+                    - textbox [ref=e182]
+                  - generic [ref=e183]:
+                    - text: Unit Price
+                    - spinbutton [ref=e184]
+                  - generic [ref=e185]:
+                    - generic [ref=e186]: Total
+                    - paragraph [ref=e187]: ₱0.00
+                - generic [ref=e189]:
+                  - paragraph [ref=e190]: Grand Total
+                  - paragraph [ref=e191]: ₱0.00
+            - generic [ref=e192]:
+              - generic [ref=e194]: Signatories
+              - generic [ref=e195]:
+                - generic [ref=e196]:
+                  - text: Requested By
+                  - textbox [ref=e197]
+                - generic [ref=e198]:
+                  - text: Prepared By
+                  - textbox [ref=e199]: JOSEFINA E. CONTE
+                - generic [ref=e200]:
+                  - text: Reviewed By
+                  - textbox [ref=e201]
+                - generic [ref=e202]:
+                  - text: Approved By
+                  - textbox [ref=e203]: DIOSDADO B. LEONARDO
+                  - textbox "Title" [ref=e204]: President
+            - generic [ref=e205]:
+              - generic [ref=e207]: Payment Terms
+              - textbox [ref=e209]: 30% Down Payment 30% Progress Billing (after 7 days) 30% Progress Billing (after 7 days) 10% Retention (7 to 15 days after COC)
+          - generic [ref=e211]:
+            - generic [ref=e212]:
+              - img [ref=e214]
+              - generic [ref=e215]:
+                - heading [level=1] [ref=e216]: Purchase Order
+                - paragraph [ref=e217]: Please provide this PO number on all invoices and delivery receipts.
+            - generic [ref=e218]:
+              - generic [ref=e219]:
+                - generic [ref=e220]: PO No.
+                - text: PROJ-VEND-2026-0001
+              - generic [ref=e221]:
+                - generic [ref=e222]: Date
+                - text: Mar. 25, 2026
+              - generic [ref=e223]:
+                - generic [ref=e224]: ORIGINAL COPY
+                - generic [ref=e225]: P.O. Approved
+                - generic [ref=e226]: "Print: Mar 25, 2026, 7:12 PM"
+            - generic [ref=e230]:
+              - generic [ref=e231]: Project Title
+              - paragraph [ref=e232]
+            - generic [ref=e233]:
+              - generic [ref=e234]: Ship / Deliver To
+              - paragraph [ref=e235]
+            - generic [ref=e237]:
+              - generic [ref=e238]: Conforme (Vendor Acceptance)
+              - paragraph [ref=e240]: Signature over Printed Name
+            - generic [ref=e241]:
+              - generic [ref=e242]: Approximate Total
+              - text: ₱0.00
+            - generic [ref=e244]:
+              - generic [ref=e245]: Requested By
+              - paragraph [ref=e246]: —
+            - generic [ref=e247]:
+              - generic [ref=e248]: Prepared By
+              - paragraph [ref=e249]: Josefina E. Conte
+              - paragraph [ref=e250]: Purchasing
+            - generic [ref=e251]:
+              - generic [ref=e252]: Reviewed By
+              - paragraph [ref=e253]: —
+            - generic [ref=e254]:
+              - generic [ref=e255]: Approved By
+              - paragraph [ref=e256]: Diosdado B. Leonardo
+              - paragraph [ref=e257]: President
+  - alert [ref=e258]
+  - iframe
+```

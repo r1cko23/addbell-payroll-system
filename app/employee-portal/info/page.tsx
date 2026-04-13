@@ -11,8 +11,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
-import { Input } from "@/components/Input";
-import { Button } from "@/components/Button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 interface EmployeeInfo {
@@ -240,8 +241,14 @@ export default function EmployeeInfoPage() {
 
   return (
     <VStack gap="6" className="w-full">
+      <VStack gap="2" align="start">
+        <H1>Employee information</H1>
+        <BodySmall>
+          Review the profile details HR has on file and update your portal password.
+        </BodySmall>
+      </VStack>
       <CardSection
-        title="Employee Information"
+        title="Employee information"
         description="Details registered by HR"
       >
         {errorMessage && (
@@ -335,7 +342,7 @@ export default function EmployeeInfoPage() {
       </CardSection>
 
       <CardSection
-        title="Change Password"
+        title="Change password"
         description="Update your portal password"
       >
         {!showPasswordForm ? (
@@ -355,43 +362,54 @@ export default function EmployeeInfoPage() {
             onSubmit={handlePasswordChange}
             className="space-y-4"
           >
-            <Input
-              label="Current Password"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => {
-                setCurrentPassword(e.target.value);
-                setPasswordError(null);
-              }}
-              required
-              disabled={isChangingPassword}
-              placeholder="Enter your current password"
-            />
-            <Input
-              label="New Password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
-                setPasswordError(null);
-              }}
-              required
-              disabled={isChangingPassword}
-              placeholder="Enter your new password"
-              helperText="Must be at least 4 characters long"
-            />
-            <Input
-              label="Confirm New Password"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                setPasswordError(null);
-              }}
-              required
-              disabled={isChangingPassword}
-              placeholder="Confirm your new password"
-            />
+            <div className="space-y-2">
+              <Label htmlFor="current-password">Current Password</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => {
+                  setCurrentPassword(e.target.value);
+                  setPasswordError(null);
+                }}
+                required
+                disabled={isChangingPassword}
+                placeholder="Enter your current password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value);
+                  setPasswordError(null);
+                }}
+                required
+                disabled={isChangingPassword}
+                placeholder="Enter your new password"
+              />
+              <Caption className="text-muted-foreground">
+                Must be at least 4 characters long
+              </Caption>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm New Password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setPasswordError(null);
+                }}
+                required
+                disabled={isChangingPassword}
+                placeholder="Confirm your new password"
+              />
+            </div>
             {passwordError && (
               <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
                 <BodySmall className="text-destructive">{passwordError}</BodySmall>
@@ -415,9 +433,8 @@ export default function EmployeeInfoPage() {
               <Button
                 type="submit"
                 disabled={isChangingPassword}
-                isLoading={isChangingPassword}
               >
-                Update Password
+                {isChangingPassword ? "Updating..." : "Update Password"}
               </Button>
             </HStack>
           </form>

@@ -16,7 +16,9 @@ test.describe('Loan Creation', () => {
     // For now, this test assumes you're already logged in as admin/HR
     // You may need to update these credentials based on your test setup
     // Default to the same admin creds used by other approval access tests
-    const adminEmail = process.env.TEST_ADMIN_EMAIL || 'jericko.rzl@gmail.com';
+    // Default to a real HR/Admin user (profiles.role must be "admin" or "hr")
+    // Found via service-role query: admin@addbell.com (role: hr), password: test123
+    const adminEmail = process.env.TEST_ADMIN_EMAIL || 'admin@addbell.com';
     const adminPassword = process.env.TEST_ADMIN_PASSWORD || 'test123';
     
     // Fill in login form

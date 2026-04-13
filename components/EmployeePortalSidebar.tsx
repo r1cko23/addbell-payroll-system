@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { createClient } from "@/lib/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 type NavItem = {
   name: string;
@@ -99,10 +100,10 @@ const NavItem = memo(function NavItem({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
         isActive
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          ? "bg-primary/10 text-primary shadow-sm"
+          : "text-muted-foreground hover:bg-accent/70 hover:text-foreground"
       )}
     >
       <Icon
@@ -129,17 +130,11 @@ export function EmployeePortalSidebar({
   useEffect(() => {
     const fetchEmployeeInfo = async () => {
       if (!employee?.id) {
-        console.log("EmployeePortalSidebar - No employee ID available");
         setLoadingEmployeeType(false);
         return;
       }
 
       try {
-        console.log("EmployeePortalSidebar - Fetching employee info via RPC:", {
-          uuid: employee.id,
-          employeeId: employee.employee_id,
-        });
-
         const { data: employeeData, error } = await supabase
           .from("employees")
           .select("position, employment_type, full_name")
@@ -159,7 +154,6 @@ export function EmployeePortalSidebar({
         }
 
         if (!employeeData) {
-          console.warn("EmployeePortalSidebar - No employee data returned");
           setLoadingEmployeeType(false);
           return;
         }
@@ -171,17 +165,6 @@ export function EmployeePortalSidebar({
         // Check if employee is client-based AND Account Supervisor (employment_type = DB column)
         const isClientBasedAccountSupervisor =
           employeeData.employment_type === "client-based" && hasAccountSupervisor;
-
-        console.log("EmployeePortalSidebar - Employee check:", {
-          employeeId: employee.id,
-          employeeIdFromSession: employee.employee_id,
-          employeeName: employeeData.full_name,
-          employeeType: employeeData.employment_type,
-          position: employeeData.position,
-          normalizedPosition,
-          hasAccountSupervisor,
-          isClientBasedAccountSupervisor,
-        });
 
         setIsAccountSupervisor(isClientBasedAccountSupervisor);
       } catch (err) {
@@ -195,7 +178,6 @@ export function EmployeePortalSidebar({
   }, [employee?.id, employee?.employee_id, supabase]);
 
   const navGroups = useMemo(() => {
-    console.log("EmployeePortalSidebar - Rendering nav groups, isAccountSupervisor:", isAccountSupervisor);
     return getNavGroups(isAccountSupervisor);
   }, [isAccountSupervisor]);
 
@@ -240,13 +222,13 @@ export function EmployeePortalSidebar({
   return (
     <div
       className={cn(
-        "flex h-full flex-col w-64 border-r bg-background",
+        "flex h-full flex-col w-72 border-r bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80",
         className
       )}
     >
-      <div className="relative border-b">
-        <div className="flex items-center justify-center h-20 px-4 py-3">
-          <div className="flex flex-col items-center justify-center gap-1.5 w-full">
+      <div className="relative border-b p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 w-full">
             <img
               src="/addbell-logo.jpg"
               alt="Addbell Technical Services, Inc."
@@ -255,25 +237,31 @@ export function EmployeePortalSidebar({
                 e.currentTarget.style.display = "none";
               }}
             />
-            <span className="text-xs font-semibold text-muted-foreground text-center whitespace-nowrap">
-              Employee Portal
-            </span>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Employee portal</p>
+              <p className="text-xs text-muted-foreground">
+                Time, requests, payslips, and your work information.
+              </p>
+            </div>
+            <Badge variant="secondary" className="w-fit font-normal">
+              {employee.employee_id}
+            </Badge>
           </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden transition-colors z-10"
+              aria-label="Close navigation"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-2 right-2 rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden transition-colors z-10"
-            aria-label="Close navigation"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
         {navGroups.map((group) => {
           const GroupIcon = group.icon || FallbackIcon;
           const isOpen = openGroups.has(group.label);
@@ -283,15 +271,15 @@ export function EmployeePortalSidebar({
           );
 
           return (
-            <div key={group.label} className="mb-4">
+            <div key={group.label} className="mb-4 rounded-2xl border border-transparent px-1 py-1">
               <button
                 type="button"
                 onClick={() => toggleGroup(group.label)}
                 className={cn(
-                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-semibold transition-colors mb-2",
+                  "mb-2 flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
                   hasActiveItem
-                    ? "text-foreground bg-accent"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    ? "text-foreground bg-accent/70"
+                    : "text-muted-foreground hover:bg-accent/70 hover:text-foreground"
                 )}
               >
                 <div className="flex items-center gap-2">
@@ -327,12 +315,10 @@ export function EmployeePortalSidebar({
 
       {/* Footer */}
       <div className="p-4 border-t">
-        <p className="text-xs text-muted-foreground text-center mb-2">
-          © 2025 Addbell Technical Services, Inc.
-          <br />
-          All rights reserved
-        </p>
-        <div className="text-center">
+        <div className="rounded-xl border bg-muted/30 p-3 text-center">
+          <p className="text-xs text-muted-foreground mb-2">
+            © {new Date().getFullYear()} Addbell Technical Services, Inc.
+          </p>
           <Link
             href="/privacy"
             className="text-xs text-primary hover:underline transition-colors"

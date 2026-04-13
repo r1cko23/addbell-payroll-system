@@ -28,10 +28,9 @@ import {
 } from "@/components/ui/select";
 import { Printer, Plus, Trash2, FileDown, Hash, Save, Search, ArrowLeft, List } from "lucide-react";
 import { toast } from "sonner";
-import { generatePurchaseOrderPDF } from "@/utils/purchase-order-pdf";
 import { normalizePOData } from "@/utils/po-format";
 
-const emptyVendor: PurchaseOrderVendor = { name: "", tin: "", address: "", phone: "", email: "" };
+const emptyVendor: PurchaseOrderVendor = { name: "", contactPerson: "", tin: "", address: "", phone: "", email: "" };
 const emptyItem = (n: number): PurchaseOrderLineItem => ({ itemNo: n, description: "", qty: "", unitPrice: 0, totalAmount: 0 });
 
 const STORAGE_KEY_PREFIX = "po_sequence";
@@ -61,7 +60,7 @@ function generatePONumber(projectCode: string, vendorCode: string): string {
   return `${(projectCode || "PROJ").slice(0, 6)}-${(vendorCode || "VEND").slice(0, 6)}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-interface VendorRecord { id: string; name: string; tin: string | null; address: string | null; phone: string | null; email: string | null }
+interface VendorRecord { id: string; name: string; contact_person: string | null; tin: string | null; address: string | null; phone: string | null; email: string | null }
 interface ProjectRecord { id: string; name: string; code: string; site_address: string | null }
 interface PORow {
   id: string; po_number: string; po_date: string; status: string; subtotal: number; total_amount: number;
@@ -129,14 +128,13 @@ export default function PurchaseOrderPage() {
   const [approvedBy, setApprovedBy] = useState("DIOSDADO B. LEONARDO");
   const [approvedByTitle, setApprovedByTitle] = useState("President");
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   const [isSavingPO, setIsSavingPO] = useState(false);
 
   useEffect(() => {
     if (view !== "create") return;
     (async () => {
       const [vRes, pRes] = await Promise.all([
-        supabase.from("vendors").select("id, name, tin, address, phone, email").eq("is_active", true).order("name"),
+        supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email").eq("is_active", true).order("name"),
         supabase.from("projects").select("id, name, code, site_address").order("name"),
       ]);
       if (!vRes.error) setVendors((vRes.data as VendorRecord[]) || []);
@@ -165,7 +163,7 @@ export default function PurchaseOrderPage() {
   const handleSelectVendor = useCallback((id: string) => {
     setSelectedVendorId(id);
     const v = vendors.find((x) => x.id === id);
-    if (v) setVendor({ name: v.name, tin: v.tin ?? "", address: v.address ?? "", phone: v.phone ?? "", email: v.email ?? "" });
+    if (v) setVendor({ name: v.name, contactPerson: v.contact_person ?? "", tin: v.tin ?? "", address: v.address ?? "", phone: v.phone ?? "", email: v.email ?? "" });
   }, [vendors]);
 
   const handleSelectProject = useCallback((id: string) => {
@@ -238,7 +236,13 @@ export default function PurchaseOrderPage() {
       setView("list");
       fetchPOList();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to save PO.");
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err && typeof (err as { message: string }).message === "string"
+            ? (err as { message: string }).message
+            : "Failed to save PO.";
+      toast.error(msg);
     } finally {
       setIsSavingPO(false);
     }
@@ -270,15 +274,16 @@ export default function PurchaseOrderPage() {
     });
   }, [poNumber]);
 
-  const handleDownloadPDF = useCallback(async () => {
-    if (!poNumber.trim()) { toast.error("Generate a PO number first"); return; }
-    setIsDownloading(true);
-    try {
-      const doc = await generatePurchaseOrderPDF(normalizePOData(poData));
-      doc.save(`Purchase-Order-${poNumber.replace(/\s/g, "-")}.pdf`);
-      toast.success("PDF downloaded");
-    } catch (err) { console.error("PDF error:", err); toast.error("Failed to generate PDF"); } finally { setIsDownloading(false); }
-  }, [poData, poNumber]);
+  // Keep PDF output identical to the on-screen Print template by reusing the same
+  // HTML-based print iframe (user can choose “Save as PDF” in the print dialog).
+  const handleDownloadPDF = useCallback(() => {
+    if (!poNumber.trim()) {
+      toast.error("Generate a PO number first");
+      return;
+    }
+    toast.success("Opening print dialog. Choose “Save as PDF” to match the print format.");
+    handlePrint();
+  }, [handlePrint, poNumber]);
 
   // ========== LIST VIEW ==========
   const listView = (
@@ -368,8 +373,12 @@ export default function PurchaseOrderPage() {
           <Button variant="default" size="lg" onClick={handleSaveAndPost} disabled={isSavingPO}>
             {isSavingPO ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> Saving...</> : <><Save className="mr-2 h-4 w-4" />Save PO</>}
           </Button>
-          <Button variant="outline" size="lg" onClick={handleDownloadPDF} disabled={isDownloading}>
-            {isDownloading ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> PDF...</> : <><FileDown className="mr-2 h-4 w-4" />PDF</>}
+          <Button variant="outline" size="lg" onClick={handleDownloadPDF} disabled={isPrinting}>
+            {isPrinting ? (
+              <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> PDF...</>
+            ) : (
+              <><FileDown className="mr-2 h-4 w-4" />PDF</>
+            )}
           </Button>
           <Button onClick={handlePrint} size="lg" disabled={isPrinting}>
             {isPrinting ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" /> Print...</> : <><Printer className="mr-2 h-4 w-4" />Print</>}
@@ -412,6 +421,7 @@ export default function PurchaseOrderPage() {
           <CardHeader><CardTitle>Vendor Information</CardTitle></CardHeader>
           <CardContent className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2"><Label>Vendor Name</Label><Input value={vendor.name} onChange={(e) => setVendor((v) => ({ ...v, name: e.target.value }))} className="h-10" /></div>
+            <div className="space-y-2"><Label>Contact Person</Label><Input value={vendor.contactPerson} onChange={(e) => setVendor((v) => ({ ...v, contactPerson: e.target.value }))} className="h-10" /></div>
             <div className="space-y-2"><Label>TIN</Label><Input value={vendor.tin} onChange={(e) => setVendor((v) => ({ ...v, tin: e.target.value }))} className="h-10" /></div>
             <div className="space-y-2 sm:col-span-2"><Label>Address</Label><Textarea value={vendor.address} onChange={(e) => setVendor((v) => ({ ...v, address: e.target.value }))} rows={3} /></div>
             <div className="space-y-2"><Label>Phone</Label><Input value={vendor.phone} onChange={(e) => setVendor((v) => ({ ...v, phone: e.target.value }))} className="h-10" /></div>

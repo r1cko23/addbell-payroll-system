@@ -34,7 +34,7 @@ interface PODetail {
   vendor_snapshot: Record<string, string> | null;
   company_snapshot: Record<string, string> | null;
   created_at: string;
-  vendors: { name: string; tin: string | null; address: string | null; phone: string | null; email: string | null } | null;
+  vendors: { name: string; contact_person: string | null; tin: string | null; address: string | null; phone: string | null; email: string | null } | null;
   projects: { name: string; code: string; site_address: string | null } | null;
 }
 
@@ -67,7 +67,7 @@ export default function PurchaseOrderDetailPage() {
     if (!id) return;
     (async () => {
       const [poRes, itemsRes] = await Promise.all([
-        supabase.from("purchase_orders").select("*, vendors ( name, tin, address, phone, email ), projects ( name, code, site_address )").eq("id", id).single(),
+        supabase.from("purchase_orders").select("*, vendors ( name, contact_person, tin, address, phone, email ), projects ( name, code, site_address )").eq("id", id).single(),
         supabase.from("purchase_order_items").select("*").eq("purchase_order_id", id).order("line_no"),
       ]);
       if (!poRes.error && poRes.data) setPo(poRes.data as PODetail);
@@ -99,7 +99,7 @@ export default function PurchaseOrderDetailPage() {
     </DashboardLayout>
   );
 
-  const vendorInfo = po.vendor_snapshot?.name ? po.vendor_snapshot : (po.vendors ? { name: po.vendors.name, tin: po.vendors.tin ?? "", address: po.vendors.address ?? "", phone: po.vendors.phone ?? "", email: po.vendors.email ?? "" } : null);
+  const vendorInfo = po.vendor_snapshot?.name ? po.vendor_snapshot : (po.vendors ? { name: po.vendors.name, contactPerson: po.vendors.contact_person ?? "", tin: po.vendors.tin ?? "", address: po.vendors.address ?? "", phone: po.vendors.phone ?? "", email: po.vendors.email ?? "" } : null);
 
   return (
     <DashboardLayout>
@@ -163,6 +163,7 @@ export default function PurchaseOrderDetailPage() {
               {vendorInfo ? (
                 <>
                   <p className="font-medium">{vendorInfo.name}</p>
+                  {vendorInfo.contactPerson && <p className="text-muted-foreground">Contact: {vendorInfo.contactPerson}</p>}
                   {vendorInfo.tin && <p className="text-muted-foreground">TIN: {vendorInfo.tin}</p>}
                   {vendorInfo.address && <p>{vendorInfo.address}</p>}
                   <div className="flex gap-4">

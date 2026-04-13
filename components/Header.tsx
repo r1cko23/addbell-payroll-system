@@ -17,6 +17,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { formatRoleName } from "@/lib/formatRoleName";
+import { Badge } from "@/components/ui/badge";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -174,8 +175,9 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 border-b bg-background flex items-center px-4 sm:px-6">
-      <div className="flex w-full items-center justify-between gap-3">
+    <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <div className="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 xl:px-8">
+        <div className="flex items-center gap-3">
         {onMenuClick ? (
           <Button
             variant="ghost"
@@ -189,10 +191,17 @@ export function Header({ onMenuClick }: HeaderProps) {
         ) : (
           <div className="lg:hidden" aria-hidden="true" />
         )}
+          <div className="hidden min-w-0 lg:block">
+            <p className="text-sm font-medium text-foreground">Staff workspace</p>
+            <p className="text-xs text-muted-foreground">
+              Manage payroll, approvals, time, and employee records.
+            </p>
+          </div>
+        </div>
         <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-3">
+              <Button variant="ghost" className="h-auto rounded-xl px-2 py-1.5 sm:px-3">
                 <Avatar className="h-8 w-8">
                   <AvatarImage
                     src={profilePictureUrl || undefined}
@@ -202,13 +211,13 @@ export function Header({ onMenuClick }: HeaderProps) {
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex flex-col items-start">
+                <div className="hidden flex-col items-start sm:flex">
                   <span className="text-sm font-medium text-foreground">
                     {userFullName || user?.email}
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <Badge variant="secondary" className="mt-1 h-5 rounded-md px-2 text-[11px] font-normal">
                     {formatRoleName(userRole)}
-                  </span>
+                  </Badge>
                 </div>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </Button>

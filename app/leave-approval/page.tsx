@@ -45,6 +45,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { MetricCard } from "@/components/ui/metric-card";
 
 interface LeaveDocument {
   id: string;
@@ -835,73 +836,20 @@ export default function LeaveApprovalPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
-        {/* Header */}
         <VStack gap="2" align="start">
-          <H1>Leave Approval</H1>
+          <H1>Leave approvals</H1>
           <BodySmall>
-            Review and approve employee leave requests (SIL/LWOP)
+            Review leave filings, filter by employee and week, and act on pending requests.
           </BodySmall>
-          {/* Debug info - remove after testing */}
-          {process.env.NODE_ENV === "development" && (
-            <Caption>
-              Debug: User Role = {userRole || "loading..."}, User ID ={" "}
-              {currentUserId
-                ? currentUserId.substring(0, 8) + "..."
-                : "loading..."}
-            </Caption>
-          )}
         </VStack>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Total Requests</BodySmall>
-                <div className="text-2xl font-bold">{stats.total}</div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Pending</BodySmall>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {stats.pending}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Approved by Manager</BodySmall>
-                <div className="text-2xl font-bold text-blue-600">
-                  {stats.approvedByManager}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Approved by HR</BodySmall>
-                <div className="text-2xl font-bold text-green-600">
-                  {stats.approvedByHR}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Rejected</BodySmall>
-                <div className="text-2xl font-bold text-red-600">
-                  {stats.rejected}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
+          <MetricCard label="Total" value={stats.total} />
+          <MetricCard label="Pending" value={stats.pending} />
+          <MetricCard label="Manager approved" value={stats.approvedByManager} />
+          <MetricCard label="HR approved" value={stats.approvedByHR} />
+          <MetricCard label="Rejected" value={stats.rejected} />
         </div>
 
         {/* Filters */}

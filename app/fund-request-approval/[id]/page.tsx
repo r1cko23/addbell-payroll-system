@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
-import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -73,48 +72,60 @@ export default function FundRequestApprovalDetailPage() {
     })();
   }, [params?.id, supabase]);
 
-  if (loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
+  if (loading)
+    return <div className="animate-pulse h-8 w-48 bg-slate-200 rounded" />;
   if (!request) {
     return (
-      <DashboardLayout>
-        <div className="space-y-4">
-          <Link href="/fund-request-approval" className="text-muted-foreground hover:text-foreground text-sm">← Back to approval</Link>
-          <p className="text-destructive">Fund request not found.</p>
-        </div>
-      </DashboardLayout>
+      <div className="space-y-4">
+        <Link
+          href="/fund-request-approval"
+          className="text-muted-foreground hover:text-foreground text-sm"
+        >
+          ← Back to approval
+        </Link>
+        <p className="text-destructive">Fund request not found.</p>
+      </div>
     );
   }
 
   const details = (request.details as DetailItem[] | null) ?? [];
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6 max-w-3xl">
-        <Link href="/fund-request-approval" className="text-muted-foreground hover:text-foreground text-sm">
-          ← Back to Fund Request Approval
-        </Link>
-        <Card>
-          <CardHeader>
-            <CardTitle>Fund Request (approval view)</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Request date: {format(new Date(request.request_date), "MMMM d, yyyy")} · Requested by {requesterName}
-            </p>
-            <Badge
-              variant={
-                request.status === "management_approved" ? "default"
-                : request.status === "rejected" ? "destructive"
-                : "secondary"
-              }
-              className="w-fit"
-            >
-              {STATUS_LABELS[request.status] ?? request.status}
-            </Badge>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purpose</h4>
-              <p className="mt-1">{request.purpose}</p>
-            </div>
+    <div className="space-y-6 max-w-3xl">
+      <Link
+        href="/fund-request-approval"
+        className="text-muted-foreground hover:text-foreground text-sm"
+      >
+        ← Back to Fund Request Approval
+      </Link>
+      <Card>
+        <CardHeader>
+          <CardTitle>Fund Request (approval view)</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Request date:{" "}
+            {format(new Date(request.request_date), "MMMM d, yyyy")} · Requested
+            by {requesterName}
+          </p>
+          <Badge
+            variant={
+              request.status === "management_approved"
+                ? "default"
+                : request.status === "rejected"
+                  ? "destructive"
+                  : "secondary"
+            }
+            className="w-fit"
+          >
+            {STATUS_LABELS[request.status] ?? request.status}
+          </Badge>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div>
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Purpose
+            </h4>
+            <p className="mt-1">{request.purpose}</p>
+          </div>
 
             {projectInfo && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
@@ -258,8 +269,7 @@ export default function FundRequestApprovalDetailPage() {
               </div>
             )}
           </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
+      </Card>
+    </div>
   );
 }

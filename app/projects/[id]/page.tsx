@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProfile } from "@/lib/hooks/useProfile";
-import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Clock, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2, FileText } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
 interface Project {
@@ -38,7 +38,6 @@ interface Project {
 }
 interface ProjectCost { id: string; cost_type: string; cost_category: string | null; description: string; quantity: number | null; unit: string | null; unit_cost: number | null; total_cost: number; cost_date: string; vendor_supplier: string | null; invoice_number: string | null; payment_status: string; }
 interface ProjectAssignment { id: string; employee_id: string; role: string | null; start_date: string; end_date: string | null; is_active: boolean; employees: { company_id_no: string; first_name: string; last_name: string } | null; }
-interface ProjectTimeEntry { id: string; employee_id: string; clock_in: string; clock_out: string | null; regular_hours: number; overtime_hours: number; night_diff_hours: number; total_hours: number; notes: string | null; is_approved: boolean; employees: { company_id_no: string; first_name: string; last_name: string } | null; }
 interface ProjectProgressEntry { id: string; progress_date: string; progress_percentage: number; notes: string | null; milestone: string | null; created_at: string; }
 interface FundRequestBrief { id: string; purpose: string; total_requested_amount: number; status: string; request_date: string; }
 interface POBrief { id: string; po_number: string; total_amount: number; status: string; po_date: string; vendors: { name: string } | null; }
@@ -59,7 +58,6 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [costs, setCosts] = useState<ProjectCost[]>([]);
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
-  const [timeEntries, setTimeEntries] = useState<ProjectTimeEntry[]>([]);
   const [progressHistory, setProgressHistory] = useState<ProjectProgressEntry[]>([]);
   const [fundRequests, setFundRequests] = useState<FundRequestBrief[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<POBrief[]>([]);
@@ -102,12 +100,11 @@ export default function ProjectDetailPage() {
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projRes, costsRes, manpRes, assignRes, timeRes, progRes, frRes, poRes] = await Promise.all([
+      const [projRes, costsRes, manpRes, assignRes, progRes, frRes, poRes] = await Promise.all([
         supabase.from("projects").select("*, clients:client_id ( name )").eq("id", projectId).single(),
         supabase.from("project_costs").select("*").eq("project_id", projectId).order("cost_date", { ascending: false }),
         supabase.from("project_manpower_costs").select("total_cost").eq("project_id", projectId),
         supabase.from("project_assignments").select("*, employees:employee_id ( company_id_no, first_name, last_name )").eq("project_id", projectId).order("start_date", { ascending: false }),
-        supabase.from("project_time_entries").select("*, employees:employee_id ( company_id_no, first_name, last_name )").eq("project_id", projectId).order("clock_in", { ascending: false }).limit(50),
         supabase.from("project_progress").select("*").eq("project_id", projectId).order("progress_date", { ascending: false }),
         supabase.from("fund_requests").select("id, purpose, total_requested_amount, status, request_date").eq("project_id", projectId).order("created_at", { ascending: false }),
         supabase.from("purchase_orders").select("id, po_number, total_amount, status, po_date, vendors ( name )").eq("project_id", projectId).order("created_at", { ascending: false }),
@@ -117,7 +114,6 @@ export default function ProjectDetailPage() {
       setProject(projRes.data as Project);
       setCosts(costsRes.data ?? []);
       setAssignments(assignRes.data ?? []);
-      setTimeEntries(timeRes.data ?? []);
       setProgressHistory(progRes.data ?? []);
       setFundRequests((frRes.data as unknown as FundRequestBrief[]) ?? []);
       setPurchaseOrders((poRes.data as unknown as POBrief[]) ?? []);
@@ -271,7 +267,6 @@ export default function ProjectDetailPage() {
             <TabsTrigger value="fund-requests">Fund Requests</TabsTrigger>
             <TabsTrigger value="purchase-orders">Purchase Orders</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
-            <TabsTrigger value="time-entries">Time Entries</TabsTrigger>
             <TabsTrigger value="progress">Progress</TabsTrigger>
           </TabsList>
 
@@ -423,31 +418,6 @@ export default function ProjectDetailPage() {
                       <TableCell>{format(new Date(a.start_date), "MMM d, yyyy")}</TableCell>
                       <TableCell>{a.end_date ? format(new Date(a.end_date), "MMM d, yyyy") : "Ongoing"}</TableCell>
                       <TableCell><Badge variant={a.is_active ? "default" : "secondary"}>{a.is_active ? "Active" : "Inactive"}</Badge></TableCell>
-                    </TableRow>
-                  ))}</TableBody></Table>
-            </CardContent></Card>
-          </TabsContent>
-
-          <TabsContent value="time-entries" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Time Entries</h3>
-              <Link href={`/projects/${projectId}/clock`}>
-                <Button variant="outline"><Clock className="h-4 w-4 mr-2" />Clock in / out for this project</Button>
-              </Link>
-            </div>
-            <p className="text-sm text-muted-foreground">Time entries here are only for shifts recorded on the <strong>Project Time Clock</strong>. Use the button above to clock in or out for this project so your time is tied to it.</p>
-            <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Clock In</TableHead><TableHead>Clock Out</TableHead><TableHead className="text-right">Regular</TableHead><TableHead className="text-right">OT</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                <TableBody>{timeEntries.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">No time entries</TableCell></TableRow> :
-                  timeEntries.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{e.employees ? `${e.employees.first_name} ${e.employees.last_name}` : "—"}</TableCell>
-                      <TableCell>{format(new Date(e.clock_in), "MMM d h:mm a")}</TableCell>
-                      <TableCell>{e.clock_out ? format(new Date(e.clock_out), "MMM d h:mm a") : "—"}</TableCell>
-                      <TableCell className="text-right">{e.regular_hours.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{e.overtime_hours.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-medium">{e.total_hours.toFixed(2)}</TableCell>
-                      <TableCell><Badge variant={e.is_approved ? "default" : "secondary"}>{e.is_approved ? "Approved" : "Pending"}</Badge></TableCell>
                     </TableRow>
                   ))}</TableBody></Table>
             </CardContent></Card>

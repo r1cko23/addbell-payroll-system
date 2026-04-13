@@ -45,6 +45,7 @@ function haversineDistance(a: Coordinates, b: Coordinates) {
 
 function parseCoordinates(locationString: string | null): Coordinates | null {
   if (!locationString) return null;
+  if (locationString.startsWith("office:")) return null;
 
   const [latStr, lngStr] = locationString.split(',');
   const lat = parseFloat(latStr);
@@ -58,6 +59,26 @@ export function resolveLocationDetails(
   locationString: string | null,
   officeLocations: OfficeLocation[]
 ): LocationDetails {
+  if (locationString?.startsWith("office:")) {
+    const officeLocationId = locationString.slice("office:".length);
+    const office = officeLocations.find((item) => item.id === officeLocationId);
+    if (office) {
+      return {
+        name: `Biometric · ${office.name}`,
+        address: office.address || "Biometric device punch tagged to this office location.",
+        coordinates: null,
+        isWithinAllowedArea: true,
+      };
+    }
+
+    return {
+      name: "Biometric office tag",
+      address: "Biometric device punch imported with an office location tag.",
+      coordinates: null,
+      isWithinAllowedArea: true,
+    };
+  }
+
   const coords = parseCoordinates(locationString);
   if (!coords) {
     return {

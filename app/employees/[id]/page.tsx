@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProfile } from "@/lib/hooks/useProfile";
-import { ArrowLeft, Edit, Save, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Edit, Save, AlertTriangle, MapPin } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { differenceInDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -84,6 +86,21 @@ interface AttendanceRecord {
   status: string | null;
 }
 
+interface ClockOfficeLocation {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+}
+
+const CLOCK_SITE_ORDER = [
+  "Addbell Main Office",
+  "Techlog Center Philippines",
+  "Advance Energy Cavite",
+] as const;
+
 export default function EmployeeDetailPage() {
   const params = useParams();
   const employeeId = params.id as string;
@@ -98,6 +115,11 @@ export default function EmployeeDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const [editForm, setEditForm] = useState<Partial<Employee>>({});
+
+  const [clockOffices, setClockOffices] = useState<ClockOfficeLocation[]>([]);
+  const [clockSelectedIds, setClockSelectedIds] = useState<string[]>([]);
+  const [clockLoading, setClockLoading] = useState(false);
+  const [clockSaving, setClockSaving] = useState(false);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -185,6 +207,66 @@ export default function EmployeeDetailPage() {
     profile?.role === "upper_management" ||
     profile?.role === "hr" ||
     profile?.role === "operations_manager";
+
+  const loadClockSites = useCallback(async () => {
+    if (!employeeId || !canEdit) return;
+    setClockLoading(true);
+    try {
+      const res = await fetch(
+        `/api/hr/employee-location-assignments?employee_id=${encodeURIComponent(employeeId)}`
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        office_locations?: ClockOfficeLocation[];
+        assigned_location_ids?: string[];
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to load");
+      }
+      setClockOffices(json.office_locations ?? []);
+      setClockSelectedIds(json.assigned_location_ids ?? []);
+    } catch {
+      toast.error("Could not load bundy clock sites.");
+    } finally {
+      setClockLoading(false);
+    }
+  }, [employeeId, canEdit]);
+
+  useEffect(() => {
+    loadClockSites();
+  }, [loadClockSites]);
+
+  const toggleClockSite = (locationId: string) => {
+    setClockSelectedIds((prev) =>
+      prev.includes(locationId)
+        ? prev.filter((id) => id !== locationId)
+        : [...prev, locationId]
+    );
+  };
+
+  const saveClockSites = async () => {
+    if (!employeeId) return;
+    setClockSaving(true);
+    try {
+      const res = await fetch("/api/hr/employee-location-assignments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          location_ids: clockSelectedIds,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(json.error || "Could not save sites.");
+        return;
+      }
+      toast.success("Clock access updated.");
+      await loadClockSites();
+    } finally {
+      setClockSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -294,6 +376,12 @@ export default function EmployeeDetailPage() {
             <TabsTrigger value="bank">Bank Details</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            {canEdit && (
+              <TabsTrigger value="clock-sites" className="gap-1">
+                <MapPin className="h-3.5 w-3.5" />
+                Clock access
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Personal Info */}
@@ -671,6 +759,99 @@ export default function EmployeeDetailPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* Bundy GPS: allowed office_locations */}
+          {canEdit && (
+            <TabsContent value="clock-sites">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle>Clock access</CardTitle>
+                      <p className="text-sm text-muted-foreground font-normal mt-1">
+                        Select where this employee can clock in or out. Leave all unchecked to
+                        allow any active location.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0">
+                      {clockSelectedIds.length} selected
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {clockLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading locations...</p>
+                  ) : clockOffices.length === 0 ? (
+                    <p className="text-sm text-destructive">Clock locations are not set up yet.</p>
+                  ) : (
+                    <>
+                      <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
+                        {[...clockOffices]
+                          .sort(
+                            (a, b) =>
+                              CLOCK_SITE_ORDER.indexOf(
+                                a.name as (typeof CLOCK_SITE_ORDER)[number]
+                              ) -
+                              CLOCK_SITE_ORDER.indexOf(
+                                b.name as (typeof CLOCK_SITE_ORDER)[number]
+                              )
+                          )
+                          .map((loc) => {
+                            const checked = clockSelectedIds.includes(loc.id);
+                            return (
+                              <label
+                                key={loc.id}
+                                className={cn(
+                                  "flex items-start gap-3 rounded-lg border bg-background p-3 transition-colors cursor-pointer",
+                                  checked
+                                    ? "border-primary bg-primary/5 shadow-sm"
+                                    : "hover:bg-muted/40"
+                                )}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => toggleClockSite(loc.id)}
+                                  className="mt-0.5"
+                                />
+                                <div className="space-y-0.5 min-w-0">
+                                  <p className="font-medium text-sm">{loc.name}</p>
+                                  {loc.address ? (
+                                    <p className="text-xs text-muted-foreground">{loc.address}</p>
+                                  ) : null}
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    {Number(loc.latitude).toFixed(6)},{" "}
+                                    {Number(loc.longitude).toFixed(6)} · {loc.radius_meters}m radius
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={saveClockSites}
+                          disabled={clockSaving}
+                        >
+                          {clockSaving ? "Saving..." : "Save access"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={loadClockSites}
+                          disabled={clockLoading || clockSaving}
+                        >
+                          Reload
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           {/* Attendance */}
           <TabsContent value="attendance">

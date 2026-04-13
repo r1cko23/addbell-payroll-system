@@ -595,11 +595,10 @@ export default function LeaveRequestPage() {
   return (
     <>
       <VStack gap="8" className="w-full">
-        {/* Header */}
         <VStack gap="2" align="start">
-          <H1>Leave Request</H1>
+          <H1>Leave request</H1>
           <BodySmall className="text-muted-foreground">
-            {employee.full_name}
+            Review balances, select dates, and file leave for {employee.full_name}.
           </BodySmall>
         </VStack>
 

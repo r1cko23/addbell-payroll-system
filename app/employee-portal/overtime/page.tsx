@@ -278,6 +278,12 @@ export default function OvertimePage() {
 
   return (
     <VStack gap="6" className="w-full">
+      <VStack gap="2" align="start">
+        <H1>OT filing</H1>
+        <BodySmall className="text-muted-foreground">
+          Submit overtime hours, attach supporting documents, and track request status.
+        </BodySmall>
+      </VStack>
       {/* Request Form */}
       <Card className="w-full">
         <CardHeader className="pb-4">

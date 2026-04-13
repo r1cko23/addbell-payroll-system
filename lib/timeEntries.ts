@@ -34,6 +34,8 @@ export interface TimeEntrySession {
   total_night_diff_hours?: number | null;
   clock_in_location?: string | null;
   clock_out_location?: string | null;
+  clock_in_device?: string | null;
+  clock_out_device?: string | null;
   employee_id?: string;
 }
 
@@ -49,8 +51,18 @@ export function punchesToSessions(
     (a, b) =>
       new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
   );
-  const formatLocation = (lat: number | null | undefined, lng: number | null | undefined): string | null => {
-    if (lat != null && lng != null && !Number.isNaN(lat) && !Number.isNaN(lng)) return `${lat},${lng}`;
+  const formatLocation = (punch: TimeEntryPunch): string | null => {
+    if (
+      punch.lat != null &&
+      punch.lng != null &&
+      !Number.isNaN(punch.lat) &&
+      !Number.isNaN(punch.lng)
+    ) {
+      return `${punch.lat},${punch.lng}`;
+    }
+    if (punch.office_location_id) {
+      return `office:${punch.office_location_id}`;
+    }
     return null;
   };
 
@@ -82,8 +94,10 @@ export function punchesToSessions(
         total_hours: Math.round(totalHours * 100) / 100,
         regular_hours: null,
         total_night_diff_hours: null,
-        clock_in_location: formatLocation(p.lat, p.lng),
-        clock_out_location: formatLocation(next.lat, next.lng),
+        clock_in_location: formatLocation(p),
+        clock_out_location: formatLocation(next),
+        clock_in_device: p.device_info ?? null,
+        clock_out_device: next.device_info ?? null,
       });
       i += 2;
     } else {
@@ -97,8 +111,10 @@ export function punchesToSessions(
         total_hours: null,
         regular_hours: null,
         total_night_diff_hours: null,
-        clock_in_location: formatLocation(p.lat, p.lng),
+        clock_in_location: formatLocation(p),
         clock_out_location: null,
+        clock_in_device: p.device_info ?? null,
+        clock_out_device: null,
       });
       i += 1;
     }
@@ -202,7 +218,7 @@ export async function fetchSessionsForEmployee(
 ): Promise<TimeEntrySession[]> {
   const { data: punches } = await supabase
     .from("time_entries")
-    .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
+    .select("id, employee_id, punch_type, punched_at, lat, lng, device_info, source, office_location_id")
     .eq("employee_id", employeeId)
     .gte("punched_at", startIso)
     .lte("punched_at", endIso)
@@ -227,7 +243,7 @@ export async function fetchSessionsInRange(
 ): Promise<TimeEntrySession[]> {
   let query = supabase
     .from("time_entries")
-    .select("id, employee_id, punch_type, punched_at, lat, lng, device_info")
+    .select("id, employee_id, punch_type, punched_at, lat, lng, device_info, source, office_location_id")
     .gte("punched_at", startIso)
     .lte("punched_at", endIso)
     .order("punched_at", { ascending: true });

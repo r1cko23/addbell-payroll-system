@@ -40,6 +40,7 @@ import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { fetchEmployeeIdsForOtApproverOrViewer } from "@/lib/employeeOvertimeAssignments";
+import { MetricCard } from "@/components/ui/metric-card";
 
 interface FailureToLog {
   id: string;
@@ -510,54 +511,19 @@ export default function FailureToLogApprovalPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
-        {/* Header */}
         <VStack gap="2" align="start">
-          <H1>Failure to Log Approval</H1>
+          <H1>Failure to log approvals</H1>
           <BodySmall>
-            Review and approve employee failure to log requests
+            Review missed punch requests, filter by employee and week, and act on pending items.
           </BodySmall>
         </VStack>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full items-stretch">
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Total Requests</BodySmall>
-                <div className="text-2xl font-bold">{stats.total}</div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Pending</BodySmall>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {stats.pending}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Approved</BodySmall>
-                <div className="text-2xl font-bold text-emerald-600">
-                  {stats.approved}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
-          <Card className="h-full w-full">
-            <CardContent className="p-4 h-full flex flex-col w-full">
-              <VStack gap="1" align="start" className="flex-1 w-full">
-                <BodySmall>Rejected</BodySmall>
-                <div className="text-2xl font-bold text-red-600">
-                  {stats.rejected}
-                </div>
-              </VStack>
-            </CardContent>
-          </Card>
+          <MetricCard label="Total" value={stats.total} />
+          <MetricCard label="Pending" value={stats.pending} />
+          <MetricCard label="Approved" value={stats.approved} />
+          <MetricCard label="Rejected" value={stats.rejected} />
         </div>
 
         {/* Filters */}

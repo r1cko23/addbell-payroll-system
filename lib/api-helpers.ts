@@ -119,6 +119,37 @@ export async function verifyAdminOrHrAccess(): Promise<{
   return { userId: user.id, role };
 }
 
+const EMPLOYEE_RECORD_EDIT_ROLES = new Set([
+  "admin",
+  "upper_management",
+  "hr",
+  "operations_manager",
+]);
+
+/**
+ * Matches `canEdit` on the HR employee detail page (`app/employees/[id]/page.tsx`).
+ */
+export async function verifyEmployeeRecordEditAccess(): Promise<{
+  userId: string;
+  role: string;
+} | null> {
+  const role = await getCurrentUserRole();
+  if (!role || !EMPLOYEE_RECORD_EDIT_ROLES.has(role)) {
+    return null;
+  }
+
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  return { userId: user.id, role };
+}
+
 /**
  * Get authenticated user with role check
  */

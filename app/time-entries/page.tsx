@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -944,17 +945,10 @@ export default function TimeEntriesPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full max-w-full min-w-0">
-        {/* Header */}
-        <HStack
-          justify="between"
-          align="start"
-          className="flex-col sm:flex-row gap-4"
-        >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <VStack gap="2" align="start">
-            <H1>Time Entries</H1>
-            <BodySmall>
-              View and manage employee time clock entries
-            </BodySmall>
+            <H1>Time entries</H1>
+            <BodySmall>Review employee punches, add manual entries, and export logs.</BodySmall>
           </VStack>
           <HStack gap="2" className="w-full sm:w-auto">
             {/* Admin-only: Add Time Entry for any employee */}
@@ -1030,6 +1024,16 @@ export default function TimeEntriesPage() {
                 </Button>
               )}
             <Button
+              asChild
+              variant="secondary"
+              className="w-full sm:w-auto"
+            >
+              <Link href="/time-entries/attlog-import">
+                <Icon name="ArrowDown" size={IconSizes.sm} />
+                Import AttLog
+              </Link>
+            </Button>
+            <Button
               onClick={exportToCSV}
               variant="secondary"
               className="w-full sm:w-auto"
@@ -1038,7 +1042,7 @@ export default function TimeEntriesPage() {
               Export CSV
             </Button>
           </HStack>
-        </HStack>
+        </div>
 
         {/* Stats Cards — use full horizontal space */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-full">
@@ -1281,6 +1285,11 @@ export default function TimeEntriesPage() {
                                     <div className="text-[10px] sm:text-[11px] text-muted-foreground">
                                       {clockInDetails.address}
                                     </div>
+                                    {entry.clock_in_device && (
+                                      <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                                        {entry.clock_in_device}
+                                      </div>
+                                    )}
                                     {clockInDetails.coordinates && (
                                       <a
                                         href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
@@ -1305,6 +1314,11 @@ export default function TimeEntriesPage() {
                                         <div className="text-[10px] sm:text-[11px] text-muted-foreground">
                                           {clockOutDetails.address}
                                         </div>
+                                        {entry.clock_out_device && (
+                                          <div className="text-[10px] sm:text-[11px] text-muted-foreground">
+                                            {entry.clock_out_device}
+                                          </div>
+                                        )}
                                         {clockOutDetails.coordinates && (
                                           <a
                                             href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
@@ -1467,6 +1481,11 @@ export default function TimeEntriesPage() {
                               <div className="text-[11px] text-muted-foreground">
                                 {selectedClockInDetails.address}
                               </div>
+                              {selectedEntry.clock_in_device && (
+                                <div className="text-[11px] text-muted-foreground">
+                                  {selectedEntry.clock_in_device}
+                                </div>
+                              )}
                               {selectedClockInDetails.coordinates && (
                                 <a
                                   href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
@@ -1517,6 +1536,11 @@ export default function TimeEntriesPage() {
                               <div className="text-[11px] text-muted-foreground">
                                 {selectedClockOutDetails.address}
                               </div>
+                              {selectedEntry.clock_out_device && (
+                                <div className="text-[11px] text-muted-foreground">
+                                  {selectedEntry.clock_out_device}
+                                </div>
+                              )}
                               {selectedClockOutDetails.coordinates && (
                                 <a
                                   href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}

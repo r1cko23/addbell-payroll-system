@@ -2,6 +2,10 @@
 
 The app supports **both** web app clock in/out and **biometric device** punches (e.g. ZKTeco LX50). All punches are stored in the same `time_entries` table so timesheets and payslips use one source of truth.
 
+If you plan to use the **LX50 as a standalone device** and only **export logs every cutoff**, use this guide instead:
+
+- [ZKTeco LX50 standalone setup and cutoff export workflow](./ZKTECO_LX50_STANDALONE_CUTOFF_WORKFLOW.md)
+
 **Setup order:** Connect the device to your PC → Install software and verify it works → Generate webhook secret and configure your app → Point middleware/sync to the punch API.
 
 ---

@@ -12,6 +12,7 @@ export interface PurchaseOrderLineItem {
 
 export interface PurchaseOrderVendor {
   name: string;
+  contactPerson: string;
   tin: string;
   address: string;
   phone: string;

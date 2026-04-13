@@ -225,6 +225,7 @@ export const PurchaseOrderPrint = forwardRef<
             bg: "#fff",
             data: {
               name: data.vendor.name,
+              contactPerson: data.vendor.contactPerson,
               tin: data.vendor.tin,
               address: data.vendor.address,
               phone: data.vendor.phone,
@@ -238,6 +239,7 @@ export const PurchaseOrderPrint = forwardRef<
             bg: "#fff",
             data: {
               name: data.company.name,
+              contactPerson: "",
               tin: data.company.tin,
               address: data.company.address,
               phone: data.company.phone,
@@ -273,6 +275,11 @@ export const PurchaseOrderPrint = forwardRef<
             <p style={{ margin: "0 0 6px", fontWeight: 600, fontSize: "12px", color: COLORS.dark, wordBreak: "break-word" }}>
               {block.data.name}
             </p>
+            {block.data.contactPerson ? (
+              <p style={{ margin: "0 0 4px", fontSize: "10px", color: COLORS.muted }}>
+                Contact: {block.data.contactPerson}
+              </p>
+            ) : null}
             <p style={{ margin: "0 0 4px", fontSize: "10px", color: COLORS.muted }}>
               TIN: {block.data.tin}
             </p>

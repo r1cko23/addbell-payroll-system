@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -32,6 +33,7 @@ import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -93,6 +95,21 @@ interface Position {
   job_grade: string | null;
 }
 
+interface ModalClockOffice {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+}
+
+const MODAL_CLOCK_SITE_ORDER = [
+  "Addbell Main Office",
+  "Techlog Center Philippines",
+  "Advance Energy Cavite",
+] as const;
+
 function fullName(emp: Employee): string {
   return [emp.first_name, emp.middle_name, emp.last_name, emp.suffix].filter(Boolean).join(" ");
 }
@@ -148,6 +165,52 @@ export default function EmployeesPage() {
   const [formData, setFormData] = useState({ ...emptyForm });
   const [submitting, setSubmitting] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+
+  const canAssignClockSites =
+    role === "admin" ||
+    role === "upper_management" ||
+    role === "hr" ||
+    role === "operations_manager";
+
+  const [modalClockOffices, setModalClockOffices] = useState<ModalClockOffice[]>([]);
+  const [modalClockSelectedIds, setModalClockSelectedIds] = useState<string[]>([]);
+  const [modalClockLoading, setModalClockLoading] = useState(false);
+
+  async function loadModalClockSites(employeeId: string | null) {
+    if (!canAssignClockSites) return;
+    setModalClockLoading(true);
+    try {
+      const url = employeeId
+        ? `/api/hr/employee-location-assignments?employee_id=${encodeURIComponent(employeeId)}`
+        : "/api/hr/employee-location-assignments";
+      const res = await fetch(url);
+      const json = (await res.json().catch(() => ({}))) as {
+        office_locations?: ModalClockOffice[];
+        assigned_location_ids?: string[];
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to load clock sites");
+      }
+      setModalClockOffices(json.office_locations ?? []);
+      setModalClockSelectedIds(json.assigned_location_ids ?? []);
+    } catch (e: unknown) {
+      console.error(e);
+      toast.error("Could not load bundy clock sites for this form.");
+      setModalClockOffices([]);
+      setModalClockSelectedIds([]);
+    } finally {
+      setModalClockLoading(false);
+    }
+  }
+
+  function toggleModalClockSite(locationId: string) {
+    setModalClockSelectedIds((prev) =>
+      prev.includes(locationId)
+        ? prev.filter((id) => id !== locationId)
+        : [...prev, locationId]
+    );
+  }
 
   useEffect(() => {
     if (permissionsLoading) return;
@@ -223,6 +286,7 @@ export default function EmployeesPage() {
     setEditingEmployee(null);
     setFormData({ ...emptyForm });
     setShowModal(true);
+    void loadModalClockSites(null);
     try {
       const { data } = await supabase.from("employees").select("employee_code");
       const max = Math.max(
@@ -275,6 +339,7 @@ export default function EmployeesPage() {
       overtime_group_id: employee.overtime_group_id || "",
     });
     setShowModal(true);
+    void loadModalClockSites(employee.id);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -322,12 +387,15 @@ export default function EmployeesPage() {
         overtime_group_id: formData.overtime_group_id ? formData.overtime_group_id : null,
       };
 
+      let savedEmployeeId: string | null = null;
+
       if (editingEmployee) {
         const { error } = await supabase
           .from("employees")
           .update(employeeData as never)
           .eq("id", editingEmployee.id);
         if (error) throw error;
+        savedEmployeeId = editingEmployee.id;
         toast.success("Employee updated successfully!", {
           description: `${formData.first_name} ${formData.last_name} · ${companyIdNo}`,
         });
@@ -337,18 +405,38 @@ export default function EmployeesPage() {
           .select("id")
           .limit(1)
           .single();
-        const { error } = await supabase.from("employees").insert([
-          {
-            ...employeeData,
-            company_id: companyData?.id,
-            // Default employee portal password to employee code
-            portal_password: companyIdNo,
-          } as never,
-        ]);
+        const { data: insertedRow, error } = await supabase
+          .from("employees")
+          .insert([
+            {
+              ...employeeData,
+              company_id: companyData?.id,
+              // Default employee portal password to company ID no.
+              portal_password: companyIdNo,
+            } as never,
+          ])
+          .select("id")
+          .single();
         if (error) throw error;
+        savedEmployeeId = insertedRow?.id ?? null;
         toast.success("Employee added successfully!", {
           description: `${formData.first_name} ${formData.last_name} · ${companyIdNo}`,
         });
+      }
+
+      if (canAssignClockSites && savedEmployeeId) {
+        const clockRes = await fetch("/api/hr/employee-location-assignments", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            employee_id: savedEmployeeId,
+            location_ids: modalClockSelectedIds,
+          }),
+        });
+        if (!clockRes.ok) {
+          const j = (await clockRes.json().catch(() => ({}))) as { error?: string };
+          toast.error(j.error || "Saved employee, but clock-in sites could not be updated.");
+        }
       }
 
       setShowModal(false);
@@ -477,22 +565,22 @@ export default function EmployeesPage() {
         <HStack justify="between" align="center">
           <VStack gap="2" align="start">
             <H1>Employee Management</H1>
-            <BodySmall>Manage employee records, departments, and positions.</BodySmall>
+            <BodySmall>View, add, and update employee records.</BodySmall>
           </VStack>
           <Button onClick={openAddModal}>
             <Icon name="Plus" size={IconSizes.sm} />
-            Add Employee
+            New Employee
           </Button>
         </HStack>
 
         <div className="space-y-4">
-          <CardSection title="Directory" description="Search, view, and manage employee records.">
+          <CardSection title="Directory" description="Search, filter, and manage employees.">
             <HStack justify="between" align="end" gap="4">
               <div className="relative flex-1 max-w-md">
                 <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Search by name, company ID, time clock ID, or email..."
+                  placeholder="Search name, company ID, biometric ID, or email"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -511,12 +599,14 @@ export default function EmployeesPage() {
                 {(isAdmin || role === "hr") && (
                   <Button variant="secondary" size="sm" onClick={exportEmployeeMasterlistToPDF} disabled={generatingPDF || employees.length === 0}>
                     <Icon name={generatingPDF ? "ArrowsClockwise" : "FilePdf"} size={IconSizes.sm} className={generatingPDF ? "animate-spin" : ""} />
-                    {generatingPDF ? "Generating..." : "Export PDF"}
+                    {generatingPDF ? "Generating..." : "Export"}
                   </Button>
                 )}
                 <HStack gap="2" align="center">
                   <Icon name="User" size={IconSizes.sm} className="text-muted-foreground" />
-                  <Caption>{filteredEmployees.length} employees</Caption>
+                  <Badge variant="secondary" className="font-normal">
+                    {filteredEmployees.length} employees
+                  </Badge>
                 </HStack>
               </HStack>
             </HStack>
@@ -544,7 +634,7 @@ export default function EmployeesPage() {
                     {filteredEmployees.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          {searchTerm ? "No employees found matching your search." : "No employees yet. Add your first employee!"}
+                          {searchTerm ? "No matching employees found." : "No employees yet."}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -597,19 +687,33 @@ export default function EmployeesPage() {
                           <TableCell className="text-right w-[160px] py-2">
                             <HStack gap="2" justify="end" className="whitespace-nowrap">
                               <Link href={`/employees/${employee.id}`}>
-                                <Button size="sm" variant="ghost" className="h-7 px-2" title="View details">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-8 p-0"
+                                  title="View employee"
+                                  aria-label={`View ${fullName(employee)}`}
+                                >
                                   <Icon name="Eye" size={IconSizes.sm} />
                                 </Button>
                               </Link>
-                              <Button size="sm" variant="secondary" onClick={() => openEditModal(employee)} className="h-7 px-2" title="Edit employee">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openEditModal(employee)}
+                                className="h-8 w-8 p-0"
+                                title="Edit employee"
+                                aria-label={`Edit ${fullName(employee)}`}
+                              >
                                 <Icon name="PencilSimple" size={IconSizes.sm} />
                               </Button>
                               <Button
                                 size="sm"
                                 variant={employee.employment_status === "active" ? "destructive" : "default"}
                                 onClick={() => toggleEmployeeStatus(employee)}
-                                className="h-7 px-2"
+                                className="h-8 w-8 p-0"
                                 title={employee.employment_status === "active" ? "Deactivate" : "Activate"}
+                                aria-label={`${employee.employment_status === "active" ? "Deactivate" : "Activate"} ${fullName(employee)}`}
                               >
                                 <Icon name="Power" size={IconSizes.sm} />
                               </Button>
@@ -627,19 +731,31 @@ export default function EmployeesPage() {
       </VStack>
 
       {/* Add / Edit Employee Dialog */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+      <Dialog
+        open={showModal}
+        onOpenChange={(open) => {
+          setShowModal(open);
+          if (!open) {
+            setModalClockOffices([]);
+            setModalClockSelectedIds([]);
+            setModalClockLoading(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
           <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
-            <DialogTitle>{editingEmployee ? "Edit Employee" : "Add New Employee"}</DialogTitle>
+            <DialogTitle>{editingEmployee ? "Edit employee" : "New employee"}</DialogTitle>
             <DialogDescription>
-              {editingEmployee ? "Update employee information below." : "Fill in the details to create a new employee record."}
+              {editingEmployee
+                ? "Update employee details and access settings."
+                : "Create an employee record and set initial access."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="space-y-5 overflow-y-auto flex-1 px-6 pr-4">
+            <div className="space-y-6 overflow-y-auto flex-1 px-6 pr-4">
               {/* Basic Info */}
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Basic Information</h3>
+                <h3 className="text-sm font-semibold text-foreground">Work details</h3>
                 <div className="h-px bg-border" />
               </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -654,7 +770,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="employee-code">Time clock / biometric ID *</Label>
+                  <Label htmlFor="employee-code">Biometric ID *</Label>
                   <Input
                     id="employee-code"
                     required
@@ -665,7 +781,7 @@ export default function EmployeesPage() {
                     placeholder="1, 2, 3…"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Sequential ID for the ZKTeco terminal (suggested next number when you click Add Employee).
+                    Digits only. Suggested next number is filled in for new employees.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -769,7 +885,7 @@ export default function EmployeesPage() {
 
               {/* Department & Position */}
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Department & Position</h3>
+                <h3 className="text-sm font-semibold text-foreground">Team & role</h3>
                 <div className="h-px bg-border" />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -814,7 +930,7 @@ export default function EmployeesPage() {
                     </SelectContent>
                   </Select>
                   <Caption className="text-muted-foreground">
-                    OT, leave, and failure-to-log approvals use this group so the assigned operations approver can act on requests.
+                    Used for OT, leave, and failure-to-log approvals.
                   </Caption>
                 </div>
               </div>
@@ -877,7 +993,7 @@ export default function EmployeesPage() {
               {canAccessSalaryInfo && (
                 <>
                   <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-foreground">Compensation</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Pay</h3>
                     <div className="h-px bg-border" />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -902,7 +1018,7 @@ export default function EmployeesPage() {
 
               {/* Bank */}
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Bank Details</h3>
+                <h3 className="text-sm font-semibold text-foreground">Banking</h3>
                 <div className="h-px bg-border" />
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
@@ -919,12 +1035,80 @@ export default function EmployeesPage() {
                   <Input id="bank-acct-no" value={formData.bank_account_number} onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })} />
                 </div>
               </div>
+
+              {canAssignClockSites && (
+                <>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-foreground">Clock access</h3>
+                    <div className="h-px bg-border" />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 -mt-2">
+                    <p className="text-xs text-muted-foreground">
+                      Select where this employee can clock in or out. Leave all unchecked to allow
+                      any active location.
+                    </p>
+                    <Badge variant="outline" className="shrink-0">
+                      {modalClockSelectedIds.length} selected
+                    </Badge>
+                  </div>
+                  <div className="rounded-xl border bg-muted/20 p-3">
+                    {modalClockLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading locations...</p>
+                    ) : modalClockOffices.length === 0 ? (
+                      <p className="text-sm text-destructive">Clock locations are not set up yet.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {[...modalClockOffices]
+                          .sort((a, b) => {
+                            const ia = MODAL_CLOCK_SITE_ORDER.indexOf(
+                              a.name as (typeof MODAL_CLOCK_SITE_ORDER)[number]
+                            );
+                            const ib = MODAL_CLOCK_SITE_ORDER.indexOf(
+                              b.name as (typeof MODAL_CLOCK_SITE_ORDER)[number]
+                            );
+                            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                          })
+                          .map((loc) => {
+                            const checked = modalClockSelectedIds.includes(loc.id);
+                            return (
+                              <label
+                                key={loc.id}
+                                className={cn(
+                                  "flex items-start gap-3 rounded-lg border bg-background p-3 transition-colors cursor-pointer",
+                                  checked
+                                    ? "border-primary bg-primary/5 shadow-sm"
+                                    : "hover:bg-muted/40"
+                                )}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => toggleModalClockSite(loc.id)}
+                                  className="mt-0.5"
+                                />
+                                <div className="space-y-0.5 min-w-0">
+                                  <p className="font-medium text-sm">{loc.name}</p>
+                                  {loc.address ? (
+                                    <p className="text-xs text-muted-foreground">{loc.address}</p>
+                                  ) : null}
+                                  <p className="text-xs text-muted-foreground font-mono">
+                                    {Number(loc.latitude).toFixed(6)}, {Number(loc.longitude).toFixed(6)}{" "}
+                                    · {loc.radius_meters}m radius
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <DialogFooter className="flex items-center justify-end gap-2 flex-shrink-0 pt-4 pb-6 px-6 border-t bg-background">
               <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
               <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving..." : editingEmployee ? "Update" : "Create"}
+                {submitting ? "Saving..." : editingEmployee ? "Save Changes" : "Create Employee"}
               </Button>
             </DialogFooter>
           </form>

@@ -414,10 +414,10 @@ export default function PayrollPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
-        <HStack justify="between" align="center">
+        <HStack justify="between" align="center" className="flex-col gap-4 sm:flex-row">
           <VStack gap="2" align="start">
             <H1>Payroll</H1>
-            <BodySmall>Manage payroll runs, generate payslips, and track disbursements.</BodySmall>
+            <BodySmall>Create payroll runs, generate payslips, and review totals before release.</BodySmall>
           </VStack>
           {(isAdmin || isHR) && (
             <Button onClick={() => setShowNewRunDialog(true)}>
@@ -427,7 +427,7 @@ export default function PayrollPage() {
           )}
         </HStack>
 
-        <CardSection title="Payroll Runs" description="All payroll runs sorted by most recent.">
+        <CardSection title="Payroll runs" description="All payroll runs sorted by most recent.">
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />

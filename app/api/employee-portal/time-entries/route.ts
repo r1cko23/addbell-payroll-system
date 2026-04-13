@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     let q = admin
       .from("time_entries")
       .select(
-        "id, employee_id, punch_type, punched_at, lat, lng, device_info"
+        "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id"
       )
       .eq("employee_id", employeeId)
       .order("punched_at", { ascending: false })

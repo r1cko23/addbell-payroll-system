@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { formatRoleName } from "@/lib/formatRoleName";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions, type ModuleName } from "@/lib/hooks/usePermissions";
+import { Badge } from "@/components/ui/badge";
 
 type NavItem = {
   name: string;
@@ -151,10 +152,10 @@ const NavItem = memo(function NavItem({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
         isActive
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          ? "bg-primary/10 text-primary shadow-sm"
+          : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
       )}
     >
       <Icon className="h-4 w-4" />
@@ -264,7 +265,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col w-64 border-r bg-muted/10 flex-shrink-0",
+        "flex h-full flex-col w-64 border-r bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80 flex-shrink-0",
         className
       )}
       style={{
@@ -277,38 +278,44 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       }}
       data-testid="sidebar-container"
     >
-      <div className="flex items-center justify-between h-16 px-4 border-b">
-        <div className="flex-1 flex items-center justify-center min-h-[64px]">
-          <img
-            src="/addbell-logo.jpg"
-            alt="Addbell Technical Services, Inc."
-            className="h-16 w-auto object-contain"
-            style={{
-              display: 'block',
-              visibility: 'visible',
-              opacity: 1,
-            }}
-            onLoad={() => console.log('Logo loaded successfully')}
-            onError={(e) => {
-              console.error('Logo failed to load:', e);
-              e.currentTarget.style.display = 'none';
-            }}
-          />
+      <div className="border-b p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-3">
+            <img
+              src="/addbell-logo.jpg"
+              alt="Addbell Technical Services, Inc."
+              className="h-12 w-auto object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Admin workspace</p>
+              <p className="text-xs text-muted-foreground">
+                Payroll, approvals, projects, and workforce operations.
+              </p>
+            </div>
+            {role ? (
+              <Badge variant="secondary" className="font-normal">
+                {formatRoleName(role)}
+              </Badge>
+            ) : null}
+          </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden"
+              aria-label="Close navigation"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-4 rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden"
-            aria-label="Close navigation"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
         {(roleLoading || permissionsLoading) ? (
           <div className="flex items-center justify-center h-32">
             <ArrowsClockwise className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -332,11 +339,11 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
 
             // Render all groups with collapsible structure
             return (
-              <div key={group.label} className="space-y-1">
+              <div key={group.label} className="space-y-1 rounded-2xl border border-transparent px-1 py-1">
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.label)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent transition"
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent/70 transition"
                   aria-expanded={isOpen}
                 >
                   <span className="flex items-center gap-2">
@@ -350,7 +357,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
                   )}
                 </button>
                 {isOpen && (
-                  <div className="space-y-1 pl-3">
+                  <div className="space-y-1 pl-3 pt-1">
                     {group.items.map((item) => {
                       const isActive =
                         pathname === item.href ||
@@ -375,12 +382,10 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-4 border-t">
-        <p className="text-xs text-muted-foreground text-center mb-2">
-          © 2025 Addbell Technical Services, Inc.
-          <br />
-          All rights reserved
-        </p>
-        <div className="text-center">
+        <div className="rounded-xl border bg-muted/30 p-3 text-center">
+          <p className="text-xs text-muted-foreground mb-2">
+            © {new Date().getFullYear()} Addbell Technical Services, Inc.
+          </p>
           <a
             href="/privacy"
             className="text-xs text-primary hover:underline transition-colors"

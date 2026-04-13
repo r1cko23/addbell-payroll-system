@@ -6,8 +6,7 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall, Caption } from "@/components/ui/typography";
-import { HStack, VStack } from "@/components/ui/stack";
+import { VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,8 @@ import { format } from "date-fns";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { MetricCard } from "@/components/ui/metric-card";
+import { H1, BodySmall } from "@/components/ui/typography";
 
 interface DashboardStats {
   totalEmployees: number;
@@ -140,61 +141,54 @@ export default function AdminDashboard() {
 
   return (
     <VStack gap="8" className="w-full pb-16">
-      <VStack gap="2" align="start">
-        <H1>Executive Dashboard</H1>
-        <BodySmall>Addbell Technical Service Inc. — overview of projects, workforce, and financials.</BodySmall>
-      </VStack>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-1">
+          <Badge variant="outline" className="font-normal">Executive dashboard</Badge>
+          <H1>Business overview</H1>
+          <BodySmall>
+            Track workforce, active projects, pending approvals, and overall project value in one place.
+          </BodySmall>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/fund-request-approval">
+            <Button variant="outline" size="sm">Fund Requests</Button>
+          </Link>
+          <Link href="/purchase-order">
+            <Button size="sm">Purchase Orders</Button>
+          </Link>
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Active Employees</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats?.activeEmployees ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-1">of {stats?.totalEmployees ?? 0} total</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Active Projects</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats?.activeProjects ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-1">of {stats?.totalProjects ?? 0} total</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Project Value</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">₱{(stats?.totalProjectValue ?? 0).toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground mt-1">across all projects</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Pending Actions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3">
-              <div>
-                <p className="text-3xl font-bold text-amber-600">{stats?.pendingFundRequests ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Fund Requests</p>
-              </div>
-              <div className="border-l pl-3">
-                <p className="text-3xl font-bold text-amber-600">{stats?.pendingPOs ?? 0}</p>
-                <p className="text-xs text-muted-foreground">POs</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <MetricCard
+          label="Active employees"
+          value={stats?.activeEmployees ?? 0}
+          meta={`of ${stats?.totalEmployees ?? 0} total employees`}
+          icon={<Icon name="UsersThree" size={IconSizes.sm} />}
+        />
+        <MetricCard
+          label="Active projects"
+          value={stats?.activeProjects ?? 0}
+          meta={`of ${stats?.totalProjects ?? 0} total projects`}
+          icon={<Icon name="ChartLineUp" size={IconSizes.sm} />}
+        />
+        <MetricCard
+          label="Project value"
+          value={`₱${(stats?.totalProjectValue ?? 0).toLocaleString()}`}
+          meta="Total contract value across all projects"
+          icon={<Icon name="CurrencyCircleDollar" size={IconSizes.sm} />}
+        />
+        <MetricCard
+          label="Pending actions"
+          value={(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)}
+          meta={`${stats?.pendingFundRequests ?? 0} fund requests · ${stats?.pendingPOs ?? 0} purchase orders`}
+          icon={<Icon name="ClipboardText" size={IconSizes.sm} />}
+        />
       </div>
 
       {/* Projects Overview */}
-      <CardSection title="Recent Projects" description="Latest projects and their progress.">
+      <CardSection title="Recent projects" description="Latest project activity and delivery progress.">
         {projects.length === 0 ? (
           <p className="text-muted-foreground text-center py-6">No projects yet.</p>
         ) : (
@@ -239,13 +233,13 @@ export default function AdminDashboard() {
           </div>
         )}
         <div className="flex justify-end mt-2">
-          <Link href="/projects"><Button variant="ghost" size="sm">View All Projects →</Button></Link>
+          <Link href="/projects"><Button variant="ghost" size="sm">View all projects</Button></Link>
         </div>
       </CardSection>
 
       {/* Fund Requests & PO Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CardSection title="Recent Fund Requests" description="Latest fund request activity.">
+        <CardSection title="Recent fund requests" description="Newest requests that may need attention.">
           {recentFR.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No fund requests.</p>
           ) : (
@@ -271,7 +265,7 @@ export default function AdminDashboard() {
           </div>
         </CardSection>
 
-        <CardSection title="Recent Purchase Orders" description="Latest PO activity.">
+        <CardSection title="Recent purchase orders" description="Newest purchase orders and approval status.">
           {recentPO.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No purchase orders.</p>
           ) : (

@@ -5,6 +5,14 @@ import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 type CreateLeavePayload = {
   employee_id: string;
   leave_type: "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave";
+  leave_subtype?:
+    | "regular_sil"
+    | "vacation_leave"
+    | "emergency_leave"
+    | "sick_leave"
+    | "others"
+    | "half_day_leave"
+    | null;
   start_date: string;
   end_date: string;
   total_days: number;
@@ -18,6 +26,60 @@ type CreateLeavePayload = {
     file_base64: string;
   } | null;
 };
+
+function normalizeLeaveTypeForUi(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (["sil", "sick leave", "service incentive leave"].includes(normalized)) {
+    return "SIL";
+  }
+  if (
+    ["lwop", "leave without pay", "unpaid leave", "leave_without_pay"].includes(
+      normalized
+    )
+  ) {
+    return "LWOP";
+  }
+  if (
+    ["maternity leave", "maternity_leave", "maternity"].includes(normalized)
+  ) {
+    return "Maternity Leave";
+  }
+  if (
+    ["paternity leave", "paternity_leave", "paternity"].includes(normalized)
+  ) {
+    return "Paternity Leave";
+  }
+  return value;
+}
+
+function getLeaveTypeCandidates(value: CreateLeavePayload["leave_type"]): string[] {
+  const base = value.trim();
+  const set = new Set<string>([base]);
+  const lower = base.toLowerCase();
+  const upper = base.toUpperCase();
+  set.add(lower);
+  set.add(upper);
+
+  if (upper === "SIL") {
+    set.add("Sick Leave");
+    set.add("Service Incentive Leave");
+    set.add("sick leave");
+    set.add("service incentive leave");
+  } else if (upper === "LWOP") {
+    set.add("Leave Without Pay");
+    set.add("Unpaid Leave");
+    set.add("leave without pay");
+    set.add("unpaid leave");
+  } else if (lower === "maternity leave") {
+    set.add("Maternity");
+    set.add("maternity");
+  } else if (lower === "paternity leave") {
+    set.add("Paternity");
+    set.add("paternity");
+  }
+
+  return [...set];
+}
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -45,6 +107,7 @@ export async function GET(req: NextRequest) {
         `
         id,
         leave_type,
+        leave_subtype,
         start_date,
         end_date,
         selected_dates,
@@ -89,6 +152,7 @@ export async function GET(req: NextRequest) {
 
     const payload = rows.map((r: any) => ({
       ...r,
+      leave_type: normalizeLeaveTypeForUi(r.leave_type || ""),
       leave_request_documents: docsByRequest[r.id] || [],
     }));
 
@@ -118,25 +182,47 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getAdminClient();
-    const { data: inserted, error } = await admin
-      .from("leave_requests")
-      .insert({
-        employee_id: body.employee_id,
-        leave_type: body.leave_type,
-        start_date: body.start_date,
-        end_date: body.end_date,
-        total_days: body.total_days,
-        selected_dates: body.selected_dates || null,
-        half_day_dates: body.half_day_dates || [],
-        reason: body.reason || null,
-        status: "pending",
-      })
-      .select("id")
-      .single();
+    const leaveTypeCandidates = getLeaveTypeCandidates(body.leave_type);
 
-    if (error || !inserted) {
+    let inserted: { id: string } | null = null;
+    let lastError: { message: string } | null = null;
+
+    for (const leaveTypeValue of leaveTypeCandidates) {
+      const { data, error } = await admin
+        .from("leave_requests")
+        .insert({
+          employee_id: body.employee_id,
+          leave_type: leaveTypeValue,
+          leave_subtype: body.leave_subtype || null,
+          start_date: body.start_date,
+          end_date: body.end_date,
+          total_days: body.total_days,
+          selected_dates: body.selected_dates || null,
+          half_day_dates: body.half_day_dates || [],
+          reason: body.reason || null,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+
+      if (!error && data) {
+        inserted = data as { id: string };
+        break;
+      }
+
+      lastError = error ? { message: error.message } : null;
+      const isLeaveTypeCheckError = Boolean(
+        error?.message?.toLowerCase().includes("leave_type_check") ||
+          error?.message?.toLowerCase().includes("check constraint")
+      );
+      if (!isLeaveTypeCheckError) {
+        break;
+      }
+    }
+
+    if (!inserted) {
       return NextResponse.json(
-        { error: error?.message || "Failed to create leave request" },
+        { error: lastError?.message || "Failed to create leave request" },
         { status: 500 }
       );
     }
@@ -206,10 +292,10 @@ export async function PATCH(req: NextRequest) {
     const admin = getAdminClient();
     const { data, error } = await admin
       .from("leave_requests")
-      .update({ status: "cancelled" })
+      .delete()
       .eq("id", body.request_id)
       .eq("employee_id", body.employee_id)
-      .in("status", ["pending", "approved_by_manager", "approved_by_hr"])
+      .in("status", ["pending", "approved_by_manager", "approved_by_pm", "approved_by_hr"])
       .select("id")
       .maybeSingle();
 

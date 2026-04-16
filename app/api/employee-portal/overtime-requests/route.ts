@@ -255,10 +255,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ id: body.request_id, documentUpdated: true });
     }
 
-    // Cancel (reject) pending request
+    // Cancel by deleting pending request
     const { data, error } = await admin
       .from("overtime_requests")
-      .update({ status: "rejected" })
+      .delete()
       .eq("id", body.request_id)
       .eq("employee_id", body.employee_id)
       .eq("status", "pending")

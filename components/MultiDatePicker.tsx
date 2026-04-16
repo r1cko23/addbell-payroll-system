@@ -87,6 +87,12 @@ export function MultiDatePicker({
     today.setHours(0, 0, 0, 0);
     const dateOnly = new Date(date);
     dateOnly.setHours(0, 0, 0, 0);
+    const isHoliday = holidayDates.has(dateStr);
+
+    // Keep holidays non-selectable.
+    if (isHoliday) {
+      return false;
+    }
 
     // Can't select past dates (but allow today)
     if (isBefore(dateOnly, today) && !isToday(dateOnly)) {
@@ -150,7 +156,6 @@ export function MultiDatePicker({
     const isSelected = selectedDatesSet.has(dateStr);
     const isCurrentMonth = isSameMonth(date, currentMonth);
     const isHoliday = holidayDates.has(dateStr);
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
     const isSelectable = isDateSelectable(date);
 
     return cn(

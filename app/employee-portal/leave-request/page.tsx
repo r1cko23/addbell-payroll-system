@@ -24,7 +24,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { H1, H3, H4, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
-import { format, addDays } from "date-fns";
+import { format, addDays, differenceInCalendarDays } from "date-fns";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
@@ -46,6 +46,14 @@ interface LeaveDocument {
 interface LeaveRequest {
   id: string;
   leave_type: "SIL" | "LWOP";
+  leave_subtype?:
+    | "regular_sil"
+    | "vacation_leave"
+    | "emergency_leave"
+    | "sick_leave"
+    | "others"
+    | "half_day_leave"
+    | null;
   start_date: string;
   end_date: string;
   selected_dates?: string[] | null;
@@ -71,6 +79,74 @@ interface EmployeeInfo {
 }
 
 const DEFAULT_EMPLOYEE_SIL_CREDITS = 5;
+const BUSINESS_START_HOUR = 8;
+const BUSINESS_WINDOW_HOURS = 4;
+
+type LeaveSubtype =
+  | "regular_sil"
+  | "vacation_leave"
+  | "emergency_leave"
+  | "sick_leave"
+  | "others"
+  | "half_day_leave";
+
+const LEAVE_SUBTYPE_OPTIONS: {
+  value: LeaveSubtype;
+  label: string;
+  notice: string;
+}[] = [
+  {
+    value: "regular_sil",
+    label: "Regular SIL",
+    notice: "Requires at least 3 days notice before leave date.",
+  },
+  {
+    value: "vacation_leave",
+    label: "Vacation Leave",
+    notice: "Requires at least 3 days notice before leave date.",
+  },
+  {
+    value: "emergency_leave",
+    label: "Emergency Leave",
+    notice:
+      "Must be filed within the first 4 hours of business start (8:00 AM to 12:00 NN).",
+  },
+  {
+    value: "sick_leave",
+    label: "Sick Leave",
+    notice:
+      "Must be filed within the first 4 hours of business start (8:00 AM to 12:00 NN).",
+  },
+  {
+    value: "others",
+    label: "Others",
+    notice: "Requires at least 3 days notice. Please specify clear reason.",
+  },
+  {
+    value: "half_day_leave",
+    label: "Half-Day Leave",
+    notice:
+      "Select one leave date and mark it as half-day to file for 0.5 day leave.",
+  },
+];
+
+function getLeaveTypeLabel(leaveType: string): "SIL" | "LWOP" {
+  const normalized = leaveType.trim().toLowerCase();
+  if (
+    ["sil", "sick leave", "service incentive leave"].includes(normalized)
+  ) {
+    return "SIL";
+  }
+  return "LWOP";
+}
+
+function getLeaveSubtypeLabel(value?: string | null): string {
+  if (!value) return "—";
+  return (
+    LEAVE_SUBTYPE_OPTIONS.find((option) => option.value === value)?.label ??
+    value
+  );
+}
 
 export default function LeaveRequestPage() {
   const router = useRouter();
@@ -87,6 +163,7 @@ export default function LeaveRequestPage() {
 
   // Form state
   const [leaveType, setLeaveType] = useState<"SIL" | "LWOP">("SIL");
+  const [leaveSubtype, setLeaveSubtype] = useState<LeaveSubtype>("regular_sil");
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [halfDayDates, setHalfDayDates] = useState<Set<string>>(new Set()); // Track which dates are half-day
   const [startDate, setStartDate] = useState("");
@@ -195,6 +272,12 @@ export default function LeaveRequestPage() {
     }
   }, [employeeInfo, leaveType]);
 
+  useEffect(() => {
+    if (leaveSubtype === "regular_sil" && leaveType === "LWOP") {
+      setLeaveSubtype("others");
+    }
+  }, [leaveSubtype, leaveType]);
+
   // Update startDate and endDate when selectedDates changes
   useEffect(() => {
     if (selectedDates.length > 0) {
@@ -220,14 +303,12 @@ export default function LeaveRequestPage() {
   useEffect(() => {
     // Calculate days from selected dates array
     // Half-day dates count as 0.5, full-day dates count as 1.0
+    // Weekends are allowed and counted based on company policy.
     if (selectedDates.length > 0) {
       let days = 0;
       selectedDates.forEach((dateStr) => {
-        const date = new Date(dateStr);
-        const dow = date.getDay();
-        const isWeekend = dow === 0 || dow === 6;
         const isHoliday = holidayDates.has(dateStr);
-        if (!isWeekend && !isHoliday) {
+        if (!isHoliday) {
           // Check if this date is marked as half-day
           if (halfDayDates.has(dateStr)) {
             days += 0.5;
@@ -328,8 +409,62 @@ export default function LeaveRequestPage() {
     }
 
     if (calculatedDays <= 0) {
-      toast.error("Please select valid dates");
+      toast.error(
+        "Selected dates are invalid for filing. Please pick at least one valid date."
+      );
       return;
+    }
+
+    const sortedDates = [...selectedDates].sort();
+    const earliestSelectedDate = sortedDates[0];
+    const today = new Date();
+    const todayOnly = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    const leaveStartDateOnly = new Date(`${earliestSelectedDate}T00:00:00`);
+
+    if (
+      leaveSubtype === "regular_sil" ||
+      leaveSubtype === "vacation_leave" ||
+      leaveSubtype === "others"
+    ) {
+      const noticeDays = differenceInCalendarDays(leaveStartDateOnly, todayOnly);
+      if (noticeDays < 3) {
+        toast.error("This leave subtype requires at least 3 days notice.");
+        return;
+      }
+    }
+
+    if (leaveSubtype === "emergency_leave" || leaveSubtype === "sick_leave") {
+      const isSameDayFiling =
+        differenceInCalendarDays(leaveStartDateOnly, todayOnly) === 0;
+      const businessWindowEnd = BUSINESS_START_HOUR + BUSINESS_WINDOW_HOURS;
+      const currentHour = today.getHours();
+      if (!isSameDayFiling) {
+        toast.error(
+          "Emergency and Sick Leave must be filed on the leave day during the business start window."
+        );
+        return;
+      }
+      if (currentHour < BUSINESS_START_HOUR || currentHour >= businessWindowEnd) {
+        toast.error(
+          "Emergency and Sick Leave filing window is 8:00 AM to 12:00 NN."
+        );
+        return;
+      }
+    }
+
+    if (leaveSubtype === "half_day_leave") {
+      if (selectedDates.length !== 1) {
+        toast.error("Half-Day Leave requires exactly one selected date.");
+        return;
+      }
+      if (halfDayDates.size === 0) {
+        toast.error("Mark the selected date as half-day before submitting.");
+        return;
+      }
     }
 
     // Check SIL credits if SIL type
@@ -398,6 +533,7 @@ export default function LeaveRequestPage() {
       body: JSON.stringify({
         employee_id: employee.id,
         leave_type: leaveType,
+        leave_subtype: leaveSubtype,
         start_date: startDate,
         end_date: endDate,
         total_days: calculatedDays,
@@ -432,6 +568,7 @@ export default function LeaveRequestPage() {
     setStartDate("");
     setEndDate("");
     setReason("");
+    setLeaveSubtype(leaveType === "SIL" ? "regular_sil" : "others");
     setCalculatedDays(0);
     setCalculatedHours(0);
     setStartTime("");
@@ -466,7 +603,7 @@ export default function LeaveRequestPage() {
     }
 
     toast.success("Leave request cancelled", {
-      description: "Your request has been cancelled successfully",
+      description: "Your request has been removed successfully",
     });
     setCancelId(null);
     if (employee) {
@@ -725,6 +862,31 @@ export default function LeaveRequestPage() {
                 </div>
 
                 <div className="w-full space-y-2">
+                  <Label htmlFor="leave_subtype">Leave Sub-Type</Label>
+                  <select
+                    id="leave_subtype"
+                    value={leaveSubtype}
+                    onChange={(e) => setLeaveSubtype(e.target.value as LeaveSubtype)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {LEAVE_SUBTYPE_OPTIONS.filter((option) =>
+                      leaveType === "LWOP"
+                        ? option.value !== "regular_sil"
+                        : true
+                    ).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <strong>Notice:</strong>{" "}
+                    {LEAVE_SUBTYPE_OPTIONS.find((option) => option.value === leaveSubtype)
+                      ?.notice ?? "Please follow the leave filing notice policy."}
+                  </div>
+                </div>
+
+                <div className="w-full space-y-2">
                   <Label>Select Dates</Label>
                   <MultiDatePicker
                     selectedDates={selectedDates}
@@ -734,8 +896,7 @@ export default function LeaveRequestPage() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Select multiple non-consecutive dates by clicking on
-                    them in the calendar. You can file leave requests for dates within the current cutoff period (even if they have passed). Weekends and holidays are
-                    automatically excluded from the day count.
+                    them in the calendar. You can file leave requests for dates within the current cutoff period (even if they have passed). Weekend dates are allowed, while holidays are excluded from the day count.
                   </p>
 
                   {/* Half-day option for SIL and LWOP */}
@@ -752,11 +913,8 @@ export default function LeaveRequestPage() {
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {selectedDates
                           .filter((dateStr) => {
-                            const date = new Date(dateStr);
-                            const dow = date.getDay();
-                            const isWeekend = dow === 0 || dow === 6;
                             const isHoliday = holidayDates.has(dateStr);
-                            return !isWeekend && !isHoliday;
+                            return !isHoliday;
                           })
                           .map((dateStr) => (
                             <label
@@ -990,12 +1148,15 @@ export default function LeaveRequestPage() {
                             <Badge
                               variant="outline"
                               className={
-                                request.leave_type === "SIL"
+                                getLeaveTypeLabel(request.leave_type) === "SIL"
                                   ? "bg-blue-50 text-blue-800 border-blue-200"
                                   : "bg-amber-50 text-amber-800 border-amber-200"
                               }
                             >
-                              {request.leave_type}
+                              {getLeaveTypeLabel(request.leave_type)}
+                            </Badge>
+                            <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                              {getLeaveSubtypeLabel(request.leave_subtype)}
                             </Badge>
                             <span className="text-lg font-bold text-emerald-600">
                               {request.total_days}{" "}
@@ -1012,7 +1173,7 @@ export default function LeaveRequestPage() {
                             </div>
                           )}
 
-                          {request.leave_type === "SIL" && (
+                          {getLeaveTypeLabel(request.leave_type) === "SIL" && (
                             <VStack gap="2" align="start" className="mt-2">
                               <HStack gap="2" align="center">
                                 <Icon name="FileText" size={IconSizes.sm} />
@@ -1174,8 +1335,7 @@ export default function LeaveRequestPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel leave request?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the request as cancelled and hide it from your
-              list.
+              This will permanently remove the leave request from your records.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -127,8 +127,8 @@ export default function FailureToLogPage() {
       return;
     }
 
-    toast.success("Request cancelled", {
-      description: "Your failure to log request has been cancelled",
+    toast.success("Request removed", {
+      description: "Your failure to log request has been removed",
     });
     setCancelId(null);
     if (employee) {
@@ -599,8 +599,7 @@ export default function FailureToLogPage() {
             <VStack gap="4">
               <H3>Cancel failure-to-log request?</H3>
               <BodySmall>
-                This will mark the request as cancelled and hide it from your
-                list.
+                This will permanently remove the request from your records.
               </BodySmall>
               <HStack gap="2" justify="end" align="center">
                 <Button

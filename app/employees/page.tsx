@@ -90,6 +90,11 @@ interface Position {
   job_grade: string | null;
 }
 
+interface OvertimeGroup {
+  id: string;
+  name: string;
+}
+
 interface ModalClockOffice {
   id: string;
   name: string;
@@ -151,6 +156,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -218,6 +224,7 @@ export default function EmployeesPage() {
     fetchEmployees();
     fetchDepartments();
     fetchPositions();
+    fetchOvertimeGroups();
   }, [permissionsLoading, canRead]);
 
   if (!permissionsLoading && !canRead("employees")) {
@@ -245,6 +252,14 @@ export default function EmployeesPage() {
     }
   }
 
+  const overtimeGroupNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    overtimeGroups.forEach((group) => {
+      map[group.id] = group.name;
+    });
+    return map;
+  }, [overtimeGroups]);
+
   async function fetchDepartments() {
     try {
       const { data, error } = await supabase.from("departments").select("id, name").eq("is_active", true).order("name");
@@ -259,6 +274,20 @@ export default function EmployeesPage() {
       if (error) throw error;
       setPositions(data || []);
     } catch { setPositions([]); }
+  }
+
+  async function fetchOvertimeGroups() {
+    try {
+      const { data, error } = await supabase
+        .from("overtime_groups")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      setOvertimeGroups((data || []) as OvertimeGroup[]);
+    } catch {
+      setOvertimeGroups([]);
+    }
   }
 
   async function openAddModal() {
@@ -618,6 +647,7 @@ export default function EmployeesPage() {
                       <TableHead className="min-w-[200px] py-2 text-xs font-semibold">Employee</TableHead>
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Department</TableHead>
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Position</TableHead>
+                      <TableHead className="min-w-[120px] py-2 text-xs font-semibold">OT Group</TableHead>
                       <TableHead className="min-w-[100px] py-2 text-xs font-semibold">Type</TableHead>
                       <TableHead className="w-[90px] whitespace-nowrap py-2 text-xs font-semibold">Status</TableHead>
                       <TableHead className="text-right w-[160px] whitespace-nowrap py-2 text-xs font-semibold">Actions</TableHead>
@@ -626,7 +656,7 @@ export default function EmployeesPage() {
                   <TableBody>
                     {filteredEmployees.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           {searchTerm ? "No matching employees found." : "No employees yet."}
                         </TableCell>
                       </TableRow>
@@ -659,6 +689,13 @@ export default function EmployeesPage() {
                                 )}
                               </div>
                             ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm py-2">
+                            {(employee.overtime_group_id
+                              ? overtimeGroupNameById[employee.overtime_group_id]
+                              : null) || (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
@@ -881,7 +918,7 @@ export default function EmployeesPage() {
                 <h3 className="text-sm font-semibold text-foreground">Team & role</h3>
                 <div className="h-px bg-border" />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Department</Label>
                   <Select value={formData.department_id || "none"} onValueChange={(v) => setFormData({ ...formData, department_id: v === "none" ? "" : v })}>
@@ -901,6 +938,33 @@ export default function EmployeesPage() {
                       {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.job_grade ? ` (${p.job_grade})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Overtime Group</Label>
+                  <Select
+                    value={formData.overtime_group_id || "none"}
+                    onValueChange={(v) =>
+                      setFormData({
+                        ...formData,
+                        overtime_group_id: v === "none" ? "" : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select overtime group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {overtimeGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Used for overtime approval routing by group.
+                  </p>
                 </div>
               </div>
 

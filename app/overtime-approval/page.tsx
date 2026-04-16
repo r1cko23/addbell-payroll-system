@@ -26,8 +26,8 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
-  isHrFirstApproverPosition,
-  normalizePositionName,
+  isFinalHrApprover,
+  isFirstApproverForGroup,
 } from "@/lib/requestApprovalRouting";
 
 type OvertimeDocument = {
@@ -48,6 +48,9 @@ type OTRequest = {
   attachment_url: string | null;
   status: "pending" | "approved" | "rejected";
   account_manager_id?: string | null;
+  project_manager_id?: string | null;
+  project_manager_approved_at?: string | null;
+  hr_approved_by?: string | null;
   approved_at?: string | null;
   approved_by?: string | null;
   created_at: string;
@@ -57,7 +60,6 @@ type OTRequest = {
     full_name: string;
     employee_id: string;
     profile_picture_url?: string | null;
-    positions?: { name: string | null } | null;
   };
 };
 
@@ -87,25 +89,37 @@ export default function OvertimeApprovalPage() {
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [selected, setSelected] = useState<OTRequest | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
+    useState<Record<string, string>>({});
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
 
-  const getEmployeePositionName = (request: OTRequest): string => {
-    if (Array.isArray(request.employees)) {
-      return normalizePositionName(request.employees[0]?.positions?.name);
-    }
-    return normalizePositionName(request.employees?.positions?.name);
-  };
+  const getRequestGroupName = (request: OTRequest): string | null =>
+    employeeGroupNameByEmployeeId[request.employee_id] || null;
+
+  const isManagerStagePending = (request: OTRequest): boolean =>
+    request.status === "pending" &&
+    !request.project_manager_id &&
+    !request.account_manager_id;
+
+  const isHrStagePending = (request: OTRequest): boolean =>
+    request.status === "pending" &&
+    Boolean(request.project_manager_id || request.account_manager_id);
 
   const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
     if (request.status !== "pending") return false;
     if (isAdmin || normalizedRole === "upper_management") return true;
-    if (normalizedRole === "operations_manager") {
-      return !isHrFirstApproverPosition(getEmployeePositionName(request));
+    if (!currentUserId) return false;
+    if (
+      normalizedRole === "operations_manager" &&
+      isManagerStagePending(request)
+    ) {
+      return isFirstApproverForGroup(currentUserId, getRequestGroupName(request));
     }
-    if (isHR) {
-      return isHrFirstApproverPosition(getEmployeePositionName(request));
+    if (isHR && isHrStagePending(request)) {
+      return isFinalHrApprover(currentUserId);
     }
     return false;
   };
@@ -115,6 +129,15 @@ export default function OvertimeApprovalPage() {
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
+
+  useEffect(() => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    })();
+  }, [supabase]);
 
   const base64ToBlob = (base64: string, type: string) => {
     const byteCharacters = atob(base64);
@@ -189,10 +212,7 @@ export default function OvertimeApprovalPage() {
           id,
           full_name,
           employee_id,
-          profile_picture_url,
-          positions:position_id (
-            name
-          )
+          profile_picture_url
         )
       `
       )
@@ -257,13 +277,19 @@ export default function OvertimeApprovalPage() {
 
     let filteredData: OTRequest[] | null = dataWithDocs;
     if (!isAdmin && normalizedRole !== "upper_management") {
-      filteredData = dataWithDocs.filter((request) =>
-        normalizedRole === "operations_manager"
-          ? !isHrFirstApproverPosition(getEmployeePositionName(request))
-          : isHR
-            ? isHrFirstApproverPosition(getEmployeePositionName(request))
-            : false
-      );
+      filteredData = dataWithDocs.filter((request) => {
+        if (!currentUserId) return false;
+        if (normalizedRole === "operations_manager") {
+          return (
+            isManagerStagePending(request) &&
+            isFirstApproverForGroup(currentUserId, getRequestGroupName(request))
+          );
+        }
+        if (isHR) {
+          return isFinalHrApprover(currentUserId) && isHrStagePending(request);
+        }
+        return false;
+      });
     }
     const requestsData = filteredData as Array<{
       status: string;
@@ -293,9 +319,47 @@ export default function OvertimeApprovalPage() {
 
   useEffect(() => {
     if (canManageOvertime) {
+      loadEmployeeGroupMap();
+    }
+  }, [canManageOvertime]);
+
+  useEffect(() => {
+    if (canManageOvertime) {
       loadEmployees();
     }
-  }, [canManageOvertime, isAdmin, isHR, normalizedRole]);
+  }, [
+    canManageOvertime,
+    isAdmin,
+    isHR,
+    normalizedRole,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
+
+  async function loadEmployeeGroupMap() {
+    const [employeesRes, groupsRes] = await Promise.all([
+      supabase.from("employees").select("id, overtime_group_id"),
+      supabase.from("overtime_groups").select("id, name"),
+    ]);
+
+    if (employeesRes.error || groupsRes.error) {
+      setEmployeeGroupNameByEmployeeId({});
+      return;
+    }
+
+    const groupNameById: Record<string, string> = {};
+    (groupsRes.data || []).forEach((g: any) => {
+      groupNameById[g.id] = g.name;
+    });
+
+    const map: Record<string, string> = {};
+    (employeesRes.data || []).forEach((emp: any) => {
+      if (emp.overtime_group_id && groupNameById[emp.overtime_group_id]) {
+        map[emp.id] = groupNameById[emp.overtime_group_id];
+      }
+    });
+    setEmployeeGroupNameByEmployeeId(map);
+  }
 
   async function loadEmployees() {
     if (!canManageOvertime) {
@@ -304,7 +368,7 @@ export default function OvertimeApprovalPage() {
     }
     const { data, error } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, last_name, first_name, positions:position_id ( name )")
+      .select("id, employee_id, full_name, last_name, first_name")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -314,13 +378,15 @@ export default function OvertimeApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      const positionName = normalizePositionName(employee.positions?.name);
       if (isAdmin || normalizedRole === "upper_management") return true;
       if (normalizedRole === "operations_manager") {
-        return !isHrFirstApproverPosition(positionName);
+        return isFirstApproverForGroup(
+          currentUserId,
+          employeeGroupNameByEmployeeId[employee.id]
+        );
       }
       if (isHR) {
-        return isHrFirstApproverPosition(positionName);
+        return isFinalHrApprover(currentUserId);
       }
       return false;
     });
@@ -386,7 +452,17 @@ export default function OvertimeApprovalPage() {
     if (canLoadOtRequests) {
       loadRequests();
     }
-  }, [selectedWeek, statusFilter, selectedEmployee, role, isAdmin, isHR, normalizedRole]);
+  }, [
+    selectedWeek,
+    statusFilter,
+    selectedEmployee,
+    role,
+    isAdmin,
+    isHR,
+    normalizedRole,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
 
   const handleApprove = async (id: string) => {
     setActioningId(id);
@@ -409,15 +485,25 @@ export default function OvertimeApprovalPage() {
     }
 
     const now = new Date().toISOString();
+    const managerStage = isManagerStagePending(request);
+    const patch: Record<string, unknown> = managerStage
+      ? {
+          status: "pending",
+          project_manager_id: user.id,
+          project_manager_approved_at: now,
+          account_manager_id: user.id,
+          updated_at: now,
+        }
+      : {
+          status: "approved",
+          approved_by: user.id,
+          hr_approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+        };
     const { error: finalError } = await supabase
       .from("overtime_requests")
-      .update({
-        status: "approved",
-        approved_by: user.id,
-        account_manager_id: user.id,
-        approved_at: now,
-        updated_at: now,
-      })
+      .update(patch)
       .eq("id", id)
       .eq("status", "pending");
 
@@ -426,9 +512,15 @@ export default function OvertimeApprovalPage() {
         description: finalError.message || "An error occurred while approving the request",
       });
     } else {
-      toast.success("Overtime request approved!", {
-        description: `${employeeName}'s overtime request has been approved successfully`,
-      });
+      if (managerStage) {
+        toast.success("Overtime request endorsed to HR", {
+          description: `${employeeName}'s overtime request is now awaiting HR approval`,
+        });
+      } else {
+        toast.success("Overtime request approved!", {
+          description: `${employeeName}'s overtime request has been approved successfully`,
+        });
+      }
       loadRequests();
     }
     setActioningId(null);
@@ -455,15 +547,27 @@ export default function OvertimeApprovalPage() {
     }
 
     const now = new Date().toISOString();
+    const managerStage = isManagerStagePending(request);
+    const patch: Record<string, unknown> = managerStage
+      ? {
+          status: "rejected",
+          project_manager_id: user.id,
+          project_manager_approved_at: now,
+          account_manager_id: user.id,
+          approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+        }
+      : {
+          status: "rejected",
+          approved_by: user.id,
+          hr_approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+        };
     const { error: finalError } = await supabase
       .from("overtime_requests")
-      .update({
-        status: "rejected",
-        approved_by: user.id,
-        account_manager_id: user.id,
-        approved_at: now,
-        updated_at: now,
-      })
+      .update(patch)
       .eq("id", id)
       .eq("status", "pending");
 

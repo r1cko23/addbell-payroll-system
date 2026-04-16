@@ -725,7 +725,7 @@ export default function OvertimePage() {
                                       "Failed to cancel OT request"
                                   );
                                 } else {
-                                  toast.success("OT request cancelled");
+                                  toast.success("OT request removed");
                                   await loadRequests();
                                 }
                                 setCancelLoading(null);

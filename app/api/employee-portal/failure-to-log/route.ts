@@ -107,7 +107,7 @@ export async function PATCH(req: NextRequest) {
     const admin = getAdminClient();
     const { data, error } = await admin
       .from("failure_to_log")
-      .update({ status: "cancelled" })
+      .delete()
       .eq("id", body.request_id)
       .eq("employee_id", body.employee_id)
       .eq("status", "pending")

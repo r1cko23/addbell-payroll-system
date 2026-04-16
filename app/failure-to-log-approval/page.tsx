@@ -40,8 +40,8 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { MetricCard } from "@/components/ui/metric-card";
 import {
-  isHrFirstApproverPosition,
-  normalizePositionName,
+  isFinalHrApprover,
+  isFirstApproverForGroup,
 } from "@/lib/requestApprovalRouting";
 
 interface FailureToLog {
@@ -64,13 +64,20 @@ interface FailureToLog {
     employee_id: string;
     full_name: string;
     profile_picture_url?: string | null;
-    positions?: { name: string | null } | null;
   };
   time_clock_entries?: {
     clock_in_time: string;
     clock_out_time: string | null;
   };
 }
+
+type EmployeeFilterOption = {
+  id: string;
+  employee_id: string;
+  full_name: string;
+  last_name?: string | null;
+  first_name?: string | null;
+};
 
 export default function FailureToLogApprovalPage() {
   const supabase = createClient();
@@ -87,9 +94,7 @@ export default function FailureToLogApprovalPage() {
 
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
-  const [employees, setEmployees] = useState<
-    { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
-  >([]);
+  const [employees, setEmployees] = useState<EmployeeFilterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
@@ -99,21 +104,34 @@ export default function FailureToLogApprovalPage() {
   );
   const [rejectionReason, setRejectionReason] = useState("");
   const [approveLoading, setApproveLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
+    useState<Record<string, string>>({});
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
 
-  const getEmployeePositionName = (request: FailureToLog): string =>
-    normalizePositionName(request.employees?.positions?.name);
+  const getRequestGroupName = (request: FailureToLog): string | null =>
+    employeeGroupNameByEmployeeId[request.employee_id] || null;
+
+  const isManagerStagePending = (request: FailureToLog): boolean =>
+    request.status === "pending" && !request.account_manager_id;
+
+  const isHrStagePending = (request: FailureToLog): boolean =>
+    request.status === "pending" && Boolean(request.account_manager_id);
 
   const canCurrentUserActOnRequest = (request: FailureToLog): boolean => {
     if (request.status !== "pending") return false;
     if (isAdmin || normalizedRole === "upper_management") return true;
-    if (normalizedRole === "operations_manager") {
-      return !isHrFirstApproverPosition(getEmployeePositionName(request));
+    if (!currentUserId) return false;
+    if (
+      normalizedRole === "operations_manager" &&
+      isManagerStagePending(request)
+    ) {
+      return isFirstApproverForGroup(currentUserId, getRequestGroupName(request));
     }
-    if (isHR) {
-      return isHrFirstApproverPosition(getEmployeePositionName(request));
+    if (isHR && isHrStagePending(request)) {
+      return isFinalHrApprover(currentUserId);
     }
     return false;
   };
@@ -124,6 +142,15 @@ export default function FailureToLogApprovalPage() {
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
   const safeFormat = (value: string | null | undefined, fmt: string) =>
     value ? formatPHTime(value, fmt) : "—";
+
+  useEffect(() => {
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setCurrentUserId(user?.id || null);
+    })();
+  }, [supabase]);
 
   const statusStyles: Record<FailureToLog["status"], string> = {
     pending: "bg-amber-100 text-amber-900 border-amber-200",
@@ -136,32 +163,87 @@ export default function FailureToLogApprovalPage() {
     if (canManageFailureToLog) {
       loadEmployees();
     }
-  }, [canManageFailureToLog, isAdmin, isHR, normalizedRole]);
+  }, [
+    canManageFailureToLog,
+    isAdmin,
+    isHR,
+    normalizedRole,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
+
+  useEffect(() => {
+    if (canManageFailureToLog) {
+      void loadEmployeeGroupMap();
+    }
+  }, [canManageFailureToLog]);
+
+  async function loadEmployeeGroupMap() {
+    const [employeesRes, groupsRes] = await Promise.all([
+      supabase.from("employees").select("id, overtime_group_id"),
+      supabase.from("overtime_groups").select("id, name"),
+    ]);
+
+    if (employeesRes.error || groupsRes.error) {
+      setEmployeeGroupNameByEmployeeId({});
+      return;
+    }
+
+    const groupNameById: Record<string, string> = {};
+    (groupsRes.data || []).forEach((g: any) => {
+      groupNameById[g.id] = g.name;
+    });
+
+    const map: Record<string, string> = {};
+    (employeesRes.data || []).forEach((emp: any) => {
+      if (emp.overtime_group_id && groupNameById[emp.overtime_group_id]) {
+        map[emp.id] = groupNameById[emp.overtime_group_id];
+      }
+    });
+    setEmployeeGroupNameByEmployeeId(map);
+  }
 
   async function loadEmployees() {
     if (!canManageFailureToLog) {
       setEmployees([]);
       return;
     }
-    const { data, error } = await supabase
+    let data: any[] | null = null;
+    const withPosition = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, last_name, first_name, positions:position_id ( name )")
+      .select("id, employee_id, full_name, last_name, first_name")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
-    if (error) {
-      console.error("Failed to load employees", error);
-      return;
+    if (withPosition.error) {
+      console.warn(
+        "Failed to load employees with position join, retrying basic employee list:",
+        withPosition.error
+      );
+      const basic = await supabase
+        .from("employees")
+        .select("id, employee_id, full_name, last_name, first_name")
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .order("first_name", { ascending: true, nullsFirst: false });
+      if (basic.error) {
+        console.error("Failed to load employees", basic.error);
+        return;
+      }
+      data = basic.data as any[] | null;
+    } else {
+      data = withPosition.data as any[] | null;
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      const positionName = normalizePositionName(employee.positions?.name);
       if (isAdmin || normalizedRole === "upper_management") return true;
       if (normalizedRole === "operations_manager") {
-        return !isHrFirstApproverPosition(positionName);
+        return isFirstApproverForGroup(
+          currentUserId,
+          employeeGroupNameByEmployeeId[employee.id]
+        );
       }
       if (isHR) {
-        return isHrFirstApproverPosition(positionName);
+        return isFinalHrApprover(currentUserId);
       }
       return false;
     });
@@ -173,7 +255,17 @@ export default function FailureToLogApprovalPage() {
     if (canManageFailureToLog) {
       fetchRequests();
     }
-  }, [statusFilter, selectedWeek, selectedEmployee, canManageFailureToLog, isAdmin, isHR, normalizedRole]);
+  }, [
+    statusFilter,
+    selectedWeek,
+    selectedEmployee,
+    canManageFailureToLog,
+    isAdmin,
+    isHR,
+    normalizedRole,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
 
   async function fetchRequests() {
     setLoading(true);
@@ -185,38 +277,94 @@ export default function FailureToLogApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
-    let query = supabase
-      .from("failure_to_log")
-      .select(
-        `
-        *,
-        employees (
-          employee_id,
-          full_name,
-          profile_picture_url,
-          positions:position_id (
-            name
+    const applyFilters = <T extends { eq: Function }>(query: T): T => {
+      let filtered = query;
+      if (statusFilter !== "all") {
+        filtered = filtered.eq("status", statusFilter);
+      }
+      if (selectedEmployee !== "all") {
+        filtered = filtered.eq("employee_id", selectedEmployee);
+      }
+      return filtered;
+    };
+
+    const fullQuery = applyFilters(
+      supabase
+        .from("failure_to_log")
+        .select(
+          `
+          *,
+          employees (
+            employee_id,
+            full_name,
+              profile_picture_url
+          ),
+          time_clock_entries (
+            clock_in_time,
+            clock_out_time
           )
-        ),
-        time_clock_entries (
-          clock_in_time,
-          clock_out_time
+        `
         )
-      `
-      )
-      .gte("missed_date", weekStartStr)
-      .lte("missed_date", weekEndStr)
-      .order("created_at", { ascending: false });
+        .gte("missed_date", weekStartStr)
+        .lte("missed_date", weekEndStr)
+        .order("created_at", { ascending: false })
+    );
 
-    if (statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
+    let { data, error } = await fullQuery;
+
+    if (error) {
+      console.warn(
+        "Failure-to-log query with clock entry join failed, retrying without time_clock_entries:",
+        error
+      );
+      const fallbackQuery = applyFilters(
+        supabase
+          .from("failure_to_log")
+          .select(
+            `
+            *,
+            employees (
+              employee_id,
+              full_name,
+              profile_picture_url
+            )
+          `
+          )
+          .gte("missed_date", weekStartStr)
+          .lte("missed_date", weekEndStr)
+          .order("created_at", { ascending: false })
+      );
+      const fallbackResult = await fallbackQuery;
+      data = fallbackResult.data;
+      error = fallbackResult.error;
     }
 
-    if (selectedEmployee !== "all") {
-      query = query.eq("employee_id", selectedEmployee);
+    if (error) {
+      console.warn(
+        "Failure-to-log query with employee position join failed, retrying with basic employee fields:",
+        error
+      );
+      const basicFallbackQuery = applyFilters(
+        supabase
+          .from("failure_to_log")
+          .select(
+            `
+            *,
+            employees (
+              employee_id,
+              full_name,
+              profile_picture_url
+            )
+          `
+          )
+          .gte("missed_date", weekStartStr)
+          .lte("missed_date", weekEndStr)
+          .order("created_at", { ascending: false })
+      );
+      const basicFallbackResult = await basicFallbackQuery;
+      data = basicFallbackResult.data;
+      error = basicFallbackResult.error;
     }
-
-    const { data, error } = await query;
 
     setLoading(false);
 
@@ -228,13 +376,27 @@ export default function FailureToLogApprovalPage() {
 
     let filteredData = data;
     if (!isAdmin && normalizedRole !== "upper_management" && data) {
-      filteredData = data.filter((request: any) =>
-        normalizedRole === "operations_manager"
-          ? !isHrFirstApproverPosition(request.employees?.positions?.name)
-          : isHR
-            ? isHrFirstApproverPosition(request.employees?.positions?.name)
-            : false
-      );
+      filteredData = data.filter((request: any) => {
+        if (!currentUserId) return false;
+        if (normalizedRole === "operations_manager") {
+          return (
+            request.status === "pending" &&
+            !request.account_manager_id &&
+            isFirstApproverForGroup(
+              currentUserId,
+              employeeGroupNameByEmployeeId[request.employee_id]
+            )
+          );
+        }
+        if (isHR) {
+          return (
+            isFinalHrApprover(currentUserId) &&
+            request.status === "pending" &&
+            Boolean(request.account_manager_id)
+          );
+        }
+        return false;
+      });
     }
 
     const requestsData = filteredData as Array<{
@@ -374,15 +536,22 @@ export default function FailureToLogApprovalPage() {
     }
 
     const now = new Date().toISOString();
+    const managerStage = isManagerStagePending(selectedFailureToLog);
+    const patch: Record<string, unknown> = managerStage
+      ? {
+          status: "pending",
+          account_manager_id: user.id,
+          updated_at: now,
+        }
+      : {
+          status: "approved",
+          approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+        };
     const { error: finalError } = await supabase
       .from("failure_to_log")
-      .update({
-        status: "approved",
-        approved_by: user.id,
-        account_manager_id: user.id,
-        approved_at: now,
-        updated_at: now,
-      })
+      .update(patch)
       .eq("id", requestId)
       .eq("status", "pending");
 
@@ -398,9 +567,15 @@ export default function FailureToLogApprovalPage() {
     // Get employee name for toast message
     const approvedRequest = requests.find((r) => r.id === requestId);
     const employeeName = approvedRequest?.employees?.full_name || "Employee";
-    toast.success("Failure to log request approved!", {
-      description: `${employeeName}'s time entry has been updated successfully`,
-    });
+    if (managerStage) {
+      toast.success("Failure-to-log request endorsed to HR", {
+        description: `${employeeName}'s request is now awaiting HR approval`,
+      });
+    } else {
+      toast.success("Failure to log request approved!", {
+        description: `${employeeName}'s time entry has been updated successfully`,
+      });
+    }
     fetchRequests();
     setSelectedRequest(null);
     setApproveLoading(false);
@@ -422,17 +597,26 @@ export default function FailureToLogApprovalPage() {
     const employeeName = request?.employees?.full_name || "Employee";
 
     const now = new Date().toISOString();
+    const managerStage = isManagerStagePending(selectedFailureToLog);
+    const patch: Record<string, unknown> = managerStage
+      ? {
+          status: "rejected",
+          account_manager_id: user.id,
+          approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+          rejection_reason: rejectionReason.trim() || "Request rejected",
+        }
+      : {
+          status: "rejected",
+          approved_by: user.id,
+          approved_at: now,
+          updated_at: now,
+          rejection_reason: rejectionReason.trim() || "Request rejected",
+        };
     const { error: finalError } = await supabase
       .from("failure_to_log")
-      .update({
-        status: "rejected",
-        approved_by: user.id,
-        account_manager_id: user.id,
-        approved_at: now,
-        updated_at: now,
-        rejection_reason:
-          rejectionReason.trim() || "Request rejected",
-      })
+      .update(patch)
       .eq("id", requestId)
       .eq("status", "pending");
 

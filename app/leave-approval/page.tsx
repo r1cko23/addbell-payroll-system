@@ -46,8 +46,8 @@ import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { MetricCard } from "@/components/ui/metric-card";
 import {
-  isHrFirstApproverPosition,
-  normalizePositionName,
+  isFinalHrApprover,
+  isFirstApproverForGroup,
 } from "@/lib/requestApprovalRouting";
 
 interface LeaveDocument {
@@ -66,6 +66,14 @@ interface LeaveRequest {
     | "LWOP"
     | "Maternity Leave"
     | "Paternity Leave"
+  leave_subtype?:
+    | "regular_sil"
+    | "vacation_leave"
+    | "emergency_leave"
+    | "sick_leave"
+    | "others"
+    | "half_day_leave"
+    | null;
   start_date: string;
   end_date: string;
   selected_dates?: string[] | null;
@@ -74,6 +82,7 @@ interface LeaveRequest {
   reason: string | null;
   status:
     | "pending"
+    | "approved_by_pm"
     | "approved_by_manager"
     | "approved_by_hr"
     | "rejected"
@@ -81,6 +90,9 @@ interface LeaveRequest {
   rejection_reason: string | null;
   rejected_by: string | null;
   rejected_at: string | null;
+  project_manager_id?: string | null;
+  project_manager_approved_at?: string | null;
+  project_manager_notes?: string | null;
   account_manager_id: string | null;
   account_manager_approved_at: string | null;
   account_manager_notes: string | null;
@@ -94,9 +106,42 @@ interface LeaveRequest {
     full_name: string;
     profile_picture_url?: string | null;
     sil_credits: number;
-    positions?: { name: string | null } | null;
   };
   leave_request_documents?: LeaveDocument[];
+}
+
+function normalizeLeaveTypeLabel(value: string): "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave" {
+  const normalized = value.trim().toLowerCase();
+  if (["sil", "sick leave", "service incentive leave"].includes(normalized)) {
+    return "SIL";
+  }
+  if (["lwop", "leave without pay", "unpaid leave"].includes(normalized)) {
+    return "LWOP";
+  }
+  if (["maternity leave", "maternity"].includes(normalized)) {
+    return "Maternity Leave";
+  }
+  if (["paternity leave", "paternity"].includes(normalized)) {
+    return "Paternity Leave";
+  }
+  return value as "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave";
+}
+
+function leaveSubtypeLabel(value?: string | null): string {
+  if (!value) return "—";
+  const labels: Record<string, string> = {
+    regular_sil: "Regular SIL",
+    vacation_leave: "Vacation Leave",
+    emergency_leave: "Emergency Leave",
+    sick_leave: "Sick Leave",
+    others: "Others",
+    half_day_leave: "Half-Day Leave",
+  };
+  return labels[value] ?? value;
+}
+
+function isManagerApprovedStatus(status: LeaveRequest["status"]): boolean {
+  return status === "approved_by_manager" || status === "approved_by_pm";
 }
 
 export default function LeaveApprovalPage() {
@@ -125,6 +170,8 @@ export default function LeaveApprovalPage() {
   const [userRole, setUserRole] = useState<string>("");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+  const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
+    useState<Record<string, string>>({});
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
@@ -135,29 +182,26 @@ export default function LeaveApprovalPage() {
     Record<string, string>
   >({});
 
-  const getRequestPositionName = (request: LeaveRequest): string =>
-    normalizePositionName(request.employees?.positions?.name);
+  const getRequestGroupName = (request: LeaveRequest): string | null =>
+    employeeGroupNameByEmployeeId[request.employee_id] || null;
 
   const getApprovalLevel = (
     request: LeaveRequest
   ): "manager" | "hr" | null => {
-    const isHrFirst = isHrFirstApproverPosition(getRequestPositionName(request));
-
-    if (request.status === "approved_by_manager") {
-      return normalizedRole === "hr" || isAdmin || normalizedRole === "upper_management"
+    if (isManagerApprovedStatus(request.status)) {
+      return (normalizedRole === "hr" && isFinalHrApprover(currentUserId)) ||
+        isAdmin ||
+        normalizedRole === "upper_management"
         ? "hr"
         : null;
     }
 
     if (request.status !== "pending") return null;
-    if (isAdmin || normalizedRole === "upper_management") {
-      return isHrFirst ? "hr" : "manager";
-    }
+    if (isAdmin || normalizedRole === "upper_management") return "manager";
     if (normalizedRole === "operations_manager") {
-      return isHrFirst ? null : "manager";
-    }
-    if (normalizedRole === "hr") {
-      return isHrFirst ? "hr" : null;
+      return isFirstApproverForGroup(currentUserId, getRequestGroupName(request))
+        ? "manager"
+        : null;
     }
     return null;
   };
@@ -183,7 +227,45 @@ export default function LeaveApprovalPage() {
     if (canManageLeave) {
       loadEmployees();
     }
-  }, [canManageLeave, isAdmin, isHR, normalizedRole]);
+  }, [
+    canManageLeave,
+    isAdmin,
+    isHR,
+    normalizedRole,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
+
+  useEffect(() => {
+    if (canManageLeave) {
+      void loadEmployeeGroupMap();
+    }
+  }, [canManageLeave]);
+
+  async function loadEmployeeGroupMap() {
+    const [employeesRes, groupsRes] = await Promise.all([
+      supabase.from("employees").select("id, overtime_group_id"),
+      supabase.from("overtime_groups").select("id, name"),
+    ]);
+
+    if (employeesRes.error || groupsRes.error) {
+      setEmployeeGroupNameByEmployeeId({});
+      return;
+    }
+
+    const groupNameById: Record<string, string> = {};
+    (groupsRes.data || []).forEach((g: any) => {
+      groupNameById[g.id] = g.name;
+    });
+
+    const map: Record<string, string> = {};
+    (employeesRes.data || []).forEach((emp: any) => {
+      if (emp.overtime_group_id && groupNameById[emp.overtime_group_id]) {
+        map[emp.id] = groupNameById[emp.overtime_group_id];
+      }
+    });
+    setEmployeeGroupNameByEmployeeId(map);
+  }
 
   async function loadEmployees() {
     if (!canManageLeave) {
@@ -192,7 +274,7 @@ export default function LeaveApprovalPage() {
     }
     const { data, error } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, last_name, first_name, positions:position_id ( name )")
+      .select("id, employee_id, full_name, last_name, first_name")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -202,11 +284,17 @@ export default function LeaveApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      if (isAdmin || normalizedRole === "upper_management" || isHR) {
+      if (isAdmin || normalizedRole === "upper_management") {
         return true;
       }
       if (normalizedRole === "operations_manager") {
-        return !isHrFirstApproverPosition(employee.positions?.name);
+        return isFirstApproverForGroup(
+          currentUserId,
+          employeeGroupNameByEmployeeId[employee.id]
+        );
+      }
+      if (isHR) {
+        return isFinalHrApprover(currentUserId);
       }
       return false;
     });
@@ -264,10 +352,7 @@ export default function LeaveApprovalPage() {
           employee_id,
           full_name,
           profile_picture_url,
-          sil_credits,
-          positions:position_id (
-            name
-          )
+          sil_credits
         )
       `
       )
@@ -306,15 +391,18 @@ export default function LeaveApprovalPage() {
     let filteredData = data;
     if (!isAdmin && normalizedRole !== "upper_management") {
       filteredData = data.filter((request: any) => {
-        const isHrFirst = isHrFirstApproverPosition(
-          request.employees?.positions?.name
-        );
-
         if (normalizedRole === "operations_manager") {
-          return !isHrFirst;
+          return (
+            request.status === "pending" &&
+            isFirstApproverForGroup(
+              currentUserId,
+              employeeGroupNameByEmployeeId[request.employee_id]
+            )
+          );
         }
         if (normalizedRole === "hr") {
-          return request.status === "pending" ? isHrFirst : true;
+          if (!isFinalHrApprover(currentUserId)) return false;
+          return request.status === "approved_by_pm";
         }
         return false;
       });
@@ -354,6 +442,7 @@ export default function LeaveApprovalPage() {
     );
     const withDocs = cleaned.map((r: any) => ({
       ...r,
+      leave_type: normalizeLeaveTypeLabel(r.leave_type || ""),
       leave_request_documents: docsByRequestId[r.id] || [],
     }));
     setRequests(withDocs as any);
@@ -362,7 +451,7 @@ export default function LeaveApprovalPage() {
     const managerIds = Array.from(
       new Set(
         cleaned
-          .map((r) => r.account_manager_id)
+          .map((r) => r.project_manager_id || r.account_manager_id)
           .filter((id): id is string => Boolean(id))
       )
     );
@@ -374,7 +463,7 @@ export default function LeaveApprovalPage() {
     const hrIds = Array.from(
       new Set(
         cleaned
-          .map((r) => r.hr_approver_id)
+          .map((r) => r.hr_approver_id || r.hr_approved_by)
           .filter((id): id is string => Boolean(id))
       )
     );
@@ -580,22 +669,16 @@ export default function LeaveApprovalPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const isHrFirst = isHrFirstApproverPosition(getRequestPositionName(request));
-
-    if (
-      level === "hr" &&
-      request.status !== "approved_by_manager" &&
-      !(request.status === "pending" && isHrFirst)
-    ) {
+    if (level === "hr" && !isManagerApprovedStatus(request.status)) {
       toast.error("Approval workflow error", {
-        description: "HR can only approve eligible pending requests or those already approved by Operations Manager",
+        description: "HR can only approve requests already approved by the first approver",
       });
       return;
     }
 
-    if (level === "manager" && (request.status !== "pending" || isHrFirst)) {
+    if (level === "manager" && request.status !== "pending") {
       toast.error("Invalid request status", {
-        description: "Operations Manager can only approve pending requests outside the HR-first positions",
+        description: "First approver can only approve pending requests",
       });
       return;
     }
@@ -605,12 +688,12 @@ export default function LeaveApprovalPage() {
 
     if (level === "manager") {
       const patch: Record<string, unknown> = {
-        status: "approved_by_manager",
-        account_manager_id: user.id,
-        account_manager_approved_at: now,
+        status: "approved_by_pm",
+        project_manager_id: user.id,
+        project_manager_approved_at: now,
       };
       if (notes.trim()) {
-        patch.account_manager_notes = notes.trim();
+        patch.project_manager_notes = notes.trim();
       }
       const { error } = await supabase
         .from("leave_requests")
@@ -647,7 +730,7 @@ export default function LeaveApprovalPage() {
     toast.success(
       `Leave request ${level === "manager" ? "approved by Operations Manager" : "approved by HR"}!`,
       {
-        description: `${employeeName}'s ${request.leave_type} request for ${
+        description: `${employeeName}'s ${normalizeLeaveTypeLabel(request.leave_type)} request for ${
           request.total_days || 0
         } day(s) has been ${
           level === "manager" ? "approved. Awaiting HR approval." : "fully approved."
@@ -696,7 +779,7 @@ export default function LeaveApprovalPage() {
     }
 
     toast.success("Leave request rejected", {
-      description: `${employeeName}'s ${request?.leave_type || "leave"} request has been declined`,
+      description: `${employeeName}'s ${normalizeLeaveTypeLabel(request?.leave_type || "LWOP")} request has been declined`,
     });
     fetchRequests();
     setSelectedRequest(null);
@@ -707,7 +790,17 @@ export default function LeaveApprovalPage() {
   useEffect(() => {
     if (!normalizedRole || !canManageLeave) return;
     fetchRequests();
-  }, [statusFilter, normalizedRole, selectedWeek, selectedEmployee, canManageLeave, isAdmin, isHR]);
+  }, [
+    statusFilter,
+    normalizedRole,
+    selectedWeek,
+    selectedEmployee,
+    canManageLeave,
+    isAdmin,
+    isHR,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
 
   // Show loading state while checking role
   if (roleLoading) {
@@ -739,9 +832,8 @@ export default function LeaveApprovalPage() {
   const stats = {
     total: requests.length,
     pending: requests.filter((r) => r.status === "pending").length,
-    approvedByManager: requests.filter(
-      (r) => r.status === "approved_by_manager"
-    ).length,
+    approvedByManager: requests.filter((r) => isManagerApprovedStatus(r.status))
+      .length,
     approvedByHR: requests.filter((r) => r.status === "approved_by_hr").length,
     rejected: requests.filter((r) => r.status === "rejected").length,
   };
@@ -826,7 +918,7 @@ export default function LeaveApprovalPage() {
                   >
                     <option value="all">All Status</option>
                     <option value="pending">Pending</option>
-                    <option value="approved_by_manager">
+                    <option value="approved_by_pm">
                       Approved by Manager
                     </option>
                     <option value="approved_by_hr">Approved by HR</option>
@@ -909,12 +1001,15 @@ export default function LeaveApprovalPage() {
                         <Caption>({request.employees?.employee_id})</Caption>
                         <Badge
                           variant={
-                            request.leave_type === "SIL"
+                            normalizeLeaveTypeLabel(request.leave_type) === "SIL"
                               ? "default"
                               : "secondary"
                           }
                         >
-                          {request.leave_type}
+                          {normalizeLeaveTypeLabel(request.leave_type)}
+                        </Badge>
+                        <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                          {leaveSubtypeLabel(request.leave_subtype)}
                         </Badge>
                       </HStack>
                       <HStack
@@ -957,7 +1052,7 @@ export default function LeaveApprovalPage() {
                           {request.total_days}{" "}
                           {request.total_days === 1 ? "day" : "days"}
                         </span>
-                        {request.leave_type === "SIL" && request.employees && (
+                        {normalizeLeaveTypeLabel(request.leave_type) === "SIL" && request.employees && (
                           <Caption>
                             Available SIL Credits: {request.employees.sil_credits} (Allotted: 5)
                           </Caption>
@@ -968,7 +1063,8 @@ export default function LeaveApprovalPage() {
                           <strong>Reason:</strong> {request.reason}
                         </BodySmall>
                       )}
-                      {(request.account_manager_id ||
+                      {(request.project_manager_id ||
+                        request.account_manager_id ||
                         request.hr_approver_id ||
                         request.rejected_by) && (
                         <VStack
@@ -977,18 +1073,18 @@ export default function LeaveApprovalPage() {
                           className="text-xs text-gray-600 mt-2"
                         >
                           {/* Account Manager Stage */}
-                          {request.account_manager_id && (
+                          {(request.project_manager_id || request.account_manager_id) && (
                             <Caption>
                               Approved by Manager:{" "}
-                              {approverNames[request.account_manager_id] ||
+                              {approverNames[request.project_manager_id || request.account_manager_id || ""] ||
                                 "Manager"}
-                              {request.account_manager_approved_at &&
-                                ` on ${format(new Date(request.account_manager_approved_at), "MMM dd, yyyy h:mm a")}`}
+                              {(request.project_manager_approved_at || request.account_manager_approved_at) &&
+                                ` on ${format(new Date(request.project_manager_approved_at || request.account_manager_approved_at || ""), "MMM dd, yyyy h:mm a")}`}
                             </Caption>
                           )}
                           {request.status === "rejected" &&
                             request.rejected_by &&
-                            !request.account_manager_id && (
+                            !(request.project_manager_id || request.account_manager_id) && (
                               <Caption className="text-red-600">
                                 Rejected by Manager:{" "}
                                 {rejectedByNames[request.rejected_by] ||
@@ -1003,7 +1099,7 @@ export default function LeaveApprovalPage() {
                           {/* HR Stage */}
                           {request.status === "rejected" &&
                             request.rejected_by &&
-                            request.account_manager_id && (
+                            (request.project_manager_id || request.account_manager_id) && (
                               <Caption className="text-red-600">
                                 Rejected by HR:{" "}
                                 {rejectedByNames[request.rejected_by] || "HR"}
@@ -1037,14 +1133,14 @@ export default function LeaveApprovalPage() {
                           : "default"
                       }
                       className={
-                        request.status === "approved_by_manager"
+                        isManagerApprovedStatus(request.status)
                           ? "bg-blue-100 text-blue-900 border-blue-200"
                           : ""
                       }
                     >
                       {request.status === "pending"
                         ? "PENDING"
-                        : request.status === "approved_by_manager"
+                        : isManagerApprovedStatus(request.status)
                         ? "APPROVED BY MANAGER"
                         : request.status === "approved_by_hr"
                         ? "APPROVED"
@@ -1147,12 +1243,20 @@ export default function LeaveApprovalPage() {
                       </div>
                       <div
                         className={`font-semibold px-2 py-1 rounded inline-block ${
-                          selectedRequest.leave_type === "SIL"
+                          normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL"
                             ? "bg-blue-100 text-blue-800"
                             : "bg-orange-100 text-orange-800"
                         }`}
                       >
-                        {selectedRequest.leave_type}
+                        {normalizeLeaveTypeLabel(selectedRequest.leave_type)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">
+                        Leave Sub-Type
+                      </div>
+                      <div className="font-semibold">
+                        {leaveSubtypeLabel(selectedRequest.leave_subtype)}
                       </div>
                     </div>
                     <div>
@@ -1183,7 +1287,7 @@ export default function LeaveApprovalPage() {
                     </div>
                   </div>
 
-                  {selectedRequest.leave_type === "SIL" &&
+                  {normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL" &&
                     selectedRequest.employees && (
                       <div className="space-y-2">
                         <div>
@@ -1228,7 +1332,7 @@ export default function LeaveApprovalPage() {
                     </div>
                   )}
 
-                  {selectedRequest.leave_type === "SIL" && (
+                  {normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL" && (
                     <VStack gap="2" align="start">
                       <HStack gap="2" align="center">
                         <Icon name="Receipt" size={IconSizes.sm} />
@@ -1278,13 +1382,13 @@ export default function LeaveApprovalPage() {
                     </VStack>
                   )}
 
-                  {selectedRequest.account_manager_notes && (
+                  {(selectedRequest.project_manager_notes || selectedRequest.account_manager_notes) && (
                     <div>
                       <div className="text-sm text-muted-foreground">
                         Manager Notes
                       </div>
                       <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                        {selectedRequest.account_manager_notes}
+                        {selectedRequest.project_manager_notes || selectedRequest.account_manager_notes}
                       </div>
                     </div>
                   )}
@@ -1312,7 +1416,8 @@ export default function LeaveApprovalPage() {
                     </div>
                   </div>
 
-                  {(selectedRequest.account_manager_approved_at ||
+                  {(selectedRequest.project_manager_approved_at ||
+                    selectedRequest.account_manager_approved_at ||
                     selectedRequest.hr_approved_at ||
                     selectedRequest.rejected_at) && (
                     <div className="space-y-2">
@@ -1320,11 +1425,16 @@ export default function LeaveApprovalPage() {
                         Approval / Rejection
                       </div>
                       <div className="space-y-1 text-sm">
-                        {selectedRequest.account_manager_approved_at && (
+                        {(selectedRequest.project_manager_approved_at ||
+                          selectedRequest.account_manager_approved_at) && (
                           <div>
                             Approved by Manager on{" "}
                             {format(
-                              new Date(selectedRequest.account_manager_approved_at),
+                              new Date(
+                                selectedRequest.project_manager_approved_at ||
+                                  selectedRequest.account_manager_approved_at ||
+                                  ""
+                              ),
                               "MMM dd, yyyy h:mm a"
                             )}
                           </div>

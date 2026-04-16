@@ -34,6 +34,7 @@ export default function FundRequestDetailPage() {
   const [request, setRequest] = useState<FundRequestRow | null>(null);
   const [requesterName, setRequesterName] = useState<string>('');
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
+  const [vendorName, setVendorName] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function FundRequestDetailPage() {
       }
       const row = req as FundRequestRow;
       setRequest(row);
+      setVendorName("");
 
       const promises: Promise<void>[] = [];
 
@@ -69,6 +71,21 @@ export default function FundRequestDetailPage() {
             .then(({ data: proj }) => {
               if (proj) setProjectInfo(proj as ProjectInfo);
             }))
+        );
+      }
+
+      if (row.vendor_id) {
+        promises.push(
+          Promise.resolve(
+            supabase
+              .from("vendors")
+              .select("name")
+              .eq("id", row.vendor_id)
+              .single()
+              .then(({ data: vendor }) => {
+                setVendorName((vendor as { name?: string } | null)?.name ?? "");
+              })
+          )
         );
       }
 
@@ -93,6 +110,10 @@ export default function FundRequestDetailPage() {
   }
 
   const details = (request.details as DetailItem[] | null) ?? [];
+  const referenceModeLabel =
+    request.reference_mode === "internal_stock"
+      ? "Internal stock / warehouse purchase"
+      : "Client-linked request";
 
   const content = (
     <div className="space-y-6 max-w-3xl">
@@ -119,6 +140,10 @@ export default function FundRequestDetailPage() {
             <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Purpose</h4>
             <p className="mt-1">{request.purpose}</p>
           </div>
+          <div>
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reference basis</h4>
+            <p className="mt-1">{referenceModeLabel}</p>
+          </div>
 
           {projectInfo && (
             <div className="rounded-lg border bg-muted/20 p-3">
@@ -130,7 +155,7 @@ export default function FundRequestDetailPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">P.O. Number</h4>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Client P.O. Number</h4>
               <p className="mt-1">{request.po_number ?? '—'}</p>
             </div>
             <div>
@@ -138,8 +163,20 @@ export default function FundRequestDetailPage() {
               <p className="mt-1">{request.project_title ?? '—'}</p>
             </div>
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">P.O. Amount (PHP)</h4>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor / Subcontractor</h4>
+              <p className="mt-1">{vendorName || '—'}</p>
+            </div>
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor P.O. Number</h4>
+              <p className="mt-1">{request.vendor_po_number ?? '—'}</p>
+            </div>
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor P.O. Amount (PHP)</h4>
               <p className="mt-1">{request.po_amount != null ? Number(request.po_amount).toLocaleString() : '—'}</p>
+            </div>
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor Amount %</h4>
+              <p className="mt-1">{request.po_amount_percentage != null ? `${request.po_amount_percentage}%` : '—'}</p>
             </div>
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Project %</h4>

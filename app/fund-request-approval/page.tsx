@@ -36,6 +36,9 @@ type RowWithRequester = FundRequestRow & {
     first_name: string;
     last_name: string;
   } | null;
+  vendors: {
+    name: string;
+  } | null;
 };
 
 const NEXT_STATUS: Record<string, FundRequestRow["status"]> = {
@@ -122,14 +125,14 @@ export default function FundRequestApprovalPage() {
         statuses.length > 0
           ? supabase
               .from("fund_requests")
-              .select(`*, employees ( employee_id, first_name, last_name )`)
+              .select(`*, employees ( employee_id, first_name, last_name ), vendors ( name )`)
               .in("status", statuses)
               .order("created_at", { ascending: false })
           : { data: [], error: null },
         supabase.from("fund_requests").select("id, status"),
         supabase
           .from("fund_requests")
-          .select(`*, employees ( employee_id, first_name, last_name )`)
+          .select(`*, employees ( employee_id, first_name, last_name ), vendors ( name )`)
           .order("created_at", { ascending: false }),
       ]);
       if (actionableRes.error) {
@@ -590,12 +593,17 @@ export default function FundRequestApprovalPage() {
                   r.current_project_percentage != null
                     ? `${r.current_project_percentage}%`
                     : "—";
+                const poAmountPercent =
+                  r.po_amount_percentage != null
+                    ? `${r.po_amount_percentage}%`
+                    : "—";
                 const totalReq = `₱${Number(r.total_requested_amount).toLocaleString()}`;
                 const purpose = (r.purpose || "").trim() || "—";
                 const headline = [
                   title,
                   location,
                   poAmt,
+                  poAmountPercent,
                   currentAccomplishment,
                   totalReq,
                   purpose,
@@ -774,7 +782,7 @@ export default function FundRequestApprovalPage() {
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              P.O. Amount (PHP)
+                              Vendor P.O. Amount (PHP)
                             </span>
                             <p className="mt-0.5">
                               {r.po_amount != null
@@ -784,11 +792,21 @@ export default function FundRequestApprovalPage() {
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Current Accomplishment %
+                              Current Project %
                             </span>
                             <p className="mt-0.5">
                               {r.current_project_percentage != null
                                 ? `${r.current_project_percentage}%`
+                                : "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground uppercase">
+                              Vendor Amount %
+                            </span>
+                            <p className="mt-0.5">
+                              {r.po_amount_percentage != null
+                                ? `${r.po_amount_percentage}%`
                                 : "—"}
                             </p>
                           </div>
@@ -812,9 +830,31 @@ export default function FundRequestApprovalPage() {
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              P.O. Number
+                              Client P.O. Number
                             </span>
                             <p className="mt-0.5">{r.po_number ?? "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground uppercase">
+                              Vendor / Subcontractor
+                            </span>
+                            <p className="mt-0.5">{r.vendors?.name ?? "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground uppercase">
+                              Vendor P.O. Number
+                            </span>
+                            <p className="mt-0.5">{r.vendor_po_number ?? "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-medium text-muted-foreground uppercase">
+                              Reference basis
+                            </span>
+                            <p className="mt-0.5">
+                              {r.reference_mode === "internal_stock"
+                                ? "Internal stock / warehouse purchase"
+                                : "Client-linked request"}
+                            </p>
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -25,7 +25,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
-import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
 interface Project {
@@ -37,7 +37,6 @@ interface Project {
   progress_percentage: number; is_active: boolean;
   clients: { name: string } | null;
 }
-interface ProjectCost { id: string; cost_type: string; cost_category: string | null; description: string; quantity: number | null; unit: string | null; unit_cost: number | null; total_cost: number; cost_date: string; vendor_supplier: string | null; invoice_number: string | null; payment_status: string; }
 interface ProjectAssignment { id: string; employee_id: string; role: string | null; start_date: string; end_date: string | null; is_active: boolean; employees: { company_id_no: string; first_name: string; last_name: string } | null; }
 interface ProjectProgressEntry { id: string; progress_date: string; progress_percentage: number; notes: string | null; milestone: string | null; created_at: string; }
 interface FundRequestBrief { id: string; purpose: string; total_requested_amount: number; status: string; request_date: string; }
@@ -47,31 +46,35 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "o
   active: "default", completed: "default", "on-hold": "secondary", cancelled: "destructive", planned: "outline",
 };
 
+const EXCLUDED_COST_STATUSES = new Set(["rejected"]);
+const APPROVED_COST_STATUSES = new Set(["management_approved"]);
+const IN_REVIEW_COST_STATUSES = new Set([
+  "pending",
+  "project_manager_approved",
+  "purchasing_officer_approved",
+]);
+
 function formatLabel(s: string): string { return s.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+
+function getFundRequestBadgeVariant(status: string): "default" | "secondary" | "destructive" {
+  if (status === "management_approved") return "default";
+  if (status === "rejected") return "destructive";
+  return "secondary";
+}
 
 export default function ProjectDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const projectId = params.id as string;
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
   const { canCreate } = usePermissions();
 
   const [project, setProject] = useState<Project | null>(null);
-  const [costs, setCosts] = useState<ProjectCost[]>([]);
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
   const [progressHistory, setProgressHistory] = useState<ProjectProgressEntry[]>([]);
   const [fundRequests, setFundRequests] = useState<FundRequestBrief[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<POBrief[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [materialCost, setMaterialCost] = useState(0);
-  const [manpowerCost, setManpowerCost] = useState(0);
-  const [machineCost, setMachineCost] = useState(0);
-  const [otherCost, setOtherCost] = useState(0);
-  const [totalCost, setTotalCost] = useState(0);
-
-  const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
   const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [assignEmployeeId, setAssignEmployeeId] = useState("");
@@ -82,18 +85,6 @@ export default function ProjectDetailPage() {
   const canCreatePurchaseOrders = canCreate("purchase_orders");
   const showFundRequests = Boolean(profile);
 
-  const [costType, setCostType] = useState("material");
-  const [costCategory, setCostCategory] = useState("");
-  const [costDescription, setCostDescription] = useState("");
-  const [costQuantity, setCostQuantity] = useState("");
-  const [costUnit, setCostUnit] = useState("");
-  const [costUnitCost, setCostUnitCost] = useState("");
-  const [costTotalCost, setCostTotalCost] = useState("");
-  const [costDate, setCostDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [costVendor, setCostVendor] = useState("");
-  const [costInvoice, setCostInvoice] = useState("");
-  const [costPaymentStatus, setCostPaymentStatus] = useState("pending");
-
   const [progressPercentage, setProgressPercentage] = useState("");
   const [progressDate, setProgressDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [progressMilestone, setProgressMilestone] = useState("");
@@ -101,13 +92,39 @@ export default function ProjectDetailPage() {
 
   useEffect(() => { if (projectId) fetchProjectData(); }, [projectId]);
 
+  const totalCost = useMemo(
+    () => fundRequests
+      .filter((request) => !EXCLUDED_COST_STATUSES.has(request.status))
+      .reduce((sum, request) => sum + Number(request.total_requested_amount || 0), 0),
+    [fundRequests]
+  );
+
+  const approvedCost = useMemo(
+    () => fundRequests
+      .filter((request) => APPROVED_COST_STATUSES.has(request.status))
+      .reduce((sum, request) => sum + Number(request.total_requested_amount || 0), 0),
+    [fundRequests]
+  );
+
+  const inReviewCost = useMemo(
+    () => fundRequests
+      .filter((request) => IN_REVIEW_COST_STATUSES.has(request.status))
+      .reduce((sum, request) => sum + Number(request.total_requested_amount || 0), 0),
+    [fundRequests]
+  );
+
+  const rejectedCost = useMemo(
+    () => fundRequests
+      .filter((request) => request.status === "rejected")
+      .reduce((sum, request) => sum + Number(request.total_requested_amount || 0), 0),
+    [fundRequests]
+  );
+
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projRes, costsRes, manpRes, assignRes, progRes, frRes, poRes] = await Promise.all([
+      const [projRes, assignRes, progRes, frRes, poRes] = await Promise.all([
         supabase.from("projects").select("*, clients:client_id ( name )").eq("id", projectId).single(),
-        supabase.from("project_costs").select("*").eq("project_id", projectId).order("cost_date", { ascending: false }),
-        supabase.from("project_manpower_costs").select("total_cost").eq("project_id", projectId),
         supabase.from("project_assignments").select("*, employees:employee_id ( company_id_no, first_name, last_name )").eq("project_id", projectId).order("start_date", { ascending: false }),
         supabase.from("project_progress").select("*").eq("project_id", projectId).order("progress_date", { ascending: false }),
         supabase.from("fund_requests").select("id, purpose, total_requested_amount, status, request_date").eq("project_id", projectId).order("created_at", { ascending: false }),
@@ -116,40 +133,11 @@ export default function ProjectDetailPage() {
 
       if (projRes.error) throw projRes.error;
       setProject(projRes.data as Project);
-      setCosts(costsRes.data ?? []);
       setAssignments(assignRes.data ?? []);
       setProgressHistory(progRes.data ?? []);
       setFundRequests((frRes.data as unknown as FundRequestBrief[]) ?? []);
       setPurchaseOrders((poRes.data as unknown as POBrief[]) ?? []);
-
-      const material = (costsRes.data ?? []).filter((c: ProjectCost) => c.cost_type === "material").reduce((s: number, c: ProjectCost) => s + c.total_cost, 0);
-      const machine = (costsRes.data ?? []).filter((c: ProjectCost) => c.cost_type === "machine").reduce((s: number, c: ProjectCost) => s + c.total_cost, 0);
-      const other = (costsRes.data ?? []).filter((c: ProjectCost) => c.cost_type === "other").reduce((s: number, c: ProjectCost) => s + c.total_cost, 0);
-      const manpower = (manpRes.data ?? []).reduce((s: number, c: { total_cost: number }) => s + c.total_cost, 0);
-      setMaterialCost(material); setManpowerCost(manpower); setMachineCost(machine); setOtherCost(other);
-      setTotalCost(material + manpower + machine + other);
     } catch (error) { toast.error("Failed to load project data"); console.error(error); } finally { setLoading(false); }
-  };
-
-  const handleAddCost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!costDescription.trim() || !costTotalCost) { toast.error("Description and total cost required."); return; }
-    const totalVal = parseFloat(costTotalCost);
-    if (isNaN(totalVal) || totalVal <= 0) { toast.error("Invalid total cost."); return; }
-    const { error } = await supabase.from("project_costs").insert({
-      project_id: projectId, cost_type: costType, cost_category: costCategory.trim() || null,
-      description: costDescription.trim(), quantity: costQuantity ? parseFloat(costQuantity) : null,
-      unit: costUnit.trim() || null, unit_cost: costUnitCost ? parseFloat(costUnitCost) : null,
-      total_cost: totalVal, cost_date: costDate, vendor_supplier: costVendor.trim() || null,
-      invoice_number: costInvoice.trim() || null, payment_status: costPaymentStatus,
-      created_by: profile?.id || null,
-    } as never);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Cost added.");
-    setIsCostDialogOpen(false);
-    setCostType("material"); setCostCategory(""); setCostDescription(""); setCostQuantity(""); setCostUnit("");
-    setCostUnitCost(""); setCostTotalCost(""); setCostDate(format(new Date(), "yyyy-MM-dd")); setCostVendor(""); setCostInvoice(""); setCostPaymentStatus("pending");
-    fetchProjectData();
   };
 
   const handleUpdateProgress = async (e: React.FormEvent) => {
@@ -276,60 +264,34 @@ export default function ProjectDetailPage() {
 
           <TabsContent value="costs" className="space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Project Costs</h3>
-              {canManage && (
-                <Dialog open={isCostDialogOpen} onOpenChange={setIsCostDialogOpen}>
-                  <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Add Cost</Button></DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader><DialogTitle>Add Project Cost</DialogTitle><DialogDescription>Record material, machine, or other costs.</DialogDescription></DialogHeader>
-                    <form onSubmit={handleAddCost} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><Label>Cost Type *</Label>
-                          <Select value={costType} onValueChange={setCostType}><SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="material">Material</SelectItem><SelectItem value="machine">Machine</SelectItem><SelectItem value="other">Other</SelectItem></SelectContent>
-                          </Select></div>
-                        <div><Label>Date *</Label><Input type="date" value={costDate} onChange={(e) => setCostDate(e.target.value)} required /></div>
-                      </div>
-                      <div><Label>Category</Label><Input value={costCategory} onChange={(e) => setCostCategory(e.target.value)} /></div>
-                      <div><Label>Description *</Label><Textarea value={costDescription} onChange={(e) => setCostDescription(e.target.value)} required rows={2} /></div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div><Label>Quantity</Label><Input type="number" step="0.01" value={costQuantity} onChange={(e) => setCostQuantity(e.target.value)} /></div>
-                        <div><Label>Unit</Label><Input value={costUnit} onChange={(e) => setCostUnit(e.target.value)} /></div>
-                        <div><Label>Unit Cost</Label><Input type="number" step="0.01" value={costUnitCost} onChange={(e) => setCostUnitCost(e.target.value)} /></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><Label>Total Cost *</Label><Input type="number" step="0.01" value={costTotalCost} onChange={(e) => setCostTotalCost(e.target.value)} required /></div>
-                        <div><Label>Payment Status</Label>
-                          <Select value={costPaymentStatus} onValueChange={setCostPaymentStatus}><SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="partial">Partial</SelectItem><SelectItem value="paid">Paid</SelectItem></SelectContent>
-                          </Select></div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div><Label>Vendor/Supplier</Label><Input value={costVendor} onChange={(e) => setCostVendor(e.target.value)} /></div>
-                        <div><Label>Invoice Number</Label><Input value={costInvoice} onChange={(e) => setCostInvoice(e.target.value)} /></div>
-                      </div>
-                      <DialogFooter><Button type="button" variant="outline" onClick={() => setIsCostDialogOpen(false)}>Cancel</Button><Button type="submit">Add Cost</Button></DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              )}
+              <div>
+                <h3 className="text-lg font-semibold">Project Costs</h3>
+                <p className="text-sm text-muted-foreground">
+                  Costs are now derived from linked fund requests. Rejected requests are excluded from the total project cost.
+                </p>
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {[{ label: "Material", val: materialCost }, { label: "Manpower", val: manpowerCost }, { label: "Machine", val: machineCost }, { label: "Other", val: otherCost }].map((c) => (
+              {[
+                { label: "Total Cost", val: totalCost },
+                { label: "Approved", val: approvedCost },
+                { label: "In Review", val: inReviewCost },
+                { label: "Rejected", val: rejectedCost },
+              ].map((c) => (
                 <Card key={c.label}><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">{c.label}</CardTitle></CardHeader>
                   <CardContent><div className="text-xl font-bold">₱{c.val.toLocaleString()}</div></CardContent></Card>
               ))}
             </div>
             <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                <TableBody>{costs.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No costs recorded</TableCell></TableRow> :
-                  costs.map((cost) => (
-                    <TableRow key={cost.id}>
-                      <TableCell>{format(new Date(cost.cost_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell><Badge variant="outline">{formatLabel(cost.cost_type)}</Badge></TableCell>
-                      <TableCell>{cost.description}</TableCell>
-                      <TableCell className="text-right font-medium">₱{cost.total_cost.toLocaleString()}</TableCell>
-                      <TableCell><Badge variant={cost.payment_status === "paid" ? "default" : "secondary"}>{formatLabel(cost.payment_status)}</Badge></TableCell>
+              <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
+                <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests linked to this project</TableCell></TableRow> :
+                  fundRequests.map((request) => (
+                    <TableRow key={request.id}>
+                      <TableCell>{format(new Date(request.request_date), "MMM d, yyyy")}</TableCell>
+                      <TableCell>{request.purpose}</TableCell>
+                      <TableCell><Badge variant={getFundRequestBadgeVariant(request.status)} className="text-xs capitalize">{formatLabel(request.status)}</Badge></TableCell>
+                      <TableCell className="text-right font-medium">₱{Number(request.total_requested_amount).toLocaleString()}</TableCell>
+                      <TableCell><Link href={`/fund-request/${request.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
                     </TableRow>
                   ))}</TableBody></Table>
             </CardContent></Card>
@@ -349,7 +311,7 @@ export default function ProjectDetailPage() {
                         <TableCell>{format(new Date(fr.request_date), "MMM d, yyyy")}</TableCell>
                         <TableCell>{fr.purpose}</TableCell>
                         <TableCell className="text-right font-medium">₱{Number(fr.total_requested_amount).toLocaleString()}</TableCell>
-                        <TableCell><Badge variant={fr.status === "management_approved" ? "default" : fr.status === "rejected" ? "destructive" : "secondary"} className="text-xs capitalize">{fr.status.replace(/_/g, " ")}</Badge></TableCell>
+                        <TableCell><Badge variant={getFundRequestBadgeVariant(fr.status)} className="text-xs capitalize">{formatLabel(fr.status)}</Badge></TableCell>
                         <TableCell><Link href={`/fund-request/${fr.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
                       </TableRow>
                     ))}</TableBody></Table>

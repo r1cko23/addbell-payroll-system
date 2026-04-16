@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "./useCurrentUser";
 
 // Define all available modules in the system
@@ -373,13 +374,26 @@ export function usePermissions(): UsePermissionsReturn {
       setLoading(true);
       setError(null);
 
-      const defaultPerms =
-        DEFAULT_PERMISSIONS[user.role || "viewer"] || EMPTY_PERMISSIONS;
-      setPermissions(defaultPerms);
+      const supabase = createClient();
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("role, permissions")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError) throw profileError;
+
+      const resolvedRole = (profileData?.role as string | undefined) || user.role || "viewer";
+      const mergedPermissions = mergePermissions(
+        resolvedRole,
+        (profileData?.permissions as Partial<UserPermissions> | null | undefined) ?? null
+      );
+
+      setPermissions(mergedPermissions);
       setError(null);
       permissionsCache = {
         userId: user.id,
-        permissions: defaultPerms,
+        permissions: mergedPermissions,
         timestamp: Date.now(),
       };
     } catch (err: any) {

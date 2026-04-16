@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -35,10 +35,140 @@ const PURPOSE_OPTIONS = [
   "Others",
 ] as const;
 
-const DETAIL_ROWS = 5;
+const INITIAL_DETAIL_ROWS = 1;
+const PROGRESS_BILLING_PREFIX = "Progress Billing";
+const NOT_APPLICABLE = "N/A";
+const NO_PROJECT_VALUE = "__NO_PROJECT__";
+type PurposeOption = (typeof PURPOSE_OPTIONS)[number];
+type ReferenceMode = "client_linked" | "internal_stock";
+
+type PurposeFieldConfig = {
+  referenceCardTitle: string;
+  referenceCardDescription: string;
+  detailsSectionTitle: string;
+  detailsSectionDescription: string;
+  detailPlaceholderPrefix: string;
+};
 
 type DetailRow = { description: string; amount: string };
-type ProjectOption = { id: string; code: string; name: string; site_address: string | null; contract_value: number | null };
+type ProjectOption = {
+  id: string;
+  code: string;
+  name: string;
+  site_address: string | null;
+  contract_value: number | null;
+  progress_percentage: number | null;
+};
+type PurchaseOrderOption = { id: string; po_number: string; project_id: string | null; total_amount: number | null };
+type VendorOption = { id: string; name: string };
+
+function createEmptyDetailRow(): DetailRow {
+  return { description: "", amount: "" };
+}
+
+function isProgressBillingRow(row: DetailRow): boolean {
+  return row.description.trim().startsWith(PROGRESS_BILLING_PREFIX);
+}
+
+function isNotApplicableValue(value: string): boolean {
+  return value.trim().toUpperCase() === NOT_APPLICABLE;
+}
+
+function getPurposeFieldConfig(purpose: string): PurposeFieldConfig {
+  switch (purpose as PurposeOption) {
+    case "Material Purchase":
+      return {
+        referenceCardTitle: "Client / Project Reference",
+        referenceCardDescription:
+          "Material requests usually need the client P.O. and project reference plus the itemized material breakdown. Vendor progress-billing fields are not typically needed here.",
+        detailsSectionTitle: "Material Request Details",
+        detailsSectionDescription:
+          "List the material items, quantities, or supplier charges that need funding.",
+        detailPlaceholderPrefix: "Material item",
+      };
+    case "Subcontractor Payment":
+      return {
+        referenceCardTitle: "Client / Project Reference",
+        referenceCardDescription:
+          "Subcontractor payment requests usually reference the client P.O. and project, then include vendor billing values such as vendor P.O. amount, billing percentage, and project progress.",
+        detailsSectionTitle: "Subcontractor Billing Details",
+        detailsSectionDescription:
+          "List billing milestones, scope items, or invoice details for the subcontractor payment.",
+        detailPlaceholderPrefix: "Billing item",
+      };
+    case "Project Funds":
+      return {
+        referenceCardTitle: "Project Reference",
+        referenceCardDescription:
+          "Use the project details for internal project funding. Client P.O. is optional when there is no direct client P.O. reference.",
+        detailsSectionTitle: "Project Fund Breakdown",
+        detailsSectionDescription:
+          "Describe where the requested project funds will be used on site or across the job.",
+        detailPlaceholderPrefix: "Fund item",
+      };
+    case "Liquidation":
+      return {
+        referenceCardTitle: "Liquidation Reference",
+        referenceCardDescription:
+          "Liquidation requests focus on the project or work reference and the expense breakdown. Client and Addbell P.O. details are not required here.",
+        detailsSectionTitle: "Liquidation Details",
+        detailsSectionDescription:
+          "Break down the expenses being liquidated, reimbursed, or cleared against previous releases.",
+        detailPlaceholderPrefix: "Liquidation item",
+      };
+    case "Others":
+      return {
+        referenceCardTitle: "Request Reference",
+        referenceCardDescription:
+          "Provide the most relevant reference for this request. Include a client P.O. only when it applies.",
+        detailsSectionTitle: "Request Details",
+        detailsSectionDescription:
+          "List the request items or cost breakdown needed to support this fund request.",
+        detailPlaceholderPrefix: "Request item",
+      };
+    default:
+      return {
+        referenceCardTitle: "Reference Details",
+        referenceCardDescription:
+          "Select a purpose first so the form can show only the fields needed for that request type.",
+        detailsSectionTitle: "Details of Request",
+        detailsSectionDescription:
+          "Add the itemized details and amounts for this request.",
+        detailPlaceholderPrefix: "Item",
+      };
+  }
+}
+
+function parseRequiredNumericOrNA(
+  value: string,
+  fieldLabel: string,
+  options?: { min?: number; max?: number }
+): number | null {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    throw new Error(`${fieldLabel} is required. Enter a number or N/A.`);
+  }
+
+  if (isNotApplicableValue(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${fieldLabel} must be a valid number or N/A.`);
+  }
+
+  if (options?.min != null && parsed < options.min) {
+    throw new Error(`${fieldLabel} must be at least ${options.min}, or N/A.`);
+  }
+
+  if (options?.max != null && parsed > options.max) {
+    throw new Error(`${fieldLabel} must not be greater than ${options.max}, or N/A.`);
+  }
+
+  return parsed;
+}
 
 function getSubmissionWorkflow(
   role: string | undefined,
@@ -112,20 +242,42 @@ export default function NewFundRequestPage() {
   const [requestDate, setRequestDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [purposeOption, setPurposeOption] = useState<string>("");
   const [purposeOther, setPurposeOther] = useState("");
+  const [referenceMode, setReferenceMode] = useState<ReferenceMode>("client_linked");
   const [poNumber, setPoNumber] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [projectSelection, setProjectSelection] = useState<string>("");
   const [projectTitle, setProjectTitle] = useState("");
   const [projectLocation, setProjectLocation] = useState("");
+  const [vendorId, setVendorId] = useState("");
+  const [vendorPONumber, setVendorPONumber] = useState("");
   const [poAmount, setPoAmount] = useState("");
+  const [poAmountPercentage, setPoAmountPercentage] = useState("");
   const [currentProjectPercentage, setCurrentProjectPercentage] = useState("");
   const [details, setDetails] = useState<DetailRow[]>(() =>
-    Array.from({ length: DETAIL_ROWS }, () => ({ description: "", amount: "" })),
+    Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyDetailRow()),
   );
   const [dateNeeded, setDateNeeded] = useState("");
   const [urgentReason, setUrgentReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [purchaseOrderOptions, setPurchaseOrderOptions] = useState<PurchaseOrderOption[]>([]);
+  const [vendors, setVendors] = useState<VendorOption[]>([]);
   const workflow = getSubmissionWorkflow(user?.role, isPortal, user?.id ?? null);
+  const purposeConfig = useMemo(
+    () => getPurposeFieldConfig(purposeOption),
+    [purposeOption]
+  );
+  const isInternalStockReference = referenceMode === "internal_stock";
+  const projectMustBeLinked =
+    !isInternalStockReference &&
+    (purposeOption === "Material Purchase" || purposeOption === "Subcontractor Payment");
+  const showClientPOField = !isInternalStockReference;
+  const showProjectReferenceFields = !isInternalStockReference;
+  const showVendorPaymentSection =
+    !isInternalStockReference && purposeOption === "Subcontractor Payment";
+  const selectedProjectId =
+    projectSelection && projectSelection !== NO_PROJECT_VALUE
+      ? projectSelection
+      : "";
 
   useEffect(() => {
     if (session?.employee?.full_name) {
@@ -165,7 +317,7 @@ export default function NewFundRequestPage() {
   useEffect(() => {
     supabase
       .from("projects")
-      .select("id, code, name, site_address, contract_value")
+      .select("id, code, name, site_address, contract_value, progress_percentage")
       .order("name")
       .then(({ data }) => setProjects((data as ProjectOption[]) ?? []));
   }, [supabase]);
@@ -199,18 +351,152 @@ export default function NewFundRequestPage() {
     }
   }, [requesterEmployees, selectedRequesterEmployeeId]);
 
-  const handleProjectSelect = (projectId: string) => {
-    setSelectedProjectId(projectId);
-    const proj = projects.find((p) => p.id === projectId);
+  const handleProjectSelect = (projectValue: string) => {
+    setProjectSelection(projectValue);
+    if (projectValue === NO_PROJECT_VALUE) {
+      setProjectTitle(NOT_APPLICABLE);
+      setProjectLocation(NOT_APPLICABLE);
+      setCurrentProjectPercentage(NOT_APPLICABLE);
+      return;
+    }
+
+    const proj = projects.find((p) => p.id === projectValue);
     if (proj) {
       setProjectTitle(proj.name);
       setProjectLocation(proj.site_address ?? "");
-      if (proj.contract_value) setPoAmount(String(proj.contract_value));
+      setCurrentProjectPercentage(String(proj.progress_percentage ?? 0));
     }
   };
 
+  useEffect(() => {
+    let active = true;
+
+    supabase
+      .from("purchase_orders")
+      .select("id, po_number, project_id, total_amount")
+      .not("po_number", "is", null)
+      .order("po_number")
+      .then(({ data }) => {
+        if (!active) return;
+        const uniquePOs = Array.from(
+          new Map(
+            ((data as PurchaseOrderOption[] | null) ?? [])
+              .filter((po) => po.po_number?.trim())
+              .map((po) => [po.po_number.trim(), { ...po, po_number: po.po_number.trim() }])
+          ).values()
+        );
+        setPurchaseOrderOptions(uniquePOs);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    supabase
+      .from("vendors")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => setVendors((data as VendorOption[]) ?? []));
+  }, [supabase]);
+
+  useEffect(() => {
+    if (referenceMode !== "internal_stock") return;
+    setProjectSelection(NO_PROJECT_VALUE);
+    setProjectTitle(NOT_APPLICABLE);
+    setProjectLocation(NOT_APPLICABLE);
+    setPoNumber("");
+    setCurrentProjectPercentage("");
+    setVendorId("");
+    setVendorPONumber("");
+    setPoAmount("");
+    setPoAmountPercentage("");
+  }, [referenceMode]);
+
+  useEffect(() => {
+    if (showVendorPaymentSection) return;
+    setVendorId("");
+    setVendorPONumber("");
+    setPoAmount("");
+    setPoAmountPercentage("");
+    setCurrentProjectPercentage("");
+  }, [showVendorPaymentSection]);
+
   const detailAmounts = details.map((d) => (d.amount ? Number(d.amount) : 0));
   const totalRequested = detailAmounts.reduce((a, b) => a + b, 0);
+  const availablePurchaseOrders = useMemo(() => {
+    if (!selectedProjectId) return purchaseOrderOptions;
+
+    const matchingProjectPOs = purchaseOrderOptions.filter((po) => po.project_id === selectedProjectId);
+    const otherPOs = purchaseOrderOptions.filter((po) => po.project_id !== selectedProjectId);
+    return [...matchingProjectPOs, ...otherPOs];
+  }, [purchaseOrderOptions, selectedProjectId]);
+  const hasPurchaseOrderOptions = availablePurchaseOrders.length > 0;
+  const progressBillingPercent = !showVendorPaymentSection || !poAmountPercentage || isNotApplicableValue(poAmountPercentage)
+    ? 0
+    : Number(poAmountPercentage);
+  const progressBillingBaseAmount = !showVendorPaymentSection || !poAmount || isNotApplicableValue(poAmount)
+    ? 0
+    : Number(poAmount);
+  const hasProgressBilling =
+    Number.isFinite(progressBillingPercent) &&
+    progressBillingPercent > 0 &&
+    Number.isFinite(progressBillingBaseAmount) &&
+    progressBillingBaseAmount > 0;
+  const progressBillingDescription = hasProgressBilling
+    ? `${PROGRESS_BILLING_PREFIX} ${progressBillingPercent}%`
+    : "";
+  const progressBillingAmount = hasProgressBilling
+    ? (progressBillingBaseAmount * progressBillingPercent) / 100
+    : 0;
+
+  useEffect(() => {
+    setDetails((prev) => {
+      const progressRowIndex = prev.findIndex(isProgressBillingRow);
+
+      if (!hasProgressBilling) {
+        if (progressRowIndex === -1) return prev;
+        return prev.filter((_, index) => index !== progressRowIndex);
+      }
+
+      const nextProgressRow = {
+        description: progressBillingDescription,
+        amount: progressBillingAmount.toFixed(2),
+      };
+
+      if (progressRowIndex >= 0) {
+        const current = prev[progressRowIndex];
+        if (
+          current.description === nextProgressRow.description &&
+          current.amount === nextProgressRow.amount
+        ) {
+          return prev;
+        }
+
+        const next = [...prev];
+        next[progressRowIndex] = nextProgressRow;
+        return next;
+      }
+
+      const emptyIndex = prev.findIndex(
+        (row) => !row.description.trim() && !row.amount.trim()
+      );
+
+      if (emptyIndex >= 0) {
+        const next = [...prev];
+        next[emptyIndex] = nextProgressRow;
+        return next;
+      }
+
+      return [...prev, nextProgressRow];
+    });
+  }, [
+    hasProgressBilling,
+    progressBillingAmount,
+    progressBillingDescription,
+  ]);
 
   const updateDetail = (index: number, field: "description" | "amount", value: string) => {
     setDetails((prev) => {
@@ -218,6 +504,10 @@ export default function NewFundRequestPage() {
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const addDetailRow = () => {
+    setDetails((prev) => [...prev, createEmptyDetailRow()]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -231,12 +521,72 @@ export default function NewFundRequestPage() {
       toast.error(purposeOption === "Others" ? "Please enter the purpose (Others)." : "Please select a purpose.");
       return;
     }
+    if (projectMustBeLinked && (!projectSelection || projectSelection === NO_PROJECT_VALUE)) {
+      toast.error("Project is required for this purpose in client-linked mode.");
+      return;
+    }
+    if (showProjectReferenceFields && !projectTitle.trim()) {
+      toast.error("Project Title is required. Enter a value or N/A.");
+      return;
+    }
+    if (showProjectReferenceFields && !projectLocation.trim()) {
+      toast.error("Project Location is required. Enter a value or N/A.");
+      return;
+    }
     if (totalRequested <= 0) {
       toast.error("Add at least one detail line with an amount.");
       return;
     }
     if (!dateNeeded) {
       toast.error("Date needed is required.");
+      return;
+    }
+    if (!urgentReason.trim()) {
+      toast.error("Urgent reason is required. Enter a reason or N/A.");
+      return;
+    }
+    const trimmedPoNumber = poNumber.trim();
+    if (showClientPOField && !trimmedPoNumber) {
+      toast.error("Client P.O. Number is required in client-linked mode.");
+      return;
+    }
+    if (
+      showClientPOField &&
+      trimmedPoNumber &&
+      !hasPurchaseOrderOptions &&
+      trimmedPoNumber.toUpperCase() !== "N/A"
+    ) {
+      toast.error("Enter N/A when no purchase order number applies.");
+      return;
+    }
+    let parsedPoAmount: number | null = null;
+    let parsedPoAmountPercentage: number | null = null;
+    let parsedCurrentProjectPercentage: number | null = null;
+    const trimmedVendorPONumber = vendorPONumber.trim();
+    if (showVendorPaymentSection && !vendorId) {
+      toast.error("Select a vendor or subcontractor.");
+      return;
+    }
+    if (showVendorPaymentSection && !trimmedVendorPONumber) {
+      toast.error("Vendor P.O. Number is required for subcontractor payment.");
+      return;
+    }
+    try {
+      if (showVendorPaymentSection) {
+        parsedPoAmount = parseRequiredNumericOrNA(poAmount, "Vendor P.O. Amount", { min: 0 });
+        parsedPoAmountPercentage = parseRequiredNumericOrNA(
+          poAmountPercentage,
+          "Vendor Amount %",
+          { min: 0, max: 100 }
+        );
+        parsedCurrentProjectPercentage = parseRequiredNumericOrNA(
+          currentProjectPercentage,
+          "Current Project %",
+          { min: 0, max: 100 }
+        );
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Invalid numeric fields.");
       return;
     }
 
@@ -270,19 +620,25 @@ export default function NewFundRequestPage() {
 
       const payload = {
         company_id: companyId,
-        project_id: selectedProjectId || null,
+        reference_mode: referenceMode,
+        project_id: showProjectReferenceFields ? (selectedProjectId || null) : null,
         requested_by: employeeId,
         request_date: requestDate,
         purpose: purposeValue,
-        po_number: poNumber.trim() || null,
-        project_title: projectTitle.trim() || null,
-        project_location: projectLocation.trim() || null,
-        po_amount: poAmount ? Number(poAmount) : null,
-        current_project_percentage: currentProjectPercentage ? Number(currentProjectPercentage) : null,
+        po_number: showClientPOField
+          ? (trimmedPoNumber.toUpperCase() === "N/A" ? "N/A" : trimmedPoNumber)
+          : null,
+        project_title: showProjectReferenceFields ? projectTitle.trim() : null,
+        project_location: showProjectReferenceFields ? projectLocation.trim() : null,
+        vendor_id: showVendorPaymentSection ? vendorId : null,
+        vendor_po_number: showVendorPaymentSection ? trimmedVendorPONumber : null,
+        po_amount: parsedPoAmount,
+        po_amount_percentage: parsedPoAmountPercentage,
+        current_project_percentage: parsedCurrentProjectPercentage,
         details: detailsPayload,
         total_requested_amount: totalRequested,
         date_needed: dateNeeded || null,
-        urgent_reason: urgentReason.trim() || null,
+        urgent_reason: urgentReason.trim(),
         status: workflow.status,
         project_manager_approved_by: workflow.project_manager_approved_by,
         project_manager_approved_at: workflow.project_manager_approved_at,
@@ -375,45 +731,215 @@ export default function NewFundRequestPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold border-b pb-2 mb-3">Description</h3>
+                  <Label htmlFor="reference_mode">Reference Basis *</Label>
+                  <Select
+                    value={referenceMode}
+                    onValueChange={(value) => setReferenceMode(value as ReferenceMode)}
+                  >
+                    <SelectTrigger id="reference_mode">
+                      <SelectValue placeholder="Select reference basis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="client_linked">Client-linked request</SelectItem>
+                      <SelectItem value="internal_stock">
+                        Internal stock / warehouse purchase
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Choose <span className="font-medium">Client-linked</span> when tied to a
+                    client P.O. Choose <span className="font-medium">Internal stock</span> for
+                    warehouse purchases with no client/project reference.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold border-b pb-2 mb-3">Project and P.O. References</h3>
                   <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <Label htmlFor="project_select">Project</Label>
-                      <Select value={selectedProjectId} onValueChange={handleProjectSelect}>
-                        <SelectTrigger id="project_select">
-                          <SelectValue placeholder="Select a project (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projects.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.code} — {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="po_number">P.O. Number</Label>
-                      <Input id="po_number" value={poNumber} onChange={(e) => setPoNumber(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label htmlFor="project_title">Project Title</Label>
-                      <Input id="project_title" value={projectTitle} onChange={(e) => setProjectTitle(e.target.value)} />
-                    </div>
-                    <div>
-                      <Label htmlFor="project_location">Project Location</Label>
-                      <Input id="project_location" value={projectLocation} onChange={(e) => setProjectLocation(e.target.value)} placeholder="e.g. Site name, city" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="po_amount">P.O. Amount (PHP)</Label>
-                        <Input id="po_amount" type="number" step="0.01" min="0" value={poAmount} onChange={(e) => setPoAmount(e.target.value)} />
-                      </div>
-                      <div>
-                        <Label htmlFor="current_project_percentage">Current Project %</Label>
-                        <Input id="current_project_percentage" type="number" step="0.01" min="0" max="100" value={currentProjectPercentage} onChange={(e) => setCurrentProjectPercentage(e.target.value)} />
-                      </div>
-                    </div>
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">{purposeConfig.referenceCardTitle}</CardTitle>
+                        <p className="text-xs text-muted-foreground">
+                          {showProjectReferenceFields
+                            ? purposeConfig.referenceCardDescription
+                            : "Internal stock mode does not require client P.O. and project linkage."}
+                        </p>
+                      </CardHeader>
+                      <CardContent className="grid grid-cols-1 gap-3">
+                        {showProjectReferenceFields ? (
+                          <div>
+                            <Label htmlFor="project_select">
+                              Project {projectMustBeLinked ? "*" : "(optional tie-in)"}
+                            </Label>
+                            <Select value={projectSelection} onValueChange={handleProjectSelect}>
+                              <SelectTrigger id="project_select">
+                                <SelectValue placeholder="Select a project or N/A" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={NO_PROJECT_VALUE}>N/A / No project</SelectItem>
+                                {projects.map((p) => (
+                                  <SelectItem key={p.id} value={p.id}>
+                                    {p.code} — {p.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : null}
+                        {showClientPOField ? (
+                          <div>
+                            <Label htmlFor="po_number">
+                              Client P.O. Number *
+                            </Label>
+                            {hasPurchaseOrderOptions ? (
+                              <>
+                                <Select value={poNumber} onValueChange={setPoNumber}>
+                                  <SelectTrigger id="po_number">
+                                    <SelectValue placeholder="Select a client P.O. Number or N/A" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="N/A">N/A</SelectItem>
+                                    {availablePurchaseOrders.map((po) => (
+                                      <SelectItem key={po.id} value={po.po_number}>
+                                        {po.po_number}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Select an existing client P.O. number, or choose{" "}
+                                  <span className="font-medium">N/A</span> when it does not apply.
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <Input
+                                  id="po_number"
+                                  value={poNumber}
+                                  onChange={(e) => setPoNumber(e.target.value)}
+                                  placeholder="Type N/A if no client P.O. exists"
+                                  required
+                                />
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  No client purchase order numbers were found yet. Enter{" "}
+                                  <span className="font-medium">N/A</span> when needed.
+                                </p>
+                              </>
+                            )}
+                          </div>
+                        ) : null}
+                        {showProjectReferenceFields ? (
+                          <div>
+                            <Label htmlFor="project_title">Project Title</Label>
+                            <Input
+                              id="project_title"
+                              value={projectTitle}
+                              onChange={(e) => setProjectTitle(e.target.value)}
+                              placeholder="Enter project title or N/A"
+                              required
+                            />
+                          </div>
+                        ) : null}
+                        {showProjectReferenceFields ? (
+                          <div>
+                            <Label htmlFor="project_location">Project Location</Label>
+                            <Input
+                              id="project_location"
+                              value={projectLocation}
+                              onChange={(e) => setProjectLocation(e.target.value)}
+                              placeholder="e.g. Site name, city, or N/A"
+                              required
+                            />
+                          </div>
+                        ) : null}
+                        {showVendorPaymentSection ? (
+                          <div>
+                            <Label htmlFor="current_project_percentage">Current Project %</Label>
+                            <Input
+                              id="current_project_percentage"
+                              type="text"
+                              inputMode="decimal"
+                              value={currentProjectPercentage}
+                              onChange={(e) => setCurrentProjectPercentage(e.target.value)}
+                              placeholder="Enter percentage or N/A"
+                              readOnly={Boolean(selectedProjectId)}
+                              disabled={Boolean(selectedProjectId)}
+                              required
+                            />
+                            {selectedProjectId ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Auto-filled from the selected project&apos;s current progress.
+                              </p>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </CardContent>
+                    </Card>
+
+                    {showVendorPaymentSection ? (
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base">Vendor/Subcontractor P.O. Details</CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Capture the vendor reference and Addbell vendor P.O. details for this
+                            subcontractor payment request.
+                          </p>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          <div className="sm:col-span-3">
+                            <Label htmlFor="vendor_id">Vendor / Subcontractor *</Label>
+                            <Select value={vendorId} onValueChange={setVendorId}>
+                              <SelectTrigger id="vendor_id">
+                                <SelectValue placeholder="Select vendor or subcontractor" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {vendors.map((vendor) => (
+                                  <SelectItem key={vendor.id} value={vendor.id}>
+                                    {vendor.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="vendor_po_number">Vendor P.O. Number *</Label>
+                            <Input
+                              id="vendor_po_number"
+                              value={vendorPONumber}
+                              onChange={(e) => setVendorPONumber(e.target.value)}
+                              placeholder="Enter vendor P.O. number"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="po_amount">Vendor P.O. Amount (PHP)</Label>
+                            <Input
+                              id="po_amount"
+                              type="text"
+                              inputMode="decimal"
+                              value={poAmount}
+                              onChange={(e) => setPoAmount(e.target.value)}
+                              placeholder="Enter amount or N/A"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="po_amount_percentage">Vendor Amount %</Label>
+                            <Input
+                              id="po_amount_percentage"
+                              type="text"
+                              inputMode="decimal"
+                              value={poAmountPercentage}
+                              onChange={(e) => setPoAmountPercentage(e.target.value)}
+                              placeholder="Enter percentage or N/A"
+                              required
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Used for progress billing when applicable.
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -421,7 +947,12 @@ export default function NewFundRequestPage() {
               {/* Right column */}
               <div className="flex flex-col gap-4">
                 <div>
-                  <h3 className="text-sm font-semibold border-b pb-2 mb-2">Details of Request</h3>
+                  <h3 className="text-sm font-semibold border-b pb-2 mb-2">
+                    {purposeConfig.detailsSectionTitle}
+                  </h3>
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    {purposeConfig.detailsSectionDescription}
+                  </p>
                   <div className="space-y-1.5">
                     <div className="grid grid-cols-[1fr_100px] gap-2 text-xs font-medium text-muted-foreground">
                       <span>Details</span>
@@ -429,10 +960,20 @@ export default function NewFundRequestPage() {
                     </div>
                     {details.map((row, i) => (
                       <div key={i} className="grid grid-cols-[1fr_100px] gap-2">
-                        <Input placeholder={`Item ${i + 1}`} value={row.description} onChange={(e) => updateDetail(i, "description", e.target.value)} className="min-w-0" />
+                        <Input
+                          placeholder={`${purposeConfig.detailPlaceholderPrefix} ${i + 1}`}
+                          value={row.description}
+                          onChange={(e) => updateDetail(i, "description", e.target.value)}
+                          className="min-w-0"
+                        />
                         <Input type="number" step="0.01" min="0" placeholder="0" value={row.amount} onChange={(e) => updateDetail(i, "amount", e.target.value)} />
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-2">
+                    <Button type="button" variant="outline" onClick={addDetailRow}>
+                      Add item
+                    </Button>
                   </div>
                   <p className="text-sm font-medium mt-2">
                     Total: PHP {totalRequested.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
@@ -445,7 +986,7 @@ export default function NewFundRequestPage() {
                   </div>
                   <div>
                     <Label htmlFor="urgent_reason">*If urgent, state reason</Label>
-                    <Textarea id="urgent_reason" value={urgentReason} onChange={(e) => setUrgentReason(e.target.value)} placeholder="Reason for urgency (optional)" rows={2} className="resize-none" />
+                    <Textarea id="urgent_reason" value={urgentReason} onChange={(e) => setUrgentReason(e.target.value)} placeholder="Reason for urgency or N/A" rows={2} className="resize-none" required />
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground italic">

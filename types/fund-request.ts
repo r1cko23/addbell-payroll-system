@@ -5,10 +5,14 @@ export type FundRequestRow = {
   requested_by: string;
   request_date: string;
   purpose: string;
+  reference_mode: "client_linked" | "internal_stock" | null;
   po_number: string | null;
+  vendor_id: string | null;
+  vendor_po_number: string | null;
   project_title: string | null;
   project_location: string | null;
   po_amount: number | null;
+  po_amount_percentage: number | null;
   current_project_percentage: number | null;
   details: unknown;
   total_requested_amount: number;

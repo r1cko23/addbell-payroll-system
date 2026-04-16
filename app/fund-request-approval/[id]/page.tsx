@@ -5,8 +5,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useProfile } from "@/lib/hooks/useProfile";
 import type { FundRequestRow } from "@/types/fund-request";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -19,14 +24,23 @@ const STATUS_LABELS: Record<string, string> = {
 
 type DetailItem = { description?: string; amount?: number };
 type ProjectInfo = { name: string; code: string; site_address: string | null; contract_value: number | null };
+type EditableDetailItem = { description: string; amount: string };
+
+function createEmptyDetailItem(): EditableDetailItem {
+  return { description: "", amount: "" };
+}
 
 export default function FundRequestApprovalDetailPage() {
   const params = useParams();
   const supabase = createClient();
+  const { profile, loading: profileLoading } = useProfile();
   const [request, setRequest] = useState<FundRequestRow | null>(null);
   const [requesterName, setRequesterName] = useState<string>("");
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
+  const [vendorName, setVendorName] = useState<string>("");
   const [approverNames, setApproverNames] = useState<Record<string, string>>({});
+  const [editableDetails, setEditableDetails] = useState<EditableDetailItem[]>([]);
+  const [savingDetails, setSavingDetails] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,6 +59,19 @@ export default function FundRequestApprovalDetailPage() {
       }
       const row = req as FundRequestRow;
       setRequest(row);
+      setVendorName("");
+      const nextDetails = ((row.details as DetailItem[] | null) ?? []).map((item) => ({
+        description: item.description ?? "",
+        amount:
+          item.amount != null && Number.isFinite(Number(item.amount))
+            ? String(item.amount)
+            : "",
+      }));
+      setEditableDetails(
+        nextDetails.length > 0
+          ? nextDetails
+          : [createEmptyDetailItem()]
+      );
 
       const [empRes, profilesRes] = await Promise.all([
         supabase.from("employees").select("first_name, last_name, employee_code").eq("id", row.requested_by).single(),
@@ -68,11 +95,107 @@ export default function FundRequestApprovalDetailPage() {
         if (proj) setProjectInfo(proj as ProjectInfo);
       }
 
+      if (row.vendor_id) {
+        const { data: vendor } = await supabase
+          .from("vendors")
+          .select("name")
+          .eq("id", row.vendor_id)
+          .single();
+        setVendorName((vendor as { name?: string } | null)?.name ?? "");
+      }
+
       setLoading(false);
     })();
   }, [params?.id, supabase]);
 
-  if (loading)
+  const canEditPurchasingDetails =
+    profile?.role === "purchasing_officer" &&
+    request?.status === "project_manager_approved";
+
+  const editableTotalRequested = editableDetails.reduce((sum, item) => {
+    const amount = Number(item.amount || 0);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+
+  const handleDetailChange = (
+    index: number,
+    field: keyof EditableDetailItem,
+    value: string
+  ) => {
+    setEditableDetails((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const handleAddDetailRow = () => {
+    setEditableDetails((prev) => [...prev, createEmptyDetailItem()]);
+  };
+
+  const handleRemoveDetailRow = (index: number) => {
+    setEditableDetails((prev) => {
+      if (prev.length === 1) {
+        return [createEmptyDetailItem()];
+      }
+      return prev.filter((_, rowIndex) => rowIndex !== index);
+    });
+  };
+
+  const handleSaveDetails = async () => {
+    if (!request) return;
+
+    const cleanedDetails = editableDetails
+      .filter((item) => item.description.trim() || item.amount.trim())
+      .map((item) => ({
+        description: item.description.trim() || "—",
+        amount: Number(item.amount || 0),
+      }));
+
+    if (cleanedDetails.length === 0) {
+      toast.error("Add at least one line item before saving.");
+      return;
+    }
+
+    if (cleanedDetails.some((item) => !Number.isFinite(item.amount) || item.amount < 0)) {
+      toast.error("Amounts must be valid positive numbers.");
+      return;
+    }
+
+    const nextTotal = cleanedDetails.reduce((sum, item) => sum + item.amount, 0);
+
+    setSavingDetails(true);
+    const { error } = await supabase
+      .from("fund_requests")
+      .update({
+        details: cleanedDetails,
+        total_requested_amount: nextTotal,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", request.id);
+    setSavingDetails(false);
+
+    if (error) {
+      toast.error(error.message || "Failed to save line items.");
+      return;
+    }
+
+    setRequest({
+      ...request,
+      details: cleanedDetails,
+      total_requested_amount: nextTotal,
+      updated_at: new Date().toISOString(),
+    });
+    setEditableDetails(
+      cleanedDetails.map((item) => ({
+        description: item.description,
+        amount: String(item.amount),
+      }))
+    );
+    toast.success("Line items updated.");
+  };
+
+  if (loading || profileLoading)
     return <div className="animate-pulse h-8 w-48 bg-slate-200 rounded" />;
   if (!request) {
     return (
@@ -89,6 +212,10 @@ export default function FundRequestApprovalDetailPage() {
   }
 
   const details = (request.details as DetailItem[] | null) ?? [];
+  const referenceModeLabel =
+    request.reference_mode === "internal_stock"
+      ? "Internal stock / warehouse purchase"
+      : "Client-linked request";
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -126,6 +253,12 @@ export default function FundRequestApprovalDetailPage() {
             </h4>
             <p className="mt-1">{request.purpose}</p>
           </div>
+          <div>
+            <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Reference basis
+            </h4>
+            <p className="mt-1">{referenceModeLabel}</p>
+          </div>
 
             {projectInfo && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
@@ -157,7 +290,7 @@ export default function FundRequestApprovalDetailPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">P.O. Number</h4>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Client P.O. Number</h4>
                 <p className="mt-1">{request.po_number ?? "—"}</p>
               </div>
               <div>
@@ -169,8 +302,20 @@ export default function FundRequestApprovalDetailPage() {
                 <p className="mt-1">{request.project_location ?? "—"}</p>
               </div>
               <div>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">P.O. Amount (PHP)</h4>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor / Subcontractor</h4>
+                <p className="mt-1">{vendorName || "—"}</p>
+              </div>
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor P.O. Number</h4>
+                <p className="mt-1">{request.vendor_po_number ?? "—"}</p>
+              </div>
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor P.O. Amount (PHP)</h4>
                 <p className="mt-1">{request.po_amount != null ? Number(request.po_amount).toLocaleString() : "—"}</p>
+              </div>
+              <div>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor Amount %</h4>
+                <p className="mt-1">{request.po_amount_percentage != null ? `${request.po_amount_percentage}%` : "—"}</p>
               </div>
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Accomplishment %</h4>
@@ -185,29 +330,104 @@ export default function FundRequestApprovalDetailPage() {
             </div>
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Details of Request</h4>
-              <table className="w-full text-sm border rounded-md">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left px-3 py-2">Details</th>
-                    <th className="text-right px-3 py-2">Amount (PHP)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {details.length === 0 ? (
-                    <tr><td colSpan={2} className="px-3 py-4 text-muted-foreground text-center">No line items</td></tr>
-                  ) : (
-                    details.map((item, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="px-3 py-2">{item.description ?? "—"}</td>
-                        <td className="px-3 py-2 text-right font-mono">{item.amount != null ? Number(item.amount).toLocaleString() : "—"}</td>
+              {canEditPurchasingDetails ? (
+                <div className="space-y-3 rounded-md border p-3">
+                  <div className="space-y-2">
+                    {editableDetails.map((item, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_160px_auto] gap-2">
+                        <Input
+                          value={item.description}
+                          onChange={(e) =>
+                            handleDetailChange(index, "description", e.target.value)
+                          }
+                          placeholder={`Item ${index + 1}`}
+                        />
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.amount}
+                          onChange={(e) =>
+                            handleDetailChange(index, "amount", e.target.value)
+                          }
+                          placeholder="0.00"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleRemoveDetailRow(index)}
+                          disabled={savingDetails}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddDetailRow}
+                      disabled={savingDetails}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add item
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveDetails}
+                      disabled={savingDetails}
+                    >
+                      {savingDetails ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save line items"
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm font-medium">
+                    Updated Total Requested Amount: PHP{" "}
+                    {editableTotalRequested.toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                    })}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Purchasing can adjust line items here before forwarding to Upper Management, such as adding EWT or tax deductions.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <table className="w-full text-sm border rounded-md">
+                    <thead>
+                      <tr className="border-b bg-muted/50">
+                        <th className="text-left px-3 py-2">Details</th>
+                        <th className="text-right px-3 py-2">Amount (PHP)</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-              <p className="mt-2 font-medium">
-                Total Requested Amount: PHP {Number(request.total_requested_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-              </p>
+                    </thead>
+                    <tbody>
+                      {details.length === 0 ? (
+                        <tr><td colSpan={2} className="px-3 py-4 text-muted-foreground text-center">No line items</td></tr>
+                      ) : (
+                        details.map((item, i) => (
+                          <tr key={i} className="border-b last:border-0">
+                            <td className="px-3 py-2">{item.description ?? "—"}</td>
+                            <td className="px-3 py-2 text-right font-mono">{item.amount != null ? Number(item.amount).toLocaleString() : "—"}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                  <p className="mt-2 font-medium">
+                    Total Requested Amount: PHP {Number(request.total_requested_amount).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                  </p>
+                </>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

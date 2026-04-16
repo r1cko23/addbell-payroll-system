@@ -227,6 +227,14 @@ export default function EmployeesPage() {
     fetchOvertimeGroups();
   }, [permissionsLoading, canRead]);
 
+  const overtimeGroupNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    overtimeGroups.forEach((group) => {
+      map[group.id] = group.name;
+    });
+    return map;
+  }, [overtimeGroups]);
+
   if (!permissionsLoading && !canRead("employees")) {
     return (
       <DashboardLayout>
@@ -251,14 +259,6 @@ export default function EmployeesPage() {
       setLoading(false);
     }
   }
-
-  const overtimeGroupNameById = useMemo(() => {
-    const map: Record<string, string> = {};
-    overtimeGroups.forEach((group) => {
-      map[group.id] = group.name;
-    });
-    return map;
-  }, [overtimeGroups]);
 
   async function fetchDepartments() {
     try {

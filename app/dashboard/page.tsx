@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUserRole } from '@/lib/hooks/useUserRole';
 import HRDashboard from './HRDashboard';
+import AdminDashboard from './AdminDashboard';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Icon, IconSizes } from '@/components/ui/phosphor-icon';
 
@@ -24,7 +25,7 @@ function DashboardContent() {
     if (loading || initialized) return;
 
     const type = searchParams.get('type');
-    if (type !== 'workforce') {
+    if (type !== 'workforce' && type !== 'executive') {
       router.replace('/dashboard?type=workforce');
     }
     setInitialized(true);
@@ -48,9 +49,12 @@ function DashboardContent() {
     return null;
   }
 
+  const dashboardType = searchParams.get('type');
+  const showExecutive = dashboardType === 'executive';
+
   return (
     <DashboardLayout>
-      <HRDashboard />
+      {showExecutive ? <AdminDashboard /> : <HRDashboard />}
     </DashboardLayout>
   );
 }

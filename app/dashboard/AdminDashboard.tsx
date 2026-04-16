@@ -6,7 +6,7 @@ import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { VStack } from "@/components/ui/stack";
+import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,6 @@ interface DashboardStats {
   activeProjects: number;
   pendingFundRequests: number;
   pendingPOs: number;
-  totalPayrollRuns: number;
   totalProjectValue: number;
 }
 
@@ -75,10 +74,15 @@ export default function AdminDashboard() {
   const supabase = createClient();
   const { canCreate, canRead } = usePermissions();
   const { profile } = useProfile();
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentFR, setRecentFR] = useState<RecentFundRequest[]>([]);
   const [recentPO, setRecentPO] = useState<RecentPO[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [pendingLeaveApprovals, setPendingLeaveApprovals] = useState(0);
+  const [pendingOvertimeApprovals, setPendingOvertimeApprovals] = useState(0);
+  const [pendingFailureToLogApprovals, setPendingFailureToLogApprovals] = useState(0);
   const [loading, setLoading] = useState(true);
   const canReadPurchaseOrders = canRead("purchase_orders");
   const canCreatePurchaseOrders = canCreate("purchase_orders");
@@ -91,6 +95,12 @@ export default function AdminDashboard() {
   }, []);
 
   async function fetchDashboard() {
+    const initialLoad = !lastUpdatedAt;
+    if (initialLoad) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     try {
       const [
         { count: totalEmp },
@@ -99,7 +109,9 @@ export default function AdminDashboard() {
         { count: activeProj },
         { count: pendingFR },
         { count: pendingPO },
-        { count: totalPayroll },
+        { count: pendingLeave },
+        { count: pendingOT },
+        { count: pendingFTL },
         projData,
         frData,
         poData,
@@ -111,7 +123,9 @@ export default function AdminDashboard() {
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("fund_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("purchase_orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("payroll_runs").select("*", { count: "exact", head: true }),
+        supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("overtime_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("failure_to_log").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("id, code, name, status, contract_value, progress_percentage").order("created_at", { ascending: false }).limit(5),
         supabase.from("fund_requests").select("id, purpose, total_requested_amount, status, request_date, projects:project_id ( name )").order("created_at", { ascending: false }).limit(5),
         supabase.from("purchase_orders").select("id, po_number, total_amount, status, created_at, vendors:vendor_id ( name ), projects:project_id ( name )").order("created_at", { ascending: false }).limit(5),
@@ -127,16 +141,20 @@ export default function AdminDashboard() {
         activeProjects: activeProj || 0,
         pendingFundRequests: pendingFR || 0,
         pendingPOs: pendingPO || 0,
-        totalPayrollRuns: totalPayroll || 0,
         totalProjectValue,
       });
       setProjects((projData.data || []) as ProjectSummary[]);
       setRecentFR((frData.data || []) as unknown as RecentFundRequest[]);
       setRecentPO((poData.data || []) as unknown as RecentPO[]);
+      setPendingLeaveApprovals(pendingLeave || 0);
+      setPendingOvertimeApprovals(pendingOT || 0);
+      setPendingFailureToLogApprovals(pendingFTL || 0);
+      setLastUpdatedAt(new Date());
     } catch (error: any) {
       console.error("Dashboard fetch error:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
@@ -149,25 +167,143 @@ export default function AdminDashboard() {
   }
 
   return (
-    <VStack gap="8" className="w-full pb-16">
+    <VStack gap="8" align="stretch" className="w-full pb-16">
+      <Card className="border-primary/20 bg-gradient-to-r from-blue-50 via-background to-emerald-50">
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <Badge variant="outline" className="font-normal">Executive dashboard</Badge>
+              <H1>Business overview</H1>
+              <BodySmall>
+                Track workforce, active projects, pending approvals, and overall project value in one place.
+              </BodySmall>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="bg-amber-100 text-amber-900 border-amber-200">
+                  {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} finance actions
+                </Badge>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
+                  {pendingLeaveApprovals + pendingOvertimeApprovals + pendingFailureToLogApprovals} people approvals
+                </Badge>
+                {lastUpdatedAt ? (
+                  <Badge variant="outline" className="text-xs">
+                    Updated {format(lastUpdatedAt, "MMM d, h:mm a")}
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {showFundRequestActions ? (
+                <Link href="/fund-request-approval">
+                  <Button variant="outline" size="sm">Fund Requests</Button>
+                </Link>
+              ) : null}
+              <Link href="/purchase-order">
+                <Button size="sm">Purchase Orders</Button>
+              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchDashboard()}
+                disabled={refreshing}
+              >
+                <Icon
+                  name="ArrowsClockwise"
+                  size={IconSizes.sm}
+                  className={refreshing ? "animate-spin" : ""}
+                />
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
+        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-6">
+          <CardHeader className="pb-2">
+            <CardDescription>Today&apos;s operating focus</CardDescription>
+            <CardTitle className="text-xl">
+              {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0) === 0
+                ? "No finance approvals pending"
+                : `${(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} finance item(s) need action`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <Link href="/fund-request-approval">
+                <Button size="sm" variant="outline" className="w-full justify-start">
+                  Fund requests ({stats?.pendingFundRequests ?? 0})
+                </Button>
+              </Link>
+              <Link href="/purchase-order">
+                <Button size="sm" variant="outline" className="w-full justify-start">
+                  Purchase orders ({stats?.pendingPOs ?? 0})
+                </Button>
+              </Link>
+              <Link href="/projects">
+                <Button size="sm" variant="outline" className="w-full justify-start">
+                  Active projects ({stats?.activeProjects ?? 0})
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-2">
+          <CardHeader className="pb-2">
+            <CardDescription>Leave approvals</CardDescription>
+            <CardTitle className="text-2xl">{pendingLeaveApprovals}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link href="/leave-approval">
+              <Button size="sm" variant="outline" className="w-full">Open Leave Queue</Button>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-2">
+          <CardHeader className="pb-2">
+            <CardDescription>OT approvals</CardDescription>
+            <CardTitle className="text-2xl">{pendingOvertimeApprovals}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link href="/overtime-approval">
+              <Button size="sm" variant="outline" className="w-full">Open OT Queue</Button>
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-2">
+          <CardHeader className="pb-2">
+            <CardDescription>Failure-to-log approvals</CardDescription>
+            <CardTitle className="text-2xl">{pendingFailureToLogApprovals}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Link href="/failure-to-log-approval">
+              <Button size="sm" variant="outline" className="w-full">Open FTL Queue</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
-          <Badge variant="outline" className="font-normal">Executive dashboard</Badge>
-          <H1>Business overview</H1>
-          <BodySmall>
-            Track workforce, active projects, pending approvals, and overall project value in one place.
+          <h2 className="text-lg font-semibold">Performance snapshot</h2>
+          <BodySmall className="text-muted-foreground">
+            Core business indicators and pending actions across finance, projects, and workforce.
           </BodySmall>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {showFundRequestActions ? (
-            <Link href="/fund-request-approval">
-              <Button variant="outline" size="sm">Fund Requests</Button>
-            </Link>
-          ) : null}
-          <Link href="/purchase-order">
-            <Button size="sm">Purchase Orders</Button>
+        <HStack gap="2" className="flex-wrap">
+          <Link href="/employees">
+            <Button variant="outline" size="sm">People</Button>
           </Link>
-        </div>
+          <Link href="/leave-approval">
+            <Button variant="outline" size="sm">Leave Queue</Button>
+          </Link>
+          <Link href="/overtime-approval">
+            <Button variant="outline" size="sm">OT Queue</Button>
+          </Link>
+          <Link href="/failure-to-log-approval">
+            <Button variant="outline" size="sm">FTL Queue</Button>
+          </Link>
+        </HStack>
       </div>
 
       {/* KPI Cards */}

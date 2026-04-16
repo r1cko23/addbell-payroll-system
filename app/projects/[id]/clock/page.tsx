@@ -15,6 +15,7 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, LogIn, LogOut, CheckCircle } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface Project {
   id: string;
@@ -39,6 +40,7 @@ export default function ProjectClockPage() {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
   const session = useEmployeeSession();
+  const { isHR, loading: roleLoading } = useUserRole();
 
   const [project, setProject] = useState<Project | null>(null);
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
@@ -54,6 +56,13 @@ export default function ProjectClockPage() {
       checkActiveEntry();
     }
   }, [projectId, employeeId, supabase]);
+
+  useEffect(() => {
+    if (!roleLoading && isHR) {
+      toast.error("Projects are not available for HR.");
+      router.replace("/dashboard?type=workforce");
+    }
+  }, [isHR, roleLoading, router]);
 
   const fetchProject = async () => {
     try {

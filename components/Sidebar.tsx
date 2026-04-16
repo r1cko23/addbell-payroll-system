@@ -132,6 +132,15 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+function getRoleBadgeClass(role?: string | null) {
+  const r = (role || "").trim().toLowerCase();
+  if (r === "upper_management") return "bg-indigo-50 text-indigo-700 border-indigo-200";
+  if (r === "operations_manager") return "bg-blue-50 text-blue-700 border-blue-200";
+  if (r === "purchasing_officer") return "bg-amber-50 text-amber-800 border-amber-200";
+  if (r === "hr") return "bg-emerald-50 text-emerald-800 border-emerald-200";
+  return "bg-secondary text-secondary-foreground border-transparent";
+}
+
 interface SidebarProps {
   className?: string;
   onClose?: () => void;
@@ -198,6 +207,9 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     // Filter based on permissions
     return navGroups
       .map((group) => {
+        // HR should not see the Projects section at all.
+        if (isHR && group.label === "Projects") return null;
+
         // Filter items based on read permission
         const filteredItems = group.items.filter((item) => {
           // Account managers (approvers) and viewers must not see Employees in nav.
@@ -296,7 +308,10 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
               </p>
             </div>
             {role ? (
-              <Badge variant="secondary" className="font-normal">
+              <Badge
+                variant="secondary"
+                className={`font-normal ${getRoleBadgeClass(role)} border`}
+              >
                 {formatRoleName(role)}
               </Badge>
             ) : null}

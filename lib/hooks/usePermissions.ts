@@ -383,9 +383,11 @@ export function usePermissions(): UsePermissionsReturn {
 
       if (profileError) throw profileError;
 
-      const resolvedRole = (profileData?.role as string | undefined) || user.role || "viewer";
+      const resolvedRole =
+        (profileData?.role as string | undefined) || user.role || "viewer";
+      const normalizedRole = resolvedRole.trim().toLowerCase().replace(/\s+/g, "_");
       const mergedPermissions = mergePermissions(
-        resolvedRole,
+        normalizedRole,
         (profileData?.permissions as Partial<UserPermissions> | null | undefined) ?? null
       );
 
@@ -399,7 +401,8 @@ export function usePermissions(): UsePermissionsReturn {
     } catch (err: any) {
       console.error("Error fetching permissions:", err);
       // Fall back to role-based defaults
-      const defaultPerms = DEFAULT_PERMISSIONS[user.role || "viewer"] || EMPTY_PERMISSIONS;
+      const normalizedRole = (user.role || "viewer").trim().toLowerCase().replace(/\s+/g, "_");
+      const defaultPerms = DEFAULT_PERMISSIONS[normalizedRole] || EMPTY_PERMISSIONS;
       setPermissions(defaultPerms);
       setError(err.message);
     } finally {

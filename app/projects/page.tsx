@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Plus, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface Project {
   id: string;
@@ -57,6 +59,8 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "o
 
 export default function ProjectsPage() {
   const supabase = createClient();
+  const router = useRouter();
+  const { isHR, loading: roleLoading } = useUserRole();
   const { profile, loading: profileLoading } = useProfile();
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -78,6 +82,13 @@ export default function ProjectsPage() {
   const [description, setDescription] = useState("");
 
   useEffect(() => { fetchProjects(); fetchClients(); }, [supabase]);
+
+  useEffect(() => {
+    if (!roleLoading && isHR) {
+      toast.error("Projects are not available for HR.");
+      router.replace("/dashboard?type=workforce");
+    }
+  }, [isHR, roleLoading, router]);
 
   const fetchClients = async () => {
     const { data } = await supabase.from("clients").select("id, name").eq("is_active", true).order("name");

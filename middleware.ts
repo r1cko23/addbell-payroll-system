@@ -87,7 +87,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirect HR users without salary access away from /employees and /payslips
   // Redirect OT approvers/viewers to OT approval page only
   if (session) {
     try {
@@ -128,16 +127,6 @@ export async function middleware(req: NextRequest) {
           }
 
 
-          // Redirect HR users without salary access from /payslips only (profiles may not have can_access_salary; default = no access)
-          if (
-            userRecord.role === "hr" &&
-            !(userRecord as { can_access_salary?: boolean }).can_access_salary &&
-            pathname.startsWith("/payslips")
-          ) {
-            const redirectUrl = req.nextUrl.clone();
-            redirectUrl.pathname = "/dashboard";
-            return NextResponse.redirect(redirectUrl);
-          }
         }
       }
     } catch (error: any) {

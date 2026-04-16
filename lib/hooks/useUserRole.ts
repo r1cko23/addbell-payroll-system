@@ -48,17 +48,22 @@ export function useUserRole(): UserRoleData {
 
   // Memoize return value to prevent unnecessary re-renders
   return useMemo(() => {
+    const normalizedRole =
+      typeof user?.role === "string"
+        ? user.role.trim().toLowerCase().replace(/\s+/g, "_")
+        : null;
+
     const isAprilGammad =
-      user?.role === "hr" &&
+      normalizedRole === "hr" &&
       user?.full_name != null &&
       user.full_name.toLowerCase().includes("april") &&
       user.full_name.toLowerCase().includes("gammad");
 
     // Cast role to the expected type since profiles table may have different role values
-    const role = user?.role as UserRoleData["role"] | null;
+    const role = normalizedRole as UserRoleData["role"] | null;
 
     // upper_management = admin per Addbell roles
-    const isAdmin = user?.role === "admin" || user?.role === "upper_management";
+    const isAdmin = normalizedRole === "admin" || normalizedRole === "upper_management";
 
     return {
       role,
@@ -66,11 +71,14 @@ export function useUserRole(): UserRoleData {
       loading: userLoading,
       error: userError,
       isAdmin,
-      isHR: user?.role === "hr",
-      isApprover: user?.role === "approver" || user?.role === "hr",
-      isViewer: user?.role === "viewer",
-      isRestrictedAccess: user?.role === "approver" || user?.role === "viewer",
-      canAccessSalaryInfo: isAdmin || (user?.can_access_salary ?? false),
+      isHR: normalizedRole === "hr",
+      isApprover: normalizedRole === "approver" || normalizedRole === "hr",
+      isViewer: normalizedRole === "viewer",
+      isRestrictedAccess: normalizedRole === "approver" || normalizedRole === "viewer",
+      canAccessSalaryInfo:
+        isAdmin ||
+        normalizedRole === "hr" ||
+        (user?.can_access_salary ?? false),
       canUpdatePayslip: isAdmin || isAprilGammad,
       refetch,
     };

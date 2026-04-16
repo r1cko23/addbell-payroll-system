@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -27,6 +27,7 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface Project {
   id: string; code: string; name: string; client_id: string | null; site_address: string | null;
@@ -68,6 +69,8 @@ export default function ProjectDetailPage() {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
   const { canCreate } = usePermissions();
+  const router = useRouter();
+  const { isHR, loading: roleLoading } = useUserRole();
 
   const [project, setProject] = useState<Project | null>(null);
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
@@ -91,6 +94,13 @@ export default function ProjectDetailPage() {
   const [progressNotes, setProgressNotes] = useState("");
 
   useEffect(() => { if (projectId) fetchProjectData(); }, [projectId]);
+
+  useEffect(() => {
+    if (!roleLoading && isHR) {
+      toast.error("Projects are not available for HR.");
+      router.replace("/dashboard?type=workforce");
+    }
+  }, [roleLoading, isHR, router]);
 
   const totalCost = useMemo(
     () => fundRequests

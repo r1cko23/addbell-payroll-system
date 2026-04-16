@@ -124,6 +124,18 @@ export default function OvertimeApprovalPage() {
     return false;
   };
 
+  const statusBadgeClass = (status: OTRequest["status"]) => {
+    if (status === "approved") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
+    return "bg-amber-50 text-amber-700 border-amber-200";
+  };
+
+  const getWorkflowStep = (request: OTRequest): 1 | 2 | 3 => {
+    if (request.status === "approved" || request.status === "rejected") return 3;
+    if (isHrStagePending(request)) return 2;
+    return 1;
+  };
+
   // HR users also have approver permissions, so they can access this page
   // Allow approver, HR, and viewer roles
 
@@ -611,6 +623,13 @@ export default function OvertimeApprovalPage() {
     );
   }
 
+  const stats = {
+    total: requests.length,
+    pending: requests.filter((r) => r.status === "pending").length,
+    approved: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
+  };
+
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
@@ -620,6 +639,28 @@ export default function OvertimeApprovalPage() {
             Review overtime filings, filter by employee and week, and act on pending requests.
           </BodySmall>
         </VStack>
+
+        <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <CardContent className="p-4">
+            <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Badge className="bg-amber-100 text-amber-900 border-amber-200">
+                  {stats.pending} pending
+                </Badge>
+                <Badge variant="outline">{stats.approved} approved</Badge>
+                <Badge variant="outline">{stats.rejected} rejected</Badge>
+              </HStack>
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => router.push("/leave-approval")}>
+                  Leave queue
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => router.push("/failure-to-log-approval")}>
+                  FTL queue
+                </Button>
+              </HStack>
+            </HStack>
+          </CardContent>
+        </Card>
 
         {/* Filters */}
         <Card className="w-full">
@@ -846,13 +887,7 @@ export default function OvertimeApprovalPage() {
                             ? "destructive"
                             : "secondary"
                         }
-                        className={
-                          req.status === "approved"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : req.status === "rejected"
-                            ? "bg-red-50 text-red-700 border-red-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
-                        }
+                      className={statusBadgeClass(req.status)}
                       >
                         {req.status.toUpperCase()}
                       </Badge>
@@ -921,6 +956,35 @@ export default function OvertimeApprovalPage() {
             {selected && (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1 sm:col-span-2">
+                    <p className="text-sm text-muted-foreground">Workflow</p>
+                    <HStack gap="2" align="center" className="flex-wrap">
+                      {[
+                        "Operations Manager Review",
+                        "HR Review",
+                        "Final Decision",
+                      ].map((label, index) => {
+                        const step = getWorkflowStep(selected);
+                        const isDone = step > index + 1;
+                        const isCurrent = step === index + 1;
+                        return (
+                          <Badge
+                            key={label}
+                            variant="outline"
+                            className={
+                              isDone
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : isCurrent
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-slate-50 text-slate-500 border-slate-200"
+                            }
+                          >
+                            {index + 1}. {label}
+                          </Badge>
+                        );
+                      })}
+                    </HStack>
+                  </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Employee</p>
                     <HStack gap="2" align="center">
@@ -943,13 +1007,7 @@ export default function OvertimeApprovalPage() {
                     <p className="text-sm text-muted-foreground">Status</p>
                     <Badge
                       variant="outline"
-                      className={
-                        selected.status === "approved"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : selected.status === "rejected"
-                          ? "bg-red-50 text-red-700 border-red-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      }
+                      className={statusBadgeClass(selected.status)}
                     >
                       {selected.status.toUpperCase()}
                     </Badge>

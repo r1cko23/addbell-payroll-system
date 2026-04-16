@@ -49,6 +49,13 @@ export default function FundRequestListPage() {
   const [resolvingLinkedEmployee, setResolvingLinkedEmployee] = useState(false);
   const supabase = createClient();
   const employeeId = session?.employee?.id ?? linkedEmployeeId;
+  const canViewAllFromDashboard =
+    !isPortal &&
+    (normalizedRole === 'operations_manager' ||
+      normalizedRole === 'purchasing_officer' ||
+      normalizedRole === 'hr' ||
+      normalizedRole === 'admin' ||
+      normalizedRole === 'upper_management');
 
   useEffect(() => {
     if (session?.employee?.id || !profile?.id || isPortal) return;
@@ -73,21 +80,33 @@ export default function FundRequestListPage() {
     if (profileLoading || resolvingLinkedEmployee) return;
     const fetchData = async () => {
       if (!employeeId) {
-        setRows([]);
-        setLoading(false);
-        return;
+        if (!canViewAllFromDashboard) {
+          setRows([]);
+          setLoading(false);
+          return;
+        }
       }
       let query = supabase
         .from('fund_requests')
         .select('*, projects ( name, code )')
         .order('created_at', { ascending: false });
-      if (employeeId) query = query.eq('requested_by', employeeId);
+      // Portal views should only show the logged-in employee's own requests.
+      // For manager/admin dashboard views, show all requests (even if not linked to an employee record).
+      const shouldFilterByRequester = Boolean(employeeId) && (isPortal || !canViewAllFromDashboard);
+      if (shouldFilterByRequester) query = query.eq('requested_by', employeeId);
       const { data } = await query;
       setRows((data as FundRequestWithProject[]) ?? []);
       setLoading(false);
     };
     fetchData();
-  }, [employeeId, profileLoading, resolvingLinkedEmployee, supabase]);
+  }, [
+    employeeId,
+    profileLoading,
+    resolvingLinkedEmployee,
+    supabase,
+    canViewAllFromDashboard,
+    isPortal,
+  ]);
 
   const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loadingState) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;

@@ -144,6 +144,22 @@ function isManagerApprovedStatus(status: LeaveRequest["status"]): boolean {
   return status === "approved_by_manager" || status === "approved_by_pm";
 }
 
+function leaveStatusLabel(status: LeaveRequest["status"]): string {
+  if (status === "pending") return "PENDING";
+  if (isManagerApprovedStatus(status)) return "APPROVED BY MANAGER";
+  if (status === "approved_by_hr") return "APPROVED";
+  if (status === "rejected") return "REJECTED";
+  return "CANCELLED";
+}
+
+function leaveStatusClass(status: LeaveRequest["status"]): string {
+  if (status === "pending") return "bg-amber-50 text-amber-700 border-amber-200";
+  if (isManagerApprovedStatus(status)) return "bg-blue-50 text-blue-700 border-blue-200";
+  if (status === "approved_by_hr") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
+  return "bg-slate-100 text-slate-700 border-slate-200";
+}
+
 export default function LeaveApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -842,6 +858,12 @@ export default function LeaveApprovalPage() {
     return getApprovalLevel(request) !== null;
   };
 
+  const getWorkflowStep = (request: LeaveRequest): 1 | 2 | 3 => {
+    if (request.status === "approved_by_hr" || request.status === "rejected") return 3;
+    if (isManagerApprovedStatus(request.status)) return 2;
+    return 1;
+  };
+
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
@@ -851,6 +873,28 @@ export default function LeaveApprovalPage() {
             Review leave filings, filter by employee and week, and act on pending requests.
           </BodySmall>
         </VStack>
+
+        <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <CardContent className="p-4">
+            <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Badge className="bg-amber-100 text-amber-900 border-amber-200">
+                  {stats.pending} pending
+                </Badge>
+                <Badge variant="outline">{stats.approvedByManager} manager-approved</Badge>
+                <Badge variant="outline">{stats.approvedByHR} HR-approved</Badge>
+              </HStack>
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => router.push("/overtime-approval")}>
+                  OT queue
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => router.push("/failure-to-log-approval")}>
+                  FTL queue
+                </Button>
+              </HStack>
+            </HStack>
+          </CardContent>
+        </Card>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
@@ -1132,21 +1176,9 @@ export default function LeaveApprovalPage() {
                           ? "destructive"
                           : "default"
                       }
-                      className={
-                        isManagerApprovedStatus(request.status)
-                          ? "bg-blue-100 text-blue-900 border-blue-200"
-                          : ""
-                      }
+                      className={leaveStatusClass(request.status)}
                     >
-                      {request.status === "pending"
-                        ? "PENDING"
-                        : isManagerApprovedStatus(request.status)
-                        ? "APPROVED BY MANAGER"
-                        : request.status === "approved_by_hr"
-                        ? "APPROVED"
-                        : request.status === "rejected"
-                        ? "REJECTED"
-                        : "CANCELLED"}
+                      {leaveStatusLabel(request.status)}
                     </Badge>
                   </HStack>
                   {canApprove(request) && (
@@ -1217,6 +1249,35 @@ export default function LeaveApprovalPage() {
                   <DialogTitle>Leave Request Details</DialogTitle>
                 </DialogHeader>
                 <VStack gap="4" className="py-2 w-full">
+                  <div className="space-y-1 w-full">
+                    <p className="text-sm text-muted-foreground">Workflow</p>
+                    <HStack gap="2" align="center" className="flex-wrap">
+                      {[
+                        "Operations Manager Review",
+                        "HR Review",
+                        "Final Decision",
+                      ].map((label, index) => {
+                        const step = getWorkflowStep(selectedRequest);
+                        const isDone = step > index + 1;
+                        const isCurrent = step === index + 1;
+                        return (
+                          <Badge
+                            key={label}
+                            variant="outline"
+                            className={
+                              isDone
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : isCurrent
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-slate-50 text-slate-500 border-slate-200"
+                            }
+                          >
+                            {index + 1}. {label}
+                          </Badge>
+                        );
+                      })}
+                    </HStack>
+                  </div>
                   <VStack gap="1" align="start">
                     <BodySmall>Employee</BodySmall>
                     <HStack gap="3" align="center">

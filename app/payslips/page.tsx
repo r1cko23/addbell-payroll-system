@@ -76,6 +76,7 @@ import { getWeekOfMonth } from "@/utils/holidays";
 // Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
 import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee } from "@/lib/timeEntries";
 
@@ -240,6 +241,8 @@ function combineAdjustmentReasonForDb(rows: AdjustmentRow[]): string | null {
 export default function PayslipsPage() {
   const router = useRouter();
   const { canAccessSalaryInfo, canUpdatePayslip, loading: roleLoading } = useUserRole();
+  const { canRead, loading: permissionsLoading } = usePermissions();
+  const hasPayslipsAccess = canAccessSalaryInfo || canRead("payslips");
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
@@ -272,11 +275,13 @@ export default function PayslipsPage() {
 
   // Redirect HR users without salary access
   useEffect(() => {
-    if (!roleLoading && !canAccessSalaryInfo) {
-      toast.error("You do not have permission to access this page.");
-      router.push("/dashboard");
+    if (!roleLoading && !permissionsLoading) {
+      if (!hasPayslipsAccess) {
+        toast.error("You do not have permission to access this page.");
+        router.push("/dashboard");
+      }
     }
-  }, [canAccessSalaryInfo, roleLoading, router]);
+  }, [hasPayslipsAccess, roleLoading, permissionsLoading, router]);
 
   /**
    * Weekly pay (Wed–Tue): statutory month = calendar month of period end (Tuesday).
@@ -2650,7 +2655,7 @@ export default function PayslipsPage() {
   const isSavedPayslip = savedPayslip !== null;
 
   // Show loading or access denied - MUST be after all hooks
-  if (roleLoading || loading) {
+  if (roleLoading || permissionsLoading || loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -2665,7 +2670,7 @@ export default function PayslipsPage() {
   }
 
   // Show access denied message if user doesn't have permission
-  if (!canAccessSalaryInfo) {
+  if (!hasPayslipsAccess) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -2721,7 +2726,7 @@ export default function PayslipsPage() {
   }
 
   // Show access denied message if user doesn't have permission - MUST be after all hooks
-  if (!canAccessSalaryInfo) {
+  if (!hasPayslipsAccess) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -3358,36 +3363,13 @@ export default function PayslipsPage() {
                           <>
                             <div className="p-2 border rounded-lg bg-blue-50 border-blue-200 col-span-2">
                               <BodySmall className="text-blue-700 text-xs">
-                                Based on monthly salary:{" "}
-                                {formatCurrency(monthlySalary)}. SSS, PhilHealth,
-                                and Pag-IBIG use bracket rates from that monthly
-                                rate (not from a single week&apos;s gross).
-                                Full-month employee shares are deducted only on
-                                the <strong>4th</strong> weekly pay (period end
-                                Tuesday) in that calendar month—or on the{" "}
-                                <strong>last</strong> Tuesday if the month has
-                                fewer than four. Other weeks show ₱0 here.
-                                Withholding tax uses the same month&apos;s total
-                                gross (other saved pays + this period) minus
-                                <strong> prorated</strong> monthly contributions
-                                (same factor as SSS / PhilHealth / Pag-IBIG), on
-                                that statutory week. Proration: distinct work days
-                                with clock (main + project), month start through
-                                period end Tuesday, ÷ {STATUTORY_PRORATION_REFERENCE_DAYS}{" "}
-                                (same 26-day basis as monthly rate ÷ 26).
+                                Based on monthly salary {formatCurrency(monthlySalary)}: SSS, PhilHealth, and Pag-IBIG are applied on the statutory deduction week only, while other weeks show ₱0.
                                 {mtdWorkDaysForStatutory !== null ? (
                                   <>
-                                    {" "}
-                                    This preview:{" "}
-                                    <strong>
-                                      {mtdWorkDaysForStatutory} day
-                                      {mtdWorkDaysForStatutory === 1 ? "" : "s"}
-                                    </strong>{" "}
-                                    MTD → factor ≈{" "}
-                                    {(
-                                      statutoryProrationFactorPreview * 100
-                                    ).toFixed(2)}
-                                    %.
+                                    {" "}Proration preview:{" "}
+                                    <strong>{mtdWorkDaysForStatutory}</strong> day
+                                    {mtdWorkDaysForStatutory === 1 ? "" : "s"} MTD
+                                    (factor ≈ {(statutoryProrationFactorPreview * 100).toFixed(2)}%).
                                   </>
                                 ) : null}
                               </BodySmall>

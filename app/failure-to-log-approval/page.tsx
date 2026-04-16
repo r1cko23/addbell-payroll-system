@@ -159,6 +159,12 @@ export default function FailureToLogApprovalPage() {
     cancelled: "bg-muted text-muted-foreground border-transparent",
   };
 
+  const getWorkflowStep = (request: FailureToLog): 1 | 2 | 3 => {
+    if (request.status === "approved" || request.status === "rejected") return 3;
+    if (isHrStagePending(request)) return 2;
+    return 1;
+  };
+
   useEffect(() => {
     if (canManageFailureToLog) {
       loadEmployees();
@@ -679,6 +685,28 @@ export default function FailureToLogApprovalPage() {
           </BodySmall>
         </VStack>
 
+        <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <CardContent className="p-4">
+            <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Badge className="bg-amber-100 text-amber-900 border-amber-200">
+                  {stats.pending} pending
+                </Badge>
+                <Badge variant="outline">{stats.approved} approved</Badge>
+                <Badge variant="outline">{stats.rejected} rejected</Badge>
+              </HStack>
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => router.push("/leave-approval")}>
+                  Leave queue
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => router.push("/overtime-approval")}>
+                  OT queue
+                </Button>
+              </HStack>
+            </HStack>
+          </CardContent>
+        </Card>
+
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full items-stretch">
           <MetricCard label="Total" value={stats.total} />
@@ -961,6 +989,35 @@ export default function FailureToLogApprovalPage() {
             {selectedRequest && (
               <div className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1 sm:col-span-2">
+                    <p className="text-sm text-muted-foreground">Workflow</p>
+                    <HStack gap="2" align="center" className="flex-wrap">
+                      {[
+                        "Operations Manager Review",
+                        "HR Review",
+                        "Final Decision",
+                      ].map((label, index) => {
+                        const step = getWorkflowStep(selectedRequest);
+                        const isDone = step > index + 1;
+                        const isCurrent = step === index + 1;
+                        return (
+                          <Badge
+                            key={label}
+                            variant="outline"
+                            className={
+                              isDone
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : isCurrent
+                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  : "bg-slate-50 text-slate-500 border-slate-200"
+                            }
+                          >
+                            {index + 1}. {label}
+                          </Badge>
+                        );
+                      })}
+                    </HStack>
+                  </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Employee</p>
                     <HStack gap="2" align="center">

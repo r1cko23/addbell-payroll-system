@@ -154,6 +154,57 @@ export default function TimeEntriesPage() {
     return d;
   })();
 
+  /**
+   * Business regular hours are computed using the HRIS windows:
+   * - 08:00–12:00
+   * - 13:00–17:00
+   * Lunch (12:00–13:00) is always unpaid.
+   *
+   * Time Entries previously used raw session duration (clock-out - clock-in),
+   * which made 08:00–17:00 appear as 9 hours.
+   */
+  const getManilaDateStr = (iso: string): string => {
+    const d = new Date(iso);
+    const dPH = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+    return format(dPH, "yyyy-MM-dd");
+  };
+
+  const calculateBusinessRegularHours = (
+    clockInISO: string,
+    clockOutISO: string | null
+  ): number => {
+    if (!clockOutISO) return 0;
+
+    const dateStr = getManilaDateStr(clockInISO);
+    const start = new Date(clockInISO);
+    const end = new Date(clockOutISO);
+    if (end <= start) return 0;
+
+    const overlapHours = (
+      aStart: Date,
+      aEnd: Date,
+      bStart: Date,
+      bEnd: Date
+    ): number => {
+      const s = Math.max(aStart.getTime(), bStart.getTime());
+      const e = Math.min(aEnd.getTime(), bEnd.getTime());
+      if (e <= s) return 0;
+      return (e - s) / (1000 * 60 * 60);
+    };
+
+    // Explicit +08:00 offsets so results don't depend on machine timezone.
+    const w1Start = new Date(`${dateStr}T08:00:00+08:00`);
+    const w1End = new Date(`${dateStr}T12:00:00+08:00`);
+    const w2Start = new Date(`${dateStr}T13:00:00+08:00`);
+    const w2End = new Date(`${dateStr}T17:00:00+08:00`);
+
+    const hours =
+      overlapHours(start, end, w1Start, w1End) +
+      overlapHours(start, end, w2Start, w2End);
+
+    return Math.round(hours * 100) / 100;
+  };
+
   useEffect(() => {
     if (!groupsLoading) {
       fetchTimeEntries();
@@ -306,7 +357,11 @@ export default function TimeEntriesPage() {
       const dateKey = keyToDateStr(first.clock_in_time);
       const dateLabel = format(new Date(first.clock_in_time), "MMM d, yyyy");
       const totalHours = dayEntries.reduce(
-        (sum, e) => sum + (e.clock_out_time && e.total_hours != null ? e.total_hours : 0),
+        (sum, e) =>
+          sum +
+          (e.clock_out_time
+            ? calculateBusinessRegularHours(e.clock_in_time, e.clock_out_time)
+            : 0),
         0
       );
       result.push({
@@ -926,7 +981,14 @@ export default function TimeEntriesPage() {
 
   const stats = {
     total: entries.length,
-    totalHours: entries.reduce((sum, e) => sum + (e.total_hours || 0), 0),
+    totalHours: entries.reduce(
+      (sum, e) =>
+        sum +
+        (e.clock_out_time
+          ? calculateBusinessRegularHours(e.clock_in_time, e.clock_out_time)
+          : 0),
+      0
+    ),
   };
 
   const selectedClockInDetails = selectedEntry
@@ -1347,7 +1409,10 @@ export default function TimeEntriesPage() {
                                   </TableCell>
                                   <TableCell className="p-2 sm:p-3 text-right font-medium">
                                     {entry.clock_out_time ? (
-                                      entry.total_hours?.toFixed(2) || "-"
+                                      calculateBusinessRegularHours(
+                                        entry.clock_in_time,
+                                        entry.clock_out_time
+                                      ).toFixed(2)
                                     ) : (
                                       <span className="text-orange-600">Incomplete</span>
                                     )}
@@ -1637,7 +1702,12 @@ export default function TimeEntriesPage() {
                         Total
                       </div>
                       <div className="text-lg font-bold">
-                        {selectedEntry.total_hours?.toFixed(2)}h
+                        {selectedEntry.clock_out_time
+                          ? `${calculateBusinessRegularHours(
+                            selectedEntry.clock_in_time,
+                            selectedEntry.clock_out_time
+                          ).toFixed(2)}h`
+                          : "-"}
                       </div>
                     </div>
                     <div>
@@ -1645,7 +1715,12 @@ export default function TimeEntriesPage() {
                         Regular
                       </div>
                       <div className="text-lg font-bold">
-                        {selectedEntry.regular_hours?.toFixed(2)}h
+                        {selectedEntry.clock_out_time
+                          ? `${calculateBusinessRegularHours(
+                            selectedEntry.clock_in_time,
+                            selectedEntry.clock_out_time
+                          ).toFixed(2)}h`
+                          : "-"}
                       </div>
                     </div>
                     <div>

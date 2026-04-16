@@ -33,6 +33,15 @@ export function Header({ onMenuClick }: HeaderProps) {
     null
   );
 
+  function getRoleBadgeClass(role?: string | null) {
+    const r = (role || "").trim().toLowerCase();
+    if (r === "upper_management") return "bg-indigo-50 text-indigo-700 border-indigo-200";
+    if (r === "operations_manager") return "bg-blue-50 text-blue-700 border-blue-200";
+    if (r === "purchasing_officer") return "bg-amber-50 text-amber-800 border-amber-200";
+    if (r === "hr") return "bg-emerald-50 text-emerald-800 border-emerald-200";
+    return "bg-secondary text-secondary-foreground border-transparent";
+  }
+
   useEffect(() => {
     let userSubscription: ReturnType<typeof supabase.channel> | null = null;
     let isMounted = true;
@@ -215,7 +224,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <span className="text-sm font-medium text-foreground">
                     {userFullName || user?.email}
                   </span>
-                  <Badge variant="secondary" className="mt-1 h-5 rounded-md px-2 text-[11px] font-normal">
+                  <Badge
+                    variant="secondary"
+                    className={`mt-1 h-5 rounded-md px-2 text-[11px] font-normal ${getRoleBadgeClass(userRole)} border`}
+                  >
                     {formatRoleName(userRole)}
                   </Badge>
                 </div>

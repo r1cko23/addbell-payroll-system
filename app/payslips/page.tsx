@@ -970,17 +970,20 @@ export default function PayslipsPage() {
             console.log("Approved ND by date:", approvedNDByDate);
           }
 
-          // Map clock entries to match the generator function's expected format
-          // IMPORTANT: Do NOT assign OT/ND hours to clock entries here - this causes double-counting
-          // when multiple entries exist for the same date. The generator will handle OT/ND from
-          // approvedOTByDate/approvedNDByDate maps directly.
+          // Map clock entries to match the generator function's expected format.
+          // Keep regular/session-derived ND so night regular shifts are counted.
+          // OT hours still come from approved OT requests map below.
           const mappedClockEntries = filteredClockEntries.map((entry: any) => {
             return {
               ...entry,
-              // Keep original overtime_hours and total_night_diff_hours from database (usually 0)
-              // The generator will use approvedOTByDate/approvedNDByDate maps instead
+              // OT should come from approved OT requests (avoid double-counting from raw entries).
               overtime_hours: 0, // Reset to 0 - generator will use approvedOTByDate
-              total_night_diff_hours: 0, // Reset to 0 - generator will use approvedNDByDate
+              // Keep night hours from punch sessions to support night regular shifts
+              // (e.g. 5PM–2AM regular shift with no OT filing).
+              total_night_diff_hours:
+                typeof entry.total_night_diff_hours === "number"
+                  ? entry.total_night_diff_hours
+                  : 0,
             };
           });
 

@@ -971,10 +971,15 @@ export default function TimesheetPage() {
         otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
       }
 
-      // Calculate ND (Night Differential) from approved OT requests
-      // ND should come from overtime_requests, not from clock entries
-      // Note: isAccountSupervisor is already defined at function level (line 550)
-      let ndHours = 0;
+      // Calculate ND (Night Differential)
+      // 1) Base ND from actual worked sessions (supports night regular shifts, e.g. 5PM–2AM)
+      // 2) Compare with approved OT-derived ND and take the higher value to avoid double-counting.
+      //    OT remains the source of truth for hours beyond regular shift.
+      let ndHours = dayEntries.reduce(
+        (sum, e) => sum + (e.total_night_diff_hours ?? 0),
+        0
+      );
+      let ndFromApprovedOT = 0;
 
       if (dayOTs.length > 0) {
         // Calculate ND from each approved OT request's start_time and end_time
@@ -1047,10 +1052,12 @@ export default function TimesheetPage() {
               Math.max(0, ndFromThisOT),
               ot.total_hours || 0
             );
-            ndHours += ndFromThisOT;
+            ndFromApprovedOT += ndFromThisOT;
           }
         });
       }
+
+      ndHours = Math.max(ndHours, ndFromApprovedOT);
 
       // Calculate BH (Basic Hours): sum of all sessions (main Bundy + project time) for this day
       // One day can have multiple project sessions (e.g. 3h + 2h + 3h = 8h) — single BH for HRIS
@@ -1109,8 +1116,8 @@ export default function TimesheetPage() {
       }
       // If BH >= 8, UT is automatically 0 (no undertime if they completed required hours)
 
-      // ND is already calculated from overtime_requests above
-      // No need to calculate from clock entries - ND must come from approved OT requests only
+      // ND now includes night-shift work from actual punches, with OT-derived ND used as source-of-truth
+      // when it is greater than punch-derived ND.
 
       days.push({
         date: dateStr,

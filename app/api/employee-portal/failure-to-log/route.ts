@@ -10,6 +10,34 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+async function loadApproverNameMap(
+  admin: any,
+  approverIds: Array<string | null | undefined>
+) {
+  const uniqueIds = Array.from(
+    new Set(approverIds.filter((id): id is string => Boolean(id)))
+  );
+  if (uniqueIds.length === 0) return {} as Record<string, string>;
+
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", uniqueIds);
+
+  if (error || !data) {
+    console.error("failure-to-log approver profile load:", error);
+    return {} as Record<string, string>;
+  }
+
+  return (data as Array<{ id: string; full_name: string | null; email: string | null }>).reduce(
+    (acc, row) => {
+      acc[row.id] = row.full_name || row.email || row.id;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
@@ -31,7 +59,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ requests: data || [] });
+    const rows: any[] = data || [];
+    const approverNameMap = await loadApproverNameMap(
+      admin as any,
+      rows.flatMap((r) => [r.account_manager_id, r.approved_by])
+    );
+
+    return NextResponse.json({
+      requests: rows.map((r: any) => ({
+        ...r,
+        manager_approval_name: r.account_manager_id
+          ? approverNameMap[r.account_manager_id] || null
+          : null,
+        final_approval_name: r.approved_by
+          ? approverNameMap[r.approved_by] || null
+          : null,
+      })),
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || "Internal server error" },

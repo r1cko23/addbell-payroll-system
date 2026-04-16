@@ -11,6 +11,34 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+async function loadApproverNameMap(
+  admin: any,
+  approverIds: Array<string | null | undefined>
+) {
+  const uniqueIds = Array.from(
+    new Set(approverIds.filter((id): id is string => Boolean(id)))
+  );
+  if (uniqueIds.length === 0) return {} as Record<string, string>;
+
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", uniqueIds);
+
+  if (error || !data) {
+    console.error("overtime approver profile load:", error);
+    return {} as Record<string, string>;
+  }
+
+  return (data as Array<{ id: string; full_name: string | null; email: string | null }>).reduce(
+    (acc, row) => {
+      acc[row.id] = row.full_name || row.email || row.id;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+}
+
 function normalizeBase64(raw: string): string {
   const idx = raw.indexOf("base64,");
   return (idx >= 0 ? raw.slice(idx + 7) : raw).trim();
@@ -30,7 +58,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from("overtime_requests")
       .select(
-        "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, created_at"
+        "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, project_manager_id, account_manager_id, project_manager_approved_at, approved_by, hr_approved_by, approved_at, created_at"
       )
       .eq("employee_id", employeeId)
       .order("ot_date", { ascending: false })
@@ -40,7 +68,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = data || [];
+    const rows: any[] = data || [];
     const requestIds = rows.map((r) => r.id);
     const docsByRequest: Record<
       string,
@@ -71,9 +99,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const requests = rows.map((r) => ({
+    const approverNameMap = await loadApproverNameMap(
+      admin as any,
+      rows.flatMap((r) => [
+        r.project_manager_id,
+        r.account_manager_id,
+        r.approved_by,
+        r.hr_approved_by,
+      ])
+    );
+
+    const requests = rows.map((r: any) => ({
       ...r,
       overtime_documents: docsByRequest[r.id] || [],
+      manager_approval_name:
+        (r.project_manager_id && approverNameMap[r.project_manager_id]) ||
+        (r.account_manager_id && approverNameMap[r.account_manager_id]) ||
+        null,
+      final_approval_name:
+        (r.hr_approved_by && approverNameMap[r.hr_approved_by]) ||
+        (r.approved_by && approverNameMap[r.approved_by]) ||
+        null,
     }));
 
     return NextResponse.json({ requests });

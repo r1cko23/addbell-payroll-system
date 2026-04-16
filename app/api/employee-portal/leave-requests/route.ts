@@ -90,6 +90,34 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+async function loadApproverNameMap(
+  admin: any,
+  approverIds: Array<string | null | undefined>
+) {
+  const uniqueIds = Array.from(
+    new Set(approverIds.filter((id): id is string => Boolean(id)))
+  );
+  if (uniqueIds.length === 0) return {} as Record<string, string>;
+
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", uniqueIds);
+
+  if (error || !data) {
+    console.error("leave approver profile load:", error);
+    return {} as Record<string, string>;
+  }
+
+  return (data as Array<{ id: string; full_name: string | null; email: string | null }>).reduce(
+    (acc, row) => {
+      acc[row.id] = row.full_name || row.email || row.id;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+}
+
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
@@ -116,6 +144,10 @@ export async function GET(req: NextRequest) {
         reason,
         status,
         rejection_reason,
+        project_manager_id,
+        project_manager_approved_at,
+        hr_approved_by,
+        hr_approved_at,
         created_at
       `
       )
@@ -126,7 +158,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = requests || [];
+    const rows: any[] = requests || [];
     const requestIds = rows.map((r) => r.id);
     let docsByRequest: Record<string, any[]> = {};
 
@@ -150,10 +182,21 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const approverNameMap = await loadApproverNameMap(
+      admin as any,
+      rows.flatMap((r) => [r.project_manager_id, r.hr_approved_by])
+    );
+
     const payload = rows.map((r: any) => ({
       ...r,
       leave_type: normalizeLeaveTypeForUi(r.leave_type || ""),
       leave_request_documents: docsByRequest[r.id] || [],
+      manager_approval_name: r.project_manager_id
+        ? approverNameMap[r.project_manager_id] || null
+        : null,
+      hr_approval_name: r.hr_approved_by
+        ? approverNameMap[r.hr_approved_by] || null
+        : null,
     }));
 
     return NextResponse.json({ requests: payload });

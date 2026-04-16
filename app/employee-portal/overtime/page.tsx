@@ -26,6 +26,14 @@ type OvertimeRequest = {
   total_hours: number;
   reason: string | null;
   status: "pending" | "approved" | "rejected";
+  project_manager_id?: string | null;
+  account_manager_id?: string | null;
+  project_manager_approved_at?: string | null;
+  approved_by?: string | null;
+  hr_approved_by?: string | null;
+  approved_at?: string | null;
+  manager_approval_name?: string | null;
+  final_approval_name?: string | null;
   created_at: string;
   overtime_documents?: OvertimeDocSummary[];
 };
@@ -63,6 +71,13 @@ export default function OvertimePage() {
     rejected: "bg-rose-100 text-rose-900 border-rose-200",
   };
   const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
+  const isManagerApproved = (request: OvertimeRequest) =>
+    request.status === "pending" &&
+    Boolean(request.project_manager_id || request.account_manager_id);
+
+  const approvedCount = requests.filter(
+    (r) => r.status === "approved" || isManagerApproved(r)
+  ).length;
 
   const resolveMimeType = (file: File) => {
     if (file.type) return file.type;
@@ -587,7 +602,7 @@ export default function OvertimePage() {
                             </VStack>
                           )}
 
-                        {req.status === "pending" && (
+                        {req.status === "pending" && !isManagerApproved(req) && (
                           <div className="mt-3 w-full space-y-2 rounded-md border border-dashed border-muted-foreground/30 p-3">
                             <Label
                               htmlFor={`replace-doc-${req.id}`}
@@ -692,7 +707,7 @@ export default function OvertimePage() {
                       </div>
 
                       <VStack gap="2" align="end" className="ml-4">
-                        {req.status === "pending" && (
+                        {req.status === "pending" && !isManagerApproved(req) && (
                           <>
                             <Badge
                               variant="outline"
@@ -737,6 +752,32 @@ export default function OvertimePage() {
                             </Button>
                           </>
                         )}
+                        {isManagerApproved(req) && (
+                          <>
+                            <Badge
+                              variant="outline"
+                              className="flex items-center gap-2 bg-blue-100 text-blue-800 border-blue-200"
+                            >
+                              <Icon name="CheckCircle" size={IconSizes.sm} />
+                              APPROVED BY OPERATIONS MANAGER
+                            </Badge>
+                            <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                              {req.manager_approval_name && (
+                                <div className="font-semibold">
+                                  {req.manager_approval_name}
+                                </div>
+                              )}
+                              {req.project_manager_approved_at && (
+                                <div className="text-blue-700">
+                                  {formatPHTime(
+                                    req.project_manager_approved_at,
+                                    "MMM dd, yyyy h:mm a"
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
                         {req.status === "approved" && (
                           <Badge
                             variant="outline"
@@ -746,6 +787,23 @@ export default function OvertimePage() {
                             APPROVED
                           </Badge>
                         )}
+                        {req.status === "approved" &&
+                          (req.final_approval_name || req.approved_at) && (
+                            <div className="max-w-[220px] rounded-md border bg-emerald-50 px-3 py-2 text-right text-xs text-emerald-900">
+                              <div className="font-semibold">Approved by HR</div>
+                              {req.final_approval_name && (
+                                <div>{req.final_approval_name}</div>
+                              )}
+                              {req.approved_at && (
+                                <div className="text-emerald-700">
+                                  {formatPHTime(
+                                    req.approved_at,
+                                    "MMM dd, yyyy h:mm a"
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         {req.status === "rejected" && (
                           <Badge
                             variant="outline"

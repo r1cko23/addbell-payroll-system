@@ -38,8 +38,14 @@ interface FailureToLog {
   entry_type: "in" | "out" | "both";
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
+  account_manager_id?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  manager_approval_name?: string | null;
+  final_approval_name?: string | null;
   rejection_reason: string | null;
   created_at: string;
+  updated_at?: string | null;
   time_entries?: { punched_at: string; punch_type: string } | { punched_at: string }[];
 }
 
@@ -230,11 +236,13 @@ export default function FailureToLogPage() {
   }
 
   const visibleRequests = requests.filter((r) => r.status !== "cancelled");
+  const isManagerApproved = (request: FailureToLog) =>
+    request.status === "pending" && Boolean(request.account_manager_id);
   const pendingCount = visibleRequests.filter(
-    (r) => r.status === "pending"
+    (r) => r.status === "pending" && !isManagerApproved(r)
   ).length;
   const approvedCount = visibleRequests.filter(
-    (r) => r.status === "approved"
+    (r) => r.status === "approved" || isManagerApproved(r)
   ).length;
   const formatSafe = (value?: string | null, fmt?: string) =>
     value ? formatPHTime(value, fmt || "MMM dd, yyyy h:mm a") : "—";
@@ -534,7 +542,7 @@ export default function FailureToLogPage() {
                       </VStack>
 
                       <VStack gap="2" align="end" className="ml-4">
-                        {request.status === "pending" && (
+                        {request.status === "pending" && !isManagerApproved(request) && (
                           <Badge
                             variant="secondary"
                             className="flex items-center gap-2"
@@ -542,6 +550,32 @@ export default function FailureToLogPage() {
                             <Icon name="Hourglass" size={IconSizes.sm} />
                             PENDING
                           </Badge>
+                        )}
+                        {isManagerApproved(request) && (
+                          <>
+                            <Badge
+                              variant="outline"
+                              className="flex items-center gap-2 bg-blue-100 text-blue-800 border-blue-200"
+                            >
+                              <Icon name="CheckCircle" size={IconSizes.sm} />
+                              APPROVED BY OPERATIONS MANAGER
+                            </Badge>
+                            <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                              {request.manager_approval_name && (
+                                <div className="font-semibold">
+                                  {request.manager_approval_name}
+                                </div>
+                              )}
+                              {(request.approved_at || request.updated_at) && (
+                                <div className="text-blue-700">
+                                  {formatSafe(
+                                    request.approved_at || request.updated_at,
+                                    "MMM dd, yyyy h:mm a"
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </>
                         )}
                         {request.status === "approved" && (
                           <Badge
@@ -552,6 +586,23 @@ export default function FailureToLogPage() {
                             APPROVED
                           </Badge>
                         )}
+                        {request.status === "approved" &&
+                          (request.final_approval_name || request.approved_at) && (
+                            <div className="max-w-[220px] rounded-md border bg-emerald-50 px-3 py-2 text-right text-xs text-emerald-900">
+                              <div className="font-semibold">Approved by HR</div>
+                              {request.final_approval_name && (
+                                <div>{request.final_approval_name}</div>
+                              )}
+                              {request.approved_at && (
+                                <div className="text-emerald-700">
+                                  {formatSafe(
+                                    request.approved_at,
+                                    "MMM dd, yyyy h:mm a"
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         {request.status === "rejected" && (
                           <Badge
                             variant="destructive"
@@ -572,7 +623,7 @@ export default function FailureToLogPage() {
                         )}
                       </VStack>
                     </HStack>
-                    {request.status === "pending" && (
+                    {request.status === "pending" && !isManagerApproved(request) && (
                       <HStack justify="end" align="center" className="pt-3">
                         <Button
                           variant="outline"

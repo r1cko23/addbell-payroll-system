@@ -70,6 +70,12 @@ interface LeaveRequest {
     | "rejected"
     | "cancelled";
   rejection_reason: string | null;
+  project_manager_id?: string | null;
+  project_manager_approved_at?: string | null;
+  manager_approval_name?: string | null;
+  hr_approved_by?: string | null;
+  hr_approved_at?: string | null;
+  hr_approval_name?: string | null;
   created_at: string;
   leave_request_documents?: LeaveDocument[];
 }
@@ -697,6 +703,9 @@ export default function LeaveRequestPage() {
     cancelled: "bg-slate-100 text-slate-800 border-slate-200",
   };
 
+  const formatApprovalTime = (value?: string | null) =>
+    value ? format(new Date(value), "MMM dd, yyyy h:mm a") : null;
+
   return (
     <>
       <VStack gap="8" className="w-full">
@@ -1269,6 +1278,26 @@ export default function LeaveRequestPage() {
                               >
                                 Cancel
                               </Button>
+                              {(request.manager_approval_name ||
+                                request.project_manager_approved_at) && (
+                                <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                                  <div className="font-semibold">
+                                    Approved by Operations Manager
+                                  </div>
+                                  {request.manager_approval_name && (
+                                    <div>{request.manager_approval_name}</div>
+                                  )}
+                                  {formatApprovalTime(
+                                    request.project_manager_approved_at
+                                  ) && (
+                                    <div className="text-blue-700">
+                                      {formatApprovalTime(
+                                        request.project_manager_approved_at
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                           {request.status === "approved_by_hr" && (
@@ -1287,6 +1316,40 @@ export default function LeaveRequestPage() {
                               >
                                 Cancel
                               </Button>
+                              {(request.manager_approval_name ||
+                                request.project_manager_approved_at) && (
+                                <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                                  <div className="font-semibold">
+                                    Approved by Operations Manager
+                                  </div>
+                                  {request.manager_approval_name && (
+                                    <div>{request.manager_approval_name}</div>
+                                  )}
+                                  {formatApprovalTime(
+                                    request.project_manager_approved_at
+                                  ) && (
+                                    <div className="text-blue-700">
+                                      {formatApprovalTime(
+                                        request.project_manager_approved_at
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {(request.hr_approval_name ||
+                                request.hr_approved_at) && (
+                                <div className="max-w-[220px] rounded-md border bg-emerald-50 px-3 py-2 text-right text-xs text-emerald-900">
+                                  <div className="font-semibold">Approved by HR</div>
+                                  {request.hr_approval_name && (
+                                    <div>{request.hr_approval_name}</div>
+                                  )}
+                                  {formatApprovalTime(request.hr_approved_at) && (
+                                    <div className="text-emerald-700">
+                                      {formatApprovalTime(request.hr_approved_at)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </>
                           )}
                           {request.status === "rejected" && (

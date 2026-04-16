@@ -39,6 +39,89 @@ export interface TimeEntrySession {
   employee_id?: string;
 }
 
+function getManilaDateString(iso: string): string {
+  const date = new Date(iso);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Regular hours rule (shift-agnostic):
+ * - Count actual worked duration from punch in/out
+ * - Cap regular hours at 8.00 per completed session
+ * - Any hours beyond 8 must be handled via approved OT workflows
+ */
+function calculateCappedRegularHours(
+  clockInISO: string,
+  clockOutISO: string
+): number {
+  const start = new Date(clockInISO);
+  const end = new Date(clockOutISO);
+  if (end <= start) return 0;
+  const totalHours =
+    (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  const capped = Math.min(8, Math.max(0, totalHours));
+  return Math.round(capped * 100) / 100;
+}
+
+/**
+ * Night differential overlap for actual worked time:
+ * - ND window is 22:00–06:00 (Asia/Manila)
+ * - Uses actual worked session overlap (works for cross-midnight shifts)
+ */
+function calculateNightDiffHours(
+  clockInISO: string,
+  clockOutISO: string
+): number {
+  const start = new Date(clockInISO);
+  const end = new Date(clockOutISO);
+  if (end <= start) return 0;
+
+  const overlapHours = (
+    aStart: Date,
+    aEnd: Date,
+    bStart: Date,
+    bEnd: Date
+  ) => {
+    const s = Math.max(aStart.getTime(), bStart.getTime());
+    const e = Math.min(aEnd.getTime(), bEnd.getTime());
+    if (e <= s) return 0;
+    return (e - s) / (1000 * 60 * 60);
+  };
+
+  let total = 0;
+  const startDateStr = getManilaDateString(clockInISO);
+  const endDateStr = getManilaDateString(clockOutISO);
+  let cursor = new Date(`${startDateStr}T00:00:00+08:00`);
+  const endCursor = new Date(`${endDateStr}T00:00:00+08:00`);
+
+  while (cursor <= endCursor) {
+    const dayStr = getManilaDateString(cursor.toISOString());
+    // ND part 1: 22:00–24:00 of the same day
+    const nd1Start = new Date(`${dayStr}T22:00:00+08:00`);
+    const nd1End = new Date(`${dayStr}T23:59:59.999+08:00`);
+    // ND part 2: 00:00–06:00 of the same day
+    const nd2Start = new Date(`${dayStr}T00:00:00+08:00`);
+    const nd2End = new Date(`${dayStr}T06:00:00+08:00`);
+
+    total += overlapHours(start, end, nd1Start, nd1End);
+    total += overlapHours(start, end, nd2Start, nd2End);
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return Math.round(total * 100) / 100;
+}
+
 /**
  * Converts punch rows (ordered by punched_at asc) into sessions.
  * Pairs consecutive in/out; trailing 'in' without 'out' becomes one session with clock_out_time null.
@@ -84,6 +167,8 @@ export function punchesToSessions(
       const totalHours =
         (new Date(clockOut).getTime() - new Date(clockIn).getTime()) /
         (1000 * 60 * 60);
+      const regularHours = calculateCappedRegularHours(clockIn, clockOut);
+      const nightDiffHours = calculateNightDiffHours(clockIn, clockOut);
       sessions.push({
         id: p.id,
         out_punch_id: next.id,
@@ -92,8 +177,8 @@ export function punchesToSessions(
         clock_in_date_ph: clockInDatePh,
         status: "clocked_out",
         total_hours: Math.round(totalHours * 100) / 100,
-        regular_hours: null,
-        total_night_diff_hours: null,
+        regular_hours: regularHours,
+        total_night_diff_hours: nightDiffHours,
         clock_in_location: formatLocation(p),
         clock_out_location: formatLocation(next),
         clock_in_device: p.device_info ?? null,

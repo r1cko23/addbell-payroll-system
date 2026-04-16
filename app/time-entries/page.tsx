@@ -155,54 +155,22 @@ export default function TimeEntriesPage() {
   })();
 
   /**
-   * Business regular hours are computed using the HRIS windows:
-   * - 08:00–12:00
-   * - 13:00–17:00
-   * Lunch (12:00–13:00) is always unpaid.
-   *
-   * Time Entries previously used raw session duration (clock-out - clock-in),
-   * which made 08:00–17:00 appear as 9 hours.
+   * Regular hours rule (shift-agnostic):
+   * - Compute actual session duration from clock in/out
+   * - Cap regular hours at 8.00
+   * - Beyond 8.00 should be represented via approved OT flows
    */
-  const getManilaDateStr = (iso: string): string => {
-    const d = new Date(iso);
-    const dPH = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-    return format(dPH, "yyyy-MM-dd");
-  };
-
   const calculateBusinessRegularHours = (
     clockInISO: string,
     clockOutISO: string | null
   ): number => {
     if (!clockOutISO) return 0;
-
-    const dateStr = getManilaDateStr(clockInISO);
     const start = new Date(clockInISO);
     const end = new Date(clockOutISO);
     if (end <= start) return 0;
-
-    const overlapHours = (
-      aStart: Date,
-      aEnd: Date,
-      bStart: Date,
-      bEnd: Date
-    ): number => {
-      const s = Math.max(aStart.getTime(), bStart.getTime());
-      const e = Math.min(aEnd.getTime(), bEnd.getTime());
-      if (e <= s) return 0;
-      return (e - s) / (1000 * 60 * 60);
-    };
-
-    // Explicit +08:00 offsets so results don't depend on machine timezone.
-    const w1Start = new Date(`${dateStr}T08:00:00+08:00`);
-    const w1End = new Date(`${dateStr}T12:00:00+08:00`);
-    const w2Start = new Date(`${dateStr}T13:00:00+08:00`);
-    const w2End = new Date(`${dateStr}T17:00:00+08:00`);
-
-    const hours =
-      overlapHours(start, end, w1Start, w1End) +
-      overlapHours(start, end, w2Start, w2End);
-
-    return Math.round(hours * 100) / 100;
+    const totalHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    const capped = Math.min(8, Math.max(0, totalHours));
+    return Math.round(capped * 100) / 100;
   };
 
   useEffect(() => {

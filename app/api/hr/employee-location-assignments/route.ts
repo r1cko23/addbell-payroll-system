@@ -2,12 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyEmployeeRecordEditAccess } from "@/lib/api-helpers";
 
-const CLOCK_SITE_NAMES = [
-  "Addbell Main Office",
-  "Techlog Center Philippines",
-  "Advance Energy Cavite",
-] as const;
-
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -20,7 +14,7 @@ function adminClient() {
 }
 
 /**
- * HR: list the three bundy clock sites and, when `employee_id` is set, that employee's allowed IDs.
+ * HR: list all active bundy clock sites and, when `employee_id` is set, that employee's allowed IDs.
  * Omit `employee_id` to load sites only (e.g. Add Employee modal).
  */
 export async function GET(req: NextRequest) {
@@ -38,7 +32,6 @@ export async function GET(req: NextRequest) {
       .from("office_locations")
       .select("id, name, address, latitude, longitude, radius_meters")
       .eq("is_active", true)
-      .in("name", [...CLOCK_SITE_NAMES])
       .order("name");
 
     if (officesError) {
@@ -91,7 +84,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * HR: replace this employee's assignments among the three clock sites.
+ * HR: replace this employee's assignments among all active clock sites.
  * Empty location_ids removes all such rows → employee may clock at any active office (legacy behavior).
  */
 export async function PUT(req: NextRequest) {
@@ -123,8 +116,7 @@ export async function PUT(req: NextRequest) {
     const { data: offices, error: officesError } = await admin
       .from("office_locations")
       .select("id")
-      .eq("is_active", true)
-      .in("name", [...CLOCK_SITE_NAMES]);
+      .eq("is_active", true);
 
     if (officesError || !offices?.length) {
       console.error(officesError);

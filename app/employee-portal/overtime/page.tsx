@@ -38,6 +38,13 @@ type OvertimeRequest = {
   overtime_documents?: OvertimeDocSummary[];
 };
 
+type OtPunchSummary = {
+  is_open: boolean;
+  has_completed_pair: boolean;
+  last_punch_type: "in" | "out" | null;
+  last_punched_at: string | null;
+};
+
 export default function OvertimePage() {
   const { employee } = useEmployeeSession();
   const [requests, setRequests] = useState<OvertimeRequest[]>([]);
@@ -59,6 +66,13 @@ export default function OvertimePage() {
   const [replaceDocLoadingId, setReplaceDocLoadingId] = useState<string | null>(
     null
   );
+  const [requiresOtPunch, setRequiresOtPunch] = useState(false);
+  const [otPunchSummariesByRequest, setOtPunchSummariesByRequest] = useState<
+    Record<string, OtPunchSummary>
+  >({});
+  const [otPunchActionRequestId, setOtPunchActionRequestId] = useState<
+    string | null
+  >(null);
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -166,9 +180,108 @@ export default function OvertimePage() {
     setLoading(false);
   };
 
+  const loadProfile = async () => {
+    const res = await fetch(
+      `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+        employee.id
+      )}`
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      requires_ot_punch?: boolean;
+    };
+    if (res.ok) {
+      setRequiresOtPunch(json.requires_ot_punch === true);
+    }
+  };
+
+  const loadOtPunchSummaries = async () => {
+    if (!requiresOtPunch) {
+      setOtPunchSummariesByRequest({});
+      return;
+    }
+    const res = await fetch(
+      `/api/employee-portal/ot-time-entries?employee_id=${encodeURIComponent(
+        employee.id
+      )}&all_for_employee=true`
+    );
+    const json = (await res.json().catch(() => ({}))) as {
+      summaries_by_request?: Record<string, OtPunchSummary>;
+    };
+    if (!res.ok) return;
+    setOtPunchSummariesByRequest(json.summaries_by_request || {});
+  };
+
   useEffect(() => {
     loadRequests();
+    loadProfile();
   }, [employee.id]);
+
+  useEffect(() => {
+    loadOtPunchSummaries();
+  }, [requiresOtPunch, requests.length]);
+
+  const getFreshLocation = async (): Promise<{ lat: number; lng: number } | null> =>
+    new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (position) =>
+          resolve({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          }),
+        () => resolve(null),
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    });
+
+  const handleOtPunch = async (requestId: string, punchType: "in" | "out") => {
+    setOtPunchActionRequestId(requestId);
+    try {
+      const location = await getFreshLocation();
+      if (!location) {
+        toast.error("Location is required for OT punch.");
+        return;
+      }
+
+      const deviceInfo = navigator.userAgent?.slice(0, 255) || null;
+      const res = await fetch("/api/employee-portal/ot-clock-punch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id: employee.id,
+          ot_request_id: requestId,
+          punch_type: punchType,
+          lat: location.lat,
+          lng: location.lng,
+          device_info: deviceInfo,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(json.error || "Failed to save OT punch");
+        return;
+      }
+
+      toast.success(
+        punchType === "in"
+          ? "OT time in recorded successfully."
+          : "OT time out recorded successfully."
+      );
+      await loadOtPunchSummaries();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to process OT punch.");
+    } finally {
+      setOtPunchActionRequestId(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -311,6 +424,12 @@ export default function OvertimePage() {
           <BodySmall className="text-muted-foreground">
             File overtime request for approval.
           </BodySmall>
+          {requiresOtPunch && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+              OT Punch Workflow is enabled for your account. For each OT filing, record OT Time
+              In and OT Time Out so HR can approve.
+            </div>
+          )}
         </CardHeader>
         <CardContent className="w-full">
           <form onSubmit={handleSubmit} className="w-full">
@@ -581,6 +700,83 @@ export default function OvertimePage() {
                             <div className="mt-1 text-muted-foreground">
                               {req.reason}
                             </div>
+                          </div>
+                        )}
+
+                        {requiresOtPunch && req.status === "pending" && (
+                          <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                            <HStack
+                              gap="2"
+                              align="center"
+                              className="flex-wrap justify-between"
+                            >
+                              <BodySmall className="font-semibold text-blue-900">
+                                OT Punch Tracking
+                              </BodySmall>
+                              {otPunchSummariesByRequest[req.id]?.has_completed_pair ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-emerald-100 text-emerald-900 border-emerald-200"
+                                >
+                                  Complete
+                                </Badge>
+                              ) : otPunchSummariesByRequest[req.id]?.is_open ? (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-amber-100 text-amber-900 border-amber-200"
+                                >
+                                  Open (clocked in)
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="bg-slate-100 text-slate-800 border-slate-200"
+                                >
+                                  Not started
+                                </Badge>
+                              )}
+                            </HStack>
+                            <HStack gap="2" className="mt-2 flex-wrap">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleOtPunch(req.id, "in")}
+                                disabled={
+                                  otPunchActionRequestId === req.id ||
+                                  otPunchSummariesByRequest[req.id]?.is_open === true
+                                }
+                              >
+                                OT Time In
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOtPunch(req.id, "out")}
+                                disabled={
+                                  otPunchActionRequestId === req.id ||
+                                  otPunchSummariesByRequest[req.id]?.is_open !== true
+                                }
+                              >
+                                OT Time Out
+                              </Button>
+                              {otPunchSummariesByRequest[req.id]?.last_punched_at && (
+                                <Caption>
+                                  Last punch:{" "}
+                                  {format(
+                                    new Date(
+                                      otPunchSummariesByRequest[req.id].last_punched_at!
+                                    ),
+                                    "MMM dd, yyyy h:mm a"
+                                  )}{" "}
+                                  (
+                                  {otPunchSummariesByRequest[
+                                    req.id
+                                  ].last_punch_type?.toUpperCase()}
+                                  )
+                                </Caption>
+                              )}
+                            </HStack>
                           </div>
                         )}
 

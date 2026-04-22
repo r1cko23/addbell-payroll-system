@@ -37,6 +37,13 @@ type OvertimeDocument = {
   file_size: number | null;
 };
 
+type OtPunchStatus = {
+  hasCompletedPair: boolean;
+  isOpen: boolean;
+  lastPunchedAt: string | null;
+  lastPunchType: "in" | "out" | null;
+};
+
 type OTRequest = {
   id: string;
   employee_id: string;
@@ -60,6 +67,7 @@ type OTRequest = {
     full_name: string;
     employee_id: string;
     profile_picture_url?: string | null;
+    requires_ot_punch?: boolean | null;
   };
 };
 
@@ -95,6 +103,9 @@ export default function OvertimeApprovalPage() {
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
+  const [otPunchStatusByRequestId, setOtPunchStatusByRequestId] = useState<
+    Record<string, OtPunchStatus>
+  >({});
 
   const getRequestGroupName = (request: OTRequest): string | null =>
     employeeGroupNameByEmployeeId[request.employee_id] || null;
@@ -224,7 +235,8 @@ export default function OvertimeApprovalPage() {
           id,
           full_name,
           employee_id,
-          profile_picture_url
+          profile_picture_url,
+          requires_ot_punch
         )
       `
       )
@@ -284,6 +296,54 @@ export default function OvertimeApprovalPage() {
           ...r,
           overtime_documents: byRequest[r.id] || [],
         }));
+      }
+
+      const { data: otPunchRows, error: otPunchError } = await (supabase as any)
+        .from("ot_time_entries")
+        .select("ot_request_id, punch_type, punched_at")
+        .in("ot_request_id", requestIds)
+        .order("punched_at", { ascending: true });
+
+      if (otPunchError) {
+        console.error("Error loading OT punch records", otPunchError);
+        setOtPunchStatusByRequestId({});
+      } else {
+        const statusMap: Record<string, OtPunchStatus> = {};
+        const grouped: Record<
+          string,
+          Array<{ ot_request_id: string; punch_type: "in" | "out"; punched_at: string }>
+        > = {};
+        (otPunchRows || []).forEach(
+          (row: {
+            ot_request_id: string;
+            punch_type: "in" | "out";
+            punched_at: string;
+          }) => {
+            if (!grouped[row.ot_request_id]) grouped[row.ot_request_id] = [];
+            grouped[row.ot_request_id].push(row);
+          }
+        );
+
+        Object.entries(grouped).forEach(([requestId, punches]) => {
+          let open = false;
+          let pairs = 0;
+          punches.forEach((p) => {
+            if (p.punch_type === "in" && !open) {
+              open = true;
+            } else if (p.punch_type === "out" && open) {
+              open = false;
+              pairs += 1;
+            }
+          });
+          const last = punches[punches.length - 1] || null;
+          statusMap[requestId] = {
+            hasCompletedPair: pairs > 0 && !open,
+            isOpen: open,
+            lastPunchedAt: last?.punched_at || null,
+            lastPunchType: last?.punch_type || null,
+          };
+        });
+        setOtPunchStatusByRequestId(statusMap);
       }
     }
 
@@ -498,6 +558,21 @@ export default function OvertimeApprovalPage() {
 
     const now = new Date().toISOString();
     const managerStage = isManagerStagePending(request);
+    const requiresOtPunch = request.employees?.requires_ot_punch === true;
+    const punchStatus = otPunchStatusByRequestId[id];
+
+    if (!managerStage && requiresOtPunch) {
+      const isComplete = punchStatus?.hasCompletedPair === true;
+      if (!isComplete) {
+        toast.error("Cannot approve yet: OT punch in/out is incomplete.", {
+          description:
+            "This employee requires OT punch records. Ensure OT time in and time out are both completed.",
+        });
+        setActioningId(null);
+        return;
+      }
+    }
+
     const patch: Record<string, unknown> = managerStage
       ? {
           status: "pending",
@@ -816,6 +891,32 @@ export default function OvertimeApprovalPage() {
                             <strong>Reason:</strong> {req.reason}
                           </BodySmall>
                         )}
+                        {req.employees?.requires_ot_punch && (
+                          <div className="mt-2">
+                            {otPunchStatusByRequestId[req.id]?.hasCompletedPair ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-100 text-emerald-900 border-emerald-200"
+                              >
+                                OT punch complete
+                              </Badge>
+                            ) : otPunchStatusByRequestId[req.id]?.isOpen ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-amber-100 text-amber-900 border-amber-200"
+                              >
+                                OT punch open (awaiting time out)
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-red-100 text-red-900 border-red-200"
+                              >
+                                OT punch not completed
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                         {req.overtime_documents && req.overtime_documents.length > 0 ? (
                           <VStack gap="2" align="start" className="mt-2">
                             <HStack gap="2" align="center">
@@ -1047,6 +1148,45 @@ export default function OvertimeApprovalPage() {
                     <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
                       {selected.reason}
                     </p>
+                  </div>
+                )}
+
+                {selected.employees?.requires_ot_punch && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">OT Punch Status</Label>
+                    {otPunchStatusByRequestId[selected.id]?.hasCompletedPair ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-emerald-100 text-emerald-900 border-emerald-200"
+                      >
+                        Complete
+                      </Badge>
+                    ) : otPunchStatusByRequestId[selected.id]?.isOpen ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-100 text-amber-900 border-amber-200"
+                      >
+                        Open (awaiting OT time out)
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="bg-red-100 text-red-900 border-red-200"
+                      >
+                        Not completed
+                      </Badge>
+                    )}
+                    {otPunchStatusByRequestId[selected.id]?.lastPunchedAt && (
+                      <p className="text-xs text-muted-foreground">
+                        Last OT punch:{" "}
+                        {format(
+                          new Date(otPunchStatusByRequestId[selected.id].lastPunchedAt!),
+                          "MMM dd, yyyy h:mm a"
+                        )}{" "}
+                        (
+                        {otPunchStatusByRequestId[selected.id].lastPunchType?.toUpperCase()})
+                      </p>
+                    )}
                   </div>
                 )}
 

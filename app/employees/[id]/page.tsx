@@ -50,6 +50,7 @@ interface Employee {
   tin: string | null;
   nbi_clearance_expiration_date: string | null;
   employment_type: string;
+  requires_ot_punch: boolean | null;
   hire_date: string;
   regularization_date: string | null;
   end_of_contract: string | null;
@@ -119,6 +120,7 @@ export default function EmployeeDetailPage() {
   const [clockOffices, setClockOffices] = useState<ClockOfficeLocation[]>([]);
   const [clockSelectedIds, setClockSelectedIds] = useState<string[]>([]);
   const [clockAllowAnywhere, setClockAllowAnywhere] = useState(false);
+  const [clockRequiresOtPunch, setClockRequiresOtPunch] = useState(false);
   const [clockLoading, setClockLoading] = useState(false);
   const [clockSaving, setClockSaving] = useState(false);
   const [portalPasswordInput, setPortalPasswordInput] = useState("");
@@ -150,7 +152,11 @@ export default function EmployeeDetailPage() {
         .order("work_date", { ascending: false })
         .limit(30),
     ]);
-    if (!empRes.error && empRes.data) setEmployee(empRes.data as unknown as Employee);
+    if (!empRes.error && empRes.data) {
+      const row = empRes.data as unknown as Employee;
+      setEmployee(row);
+      setClockRequiresOtPunch(row.requires_ot_punch === true);
+    }
     setAssignments((assignRes.data as unknown as ProjectAssignment[]) ?? []);
     setAttendance((attendRes.data as unknown as AttendanceRecord[]) ?? []);
     setLoading(false);
@@ -268,8 +274,19 @@ export default function EmployeeDetailPage() {
         toast.error(json.error || "Could not save sites.");
         return;
       }
+
+      const { error: otSettingError } = await supabase
+        .from("employees")
+        .update({ requires_ot_punch: clockRequiresOtPunch } as never)
+        .eq("id", employeeId);
+      if (otSettingError) {
+        toast.error(otSettingError.message || "Could not save OT punch setting.");
+        return;
+      }
+
       toast.success("Clock access updated.");
       await loadClockSites();
+      await fetchData();
     } finally {
       setClockSaving(false);
     }
@@ -849,6 +866,22 @@ export default function EmployeeDetailPage() {
                           <p className="text-xs text-muted-foreground">
                             Employee can clock in/out from any location. GPS coordinates are still
                             recorded for audit.
+                          </p>
+                        </div>
+                      </label>
+                      <label className="flex items-start gap-3 rounded-lg border bg-background p-3">
+                        <Checkbox
+                          checked={clockRequiresOtPunch}
+                          onCheckedChange={(checked) =>
+                            setClockRequiresOtPunch(Boolean(checked))
+                          }
+                          className="mt-0.5"
+                        />
+                        <div className="space-y-0.5 min-w-0">
+                          <p className="font-medium text-sm">Require OT punch in/out</p>
+                          <p className="text-xs text-muted-foreground">
+                            Employee must submit OT time in/out for pending OT requests before HR
+                            can approve.
                           </p>
                         </div>
                       </label>

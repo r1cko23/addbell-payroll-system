@@ -62,6 +62,7 @@ interface Employee {
   hire_date: string;
   shift_start_time: string | null;
   shift_end_time: string | null;
+  requires_ot_punch: boolean | null;
   regularization_date: string | null;
   end_of_contract: string | null;
   employment_status: string;
@@ -139,6 +140,7 @@ const emptyForm = {
   hire_date: "",
   shift_start_time: "",
   shift_end_time: "",
+  requires_ot_punch: false,
   regularization_date: "",
   end_of_contract: "",
   employment_status: "active",
@@ -350,6 +352,7 @@ export default function EmployeesPage() {
       shift_end_time: employee.shift_end_time
         ? String(employee.shift_end_time).slice(0, 5)
         : "",
+      requires_ot_punch: employee.requires_ot_punch === true,
       regularization_date: employee.regularization_date ? new Date(employee.regularization_date).toISOString().slice(0, 10) : "",
       end_of_contract: employee.end_of_contract ? new Date(employee.end_of_contract).toISOString().slice(0, 10) : "",
       employment_status: employee.employment_status,
@@ -400,6 +403,7 @@ export default function EmployeesPage() {
         hire_date: formData.hire_date,
         shift_start_time: formData.shift_start_time || null,
         shift_end_time: formData.shift_end_time || null,
+        requires_ot_punch: formData.requires_ot_punch === true,
         regularization_date: formData.regularization_date || null,
         end_of_contract: formData.end_of_contract || null,
         employment_status: formData.employment_status,
@@ -881,6 +885,28 @@ export default function EmployeesPage() {
                   <p className="text-xs text-muted-foreground">
                     Used to compute late and undertime in attendance UI.
                   </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Require OT punch in/out</Label>
+                  <label className="flex items-start gap-3 rounded-lg border bg-background p-3 cursor-pointer">
+                    <Checkbox
+                      checked={formData.requires_ot_punch}
+                      onCheckedChange={(checked) =>
+                        setFormData({
+                          ...formData,
+                          requires_ot_punch: Boolean(checked),
+                        })
+                      }
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="font-medium text-sm">Enable OT punch workflow</p>
+                      <p className="text-xs text-muted-foreground">
+                        Employee must OT time in/out for each pending OT filing before HR can
+                        approve.
+                      </p>
+                    </div>
+                  </label>
                 </div>
               </div>
 

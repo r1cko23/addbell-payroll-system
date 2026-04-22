@@ -20,16 +20,24 @@ import { H1, BodySmall } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface DepartmentStat { name: string; count: number; }
-interface RecentEmployee {
+interface ActiveEmployeeLite {
   id: string;
   company_id_no: string;
   employee_code: string;
   first_name: string;
   last_name: string;
   employment_type: string;
-  hire_date: string;
   employment_status: string;
   departments: { name: string } | null;
+}
+interface CurrentlyClockedInEmployee {
+  id: string;
+  company_id_no: string;
+  employee_code: string;
+  first_name: string;
+  last_name: string;
+  department_name: string | null;
+  clocked_in_at: string;
 }
 
 function normalizeEmploymentTypeLabel(value: string | null | undefined) {
@@ -58,7 +66,9 @@ export default function HRDashboard() {
   const [managerPendingFailureToLogCount, setManagerPendingFailureToLogCount] = useState(0);
   const [deptStats, setDeptStats] = useState<DepartmentStat[]>([]);
   const [unassignedActiveEmployees, setUnassignedActiveEmployees] = useState(0);
-  const [recentHires, setRecentHires] = useState<RecentEmployee[]>([]);
+  const [currentlyClockedIn, setCurrentlyClockedIn] = useState<
+    CurrentlyClockedInEmployee[]
+  >([]);
   const [typeBreakdown, setTypeBreakdown] = useState<{ type: string; count: number }[]>([]);
 
   const { isHR, loading: roleLoading } = useUserRole();
@@ -75,17 +85,15 @@ export default function HRDashboard() {
       setRefreshing(true);
     }
     try {
-      const [
-        { count: total },
-        { count: active },
-        { data: allEmps },
-        { data: recent },
-      ] = await Promise.all([
+      const [{ count: total }, { count: active }, { data: allEmps }] = await Promise.all([
         supabase.from("employees").select("*", { count: "exact", head: true }),
         supabase.from("employees").select("*", { count: "exact", head: true }).eq("employment_status", "active"),
-        supabase.from("employees").select("employment_type, departments:department_id ( name )").eq("employment_status", "active"),
-        supabase.from("employees").select("id, company_id_no, employee_code, first_name, last_name, employment_type, hire_date, employment_status, departments:department_id ( name )")
-          .order("hire_date", { ascending: false }).limit(10),
+        supabase
+          .from("employees")
+          .select(
+            "id, company_id_no, employee_code, first_name, last_name, employment_type, employment_status, departments:department_id ( name )"
+          )
+          .eq("employment_status", "active"),
       ]);
 
       // HR-ready counts (items that should appear in the HR approval step)
@@ -163,12 +171,12 @@ export default function HRDashboard() {
       setManagerPendingLeaveCount(managerLeavePending || 0);
       setManagerPendingOvertimeCount(managerOTProjectManagerNullAccountManagerNull || 0);
       setManagerPendingFailureToLogCount(managerFTLPending || 0);
-      setRecentHires((recent || []) as unknown as RecentEmployee[]);
 
       const deptMap = new Map<string, number>();
       const typeMap = new Map<string, number>();
       let unassignedCount = 0;
-      (allEmps || []).forEach((emp: any) => {
+      const activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
+      activeEmployeesList.forEach((emp) => {
         const dept = emp.departments?.name || null;
         if (dept) {
           deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
@@ -178,6 +186,70 @@ export default function HRDashboard() {
         const type = normalizeEmploymentTypeLabel(emp.employment_type);
         typeMap.set(type, (typeMap.get(type) || 0) + 1);
       });
+
+      const activeEmployeeIds = activeEmployeesList.map((emp) => emp.id);
+      if (activeEmployeeIds.length > 0) {
+        const now = new Date();
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).formatToParts(now);
+        const year = parts.find((p) => p.type === "year")?.value || "1970";
+        const month = parts.find((p) => p.type === "month")?.value || "01";
+        const day = parts.find((p) => p.type === "day")?.value || "01";
+        const dayStartIso = new Date(`${year}-${month}-${day}T00:00:00+08:00`).toISOString();
+
+        const { data: todayPunches, error: punchesError } = await supabase
+          .from("time_entries")
+          .select("employee_id, punch_type, punched_at")
+          .in("employee_id", activeEmployeeIds)
+          .gte("punched_at", dayStartIso)
+          .order("punched_at", { ascending: true });
+
+        if (punchesError) {
+          console.error("Failed to load current clock-ins:", punchesError);
+          setCurrentlyClockedIn([]);
+        } else {
+          const latestPunchByEmployee = new Map<
+            string,
+            { punch_type: string; punched_at: string }
+          >();
+          (todayPunches || []).forEach((p) => {
+            latestPunchByEmployee.set(p.employee_id, {
+              punch_type: p.punch_type,
+              punched_at: p.punched_at,
+            });
+          });
+
+          const activeById = new Map(activeEmployeesList.map((emp) => [emp.id, emp]));
+          const clockedInRows: CurrentlyClockedInEmployee[] = [];
+
+          latestPunchByEmployee.forEach((latest, employeeId) => {
+            if (latest.punch_type !== "in") return;
+            const emp = activeById.get(employeeId);
+            if (!emp) return;
+            clockedInRows.push({
+              id: emp.id,
+              company_id_no: emp.company_id_no,
+              employee_code: emp.employee_code,
+              first_name: emp.first_name,
+              last_name: emp.last_name,
+              department_name: emp.departments?.name || null,
+              clocked_in_at: latest.punched_at,
+            });
+          });
+
+          clockedInRows.sort(
+            (a, b) =>
+              new Date(a.clocked_in_at).getTime() - new Date(b.clocked_in_at).getTime()
+          );
+          setCurrentlyClockedIn(clockedInRows);
+        }
+      } else {
+        setCurrentlyClockedIn([]);
+      }
 
       setDeptStats(Array.from(deptMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count));
       setUnassignedActiveEmployees(unassignedCount);
@@ -226,6 +298,9 @@ export default function HRDashboard() {
                 </Badge>
                 <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
                   {activeEmployees} active employees
+                </Badge>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
+                  {currentlyClockedIn.length} currently clocked in
                 </Badge>
                 {lastUpdatedAt ? (
                   <Badge variant="outline" className="text-xs">
@@ -376,7 +451,7 @@ export default function HRDashboard() {
         </Card>
       </div>
 
-      {/* Department Breakdown & Recent Hires */}
+      {/* Department Breakdown & Currently Clocked In */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <CardSection title="By department" description="Active employee count per department." className="xl:col-span-4">
           {deptStats.length === 0 ? (
@@ -403,9 +478,15 @@ export default function HRDashboard() {
           ) : null}
         </CardSection>
 
-        <CardSection title="Recent hires" description="Latest employees by hire date." className="xl:col-span-8">
-          {recentHires.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">No employees yet.</p>
+        <CardSection
+          title="Currently clocked in"
+          description="Employees with latest punch set to time in today."
+          className="xl:col-span-8"
+        >
+          {currentlyClockedIn.length === 0 ? (
+            <p className="text-muted-foreground text-center py-6">
+              No employees currently clocked in.
+            </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <Table>
@@ -413,12 +494,12 @@ export default function HRDashboard() {
                   <TableRow>
                     <TableHead>Employee</TableHead>
                     <TableHead>Department</TableHead>
-                    <TableHead>Hire Date</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Clocked in at</TableHead>
+                    <TableHead>Time clock ID</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentHires.map((emp) => (
+                  {currentlyClockedIn.map((emp) => (
                     <TableRow key={emp.id}>
                       <TableCell>
                         <Link href={`/employees/${emp.id}`} className="text-primary hover:underline text-sm font-medium">
@@ -426,15 +507,11 @@ export default function HRDashboard() {
                         </Link>
                         <p className="text-xs text-muted-foreground font-mono">{emp.company_id_no}</p>
                       </TableCell>
-                      <TableCell className="text-sm">{emp.departments?.name || "—"}</TableCell>
-                      <TableCell className="text-sm">{format(new Date(emp.hire_date), "MMM d, yyyy")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`capitalize text-xs ${
-                          emp.employment_status === "active" ? "bg-emerald-100 text-emerald-900" : "bg-slate-100 text-slate-800"
-                        }`}>
-                          {emp.employment_status}
-                        </Badge>
+                      <TableCell className="text-sm">{emp.department_name || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {format(new Date(emp.clocked_in_at), "MMM d, h:mm a")}
                       </TableCell>
+                      <TableCell className="text-sm font-mono">{emp.employee_code}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

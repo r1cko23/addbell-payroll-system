@@ -69,6 +69,20 @@ function getManilaTodayString(): string {
   return getDateInManilaTimezone(new Date());
 }
 
+function getManilaHourMinute(isoTimestamp: string): { hour: number; minute: number } {
+  const date = new Date(isoTimestamp);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = formatter.formatToParts(date);
+  const hour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+  const minute = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  return { hour, minute };
+}
+
 import { determineDayType, getDayName } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
@@ -881,6 +895,8 @@ export default function BundyClockPage() {
       };
       const empProfileJson = (await empProfileRes.json().catch(() => ({}))) as {
         employment_type?: string | null;
+        shift_start_time?: string | null;
+        shift_end_time?: string | null;
         error?: string;
       };
 
@@ -913,7 +929,30 @@ export default function BundyClockPage() {
           r.ot_date >= periodStartStr &&
           r.ot_date <= periodEndStr
       );
-      const scheduleData: Array<{ schedule_date: string; day_off: boolean }> = [];
+      const scheduleData: Array<{
+        schedule_date: string;
+        day_off: boolean;
+        start_time: string;
+        end_time: string;
+      }> = [];
+      const shiftStartTime =
+        typeof empProfileJson.shift_start_time === "string"
+          ? empProfileJson.shift_start_time
+          : null;
+      const shiftEndTime =
+        typeof empProfileJson.shift_end_time === "string"
+          ? empProfileJson.shift_end_time
+          : null;
+      if (shiftStartTime && shiftEndTime) {
+        getWeeklyCutoffDays(periodStart).forEach((day) => {
+          scheduleData.push({
+            schedule_date: getManilaDateStringFromLocalDate(day),
+            day_off: false,
+            start_time: shiftStartTime,
+            end_time: shiftEndTime,
+          });
+        });
+      }
       const isClientBasedFromDb =
         empProfileJson.employment_type === "client-based";
       const isClientBasedFromDbOrSchedule = isClientBasedFromDb;
@@ -1486,7 +1525,23 @@ export default function BundyClockPage() {
       // Note: Employees do NOT get automatic BH for Saturday or Sunday.
       // They must log time on all workdays or be marked as ABSENT/rest day.
 
-        const lt = 0;
+        let lt = 0;
+        if (firstEntry?.clock_in_time && schedule?.start_time) {
+          try {
+            const startTimeStr = schedule.start_time.includes("T")
+              ? schedule.start_time.split("T")[1].split(".")[0]
+              : schedule.start_time;
+            const scheduledStart = parseISO(`2000-01-01T${startTimeStr}`);
+            const scheduledStartMinutes =
+              scheduledStart.getHours() * 60 + scheduledStart.getMinutes();
+            const actualClockIn = getManilaHourMinute(firstEntry.clock_in_time);
+            const actualClockInMinutes = actualClockIn.hour * 60 + actualClockIn.minute;
+            lt = Math.max(0, actualClockInMinutes - scheduledStartMinutes);
+          } catch (e) {
+            console.warn("Error calculating late minutes:", e);
+          }
+        }
+
         // Calculate UT (Undertime) - only if BH < 8 hours
         // If employee already worked 8 hours (BH >= 8), there's no undertime
         let ut = 0;
@@ -1496,11 +1551,10 @@ export default function BundyClockPage() {
               ? schedule.end_time.split("T")[1].split(".")[0]
               : schedule.end_time;
             const scheduledOut = parseISO(`2000-01-01T${endTimeStr}`);
-            const actualOut = parseISO(firstEntry.clock_out_time);
             const scheduledMinutes =
               scheduledOut.getHours() * 60 + scheduledOut.getMinutes();
-            const actualMinutes =
-              actualOut.getHours() * 60 + actualOut.getMinutes();
+            const actualOut = getManilaHourMinute(firstEntry.clock_out_time);
+            const actualMinutes = actualOut.hour * 60 + actualOut.minute;
             const diffMinutes = scheduledMinutes - actualMinutes;
             ut = diffMinutes > 0 ? diffMinutes : 0;
           } catch (e) {
@@ -2094,6 +2148,9 @@ export default function BundyClockPage() {
                     OT
                   </th>
                   <th className="px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wide">
+                    LT
+                  </th>
+                  <th className="px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wide">
                     UT
                   </th>
                   <th className="px-2 py-1.5 text-right text-[10px] font-medium uppercase tracking-wide">
@@ -2182,6 +2239,9 @@ export default function BundyClockPage() {
                           {day.ot > 0 ? day.ot.toFixed(2) : "-"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
+                          {day.lt > 0 ? (day.lt / 60).toFixed(2) : "0"}
+                        </td>
+                        <td className="px-2 py-1.5 text-xs text-right">
                           {day.ut > 0 ? (day.ut / 60).toFixed(2) : "0"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
@@ -2205,6 +2265,9 @@ export default function BundyClockPage() {
                   const totalOT = attendanceDays
                     .filter((d) => d.date >= weekStartStr && d.date <= weekEndStr)
                     .reduce((sum, d) => sum + d.ot, 0);
+                  const totalLT = attendanceDays
+                    .filter((d) => d.date >= weekStartStr && d.date <= weekEndStr)
+                    .reduce((sum, d) => sum + d.lt, 0);
                   const totalUT = attendanceDays
                     .filter((d) => d.date >= weekStartStr && d.date <= weekEndStr)
                     .reduce((sum, d) => sum + d.ut, 0);
@@ -2224,7 +2287,10 @@ export default function BundyClockPage() {
                         {totalOT.toFixed(2)}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-right">
-                        {totalUT}
+                        {(totalLT / 60).toFixed(2)}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-right">
+                        {(totalUT / 60).toFixed(2)}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-right">
                         {totalND.toFixed(2)}

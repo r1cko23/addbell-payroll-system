@@ -118,6 +118,7 @@ export default function EmployeeDetailPage() {
 
   const [clockOffices, setClockOffices] = useState<ClockOfficeLocation[]>([]);
   const [clockSelectedIds, setClockSelectedIds] = useState<string[]>([]);
+  const [clockAllowAnywhere, setClockAllowAnywhere] = useState(false);
   const [clockLoading, setClockLoading] = useState(false);
   const [clockSaving, setClockSaving] = useState(false);
   const [portalPasswordInput, setPortalPasswordInput] = useState("");
@@ -221,6 +222,7 @@ export default function EmployeeDetailPage() {
       const json = (await res.json().catch(() => ({}))) as {
         office_locations?: ClockOfficeLocation[];
         assigned_location_ids?: string[];
+        allow_clock_anywhere?: boolean;
         error?: string;
       };
       if (!res.ok) {
@@ -228,6 +230,7 @@ export default function EmployeeDetailPage() {
       }
       setClockOffices(json.office_locations ?? []);
       setClockSelectedIds(json.assigned_location_ids ?? []);
+      setClockAllowAnywhere(!!json.allow_clock_anywhere);
     } catch {
       toast.error("Could not load bundy clock sites.");
     } finally {
@@ -257,6 +260,7 @@ export default function EmployeeDetailPage() {
         body: JSON.stringify({
           employee_id: employeeId,
           location_ids: clockSelectedIds,
+          allow_clock_anywhere: clockAllowAnywhere,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
@@ -816,8 +820,8 @@ export default function EmployeeDetailPage() {
                     <div>
                       <CardTitle>Clock access</CardTitle>
                       <p className="text-sm text-muted-foreground font-normal mt-1">
-                        Select where this employee can clock in or out. Leave all unchecked to
-                        allow any active location.
+                        Select where this employee can clock in or out, or enable clock anywhere
+                        for mobile/on-the-go assignments.
                       </p>
                     </div>
                     <Badge variant="outline" className="shrink-0">
@@ -832,6 +836,22 @@ export default function EmployeeDetailPage() {
                     <p className="text-sm text-destructive">Clock locations are not set up yet.</p>
                   ) : (
                     <>
+                      <label className="flex items-start gap-3 rounded-lg border bg-background p-3">
+                        <Checkbox
+                          checked={clockAllowAnywhere}
+                          onCheckedChange={(checked) =>
+                            setClockAllowAnywhere(Boolean(checked))
+                          }
+                          className="mt-0.5"
+                        />
+                        <div className="space-y-0.5 min-w-0">
+                          <p className="font-medium text-sm">Allow clock anywhere</p>
+                          <p className="text-xs text-muted-foreground">
+                            Employee can clock in/out from any location. GPS coordinates are still
+                            recorded for audit.
+                          </p>
+                        </div>
+                      </label>
                       <div className="rounded-xl border bg-muted/20 p-3 space-y-2">
                         {[...clockOffices]
                           .sort(
@@ -858,6 +878,7 @@ export default function EmployeeDetailPage() {
                                 <Checkbox
                                   checked={checked}
                                   onCheckedChange={() => toggleClockSite(loc.id)}
+                                  disabled={clockAllowAnywhere}
                                   className="mt-0.5"
                                 />
                                 <div className="space-y-0.5 min-w-0">

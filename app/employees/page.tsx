@@ -60,6 +60,8 @@ interface Employee {
   nbi_clearance_expiration_date: string | null;
   employment_type: string;
   hire_date: string;
+  shift_start_time: string | null;
+  shift_end_time: string | null;
   regularization_date: string | null;
   end_of_contract: string | null;
   employment_status: string;
@@ -135,6 +137,8 @@ const emptyForm = {
   nbi_clearance_expiration_date: "",
   employment_type: "regular",
   hire_date: "",
+  shift_start_time: "",
+  shift_end_time: "",
   regularization_date: "",
   end_of_contract: "",
   employment_status: "active",
@@ -174,6 +178,7 @@ export default function EmployeesPage() {
 
   const [modalClockOffices, setModalClockOffices] = useState<ModalClockOffice[]>([]);
   const [modalClockSelectedIds, setModalClockSelectedIds] = useState<string[]>([]);
+  const [modalAllowClockAnywhere, setModalAllowClockAnywhere] = useState(false);
   const [modalClockLoading, setModalClockLoading] = useState(false);
 
   async function loadModalClockSites(employeeId: string | null) {
@@ -187,6 +192,7 @@ export default function EmployeesPage() {
       const json = (await res.json().catch(() => ({}))) as {
         office_locations?: ModalClockOffice[];
         assigned_location_ids?: string[];
+        allow_clock_anywhere?: boolean;
         error?: string;
       };
       if (!res.ok) {
@@ -194,11 +200,13 @@ export default function EmployeesPage() {
       }
       setModalClockOffices(json.office_locations ?? []);
       setModalClockSelectedIds(json.assigned_location_ids ?? []);
+      setModalAllowClockAnywhere(!!json.allow_clock_anywhere);
     } catch (e: unknown) {
       console.error(e);
       toast.error("Could not load bundy clock sites for this form.");
       setModalClockOffices([]);
       setModalClockSelectedIds([]);
+      setModalAllowClockAnywhere(false);
     } finally {
       setModalClockLoading(false);
     }
@@ -293,6 +301,7 @@ export default function EmployeesPage() {
   async function openAddModal() {
     setEditingEmployee(null);
     setFormData({ ...emptyForm });
+    setModalAllowClockAnywhere(false);
     setShowModal(true);
     void loadModalClockSites(null);
     try {
@@ -311,6 +320,7 @@ export default function EmployeesPage() {
 
   function openEditModal(employee: Employee) {
     setEditingEmployee(employee);
+    setModalAllowClockAnywhere(false);
     setFormData({
       company_id_no: employee.company_id_no,
       employee_code: employee.employee_code,
@@ -334,6 +344,12 @@ export default function EmployeesPage() {
         : "",
       employment_type: employee.employment_type,
       hire_date: employee.hire_date ? new Date(employee.hire_date).toISOString().slice(0, 10) : "",
+      shift_start_time: employee.shift_start_time
+        ? String(employee.shift_start_time).slice(0, 5)
+        : "",
+      shift_end_time: employee.shift_end_time
+        ? String(employee.shift_end_time).slice(0, 5)
+        : "",
       regularization_date: employee.regularization_date ? new Date(employee.regularization_date).toISOString().slice(0, 10) : "",
       end_of_contract: employee.end_of_contract ? new Date(employee.end_of_contract).toISOString().slice(0, 10) : "",
       employment_status: employee.employment_status,
@@ -382,6 +398,8 @@ export default function EmployeesPage() {
         nbi_clearance_expiration_date: formData.nbi_clearance_expiration_date || null,
         employment_type: formData.employment_type,
         hire_date: formData.hire_date,
+        shift_start_time: formData.shift_start_time || null,
+        shift_end_time: formData.shift_end_time || null,
         regularization_date: formData.regularization_date || null,
         end_of_contract: formData.end_of_contract || null,
         employment_status: formData.employment_status,
@@ -439,6 +457,7 @@ export default function EmployeesPage() {
           body: JSON.stringify({
             employee_id: savedEmployeeId,
             location_ids: modalClockSelectedIds,
+            allow_clock_anywhere: modalAllowClockAnywhere,
           }),
         });
         if (!clockRes.ok) {
@@ -649,6 +668,7 @@ export default function EmployeesPage() {
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Position</TableHead>
                       <TableHead className="min-w-[120px] py-2 text-xs font-semibold">OT Group</TableHead>
                       <TableHead className="min-w-[100px] py-2 text-xs font-semibold">Type</TableHead>
+                      <TableHead className="min-w-[120px] py-2 text-xs font-semibold">Shift</TableHead>
                       <TableHead className="w-[90px] whitespace-nowrap py-2 text-xs font-semibold">Status</TableHead>
                       <TableHead className="text-right w-[160px] whitespace-nowrap py-2 text-xs font-semibold">Actions</TableHead>
                     </TableRow>
@@ -656,7 +676,7 @@ export default function EmployeesPage() {
                   <TableBody>
                     {filteredEmployees.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                           {searchTerm ? "No matching employees found." : "No employees yet."}
                         </TableCell>
                       </TableRow>
@@ -700,6 +720,15 @@ export default function EmployeesPage() {
                             )}
                           </TableCell>
                           <TableCell className="text-sm py-2 capitalize">{employee.employment_type}</TableCell>
+                          <TableCell className="text-sm py-2 whitespace-nowrap">
+                            {employee.shift_start_time && employee.shift_end_time ? (
+                              `${String(employee.shift_start_time).slice(0, 5)} - ${String(
+                                employee.shift_end_time
+                              ).slice(0, 5)}`
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
                           <TableCell className="py-2">
                             <Badge
                               variant="outline"
@@ -768,6 +797,7 @@ export default function EmployeesPage() {
           if (!open) {
             setModalClockOffices([]);
             setModalClockSelectedIds([]);
+            setModalAllowClockAnywhere(false);
             setModalClockLoading(false);
           }
         }}
@@ -788,7 +818,7 @@ export default function EmployeesPage() {
                 <h3 className="text-sm font-semibold text-foreground">Work details</h3>
                 <div className="h-px bg-border" />
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="company-id-no">Company ID no. *</Label>
                   <Input
@@ -830,6 +860,27 @@ export default function EmployeesPage() {
                   <Label htmlFor="hire-date">Hire Date *</Label>
                   <Input id="hire-date" type="date" required value={formData.hire_date}
                     onChange={(e) => setFormData({ ...formData, hire_date: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shift-start-time">Shift Start</Label>
+                  <Input
+                    id="shift-start-time"
+                    type="time"
+                    value={formData.shift_start_time}
+                    onChange={(e) => setFormData({ ...formData, shift_start_time: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shift-end-time">Shift End</Label>
+                  <Input
+                    id="shift-end-time"
+                    type="time"
+                    value={formData.shift_end_time}
+                    onChange={(e) => setFormData({ ...formData, shift_end_time: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Used to compute late and undertime in attendance UI.
+                  </p>
                 </div>
               </div>
 
@@ -1077,13 +1128,29 @@ export default function EmployeesPage() {
                   </div>
                   <div className="flex items-center justify-between gap-3 -mt-2">
                     <p className="text-xs text-muted-foreground">
-                      Select where this employee can clock in or out. Leave all unchecked to allow
-                      any active location.
+                      Select where this employee can clock in or out. Enable clock anywhere for
+                      on-the-go employees.
                     </p>
                     <Badge variant="outline" className="shrink-0">
                       {modalClockSelectedIds.length} selected
                     </Badge>
                   </div>
+                  <label className="flex items-start gap-3 rounded-lg border bg-background p-3">
+                    <Checkbox
+                      checked={modalAllowClockAnywhere}
+                      onCheckedChange={(checked) =>
+                        setModalAllowClockAnywhere(Boolean(checked))
+                      }
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="font-medium text-sm">Allow clock anywhere</p>
+                      <p className="text-xs text-muted-foreground">
+                        Employee can clock in/out from any location. GPS coordinates are still
+                        recorded for audit.
+                      </p>
+                    </div>
+                  </label>
                   <div className="rounded-xl border bg-muted/20 p-3">
                     {modalClockLoading ? (
                       <p className="text-sm text-muted-foreground">Loading locations...</p>
@@ -1116,6 +1183,7 @@ export default function EmployeesPage() {
                                 <Checkbox
                                   checked={checked}
                                   onCheckedChange={() => toggleModalClockSite(loc.id)}
+                                  disabled={modalAllowClockAnywhere}
                                   className="mt-0.5"
                                 />
                                 <div className="space-y-0.5 min-w-0">

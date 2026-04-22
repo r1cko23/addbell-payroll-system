@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         office_locations: offices ?? [],
         assigned_location_ids: [],
+        allow_clock_anywhere: false,
       });
     }
 
@@ -70,9 +71,24 @@ export async function GET(req: NextRequest) {
       .map((r: { location_id: string }) => r.location_id)
       .filter((id: string) => allowedIds.has(id));
 
+    const { data: anywhereRow, error: anywhereError } = await admin
+      .from("employee_clock_anywhere_overrides")
+      .select("employee_id")
+      .eq("employee_id", employeeId)
+      .maybeSingle();
+
+    if (anywhereError) {
+      console.error(anywhereError);
+      return NextResponse.json(
+        { error: "Failed to load clock-anywhere setting" },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json({
       office_locations: offices ?? [],
       assigned_location_ids: assignedIds,
+      allow_clock_anywhere: !!anywhereRow,
     });
   } catch (e) {
     console.error(e);
@@ -97,12 +113,17 @@ export async function PUT(req: NextRequest) {
     const body = (await req.json()) as {
       employee_id?: string;
       location_ids?: string[];
+      allow_clock_anywhere?: boolean;
     };
 
     const employeeId = body.employee_id?.trim();
     const locationIds = Array.isArray(body.location_ids)
       ? body.location_ids
       : null;
+    const allowClockAnywhere =
+      typeof body.allow_clock_anywhere === "boolean"
+        ? body.allow_clock_anywhere
+        : false;
 
     if (!employeeId || locationIds === null) {
       return NextResponse.json(
@@ -151,6 +172,41 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    if (allowClockAnywhere) {
+      const { error: anywhereInsertError } = await admin
+        .from("employee_clock_anywhere_overrides")
+        .upsert(
+          [
+            {
+              employee_id: employeeId,
+              reason: "HR enabled from employee profile",
+            },
+          ],
+          { onConflict: "employee_id" }
+        );
+
+      if (anywhereInsertError) {
+        console.error(anywhereInsertError);
+        return NextResponse.json(
+          { error: "Failed to save clock-anywhere setting" },
+          { status: 500 }
+        );
+      }
+    } else {
+      const { error: anywhereDeleteError } = await admin
+        .from("employee_clock_anywhere_overrides")
+        .delete()
+        .eq("employee_id", employeeId);
+
+      if (anywhereDeleteError) {
+        console.error(anywhereDeleteError);
+        return NextResponse.json(
+          { error: "Failed to save clock-anywhere setting" },
+          { status: 500 }
+        );
+      }
+    }
+
     if (uniqueIncoming.length > 0) {
       const rows = uniqueIncoming.map((location_id) => ({
         employee_id: employeeId,
@@ -169,7 +225,11 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, assigned_location_ids: uniqueIncoming });
+    return NextResponse.json({
+      ok: true,
+      assigned_location_ids: uniqueIncoming,
+      allow_clock_anywhere: allowClockAnywhere,
+    });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

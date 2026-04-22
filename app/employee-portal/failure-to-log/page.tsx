@@ -408,7 +408,7 @@ export default function FailureToLogPage() {
               <Button
                 type="submit"
                 disabled={submitting || !reason.trim()}
-                className="w-full md:w-auto md:min-w-[200px]"
+                className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
                 size="lg"
               >
                 {submitting ? (
@@ -468,14 +468,14 @@ export default function FailureToLogPage() {
                       : "border-slate-300"
                   }`}
                 >
-                  <CardContent className="w-full p-4">
-                    <HStack justify="between" align="start" className="mb-2">
-                      <VStack gap="2" align="start" className="flex-1">
+                  <CardContent className="w-full p-4 sm:p-5">
+                    <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <VStack gap="2" align="start" className="min-w-0 flex-1">
                         <HStack gap="3" align="center" className="flex-wrap">
                           <H3>
                             {formatSafe(request.missed_date, "MMM dd, yyyy")}
                           </H3>
-                          <BodySmall>
+                          <BodySmall className="hidden md:block">
                             {request.entry_type === "in" && (
                               <>
                                 Actual In:{" "}
@@ -532,7 +532,7 @@ export default function FailureToLogPage() {
                             </div>
                           )}
 
-                        <Caption>
+                        <Caption className="hidden md:block">
                           Filed:{" "}
                           {formatSafe(
                             request.created_at,
@@ -541,11 +541,15 @@ export default function FailureToLogPage() {
                         </Caption>
                       </VStack>
 
-                      <VStack gap="2" align="end" className="ml-4">
+                      <VStack
+                        gap="2"
+                        align="end"
+                        className="w-full lg:ml-4 lg:w-auto"
+                      >
                         {request.status === "pending" && !isManagerApproved(request) && (
                           <Badge
                             variant="secondary"
-                            className="flex items-center gap-2"
+                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
                           >
                             <Icon name="Hourglass" size={IconSizes.sm} />
                             PENDING
@@ -555,12 +559,12 @@ export default function FailureToLogPage() {
                           <>
                             <Badge
                               variant="outline"
-                              className="flex items-center gap-2 bg-blue-100 text-blue-800 border-blue-200"
+                              className="flex w-full items-center justify-center gap-2 text-center bg-blue-100 text-blue-800 border-blue-200 lg:w-auto"
                             >
                               <Icon name="CheckCircle" size={IconSizes.sm} />
                               APPROVED BY OPERATIONS MANAGER
                             </Badge>
-                            <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                            <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
                               {request.manager_approval_name && (
                                 <div className="font-semibold">
                                   {request.manager_approval_name}
@@ -580,7 +584,7 @@ export default function FailureToLogPage() {
                         {request.status === "approved" && (
                           <Badge
                             variant="default"
-                            className="flex items-center gap-2"
+                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
                           >
                             <Icon name="CheckCircle" size={IconSizes.sm} />
                             APPROVED
@@ -588,7 +592,7 @@ export default function FailureToLogPage() {
                         )}
                         {request.status === "approved" &&
                           (request.final_approval_name || request.approved_at) && (
-                            <div className="max-w-[220px] rounded-md border bg-emerald-50 px-3 py-2 text-right text-xs text-emerald-900">
+                            <div className="w-full rounded-md border bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                               <div className="font-semibold">Approved by HR</div>
                               {request.final_approval_name && (
                                 <div>{request.final_approval_name}</div>
@@ -606,7 +610,7 @@ export default function FailureToLogPage() {
                         {request.status === "rejected" && (
                           <Badge
                             variant="destructive"
-                            className="flex items-center gap-2"
+                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
                           >
                             <Icon name="XCircle" size={IconSizes.sm} />
                             REJECTED
@@ -615,19 +619,20 @@ export default function FailureToLogPage() {
                         {request.status === "cancelled" && (
                           <Badge
                             variant="secondary"
-                            className="flex items-center gap-2"
+                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
                           >
                             <Icon name="XCircle" size={IconSizes.sm} />
                             CANCELLED
                           </Badge>
                         )}
                       </VStack>
-                    </HStack>
+                    </div>
                     {request.status === "pending" && !isManagerApproved(request) && (
                       <HStack justify="end" align="center" className="pt-3">
                         <Button
                           variant="outline"
                           size="sm"
+                          className="w-full lg:w-auto"
                           onClick={(e) => {
                             e.stopPropagation();
                             setCancelId(request.id);
@@ -657,6 +662,7 @@ export default function FailureToLogPage() {
                   variant="outline"
                   onClick={() => setCancelId(null)}
                   disabled={cancelLoading}
+                  className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
                 >
                   Keep request
                 </Button>
@@ -664,6 +670,7 @@ export default function FailureToLogPage() {
                   variant="destructive"
                   onClick={() => cancelId && handleCancel(cancelId)}
                   disabled={cancelLoading}
+                  className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
                 >
                   Cancel request
                 </Button>

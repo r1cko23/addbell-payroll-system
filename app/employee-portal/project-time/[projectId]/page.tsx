@@ -143,14 +143,14 @@ export default function EmployeePortalProjectClockPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-primary" />
               <p className="text-sm text-muted-foreground">
                 Time in and time out is now based on your location only. Per-project clocking has been disabled.
               </p>
             </div>
             {elapsed && activeEntry && (
-              <div className="text-center space-y-2">
+              <div className="hidden md:block text-center space-y-2">
                 <Badge variant="outline" className="px-4 py-1 text-sm">Most recent project work</Badge>
                 <div className="text-sm text-muted-foreground">
                   You last worked on this project starting at{" "}
@@ -159,9 +159,12 @@ export default function EmployeePortalProjectClockPage() {
                 </div>
               </div>
             )}
-            <div className="flex justify-center">
-              <Link href="/employee-portal/bundy">
-                <Button size="lg">
+            <div className="w-full">
+              <Link href="/employee-portal/bundy" className="w-full md:w-auto">
+                <Button
+                  size="lg"
+                  className="w-full md:w-auto justify-center text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
+                >
                   <Clock className="h-5 w-5 mr-2" />
                   Open Location Time Clock
                 </Button>

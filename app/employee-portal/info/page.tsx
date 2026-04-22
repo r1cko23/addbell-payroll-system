@@ -352,10 +352,10 @@ export default function EmployeeInfoPage() {
                 align="start"
                 className="flex-col sm:flex-row gap-2"
               >
-                <dt className="text-sm font-semibold text-muted-foreground min-w-[140px]">
+                <dt className="text-sm font-semibold text-muted-foreground min-w-0 break-words">
                   {row.label}
                 </dt>
-                <dd className="text-sm font-medium text-foreground text-right sm:text-left flex-1">
+                <dd className="text-sm font-medium text-foreground text-right sm:text-left flex-1 min-w-0 break-words whitespace-normal">
                   {row.value}
                 </dd>
               </HStack>
@@ -370,11 +370,12 @@ export default function EmployeeInfoPage() {
       >
         {!showPasswordForm ? (
           <VStack gap="4">
-            <BodySmall className="text-muted-foreground">
+            <BodySmall className="text-muted-foreground hidden md:block">
               Keep your account secure by regularly updating your password.
             </BodySmall>
             <Button
               variant="outline"
+              className="w-full md:w-auto"
               onClick={() => setShowPasswordForm(true)}
             >
               Change Password

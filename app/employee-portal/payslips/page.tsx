@@ -364,7 +364,7 @@ export default function EmployeePayslipsPage() {
 
                       <VStack gap="2" align="end">
                         <HStack gap="4" align="center">
-                          <VStack gap="1" align="end">
+                          <VStack gap="1" align="end" className="hidden md:flex">
                             <Caption className="text-gray-500">
                               Gross Pay
                             </Caption>
@@ -372,7 +372,7 @@ export default function EmployeePayslipsPage() {
                               {formatCurrency(payslip.gross_pay)}
                             </BodySmall>
                           </VStack>
-                          <VStack gap="1" align="end">
+                          <VStack gap="1" align="end" className="hidden md:flex">
                             <Caption className="text-gray-500">
                               Total Deductions
                             </Caption>
@@ -388,11 +388,15 @@ export default function EmployeePayslipsPage() {
                           </VStack>
                         </HStack>
 
-                        <HStack gap="2" className="mt-2">
+                        <HStack
+                          gap="2"
+                          className="mt-2 flex-col sm:flex-row w-full"
+                        >
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleViewBreakdown(payslip)}
+                            className="w-full sm:w-auto"
                           >
                             <Icon name="Eye" size={IconSizes.sm} />
                             View Details

@@ -1874,30 +1874,30 @@ export default function BundyClockPage() {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-3">
+          <div className="hidden md:flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center justify-between gap-2 sm:justify-start sm:gap-3">
               <Button
                 variant="secondary"
                 size="sm"
-                className="px-3 py-3"
+                className="shrink-0 px-3 py-3"
                 onClick={() =>
                   setPeriodStart(getPreviousWeeklyCutoff(periodStart))
                 }
               >
                 <Icon name="CaretLeft" size={IconSizes.sm} />
               </Button>
-              <VStack gap="0" align="center">
-                <Caption className="uppercase tracking-widest">
+              <VStack gap="0" align="center" className="min-w-0 flex-1 px-2">
+                <Caption className="text-center uppercase tracking-widest">
                   Weekly Cutoff (Wed – Tue)
                 </Caption>
-                <p className="text-lg font-semibold text-gray-800">
+                <p className="text-center text-sm font-semibold text-gray-800 sm:text-lg">
                   {formatWeeklyCutoffPeriod(periodStart, periodEnd)}
                 </p>
               </VStack>
               <Button
                 variant="secondary"
                 size="sm"
-                className="px-3 py-3"
+                className="shrink-0 px-3 py-3"
                 onClick={() =>
                   setPeriodStart(getNextWeeklyCutoff(periodStart))
                 }
@@ -1905,7 +1905,7 @@ export default function BundyClockPage() {
                 <Icon name="CaretRight" size={IconSizes.sm} />
               </Button>
             </div>
-            <div className="text-sm text-gray-500 space-y-1">
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm text-gray-500 space-y-1 md:min-w-[220px]">
               <div>
                 Allotted SIL Credits: <span className="font-semibold text-gray-900">5</span>
               </div>
@@ -1931,13 +1931,13 @@ export default function BundyClockPage() {
               </BodySmall>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Button
                 onClick={() => handleClock("in")}
                 disabled={!!currentEntry || !locationStatus?.isAllowed}
                 size="lg"
                 className={cn(
-                  "w-full py-6 text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[64px]",
+                  "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px]",
                   currentEntry || !locationStatus?.isAllowed
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
                     : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
@@ -1952,7 +1952,7 @@ export default function BundyClockPage() {
                 disabled={!currentEntry || !locationStatus?.isAllowed}
                 size="lg"
                 className={cn(
-                  "w-full py-6 text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[64px]",
+                  "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px]",
                   !currentEntry || !locationStatus?.isAllowed
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
                     : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
@@ -2023,8 +2023,8 @@ export default function BundyClockPage() {
             No time in or time out recorded yet for today.
           </BodySmall>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-xs">
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-0 table-fixed border-collapse text-xs">
               <thead>
                 <tr className="border-b bg-gray-50">
                   <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">
@@ -2065,11 +2065,11 @@ export default function BundyClockPage() {
       </CardSection>
 
       {/* Time Attendance and Calendar Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
+      <div className="hidden md:grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
         {/* Time Attendance Table - Left Side (Bigger) */}
         <CardSection title="Time Attendance">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse text-xs">
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-0 table-fixed border-collapse text-xs">
               <thead>
                 <tr className="border-b bg-gray-50">
                   <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">

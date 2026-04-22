@@ -185,26 +185,65 @@ export default function FundRequestDetailPage() {
           </div>
           <div>
             <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Details of Request</h4>
-            <table className="w-full text-sm border rounded-md">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left px-3 py-2">Details</th>
-                  <th className="text-right px-3 py-2">Amount (PHP)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {details.length === 0 ? (
-                  <tr><td colSpan={2} className="px-3 py-4 text-muted-foreground text-center">No line items</td></tr>
-                ) : (
-                  details.map((item, i) => (
-                    <tr key={i} className="border-b last:border-0">
-                      <td className="px-3 py-2">{item.description ?? '—'}</td>
-                      <td className="px-3 py-2 text-right font-mono">{item.amount != null ? Number(item.amount).toLocaleString() : '—'}</td>
+            <div className="hidden md:block">
+              <table className="w-full text-sm border rounded-md">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left px-3 py-2">Details</th>
+                    <th className="text-right px-3 py-2">Amount (PHP)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {details.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={2}
+                        className="px-3 py-4 text-muted-foreground text-center"
+                      >
+                        No line items
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    details.map((item, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="px-3 py-2">
+                          {item.description ?? "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          {item.amount != null
+                            ? Number(item.amount).toLocaleString()
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="md:hidden space-y-2">
+              {details.length === 0 ? (
+                <div className="px-3 py-4 text-muted-foreground text-center border rounded-md">
+                  No line items
+                </div>
+              ) : (
+                details.map((item, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start justify-between gap-3 px-3 py-2 border rounded-md"
+                  >
+                    <div className="min-w-0 flex-1 text-sm">
+                      {item.description ?? "—"}
+                    </div>
+                    <div className="text-sm font-mono text-right whitespace-nowrap">
+                      {item.amount != null
+                        ? Number(item.amount).toLocaleString()
+                        : "—"}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
             <p className="mt-2 font-medium">
               Total Requested Amount: PHP {Number(request.total_requested_amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </p>

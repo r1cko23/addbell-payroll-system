@@ -111,13 +111,21 @@ export default function EmployeePortalProjectTimePage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-center justify-between gap-4">
-                  {a.role && <p className="text-sm text-muted-foreground">Role: {a.role}</p>}
-                  <div className="flex flex-col items-end gap-1 text-right">
-                    <p className="text-xs text-muted-foreground">
+                  {a.role && (
+                    <p className="hidden md:block text-sm text-muted-foreground">
+                      Role: {a.role}
+                    </p>
+                  )}
+                  <div className="flex flex-col w-full items-start sm:items-end gap-1 text-left sm:text-right">
+                    <p className="hidden md:block text-xs text-muted-foreground">
                       Time in and out is based on your location, not per project.
                     </p>
-                    <Link href="/employee-portal/bundy">
-                      <Button variant="outline" size="sm">
+                    <Link href="/employee-portal/bundy" className="w-full md:w-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full md:w-auto justify-center text-xs md:text-sm"
+                      >
                         <Clock className="h-4 w-4 mr-2" />
                         Open Time Clock
                       </Button>

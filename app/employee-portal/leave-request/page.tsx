@@ -1050,7 +1050,7 @@ export default function LeaveRequestPage() {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="w-full"
+                  className="w-full text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
                 >
                   {submitting ? "Submitting..." : "Submit Leave Request"}
                 </Button>
@@ -1114,9 +1114,9 @@ export default function LeaveRequestPage() {
                         : "border-border"
                     }`}
                   >
-                    <CardContent className="w-full p-6">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
+                    <CardContent className="w-full p-4 sm:p-6">
+                      <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-3 mb-2 flex-wrap">
                             <span className="font-bold text-lg">
                               {request.selected_dates &&
@@ -1183,7 +1183,11 @@ export default function LeaveRequestPage() {
                           )}
 
                           {getLeaveTypeLabel(request.leave_type) === "SIL" && (
-                            <VStack gap="2" align="start" className="mt-2">
+                            <VStack
+                              gap="2"
+                              align="start"
+                              className="mt-2 hidden md:flex"
+                            >
                               <HStack gap="2" align="center">
                                 <Icon name="FileText" size={IconSizes.sm} />
                                 <BodySmall className="font-semibold">
@@ -1199,6 +1203,7 @@ export default function LeaveRequestPage() {
                                         key={doc.id}
                                         gap="2"
                                         align="center"
+                                        className="w-full flex-wrap"
                                       >
                                         <Icon
                                           name="Paperclip"
@@ -1243,12 +1248,16 @@ export default function LeaveRequestPage() {
                             )}
                         </div>
 
-                        <VStack gap="2" align="end" className="ml-4">
+                        <VStack
+                          gap="2"
+                          align="end"
+                          className="w-full lg:ml-4 lg:w-auto"
+                        >
                           {request.status === "pending" && (
                             <>
                               <Badge
                                 variant="outline"
-                                className={`flex items-center gap-2 ${statusClasses.pending}`}
+                                className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.pending}`}
                               >
                                 <Icon name="Hourglass" size={IconSizes.sm} />
                                 PENDING
@@ -1256,6 +1265,7 @@ export default function LeaveRequestPage() {
                               <Button
                                 variant="secondary"
                                 size="sm"
+                                className="w-full lg:w-auto"
                                 onClick={() => setCancelId(request.id)}
                               >
                                 Cancel
@@ -1266,7 +1276,7 @@ export default function LeaveRequestPage() {
                             <>
                               <Badge
                                 variant="outline"
-                                className={`flex items-center gap-2 ${statusClasses.approved_by_manager}`}
+                                className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.approved_by_manager}`}
                               >
                                 <Icon name="CheckCircle" size={IconSizes.sm} />
                                 APPROVED BY MANAGER
@@ -1274,13 +1284,14 @@ export default function LeaveRequestPage() {
                               <Button
                                 variant="secondary"
                                 size="sm"
+                                className="w-full lg:w-auto"
                                 onClick={() => setCancelId(request.id)}
                               >
                                 Cancel
                               </Button>
                               {(request.manager_approval_name ||
                                 request.project_manager_approved_at) && (
-                                <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                                <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
                                   <div className="font-semibold">
                                     Approved by Operations Manager
                                   </div>
@@ -1304,7 +1315,7 @@ export default function LeaveRequestPage() {
                             <>
                               <Badge
                                 variant="outline"
-                                className={`flex items-center gap-2 ${statusClasses.approved_by_hr}`}
+                                className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.approved_by_hr}`}
                               >
                                 <Icon name="CheckCircle" size={IconSizes.sm} />
                                 APPROVED
@@ -1312,13 +1323,14 @@ export default function LeaveRequestPage() {
                               <Button
                                 variant="secondary"
                                 size="sm"
+                                className="w-full lg:w-auto"
                                 onClick={() => setCancelId(request.id)}
                               >
                                 Cancel
                               </Button>
                               {(request.manager_approval_name ||
                                 request.project_manager_approved_at) && (
-                                <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                                <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
                                   <div className="font-semibold">
                                     Approved by Operations Manager
                                   </div>
@@ -1338,7 +1350,7 @@ export default function LeaveRequestPage() {
                               )}
                               {(request.hr_approval_name ||
                                 request.hr_approved_at) && (
-                                <div className="max-w-[220px] rounded-md border bg-emerald-50 px-3 py-2 text-right text-xs text-emerald-900">
+                                <div className="w-full rounded-md border bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                                   <div className="font-semibold">Approved by HR</div>
                                   {request.hr_approval_name && (
                                     <div>{request.hr_approval_name}</div>
@@ -1355,7 +1367,7 @@ export default function LeaveRequestPage() {
                           {request.status === "rejected" && (
                             <Badge
                               variant="outline"
-                              className={`flex items-center gap-2 ${statusClasses.rejected}`}
+                              className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.rejected}`}
                             >
                               <Icon name="XCircle" size={IconSizes.sm} />
                               REJECTED
@@ -1364,7 +1376,7 @@ export default function LeaveRequestPage() {
                           {request.status === "cancelled" && (
                             <Badge
                               variant="outline"
-                              className={`flex items-center gap-2 ${statusClasses.cancelled}`}
+                              className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.cancelled}`}
                             >
                               <Icon name="XCircle" size={IconSizes.sm} />
                               CANCELLED
@@ -1402,12 +1414,16 @@ export default function LeaveRequestPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancelLoading}>
+            <AlertDialogCancel
+              disabled={cancelLoading}
+              className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
+            >
               Keep request
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => cancelId && handleCancel(cancelId)}
               disabled={cancelLoading}
+              className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
             >
               {cancelLoading ? "Cancelling..." : "Cancel request"}
             </AlertDialogAction>

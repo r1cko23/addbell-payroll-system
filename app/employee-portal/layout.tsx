@@ -13,6 +13,7 @@ import {
 } from "@/contexts/EmployeeSessionContext";
 import { SignOut, List } from "phosphor-react";
 import { EmployeePortalSidebar } from "@/components/EmployeePortalSidebar";
+import { EmployeePortalMobileNav } from "@/components/EmployeePortalMobileNav";
 import { Badge } from "@/components/ui/badge";
 
 export default function EmployeePortalLayout({
@@ -178,7 +179,7 @@ export default function EmployeePortalLayout({
     >
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(to_bottom,hsl(var(--muted)/0.45),hsl(var(--background))_18%)] flex">
         {/* Sidebar - Desktop */}
-        <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 z-40">
+        <aside className="hidden md:flex fixed left-0 top-0 bottom-0 z-40">
           <EmployeePortalSidebar />
         </aside>
 
@@ -196,17 +197,17 @@ export default function EmployeePortalLayout({
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col lg:pl-72">
+        <div className="flex-1 flex flex-col md:pl-72 pb-20 md:pb-0">
           {/* Header */}
           <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
             <div className="w-full px-4 py-4 md:px-6 lg:px-8">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div className="flex items-center gap-4 w-full md:w-auto">
                   {/* Mobile Menu Button */}
                   <Button
                     variant="ghost"
                     size="lg"
-                    className="lg:hidden inline-flex items-center gap-2 rounded-xl border border-border bg-card text-foreground hover:bg-accent min-h-[40px] px-4"
+                    className="hidden"
                     onClick={() => setIsSidebarOpen((prev) => !prev)}
                     aria-expanded={isSidebarOpen}
                     aria-label="Toggle navigation menu"
@@ -258,7 +259,7 @@ export default function EmployeePortalLayout({
                   variant="secondary"
                   size="lg"
                   onClick={handleLogout}
-                  className="inline-flex items-center gap-2 min-h-[40px] rounded-xl px-4"
+                  className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-xl px-4 w-full md:w-auto"
                   aria-label="Logout"
                 >
                   <SignOut className="h-4 w-4" weight="bold" />
@@ -275,6 +276,8 @@ export default function EmployeePortalLayout({
             </div>
           </main>
         </div>
+
+        <EmployeePortalMobileNav />
         <Toaster
           position="top-center"
           richColors

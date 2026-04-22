@@ -195,7 +195,8 @@ export default function FundRequestListPage() {
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-muted/50 border-b">
                   <tr>
@@ -243,7 +244,64 @@ export default function FundRequestListPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+
+              <div className="md:hidden space-y-3">
+                {filteredRows.map((r) => (
+                  <Card key={r.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold">
+                            {format(new Date(r.request_date), "MMM d, yyyy")}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {(r.projects?.name ||
+                              r.project_title ||
+                              "—").toString()}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1 truncate">
+                            {r.purpose}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            r.status === "management_approved"
+                              ? "default"
+                              : r.status === "rejected"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                          className="text-xs whitespace-nowrap"
+                        >
+                          {STATUS_LABELS[r.status] ?? r.status}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold tabular-nums">
+                          ₱{Number(r.total_requested_amount).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground whitespace-nowrap">
+                          {r.date_needed
+                            ? format(new Date(r.date_needed), "MMM d")
+                            : "—"}
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <Link
+                          href={`${base}/${r.id}`}
+                          className="text-primary font-medium hover:underline text-sm"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -482,7 +482,7 @@ export default function OvertimePage() {
                   !formData.start_time ||
                   !formData.end_time
                 }
-                className="w-full md:w-auto md:min-w-[200px]"
+                className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
                 size="lg"
               >
                 {submitting ? (
@@ -539,10 +539,10 @@ export default function OvertimePage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((req) => (
+              {requests.map((req, idx) => (
                 <Card
                   key={req.id}
-                  className={`w-full ${
+                  className={`w-full ${idx > 0 ? "hidden md:block" : ""} ${
                     req.status === "pending"
                       ? "border-yellow-300"
                       : req.status === "approved"
@@ -552,9 +552,9 @@ export default function OvertimePage() {
                       : "border-border"
                   }`}
                 >
-                  <CardContent className="w-full p-6">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
+                  <CardContent className="w-full p-4 sm:p-6">
+                    <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <span className="font-bold text-lg">
                             {format(new Date(req.ot_date), "MMM dd, yyyy")}
@@ -586,24 +586,29 @@ export default function OvertimePage() {
 
                         {req.overtime_documents &&
                           req.overtime_documents.length > 0 && (
+                          <div className="hidden md:block">
                             <VStack gap="1" align="start" className="mt-2">
-                              <HStack gap="2" align="center">
-                                <Icon name="FileText" size={IconSizes.sm} />
-                                <BodySmall className="font-semibold">
-                                  Supporting document
-                                  {req.overtime_documents.length > 1 ? "s" : ""}
-                                </BodySmall>
-                              </HStack>
-                              {req.overtime_documents.map((d) => (
-                                <Caption key={d.id} className="text-muted-foreground">
-                                  {d.file_name}
-                                </Caption>
-                              ))}
-                            </VStack>
+                                <HStack gap="2" align="center">
+                                  <Icon name="FileText" size={IconSizes.sm} />
+                                  <BodySmall className="font-semibold">
+                                    Supporting document
+                                    {req.overtime_documents.length > 1 ? "s" : ""}
+                                  </BodySmall>
+                                </HStack>
+                                {req.overtime_documents.map((d) => (
+                                  <Caption
+                                    key={d.id}
+                                    className="text-muted-foreground"
+                                  >
+                                    {d.file_name}
+                                  </Caption>
+                                ))}
+                              </VStack>
+                          </div>
                           )}
 
                         {req.status === "pending" && !isManagerApproved(req) && (
-                          <div className="mt-3 w-full space-y-2 rounded-md border border-dashed border-muted-foreground/30 p-3">
+                          <div className="hidden md:block mt-3 w-full space-y-2 rounded-md border border-dashed border-muted-foreground/30 p-3">
                             <Label
                               htmlFor={`replace-doc-${req.id}`}
                               className="text-xs font-medium"
@@ -706,12 +711,16 @@ export default function OvertimePage() {
                         )}
                       </div>
 
-                      <VStack gap="2" align="end" className="ml-4">
+                      <VStack
+                        gap="2"
+                        align="end"
+                        className="w-full lg:ml-4 lg:w-auto"
+                      >
                         {req.status === "pending" && !isManagerApproved(req) && (
                           <>
                             <Badge
                               variant="outline"
-                              className={`flex items-center gap-2 ${statusStyles.pending}`}
+                              className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusStyles.pending}`}
                             >
                               <Icon name="Hourglass" size={IconSizes.sm} />
                               PENDING
@@ -719,6 +728,7 @@ export default function OvertimePage() {
                             <Button
                               variant="secondary"
                               size="sm"
+                              className="w-full lg:w-auto"
                               disabled={cancelLoading === req.id}
                               onClick={async () => {
                                 setCancelLoading(req.id);
@@ -756,12 +766,12 @@ export default function OvertimePage() {
                           <>
                             <Badge
                               variant="outline"
-                              className="flex items-center gap-2 bg-blue-100 text-blue-800 border-blue-200"
+                              className="flex w-full items-center justify-center gap-2 text-center bg-blue-100 text-blue-800 border-blue-200 lg:w-auto"
                             >
                               <Icon name="CheckCircle" size={IconSizes.sm} />
                               APPROVED BY OPERATIONS MANAGER
                             </Badge>
-                            <div className="max-w-[220px] rounded-md border bg-blue-50 px-3 py-2 text-right text-xs text-blue-900">
+                            <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
                               {req.manager_approval_name && (
                                 <div className="font-semibold">
                                   {req.manager_approval_name}
@@ -781,7 +791,7 @@ export default function OvertimePage() {
                         {req.status === "approved" && (
                           <Badge
                             variant="outline"
-                            className={`flex items-center gap-2 ${statusStyles.approved}`}
+                            className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusStyles.approved}`}
                           >
                             <Icon name="CheckCircle" size={IconSizes.sm} />
                             APPROVED
@@ -789,7 +799,7 @@ export default function OvertimePage() {
                         )}
                         {req.status === "approved" &&
                           (req.final_approval_name || req.approved_at) && (
-                            <div className="max-w-[220px] rounded-md border bg-emerald-50 px-3 py-2 text-right text-xs text-emerald-900">
+                            <div className="w-full rounded-md border bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                               <div className="font-semibold">Approved by HR</div>
                               {req.final_approval_name && (
                                 <div>{req.final_approval_name}</div>
@@ -807,7 +817,7 @@ export default function OvertimePage() {
                         {req.status === "rejected" && (
                           <Badge
                             variant="outline"
-                            className={`flex items-center gap-2 ${statusStyles.rejected}`}
+                            className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusStyles.rejected}`}
                           >
                             <Icon name="XCircle" size={IconSizes.sm} />
                             REJECTED

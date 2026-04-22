@@ -752,8 +752,13 @@ export default function NewFundRequestPage() {
                     warehouse purchases with no client/project reference.
                   </p>
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold border-b pb-2 mb-3">Project and P.O. References</h3>
+                <details open>
+                  <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-3">
+                    Project and P.O. References
+                  </summary>
+                  <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-3">
+                    Project and P.O. References
+                  </h3>
                   <div className="grid grid-cols-1 gap-3">
                     <Card>
                       <CardHeader className="pb-3">
@@ -941,13 +946,16 @@ export default function NewFundRequestPage() {
                       </Card>
                     ) : null}
                   </div>
-                </div>
+                </details>
               </div>
 
               {/* Right column */}
               <div className="flex flex-col gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold border-b pb-2 mb-2">
+                <details open>
+                  <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-2">
+                    {purposeConfig.detailsSectionTitle}
+                  </summary>
+                  <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-2">
                     {purposeConfig.detailsSectionTitle}
                   </h3>
                   <p className="mb-2 text-xs text-muted-foreground">
@@ -978,7 +986,7 @@ export default function NewFundRequestPage() {
                   <p className="text-sm font-medium mt-2">
                     Total: PHP {totalRequested.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
-                </div>
+                </details>
                 <div className="grid grid-cols-1 gap-3">
                   <div>
                     <Label htmlFor="date_needed">Date needed *</Label>

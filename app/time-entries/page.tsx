@@ -79,8 +79,6 @@ interface TimeEntry {
   clock_out_location?: string | null;
   clock_in_ip?: string | null;
   clock_out_ip?: string | null;
-  clock_in_device?: string | null;
-  clock_out_device?: string | null;
   is_manual_entry: boolean;
   employees: {
     employee_id: string;
@@ -1315,11 +1313,6 @@ export default function TimeEntriesPage() {
                                     <div className="text-[10px] sm:text-[11px] text-muted-foreground">
                                       {clockInDetails.address}
                                     </div>
-                                    {entry.clock_in_device && (
-                                      <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                                        {entry.clock_in_device}
-                                      </div>
-                                    )}
                                     {clockInDetails.coordinates && (
                                       <a
                                         href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
@@ -1344,11 +1337,6 @@ export default function TimeEntriesPage() {
                                         <div className="text-[10px] sm:text-[11px] text-muted-foreground">
                                           {clockOutDetails.address}
                                         </div>
-                                        {entry.clock_out_device && (
-                                          <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                                            {entry.clock_out_device}
-                                          </div>
-                                        )}
                                         {clockOutDetails.coordinates && (
                                           <a
                                             href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
@@ -1514,11 +1502,6 @@ export default function TimeEntriesPage() {
                               <div className="text-[11px] text-muted-foreground">
                                 {selectedClockInDetails.address}
                               </div>
-                              {selectedEntry.clock_in_device && (
-                                <div className="text-[11px] text-muted-foreground">
-                                  {selectedEntry.clock_in_device}
-                                </div>
-                              )}
                               {selectedClockInDetails.coordinates && (
                                 <a
                                   href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
@@ -1569,11 +1552,6 @@ export default function TimeEntriesPage() {
                               <div className="text-[11px] text-muted-foreground">
                                 {selectedClockOutDetails.address}
                               </div>
-                              {selectedEntry.clock_out_device && (
-                                <div className="text-[11px] text-muted-foreground">
-                                  {selectedEntry.clock_out_device}
-                                </div>
-                              )}
                               {selectedClockOutDetails.coordinates && (
                                 <a
                                   href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}

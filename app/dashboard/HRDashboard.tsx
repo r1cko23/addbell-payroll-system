@@ -28,7 +28,7 @@ interface ActiveEmployeeLite {
   last_name: string;
   employment_type: string;
   employment_status: string;
-  departments: { name: string } | null;
+  departments: { name: string } | { name: string }[] | null;
 }
 interface CurrentlyClockedInEmployee {
   id: string;
@@ -38,6 +38,16 @@ interface CurrentlyClockedInEmployee {
   last_name: string;
   department_name: string | null;
   clocked_in_at: string;
+}
+
+function getDepartmentName(
+  relation: { name: string } | { name: string }[] | null | undefined
+): string | null {
+  if (!relation) return null;
+  if (Array.isArray(relation)) {
+    return relation[0]?.name ?? null;
+  }
+  return relation.name ?? null;
 }
 
 function normalizeEmploymentTypeLabel(value: string | null | undefined) {
@@ -177,7 +187,7 @@ export default function HRDashboard() {
       let unassignedCount = 0;
       const activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
       activeEmployeesList.forEach((emp) => {
-        const dept = emp.departments?.name || null;
+        const dept = getDepartmentName(emp.departments);
         if (dept) {
           deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
         } else {
@@ -236,7 +246,7 @@ export default function HRDashboard() {
               employee_code: emp.employee_code,
               first_name: emp.first_name,
               last_name: emp.last_name,
-              department_name: emp.departments?.name || null,
+              department_name: getDepartmentName(emp.departments),
               clocked_in_at: latest.punched_at,
             });
           });

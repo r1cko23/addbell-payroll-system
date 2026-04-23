@@ -6,6 +6,7 @@ export const FINAL_HR_APPROVER_ID = "d8c2de99-1d65-432d-928f-5efaad8c1a55";
 export const LOCATION_FIRST_APPROVER_BY_GROUP: Record<string, string> = {
   laguna: "bf70e9c8-aa43-4468-878f-1cddc90d12f6",
   manila: "bc93a339-6a61-45fe-98d8-b51bf16cd889",
+  "purchasing-laguna": "b7069605-1126-448b-b96f-f944e86e8e13",
 };
 
 const HR_FIRST_APPROVER_POSITIONS = new Set([

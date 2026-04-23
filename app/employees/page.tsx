@@ -670,7 +670,7 @@ export default function EmployeesPage() {
                       <TableHead className="min-w-[200px] py-2 text-xs font-semibold">Employee</TableHead>
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Department</TableHead>
                       <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Position</TableHead>
-                      <TableHead className="min-w-[120px] py-2 text-xs font-semibold">OT Group</TableHead>
+                      <TableHead className="min-w-[120px] py-2 text-xs font-semibold">Group</TableHead>
                       <TableHead className="min-w-[100px] py-2 text-xs font-semibold">Type</TableHead>
                       <TableHead className="min-w-[120px] py-2 text-xs font-semibold">Shift</TableHead>
                       <TableHead className="w-[90px] whitespace-nowrap py-2 text-xs font-semibold">Status</TableHead>

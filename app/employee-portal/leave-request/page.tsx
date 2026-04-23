@@ -28,6 +28,11 @@ import { format, addDays, differenceInCalendarDays } from "date-fns";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
+import {
+  BUSINESS_WINDOW_HOURS,
+  formatHourLabel24,
+  getBusinessStartHour,
+} from "@/utils/business-hours";
 
 interface EmployeeSession {
   id: string;
@@ -85,8 +90,11 @@ interface EmployeeInfo {
 }
 
 const DEFAULT_EMPLOYEE_SIL_CREDITS = 5;
-const BUSINESS_START_HOUR = 8;
-const BUSINESS_WINDOW_HOURS = 4;
+const DEFAULT_BUSINESS_START_HOUR = 7;
+const BUSINESS_START_LABEL = formatHourLabel24(DEFAULT_BUSINESS_START_HOUR);
+const BUSINESS_WINDOW_END_LABEL = formatHourLabel24(
+  DEFAULT_BUSINESS_START_HOUR + BUSINESS_WINDOW_HOURS
+);
 
 type LeaveSubtype =
   | "regular_sil"
@@ -115,13 +123,13 @@ const LEAVE_SUBTYPE_OPTIONS: {
     value: "emergency_leave",
     label: "Emergency Leave",
     notice:
-      "Must be filed within the first 4 hours of business start (8:00 AM to 12:00 NN).",
+      `Must be filed within the first ${BUSINESS_WINDOW_HOURS} hours of business start (${BUSINESS_START_LABEL} to ${BUSINESS_WINDOW_END_LABEL}).`,
   },
   {
     value: "sick_leave",
     label: "Sick Leave",
     notice:
-      "Must be filed within the first 4 hours of business start (8:00 AM to 12:00 NN).",
+      `Must be filed within the first ${BUSINESS_WINDOW_HOURS} hours of business start (${BUSINESS_START_LABEL} to ${BUSINESS_WINDOW_END_LABEL}).`,
   },
   {
     value: "others",
@@ -446,17 +454,26 @@ export default function LeaveRequestPage() {
     if (leaveSubtype === "emergency_leave" || leaveSubtype === "sick_leave") {
       const isSameDayFiling =
         differenceInCalendarDays(leaveStartDateOnly, todayOnly) === 0;
-      const businessWindowEnd = BUSINESS_START_HOUR + BUSINESS_WINDOW_HOURS;
       const currentHour = today.getHours();
+      const businessStartHour = getBusinessStartHour(today);
       if (!isSameDayFiling) {
         toast.error(
           "Emergency and Sick Leave must be filed on the leave day during the business start window."
         );
         return;
       }
-      if (currentHour < BUSINESS_START_HOUR || currentHour >= businessWindowEnd) {
+      if (businessStartHour === null) {
         toast.error(
-          "Emergency and Sick Leave filing window is 8:00 AM to 12:00 NN."
+          "Emergency and Sick Leave cannot be filed outside regular business days."
+        );
+        return;
+      }
+      const businessWindowEnd = businessStartHour + BUSINESS_WINDOW_HOURS;
+      if (currentHour < businessStartHour || currentHour >= businessWindowEnd) {
+        const windowStartLabel = formatHourLabel24(businessStartHour);
+        const windowEndLabel = formatHourLabel24(businessWindowEnd);
+        toast.error(
+          `Emergency and Sick Leave filing window is ${windowStartLabel} to ${windowEndLabel}.`
         );
         return;
       }

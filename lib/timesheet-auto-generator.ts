@@ -8,6 +8,10 @@
 import { format, parseISO, startOfDay, isWithinInterval, startOfWeek } from "date-fns";
 import { determineDayType, normalizeHolidays } from "@/utils/holidays";
 import type { DailyAttendance } from "@/utils/payroll-calculator";
+import {
+  calculateHoursWithinWindows,
+  getBusinessDayPolicyByDay,
+} from "@/utils/business-hours";
 
 export interface TimeClockEntry {
   id: string;
@@ -136,8 +140,7 @@ export function generateTimesheetFromClockEntries(
     // Pass isClientBasedAccountSupervisor so Sunday is not automatically treated as rest day for client-based employees
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay, isClientBasedAccountSupervisor);
 
-    // Helper to calculate regular business hours (08:00–12:00 and 13:00–17:00, Manila time)
-    // Lunch break 12:00–13:00 is always unpaid.
+    // Helper to calculate regular business hours based on company business-day policy.
     const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
       if (!entry.clock_in_time || !entry.clock_out_time) return 0;
 
@@ -146,31 +149,13 @@ export function generateTimesheetFromClockEntries(
       if (clockOut <= clockIn) return 0;
 
       const workDate = parseISO(format(clockIn, "yyyy-MM-dd"));
-
-      const makeWindow = (hourStart: number, hourEnd: number) => {
-        const start = new Date(workDate);
-        start.setHours(hourStart, 0, 0, 0);
-        const end = new Date(workDate);
-        end.setHours(hourEnd, 0, 0, 0);
-        return { start, end };
-      };
-
-      // Morning: 08:00–12:00
-      const morning = makeWindow(8, 12);
-      // Afternoon: 13:00–17:00
-      const afternoon = makeWindow(13, 17);
-
-      const overlapHours = (startA: Date, endA: Date, startB: Date, endB: Date) => {
-        const start = Math.max(startA.getTime(), startB.getTime());
-        const end = Math.min(endA.getTime(), endB.getTime());
-        if (end <= start) return 0;
-        return (end - start) / (1000 * 60 * 60);
-      };
-
-      const morningHours = overlapHours(clockIn, clockOut, morning.start, morning.end);
-      const afternoonHours = overlapHours(clockIn, clockOut, afternoon.start, afternoon.end);
-
-      return morningHours + afternoonHours;
+      const dayPolicy = getBusinessDayPolicyByDay(workDate.getDay());
+      return calculateHoursWithinWindows(
+        clockIn,
+        clockOut,
+        workDate,
+        dayPolicy.windows
+      );
     };
 
     // Aggregate hours from all entries for this day
@@ -185,8 +170,8 @@ export function generateTimesheetFromClockEntries(
         entry.status === "auto_approved" ||
         entry.status === "clocked_out"
       ) {
-        // Always recompute regular business hours (8–12, 13–17) from raw clock times,
-        // so Time Attendance and Payslip treat lunch (12–13) as unpaid and ignore time beyond 17:00
+        // Always recompute regular business hours from raw clock times,
+        // so Time Attendance and Payslip keep unpaid lunch excluded and cap to policy windows.
         // unless it is explicitly recorded as OT.
         const entryRegularHours = calculateBusinessRegularHours(entry);
         const entryOTHours = entry.overtime_hours || 0;

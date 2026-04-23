@@ -20,6 +20,10 @@ import {
 } from "@/utils/payroll-calculator";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import { format, parseISO, startOfWeek } from "date-fns";
+import {
+  calculateHoursWithinWindows,
+  getBusinessDayPolicyByDay,
+} from "@/utils/business-hours";
 
 interface PayslipDetailedBreakdownProps {
   employee: {
@@ -154,21 +158,19 @@ function PayslipDetailedBreakdownComponent({
     const clockOut = new Date(clockOutTime);
     const workDate = new Date(date);
 
-    // Regular work hours: 8AM (08:00) to 5PM (17:00) = 8 hours
-    const regularStart = new Date(workDate);
-    regularStart.setHours(8, 0, 0, 0);
-    const regularEnd = new Date(workDate);
-    regularEnd.setHours(17, 0, 0, 0);
+    const dayPolicy = getBusinessDayPolicyByDay(workDate.getDay());
 
     // Calculate total hours worked
     const totalMs = clockOut.getTime() - clockIn.getTime();
     const totalHours = totalMs / (1000 * 60 * 60);
 
-    // Calculate regular hours (8AM-5PM, capped at 8 hours)
-    const regularStartMs = Math.max(clockIn.getTime(), regularStart.getTime());
-    const regularEndMs = Math.min(clockOut.getTime(), regularEnd.getTime());
-    const regularHoursMs = Math.max(0, regularEndMs - regularStartMs);
-    let regularHours = Math.min(regularHoursMs / (1000 * 60 * 60), 8);
+    // Calculate regular hours based on configured business windows by weekday.
+    let regularHours = calculateHoursWithinWindows(
+      clockIn,
+      clockOut,
+      workDate,
+      dayPolicy.windows
+    );
 
     // Night differential: only when OT overlaps 10PM–6AM Philippine time (all employees)
     const ndStartHour = 22; // 10PM – 6AM; 0 ND if outside this window

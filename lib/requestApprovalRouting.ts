@@ -14,6 +14,7 @@ export const LOCATION_FIRST_APPROVER_BY_GROUP: Record<string, string> = {
   "operations-manila ii": "4ed5c668-bef6-4373-8e9f-1af55ef10f09",
   "hr-laguna": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
   "purchasing-laguna": "b7069605-1126-448b-b96f-f944e86e8e13",
+  "upper management group": "f73d35f3-c79d-43e4-88da-53504477c725",
 };
 
 const HR_FIRST_APPROVER_POSITIONS = new Set([

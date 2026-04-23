@@ -4,8 +4,15 @@ export type InitialApproverRole = "hr" | "operations_manager";
 
 export const FINAL_HR_APPROVER_ID = "d8c2de99-1d65-432d-928f-5efaad8c1a55";
 export const LOCATION_FIRST_APPROVER_BY_GROUP: Record<string, string> = {
+  // Legacy names (kept for backward compatibility)
   laguna: "bf70e9c8-aa43-4468-878f-1cddc90d12f6",
   manila: "bc93a339-6a61-45fe-98d8-b51bf16cd889",
+  "manila-hr": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
+  // Current official group names
+  "operations-laguna": "bf70e9c8-aa43-4468-878f-1cddc90d12f6",
+  "operations-manila i": "bc93a339-6a61-45fe-98d8-b51bf16cd889",
+  "operations-manila ii": "4ed5c668-bef6-4373-8e9f-1af55ef10f09",
+  "hr-laguna": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
   "purchasing-laguna": "b7069605-1126-448b-b96f-f944e86e8e13",
 };
 

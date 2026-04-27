@@ -23,9 +23,33 @@ SET
     WHEN contact_person IS NULL OR trim(contact_person) = '' THEN NULL
     ELSE upper(trim(contact_person))
   END,
+  mobile = CASE
+    WHEN mobile IS NULL OR trim(mobile) = '' THEN NULL
+    ELSE upper(trim(mobile))
+  END,
+  email = CASE
+    WHEN email IS NULL OR trim(email) = '' THEN NULL
+    ELSE upper(trim(email))
+  END,
   contact_person_relationship = CASE
     WHEN contact_person_relationship IS NULL OR trim(contact_person_relationship) = '' THEN NULL
     ELSE upper(trim(contact_person_relationship))
+  END,
+  sss_number = CASE
+    WHEN sss_number IS NULL OR trim(sss_number) = '' THEN NULL
+    ELSE upper(trim(sss_number))
+  END,
+  philhealth_number = CASE
+    WHEN philhealth_number IS NULL OR trim(philhealth_number) = '' THEN NULL
+    ELSE upper(trim(philhealth_number))
+  END,
+  pagibig_number = CASE
+    WHEN pagibig_number IS NULL OR trim(pagibig_number) = '' THEN NULL
+    ELSE upper(trim(pagibig_number))
+  END,
+  tin = CASE
+    WHEN tin IS NULL OR trim(tin) = '' THEN NULL
+    ELSE upper(trim(tin))
   END,
   bank_name = CASE
     WHEN bank_name IS NULL OR trim(bank_name) = '' THEN NULL
@@ -34,6 +58,10 @@ SET
   bank_account_name = CASE
     WHEN bank_account_name IS NULL OR trim(bank_account_name) = '' THEN NULL
     ELSE upper(trim(bank_account_name))
+  END,
+  bank_account_number = CASE
+    WHEN bank_account_number IS NULL OR trim(bank_account_number) = '' THEN NULL
+    ELSE upper(trim(bank_account_number))
   END;
 
 CREATE OR REPLACE FUNCTION public.normalize_employee_uppercase_fields()
@@ -60,9 +88,33 @@ BEGIN
     WHEN NEW.contact_person IS NULL OR trim(NEW.contact_person) = '' THEN NULL
     ELSE upper(trim(NEW.contact_person))
   END;
+  NEW.mobile := CASE
+    WHEN NEW.mobile IS NULL OR trim(NEW.mobile) = '' THEN NULL
+    ELSE upper(trim(NEW.mobile))
+  END;
+  NEW.email := CASE
+    WHEN NEW.email IS NULL OR trim(NEW.email) = '' THEN NULL
+    ELSE upper(trim(NEW.email))
+  END;
   NEW.contact_person_relationship := CASE
     WHEN NEW.contact_person_relationship IS NULL OR trim(NEW.contact_person_relationship) = '' THEN NULL
     ELSE upper(trim(NEW.contact_person_relationship))
+  END;
+  NEW.sss_number := CASE
+    WHEN NEW.sss_number IS NULL OR trim(NEW.sss_number) = '' THEN NULL
+    ELSE upper(trim(NEW.sss_number))
+  END;
+  NEW.philhealth_number := CASE
+    WHEN NEW.philhealth_number IS NULL OR trim(NEW.philhealth_number) = '' THEN NULL
+    ELSE upper(trim(NEW.philhealth_number))
+  END;
+  NEW.pagibig_number := CASE
+    WHEN NEW.pagibig_number IS NULL OR trim(NEW.pagibig_number) = '' THEN NULL
+    ELSE upper(trim(NEW.pagibig_number))
+  END;
+  NEW.tin := CASE
+    WHEN NEW.tin IS NULL OR trim(NEW.tin) = '' THEN NULL
+    ELSE upper(trim(NEW.tin))
   END;
   NEW.bank_name := CASE
     WHEN NEW.bank_name IS NULL OR trim(NEW.bank_name) = '' THEN NULL
@@ -71,6 +123,10 @@ BEGIN
   NEW.bank_account_name := CASE
     WHEN NEW.bank_account_name IS NULL OR trim(NEW.bank_account_name) = '' THEN NULL
     ELSE upper(trim(NEW.bank_account_name))
+  END;
+  NEW.bank_account_number := CASE
+    WHEN NEW.bank_account_number IS NULL OR trim(NEW.bank_account_number) = '' THEN NULL
+    ELSE upper(trim(NEW.bank_account_number))
   END;
 
   IF NEW.first_name IS NOT NULL AND NEW.last_name IS NOT NULL THEN

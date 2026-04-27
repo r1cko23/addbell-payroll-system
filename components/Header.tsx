@@ -201,7 +201,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="lg:hidden" aria-hidden="true" />
         )}
           <div className="hidden min-w-0 lg:block">
-            <p className="font-mono text-xs uppercase tracking-[0.14em] text-primary">Staff workspace</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Staff workspace</p>
             <p className="text-xs text-muted-foreground">
               Manage payroll, approvals, time, and employee records.
             </p>

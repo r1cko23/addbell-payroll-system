@@ -111,6 +111,18 @@ function toUpperRequired(value: string | null | undefined): string {
   return (value ?? "").trim().toUpperCase();
 }
 
+function toUpperInput(value: string): string {
+  return value.toUpperCase();
+}
+
+function toUpperDisplay(value: string | null | undefined): string {
+  return (value ?? "").toUpperCase();
+}
+
+function formatTypeDisplay(value: string | null | undefined): string {
+  return (value ?? "").replace(/_/g, " ").toUpperCase();
+}
+
 export default function EmployeeDetailPage() {
   const params = useParams();
   const employeeId = params.id as string;
@@ -135,6 +147,10 @@ export default function EmployeeDetailPage() {
   const [portalPasswordInput, setPortalPasswordInput] = useState("");
   const [portalSaving, setPortalSaving] = useState(false);
   const [portalTempPassword, setPortalTempPassword] = useState<string | null>(null);
+
+  function setEditUpperField<K extends keyof Employee>(key: K, value: string) {
+    setEditForm((prev) => ({ ...prev, [key]: toUpperInput(value) }));
+  }
 
   useEffect(() => {
     if (!employeeId) return;
@@ -184,11 +200,18 @@ export default function EmployeeDetailPage() {
     const middleName = toUpperOrNull(editForm.middle_name);
     const lastName = toUpperRequired(editForm.last_name);
     const suffix = toUpperOrNull(editForm.suffix);
+    const mobile = toUpperOrNull(editForm.mobile);
+    const email = toUpperOrNull(editForm.email);
     const address = toUpperOrNull(editForm.address);
     const contactPerson = toUpperOrNull(editForm.contact_person);
     const contactPersonRelationship = toUpperOrNull(editForm.contact_person_relationship);
+    const sssNumber = toUpperOrNull(editForm.sss_number);
+    const philhealthNumber = toUpperOrNull(editForm.philhealth_number);
+    const pagibigNumber = toUpperOrNull(editForm.pagibig_number);
+    const tin = toUpperOrNull(editForm.tin);
     const bankName = toUpperOrNull(editForm.bank_name);
     const bankAccountName = toUpperOrNull(editForm.bank_account_name);
+    const bankAccountNumber = toUpperOrNull(editForm.bank_account_number);
 
     const { error } = await supabase
       .from("employees")
@@ -200,15 +223,15 @@ export default function EmployeeDetailPage() {
         date_of_birth: editForm.date_of_birth || null,
         sex: editForm.sex || null,
         civil_status: editForm.civil_status || null,
-        mobile: editForm.mobile || null,
-        email: editForm.email || null,
+        mobile,
+        email,
         address,
         contact_person: contactPerson,
         contact_person_relationship: contactPersonRelationship,
-        sss_number: editForm.sss_number || null,
-        philhealth_number: editForm.philhealth_number || null,
-        pagibig_number: editForm.pagibig_number || null,
-        tin: editForm.tin || null,
+        sss_number: sssNumber,
+        philhealth_number: philhealthNumber,
+        pagibig_number: pagibigNumber,
+        tin,
         nbi_clearance_expiration_date: editForm.nbi_clearance_expiration_date || null,
         employment_type: editForm.employment_type,
         employment_status: editForm.employment_status,
@@ -216,7 +239,7 @@ export default function EmployeeDetailPage() {
         base_rate: editForm.base_rate,
         bank_name: bankName,
         bank_account_name: bankAccountName,
-        bank_account_number: editForm.bank_account_number || null,
+        bank_account_number: bankAccountNumber,
         regularization_date: editForm.regularization_date || null,
         end_of_contract: editForm.end_of_contract || null,
       } as never)
@@ -405,7 +428,7 @@ export default function EmployeeDetailPage() {
                 {employee.company_id_no}
                 <span className="text-muted-foreground/80"> · time clock {employee.employee_code}</span>
                 {" · "}
-                {employee.employment_type} · {employee.salary_basis}
+                {formatTypeDisplay(employee.employment_type)} · {toUpperDisplay(employee.salary_basis)}
               </p>
             </div>
           </div>
@@ -484,28 +507,28 @@ export default function EmployeeDetailPage() {
                       <Label>First Name *</Label>
                       <Input
                         value={editForm.first_name ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                        onChange={(e) => setEditUpperField("first_name", e.target.value)}
                       />
                     </div>
                     <div>
                       <Label>Middle Name</Label>
                       <Input
                         value={editForm.middle_name ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, middle_name: e.target.value })}
+                        onChange={(e) => setEditUpperField("middle_name", e.target.value)}
                       />
                     </div>
                     <div>
                       <Label>Last Name *</Label>
                       <Input
                         value={editForm.last_name ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                        onChange={(e) => setEditUpperField("last_name", e.target.value)}
                       />
                     </div>
                     <div>
                       <Label>Suffix</Label>
                       <Input
                         value={editForm.suffix ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, suffix: e.target.value })}
+                        onChange={(e) => setEditUpperField("suffix", e.target.value)}
                         placeholder="Jr., Sr., III"
                       />
                     </div>
@@ -553,7 +576,7 @@ export default function EmployeeDetailPage() {
                       <Label>Mobile</Label>
                       <Input
                         value={editForm.mobile ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, mobile: e.target.value })}
+                        onChange={(e) => setEditUpperField("mobile", e.target.value)}
                       />
                     </div>
                     <div>
@@ -561,14 +584,14 @@ export default function EmployeeDetailPage() {
                       <Input
                         type="email"
                         value={editForm.email ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                        onChange={(e) => setEditUpperField("email", e.target.value)}
                       />
                     </div>
                     <div>
                       <Label>Contact person</Label>
                       <Input
                         value={editForm.contact_person ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, contact_person: e.target.value })}
+                        onChange={(e) => setEditUpperField("contact_person", e.target.value)}
                         placeholder="Name of emergency or designated contact"
                       />
                     </div>
@@ -576,7 +599,7 @@ export default function EmployeeDetailPage() {
                       <Label>Contact person relationship</Label>
                       <Input
                         value={editForm.contact_person_relationship ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, contact_person_relationship: e.target.value })}
+                        onChange={(e) => setEditUpperField("contact_person_relationship", e.target.value)}
                         placeholder="e.g. Spouse, Parent, Sibling"
                       />
                     </div>
@@ -584,7 +607,7 @@ export default function EmployeeDetailPage() {
                       <Label>Address</Label>
                       <Textarea
                         value={editForm.address ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                        onChange={(e) => setEditUpperField("address", e.target.value)}
                         rows={2}
                       />
                     </div>
@@ -630,15 +653,15 @@ export default function EmployeeDetailPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground text-xs uppercase">Contact person</span>
-                      <p className="mt-1">{employee.contact_person || "—"}</p>
+                      <p className="mt-1">{employee.contact_person ? toUpperDisplay(employee.contact_person) : "—"}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground text-xs uppercase">Relationship</span>
-                      <p className="mt-1">{employee.contact_person_relationship || "—"}</p>
+                      <p className="mt-1">{employee.contact_person_relationship ? toUpperDisplay(employee.contact_person_relationship) : "—"}</p>
                     </div>
                     <div className="md:col-span-2">
                       <span className="text-muted-foreground text-xs uppercase">Address</span>
-                      <p className="mt-1">{employee.address || "—"}</p>
+                      <p className="mt-1">{employee.address ? toUpperDisplay(employee.address) : "—"}</p>
                     </div>
                   </div>
                 )}
@@ -664,7 +687,7 @@ export default function EmployeeDetailPage() {
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Employment Type</span>
-                    <p className="mt-1 capitalize">{employee.employment_type}</p>
+                    <p className="mt-1 uppercase">{formatTypeDisplay(employee.employment_type)}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Hire Date</span>
@@ -699,15 +722,15 @@ export default function EmployeeDetailPage() {
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Department</span>
-                    <p className="mt-1">{employee.departments?.name || "—"}</p>
+                    <p className="mt-1">{employee.departments?.name ? toUpperDisplay(employee.departments.name) : "—"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Position</span>
-                    <p className="mt-1">{employee.positions?.name || "—"}</p>
+                    <p className="mt-1">{employee.positions?.name ? toUpperDisplay(employee.positions.name) : "—"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Salary Basis</span>
-                    <p className="mt-1 capitalize">{employee.salary_basis}</p>
+                    <p className="mt-1 uppercase">{toUpperDisplay(employee.salary_basis)}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Base Rate</span>
@@ -778,15 +801,15 @@ export default function EmployeeDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Bank Name</span>
-                    <p className="mt-1">{employee.bank_name || "—"}</p>
+                    <p className="mt-1">{employee.bank_name ? toUpperDisplay(employee.bank_name) : "—"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Account Name</span>
-                    <p className="mt-1">{employee.bank_account_name || "—"}</p>
+                    <p className="mt-1">{employee.bank_account_name ? toUpperDisplay(employee.bank_account_name) : "—"}</p>
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Account Number</span>
-                    <p className="mt-1">{employee.bank_account_number || "—"}</p>
+                    <p className="mt-1">{employee.bank_account_number ? toUpperDisplay(employee.bank_account_number) : "—"}</p>
                   </div>
                 </div>
               </CardContent>

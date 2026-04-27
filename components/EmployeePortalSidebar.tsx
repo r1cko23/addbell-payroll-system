@@ -238,7 +238,7 @@ export function EmployeePortalSidebar({
               }}
             />
             <div className="space-y-1">
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-primary">Employee portal</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Employee portal</p>
               <p className="text-xs text-muted-foreground">
                 Time, requests, payslips, and your work information.
               </p>

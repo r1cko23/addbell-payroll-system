@@ -302,7 +302,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
               }}
             />
             <div className="space-y-1">
-              <p className="font-mono text-xs uppercase tracking-[0.14em] text-primary">Admin workspace</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Admin workspace</p>
               <p className="text-xs text-muted-foreground">
                 Payroll, approvals, projects, and workforce operations.
               </p>

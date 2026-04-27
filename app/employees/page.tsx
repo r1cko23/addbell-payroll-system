@@ -163,6 +163,18 @@ function toUpperRequired(value: string): string {
   return value.trim().toUpperCase();
 }
 
+function toUpperInput(value: string): string {
+  return value.toUpperCase();
+}
+
+function toUpperDisplay(value: string | null | undefined): string {
+  return (value ?? "").toUpperCase();
+}
+
+function formatTypeDisplay(value: string | null | undefined): string {
+  return (value ?? "").replace(/_/g, " ").toUpperCase();
+}
+
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -191,6 +203,10 @@ export default function EmployeesPage() {
   const [modalClockSelectedIds, setModalClockSelectedIds] = useState<string[]>([]);
   const [modalAllowClockAnywhere, setModalAllowClockAnywhere] = useState(false);
   const [modalClockLoading, setModalClockLoading] = useState(false);
+
+  function setUpperField<K extends keyof typeof formData>(key: K, value: string) {
+    setFormData((prev) => ({ ...prev, [key]: toUpperInput(value) }));
+  }
 
   async function loadModalClockSites(employeeId: string | null) {
     if (!canAssignClockSites) return;
@@ -393,10 +409,17 @@ export default function EmployeesPage() {
       const middleName = toUpperOrNull(formData.middle_name);
       const lastName = toUpperRequired(formData.last_name);
       const suffix = toUpperOrNull(formData.suffix);
+      const mobile = toUpperOrNull(formData.mobile);
+      const email = toUpperOrNull(formData.email);
       const address = toUpperOrNull(formData.address);
       const contactPerson = toUpperOrNull(formData.contact_person);
+      const sssNumber = toUpperOrNull(formData.sss_number);
+      const philhealthNumber = toUpperOrNull(formData.philhealth_number);
+      const pagibigNumber = toUpperOrNull(formData.pagibig_number);
+      const tin = toUpperOrNull(formData.tin);
       const bankName = toUpperOrNull(formData.bank_name);
       const bankAccountName = toUpperOrNull(formData.bank_account_name);
+      const bankAccountNumber = toUpperOrNull(formData.bank_account_number);
 
       const employeeData: Record<string, unknown> = {
         company_id_no: companyIdNo,
@@ -408,14 +431,14 @@ export default function EmployeesPage() {
         date_of_birth: formData.date_of_birth || null,
         sex: formData.sex || null,
         civil_status: formData.civil_status || null,
-        mobile: formData.mobile || null,
-        email: formData.email || null,
+        mobile,
+        email,
         address,
         contact_person: contactPerson,
-        sss_number: formData.sss_number || null,
-        philhealth_number: formData.philhealth_number || null,
-        pagibig_number: formData.pagibig_number || null,
-        tin: formData.tin || null,
+        sss_number: sssNumber,
+        philhealth_number: philhealthNumber,
+        pagibig_number: pagibigNumber,
+        tin,
         nbi_clearance_expiration_date: formData.nbi_clearance_expiration_date || null,
         employment_type: formData.employment_type,
         hire_date: formData.hire_date,
@@ -431,7 +454,7 @@ export default function EmployeesPage() {
         base_rate: formData.base_rate ? parseFloat(formData.base_rate) : 0,
         bank_name: bankName,
         bank_account_name: bankAccountName,
-        bank_account_number: formData.bank_account_number || null,
+        bank_account_number: bankAccountNumber,
         overtime_group_id: formData.overtime_group_id ? formData.overtime_group_id : null,
       };
 
@@ -683,7 +706,7 @@ export default function EmployeesPage() {
                 <Table className="w-full min-w-[820px] 2xl:min-w-full">
                   <TableHeader>
                     <TableRow className="h-10">
-                      <TableHead className="w-[92px] py-2 text-xs font-semibold">Company ID</TableHead>
+                      <TableHead className="w-[120px] py-2 text-xs font-semibold">Company ID</TableHead>
                       <TableHead className="w-[78px] py-2 text-xs font-semibold">Time clock</TableHead>
                       <TableHead className="min-w-[160px] py-2 text-xs font-semibold">Employee</TableHead>
                       <TableHead className="hidden min-w-[110px] py-2 text-xs font-semibold lg:table-cell">Department</TableHead>
@@ -705,7 +728,7 @@ export default function EmployeesPage() {
                     ) : (
                       filteredEmployees.map((employee) => (
                         <TableRow key={employee.id} className="h-auto hover:bg-muted/50">
-                          <TableCell className="py-2 font-mono text-sm font-semibold">
+                          <TableCell className="whitespace-nowrap py-2 font-mono text-sm font-semibold">
                             {employee.company_id_no}
                           </TableCell>
                           <TableCell className="py-2 font-mono text-sm text-muted-foreground">
@@ -720,14 +743,14 @@ export default function EmployeesPage() {
                             )}
                           </TableCell>
                           <TableCell className="hidden py-2 text-sm lg:table-cell">
-                            {employee.departments?.name || <span className="text-muted-foreground">—</span>}
+                            {employee.departments?.name ? toUpperDisplay(employee.departments.name) : <span className="text-muted-foreground">—</span>}
                           </TableCell>
                           <TableCell className="py-2 text-sm">
                             {employee.positions ? (
                               <div>
-                                <span className="break-words">{employee.positions.name}</span>
+                                <span className="break-words">{toUpperDisplay(employee.positions.name)}</span>
                                 {employee.positions.job_grade && (
-                                  <Badge variant="outline" className="ml-2 text-[10px]">{employee.positions.job_grade}</Badge>
+                                  <Badge variant="outline" className="ml-2 text-[10px]">{toUpperDisplay(employee.positions.job_grade)}</Badge>
                                 )}
                               </div>
                             ) : (
@@ -741,7 +764,7 @@ export default function EmployeesPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="py-2 text-sm capitalize">{employee.employment_type}</TableCell>
+                          <TableCell className="py-2 text-sm uppercase">{formatTypeDisplay(employee.employment_type)}</TableCell>
                           <TableCell className="hidden py-2 text-sm 2xl:table-cell">
                             {employee.shift_start_time && employee.shift_end_time ? (
                               `${String(employee.shift_start_time).slice(0, 5)} - ${String(
@@ -847,7 +870,7 @@ export default function EmployeesPage() {
                     id="company-id-no"
                     required
                     value={formData.company_id_no}
-                    onChange={(e) => setFormData({ ...formData, company_id_no: e.target.value })}
+                    onChange={(e) => setUpperField("company_id_no", e.target.value)}
                     placeholder="e.g. AX-10001"
                   />
                 </div>
@@ -871,10 +894,10 @@ export default function EmployeesPage() {
                   <Select value={formData.employment_type} onValueChange={(v) => setFormData({ ...formData, employment_type: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="regular">Regular</SelectItem>
-                      <SelectItem value="probationary">Probationary</SelectItem>
-                      <SelectItem value="contractual">Contractual</SelectItem>
-                      <SelectItem value="project_based">Project Based</SelectItem>
+                      <SelectItem value="regular">REGULAR</SelectItem>
+                      <SelectItem value="probationary">PROBATIONARY</SelectItem>
+                      <SelectItem value="contractual">CONTRACTUAL</SelectItem>
+                      <SelectItem value="project_based">PROJECT BASED</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -933,22 +956,22 @@ export default function EmployeesPage() {
                 <div className="space-y-2">
                   <Label htmlFor="first-name">First Name *</Label>
                   <Input id="first-name" required value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} />
+                    onChange={(e) => setUpperField("first_name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="middle-name">Middle Name</Label>
                   <Input id="middle-name" value={formData.middle_name}
-                    onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
+                    onChange={(e) => setUpperField("middle_name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="last-name">Last Name *</Label>
                   <Input id="last-name" required value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} />
+                    onChange={(e) => setUpperField("last_name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="suffix">Suffix</Label>
                   <Input id="suffix" value={formData.suffix}
-                    onChange={(e) => setFormData({ ...formData, suffix: e.target.value })} placeholder="Jr., Sr." />
+                    onChange={(e) => setUpperField("suffix", e.target.value)} placeholder="Jr., Sr." />
                 </div>
               </div>
 
@@ -988,24 +1011,24 @@ export default function EmployeesPage() {
                 <div className="space-y-2">
                   <Label htmlFor="mobile">Mobile</Label>
                   <Input id="mobile" value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} placeholder="09XX-XXX-XXXX" />
+                    onChange={(e) => setUpperField("mobile", e.target.value)} placeholder="09XX-XXX-XXXX" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" type="email" value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                    onChange={(e) => setUpperField("email", e.target.value)} />
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="contact-person">Contact person</Label>
                   <Input id="contact-person" value={formData.contact_person}
-                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                    onChange={(e) => setUpperField("contact_person", e.target.value)}
                     placeholder="Name of emergency or designated contact" />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
                 <Textarea id="address" value={formData.address} rows={2}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
+                  onChange={(e) => setUpperField("address", e.target.value)} />
               </div>
 
               {/* Department & Position */}
@@ -1020,7 +1043,7 @@ export default function EmployeesPage() {
                     <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                      {departments.map((d) => <SelectItem key={d.id} value={d.id}>{toUpperDisplay(d.name)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1030,7 +1053,7 @@ export default function EmployeesPage() {
                     <SelectTrigger><SelectValue placeholder="Select position" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
-                      {positions.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}{p.job_grade ? ` (${p.job_grade})` : ""}</SelectItem>)}
+                      {positions.map((p) => <SelectItem key={p.id} value={p.id}>{toUpperDisplay(p.name)}{p.job_grade ? ` (${toUpperDisplay(p.job_grade)})` : ""}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1052,7 +1075,7 @@ export default function EmployeesPage() {
                       <SelectItem value="none">None</SelectItem>
                       {overtimeGroups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
-                          {group.name}
+                          {toUpperDisplay(group.name)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1096,19 +1119,19 @@ export default function EmployeesPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="sss">SSS #</Label>
-                  <Input id="sss" value={formData.sss_number} onChange={(e) => setFormData({ ...formData, sss_number: e.target.value })} />
+                  <Input id="sss" value={formData.sss_number} onChange={(e) => setUpperField("sss_number", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="philhealth">PhilHealth #</Label>
-                  <Input id="philhealth" value={formData.philhealth_number} onChange={(e) => setFormData({ ...formData, philhealth_number: e.target.value })} />
+                  <Input id="philhealth" value={formData.philhealth_number} onChange={(e) => setUpperField("philhealth_number", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pagibig">Pag-IBIG #</Label>
-                  <Input id="pagibig" value={formData.pagibig_number} onChange={(e) => setFormData({ ...formData, pagibig_number: e.target.value })} />
+                  <Input id="pagibig" value={formData.pagibig_number} onChange={(e) => setUpperField("pagibig_number", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tin">TIN</Label>
-                  <Input id="tin" value={formData.tin} onChange={(e) => setFormData({ ...formData, tin: e.target.value })} />
+                  <Input id="tin" value={formData.tin} onChange={(e) => setUpperField("tin", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="nbi-expiration">NBI Clearance (expiration date)</Label>
@@ -1152,15 +1175,15 @@ export default function EmployeesPage() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="bank-name">Bank Name</Label>
-                  <Input id="bank-name" value={formData.bank_name} onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })} />
+                  <Input id="bank-name" value={formData.bank_name} onChange={(e) => setUpperField("bank_name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="bank-acct-name">Account Name</Label>
-                  <Input id="bank-acct-name" value={formData.bank_account_name} onChange={(e) => setFormData({ ...formData, bank_account_name: e.target.value })} />
+                  <Input id="bank-acct-name" value={formData.bank_account_name} onChange={(e) => setUpperField("bank_account_name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="bank-acct-no">Account Number</Label>
-                  <Input id="bank-acct-no" value={formData.bank_account_number} onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })} />
+                  <Input id="bank-acct-no" value={formData.bank_account_number} onChange={(e) => setUpperField("bank_account_number", e.target.value)} />
                 </div>
               </div>
 

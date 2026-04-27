@@ -154,12 +154,12 @@ async function analyzeJan5Errors() {
   if (missingJan5.length > 0) {
     const { data: employees } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, employee_type")
+      .select("id, employee_id, full_name, employment_type")
       .in("id", missingJan5);
 
     console.log(`   ⚠️  Found ${missingJan5.length} employees who worked Jan 4 and Jan 6 but NOT Jan 5:`);
     employees?.slice(0, 15).forEach(emp => {
-      console.log(`      ${emp.full_name} (${emp.employee_id}) - ${emp.employee_type || "N/A"}`);
+      console.log(`      ${emp.full_name} (${emp.employee_id}) - ${emp.employment_type || "N/A"}`);
     });
     if (missingJan5.length > 15) {
       console.log(`      ... and ${missingJan5.length - 15} more`);

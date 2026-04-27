@@ -35,7 +35,7 @@ async function checkEmployeeRate() {
   // Fetch employee by employee_id
   const { data: employee, error } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, position, job_level, monthly_rate, per_day, employee_type")
+    .select("id, employee_id, full_name, position, job_level, monthly_rate, per_day, employment_type")
     .eq("employee_id", employeeId)
     .single();
 
@@ -54,7 +54,7 @@ async function checkEmployeeRate() {
   console.log(`  Full Name: ${employee.full_name}`);
   console.log(`  Position: ${employee.position || 'N/A'}`);
   console.log(`  Job Level: ${employee.job_level || 'N/A'}`);
-  console.log(`  Employee Type: ${employee.employee_type || 'N/A'}`);
+  console.log(`  Employee Type: ${employee.employment_type || 'N/A'}`);
   console.log("");
   console.log("Rate Information:");
   console.log(`  Monthly Rate: ${employee.monthly_rate ? `₱${employee.monthly_rate.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : 'N/A'}`);

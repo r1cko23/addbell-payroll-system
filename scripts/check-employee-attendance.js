@@ -37,7 +37,7 @@ async function checkEmployeeAttendance() {
   // Fetch employee
   const { data: employee, error: empError } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, position, job_level, employee_type, per_day, monthly_rate")
+    .select("id, employee_id, full_name, position, job_level, employment_type, per_day, monthly_rate")
     .eq("employee_id", employeeId)
     .single();
 
@@ -49,7 +49,7 @@ async function checkEmployeeAttendance() {
   console.log(`Employee: ${employee.full_name} (${employee.employee_id})`);
   console.log(`Position: ${employee.position || 'N/A'}`);
   console.log(`Job Level: ${employee.job_level || 'N/A'}`);
-  console.log(`Employee Type: ${employee.employee_type || 'N/A'}`);
+  console.log(`Employee Type: ${employee.employment_type || 'N/A'}`);
   console.log(`Period: ${periodStart} to ${periodEnd}`);
   console.log("");
 

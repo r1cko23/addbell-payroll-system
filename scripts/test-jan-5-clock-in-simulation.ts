@@ -24,7 +24,7 @@ async function testJan5ClockIn() {
   // Get a sample of employees without Jan 5 entries
   const { data: employeesWithoutEntries } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, employee_type")
+    .select("id, employee_id, full_name, employment_type")
     .eq("is_active", true)
     .limit(5);
 
@@ -46,11 +46,11 @@ async function testJan5ClockIn() {
     let wouldBeRestDay = false;
     let reason = "";
 
-    if (emp.employee_type === "office-based") {
+    if (emp.employment_type === "office-based") {
       // Office-based: Sunday is rest day
       wouldBeRestDay = dayOfWeek === 0;
       reason = wouldBeRestDay ? "Sunday (rest day for office-based)" : "Not Sunday";
-    } else if (emp.employee_type === "client-based") {
+    } else if (emp.employment_type === "client-based") {
       // Client-based: Check schedule
       const { data: schedule } = await supabase
         .from("employee_week_schedules")
@@ -66,7 +66,7 @@ async function testJan5ClockIn() {
     }
 
     console.log(`  ${emp.full_name} (${emp.employee_id}):`);
-    console.log(`    Type: ${emp.employee_type || "N/A"}`);
+    console.log(`    Type: ${emp.employment_type || "N/A"}`);
     console.log(`    Jan 5 was: ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek]}`);
     console.log(`    Would be blocked: ${wouldBeRestDay ? "YES ❌" : "NO ✅"}`);
     console.log(`    Reason: ${reason}\n`);

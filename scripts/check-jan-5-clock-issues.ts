@@ -37,7 +37,7 @@ async function checkJan5Issues() {
   // Get all active employees
   const { data: employees, error: empError } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, employee_type, position, is_active")
+    .select("id, employee_id, full_name, employment_type, position, is_active")
     .eq("is_active", true);
 
   if (empError) {
@@ -133,7 +133,7 @@ async function checkJan5Issues() {
     console.log(`⚠️  Employees without Jan 5 entries (not rest day):\n`);
     employeesWithoutEntries.slice(0, 20).forEach((emp, idx) => {
       console.log(`  ${idx + 1}. ${emp.full_name} (${emp.employee_id})`);
-      console.log(`     Type: ${emp.employee_type || "N/A"}`);
+      console.log(`     Type: ${emp.employment_type || "N/A"}`);
       console.log(`     Position: ${emp.position || "N/A"}`);
 
       // Check if they have incomplete entries from before Jan 5

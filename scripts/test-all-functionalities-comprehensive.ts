@@ -137,7 +137,7 @@ async function testTimeClockEntryRules() {
     const { data: accountSupervisors } = await supabase
       .from('employees')
       .select('id, position')
-      .or('employee_type.eq.client-based,position.ilike.%ACCOUNT SUPERVISOR%')
+      .or('employment_type.eq.client-based,position.ilike.%ACCOUNT SUPERVISOR%')
       .limit(5);
 
     const { data: nonAccountSupervisors } = await supabase
@@ -339,8 +339,8 @@ async function testEmployeeClassification() {
   try {
     const { data: clientBased } = await supabase
       .from('employees')
-      .select('id, employee_type, position')
-      .or('employee_type.eq.client-based,position.ilike.%ACCOUNT SUPERVISOR%')
+      .select('id, employment_type, position')
+      .or('employment_type.eq.client-based,position.ilike.%ACCOUNT SUPERVISOR%')
       .limit(10);
 
     logTest(category, 'Rule 2.1.1: Client-Based Employees identification', true, undefined, {
@@ -361,8 +361,8 @@ async function testEmployeeClassification() {
 
     const { data: employees } = await supabase
       .from('employees')
-      .select('id, employee_type, position')
-      .eq('employee_type', 'office-based')
+      .select('id, employment_type, position')
+      .eq('employment_type', 'office-based')
       .limit(50);
 
     const supervisory = employees?.filter(emp =>
@@ -380,8 +380,8 @@ async function testEmployeeClassification() {
   try {
     const { data: managerial } = await supabase
       .from('employees')
-      .select('id, employee_type, job_level')
-      .eq('employee_type', 'office-based')
+      .select('id, employment_type, job_level')
+      .eq('employment_type', 'office-based')
       .eq('job_level', 'MANAGERIAL')
       .limit(10);
 
@@ -396,8 +396,8 @@ async function testEmployeeClassification() {
   try {
     const { data: employees } = await supabase
       .from('employees')
-      .select('id, employee_type, position, job_level')
-      .eq('employee_type', 'office-based')
+      .select('id, employment_type, position, job_level')
+      .eq('employment_type', 'office-based')
       .limit(50);
 
     const supervisoryPositions = ['PAYROLL SUPERVISOR', 'ACCOUNT RECEIVABLE SUPERVISOR', 'HR OPERATIONS SUPERVISOR', 'HR SUPERVISOR'];
@@ -494,8 +494,8 @@ async function testNightDifferentialRules() {
   try {
     const { data: accountSupervisors } = await supabase
       .from('employees')
-      .select('id, position, employee_type')
-      .or('employee_type.eq.client-based,position.ilike.%ACCOUNT SUPERVISOR%')
+      .select('id, position, employment_type')
+      .or('employment_type.eq.client-based,position.ilike.%ACCOUNT SUPERVISOR%')
       .limit(10);
 
     logTest(category, 'Rule 2.4.3: Account Supervisors identified (NO ND)', true, undefined, {

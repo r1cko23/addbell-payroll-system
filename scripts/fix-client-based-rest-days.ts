@@ -57,8 +57,8 @@ async function fixClientBasedRestDays() {
   console.log("Fetching client-based employees...");
   let employeeQuery = supabase
     .from("employees")
-    .select("id, employee_id, full_name, employee_type")
-    .eq("employee_type", "client-based")
+    .select("id, employee_id, full_name, employment_type")
+    .eq("employment_type", "client-based")
     .eq("is_active", true);
 
   if (specificEmployee) {

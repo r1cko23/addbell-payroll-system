@@ -26,7 +26,7 @@ async function generateAttendance() {
   // Find Eia Fidel
   const { data: employees, error: empError } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, employee_type, position, eligible_for_ot")
+    .select("id, employee_id, full_name, employment_type, position, eligible_for_ot")
     .ilike("full_name", "%fidel%")
     .ilike("full_name", "%eia%")
     .limit(1);
@@ -38,7 +38,7 @@ async function generateAttendance() {
 
   const eia = employees[0];
   console.log(`Found: ${eia.full_name} (${eia.employee_id})`);
-  console.log(`Employee Type: ${eia.employee_type || "office-based"}`);
+  console.log(`Employee Type: ${eia.employment_type || "office-based"}`);
   console.log(`Position: ${eia.position || "N/A"}\n`);
 
   const periodStart = parseISO("2026-01-01");
@@ -123,7 +123,7 @@ async function generateAttendance() {
   });
 
   // Determine employee classification
-  const isClientBased = eia.employee_type === "client-based";
+  const isClientBased = eia.employment_type === "client-based";
   const isAccountSupervisor = eia.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
   const isEligibleForOT = eia.eligible_for_ot !== false;
   const isEligibleForNightDiff = true;

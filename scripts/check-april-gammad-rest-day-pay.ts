@@ -24,7 +24,7 @@ async function checkRestDayPay() {
   // Find April Gammad
   const { data: employees, error: empError } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, employee_type, position, job_level")
+    .select("id, employee_id, full_name, employment_type, position, job_level")
     .ilike("full_name", "%GAMMAD%")
     .eq("is_active", true);
 
@@ -35,7 +35,7 @@ async function checkRestDayPay() {
 
   const april = employees[0];
   console.log(`Found: ${april.full_name} (${april.employee_id})`);
-  console.log(`Employee Type: ${april.employee_type || "office-based"}`);
+  console.log(`Employee Type: ${april.employment_type || "office-based"}`);
   console.log(`Position: ${april.position || "N/A"}`);
   console.log(`Job Level: ${april.job_level || "N/A"}\n`);
 
@@ -43,7 +43,7 @@ async function checkRestDayPay() {
   // For now, we'll use a placeholder - the actual rate will be shown in the calculation
 
   // Determine employee classification
-  const isClientBased = april.employee_type === "client-based";
+  const isClientBased = april.employment_type === "client-based";
   const isAccountSupervisor = april.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false;
   const isSupervisory = !isClientBased && [
     "PAYROLL SUPERVISOR",

@@ -53,7 +53,7 @@ async function checkRestDayIssue() {
   // Get all active employees
   const { data: employees, error: empError } = await supabase
     .from("employees")
-    .select("id, employee_id, full_name, employee_type")
+    .select("id, employee_id, full_name, employment_type")
     .eq("is_active", true);
 
   if (empError) {
@@ -72,7 +72,7 @@ async function checkRestDayIssue() {
   if (employeesWithoutSchedules.length > 0) {
     console.log(`⚠️  Employees without schedules (first 20):`);
     employeesWithoutSchedules.slice(0, 20).forEach((emp, idx) => {
-      console.log(`   ${idx + 1}. ${emp.full_name} (${emp.employee_id}) - ${emp.employee_type || "N/A"}`);
+      console.log(`   ${idx + 1}. ${emp.full_name} (${emp.employee_id}) - ${emp.employment_type || "N/A"}`);
     });
     if (employeesWithoutSchedules.length > 20) {
       console.log(`   ... and ${employeesWithoutSchedules.length - 20} more\n`);
@@ -94,10 +94,10 @@ async function checkRestDayIssue() {
   }
 
   // Check office-based employees specifically
-  const officeBasedEmployees = employees?.filter(emp => emp.employee_type === "office-based") || [];
+  const officeBasedEmployees = employees?.filter(emp => emp.employment_type === "office-based") || [];
   const officeBasedWithEntries = schedules.filter(s => {
     const emp = employees?.find(e => e.id === s.employee_id);
-    return emp?.employee_type === "office-based";
+    return emp?.employment_type === "office-based";
   });
 
   console.log(`📊 Office-based employees:`);

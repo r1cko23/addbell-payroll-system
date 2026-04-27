@@ -26,7 +26,7 @@ async function regenerateAttendanceRecords() {
   // Get all active employees
   const { data: employees, error: empError } = await supabase
     .from("employees")
-    .select("id, full_name, employee_type, job_level, position")
+    .select("id, full_name, employment_type, job_level, position")
     .eq("is_active", true);
 
   if (empError) {
@@ -105,7 +105,7 @@ async function regenerateAttendanceRecords() {
 
         // Check if employee is client-based Account Supervisor
         const isClientBasedAccountSupervisor =
-          employee.employee_type === "client-based" &&
+          employee.employment_type === "client-based" &&
           (employee.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
 
         const timesheetData = generateTimesheetFromClockEntries(

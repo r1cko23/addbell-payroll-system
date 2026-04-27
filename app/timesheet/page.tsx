@@ -29,6 +29,7 @@ import type { Holiday } from "@/utils/holidays";
 import { normalizeHolidays } from "@/utils/holidays";
 import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
+import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
 import {
   fetchSessionsForEmployee,
   fetchProjectTimeSessionsForEmployee,
@@ -47,6 +48,8 @@ interface Employee {
   hire_date?: string | null;
   termination_date?: string | null;
   transferred_from_employee_id?: string | null; // When transferred (new record), previous employees.id so OT is still loaded
+  shift_start_time?: string | null;
+  shift_end_time?: string | null;
 }
 
 interface ClockEntry {
@@ -275,7 +278,7 @@ export default function TimesheetPage() {
       // Load employees (schema: employment_type, no overtime_group_id)
       const { data: empData, error: empError } = await supabase
         .from("employees")
-        .select("id, employee_id, full_name, eligible_for_ot, position, employment_type, job_level, hire_date, last_name, first_name, transferred_from_employee_id")
+        .select("id, employee_id, full_name, eligible_for_ot, position, employment_type, job_level, hire_date, last_name, first_name, transferred_from_employee_id, shift_start_time, shift_end_time")
         .eq("is_active", true)
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
@@ -527,8 +530,26 @@ export default function TimesheetPage() {
       }
       setOtRequests(otData);
 
-      // Schema does not include employee_week_schedules table — no schedule data
       const scheduleMap = new Map<string, Schedule>();
+      if (selectedEmployee?.shift_start_time && selectedEmployee?.shift_end_time) {
+        const cursor = new Date(periodStart);
+        cursor.setHours(0, 0, 0, 0);
+        const rangeEnd = new Date(periodEnd);
+        rangeEnd.setHours(0, 0, 0, 0);
+        while (cursor <= rangeEnd) {
+          const policy = getBusinessDayPolicyByDay(getDay(cursor));
+          if (policy.requiresOffice) {
+            const key = format(cursor, "yyyy-MM-dd");
+            scheduleMap.set(key, {
+              schedule_date: key,
+              day_off: false,
+              start_time: selectedEmployee.shift_start_time,
+              end_time: selectedEmployee.shift_end_time,
+            });
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
 
       setSchedules(scheduleMap);
       generateAttendanceDays(
@@ -1091,24 +1112,64 @@ export default function TimesheetPage() {
       // 3. Leave types (CTO, SIL, etc.) - handled above
       // The payslip calculation uses the same logic, ensuring consistency between timesheet and payslip
 
-      // LT (Late) - Not applicable for flexible hours, always 0
-      const lt = 0;
+      // LT/UT priority: employee schedule first, then business-hours fallback.
+      const businessPolicy = getBusinessDayPolicyByDay(getDay(parseISO(dateStr)));
+      const businessStartMinutes =
+        businessPolicy.windows.length > 0
+          ? businessPolicy.windows[0].startHour * 60
+          : null;
+      const businessEndMinutes =
+        businessPolicy.windows.length > 0
+          ? businessPolicy.windows[businessPolicy.windows.length - 1].endHour * 60
+          : null;
+      const parseScheduleMinutes = (timeValue?: string | null): number | null => {
+        if (!timeValue) return null;
+        const raw = timeValue.includes("T")
+          ? timeValue.split("T")[1].split(".")[0]
+          : timeValue;
+        const [h, m] = raw.split(":");
+        const hour = Number(h);
+        const minute = Number(m);
+        if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+        return hour * 60 + minute;
+      };
+      const scheduleStartMinutes = parseScheduleMinutes(schedule?.start_time);
+      const scheduleEndMinutes = parseScheduleMinutes(schedule?.end_time);
+      const hasScheduleWindow =
+        schedule?.day_off !== true &&
+        scheduleStartMinutes !== null &&
+        scheduleEndMinutes !== null;
+      const resolvedStartMinutes = hasScheduleWindow
+        ? scheduleStartMinutes
+        : businessPolicy.requiresOffice
+        ? businessStartMinutes
+        : null;
+      const resolvedEndMinutes = hasScheduleWindow
+        ? scheduleEndMinutes
+        : businessPolicy.requiresOffice
+        ? businessEndMinutes
+        : null;
+
+      let lt = 0;
+      if (firstEntry?.clock_in_time && resolvedStartMinutes !== null) {
+        try {
+          const actualIn = parseISO(firstEntry.clock_in_time);
+          const actualInMinutes = actualIn.getHours() * 60 + actualIn.getMinutes();
+          lt = Math.max(0, actualInMinutes - resolvedStartMinutes);
+        } catch (e) {
+          console.warn("Error calculating late minutes:", e);
+        }
+      }
 
       // Calculate UT (Undertime) - only if BH < 8 hours
       // If employee already worked 8 hours (BH >= 8), there's no undertime
       let ut = 0;
-      if (bh < 8 && firstEntry?.clock_out_time && schedule && schedule.end_time) {
+      if (bh < 8 && firstEntry?.clock_out_time && resolvedEndMinutes !== null) {
         try {
-          const endTimeStr = schedule.end_time.includes("T")
-            ? schedule.end_time.split("T")[1].split(".")[0]
-            : schedule.end_time;
-          const scheduledOut = parseISO(`2000-01-01T${endTimeStr}`);
           const actualOut = parseISO(firstEntry.clock_out_time);
-          const scheduledMinutes =
-            scheduledOut.getHours() * 60 + scheduledOut.getMinutes();
           const actualMinutes =
             actualOut.getHours() * 60 + actualOut.getMinutes();
-          const diffMinutes = scheduledMinutes - actualMinutes;
+          const diffMinutes = resolvedEndMinutes - actualMinutes;
           ut = diffMinutes > 0 ? diffMinutes : 0;
         } catch (e) {
           console.warn("Error calculating undertime:", e);

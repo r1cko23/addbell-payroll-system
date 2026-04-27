@@ -437,10 +437,12 @@ function PayslipDetailedBreakdownComponent({
       // 2. regularHours is 0 (missing data)
       // 3. It's not a leave day with full hours
       const isLeaveDayWithFullHours = (dayRegularHours || 0) >= 8;
+      const dayOfWeekForRecalc = new Date(date).getDay();
       if (
         clockInTime &&
         clockOutTime &&
         regularHours === 0 &&
+        dayOfWeekForRecalc !== 6 &&
         !isLeaveDayWithFullHours
       ) {
         // Recalculate regular hours from clock times to fix missing data

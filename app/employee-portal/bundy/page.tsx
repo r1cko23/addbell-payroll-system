@@ -33,6 +33,7 @@ import {
   parseISO,
   getDay,
 } from "date-fns";
+import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
 
 /**
  * Convert a UTC timestamp to Asia/Manila date string (YYYY-MM-DD)
@@ -945,6 +946,8 @@ export default function BundyClockPage() {
           : null;
       if (shiftStartTime && shiftEndTime) {
         getWeeklyCutoffDays(periodStart).forEach((day) => {
+          const policy = getBusinessDayPolicyByDay(getDay(day));
+          if (!policy.requiresOffice) return;
           scheduleData.push({
             schedule_date: getManilaDateStringFromLocalDate(day),
             day_off: false,
@@ -1525,18 +1528,49 @@ export default function BundyClockPage() {
       // Note: Employees do NOT get automatic BH for Saturday or Sunday.
       // They must log time on all workdays or be marked as ABSENT/rest day.
 
+        const businessPolicy = getBusinessDayPolicyByDay(getDay(parseISO(dateStr)));
+        const businessStartMinutes =
+          businessPolicy.windows.length > 0
+            ? businessPolicy.windows[0].startHour * 60
+            : null;
+        const businessEndMinutes =
+          businessPolicy.windows.length > 0
+            ? businessPolicy.windows[businessPolicy.windows.length - 1].endHour * 60
+            : null;
+        const parseScheduleMinutes = (timeValue?: string | null): number | null => {
+          if (!timeValue) return null;
+          const raw = timeValue.includes("T")
+            ? timeValue.split("T")[1].split(".")[0]
+            : timeValue;
+          const [h, m] = raw.split(":");
+          const hour = Number(h);
+          const minute = Number(m);
+          if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+          return hour * 60 + minute;
+        };
+        const scheduleStartMinutes = parseScheduleMinutes(schedule?.start_time);
+        const scheduleEndMinutes = parseScheduleMinutes(schedule?.end_time);
+        const hasScheduleWindow =
+          schedule?.day_off !== true &&
+          scheduleStartMinutes !== null &&
+          scheduleEndMinutes !== null;
+        const resolvedStartMinutes = hasScheduleWindow
+          ? scheduleStartMinutes
+          : businessPolicy.requiresOffice
+          ? businessStartMinutes
+          : null;
+        const resolvedEndMinutes = hasScheduleWindow
+          ? scheduleEndMinutes
+          : businessPolicy.requiresOffice
+          ? businessEndMinutes
+          : null;
+
         let lt = 0;
-        if (firstEntry?.clock_in_time && schedule?.start_time) {
+        if (firstEntry?.clock_in_time && resolvedStartMinutes !== null) {
           try {
-            const startTimeStr = schedule.start_time.includes("T")
-              ? schedule.start_time.split("T")[1].split(".")[0]
-              : schedule.start_time;
-            const scheduledStart = parseISO(`2000-01-01T${startTimeStr}`);
-            const scheduledStartMinutes =
-              scheduledStart.getHours() * 60 + scheduledStart.getMinutes();
             const actualClockIn = getManilaHourMinute(firstEntry.clock_in_time);
             const actualClockInMinutes = actualClockIn.hour * 60 + actualClockIn.minute;
-            lt = Math.max(0, actualClockInMinutes - scheduledStartMinutes);
+            lt = Math.max(0, actualClockInMinutes - resolvedStartMinutes);
           } catch (e) {
             console.warn("Error calculating late minutes:", e);
           }
@@ -1545,17 +1579,11 @@ export default function BundyClockPage() {
         // Calculate UT (Undertime) - only if BH < 8 hours
         // If employee already worked 8 hours (BH >= 8), there's no undertime
         let ut = 0;
-        if (bh < 8 && firstEntry?.clock_out_time && schedule && schedule.end_time) {
+        if (bh < 8 && firstEntry?.clock_out_time && resolvedEndMinutes !== null) {
           try {
-            const endTimeStr = schedule.end_time.includes("T")
-              ? schedule.end_time.split("T")[1].split(".")[0]
-              : schedule.end_time;
-            const scheduledOut = parseISO(`2000-01-01T${endTimeStr}`);
-            const scheduledMinutes =
-              scheduledOut.getHours() * 60 + scheduledOut.getMinutes();
             const actualOut = getManilaHourMinute(firstEntry.clock_out_time);
             const actualMinutes = actualOut.hour * 60 + actualOut.minute;
-            const diffMinutes = scheduledMinutes - actualMinutes;
+            const diffMinutes = resolvedEndMinutes - actualMinutes;
             ut = diffMinutes > 0 ? diffMinutes : 0;
           } catch (e) {
             console.warn("Error calculating undertime:", e);

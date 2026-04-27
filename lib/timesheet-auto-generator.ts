@@ -139,6 +139,7 @@ export function generateTimesheetFromClockEntries(
     // Determine day type (regular, holiday, sunday/rest day, etc.)
     // Pass isClientBasedAccountSupervisor so Sunday is not automatically treated as rest day for client-based employees
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay, isClientBasedAccountSupervisor);
+    const isSaturday = parseISO(dateStr).getDay() === 6;
 
     // Helper to calculate regular business hours based on company business-day policy.
     const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
@@ -176,12 +177,21 @@ export function generateTimesheetFromClockEntries(
         const entryRegularHours = calculateBusinessRegularHours(entry);
         const entryOTHours = entry.overtime_hours || 0;
         const entryNDHours = entry.total_night_diff_hours || 0;
-        regularHours += entryRegularHours;
-        // Only count overtime if employee is eligible for OT
-        // Note: OT hours from clock entries are already set from approved OT requests in payslip
-        // But we still add them here for consistency
-        if (eligibleForOT) {
-          overtimeHours += entryOTHours;
+        if (isSaturday) {
+          // Saturday is outside the required office schedule for now.
+          // Treat worked hours as OT instead of regular hours.
+          if (eligibleForOT) {
+            // Prefer DB OT hours when present; otherwise fallback to worked business-window hours.
+            overtimeHours += entryOTHours > 0 ? entryOTHours : entryRegularHours;
+          }
+        } else {
+          regularHours += entryRegularHours;
+          // Only count overtime if employee is eligible for OT
+          // Note: OT hours from clock entries are already set from approved OT requests in payslip
+          // But we still add them here for consistency
+          if (eligibleForOT) {
+            overtimeHours += entryOTHours;
+          }
         }
         // Night differential when caller passes eligibleForNightDiff (payslip: all employees)
         if (eligibleForNightDiff) {

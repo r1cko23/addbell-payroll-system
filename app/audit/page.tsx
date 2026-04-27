@@ -479,8 +479,8 @@ export default function AuditDashboardPage() {
               <CardTitle className="text-base">Filters</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <HStack gap="4" className="flex-wrap">
-                <div className="flex-1 min-w-[200px]">
+              <HStack gap="4" className="w-full flex-wrap">
+                <div className="w-full flex-1 sm:min-w-[200px]">
                   <Label htmlFor="search">Search</Label>
                   <Input
                     id="search"
@@ -491,7 +491,7 @@ export default function AuditDashboardPage() {
                 </div>
                 {activeTab === "audit" && (
                   <>
-                    <div className="min-w-[150px]">
+                    <div className="w-full sm:min-w-[150px] sm:w-auto">
                       <Label htmlFor="table-filter">Table</Label>
                       <Select
                         value={tableFilter}
@@ -513,7 +513,7 @@ export default function AuditDashboardPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="min-w-[150px]">
+                    <div className="w-full sm:min-w-[150px] sm:w-auto">
                       <Label htmlFor="action-filter">Action</Label>
                       <Select
                         value={actionFilter}

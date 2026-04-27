@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Clock, MapPin } from "lucide-react";
+import { H1, BodySmall } from "@/components/ui/typography";
 
 interface Assignment {
   id: string;
@@ -62,7 +63,11 @@ export default function EmployeePortalProjectTimePage() {
   if (!employeeId) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Project Assignments</h1>
+        <div className="section-label">
+          <span className="pulse-dot" />
+          Project assignments
+        </div>
+        <H1>Project Assignments</H1>
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             Employee session not found. Please log in again.
@@ -75,10 +80,14 @@ export default function EmployeePortalProjectTimePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Project Assignments</h1>
-        <p className="text-muted-foreground text-sm mt-1">
+        <div className="section-label mb-2">
+          <span className="pulse-dot" />
+          Project assignments
+        </div>
+        <H1>Project Assignments</H1>
+        <BodySmall className="mt-1 text-muted-foreground">
           Your working time is recorded based on where you time in and out. Projects below show where you’re assigned, but you no longer clock per project.
-        </p>
+        </BodySmall>
       </div>
 
       {loading ? (
@@ -98,7 +107,7 @@ export default function EmployeePortalProjectTimePage() {
             if (!project) return null;
             const isActive = project.status === "active";
             return (
-              <Card key={a.id}>
+              <Card key={a.id} className="border-border/80 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover">
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>

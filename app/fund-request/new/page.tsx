@@ -186,7 +186,7 @@ function getSubmissionWorkflow(
       management_approved_by: null,
       management_approved_at: null,
       workflowLabel:
-        "Addbell Technical Services, Inc. — Requester/Operations Manager → Purchasing Officer → Upper Management",
+        "Add-bell Technical Services, Inc. — Requester/Operations Manager → Purchasing Officer → Upper Management",
     };
   }
 
@@ -200,7 +200,7 @@ function getSubmissionWorkflow(
       management_approved_by: null,
       management_approved_at: null,
       workflowLabel:
-        "Addbell Technical Services, Inc. — Requester/Purchasing Officer → Upper Management",
+        "Add-bell Technical Services, Inc. — Requester/Purchasing Officer → Upper Management",
     };
   }
 
@@ -213,7 +213,7 @@ function getSubmissionWorkflow(
     management_approved_by: null,
     management_approved_at: null,
     workflowLabel:
-      "Addbell Technical Services, Inc. — Requester → Operations Manager → Purchasing Officer → Upper Management",
+      "Add-bell Technical Services, Inc. — Requester → Operations Manager → Purchasing Officer → Upper Management",
   };
 }
 
@@ -667,15 +667,19 @@ export default function NewFundRequestPage() {
   };
 
   const loading = (userLoading || resolvingLinkedEmployee) && !session?.employee?.id;
-  if (loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
+  if (loading) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;
 
   const formContent = (
     <div className="flex flex-col min-h-0 max-h-[calc(100vh-6rem)] w-full max-w-6xl gap-4 overflow-hidden">
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm shrink-0">
         ← Back to Fund Requests
       </Link>
-      <Card className="flex flex-1 flex-col min-h-0 overflow-hidden">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-primary/20 bg-card/95">
         <CardHeader className="pb-4 shrink-0">
+          <div className="section-label mb-2 w-fit">
+            <span className="pulse-dot" />
+            New request
+          </div>
           <CardTitle>Fund Request Form</CardTitle>
           <p className="text-sm text-muted-foreground">{workflow.workflowLabel}</p>
         </CardHeader>

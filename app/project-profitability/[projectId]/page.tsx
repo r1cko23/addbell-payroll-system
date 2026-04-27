@@ -239,7 +239,7 @@ export default function ProjectProfitabilityDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
             <h2 className="text-xl font-bold">{project?.project_name || "Project"}</h2>
@@ -299,7 +299,7 @@ export default function ProjectProfitabilityDetailPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="flex flex-wrap gap-2 border-b p-3">
-              <div className="w-[200px]">
+              <div className="w-full sm:w-[200px]">
                 <div className="mb-1 text-xs text-muted-foreground">Source Type</div>
                 <Select value={sourceTypeFilter} onValueChange={setSourceTypeFilter}>
                   <SelectTrigger>
@@ -314,7 +314,7 @@ export default function ProjectProfitabilityDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="w-[160px]">
+              <div className="w-full sm:w-[160px]">
                 <div className="mb-1 text-xs text-muted-foreground">Status</div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger>
@@ -337,8 +337,8 @@ export default function ProjectProfitabilityDetailPage() {
                 </Button>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[760px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
@@ -379,8 +379,8 @@ export default function ProjectProfitabilityDetailPage() {
             <CardTitle className="text-sm">Monthly Cost Trend</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[640px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Month</TableHead>

@@ -1932,10 +1932,10 @@ export default function BundyClockPage() {
 
   return (
     <VStack gap="8" className="w-full pb-10">
-      <Card className="w-full p-4 sm:p-6">
+      <Card className="w-full border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent-secondary/10 p-4 sm:p-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
-            <div className="text-4xl sm:text-6xl font-bold text-gray-800 font-mono min-h-[48px] sm:min-h-[56px] flex items-center justify-center">
+            <div className="font-mono text-4xl font-bold text-foreground sm:text-6xl min-h-[48px] sm:min-h-[56px] flex items-center justify-center">
               {currentTime && timeSyncReady
                 ? currentTime.toLocaleTimeString("en-US", {
                     hour: "2-digit",
@@ -1944,7 +1944,7 @@ export default function BundyClockPage() {
                   })
                 : "Syncing time..."}
             </div>
-            <div className="text-gray-500 min-h-[22px]">
+            <div className="text-muted-foreground min-h-[22px]">
               {currentTime && timeSyncReady
                 ? currentTime.toLocaleDateString("en-US", {
                     weekday: "long",
@@ -1969,10 +1969,10 @@ export default function BundyClockPage() {
                 <Icon name="CaretLeft" size={IconSizes.sm} />
               </Button>
               <VStack gap="0" align="center" className="min-w-0 flex-1 px-2">
-                <Caption className="text-center uppercase tracking-widest">
+                <Caption className="text-center">
                   Weekly Cutoff (Wed – Tue)
                 </Caption>
-                <p className="text-center text-sm font-semibold text-gray-800 sm:text-lg">
+                <p className="text-center text-sm font-semibold text-foreground sm:text-lg">
                   {formatWeeklyCutoffPeriod(periodStart, periodEnd)}
                 </p>
               </VStack>
@@ -1987,13 +1987,13 @@ export default function BundyClockPage() {
                 <Icon name="CaretRight" size={IconSizes.sm} />
               </Button>
             </div>
-            <div className="rounded-lg border bg-muted/20 p-3 text-sm text-gray-500 space-y-1 md:min-w-[220px]">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground space-y-1 md:min-w-[220px]">
               <div>
-                Allotted SIL Credits: <span className="font-semibold text-gray-900">5</span>
+                Allotted SIL Credits: <span className="font-semibold text-foreground">5</span>
               </div>
               <div>
                 Available SIL Credits:{" "}
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-foreground">
                   {silCredits !== null
                     ? `${silCredits.toFixed(1)} days`
                     : "Loading..."}
@@ -2003,7 +2003,7 @@ export default function BundyClockPage() {
           </div>
 
           {isRestDayToday ? (
-            <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <BodySmall className="font-semibold mb-1 flex items-center gap-2">
                 <Icon name="WarningCircle" size={IconSizes.sm} />
                 Rest Day Today
@@ -2054,7 +2054,7 @@ export default function BundyClockPage() {
                   <HStack
                     gap="2"
                     align="center"
-                    className="inline-flex text-sm text-green-600 bg-green-50 px-4 py-2 rounded-full border border-green-200"
+                    className="inline-flex rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm text-primary"
                   >
                     <Icon name="MapPin" size={IconSizes.sm} />
                     <span>
@@ -2064,7 +2064,7 @@ export default function BundyClockPage() {
                     </span>
                   </HStack>
                 ) : (
-                  <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-sm text-red-700">
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
                     <BodySmall className="font-semibold mb-1">
                       Location not allowed
                     </BodySmall>
@@ -2078,14 +2078,14 @@ export default function BundyClockPage() {
                 <HStack
                   gap="2"
                   align="center"
-                  className="inline-flex text-sm text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full border border-emerald-200"
+                  className="inline-flex rounded-full border border-primary/30 bg-primary/5 px-4 py-2 text-sm text-primary"
                 >
                   <Icon name="MapPin" size={IconSizes.sm} />
                   <span>Validating location...</span>
                 </HStack>
               )
             ) : (
-              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-sm text-red-700">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
                 <BodySmall className="font-semibold mb-1">
                   Location required
                 </BodySmall>
@@ -2101,14 +2101,14 @@ export default function BundyClockPage() {
       {/* Today's detailed time in / out list */}
       <CardSection title="Today’s Time In / Out">
         {todaySessions.length === 0 ? (
-          <BodySmall className="text-gray-500">
+          <BodySmall className="text-muted-foreground">
             No time in or time out recorded yet for today.
           </BodySmall>
         ) : (
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="-mx-4 overflow-x-auto rounded-xl border border-border/80 bg-background/80 px-4 sm:mx-0 sm:px-0">
             <table className="w-full min-w-0 table-fixed border-collapse text-xs">
               <thead>
-                <tr className="border-b bg-gray-50">
+                <tr className="border-b bg-muted/40">
                   <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">
                     #
                   </th>
@@ -2125,7 +2125,7 @@ export default function BundyClockPage() {
               </thead>
               <tbody>
                 {todaySessions.map((entry, index) => (
-                  <tr key={entry.id} className="border-b hover:bg-gray-50/50">
+                  <tr key={entry.id} className="border-b border-border/70 hover:bg-primary/5">
                     <td className="px-2 py-1.5 text-xs">{index + 1}</td>
                     <td className="px-2 py-1.5 text-xs">
                       {formatDate(new Date(entry.clock_in_time), "hh:mm a")}
@@ -2150,10 +2150,10 @@ export default function BundyClockPage() {
       <div className="hidden md:grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
         {/* Time Attendance Table - Left Side (Bigger) */}
         <CardSection title="Time Attendance">
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="-mx-4 overflow-x-auto rounded-xl border border-border/80 bg-background/80 px-4 sm:mx-0 sm:px-0">
             <table className="w-full min-w-0 table-fixed border-collapse text-xs">
               <thead>
-                <tr className="border-b bg-gray-50">
+                <tr className="border-b bg-muted/40">
                   <th className="px-2 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide">
                     DATE
                   </th>
@@ -2191,7 +2191,7 @@ export default function BundyClockPage() {
                   <tr>
                     <td
                       colSpan={9}
-                      className="text-center py-6 text-gray-500 text-xs"
+                      className="py-6 text-center text-xs text-muted-foreground"
                     >
                       Loading attendance data...
                     </td>
@@ -2228,8 +2228,8 @@ export default function BundyClockPage() {
                       <tr
                         key={day.date}
                         className={`border-b ${
-                          isWeekend ? "bg-green-50/50" : ""
-                        } hover:bg-gray-50/50`}
+                          isWeekend ? "bg-primary/5" : ""
+                        } hover:bg-primary/5`}
                       >
                         <td className="px-2 py-1.5 text-xs">
                           {formatDate(parseISO(day.date), "MMM dd")}
@@ -2304,7 +2304,7 @@ export default function BundyClockPage() {
                     .reduce((sum, d) => sum + d.nd, 0);
 
                   return (
-                    <tr className="border-t-2 font-semibold bg-gray-50">
+                    <tr className="border-t-2 border-primary/30 bg-primary/5 font-semibold">
                       <td colSpan={5} className="px-2 py-1.5 text-xs">
                         Days Work (Wed–Tue): {Math.round(daysWork)}
                       </td>

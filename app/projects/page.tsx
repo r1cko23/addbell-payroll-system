@@ -160,7 +160,7 @@ export default function ProjectsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
@@ -221,8 +221,8 @@ export default function ProjectsPage() {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Search by code, name, or client..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
           </div>
@@ -248,8 +248,8 @@ export default function ProjectsPage() {
                 {searchTerm || statusFilter !== "all" ? "No projects match your filters." : "No projects yet."}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+          <div className="w-full max-w-full overflow-x-auto">
+            <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="px-4 py-3 font-medium">Code</th>

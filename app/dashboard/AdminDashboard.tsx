@@ -168,7 +168,7 @@ export default function AdminDashboard() {
 
   return (
     <VStack gap="8" align="stretch" className="w-full pb-16">
-      <Card className="border-primary/20 bg-gradient-to-r from-blue-50 via-background to-emerald-50">
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-background to-accent-secondary/10">
         <CardContent className="p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
@@ -178,10 +178,10 @@ export default function AdminDashboard() {
                 Track workforce, active projects, pending approvals, and overall project value in one place.
               </BodySmall>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="bg-amber-100 text-amber-900 border-amber-200">
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} finance actions
                 </Badge>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {pendingLeaveApprovals + pendingOvertimeApprovals + pendingFailureToLogApprovals} people approvals
                 </Badge>
                 {lastUpdatedAt ? (
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-6">
+        <Card className="border-primary/20 bg-primary/10 xl:col-span-6">
           <CardHeader className="pb-2">
             <CardDescription>Today&apos;s operating focus</CardDescription>
             <CardTitle className="text-xl">
@@ -248,7 +248,7 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-2">
+        <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>Leave approvals</CardDescription>
             <CardTitle className="text-2xl">{pendingLeaveApprovals}</CardTitle>
@@ -259,7 +259,7 @@ export default function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-2">
+        <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>OT approvals</CardDescription>
             <CardTitle className="text-2xl">{pendingOvertimeApprovals}</CardTitle>
@@ -270,7 +270,7 @@ export default function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-blue-50/50 xl:col-span-2">
+        <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>Failure-to-log approvals</CardDescription>
             <CardTitle className="text-2xl">{pendingFailureToLogApprovals}</CardTitle>
@@ -285,7 +285,7 @@ export default function AdminDashboard() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Performance snapshot</h2>
+          <h2 className="font-display text-3xl font-normal leading-tight">Performance snapshot</h2>
           <BodySmall className="text-muted-foreground">
             Core business indicators and pending actions across finance, projects, and workforce.
           </BodySmall>
@@ -363,8 +363,8 @@ export default function AdminDashboard() {
                     <TableCell className="text-center">
                       {p.progress_percentage != null ? (
                         <div className="flex items-center gap-2 justify-center">
-                          <div className="w-16 bg-slate-200 rounded-full h-2">
-                            <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${Math.min(100, Number(p.progress_percentage))}%` }} />
+                          <div className="h-2 w-16 rounded-full bg-muted">
+                            <div className="gradient-accent h-2 rounded-full" style={{ width: `${Math.min(100, Number(p.progress_percentage))}%` }} />
                           </div>
                           <span className="text-xs text-muted-foreground">{Number(p.progress_percentage)}%</span>
                         </div>

@@ -109,7 +109,7 @@ export default function FundRequestListPage() {
   ]);
 
   const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
-  if (loadingState) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
+  if (loadingState) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;
 
   const canCreateFromDashboard =
     normalizedRole === 'operations_manager' ||
@@ -135,7 +135,11 @@ export default function FundRequestListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Fund Requests</h1>
+          <div className="section-label mb-2">
+            <span className="pulse-dot" />
+            Request tracker
+          </div>
+          <h1 className="font-display text-4xl font-normal leading-tight tracking-tight">Fund Requests</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Request funds for materials, subcontractor payment, project funds, or liquidation.
           </p>
@@ -175,7 +179,7 @@ export default function FundRequestListPage() {
         </Select>
       </div>
 
-      <Card>
+      <Card className="border-border/80 bg-card/95">
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">Loading...</div>
@@ -198,7 +202,7 @@ export default function FundRequestListPage() {
             <>
               <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="bg-muted/50 border-b">
+                <thead className="border-b bg-muted/40">
                   <tr>
                     <th className="px-4 py-3 font-medium">Date</th>
                     <th className="px-4 py-3 font-medium">Project</th>
@@ -211,7 +215,7 @@ export default function FundRequestListPage() {
                 </thead>
                 <tbody>
                   {filteredRows.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <tr key={r.id} className="border-b last:border-0 hover:bg-primary/5">
                       <td className="px-4 py-3 whitespace-nowrap">{format(new Date(r.request_date), 'MMM d, yyyy')}</td>
                       <td className="px-4 py-3 max-w-[180px] truncate">
                         {r.projects?.name || r.project_title || '—'}
@@ -230,7 +234,7 @@ export default function FundRequestListPage() {
                             : r.status === 'rejected' ? 'destructive'
                             : 'secondary'
                           }
-                          className="text-xs whitespace-nowrap"
+                          className="whitespace-nowrap text-xs"
                         >
                           {STATUS_LABELS[r.status] ?? r.status}
                         </Badge>

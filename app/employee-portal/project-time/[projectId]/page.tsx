@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, CheckCircle } from "lucide-react";
+import { H1, BodySmall } from "@/components/ui/typography";
 
 interface Project {
   id: string;
@@ -133,11 +134,15 @@ export default function EmployeePortalProjectClockPage() {
         <Link href="/employee-portal/project-time">
           <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight mt-2">Project Details</h1>
-        <p className="text-muted-foreground text-sm">{project.name} ({project.code})</p>
+        <div className="section-label mt-2 mb-2">
+          <span className="pulse-dot" />
+          Project details
+        </div>
+        <H1>Project Details</H1>
+        <BodySmall className="text-muted-foreground">{project.name} ({project.code})</BodySmall>
       </div>
 
-      <Card>
+      <Card className="border-border/80 bg-card/95">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" />Time Tracking</CardTitle>
         </CardHeader>

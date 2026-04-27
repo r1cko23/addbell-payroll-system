@@ -727,6 +727,10 @@ export default function LeaveRequestPage() {
     <>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
+          <div className="section-label">
+            <span className="pulse-dot" />
+            Leave management
+          </div>
           <H1>Leave request</H1>
           <BodySmall className="text-muted-foreground">
             Review balances, select dates, and file leave for {employee.full_name}.
@@ -735,7 +739,7 @@ export default function LeaveRequestPage() {
 
         {/* Stats */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
-          <Card className="w-full h-full border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
@@ -748,13 +752,13 @@ export default function LeaveRequestPage() {
                     Pending
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-amber-600">
+                <div className="text-3xl font-bold text-primary">
                   {pendingCount}
                 </div>
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
@@ -767,13 +771,13 @@ export default function LeaveRequestPage() {
                     Approved
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-emerald-600">
+                <div className="text-3xl font-bold text-primary">
                   {approvedCount}
                 </div>
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
@@ -786,14 +790,14 @@ export default function LeaveRequestPage() {
                     Allotted SIL Credits
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-blue-600">5</div>
+                <div className="text-3xl font-bold text-primary">5</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   Available: {silCredits !== null ? silCredits.toFixed(2) : "—"}
                 </div>
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-indigo-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
@@ -806,7 +810,7 @@ export default function LeaveRequestPage() {
                     Available SIL Credits
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-indigo-600">
+                <div className="text-3xl font-bold text-primary">
                   {silCredits !== null ? silCredits.toFixed(2) : "—"}
                 </div>
               </VStack>
@@ -905,7 +909,7 @@ export default function LeaveRequestPage() {
                       </option>
                     ))}
                   </select>
-                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
                     <strong>Notice:</strong>{" "}
                     {LEAVE_SUBTYPE_OPTIONS.find((option) => option.value === leaveSubtype)
                       ?.notice ?? "Please follow the leave filing notice policy."}
@@ -927,11 +931,11 @@ export default function LeaveRequestPage() {
 
                   {/* Half-day option for SIL and LWOP */}
                   {(leaveType === "SIL" || leaveType === "LWOP") && selectedDates.length > 0 && (
-                    <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
-                      <Label className="text-sm font-medium text-amber-900 mb-2 block">
+                    <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+                      <Label className="mb-2 block text-sm font-medium text-primary">
                         Half-Day Leave Options
                       </Label>
-                      <p className="text-xs text-amber-700 mb-3">
+                      <p className="mb-3 text-xs text-primary/80">
                         {leaveType === "SIL"
                           ? "Mark dates as half-day to consume only 0.5 SIL credits per day (4 hours instead of 8 hours)."
                           : "Mark dates as half-day for 0.5 day (4 hours) unpaid leave per date."}
@@ -945,7 +949,7 @@ export default function LeaveRequestPage() {
                           .map((dateStr) => (
                             <label
                               key={dateStr}
-                              className="flex items-center space-x-2 text-sm cursor-pointer hover:bg-amber-100 p-2 rounded"
+                              className="flex cursor-pointer items-center space-x-2 rounded p-2 text-sm hover:bg-primary/10"
                             >
                               <input
                                 type="checkbox"
@@ -959,12 +963,12 @@ export default function LeaveRequestPage() {
                                   }
                                   setHalfDayDates(newHalfDayDates);
                                 }}
-                                className="h-4 w-4 text-amber-600 focus:ring-amber-500 border-amber-300 rounded"
+                                className="h-4 w-4 rounded border-primary/40 text-primary focus:ring-primary"
                               />
-                              <span className="text-amber-900">
+                              <span className="text-primary">
                                 {format(new Date(dateStr), "MMM dd, yyyy (EEE)")}
                                 {halfDayDates.has(dateStr) && (
-                                  <Badge className="ml-2 bg-amber-200 text-amber-900">
+                                  <Badge className="ml-2 border-primary/30 bg-primary/10 text-primary">
                                     Half-Day
                                   </Badge>
                                 )}
@@ -977,12 +981,12 @@ export default function LeaveRequestPage() {
                 </div>
 
                 {calculatedDays > 0 && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                    <div className="text-sm font-semibold text-blue-900">
+                  <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+                    <div className="text-sm font-semibold text-primary">
                       Calculated Days:{" "}
                       <span className="text-lg">{calculatedDays.toFixed(2)}</span>
                       {selectedDates.length > 0 && (
-                        <span className="text-xs font-normal text-blue-700 ml-2">
+                        <span className="ml-2 text-xs font-normal text-primary/80">
                           ({selectedDates.length} date
                           {selectedDates.length !== 1 ? "s" : ""} selected
                           {halfDayDates.size > 0 && `, ${halfDayDates.size} half-day`})
@@ -990,7 +994,7 @@ export default function LeaveRequestPage() {
                       )}
                     </div>
                     {leaveType === "SIL" && (
-                      <div className="text-xs text-blue-700 mt-1">
+                      <div className="mt-1 text-xs text-primary/80">
                         SIL Credits Required: {calculatedDays.toFixed(2)} credits
                       </div>
                     )}
@@ -1036,7 +1040,7 @@ export default function LeaveRequestPage() {
                     <HStack
                       gap="2"
                       align="center"
-                      className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2"
+                      className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary"
                     >
                       <Icon name="Paperclip" size={IconSizes.sm} />
                       <span>{supportingDoc.name}</span>

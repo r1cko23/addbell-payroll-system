@@ -407,6 +407,10 @@ export default function OvertimePage() {
   return (
     <VStack gap="6" className="w-full">
       <VStack gap="2" align="start">
+        <div className="section-label">
+          <span className="pulse-dot" />
+          Overtime workflow
+        </div>
         <H1>OT filing</H1>
         <BodySmall className="text-muted-foreground">
           Submit overtime hours, attach supporting documents, and track request status.
@@ -425,7 +429,7 @@ export default function OvertimePage() {
             File overtime request for approval.
           </BodySmall>
           {requiresOtPunch && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+            <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
               OT Punch Workflow is enabled for your account. For each OT filing, record OT Time
               In and OT Time Out so HR can approve.
             </div>
@@ -477,7 +481,7 @@ export default function OvertimePage() {
                     id="total-hours"
                     value={totalHours.toFixed(2)}
                     readOnly
-                    className="bg-muted"
+                    className="bg-muted/70"
                   />
                 </div>
               </div>
@@ -519,8 +523,8 @@ export default function OvertimePage() {
               })()}
 
               {totalHours > 0 && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <div className="text-sm font-semibold text-blue-900">
+                <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
+                  <div className="text-sm font-semibold text-primary">
                     Calculated Hours:{" "}
                     <span className="text-lg">{totalHours.toFixed(2)}</span>
                   </div>
@@ -577,7 +581,7 @@ export default function OvertimePage() {
                   <HStack
                     gap="2"
                     align="center"
-                    className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2"
+                    className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary"
                   >
                     <Icon name="Paperclip" size={IconSizes.sm} />
                     <span>{supportingDoc.name}</span>
@@ -680,11 +684,11 @@ export default function OvertimePage() {
                           </span>
                           <Badge
                             variant="outline"
-                            className="bg-emerald-50 text-emerald-800 border-emerald-200"
+                            className="border-primary/30 bg-primary/5 text-primary"
                           >
                             OT
                           </Badge>
-                          <span className="text-lg font-bold text-emerald-600">
+                          <span className="text-lg font-bold text-primary">
                             {req.total_hours}h
                           </span>
                         </div>
@@ -704,13 +708,13 @@ export default function OvertimePage() {
                         )}
 
                         {requiresOtPunch && req.status === "pending" && (
-                          <div className="mt-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                          <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3">
                             <HStack
                               gap="2"
                               align="center"
                               className="flex-wrap justify-between"
                             >
-                              <BodySmall className="font-semibold text-blue-900">
+                              <BodySmall className="font-semibold text-primary">
                                 OT Punch Tracking
                               </BodySmall>
                               {otPunchSummariesByRequest[req.id]?.has_completed_pair ? (

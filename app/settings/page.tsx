@@ -489,8 +489,8 @@ export default function SettingsPage() {
                 Add User
               </Button>
             </HStack>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+              <table className="w-full min-w-[980px] divide-y divide-border/70">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">

@@ -253,6 +253,10 @@ export default function EmployeeInfoPage() {
   return (
     <VStack gap="6" className="w-full">
       <VStack gap="2" align="start">
+        <div className="section-label">
+          <span className="pulse-dot" />
+          Employee profile
+        </div>
         <H1>Employee information</H1>
         <BodySmall>
           Review the profile details HR has on file and update your portal password.
@@ -465,19 +469,19 @@ export default function EmployeeInfoPage() {
         )}
       </CardSection>
 
-      <Card className="w-full p-5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 shadow-sm">
+      <Card className="w-full border-primary/20 bg-primary/5 p-5 shadow-sm">
         <VStack gap="2" align="start">
           <HStack gap="2" align="center">
             <Icon
               name="Info"
               size={IconSizes.sm}
-              className="text-emerald-700"
+              className="text-primary"
             />
-            <BodySmall className="font-semibold text-emerald-900">
+            <BodySmall className="font-semibold text-primary">
               Need to update something?
             </BodySmall>
           </HStack>
-          <BodySmall className="text-emerald-800 pl-6">
+          <BodySmall className="pl-6 text-primary/85">
             Contact your HR representative to request changes to your profile.
           </BodySmall>
         </VStack>

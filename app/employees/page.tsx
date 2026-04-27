@@ -529,7 +529,7 @@ export default function EmployeesPage() {
       let yPos = 15;
 
       try {
-        const logoResponse = await fetch("/addbell-logo.jpg");
+        const logoResponse = await fetch("/add-bell-logo-new.png");
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.blob();
           const logoDataUrl = await new Promise<string>((resolve) => {
@@ -539,14 +539,14 @@ export default function EmployeesPage() {
           });
           const logoWidth = 50;
           const logoHeight = (logoWidth * 185) / 500;
-          doc.addImage(logoDataUrl, "JPEG", 15, yPos, logoWidth, logoHeight);
+          doc.addImage(logoDataUrl, "PNG", 15, yPos, logoWidth, logoHeight);
           yPos += logoHeight + 8;
         }
       } catch { /* continue without logo */ }
 
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
-      doc.text("ADDBELL TECHNICAL SERVICE INC.", 15, yPos);
+      doc.text("ADD-BELL TECHNICAL SERVICES, INC.", 15, yPos);
       yPos += 8;
 
       doc.setFontSize(14);
@@ -606,8 +606,8 @@ export default function EmployeesPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full pb-24">
-        <HStack justify="between" align="center">
+      <VStack gap="8" className="w-full min-w-0 pb-24">
+        <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row sm:gap-4">
           <VStack gap="2" align="start">
             <H1>Employee Management</H1>
             <BodySmall>View, add, and update employee records.</BodySmall>
@@ -618,10 +618,10 @@ export default function EmployeesPage() {
           </Button>
         </HStack>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <CardSection title="Directory" description="Search, filter, and manage employees.">
-            <HStack justify="between" align="end" gap="4">
-              <div className="relative flex-1 max-w-md">
+            <HStack justify="between" align="end" gap="4" className="w-full flex-col sm:flex-row sm:items-end">
+              <div className="relative w-full flex-1 sm:max-w-md">
                 <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
                 <Input
                   type="search"
@@ -631,9 +631,9 @@ export default function EmployeesPage() {
                   className="pl-9"
                 />
               </div>
-              <HStack gap="2" align="center">
+              <HStack gap="2" align="center" className="w-full flex-wrap justify-start sm:w-auto sm:justify-end">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[130px] sm:w-[140px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
@@ -661,20 +661,20 @@ export default function EmployeesPage() {
                 <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border">
-                <Table className="min-w-full">
+              <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+                <Table className="w-full min-w-[820px] 2xl:min-w-full">
                   <TableHeader>
                     <TableRow className="h-10">
-                      <TableHead className="w-[120px] whitespace-nowrap py-2 text-xs font-semibold">Company ID</TableHead>
-                      <TableHead className="w-[100px] whitespace-nowrap py-2 text-xs font-semibold">Time clock</TableHead>
-                      <TableHead className="min-w-[200px] py-2 text-xs font-semibold">Employee</TableHead>
-                      <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Department</TableHead>
-                      <TableHead className="min-w-[140px] py-2 text-xs font-semibold">Position</TableHead>
-                      <TableHead className="min-w-[120px] py-2 text-xs font-semibold">Approval Group</TableHead>
-                      <TableHead className="min-w-[100px] py-2 text-xs font-semibold">Type</TableHead>
-                      <TableHead className="min-w-[120px] py-2 text-xs font-semibold">Shift</TableHead>
-                      <TableHead className="w-[90px] whitespace-nowrap py-2 text-xs font-semibold">Status</TableHead>
-                      <TableHead className="text-right w-[160px] whitespace-nowrap py-2 text-xs font-semibold">Actions</TableHead>
+                      <TableHead className="w-[92px] py-2 text-xs font-semibold">Company ID</TableHead>
+                      <TableHead className="w-[78px] py-2 text-xs font-semibold">Time clock</TableHead>
+                      <TableHead className="min-w-[160px] py-2 text-xs font-semibold">Employee</TableHead>
+                      <TableHead className="hidden min-w-[110px] py-2 text-xs font-semibold lg:table-cell">Department</TableHead>
+                      <TableHead className="min-w-[110px] py-2 text-xs font-semibold">Position</TableHead>
+                      <TableHead className="hidden min-w-[110px] py-2 text-xs font-semibold 2xl:table-cell">Approval Group</TableHead>
+                      <TableHead className="min-w-[90px] py-2 text-xs font-semibold">Type</TableHead>
+                      <TableHead className="hidden min-w-[100px] py-2 text-xs font-semibold 2xl:table-cell">Shift</TableHead>
+                      <TableHead className="w-[82px] py-2 text-xs font-semibold">Status</TableHead>
+                      <TableHead className="w-[130px] py-2 text-right text-xs font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -687,13 +687,13 @@ export default function EmployeesPage() {
                     ) : (
                       filteredEmployees.map((employee) => (
                         <TableRow key={employee.id} className="h-auto hover:bg-muted/50">
-                          <TableCell className="font-semibold font-mono whitespace-nowrap py-2 text-sm">
+                          <TableCell className="py-2 font-mono text-sm font-semibold">
                             {employee.company_id_no}
                           </TableCell>
-                          <TableCell className="font-mono text-muted-foreground whitespace-nowrap py-2 text-sm">
+                          <TableCell className="py-2 font-mono text-sm text-muted-foreground">
                             {employee.employee_code}
                           </TableCell>
-                          <TableCell className="min-w-[200px] py-2">
+                          <TableCell className="min-w-[160px] py-2">
                             <Link href={`/employees/${employee.id}`} className="hover:underline text-primary font-medium text-sm">
                               {fullName(employee)}
                             </Link>
@@ -701,13 +701,13 @@ export default function EmployeesPage() {
                               <p className="text-xs text-muted-foreground mt-0.5">{employee.email}</p>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm py-2">
+                          <TableCell className="hidden py-2 text-sm lg:table-cell">
                             {employee.departments?.name || <span className="text-muted-foreground">—</span>}
                           </TableCell>
-                          <TableCell className="text-sm py-2">
+                          <TableCell className="py-2 text-sm">
                             {employee.positions ? (
                               <div>
-                                <span>{employee.positions.name}</span>
+                                <span className="break-words">{employee.positions.name}</span>
                                 {employee.positions.job_grade && (
                                   <Badge variant="outline" className="ml-2 text-[10px]">{employee.positions.job_grade}</Badge>
                                 )}
@@ -716,15 +716,15 @@ export default function EmployeesPage() {
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm py-2">
+                          <TableCell className="hidden py-2 text-sm 2xl:table-cell">
                             {(employee.overtime_group_id
                               ? overtimeGroupNameById[employee.overtime_group_id]
                               : null) || (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm py-2 capitalize">{employee.employment_type}</TableCell>
-                          <TableCell className="text-sm py-2 whitespace-nowrap">
+                          <TableCell className="py-2 text-sm capitalize">{employee.employment_type}</TableCell>
+                          <TableCell className="hidden py-2 text-sm 2xl:table-cell">
                             {employee.shift_start_time && employee.shift_end_time ? (
                               `${String(employee.shift_start_time).slice(0, 5)} - ${String(
                                 employee.shift_end_time
@@ -738,16 +738,16 @@ export default function EmployeesPage() {
                               variant="outline"
                               className={`text-xs capitalize ${
                                 employee.employment_status === "active"
-                                  ? "bg-emerald-100 text-emerald-900 border-emerald-200"
+                                  ? "border-primary/25 bg-primary/10 text-primary"
                                   : employee.employment_status === "terminated"
-                                  ? "bg-red-100 text-red-900 border-red-200"
-                                  : "bg-slate-100 text-slate-800 border-slate-200"
+                                  ? "border-destructive/30 bg-destructive/10 text-destructive"
+                                  : "border-border bg-muted/70 text-foreground"
                               }`}
                             >
                               {employee.employment_status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right w-[160px] py-2">
+                          <TableCell className="w-[130px] py-2 text-right">
                             <HStack gap="2" justify="end" className="whitespace-nowrap">
                               <Link href={`/employees/${employee.id}`}>
                                 <Button

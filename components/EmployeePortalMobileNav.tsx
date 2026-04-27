@@ -68,7 +68,7 @@ export function EmployeePortalMobileNav() {
   return (
     <nav
       aria-label="Employee portal navigation"
-      className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background/90 backdrop-blur md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/80 bg-background/90 backdrop-blur md:hidden"
     >
       <div className="flex items-stretch gap-1 px-2 py-2 overflow-x-auto">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -80,10 +80,10 @@ export function EmployeePortalMobileNav() {
               key={href}
               href={href}
               className={cn(
-                "flex min-w-[72px] flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-colors",
+                "flex min-w-[72px] flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all duration-200",
                 isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+                  ? "bg-gradient-to-r from-primary/15 to-accent-secondary/10 text-primary"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
               )}
               aria-current={isActive ? "page" : undefined}
             >

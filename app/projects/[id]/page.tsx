@@ -228,9 +228,9 @@ export default function ProjectDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <div className="min-w-0 space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
             <Link href="/projects"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button></Link>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
@@ -293,7 +293,8 @@ export default function ProjectDetailPage() {
               ))}
             </div>
             <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
+              <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[720px]"><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests linked to this project</TableCell></TableRow> :
                   fundRequests.map((request) => (
                     <TableRow key={request.id}>
@@ -304,6 +305,7 @@ export default function ProjectDetailPage() {
                       <TableCell><Link href={`/fund-request/${request.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
                     </TableRow>
                   ))}</TableBody></Table>
+              </div>
             </CardContent></Card>
           </TabsContent>
 
@@ -314,7 +316,8 @@ export default function ProjectDetailPage() {
                 <Button asChild><Link href="/fund-request/new"><Plus className="h-4 w-4 mr-2" />New Request</Link></Button>
               </div>
               <Card><CardContent className="p-0">
-                <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+                <div className="w-full max-w-full overflow-x-auto">
+                <Table className="w-full min-w-[720px]"><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
                   <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests for this project</TableCell></TableRow> :
                     fundRequests.map((fr) => (
                       <TableRow key={fr.id}>
@@ -325,6 +328,7 @@ export default function ProjectDetailPage() {
                         <TableCell><Link href={`/fund-request/${fr.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
                       </TableRow>
                     ))}</TableBody></Table>
+                </div>
               </CardContent></Card>
             </TabsContent>
           ) : null}
@@ -337,7 +341,8 @@ export default function ProjectDetailPage() {
               ) : null}
             </div>
             <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>PO Number</TableHead><TableHead>Date</TableHead><TableHead>Vendor</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+              <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[760px]"><TableHeader><TableRow><TableHead>PO Number</TableHead><TableHead>Date</TableHead><TableHead>Vendor</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
                 <TableBody>{purchaseOrders.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No purchase orders for this project</TableCell></TableRow> :
                   purchaseOrders.map((po) => (
                     <TableRow key={po.id}>
@@ -349,6 +354,7 @@ export default function ProjectDetailPage() {
                       <TableCell><Link href={`/purchase-order/${po.id}`} className="text-primary text-sm hover:underline">View</Link></TableCell>
                     </TableRow>
                   ))}</TableBody></Table>
+              </div>
             </CardContent></Card>
           </TabsContent>
 
@@ -389,7 +395,8 @@ export default function ProjectDetailPage() {
               )}
             </div>
             <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Role</TableHead><TableHead>Start Date</TableHead><TableHead>End Date</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+              <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[720px]"><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Role</TableHead><TableHead>Start Date</TableHead><TableHead>End Date</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                 <TableBody>{assignments.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No employees assigned</TableCell></TableRow> :
                   assignments.map((a) => (
                     <TableRow key={a.id}>
@@ -400,6 +407,7 @@ export default function ProjectDetailPage() {
                       <TableCell><Badge variant={a.is_active ? "default" : "secondary"}>{a.is_active ? "Active" : "Inactive"}</Badge></TableCell>
                     </TableRow>
                   ))}</TableBody></Table>
+              </div>
             </CardContent></Card>
           </TabsContent>
 
@@ -425,7 +433,8 @@ export default function ProjectDetailPage() {
               )}
             </div>
             <Card><CardContent className="p-0">
-              <Table><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Progress</TableHead><TableHead>Milestone</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
+              <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[680px]"><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Progress</TableHead><TableHead>Milestone</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
                 <TableBody>{progressHistory.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No progress updates</TableCell></TableRow> :
                   progressHistory.map((p) => (
                     <TableRow key={p.id}>
@@ -435,6 +444,7 @@ export default function ProjectDetailPage() {
                       <TableCell>{p.notes || "—"}</TableCell>
                     </TableRow>
                   ))}</TableBody></Table>
+              </div>
             </CardContent></Card>
           </TabsContent>
         </Tabs>

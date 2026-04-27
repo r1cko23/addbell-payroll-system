@@ -161,10 +161,10 @@ const NavItem = memo(function NavItem({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
         isActive
-          ? "bg-primary/10 text-primary shadow-sm"
-          : "text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground"
+          ? "bg-gradient-to-r from-primary/15 to-accent-secondary/10 text-primary shadow-card"
+          : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
       )}
     >
       <Icon className="h-4 w-4" />
@@ -277,7 +277,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex h-full flex-col w-64 border-r bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80 flex-shrink-0",
+        "flex h-full w-64 flex-shrink-0 flex-col border-r border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80",
         className
       )}
       style={{
@@ -290,19 +290,19 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       }}
       data-testid="sidebar-container"
     >
-      <div className="border-b p-4">
+      <div className="border-b border-border/80 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-3">
             <img
-              src="/addbell-logo.jpg"
-              alt="Addbell Technical Services, Inc."
+              src="/add-bell-logo-new.png"
+              alt="Add-bell Technical Services, Inc."
               className="h-12 w-auto object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
               }}
             />
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-foreground">Admin workspace</p>
+              <p className="font-mono text-xs uppercase tracking-[0.14em] text-primary">Admin workspace</p>
               <p className="text-xs text-muted-foreground">
                 Payroll, approvals, projects, and workforce operations.
               </p>
@@ -358,7 +358,7 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.label)}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent/70 transition"
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-foreground transition-all duration-200 hover:bg-primary/5"
                   aria-expanded={isOpen}
                 >
                   <span className="flex items-center gap-2">
@@ -396,10 +396,10 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t">
-        <div className="rounded-xl border bg-muted/30 p-3 text-center">
+      <div className="border-t border-border/80 p-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
           <p className="text-xs text-muted-foreground mb-2">
-            © {new Date().getFullYear()} Addbell Technical Services, Inc.
+            © {new Date().getFullYear()} Add-bell Technical Services, Inc.
           </p>
           <a
             href="/privacy"

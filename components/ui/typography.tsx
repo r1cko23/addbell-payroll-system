@@ -10,7 +10,10 @@ interface TypographyProps extends HTMLAttributes<HTMLElement> {
 export function H1({ children, className, style, ...props }: TypographyProps) {
   return (
     <h1
-      className={cn("text-3xl font-bold tracking-tight", className)}
+      className={cn(
+        "font-display text-4xl font-bold leading-tight tracking-tight md:text-5xl",
+        className
+      )}
       style={style}
       {...props}
     >
@@ -22,7 +25,10 @@ export function H1({ children, className, style, ...props }: TypographyProps) {
 export function H2({ children, className, style, ...props }: TypographyProps) {
   return (
     <h2
-      className={cn("text-2xl font-semibold tracking-tight", className)}
+      className={cn(
+        "font-display text-3xl font-semibold leading-tight tracking-tight md:text-4xl",
+        className
+      )}
       style={style}
       {...props}
     >
@@ -97,7 +103,7 @@ export function Label({
 }: TypographyProps) {
   return (
     <label
-      className={cn("text-sm font-medium", className)}
+      className={cn("text-sm font-medium tracking-wide", className)}
       style={style}
       {...props}
     >
@@ -114,7 +120,7 @@ export function Caption({
 }: TypographyProps) {
   return (
     <span
-      className={cn("text-xs text-muted-foreground", className)}
+      className={cn("font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground", className)}
       style={style}
       {...props}
     >

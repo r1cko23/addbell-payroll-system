@@ -940,8 +940,8 @@ export default function LoansPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="min-w-0 space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <H1>Loan Management</H1>
           <Button onClick={openAddModal}>
             <Icon name="Plus" className="mr-2 h-4 w-4" />
@@ -955,15 +955,15 @@ export default function LoansPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-3">
                 <Input
                   placeholder="Search by employee name or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
+                  className="w-full sm:max-w-sm"
                 />
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[160px] sm:w-[180px]">
                     <SelectValue placeholder="Filter by type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -982,7 +982,7 @@ export default function LoansPage() {
                   </SelectContent>
                 </Select>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[160px] sm:w-[180px]">
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1002,8 +1002,8 @@ export default function LoansPage() {
                   No loans found
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+                  <Table className="w-full min-w-[980px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Employee</TableHead>
@@ -1748,8 +1748,8 @@ export default function LoansPage() {
                 ) : (
                   <div className="space-y-2">
                     <H3 className="text-lg">Payment History</H3>
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
+                    <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+                      <Table className="w-full min-w-[680px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>Period</TableHead>
@@ -1780,7 +1780,7 @@ export default function LoansPage() {
                               <TableCell className="font-mono text-sm">
                                 {payment.payslip_number}
                               </TableCell>
-                              <TableCell className="text-right font-semibold text-green-600">
+                              <TableCell className="text-right font-semibold text-primary">
                                 {formatCurrency(payment.payment_amount)}
                               </TableCell>
                               <TableCell className="text-right font-semibold">
@@ -1803,7 +1803,7 @@ export default function LoansPage() {
                       </BodySmall>
                       <BodySmall className="text-muted-foreground">
                         Total Paid:{" "}
-                        <span className="font-semibold text-green-600">
+                        <span className="font-semibold text-primary">
                           {formatCurrency(
                             selectedLoanForHistory.original_balance -
                               selectedLoanForHistory.current_balance

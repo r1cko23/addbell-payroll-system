@@ -184,7 +184,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 xl:px-8">
         <div className="flex items-center gap-3">
         {onMenuClick ? (
@@ -201,7 +201,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="lg:hidden" aria-hidden="true" />
         )}
           <div className="hidden min-w-0 lg:block">
-            <p className="text-sm font-medium text-foreground">Staff workspace</p>
+            <p className="font-mono text-xs uppercase tracking-[0.14em] text-primary">Staff workspace</p>
             <p className="text-xs text-muted-foreground">
               Manage payroll, approvals, time, and employee records.
             </p>
@@ -210,13 +210,13 @@ export function Header({ onMenuClick }: HeaderProps) {
         <div className="ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-auto rounded-xl px-2 py-1.5 sm:px-3">
+              <Button variant="ghost" className="h-auto rounded-xl border border-transparent px-2 py-1.5 sm:px-3 hover:border-primary/20 hover:bg-primary/5">
                 <Avatar className="h-8 w-8">
                   <AvatarImage
                     src={profilePictureUrl || undefined}
                     alt={userFullName || user?.email || "User"}
                   />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                  <AvatarFallback className="gradient-accent text-primary-foreground text-xs">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
@@ -226,7 +226,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   </span>
                   <Badge
                     variant="secondary"
-                    className={`mt-1 h-5 rounded-md px-2 text-[11px] font-normal ${getRoleBadgeClass(userRole)} border`}
+                    className={`mt-1 h-5 rounded-md border px-2 text-[11px] font-normal ${getRoleBadgeClass(userRole)}`}
                   >
                     {formatRoleName(userRole)}
                   </Badge>

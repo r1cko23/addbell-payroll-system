@@ -304,8 +304,8 @@ export default function PurchaseOrderPage() {
 
   // ========== LIST VIEW ==========
   const listView = (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="min-w-0 space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Purchase Orders</h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -341,8 +341,8 @@ export default function PurchaseOrderPage() {
               {searchTerm || statusFilter !== "all" ? "No POs match your filters." : "No purchase orders yet."}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+            <div className="w-full max-w-full overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="bg-muted/50 border-b">
                   <tr>
                     <th className="px-4 py-3 font-medium">PO Number</th>
@@ -381,7 +381,7 @@ export default function PurchaseOrderPage() {
 
   // ========== CREATE VIEW (existing form) ==========
   const createView = (
-    <div className="space-y-8">
+    <div className="min-w-0 space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setView("list")}><ArrowLeft className="h-5 w-5" /></Button>

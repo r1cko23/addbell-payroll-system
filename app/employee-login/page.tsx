@@ -11,15 +11,15 @@ export default function EmployeeLoginPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-emerald-100">
-      <div className="text-center space-y-4 px-6">
-        <p className="text-lg font-semibold text-gray-700">
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="space-y-4 rounded-xl border border-border/80 bg-card/95 px-6 py-7 text-center shadow-card">
+        <p className="font-display text-lg font-semibold text-foreground">
           Redirecting to the new employee login...
         </p>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted-foreground">
           If you are not redirected automatically,{' '}
           <button
-            className="text-emerald-600 underline"
+            className="font-medium text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:text-accent-secondary"
             onClick={() => router.replace('/login?mode=employee')}
           >
             click here

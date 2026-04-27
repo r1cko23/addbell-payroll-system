@@ -38,7 +38,7 @@ export async function generatePurchaseOrderPDF(
 
   // Header: Logo left, blue accent line
   try {
-    const logoResponse = await fetch("/addbell-po-logo.png");
+    const logoResponse = await fetch("/add-bell-logo-new.png");
     if (logoResponse.ok) {
       const logoBlob = await logoResponse.blob();
       const logoDataUrl = await new Promise<string>((resolve) => {

@@ -146,6 +146,13 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
       isRestDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday and Saturday
     }
 
+    // Saturday should never be deducted as an absence under compressed-workweek policy.
+    // Worked Saturday hours are handled separately as OT in attendance/payroll flows.
+    const dayOfWeek = getDay(currentDate);
+    if (dayOfWeek === 6) {
+      isRestDay = true;
+    }
+
     // If it's a rest day, skip (don't count as absence)
     if (isRestDay) {
       currentDate.setDate(currentDate.getDate() + 1);

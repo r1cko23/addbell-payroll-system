@@ -176,7 +176,7 @@ export default function VendorsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Vendors</h1>
@@ -214,63 +214,65 @@ export default function VendorsPage() {
                 No vendors found. Add one to use in Purchase Orders.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Contact Person</TableHead>
-                    <TableHead>TIN</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-24">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredVendors.map((vendor) => (
-                    <TableRow key={vendor.id}>
-                      <TableCell className="font-medium">{vendor.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {vendor.contact_person || "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {vendor.tin || "—"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {vendor.phone || vendor.email || "—"}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={
-                            vendor.is_active
-                              ? "text-green-600"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {vendor.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenDialog(vendor)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(vendor)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
+              <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+                <Table className="w-full min-w-[760px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Contact Person</TableHead>
+                      <TableHead>TIN</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-24">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredVendors.map((vendor) => (
+                      <TableRow key={vendor.id}>
+                        <TableCell className="font-medium">{vendor.name}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {vendor.contact_person || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {vendor.tin || "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {vendor.phone || vendor.email || "—"}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={
+                              vendor.is_active
+                                ? "text-primary"
+                                : "text-muted-foreground"
+                            }
+                          >
+                            {vendor.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenDialog(vendor)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(vendor)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

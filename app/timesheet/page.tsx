@@ -29,7 +29,10 @@ import type { Holiday } from "@/utils/holidays";
 import { normalizeHolidays } from "@/utils/holidays";
 import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
-import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
+import {
+  calculateHoursWithinWindows,
+  getBusinessDayPolicyByDay,
+} from "@/utils/business-hours";
 import {
   fetchSessionsForEmployee,
   fetchProjectTimeSessionsForEmployee,
@@ -777,8 +780,8 @@ export default function TimesheetPage() {
       // 3. OT requests
       // 4. Complete time entries (LOG)
       // 5. Incomplete time entries (INC)
-      // 6. Rest days (Sunday)
-      // 7. Saturday (regular work day - paid 6 days/week)
+      // 6. Rest days (Sunday + Saturday policy)
+      // 7. Saturday (non-absence day; worked hours can still be OT)
       // 8. No entry = ABSENT
       let status = "-";
       let bh = 0; // Basic Hours
@@ -882,16 +885,34 @@ export default function TimesheetPage() {
         }
       } else if (dayOfWeek === 6) {
         // Saturday handling:
-        // For this company, Saturday is NOT automatically treated as a worked/logged day.
-        // Both office-based and client-based employees must have logs, otherwise it's ABSENT (or "-" for future dates).
+        // Saturday is not treated as an absence day.
+        // For compressed-workweek records (Mon-Thu >= 10h and Fri >= 8h),
+        // treat Saturday as LOG even without a Saturday punch.
+        const saturdayDate = parseISO(dateStr);
+        const mondayDate = new Date(saturdayDate);
+        mondayDate.setDate(
+          saturdayDate.getDate() - ((getDay(saturdayDate) + 6) % 7)
+        );
+        const compressedWeekHours = Array.from({ length: 5 }, (_, idx) => {
+          const workDate = new Date(mondayDate);
+          workDate.setDate(mondayDate.getDate() + idx);
+          const workDateStr = format(workDate, "yyyy-MM-dd");
+          const entries = entriesByDate.get(workDateStr) || [];
+          return entries.reduce(
+            (sum, entry) => sum + (entry.regular_hours ?? entry.total_hours ?? 0),
+            0
+          );
+        });
+        const hasCompletedCompressedWeek =
+          compressedWeekHours.slice(0, 4).every((hrs) => hrs >= 10) &&
+          compressedWeekHours[4] >= 8;
+
         if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
           status = "LOG"; // Worked on Saturday
+        } else if (hasCompletedCompressedWeek) {
+          status = "LOG";
         } else {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const currentDate = new Date(date);
-          currentDate.setHours(0, 0, 0, 0);
-          status = currentDate > today ? "-" : "ABSENT";
+          status = "LOG";
         }
       } else if (dayOfWeek === 0) {
         // Sunday handling:
@@ -1084,7 +1105,32 @@ export default function TimesheetPage() {
       // One day can have multiple project sessions (e.g. 3h + 2h + 3h = 8h) — single BH for HRIS
       if (bh === 0) {
         if (dayEntries.length > 0) {
-          bh = dayEntries.reduce((sum, e) => sum + (e.regular_hours ?? e.total_hours ?? 0), 0);
+          const dayPolicy = getBusinessDayPolicyByDay(getDay(parseISO(dateStr)));
+          const bhFromBusinessWindows = dayEntries.reduce((sum, entry) => {
+            if (!entry.clock_in_time || !entry.clock_out_time) {
+              return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+            }
+            try {
+              const clockIn = parseISO(entry.clock_in_time);
+              const clockOut = parseISO(entry.clock_out_time);
+              if (clockOut <= clockIn) {
+                return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+              }
+              const workDate = parseISO(dateStr);
+              return (
+                sum +
+                calculateHoursWithinWindows(
+                  clockIn,
+                  clockOut,
+                  workDate,
+                  dayPolicy.windows
+                )
+              );
+            } catch {
+              return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+            }
+          }, 0);
+          bh = Math.round(bhFromBusinessWindows * 100) / 100;
         } else if (
           status === "OT" &&
           dayOTs.length > 0 &&
@@ -1501,6 +1547,10 @@ export default function TimesheetPage() {
       <VStack gap="8" className="w-full pb-24">
         <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
           <VStack gap="2" align="start">
+            <div className="section-label">
+              <span className="pulse-dot" />
+              Attendance control center
+            </div>
             <H1>Timesheet</H1>
             <BodySmall>
               Review attendance by cutoff week, inspect schedules, and prepare payroll-ready records.
@@ -1627,21 +1677,21 @@ export default function TimesheetPage() {
         </div>
 
         {/* Status Legend */}
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-500 rounded"></div>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+            <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
             <span>OT / RD</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-blue-500 rounded"></div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+            <div className="h-2.5 w-2.5 rounded-full bg-blue-500"></div>
             <span>OB</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-orange-500 rounded"></div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+            <div className="h-2.5 w-2.5 rounded-full bg-orange-500"></div>
             <span>LEAVE</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-red-500 rounded"></div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1">
+            <div className="h-2.5 w-2.5 rounded-full bg-red-500"></div>
             <span>ABSENT / LWOP / INC</span>
           </div>
         </div>
@@ -1649,7 +1699,7 @@ export default function TimesheetPage() {
         {/* Employee Selection */}
         <CardSection>
           <VStack gap="2" align="start">
-            <label className="text-sm font-medium">Select Employee</label>
+            <label className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">Select employee</label>
             <EmployeeSearchSelect
               employees={employees.map((e) => ({
                 id: e.id,
@@ -1673,33 +1723,33 @@ export default function TimesheetPage() {
         {/* Attendance Table */}
         {selectedEmployee && (
           <CardSection>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-border/80 bg-background/80">
               <table className="min-w-full border-collapse">
                 <thead>
-                  <tr className="border-b">
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase">
+                  <tr className="border-b bg-muted/40">
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
                       DATE
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
                       DAY
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium uppercase">
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
                       STATUS
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
                       BH
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
                       OT
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
                       UT (hrs)
                     </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium uppercase">
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
                       ND
                     </th>
                     {isAdmin && (
-                      <th className="px-4 py-2 text-xs font-medium uppercase w-20">
+                      <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide w-20">
                         Actions
                       </th>
                     )}
@@ -1737,7 +1787,7 @@ export default function TimesheetPage() {
                     return (
                       <tr
                         key={day.date}
-                        className={`border-b ${isWeekend ? "bg-green-50" : ""}`}
+                        className={`border-b border-border/70 ${isWeekend ? "bg-primary/5" : ""}`}
                       >
                         <td className="px-4 py-2 text-sm">
                           {format(parseISO(day.date), "MMM dd")}
@@ -1797,7 +1847,7 @@ export default function TimesheetPage() {
                     );
                   })}
                   {/* Summary Row */}
-                  <tr className="border-t-2 font-semibold">
+                  <tr className="border-t-2 border-primary/30 bg-primary/5 font-semibold">
                     <td colSpan={3} className="px-4 py-2 text-sm">
                       Days Work : {Math.round(daysWorked)}
                     </td>

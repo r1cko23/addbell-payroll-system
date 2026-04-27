@@ -293,6 +293,10 @@ export default function EmployeePayslipsPage() {
         <CardSection>
           <HStack align="center" justify="between" className="mb-6">
             <VStack gap="1" align="start">
+              <div className="section-label">
+                <span className="pulse-dot" />
+                Payroll records
+              </div>
               <H1>My payslips</H1>
               <BodySmall className="text-muted-foreground">
                 View payroll periods, review breakdowns, and print your approved payslips.
@@ -329,7 +333,7 @@ export default function EmployeePayslipsPage() {
           ) : (
             <VStack gap="4">
               {payslips.map((payslip) => (
-                <Card key={payslip.id} className="hover:shadow-md transition">
+                <Card key={payslip.id} className="border-border/80 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover">
                   <CardContent className="p-6">
                     <HStack
                       align="center"
@@ -351,10 +355,10 @@ export default function EmployeePayslipsPage() {
                             {payslip.status.toUpperCase()}
                           </Badge>
                         </HStack>
-                        <BodySmall className="text-gray-600">
+                        <BodySmall className="text-muted-foreground">
                           Payslip #{payslip.payslip_number}
                         </BodySmall>
-                        <Caption className="text-gray-500">
+                        <Caption className="text-muted-foreground">
                           {format(
                             new Date(payslip.created_at),
                             "MMM d, yyyy 'at' h:mm a"
@@ -365,7 +369,7 @@ export default function EmployeePayslipsPage() {
                       <VStack gap="2" align="end">
                         <HStack gap="4" align="center">
                           <VStack gap="1" align="end" className="hidden md:flex">
-                            <Caption className="text-gray-500">
+                            <Caption className="text-muted-foreground">
                               Gross Pay
                             </Caption>
                             <BodySmall className="font-semibold">
@@ -373,16 +377,16 @@ export default function EmployeePayslipsPage() {
                             </BodySmall>
                           </VStack>
                           <VStack gap="1" align="end" className="hidden md:flex">
-                            <Caption className="text-gray-500">
+                            <Caption className="text-muted-foreground">
                               Total Deductions
                             </Caption>
-                            <BodySmall className="font-semibold text-red-600">
+                            <BodySmall className="font-semibold text-destructive">
                               -{formatCurrency(payslip.total_deductions)}
                             </BodySmall>
                           </VStack>
                           <VStack gap="1" align="end">
-                            <Caption className="text-gray-500">Net Pay</Caption>
-                            <H2 className="text-xl text-emerald-600">
+                            <Caption className="text-muted-foreground">Net Pay</Caption>
+                            <H2 className="text-xl text-primary">
                               {formatCurrency(payslip.net_pay)}
                             </H2>
                           </VStack>
@@ -405,7 +409,7 @@ export default function EmployeePayslipsPage() {
                             variant="default"
                             size="sm"
                             onClick={() => handleViewPayslip(payslip)}
-                            className="bg-emerald-600 hover:bg-emerald-700"
+                            className="gradient-accent"
                           >
                             <Icon name="FileText" size={IconSizes.sm} />
                             View & Download
@@ -497,7 +501,7 @@ export default function EmployeePayslipsPage() {
               Close
             </Button>
             <Button onClick={handlePrint}>Print</Button>
-            <Button onClick={handleDownload} className="bg-emerald-600">
+            <Button onClick={handleDownload} className="gradient-accent">
               Download PDF
             </Button>
           </div>
@@ -579,8 +583,8 @@ export default function EmployeePayslipsPage() {
                         <BodySmall
                           className={`font-semibold ${
                             selectedPayslip.adjustment_amount > 0
-                              ? "text-emerald-600"
-                              : "text-red-600"
+                              ? "text-primary"
+                              : "text-destructive"
                           }`}
                         >
                           {selectedPayslip.adjustment_amount > 0 ? "+" : ""}
@@ -606,14 +610,14 @@ export default function EmployeePayslipsPage() {
                       <>
                         <HStack justify="between">
                           <BodySmall>SSS (Regular):</BodySmall>
-                          <BodySmall className="font-semibold text-red-600">
+                          <BodySmall className="font-semibold text-destructive">
                             -{formatCurrency(sssSplit.regular)}
                           </BodySmall>
                         </HStack>
                         {sssSplit.wisp > 0 && (
                           <HStack justify="between">
                             <BodySmall>SSS WISP:</BodySmall>
-                            <BodySmall className="font-semibold text-red-600">
+                            <BodySmall className="font-semibold text-destructive">
                               -{formatCurrency(sssSplit.wisp)}
                             </BodySmall>
                           </HStack>
@@ -623,7 +627,7 @@ export default function EmployeePayslipsPage() {
                     {selectedPayslip.philhealth_amount > 0 && (
                       <HStack justify="between">
                         <BodySmall>PhilHealth Contribution:</BodySmall>
-                        <BodySmall className="font-semibold text-red-600">
+                        <BodySmall className="font-semibold text-destructive">
                           -{formatCurrency(selectedPayslip.philhealth_amount)}
                         </BodySmall>
                       </HStack>
@@ -631,7 +635,7 @@ export default function EmployeePayslipsPage() {
                     {selectedPayslip.pagibig_amount > 0 && (
                       <HStack justify="between">
                         <BodySmall>Pag-IBIG Contribution:</BodySmall>
-                        <BodySmall className="font-semibold text-red-600">
+                        <BodySmall className="font-semibold text-destructive">
                           -{formatCurrency(selectedPayslip.pagibig_amount)}
                         </BodySmall>
                       </HStack>
@@ -639,7 +643,7 @@ export default function EmployeePayslipsPage() {
                     {selectedPayslip.withholding_tax > 0 && (
                       <HStack justify="between">
                         <BodySmall>Withholding Tax:</BodySmall>
-                        <BodySmall className="font-semibold text-red-600">
+                        <BodySmall className="font-semibold text-destructive">
                           -{formatCurrency(selectedPayslip.withholding_tax)}
                         </BodySmall>
                       </HStack>
@@ -650,7 +654,7 @@ export default function EmployeePayslipsPage() {
                           0) > 0 && (
                           <HStack justify="between">
                             <BodySmall>Vale:</BodySmall>
-                            <BodySmall className="font-semibold text-red-600">
+                            <BodySmall className="font-semibold text-destructive">
                               -
                               {formatCurrency(
                                 selectedPayslip.deductions_breakdown
@@ -663,7 +667,7 @@ export default function EmployeePayslipsPage() {
                           .sss_salary_loan || 0) > 0 && (
                           <HStack justify="between">
                             <BodySmall>SSS Salary Loan:</BodySmall>
-                            <BodySmall className="font-semibold text-red-600">
+                            <BodySmall className="font-semibold text-destructive">
                               -
                               {formatCurrency(
                                 selectedPayslip.deductions_breakdown
@@ -676,7 +680,7 @@ export default function EmployeePayslipsPage() {
                           .pagibig_salary_loan || 0) > 0 && (
                           <HStack justify="between">
                             <BodySmall>Pag-IBIG Salary Loan:</BodySmall>
-                            <BodySmall className="font-semibold text-red-600">
+                            <BodySmall className="font-semibold text-destructive">
                               -
                               {formatCurrency(
                                 selectedPayslip.deductions_breakdown
@@ -692,7 +696,7 @@ export default function EmployeePayslipsPage() {
                         <BodySmall className="font-semibold">
                           Total Deductions:
                         </BodySmall>
-                        <BodySmall className="font-semibold text-red-600">
+                        <BodySmall className="font-semibold text-destructive">
                           -{formatCurrency(selectedPayslip.total_deductions)}
                         </BodySmall>
                       </HStack>
@@ -702,11 +706,11 @@ export default function EmployeePayslipsPage() {
               </Card>
 
               {/* Net Pay */}
-              <Card className="bg-emerald-50 border-emerald-200">
+              <Card className="border-primary/20 bg-primary/5">
                 <CardContent className="pt-6">
                   <HStack justify="between" align="center">
                     <H2 className="text-lg">Net Pay:</H2>
-                    <H2 className="text-2xl text-emerald-600 font-bold">
+                    <H2 className="text-2xl font-bold text-primary">
                       {formatCurrency(selectedPayslip.net_pay)}
                     </H2>
                   </HStack>

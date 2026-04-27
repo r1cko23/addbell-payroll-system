@@ -71,10 +71,10 @@ interface Payslip {
 }
 
 const statusStyles: Record<string, string> = {
-  draft: "bg-slate-100 text-slate-800 border-slate-200",
-  processing: "bg-blue-100 text-blue-800 border-blue-200",
-  finalized: "bg-emerald-100 text-emerald-900 border-emerald-200",
-  cancelled: "bg-red-100 text-red-900 border-red-200",
+  draft: "border-border bg-muted/70 text-foreground",
+  processing: "border-primary/25 bg-primary/10 text-primary",
+  finalized: "border-primary/25 bg-primary/10 text-primary",
+  cancelled: "border-destructive/30 bg-destructive/10 text-destructive",
 };
 
 export default function PayrollPage() {
@@ -342,13 +342,13 @@ export default function PayrollPage() {
             <Card>
               <CardContent className="pt-6">
                 <BodySmall className="text-muted-foreground">Total Deductions</BodySmall>
-                <p className="text-2xl font-bold mt-1 text-red-600">₱{payslips.reduce((s, p) => s + Number(p.total_deductions), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-bold mt-1 text-destructive">₱{payslips.reduce((s, p) => s + Number(p.total_deductions), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <BodySmall className="text-muted-foreground">Total Net Pay</BodySmall>
-                <p className="text-2xl font-bold mt-1 text-emerald-700">₱{payslips.reduce((s, p) => s + Number(p.net_pay), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-bold mt-1 text-primary">₱{payslips.reduce((s, p) => s + Number(p.net_pay), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
               </CardContent>
             </Card>
           </div>
@@ -366,8 +366,8 @@ export default function PayrollPage() {
                   : "No payslips found for this run."}
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border">
-                <Table>
+              <div className="w-full max-w-full overflow-x-auto rounded-lg border">
+                <Table className="w-full min-w-[980px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Company ID</TableHead>
@@ -394,11 +394,11 @@ export default function PayrollPage() {
                         </TableCell>
                         <TableCell className="text-sm">{(ps.employee as any)?.departments?.name || "—"}</TableCell>
                         <TableCell className="text-right font-medium">₱{Number(ps.gross_pay).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right text-sm text-red-600">{Number(ps.deductions_breakdown?.sss || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right text-sm text-red-600">{Number(ps.deductions_breakdown?.philhealth || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right text-sm text-red-600">{Number(ps.deductions_breakdown?.pagibig || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right text-sm text-red-600">{Number(ps.deductions_breakdown?.withholding_tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                        <TableCell className="text-right font-bold text-emerald-700">₱{Number(ps.net_pay).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right text-sm text-destructive">{Number(ps.deductions_breakdown?.sss || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right text-sm text-destructive">{Number(ps.deductions_breakdown?.philhealth || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right text-sm text-destructive">{Number(ps.deductions_breakdown?.pagibig || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right text-sm text-destructive">{Number(ps.deductions_breakdown?.withholding_tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right font-bold text-primary">₱{Number(ps.net_pay).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -437,8 +437,8 @@ export default function PayrollPage() {
               No payroll runs yet. Click "New Payroll Run" to get started.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
+            <div className="w-full max-w-full overflow-x-auto rounded-lg border">
+              <Table className="w-full min-w-[760px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Cutoff Period</TableHead>
@@ -459,7 +459,7 @@ export default function PayrollPage() {
                       <TableCell>{run.pay_date ? format(new Date(run.pay_date), "MMM d, yyyy") : "—"}</TableCell>
                       <TableCell className="text-center">{run.payslip_count || 0}</TableCell>
                       <TableCell className="text-right">₱{(run.total_gross || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
-                      <TableCell className="text-right font-medium text-emerald-700">₱{(run.total_net || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                      <TableCell className="text-right font-medium text-primary">₱{(run.total_net || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`capitalize ${statusStyles[run.status] || ""}`}>{run.status}</Badge>
                       </TableCell>

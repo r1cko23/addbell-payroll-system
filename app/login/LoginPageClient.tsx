@@ -256,7 +256,7 @@ export function LoginPageClient() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -268,33 +268,33 @@ export function LoginPageClient() {
         }}
       />
       <div className="w-full max-w-[380px]">
-        <div className="bg-white rounded-lg border border-neutral-200 shadow-sm py-6 px-6">
+        <div className="rounded-xl border border-border/80 bg-card/95 px-6 py-6 shadow-card backdrop-blur-sm">
           {/* Header: compact logo + title */}
           <div className="flex flex-col items-center gap-3 mb-5">
             <img
-              src="/addbell-logo.jpg"
-              alt="Addbell"
+              src="/add-bell-logo-new.png"
+              alt="Add-bell"
               className="h-12 w-auto object-contain"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
               }}
             />
             <div className="text-center">
-              <h1 className="text-base font-semibold text-neutral-900 tracking-tight">
-                Addbell Technical Services, Inc.
+              <h1 className="font-display text-base font-semibold tracking-tight text-foreground">
+                Add-bell Technical Services, Inc.
               </h1>
-              <p className="text-xs text-neutral-500 mt-0.5">Sign in to your account</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Sign in to your account</p>
             </div>
           </div>
 
           {/* Role toggle */}
-          <div className="flex mb-4 rounded-md border border-neutral-200 overflow-hidden">
+          <div className="mb-4 flex overflow-hidden rounded-lg border border-border/80 bg-background/70 p-1">
             <button
               type="button"
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors cursor-pointer ${
+              className={`flex-1 cursor-pointer rounded-md py-2.5 text-xs font-medium transition-all duration-200 ${
                 mode === "admin"
-                  ? "bg-neutral-900 text-white"
-                  : "bg-white text-neutral-600 hover:bg-neutral-50"
+                  ? "bg-gradient-to-r from-primary to-accent-secondary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
               }`}
               onClick={() => setMode("admin")}
             >
@@ -302,10 +302,10 @@ export function LoginPageClient() {
             </button>
             <button
               type="button"
-              className={`flex-1 py-2.5 text-xs font-medium transition-colors cursor-pointer border-l border-neutral-200 ${
+              className={`flex-1 cursor-pointer rounded-md py-2.5 text-xs font-medium transition-all duration-200 ${
                 mode === "employee"
-                  ? "bg-neutral-900 text-white"
-                  : "bg-white text-neutral-600 hover:bg-neutral-50"
+                  ? "bg-gradient-to-r from-primary to-accent-secondary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
               }`}
               onClick={() => setMode("employee")}
             >
@@ -316,7 +316,7 @@ export function LoginPageClient() {
           {mode === "admin" ? (
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-xs font-medium text-neutral-700 mb-1.5">
+                <label htmlFor="email" className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   Email Address
                 </label>
                 <input
@@ -325,13 +325,13 @@ export function LoginPageClient() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
+                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   placeholder="you@company.com"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-xs font-medium text-neutral-700 mb-1.5">
+                <label htmlFor="password" className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   Password
                 </label>
                 <input
@@ -340,7 +340,7 @@ export function LoginPageClient() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
+                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   placeholder="••••••••"
                 />
               </div>
@@ -348,7 +348,7 @@ export function LoginPageClient() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-neutral-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-gradient-to-r from-primary to-accent-secondary py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-accent disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
@@ -356,18 +356,18 @@ export function LoginPageClient() {
                 type="button"
                 onClick={handleForgotPassword}
                 disabled={resetLoading}
-                className="w-full text-xs font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full text-xs font-medium text-muted-foreground transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {resetLoading ? "Sending..." : "Forgot password?"}
               </button>
               {adminError && (
-                <p className="text-xs text-red-600">{adminError}</p>
+                <p className="text-xs text-destructive">{adminError}</p>
               )}
             </form>
           ) : (
             <form onSubmit={handleEmployeeLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1.5">
+                <label className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   Employee ID
                 </label>
                 <input
@@ -375,13 +375,13 @@ export function LoginPageClient() {
                   required
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
+                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   placeholder="2025-001"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1.5">
+                <label className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   Password
                 </label>
                 <input
@@ -389,7 +389,7 @@ export function LoginPageClient() {
                   required
                   value={employeePassword}
                   onChange={(e) => setEmployeePassword(e.target.value)}
-                  className="w-full px-3 py-2.5 text-sm border border-neutral-200 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-1 focus:border-transparent text-neutral-900 placeholder:text-neutral-400"
+                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   placeholder="Default is your Employee ID"
                 />
               </div>
@@ -397,24 +397,24 @@ export function LoginPageClient() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-neutral-900 text-white py-2.5 rounded-md text-sm font-medium hover:bg-neutral-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-gradient-to-r from-primary to-accent-secondary py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-accent disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
               {employeeError && (
-                <p className="text-xs text-red-600">{employeeError}</p>
+                <p className="text-xs text-destructive">{employeeError}</p>
               )}
             </form>
           )}
 
-          <p className="mt-4 text-center text-[11px] text-neutral-400">
+          <p className="mt-4 text-center text-[11px] text-muted-foreground">
             {mode === "admin" ? "Authorized personnel only" : "Use the credentials provided by HR"}
           </p>
         </div>
 
-        <div className="mt-4 text-center text-[11px] text-neutral-400 space-y-1">
-          <p>© 2025 Addbell Technical Services, Inc.</p>
-          <a href="/privacy" className="text-neutral-500 hover:text-neutral-700 transition-colors">
+        <div className="mt-4 space-y-1 text-center text-[11px] text-muted-foreground">
+          <p>© 2025 Add-bell Technical Services, Inc.</p>
+          <a href="/privacy" className="transition-colors hover:text-primary">
             Privacy Notice
           </a>
         </div>

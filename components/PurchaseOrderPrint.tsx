@@ -66,8 +66,8 @@ export const PurchaseOrderPrint = forwardRef<
         >
           <div style={{ flexShrink: 0, overflow: "visible" }}>
             <img
-              src="/addbell-po-logo.png"
-              alt="Addbell Technical Services"
+              src="/add-bell-logo-new.png"
+              alt="Add-bell Technical Services, Inc."
               width={220}
               height={48}
               style={{ objectFit: "contain", display: "block", width: "220px", height: "auto" }}

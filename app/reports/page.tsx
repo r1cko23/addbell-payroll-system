@@ -619,7 +619,7 @@ export default function ReportsPage() {
 
       // Load and add logo
       try {
-        const logoResponse = await fetch("/addbell-logo.jpg");
+        const logoResponse = await fetch("/add-bell-logo-new.png");
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.blob();
           const logoDataUrl = await new Promise<string>((resolve) => {
@@ -633,7 +633,7 @@ export default function ReportsPage() {
           const logoHeight = (logoWidth * 185) / 500; // Maintain aspect ratio
           const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
 
-          doc.addImage(logoDataUrl, "WEBP", logoX, yPos, logoWidth, logoHeight);
+          doc.addImage(logoDataUrl, "PNG", logoX, yPos, logoWidth, logoHeight);
           yPos += logoHeight + 10;
         }
       } catch (error) {
@@ -645,7 +645,7 @@ export default function ReportsPage() {
       doc.setFontSize(16);
       doc.setFont("helvetica", "bold");
       doc.text(
-        "Green Pasture People Management Inc. Organic",
+        "Add-bell Technical Services, Inc.",
         pageWidth / 2,
         yPos,
         { align: "center" }
@@ -1093,11 +1093,11 @@ export default function ReportsPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="4">
-        <HStack justify="between" align="end" className="mb-1 gap-4">
+      <VStack gap="4" className="w-full min-w-0">
+        <HStack justify="between" align="end" className="mb-1 w-full flex-col gap-4 xl:flex-row xl:items-end">
           <H2 className="text-xl font-bold">Payroll Register</H2>
-          <HStack gap="3" align="end" className="flex-1 justify-end">
-            <div className="flex gap-3 items-end">
+          <HStack gap="3" align="end" className="w-full flex-1 flex-col items-stretch justify-end lg:flex-row lg:items-end">
+            <div className="flex flex-wrap items-end gap-3">
               <div>
                 <Label className="text-xs mb-1">Cutoff Period</Label>
                 <Input
@@ -1107,7 +1107,7 @@ export default function ReportsPage() {
                     const date = new Date(e.target.value);
                     setPeriodStart(getBiMonthlyPeriodStart(date));
                   }}
-                  className="h-9 text-sm w-[160px]"
+                  className="h-9 w-full text-sm sm:w-[160px]"
                 />
               </div>
               <div>
@@ -1115,7 +1115,7 @@ export default function ReportsPage() {
                 <Input
                   value={formatBiMonthlyPeriod(periodStart, periodEnd)}
                   disabled
-                  className="bg-gray-50 h-9 text-sm w-[200px]"
+                  className="h-9 w-full bg-gray-50 text-sm sm:w-[200px]"
                 />
               </div>
               <div>
@@ -1123,7 +1123,7 @@ export default function ReportsPage() {
                 <Input
                   value={format(payoutDate, "yyyy-MM-dd")}
                   disabled
-                  className="bg-gray-50 h-9 text-sm w-[160px]"
+                  className="h-9 w-full bg-gray-50 text-sm sm:w-[160px]"
                 />
               </div>
             </div>
@@ -1182,7 +1182,7 @@ export default function ReportsPage() {
             </HStack>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto border-t">
+            <div className="w-full max-w-full overflow-x-auto border-t">
               {calculating ? (
                 <div className="p-8 text-center">
                   <BodySmall>Calculating report data...</BodySmall>

@@ -910,7 +910,7 @@ export default function TimeEntriesPage() {
       return (
         <Badge
           variant="secondary"
-          className="rounded-full px-2 py-1 text-[11px] font-semibold bg-orange-100 text-orange-800"
+          className="rounded-full border border-primary/30 bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary"
         >
           INCOMPLETE
         </Badge>
@@ -918,11 +918,11 @@ export default function TimeEntriesPage() {
     }
 
     const tones: Record<string, string> = {
-      clocked_in: "bg-emerald-100 text-emerald-800",
-      clocked_out: "bg-amber-100 text-amber-800",
-      approved: "bg-green-100 text-green-800",
-      auto_approved: "bg-green-100 text-green-800",
-      rejected: "bg-red-100 text-red-800",
+      clocked_in: "border border-primary/25 bg-primary/10 text-primary",
+      clocked_out: "border border-border bg-muted/60 text-foreground",
+      approved: "border border-primary/25 bg-primary/10 text-primary",
+      auto_approved: "border border-primary/25 bg-primary/10 text-primary",
+      rejected: "border border-destructive/30 bg-destructive/10 text-destructive",
       pending: "bg-muted text-foreground",
     };
     const labels: Record<string, string> = {
@@ -1318,7 +1318,7 @@ export default function TimeEntriesPage() {
                                         href={`https://www.google.com/maps?q=${clockInDetails.coordinates}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                        className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                                       >
                                         <Icon name="MapPin" size={IconSizes.xs} />
                                         View map
@@ -1342,7 +1342,7 @@ export default function TimeEntriesPage() {
                                             href={`https://www.google.com/maps?q=${clockOutDetails.coordinates}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-[11px] text-emerald-600 hover:underline inline-flex items-center gap-1 mt-1"
+                                            className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                                           >
                                             <Icon name="MapPin" size={IconSizes.xs} />
                                             View map
@@ -1370,7 +1370,7 @@ export default function TimeEntriesPage() {
                                         entry.clock_out_time
                                       ).toFixed(2)
                                     ) : (
-                                      <span className="text-orange-600">Incomplete</span>
+                                      <span className="text-primary">Incomplete</span>
                                     )}
                                   </TableCell>
                                   <TableCell className="p-2 sm:p-3 text-center">
@@ -1399,7 +1399,7 @@ export default function TimeEntriesPage() {
                                               handleDelete(entry.id);
                                             }
                                           }}
-                                          className="text-red-600 hover:text-red-700"
+                                          className="text-destructive hover:text-destructive/85"
                                         >
                                           <Icon name="Trash" size={IconSizes.sm} />
                                         </Button>
@@ -1507,7 +1507,7 @@ export default function TimeEntriesPage() {
                                   href={`https://www.google.com/maps?q=${selectedClockInDetails.coordinates}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                                  className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline"
                                 >
                                   <Icon name="MapPin" size={IconSizes.xs} />
                                   View GPS Location
@@ -1557,7 +1557,7 @@ export default function TimeEntriesPage() {
                                   href={`https://www.google.com/maps?q=${selectedClockOutDetails.coordinates}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-xs text-emerald-600 hover:underline flex items-center gap-1 mt-1"
+                                  className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline"
                                 >
                                   <Icon name="MapPin" size={IconSizes.xs} />
                                   View GPS Location
@@ -1642,7 +1642,7 @@ export default function TimeEntriesPage() {
                   )}
 
                   {/* Hours Breakdown */}
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-emerald-50 rounded-lg">
+                  <div className="grid grid-cols-3 gap-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
                     <div>
                       <div className="text-xs text-muted-foreground mb-1">
                         Total
@@ -1673,7 +1673,7 @@ export default function TimeEntriesPage() {
                       <div className="text-xs text-muted-foreground mb-1">
                         Night Diff
                       </div>
-                      <div className="text-lg font-bold text-purple-600">
+                      <div className="text-lg font-bold text-foreground">
                         {selectedEntry.total_night_diff_hours?.toFixed(2)}h
                       </div>
                     </div>

@@ -33,7 +33,7 @@ export default function PrivacyNoticePage() {
                   Privacy Notice
                 </CardTitle>
                 <BodySmall className="text-blue-50 mt-1">
-                  Addbell Technical Services, Inc. Project Management & Payroll System
+                  Add-bell Technical Services, Inc. Project Management & Payroll System
                 </BodySmall>
               </div>
             </div>
@@ -50,7 +50,7 @@ export default function PrivacyNoticePage() {
                 1. Introduction
               </H2>
               <Body className="text-gray-700 leading-relaxed">
-                Addbell Technical Services, Inc. ("Company", "we", "us", or
+                Add-bell Technical Services, Inc. ("Company", "we", "us", or
                 "our") respects your privacy and is committed to protecting your
                 personal data in accordance with the{" "}
                 <strong>
@@ -72,7 +72,7 @@ export default function PrivacyNoticePage() {
               </H2>
               <VStack className="gap-2">
                 <Body className="text-gray-700">
-                  <strong>Company Name:</strong> Addbell Technical Services, Inc.
+                  <strong>Company Name:</strong> Add-bell Technical Services, Inc.
                 </Body>
                 <Body className="text-gray-700">
                   <strong>Address:</strong> [Addbell Company Address]
@@ -395,7 +395,7 @@ export default function PrivacyNoticePage() {
                   <Body className="text-gray-700">
                     <strong>Data Protection Officer</strong>
                     <br />
-                    Addbell Technical Services, Inc.
+                    Add-bell Technical Services, Inc.
                     <br />
                     Name: [Addbell DPO Name]
                     <br />
@@ -480,7 +480,7 @@ export default function PrivacyNoticePage() {
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-600">
           <BodySmall>
-            © 2025 Addbell Technical Services, Inc. All rights reserved.
+            © 2025 Add-bell Technical Services, Inc. All rights reserved.
           </BodySmall>
         </div>
       </div>

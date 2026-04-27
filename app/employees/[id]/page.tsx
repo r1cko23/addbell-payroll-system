@@ -370,9 +370,9 @@ export default function EmployeeDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-5xl">
+      <div className="max-w-5xl min-w-0 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <Link href="/employees">
               <Button variant="ghost" size="sm">
@@ -436,7 +436,7 @@ export default function EmployeeDetailPage() {
         })()}
 
         <Tabs defaultValue="personal" className="space-y-4">
-          <TabsList>
+          <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="personal">Personal Info</TabsTrigger>
             <TabsTrigger value="employment">Employment</TabsTrigger>
             <TabsTrigger value="government">Government IDs</TabsTrigger>
@@ -781,7 +781,8 @@ export default function EmployeeDetailPage() {
                 <CardTitle>Project Assignments</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
+                <div className="w-full max-w-full overflow-x-auto">
+                <Table className="w-full min-w-[640px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Project</TableHead>
@@ -824,6 +825,7 @@ export default function EmployeeDetailPage() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1023,7 +1025,8 @@ export default function EmployeeDetailPage() {
                 <CardTitle>Recent Attendance (last 30 records)</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
+                <div className="w-full max-w-full overflow-x-auto">
+                <Table className="w-full min-w-[640px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
@@ -1069,6 +1072,7 @@ export default function EmployeeDetailPage() {
                     )}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

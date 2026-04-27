@@ -2980,12 +2980,12 @@ export default function PayslipsPage() {
                       </H4>
                       <VStack
                         gap="2"
-                        className="bg-gray-50 p-3 rounded-lg w-full h-full border border-gray-100"
+                        className="h-full w-full rounded-xl border border-border/80 bg-muted/40 p-3"
                       >
-                        <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
+                        <div className="w-full overflow-x-auto rounded-lg border border-border/80 bg-background">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="border-b bg-gray-100 text-left">
+                              <tr className="border-b border-border/70 bg-muted/50 text-left">
                                 <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
                                   Type
                                 </th>
@@ -2996,7 +2996,7 @@ export default function PayslipsPage() {
                             </thead>
                             <tbody>
                               {otherDeductionRows.map((row) => (
-                                <tr key={row.id} className="border-b border-gray-100 last:border-0">
+                                <tr key={row.id} className="border-b border-border/60 last:border-0">
                                   <td className="px-2 py-1 align-middle">
                                     <Select
                                       value={row.type}
@@ -3075,12 +3075,12 @@ export default function PayslipsPage() {
                       </H4>
                       <VStack
                         gap="2"
-                        className="bg-gray-50 p-3 rounded-lg w-full h-full border border-gray-100"
+                        className="h-full w-full rounded-xl border border-border/80 bg-muted/40 p-3"
                       >
-                        <div className="w-full overflow-x-auto rounded border border-gray-200 bg-white">
+                        <div className="w-full overflow-x-auto rounded-lg border border-border/80 bg-background">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="border-b bg-gray-100 text-left">
+                              <tr className="border-b border-border/70 bg-muted/50 text-left">
                                 <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground">
                                   Description
                                 </th>
@@ -3096,7 +3096,7 @@ export default function PayslipsPage() {
                               {adjustmentRows.map((row) => (
                                 <tr
                                   key={row.id}
-                                  className="border-b border-gray-100 last:border-0"
+                                  className="border-b border-border/60 last:border-0"
                                 >
                                   <td className="px-2 py-2 align-top">
                                     <Label className="sr-only">Description</Label>
@@ -3143,7 +3143,7 @@ export default function PayslipsPage() {
                                         type="button"
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 w-8 p-0 text-red-600"
+                                        className="h-8 w-8 p-0 text-destructive"
                                         disabled={adjustmentRows.length <= 1}
                                         onClick={() =>
                                           setAdjustmentRows((prev) =>
@@ -3182,7 +3182,7 @@ export default function PayslipsPage() {
                             Add adjustment row
                           </Button>
                         )}
-                        <Caption className="text-xs text-gray-500">
+                        <Caption className="text-xs text-muted-foreground">
                           Positive adds to net pay; negative deducts from net pay.
                         </Caption>
                         {adjustment !== 0 && (
@@ -3198,8 +3198,8 @@ export default function PayslipsPage() {
                               <span
                                 className={`font-semibold text-sm ${
                                   adjustment >= 0
-                                    ? "text-green-600"
-                                    : "text-red-600"
+                                    ? "text-primary"
+                                    : "text-destructive"
                                 }`}
                               >
                                 {formatCurrency(adjustment)}
@@ -3215,7 +3215,7 @@ export default function PayslipsPage() {
                   <VStack gap="2" className="w-full">
                     <VStack
                       gap="2"
-                      className="bg-gray-50 p-3 rounded-lg w-full border border-gray-100"
+                      className="w-full rounded-xl border border-border/80 bg-muted/40 p-3"
                     >
                       {(deductions?.sss_salary_loan || 0) > 0 && (
                         <HStack
@@ -3271,7 +3271,7 @@ export default function PayslipsPage() {
                       )}
                       {/* Monthly Loans - Auto-loaded from active loans (shows for both cutoffs) */}
                       {activeLoans.length > 0 && (
-                        <div className="w-full pt-2 border-t border-gray-200">
+                        <div className="w-full border-t border-border pt-2">
                           <BodySmall className="font-medium mb-2 block">
                             Monthly Loans:
                           </BodySmall>
@@ -3298,25 +3298,25 @@ export default function PayslipsPage() {
                               return (
                                 <div
                                   key={loan.id}
-                                  className="w-full p-2 bg-gray-50 rounded border border-gray-200"
+                                  className="w-full rounded-lg border border-border bg-muted/40 p-2"
                                 >
                                   <HStack
                                     justify="between"
                                     align="start"
                                     className="w-full mb-1"
                                   >
-                                    <BodySmall className="text-gray-700 font-medium">
+                                    <BodySmall className="font-medium text-foreground">
                                       {loanTypeLabel}:
                                     </BodySmall>
                                     <div className="text-right">
-                                      <span className="font-semibold text-red-600 text-sm">
+                                      <span className="text-sm font-semibold text-destructive">
                                         {formatCurrency(loan.deduction_amount)}
                                       </span>
                                     </div>
                                   </HStack>
-                                  <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-gray-600">
+                                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                                     <div>
-                                      <span className="text-gray-500">
+                                      <span className="text-muted-foreground/80">
                                         Remaining Balance:
                                       </span>
                                       <span className="ml-1 font-medium">
@@ -3324,7 +3324,7 @@ export default function PayslipsPage() {
                                       </span>
                                     </div>
                                     <div>
-                                      <span className="text-gray-500">
+                                      <span className="text-muted-foreground/80">
                                         Terms Paid:
                                       </span>
                                       <span className="ml-1 font-medium">
@@ -3380,7 +3380,7 @@ export default function PayslipsPage() {
                             <HStack
                               justify="between"
                               align="center"
-                              className="p-2 border rounded-lg bg-gray-50"
+                              className="rounded-lg border border-border bg-muted/40 p-2"
                             >
                               <VStack
                                 gap="0"
@@ -3399,7 +3399,7 @@ export default function PayslipsPage() {
                               <HStack
                                 justify="between"
                                 align="center"
-                                className="p-2 border rounded-lg bg-gray-50"
+                                className="rounded-lg border border-border bg-muted/40 p-2"
                               >
                                 <VStack
                                   gap="0"
@@ -3418,7 +3418,7 @@ export default function PayslipsPage() {
                             <HStack
                               justify="between"
                               align="center"
-                              className="p-2 border rounded-lg bg-gray-50"
+                              className="rounded-lg border border-border bg-muted/40 p-2"
                             >
                               <VStack
                                 gap="0"
@@ -3439,7 +3439,7 @@ export default function PayslipsPage() {
                             <HStack
                               justify="between"
                               align="center"
-                              className="p-2 border rounded-lg bg-gray-50"
+                              className="rounded-lg border border-border bg-muted/40 p-2"
                             >
                               <VStack
                                 gap="0"
@@ -3509,7 +3509,7 @@ export default function PayslipsPage() {
                             : "2nd (days 16–end)";
 
                         return (
-                          <VStack gap="1" className="p-2 border rounded-lg bg-gray-50">
+                          <VStack gap="1" className="rounded-lg border border-border bg-muted/40 p-2">
                             <HStack justify="between" align="center" className="w-full">
                               <VStack gap="0" align="start" className="flex-1 min-w-0">
                                 <span className="font-medium text-sm">Tax</span>
@@ -3525,19 +3525,19 @@ export default function PayslipsPage() {
                             </HStack>
                             {taxBreakdown &&
                               (semiTaxDue > 0 || taxBreakdown.withholdingTax > 0) && (
-                              <div className="text-[10px] text-muted-foreground border-t border-gray-200 pt-1.5 mt-0.5 space-y-0.5">
+                              <div className="mt-0.5 space-y-0.5 border-t border-border pt-1.5 text-[10px] text-muted-foreground">
                                 <div>
                                   Semi-month gross (est.):{" "}
                                   {formatCurrency(actualSemiGross)}
                                   {semiMonthlyRollupForTax != null ? (
-                                    <span className="text-gray-500">
+                                    <span className="text-muted-foreground/80">
                                       {" "}
                                       (other saved pays this half-month:{" "}
                                       {formatCurrency(grossOther)} + this period:{" "}
                                       {formatCurrency(periodGross)})
                                     </span>
                                   ) : (
-                                    <span className="text-gray-500">
+                                    <span className="text-muted-foreground/80">
                                       {" "}
                                       (loading saved pays… using this period ×{" "}
                                       {nSemiWeeks} pays in this half)
@@ -3578,7 +3578,7 @@ export default function PayslipsPage() {
                                   {taxBreakdown.prescribedTax > 0 &&
                                     ` = ${formatCurrency(taxBreakdown.withholdingTax)} monthly`}
                                 </div>
-                                <div className="font-medium text-gray-700">
+                                <div className="font-medium text-foreground">
                                   Withholding this pay (½ of monthly on equivalent):{" "}
                                   {formatCurrency(semiTaxDue)}
                                 </div>
@@ -3599,7 +3599,7 @@ export default function PayslipsPage() {
             <CardSection title="Payslip Summary">
               {isSavedPayslip && (
                 <>
-                  <div className="mb-2 px-2 py-1.5 rounded bg-green-50 border border-green-200 text-xs text-green-800">
+                  <div className="mb-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5 text-xs text-primary">
                     This payslip has been saved. Values below are from the database. Adjustments cannot be edited.
                   </div>
                   {savedPayslip && (() => {
@@ -3608,8 +3608,8 @@ export default function PayslipsPage() {
                     const impliedDiff = Math.round((savedPayslip.gross_pay - earnings - savedAdj) * 100) / 100;
                     const showImplied = Math.abs(impliedDiff) > 0.01;
                     return (
-                      <div className="mb-2 px-2 py-1.5 rounded bg-gray-50 border border-gray-200 text-xs text-gray-700 space-y-1">
-                        <div className="font-medium text-gray-800">Why is Gross Pay {formatCurrency(displayGrossPay)}?</div>
+                      <div className="mb-2 space-y-1 rounded border border-border/80 bg-muted/40 px-2 py-1.5 text-xs text-foreground">
+                        <div className="font-medium text-foreground">Why is Gross Pay {formatCurrency(displayGrossPay)}?</div>
                         <div className="flex flex-col gap-0.5">
                           <div className="flex justify-between">
                             <span>Earnings (this period):</span>
@@ -3617,23 +3617,23 @@ export default function PayslipsPage() {
                           </div>
                           <div className="flex justify-between">
                             <span>Adjustment (saved in DB):</span>
-                            <span className={savedAdj >= 0 ? "text-green-600" : "text-red-600"}>
+                            <span className={savedAdj >= 0 ? "text-primary" : "text-destructive"}>
                               {savedAdj >= 0 ? "+" : ""}{formatCurrency(savedAdj)}
                             </span>
                           </div>
                           {showImplied && (
-                            <div className="flex justify-between text-amber-700">
+                            <div className="flex justify-between text-primary/80">
                               <span>Difference (included in saved gross):</span>
                               <span>{impliedDiff >= 0 ? "+" : ""}{formatCurrency(impliedDiff)}</span>
                             </div>
                           )}
-                          <div className="flex justify-between border-t border-gray-300 pt-1 font-medium">
+                          <div className="flex justify-between border-t border-border pt-1 font-medium">
                             <span>Gross pay (saved):</span>
                             <span>{formatCurrency(earnings + savedAdj + (showImplied ? impliedDiff : 0))}</span>
                           </div>
                         </div>
                         {showImplied && (
-                          <div className="mt-1 text-amber-700 text-[10px]">
+                          <div className="mt-1 text-[10px] text-primary/80">
                             {impliedDiff > 0
                               ? `The saved gross is ${formatCurrency(impliedDiff)} more than Earnings + Adjustment. This may have been saved as part of gross when the payslip was created.`
                               : `The saved gross is ${formatCurrency(Math.abs(impliedDiff))} less than Earnings + Adjustment (${formatCurrency(earnings)}). If the second cutoff gross should match current earnings, the saved value may need to be corrected.`}
@@ -3644,7 +3644,7 @@ export default function PayslipsPage() {
                             ?.adjustment_lines;
                           if (Array.isArray(lines) && lines.length > 0) {
                             return (
-                              <ul className="mt-1 text-gray-600 list-disc pl-4 space-y-0.5">
+                              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
                                 {lines.map((line: unknown, i: number) => {
                                   const L = line as {
                                     description?: string;
@@ -3664,7 +3664,7 @@ export default function PayslipsPage() {
                           }
                           if (savedPayslip.adjustment_reason) {
                             return (
-                              <div className="mt-1 text-gray-600">
+                              <div className="mt-1 text-muted-foreground">
                                 Reason: {savedPayslip.adjustment_reason}
                               </div>
                             );
@@ -3680,7 +3680,7 @@ export default function PayslipsPage() {
                 <HStack
                   justify="between"
                   align="center"
-                  className="text-sm w-full p-2 bg-gray-50 rounded"
+                  className="w-full rounded-lg bg-muted/40 p-2 text-sm"
                 >
                   <span className="font-medium">Gross Pay:</span>
                   <span className="font-semibold">
@@ -3690,7 +3690,7 @@ export default function PayslipsPage() {
                 <HStack
                   justify="between"
                   align="center"
-                  className="text-sm text-red-600 w-full p-2 bg-gray-50 rounded"
+                  className="w-full rounded-lg bg-muted/40 p-2 text-sm text-destructive"
                 >
                   <span className="font-medium">Total Deductions:</span>
                   <span className="font-semibold">
@@ -3701,10 +3701,10 @@ export default function PayslipsPage() {
                   <HStack
                     justify="between"
                     align="center"
-                    className={`text-sm w-full p-2 bg-gray-50 rounded ${
+                    className={`w-full rounded-lg bg-muted/40 p-2 text-sm ${
                       adjustment >= 0
-                        ? "text-green-600"
-                        : "text-red-600"
+                        ? "text-primary"
+                        : "text-destructive"
                     }`}
                   >
                     <span className="font-medium">Adjustments:</span>

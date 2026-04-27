@@ -228,17 +228,17 @@ export default function ProjectProfitabilityPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-4">
+      <div className="min-w-0 space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="text-xl font-bold">Project Profitability</h2>
-          <div className="flex flex-wrap items-end gap-2 justify-end">
+          <div className="flex w-full flex-wrap items-end justify-end gap-2 sm:w-auto">
             <div>
               <Label className="mb-1 text-xs">Cutoff Start</Label>
               <Input
                 type="date"
                 value={cutoffStart}
                 onChange={(e) => setCutoffStart(e.target.value)}
-                className="h-9 w-[160px]"
+                className="h-9 w-full sm:w-[160px]"
               />
             </div>
             <div>
@@ -247,7 +247,7 @@ export default function ProjectProfitabilityPage() {
                 type="date"
                 value={cutoffEnd}
                 onChange={(e) => setCutoffEnd(e.target.value)}
-                className="h-9 w-[160px]"
+                className="h-9 w-full sm:w-[160px]"
               />
             </div>
             <Button onClick={loadData} disabled={refreshing} size="sm">
@@ -291,8 +291,8 @@ export default function ProjectProfitabilityPage() {
 
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="w-full max-w-full overflow-x-auto">
+              <Table className="w-full min-w-[1060px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Project</TableHead>

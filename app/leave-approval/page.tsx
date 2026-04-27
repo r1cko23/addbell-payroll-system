@@ -868,6 +868,10 @@ export default function LeaveApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
+          <div className="section-label">
+            <span className="pulse-dot" />
+            Approval queue
+          </div>
           <H1>Leave approvals</H1>
           <BodySmall>
             Review leave filings, filter by employee and week, and act on pending requests.
@@ -878,7 +882,7 @@ export default function LeaveApprovalPage() {
           <CardContent className="p-4">
             <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
               <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="bg-amber-100 text-amber-900 border-amber-200">
+                <Badge className="border-primary/30 bg-primary/10 text-primary">
                   {stats.pending} pending
                 </Badge>
                 <Badge variant="outline">{stats.approvedByManager} manager-approved</Badge>
@@ -1052,7 +1056,7 @@ export default function LeaveApprovalPage() {
                         >
                           {normalizeLeaveTypeLabel(request.leave_type)}
                         </Badge>
-                        <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                        <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
                           {leaveSubtypeLabel(request.leave_subtype)}
                         </Badge>
                       </HStack>
@@ -1092,7 +1096,7 @@ export default function LeaveApprovalPage() {
                             </>
                           )}
                         </HStack>
-                        <span className="font-semibold text-emerald-600">
+                        <span className="font-semibold text-primary">
                           {request.total_days}{" "}
                           {request.total_days === 1 ? "day" : "days"}
                         </span>
@@ -1114,7 +1118,7 @@ export default function LeaveApprovalPage() {
                         <VStack
                           gap="1"
                           align="start"
-                          className="text-xs text-gray-600 mt-2"
+                          className="mt-2 text-xs text-muted-foreground"
                         >
                           {/* Account Manager Stage */}
                           {(request.project_manager_id || request.account_manager_id) && (
@@ -1129,7 +1133,7 @@ export default function LeaveApprovalPage() {
                           {request.status === "rejected" &&
                             request.rejected_by &&
                             !(request.project_manager_id || request.account_manager_id) && (
-                              <Caption className="text-red-600">
+                              <Caption className="text-destructive">
                                 Rejected by Manager:{" "}
                                 {rejectedByNames[request.rejected_by] ||
                                   "Manager"}
@@ -1144,7 +1148,7 @@ export default function LeaveApprovalPage() {
                           {request.status === "rejected" &&
                             request.rejected_by &&
                             (request.project_manager_id || request.account_manager_id) && (
-                              <Caption className="text-red-600">
+                              <Caption className="text-destructive">
                                 Rejected by HR:{" "}
                                 {rejectedByNames[request.rejected_by] || "HR"}
                                 {request.rejected_at &&

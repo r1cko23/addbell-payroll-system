@@ -679,6 +679,10 @@ export default function FailureToLogApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
+          <div className="section-label">
+            <span className="pulse-dot" />
+            Approval queue
+          </div>
           <H1>Failure to log approvals</H1>
           <BodySmall>
             Review missed punch requests, filter by employee and week, and act on pending items.
@@ -689,7 +693,7 @@ export default function FailureToLogApprovalPage() {
           <CardContent className="p-4">
             <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
               <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="bg-amber-100 text-amber-900 border-amber-200">
+                <Badge className="border-primary/30 bg-primary/10 text-primary">
                   {stats.pending} pending
                 </Badge>
                 <Badge variant="outline">{stats.approved} approved</Badge>
@@ -894,7 +898,7 @@ export default function FailureToLogApprovalPage() {
                       )}
                       {request.status === "approved" &&
                         (request.account_manager_id || request.approved_at) && (
-                          <Caption className="text-xs text-gray-600 mt-2">
+                          <Caption className="mt-2 text-xs text-muted-foreground">
                             Approved by Manager:{" "}
                             {(request.account_manager_id
                               ? approverNames[request.account_manager_id]
@@ -904,7 +908,7 @@ export default function FailureToLogApprovalPage() {
                           </Caption>
                         )}
                       {request.status === "rejected" && request.updated_at && (
-                        <Caption className="text-xs text-gray-600 mt-2">
+                        <Caption className="mt-2 text-xs text-muted-foreground">
                           Rejected on{" "}
                           {format(new Date(request.updated_at), "MMM dd, yyyy h:mm a")}
                         </Caption>
@@ -1148,7 +1152,7 @@ export default function FailureToLogApprovalPage() {
                       value={rejectionReason}
                       onChange={(e) => setRejectionReason(e.target.value)}
                       placeholder="Add an optional reason for rejection"
-                      className="min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="min-h-[120px] w-full rounded-xl border border-input bg-background/70 px-4 py-3 text-sm text-foreground shadow-sm transition-all duration-200 placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
                   </div>
                 )}

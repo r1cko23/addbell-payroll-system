@@ -709,6 +709,10 @@ export default function OvertimeApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
+          <div className="section-label">
+            <span className="pulse-dot" />
+            Approval queue
+          </div>
           <H1>OT approvals</H1>
           <BodySmall>
             Review overtime filings, filter by employee and week, and act on pending requests.
@@ -719,7 +723,7 @@ export default function OvertimeApprovalPage() {
           <CardContent className="p-4">
             <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
               <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="bg-amber-100 text-amber-900 border-amber-200">
+                <Badge className="border-primary/30 bg-primary/10 text-primary">
                   {stats.pending} pending
                 </Badge>
                 <Badge variant="outline">{stats.approved} approved</Badge>
@@ -835,7 +839,7 @@ export default function OvertimeApprovalPage() {
               {requests.map((req) => (
                 <Card
                   key={req.id}
-                  className="h-full min-h-[200px] shadow-sm border-border bg-white transition-shadow hover:shadow-hover cursor-pointer"
+                  className="h-full min-h-[200px] cursor-pointer border-border/80 bg-card/95 shadow-sm transition-shadow hover:shadow-hover"
                   role="button"
                   tabIndex={0}
                   onClick={() => setSelected(req)}
@@ -882,7 +886,7 @@ export default function OvertimeApprovalPage() {
                             <Icon name="Timer" size={IconSizes.sm} />
                             {req.start_time} - {req.end_time}
                           </HStack>
-                          <span className="font-semibold text-emerald-600">
+                          <span className="font-semibold text-primary">
                             {req.total_hours}h
                           </span>
                         </HStack>
@@ -961,7 +965,7 @@ export default function OvertimeApprovalPage() {
                         ) : null}
                         {req.status === "approved" &&
                           (req.account_manager_id || req.approved_by) && (
-                            <Caption className="text-xs text-gray-600 mt-2">
+                            <Caption className="mt-2 text-xs text-muted-foreground">
                               Approved by Manager:{" "}
                               {approverNames[req.account_manager_id || req.approved_by!] ||
                                 "Manager"}
@@ -971,7 +975,7 @@ export default function OvertimeApprovalPage() {
                           )}
                         {req.status === "rejected" &&
                           (req.account_manager_id || req.approved_by) && (
-                            <Caption className="text-xs text-gray-600 mt-2">
+                            <Caption className="mt-2 text-xs text-muted-foreground">
                               Rejected by:{" "}
                               {approverNames[req.account_manager_id || req.approved_by!] ||
                                 "Manager"}
@@ -1127,7 +1131,7 @@ export default function OvertimeApprovalPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Total Hours</p>
-                    <p className="text-base font-semibold text-emerald-600">
+                    <p className="text-base font-semibold text-primary">
                       {selected.total_hours}h
                     </p>
                   </div>
@@ -1157,14 +1161,14 @@ export default function OvertimeApprovalPage() {
                     {otPunchStatusByRequestId[selected.id]?.hasCompletedPair ? (
                       <Badge
                         variant="outline"
-                        className="bg-emerald-100 text-emerald-900 border-emerald-200"
+                      className="border-primary/30 bg-primary/10 text-primary"
                       >
                         Complete
                       </Badge>
                     ) : otPunchStatusByRequestId[selected.id]?.isOpen ? (
                       <Badge
                         variant="outline"
-                        className="bg-amber-100 text-amber-900 border-amber-200"
+                      className="border-primary/30 bg-primary/10 text-primary"
                       >
                         Open (awaiting OT time out)
                       </Badge>

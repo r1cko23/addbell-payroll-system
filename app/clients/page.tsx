@@ -200,8 +200,8 @@ export default function ClientsPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="min-w-0 space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
           <p className="text-muted-foreground text-sm">
@@ -329,59 +329,61 @@ export default function ClientsPage() {
               {searchTerm ? "No clients match your search." : "No clients yet."}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Client Name</TableHead>
-                  <TableHead>Contact Person</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  {canManage && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
-                    <TableCell>{client.name}</TableCell>
-                    <TableCell>{client.contact_person || "—"}</TableCell>
-                    <TableCell>{client.contact_email || "—"}</TableCell>
-                    <TableCell>{client.contact_phone || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={client.is_active ? "default" : "secondary"}>
-                        {client.is_active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(client.created_at), "MMM d, yyyy")}
-                    </TableCell>
-                    {canManage && (
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenDialog(client)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(client)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
+            <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+              <Table className="w-full min-w-[860px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Client Name</TableHead>
+                    <TableHead>Contact Person</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    {canManage && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredClients.map((client) => (
+                    <TableRow key={client.id}>
+                      <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
+                      <TableCell>{client.name}</TableCell>
+                      <TableCell>{client.contact_person || "—"}</TableCell>
+                      <TableCell>{client.contact_email || "—"}</TableCell>
+                      <TableCell>{client.contact_phone || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={client.is_active ? "default" : "secondary"}>
+                          {client.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(client.created_at), "MMM d, yyyy")}
+                      </TableCell>
+                      {canManage && (
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenDialog(client)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(client)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

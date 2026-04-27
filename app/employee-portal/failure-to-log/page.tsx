@@ -251,6 +251,10 @@ export default function FailureToLogPage() {
     <>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
+          <div className="section-label">
+            <span className="pulse-dot" />
+            Attendance correction
+          </div>
           <H1>Failure to log request</H1>
           <BodySmall className="text-muted-foreground">
             Submit missed clock-in or clock-out corrections for {employee.full_name}.
@@ -259,7 +263,7 @@ export default function FailureToLogPage() {
 
         {/* Stats */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-          <Card className="w-full h-full border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
@@ -272,13 +276,13 @@ export default function FailureToLogPage() {
                     Pending
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-amber-600">
+                <div className="text-3xl font-bold text-primary">
                   {pendingCount}
                 </div>
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
@@ -291,26 +295,26 @@ export default function FailureToLogPage() {
                     Approved
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-emerald-600">
+                <div className="text-3xl font-bold text-primary">
                   {approvedCount}
                 </div>
               </VStack>
             </CardContent>
           </Card>
-          <Card className="w-full h-full border-l-4 border-l-gray-500 hover:shadow-md transition-shadow">
+          <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">
                 <HStack gap="2" align="center">
                   <Icon
                     name="List"
                     size={IconSizes.sm}
-                    className="text-gray-600"
+                    className="text-primary"
                   />
                   <BodySmall className="font-medium text-muted-foreground">
                     Total Requests
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-gray-700">
+                <div className="text-3xl font-bold text-primary">
                   {requests.length}
                 </div>
               </VStack>

@@ -293,7 +293,7 @@ export default function HRDashboard() {
 
   return (
     <VStack gap="8" align="stretch" className="w-full pb-16">
-      <Card className="border-blue-200 bg-gradient-to-r from-blue-50 via-white to-blue-100">
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-background to-accent-secondary/10">
         <CardContent className="p-5 sm:p-6">
           <HStack justify="between" align="start" className="flex-col gap-4 lg:flex-row">
             <div className="space-y-2">
@@ -303,13 +303,13 @@ export default function HRDashboard() {
                 Monitor workforce count, team distribution, and recent hires from one HR workspace.
               </BodySmall>
               <HStack gap="2" className="flex-wrap">
-                <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {totalPendingApprovals} approvals waiting
                 </Badge>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {activeEmployees} active employees
                 </Badge>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-900 border-blue-200">
+                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {currentlyClockedIn.length} currently clocked in
                 </Badge>
                 {lastUpdatedAt ? (
@@ -345,7 +345,7 @@ export default function HRDashboard() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-white xl:col-span-6">
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background xl:col-span-6">
           <CardHeader className="pb-2">
             <CardDescription>{isManagerFocus ? "Today's manager focus" : "Today's HR focus"}</CardDescription>
             <CardTitle className="text-xl">
@@ -374,7 +374,7 @@ export default function HRDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-gradient-to-b from-blue-50 to-white xl:col-span-2">
+        <Card className="border-primary/20 bg-gradient-to-b from-primary/10 to-background xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>{isManagerFocus ? "Leave approvals (Manager)" : "Leave approvals"}</CardDescription>
             <CardTitle className="text-2xl">{displayedLeaveCount}</CardTitle>
@@ -385,7 +385,7 @@ export default function HRDashboard() {
             </Link>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-gradient-to-b from-blue-50 to-white xl:col-span-2">
+        <Card className="border-primary/20 bg-gradient-to-b from-primary/10 to-background xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>Overtime approvals</CardDescription>
             <CardTitle className="text-2xl">{displayedOtCount}</CardTitle>
@@ -396,7 +396,7 @@ export default function HRDashboard() {
             </Link>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 bg-gradient-to-b from-blue-50 to-white xl:col-span-2">
+        <Card className="border-primary/20 bg-gradient-to-b from-primary/10 to-background xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>Failure-to-log approvals</CardDescription>
             <CardTitle className="text-2xl">{displayedFtlCount}</CardTitle>
@@ -411,7 +411,7 @@ export default function HRDashboard() {
 
       <HStack justify="between" align="start" className="flex-col gap-2">
         <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Workforce health</h2>
+          <h2 className="font-display text-3xl font-normal leading-tight">Workforce health</h2>
           <BodySmall className="text-muted-foreground">
             Snapshot metrics and breakdowns to support daily staffing decisions.
           </BodySmall>
@@ -445,8 +445,8 @@ export default function HRDashboard() {
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {typeBreakdown.map((t) => (
-                <div key={t.type} className="rounded-xl border bg-background/80 p-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                <div key={t.type} className="rounded-xl border border-border/80 bg-background/80 p-3">
+                  <p className="font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
                     Employment type
                   </p>
                   <HStack justify="between" align="end" className="mt-2">
@@ -469,11 +469,11 @@ export default function HRDashboard() {
           ) : (
             <div className="space-y-2">
               {deptStats.map((d) => (
-                <div key={d.name} className="flex items-center justify-between p-2 rounded border">
+                <div key={d.name} className="flex items-center justify-between rounded-lg border border-border/80 bg-background/80 p-2.5">
                   <span className="text-sm font-medium">{d.name}</span>
                   <div className="flex items-center gap-2">
-                    <div className="w-24 bg-slate-200 rounded-full h-2">
-                      <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${Math.min(100, (d.count / Math.max(activeEmployees, 1)) * 100)}%` }} />
+                    <div className="h-2 w-24 rounded-full bg-muted">
+                      <div className="gradient-accent h-2 rounded-full" style={{ width: `${Math.min(100, (d.count / Math.max(activeEmployees, 1)) * 100)}%` }} />
                     </div>
                     <span className="text-sm font-mono w-6 text-right">{d.count}</span>
                   </div>

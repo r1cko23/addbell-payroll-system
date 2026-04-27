@@ -96,7 +96,7 @@ export default function FundRequestDetailPage() {
 
   const loadingState = profileLoading || loading;
   if (loadingState) {
-    const skeleton = <div className="animate-pulse h-8 w-48 bg-slate-200 rounded" />;
+    const skeleton = <div className="h-8 w-48 animate-pulse rounded bg-muted" />;
     return isPortal ? skeleton : <DashboardLayout>{skeleton}</DashboardLayout>;
   }
   if (!request) {
@@ -118,8 +118,12 @@ export default function FundRequestDetailPage() {
   const content = (
     <div className="space-y-6 max-w-3xl">
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">← Back to Fund Requests</Link>
-      <Card>
+      <Card className="border-border/80 bg-card/95">
         <CardHeader>
+          <div className="section-label mb-2 w-fit">
+            <span className="pulse-dot" />
+            Request details
+          </div>
           <CardTitle>Fund Request</CardTitle>
           <p className="text-sm text-muted-foreground">
             Request date: {format(new Date(request.request_date), 'MMMM d, yyyy')} · Requested by {requesterName}
@@ -146,7 +150,7 @@ export default function FundRequestDetailPage() {
           </div>
 
           {projectInfo && (
-            <div className="rounded-lg border bg-muted/20 p-3">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Linked Project</h4>
               <p className="font-medium">{projectInfo.code} — {projectInfo.name}</p>
               {projectInfo.site_address && <p className="text-sm text-muted-foreground">{projectInfo.site_address}</p>}

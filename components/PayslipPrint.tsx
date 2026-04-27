@@ -730,8 +730,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         }}
       >
         <img
-          src="/addbell-logo.jpg"
-          alt="Addbell Technical Services, Inc."
+          src="/add-bell-logo-new.png"
+          alt="Add-bell Technical Services, Inc."
           style={{
             height: "100px",
             width: "auto",
@@ -789,7 +789,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               Company Name:
             </td>
             <td style={{ padding: "3px 5px", width: "25%" }}>
-              ADDBELL TECHNICAL SERVICES, INC.
+              ADD-BELL TECHNICAL SERVICES, INC.
             </td>
             <td style={{ padding: "3px 5px", fontWeight: "bold" }}>
               Period Covered:

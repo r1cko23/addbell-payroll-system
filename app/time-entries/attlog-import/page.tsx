@@ -595,8 +595,8 @@ export default function AttlogImportPage() {
                 </Badge>
               </div>
 
-              <div className="rounded-md border">
-                <Table>
+              <div className="w-full max-w-full overflow-x-auto rounded-md border">
+                <Table className="w-full min-w-[760px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Row</TableHead>
@@ -633,8 +633,8 @@ export default function AttlogImportPage() {
               {previewErrors.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Rows that still need fixing</div>
-                  <div className="rounded-md border">
-                    <Table>
+                  <div className="w-full max-w-full overflow-x-auto rounded-md border">
+                    <Table className="w-full min-w-[540px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Row</TableHead>
@@ -690,8 +690,8 @@ export default function AttlogImportPage() {
               </div>
 
               {importResult.unresolved.length > 0 && (
-                <div className="rounded-md border">
-                  <Table>
+                <div className="w-full max-w-full overflow-x-auto rounded-md border">
+                  <Table className="w-full min-w-[540px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Row</TableHead>

@@ -23,7 +23,8 @@ const SKIPPED_CAPITALIZE_TYPES = new Set([
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = "text", autoCapitalizeWords = true, onChange, ...props }, ref) => {
     const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      if (event.nativeEvent.isComposing) {
+      const nativeEvent = event.nativeEvent as Event & { isComposing?: boolean }
+      if (nativeEvent.isComposing) {
         onChange?.(event)
         return
       }

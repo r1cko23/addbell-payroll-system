@@ -11,7 +11,8 @@ const Textarea = React.forwardRef<
   TextareaProps
 >(({ className, autoCapitalizeWords = true, onChange, ...props }, ref) => {
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (event.nativeEvent.isComposing) {
+    const nativeEvent = event.nativeEvent as Event & { isComposing?: boolean };
+    if (nativeEvent.isComposing) {
       onChange?.(event);
       return;
     }

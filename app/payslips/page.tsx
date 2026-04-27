@@ -3428,9 +3428,6 @@ export default function PayslipsPage() {
                                 <span className="font-medium text-sm">
                                   PhilHealth
                                 </span>
-                                <Caption className="text-muted-foreground text-xs">
-                                  Prorated full-month share (4th pay × days÷26)
-                                </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
                                 {formatCurrency(weeklyStatutory.phil)}
@@ -3449,9 +3446,6 @@ export default function PayslipsPage() {
                                 <span className="font-medium text-sm">
                                   Pag-IBIG
                                 </span>
-                                <Caption className="text-muted-foreground text-xs">
-                                  Prorated full-month share (4th pay × days÷26)
-                                </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
                                 {formatCurrency(weeklyStatutory.pagibig)}
@@ -3513,77 +3507,11 @@ export default function PayslipsPage() {
                             <HStack justify="between" align="center" className="w-full">
                               <VStack gap="0" align="start" className="flex-1 min-w-0">
                                 <span className="font-medium text-sm">Tax</span>
-                                <Caption className="text-muted-foreground text-xs">
-                                  BIR semi-monthly: withheld on the last weekly pay of
-                                  each half-month ({semiHalfLabel}). Monthly table on 2×
-                                  semi-monthly taxable income, then ÷ 2.
-                                </Caption>
                               </VStack>
                               <span className="font-semibold text-sm ml-2 flex-shrink-0">
                                 {formatCurrency(tax)}
                               </span>
                             </HStack>
-                            {taxBreakdown &&
-                              (semiTaxDue > 0 || taxBreakdown.withholdingTax > 0) && (
-                              <div className="mt-0.5 space-y-0.5 border-t border-border pt-1.5 text-[10px] text-muted-foreground">
-                                <div>
-                                  Semi-month gross (est.):{" "}
-                                  {formatCurrency(actualSemiGross)}
-                                  {semiMonthlyRollupForTax != null ? (
-                                    <span className="text-muted-foreground/80">
-                                      {" "}
-                                      (other saved pays this half-month:{" "}
-                                      {formatCurrency(grossOther)} + this period:{" "}
-                                      {formatCurrency(periodGross)})
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted-foreground/80">
-                                      {" "}
-                                      (loading saved pays… using this period ×{" "}
-                                      {nSemiWeeks} pays in this half)
-                                    </span>
-                                  )}
-                                </div>
-                                <div>
-                                  WH already taken this half-month (saved pays, excl.
-                                  this period): {formatCurrency(taxPrior)}
-                                </div>
-                                <div>
-                                  Semi-monthly tax due (BIR):{" "}
-                                  {formatCurrency(semiTaxDue)}
-                                </div>
-                                <div>
-                                  Less ½ prorated monthly contributions (SSS +
-                                  PhilHealth + Pag-IBIG):{" "}
-                                  {formatCurrency(halfMonthlyContrib)}
-                                </div>
-                                <div className="font-medium">
-                                  Semi-monthly taxable income:{" "}
-                                  {formatCurrency(semiTaxableIncome)}
-                                </div>
-                                <div>
-                                  Monthly-equivalent taxable (×2 for table):{" "}
-                                  {formatCurrency(monthlyEquivTaxable)}
-                                </div>
-                                <div>
-                                  BIR Range {taxBreakdown.rangeIndex}:{" "}
-                                  {taxBreakdown.rangeLabel}
-                                </div>
-                                <div>
-                                  {taxBreakdown.prescribedTax > 0 &&
-                                    `${formatCurrency(taxBreakdown.prescribedTax)} + `}
-                                  {taxBreakdown.ratePercent}% ×{" "}
-                                  {formatCurrency(taxBreakdown.excessAmount)} ={" "}
-                                  {formatCurrency(taxBreakdown.taxOnExcess)}
-                                  {taxBreakdown.prescribedTax > 0 &&
-                                    ` = ${formatCurrency(taxBreakdown.withholdingTax)} monthly`}
-                                </div>
-                                <div className="font-medium text-foreground">
-                                  Withholding this pay (½ of monthly on equivalent):{" "}
-                                  {formatCurrency(semiTaxDue)}
-                                </div>
-                              </div>
-                            )}
                           </VStack>
                         );
                       })()}

@@ -102,6 +102,15 @@ const CLOCK_SITE_ORDER = [
   "Advance Energy Cavite",
 ] as const;
 
+function toUpperOrNull(value: string | null | undefined): string | null {
+  const trimmed = (value ?? "").trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+function toUpperRequired(value: string | null | undefined): string {
+  return (value ?? "").trim().toUpperCase();
+}
+
 export default function EmployeeDetailPage() {
   const params = useParams();
   const employeeId = params.id as string;
@@ -171,21 +180,31 @@ export default function EmployeeDetailPage() {
   const handleSave = async () => {
     if (!employee) return;
     setSaving(true);
+    const firstName = toUpperRequired(editForm.first_name);
+    const middleName = toUpperOrNull(editForm.middle_name);
+    const lastName = toUpperRequired(editForm.last_name);
+    const suffix = toUpperOrNull(editForm.suffix);
+    const address = toUpperOrNull(editForm.address);
+    const contactPerson = toUpperOrNull(editForm.contact_person);
+    const contactPersonRelationship = toUpperOrNull(editForm.contact_person_relationship);
+    const bankName = toUpperOrNull(editForm.bank_name);
+    const bankAccountName = toUpperOrNull(editForm.bank_account_name);
+
     const { error } = await supabase
       .from("employees")
       .update({
-        first_name: editForm.first_name,
-        middle_name: editForm.middle_name || null,
-        last_name: editForm.last_name,
-        suffix: editForm.suffix || null,
+        first_name: firstName,
+        middle_name: middleName,
+        last_name: lastName,
+        suffix,
         date_of_birth: editForm.date_of_birth || null,
         sex: editForm.sex || null,
         civil_status: editForm.civil_status || null,
         mobile: editForm.mobile || null,
         email: editForm.email || null,
-        address: editForm.address || null,
-        contact_person: editForm.contact_person || null,
-        contact_person_relationship: editForm.contact_person_relationship || null,
+        address,
+        contact_person: contactPerson,
+        contact_person_relationship: contactPersonRelationship,
         sss_number: editForm.sss_number || null,
         philhealth_number: editForm.philhealth_number || null,
         pagibig_number: editForm.pagibig_number || null,
@@ -195,8 +214,8 @@ export default function EmployeeDetailPage() {
         employment_status: editForm.employment_status,
         salary_basis: editForm.salary_basis,
         base_rate: editForm.base_rate,
-        bank_name: editForm.bank_name || null,
-        bank_account_name: editForm.bank_account_name || null,
+        bank_name: bankName,
+        bank_account_name: bankAccountName,
         bank_account_number: editForm.bank_account_number || null,
         regularization_date: editForm.regularization_date || null,
         end_of_contract: editForm.end_of_contract || null,

@@ -154,6 +154,15 @@ const emptyForm = {
   overtime_group_id: "",
 };
 
+function toUpperOrNull(value: string): string | null {
+  const trimmed = value.trim();
+  return trimmed ? trimmed.toUpperCase() : null;
+}
+
+function toUpperRequired(value: string): string {
+  return value.trim().toUpperCase();
+}
+
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -371,7 +380,7 @@ export default function EmployeesPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const companyIdNo = formData.company_id_no.trim();
+    const companyIdNo = toUpperRequired(formData.company_id_no);
     const biometricId = formData.employee_code.trim();
     if (!/^\d+$/.test(biometricId)) {
       toast.error("Time clock / biometric ID must be digits only (e.g. 10001).");
@@ -380,20 +389,29 @@ export default function EmployeesPage() {
     setSubmitting(true);
 
     try {
+      const firstName = toUpperRequired(formData.first_name);
+      const middleName = toUpperOrNull(formData.middle_name);
+      const lastName = toUpperRequired(formData.last_name);
+      const suffix = toUpperOrNull(formData.suffix);
+      const address = toUpperOrNull(formData.address);
+      const contactPerson = toUpperOrNull(formData.contact_person);
+      const bankName = toUpperOrNull(formData.bank_name);
+      const bankAccountName = toUpperOrNull(formData.bank_account_name);
+
       const employeeData: Record<string, unknown> = {
         company_id_no: companyIdNo,
         employee_code: biometricId,
-        first_name: formData.first_name,
-        middle_name: formData.middle_name || null,
-        last_name: formData.last_name,
-        suffix: formData.suffix || null,
+        first_name: firstName,
+        middle_name: middleName,
+        last_name: lastName,
+        suffix,
         date_of_birth: formData.date_of_birth || null,
         sex: formData.sex || null,
         civil_status: formData.civil_status || null,
         mobile: formData.mobile || null,
         email: formData.email || null,
-        address: formData.address || null,
-        contact_person: formData.contact_person || null,
+        address,
+        contact_person: contactPerson,
         sss_number: formData.sss_number || null,
         philhealth_number: formData.philhealth_number || null,
         pagibig_number: formData.pagibig_number || null,
@@ -411,8 +429,8 @@ export default function EmployeesPage() {
         position_id: formData.position_id || null,
         salary_basis: formData.salary_basis,
         base_rate: formData.base_rate ? parseFloat(formData.base_rate) : 0,
-        bank_name: formData.bank_name || null,
-        bank_account_name: formData.bank_account_name || null,
+        bank_name: bankName,
+        bank_account_name: bankAccountName,
         bank_account_number: formData.bank_account_number || null,
         overtime_group_id: formData.overtime_group_id ? formData.overtime_group_id : null,
       };
@@ -427,7 +445,7 @@ export default function EmployeesPage() {
         if (error) throw error;
         savedEmployeeId = editingEmployee.id;
         toast.success("Employee updated successfully!", {
-          description: `${formData.first_name} ${formData.last_name} · ${companyIdNo}`,
+          description: `${firstName} ${lastName} · ${companyIdNo}`,
         });
       } else {
         const { data: companyData } = await supabase
@@ -450,7 +468,7 @@ export default function EmployeesPage() {
         if (error) throw error;
         savedEmployeeId = insertedRow?.id ?? null;
         toast.success("Employee added successfully!", {
-          description: `${formData.first_name} ${formData.last_name} · ${companyIdNo}`,
+          description: `${firstName} ${lastName} · ${companyIdNo}`,
         });
       }
 

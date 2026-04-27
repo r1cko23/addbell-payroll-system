@@ -12,6 +12,8 @@ export interface LocationDetails {
   address: string;
   coordinates: string | null;
   isWithinAllowedArea: boolean;
+  isNearestRegisteredLandmark?: boolean;
+  nearestDistanceMeters?: number | null;
 }
 
 interface Coordinates {
@@ -20,6 +22,7 @@ interface Coordinates {
 }
 
 const EARTH_RADIUS_METERS = 6371000;
+const NEAREST_LANDMARK_MAX_DISTANCE_METERS = 1000;
 
 function toRadians(degrees: number) {
   return (degrees * Math.PI) / 180;
@@ -118,13 +121,28 @@ export function resolveLocationDetails(
       address: nearest.loc.address || coordString,
       coordinates: coordString,
       isWithinAllowedArea: true,
+      isNearestRegisteredLandmark: false,
+      nearestDistanceMeters: nearest.distance,
+    };
+  }
+
+  if (nearest && nearest.distance <= NEAREST_LANDMARK_MAX_DISTANCE_METERS) {
+    return {
+      name: `Near ${nearest.loc.name}`,
+      address: nearest.loc.address || coordString,
+      coordinates: coordString,
+      isWithinAllowedArea: false,
+      isNearestRegisteredLandmark: true,
+      nearestDistanceMeters: nearest.distance,
     };
   }
 
   return {
-    name: 'Outside registered locations',
+    name: 'Pinned location',
     address: coordString,
     coordinates: coordString,
     isWithinAllowedArea: false,
+    isNearestRegisteredLandmark: false,
+    nearestDistanceMeters: nearest?.distance ?? null,
   };
 }

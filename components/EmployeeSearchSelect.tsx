@@ -101,13 +101,16 @@ export function EmployeeSearchSelect({
         />
         <Input
           type="search"
-          placeholder={showAllOption ? "All Employees" : placeholder}
+          placeholder={placeholder}
           value={open ? query : displayValue}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setOpen(true);
+            setQuery(value === "all" || !value ? "" : displayValue);
+          }}
           disabled={disabled}
           className={cn("pl-9", triggerClassName)}
         />

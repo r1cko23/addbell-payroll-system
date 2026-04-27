@@ -143,6 +143,7 @@ export default function TimeEntriesPage() {
   const [bulkEntries, setBulkEntries] = useState<Array<{ date: string; timeIn: string; timeOut: string; notes: string }>>([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
   const [savingBulkEntries, setSavingBulkEntries] = useState(false);
   const [expandedDayKeys, setExpandedDayKeys] = useState<Set<string>>(new Set());
+  const [reverseGeocodeMap, setReverseGeocodeMap] = useState<Record<string, string>>({});
 
   // Weekly cutoff: Wednesday to Tuesday
   const periodStart = selectedWeekStart;
@@ -295,6 +296,13 @@ export default function TimeEntriesPage() {
 
   // Group entries by employee + date (one card per employee per day)
   const groupedByDay = useMemo(() => {
+    const getLatestClockIn = (dayEntries: TimeEntry[]) => {
+      return dayEntries.reduce((latest, entry) => {
+        const time = new Date(entry.clock_in_time).getTime();
+        return Number.isFinite(time) && time > latest ? time : latest;
+      }, 0);
+    };
+
     const keyToDateStr = (clockInTime: string) => {
       const d = new Date(clockInTime);
       const dPH = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
@@ -341,12 +349,93 @@ export default function TimeEntriesPage() {
       });
     });
     result.sort((a, b) => {
-      const dateCmp = a.dateKey.localeCompare(b.dateKey);
+      const dateCmp = b.dateKey.localeCompare(a.dateKey);
       if (dateCmp !== 0) return dateCmp;
+      const latestCmp = getLatestClockIn(b.entries) - getLatestClockIn(a.entries);
+      if (latestCmp !== 0) return latestCmp;
       return (a.employee?.full_name ?? "").localeCompare(b.employee?.full_name ?? "");
     });
     return result;
   }, [entries]);
+
+  const parseCoordinates = (locationString?: string | null): string | null => {
+    if (!locationString) return null;
+    if (locationString.startsWith("office:")) return null;
+    const [latStr, lngStr] = locationString.split(",");
+    const lat = Number.parseFloat(latStr);
+    const lng = Number.parseFloat(lngStr);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
+  const normalizeCoordinateKey = (coordinates: string): string => {
+    const [latStr, lngStr] = coordinates.split(",");
+    const lat = Number.parseFloat(latStr);
+    const lng = Number.parseFloat(lngStr);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return coordinates;
+    }
+    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
+  const getResolvedAddress = (details: ReturnType<typeof resolveLocationDetails>) => {
+    if (details.isNearestRegisteredLandmark) return details.address;
+    if (details.isWithinAllowedArea) return details.address;
+    if (!details.coordinates) return details.address;
+    const key = normalizeCoordinateKey(details.coordinates);
+    return reverseGeocodeMap[key] || details.address;
+  };
+
+  useEffect(() => {
+    const coordinateSet = new Set<string>();
+
+    entries.forEach((entry) => {
+      const inCoordinates = parseCoordinates(entry.clock_in_location);
+      if (inCoordinates) coordinateSet.add(inCoordinates);
+
+      const outCoordinates = parseCoordinates(entry.clock_out_location);
+      if (outCoordinates) coordinateSet.add(outCoordinates);
+    });
+
+    const unresolved = Array.from(coordinateSet).filter((coords) => !reverseGeocodeMap[coords]);
+    if (unresolved.length === 0) return;
+
+    let cancelled = false;
+
+    const resolveAddresses = async () => {
+      const updates: Record<string, string> = {};
+
+      await Promise.all(
+        unresolved.slice(0, 80).map(async (coords) => {
+          const [latStr, lngStr] = coords.split(",");
+          const lat = Number.parseFloat(latStr);
+          const lng = Number.parseFloat(lngStr);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+          try {
+            const res = await fetch(
+              `/api/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`
+            );
+            const json = (await res.json()) as { address?: string | null };
+            if (res.ok && json.address) {
+              updates[coords] = json.address;
+            }
+          } catch {
+            // Keep coordinate fallback when reverse geocoding fails.
+          }
+        })
+      );
+
+      if (cancelled || Object.keys(updates).length === 0) return;
+      setReverseGeocodeMap((prev) => ({ ...prev, ...updates }));
+    };
+
+    void resolveAddresses();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entries, reverseGeocodeMap]);
 
   const toggleDayExpanded = (key: string) => {
     setExpandedDayKeys((prev) => {
@@ -1311,7 +1400,7 @@ export default function TimeEntriesPage() {
                                       {clockInDetails.name}
                                     </div>
                                     <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                                      {clockInDetails.address}
+                                      {getResolvedAddress(clockInDetails)}
                                     </div>
                                     {clockInDetails.coordinates && (
                                       <a
@@ -1335,7 +1424,7 @@ export default function TimeEntriesPage() {
                                           {clockOutDetails.name}
                                         </div>
                                         <div className="text-[10px] sm:text-[11px] text-muted-foreground">
-                                          {clockOutDetails.address}
+                                          {getResolvedAddress(clockOutDetails)}
                                         </div>
                                         {clockOutDetails.coordinates && (
                                           <a
@@ -1500,7 +1589,7 @@ export default function TimeEntriesPage() {
                                 {selectedClockInDetails.name}
                               </div>
                               <div className="text-[11px] text-muted-foreground">
-                                {selectedClockInDetails.address}
+                                {getResolvedAddress(selectedClockInDetails)}
                               </div>
                               {selectedClockInDetails.coordinates && (
                                 <a
@@ -1550,7 +1639,7 @@ export default function TimeEntriesPage() {
                                 {selectedClockOutDetails.name}
                               </div>
                               <div className="text-[11px] text-muted-foreground">
-                                {selectedClockOutDetails.address}
+                                {getResolvedAddress(selectedClockOutDetails)}
                               </div>
                               {selectedClockOutDetails.coordinates && (
                                 <a

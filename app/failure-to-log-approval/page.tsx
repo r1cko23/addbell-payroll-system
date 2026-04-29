@@ -107,12 +107,32 @@ export default function FailureToLogApprovalPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
     useState<Record<string, string>>({});
+  const [groupApproverIdByGroupName, setGroupApproverIdByGroupName] = useState<
+    Record<string, string>
+  >({});
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
 
   const getRequestGroupName = (request: FailureToLog): string | null =>
     employeeGroupNameByEmployeeId[request.employee_id] || null;
+
+  const isUserApproverForGroup = (
+    userId: string | null | undefined,
+    groupName?: string | null
+  ): boolean => {
+    if (!userId || !groupName) return false;
+    const normalized = groupName.trim().toLowerCase();
+    const assignedApproverId =
+      groupApproverIdByGroupName[groupName] ||
+      groupApproverIdByGroupName[normalized] ||
+      null;
+    if (assignedApproverId) {
+      return assignedApproverId === userId;
+    }
+    // Fallback for legacy hardcoded routing.
+    return isFirstApproverForGroup(userId, groupName);
+  };
 
   const isManagerStagePending = (request: FailureToLog): boolean =>
     request.status === "pending" && !request.account_manager_id;
@@ -122,17 +142,35 @@ export default function FailureToLogApprovalPage() {
 
   const canCurrentUserActOnRequest = (request: FailureToLog): boolean => {
     if (request.status !== "pending") return false;
-    if (isAdmin || normalizedRole === "upper_management") return true;
     if (!currentUserId) return false;
-    if (
-      normalizedRole === "operations_manager" &&
-      isManagerStagePending(request)
-    ) {
-      return isFirstApproverForGroup(currentUserId, getRequestGroupName(request));
+
+    if (isAdmin) return true;
+
+    const managerStage = isManagerStagePending(request);
+    const skipManagerStageForHr =
+      isHR &&
+      isFinalHrApprover(currentUserId) &&
+      managerStage &&
+      isUserApproverForGroup(currentUserId, getRequestGroupName(request));
+
+    // Upper management can only approve the groups where they are the first approver.
+    if (normalizedRole === "upper_management") {
+      return (
+        managerStage &&
+        isUserApproverForGroup(currentUserId, getRequestGroupName(request))
+      );
     }
-    if (isHR && isHrStagePending(request)) {
-      return isFinalHrApprover(currentUserId);
+
+    if (normalizedRole === "operations_manager" && managerStage) {
+      return isUserApproverForGroup(currentUserId, getRequestGroupName(request));
     }
+
+    if (isHR) {
+      if (isHrStagePending(request)) return isFinalHrApprover(currentUserId);
+      // HR skip: if HR is the first approver for the group, manager-stage is skipped.
+      return skipManagerStageForHr;
+    }
+
     return false;
   };
 
@@ -162,6 +200,16 @@ export default function FailureToLogApprovalPage() {
   const getWorkflowStep = (request: FailureToLog): 1 | 2 | 3 => {
     if (request.status === "approved" || request.status === "rejected") return 3;
     if (isHrStagePending(request)) return 2;
+    // HR skip: if HR is the first approver for the group, manager-stage is skipped.
+    if (
+      currentUserId &&
+      isManagerStagePending(request) &&
+      isUserApproverForGroup(currentUserId, getRequestGroupName(request)) &&
+      ((isHR && isFinalHrApprover(currentUserId)) ||
+        normalizedRole === "upper_management")
+    ) {
+      return 2;
+    }
     return 1;
   };
 
@@ -185,10 +233,16 @@ export default function FailureToLogApprovalPage() {
   }, [canManageFailureToLog]);
 
   async function loadEmployeeGroupMap() {
-    const [employeesRes, groupsRes] = await Promise.all([
-      supabase.from("employees").select("id, overtime_group_id"),
-      supabase.from("overtime_groups").select("id, name"),
-    ]);
+    const employeesRes = await supabase
+      .from("employees")
+      .select("id, employee_id, overtime_group_id");
+    let groupsRes = await supabase
+      .from("overtime_groups")
+      .select("id, name, approver_id");
+    if (groupsRes.error) {
+      // Fallback for environments where approver_id column is not present yet.
+      groupsRes = await supabase.from("overtime_groups").select("id, name");
+    }
 
     if (employeesRes.error || groupsRes.error) {
       setEmployeeGroupNameByEmployeeId({});
@@ -196,17 +250,26 @@ export default function FailureToLogApprovalPage() {
     }
 
     const groupNameById: Record<string, string> = {};
+    const approverByGroupName: Record<string, string> = {};
     (groupsRes.data || []).forEach((g: any) => {
       groupNameById[g.id] = g.name;
+      if (g.name && g.approver_id) {
+        approverByGroupName[g.name] = g.approver_id;
+        approverByGroupName[String(g.name).trim().toLowerCase()] = g.approver_id;
+      }
     });
 
     const map: Record<string, string> = {};
     (employeesRes.data || []).forEach((emp: any) => {
       if (emp.overtime_group_id && groupNameById[emp.overtime_group_id]) {
+        // overtime_requests/failure_to_log.employee_id may be either employees.employee_id
+        // or employees.id (UUID), depending on how the row was created.
+        map[emp.employee_id] = groupNameById[emp.overtime_group_id];
         map[emp.id] = groupNameById[emp.overtime_group_id];
       }
     });
     setEmployeeGroupNameByEmployeeId(map);
+    setGroupApproverIdByGroupName(approverByGroupName);
   }
 
   async function loadEmployees() {
@@ -243,9 +306,9 @@ export default function FailureToLogApprovalPage() {
     const filteredEmployees = (data || []).filter((employee: any) => {
       if (isAdmin || normalizedRole === "upper_management") return true;
       if (normalizedRole === "operations_manager") {
-        return isFirstApproverForGroup(
+        return isUserApproverForGroup(
           currentUserId,
-          employeeGroupNameByEmployeeId[employee.id]
+          employeeGroupNameByEmployeeId[employee.employee_id]
         );
       }
       if (isHR) {
@@ -294,83 +357,16 @@ export default function FailureToLogApprovalPage() {
       return filtered;
     };
 
-    const fullQuery = applyFilters(
+    const plainQuery = applyFilters(
       supabase
         .from("failure_to_log")
-        .select(
-          `
-          *,
-          employees (
-            employee_id,
-            full_name,
-              profile_picture_url
-          ),
-          time_clock_entries (
-            clock_in_time,
-            clock_out_time
-          )
-        `
-        )
+        .select("*")
         .gte("missed_date", weekStartStr)
         .lte("missed_date", weekEndStr)
         .order("created_at", { ascending: false })
     );
 
-    let { data, error } = await fullQuery;
-
-    if (error) {
-      console.warn(
-        "Failure-to-log query with clock entry join failed, retrying without time_clock_entries:",
-        error
-      );
-      const fallbackQuery = applyFilters(
-        supabase
-          .from("failure_to_log")
-          .select(
-            `
-            *,
-            employees (
-              employee_id,
-              full_name,
-              profile_picture_url
-            )
-          `
-          )
-          .gte("missed_date", weekStartStr)
-          .lte("missed_date", weekEndStr)
-          .order("created_at", { ascending: false })
-      );
-      const fallbackResult = await fallbackQuery;
-      data = fallbackResult.data;
-      error = fallbackResult.error;
-    }
-
-    if (error) {
-      console.warn(
-        "Failure-to-log query with employee position join failed, retrying with basic employee fields:",
-        error
-      );
-      const basicFallbackQuery = applyFilters(
-        supabase
-          .from("failure_to_log")
-          .select(
-            `
-            *,
-            employees (
-              employee_id,
-              full_name,
-              profile_picture_url
-            )
-          `
-          )
-          .gte("missed_date", weekStartStr)
-          .lte("missed_date", weekEndStr)
-          .order("created_at", { ascending: false })
-      );
-      const basicFallbackResult = await basicFallbackQuery;
-      data = basicFallbackResult.data;
-      error = basicFallbackResult.error;
-    }
+    const { data, error } = await plainQuery;
 
     setLoading(false);
 
@@ -380,25 +376,69 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
-    let filteredData = data;
-    if (!isAdmin && normalizedRole !== "upper_management" && data) {
-      filteredData = data.filter((request: any) => {
+    const rawRequests = (data || []) as any[];
+
+    // Load employee display info separately to avoid PostgREST relation 400s.
+    const employeeIds = Array.from(
+      new Set(
+        rawRequests
+          .map((r) => r.employee_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      )
+    );
+    let employeeById: Record<
+      string,
+      { employee_id?: string; full_name?: string; profile_picture_url?: string | null }
+    > = {};
+    if (employeeIds.length > 0) {
+      const { data: employeeRows, error: employeeRowsError } = await supabase
+        .from("employees")
+        .select("id, employee_id, full_name, profile_picture_url")
+        .in("id", employeeIds);
+      if (!employeeRowsError && employeeRows) {
+        employeeById = (employeeRows as any[]).reduce((acc, row) => {
+          acc[row.id] = {
+            employee_id: row.employee_id,
+            full_name: row.full_name,
+            profile_picture_url: row.profile_picture_url ?? null,
+          };
+          return acc;
+        }, {} as Record<string, { employee_id?: string; full_name?: string; profile_picture_url?: string | null }>);
+      }
+    }
+
+    const dataWithEmployees = rawRequests.map((r) => ({
+      ...r,
+      employees:
+        employeeById[r.employee_id] ||
+        {
+          employee_id: null,
+          full_name: "Unknown Employee",
+          profile_picture_url: null,
+        },
+    }));
+
+    let filteredData = dataWithEmployees;
+    if (!isAdmin && normalizedRole !== "upper_management") {
+      filteredData = dataWithEmployees.filter((request: any) => {
         if (!currentUserId) return false;
         if (normalizedRole === "operations_manager") {
-          return (
-            request.status === "pending" &&
-            !request.account_manager_id &&
-            isFirstApproverForGroup(
-              currentUserId,
-              employeeGroupNameByEmployeeId[request.employee_id]
-            )
+          // Operations Manager can view all statuses for requests in their group.
+          return isUserApproverForGroup(
+            currentUserId,
+            employeeGroupNameByEmployeeId[request.employee_id]
           );
         }
         if (isHR) {
+          // HR visibility:
+          // - Final HR approver can view all statuses.
+          // - HR first-approver (skip-manager groups) can also view all statuses in their group.
           return (
-            isFinalHrApprover(currentUserId) &&
-            request.status === "pending" &&
-            Boolean(request.account_manager_id)
+            isFinalHrApprover(currentUserId) ||
+            isUserApproverForGroup(
+              currentUserId,
+              employeeGroupNameByEmployeeId[request.employee_id]
+            )
           );
         }
         return false;
@@ -543,13 +583,30 @@ export default function FailureToLogApprovalPage() {
 
     const now = new Date().toISOString();
     const managerStage = isManagerStagePending(selectedFailureToLog);
-    const patch: Record<string, unknown> = managerStage
+
+    const skipManagerStageForHr =
+      isHR &&
+      isFinalHrApprover(user.id) &&
+      managerStage &&
+      isUserApproverForGroup(user.id, getRequestGroupName(selectedFailureToLog));
+
+    const skipManagerStageForUpperManagement =
+      normalizedRole === "upper_management" &&
+      managerStage &&
+      isUserApproverForGroup(user.id, getRequestGroupName(selectedFailureToLog));
+
+    const effectiveManagerStageFinal =
+      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+
+    const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {
+          // Manager-stage endorsement to HR
           status: "pending",
           account_manager_id: user.id,
           updated_at: now,
         }
       : {
+          // Final approval (either HR skip or direct final)
           status: "approved",
           approved_by: user.id,
           approved_at: now,
@@ -573,7 +630,7 @@ export default function FailureToLogApprovalPage() {
     // Get employee name for toast message
     const approvedRequest = requests.find((r) => r.id === requestId);
     const employeeName = approvedRequest?.employees?.full_name || "Employee";
-    if (managerStage) {
+    if (effectiveManagerStageFinal) {
       toast.success("Failure-to-log request endorsed to HR", {
         description: `${employeeName}'s request is now awaiting HR approval`,
       });
@@ -604,8 +661,24 @@ export default function FailureToLogApprovalPage() {
 
     const now = new Date().toISOString();
     const managerStage = isManagerStagePending(selectedFailureToLog);
-    const patch: Record<string, unknown> = managerStage
+
+    const skipManagerStageForHr =
+      isHR &&
+      isFinalHrApprover(user.id) &&
+      managerStage &&
+      isUserApproverForGroup(user.id, getRequestGroupName(selectedFailureToLog));
+
+    const skipManagerStageForUpperManagement =
+      normalizedRole === "upper_management" &&
+      managerStage &&
+      isUserApproverForGroup(user.id, getRequestGroupName(selectedFailureToLog));
+
+    const effectiveManagerStageFinal =
+      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+
+    const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {
+          // Manager-stage rejection (endorsed to HR)
           status: "rejected",
           account_manager_id: user.id,
           approved_by: user.id,
@@ -614,6 +687,7 @@ export default function FailureToLogApprovalPage() {
           rejection_reason: rejectionReason.trim() || "Request rejected",
         }
       : {
+          // Skip scenario: rejected directly
           status: "rejected",
           approved_by: user.id,
           approved_at: now,
@@ -693,7 +767,7 @@ export default function FailureToLogApprovalPage() {
           <CardContent className="p-4">
             <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
               <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="border-primary/30 bg-primary/10 text-primary">
+                <Badge className="border-primary/30 bg-primary text-primary-foreground">
                   {stats.pending} pending
                 </Badge>
                 <Badge variant="outline">{stats.approved} approved</Badge>

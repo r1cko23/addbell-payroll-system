@@ -28,6 +28,7 @@ import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
   isFinalHrApprover,
   isFirstApproverForGroup,
+  LOCATION_FIRST_APPROVER_BY_GROUP,
 } from "@/lib/requestApprovalRouting";
 
 type OvertimeDocument = {
@@ -68,6 +69,7 @@ type OTRequest = {
     employee_id: string;
     profile_picture_url?: string | null;
     requires_ot_punch?: boolean | null;
+    overtime_group_id?: string | null;
   };
 };
 
@@ -100,6 +102,11 @@ export default function OvertimeApprovalPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
     useState<Record<string, string>>({});
+  const [overtimeGroupNameById, setOvertimeGroupNameById] = useState<
+    Record<string, string>
+  >({});
+  const [overtimeGroupFirstApproverIdById, setOvertimeGroupFirstApproverIdById] =
+    useState<Record<string, string>>({});
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
@@ -107,8 +114,32 @@ export default function OvertimeApprovalPage() {
     Record<string, OtPunchStatus>
   >({});
 
-  const getRequestGroupName = (request: OTRequest): string | null =>
-    employeeGroupNameByEmployeeId[request.employee_id] || null;
+  const getRequestGroupName = (request: OTRequest): string | null => {
+    const groupId = request.employees?.overtime_group_id || null;
+    if (groupId) return overtimeGroupNameById[groupId] || null;
+    return employeeGroupNameByEmployeeId[request.employee_id] || null;
+  };
+
+  const getRequestOvertimeGroupFirstApproverId = (
+    request: OTRequest
+  ): string | null => {
+    const groupId = request.employees?.overtime_group_id || null;
+    if (!groupId) return null;
+    return overtimeGroupFirstApproverIdById[groupId] || null;
+  };
+
+  const isUserFirstApproverForRequest = (
+    userId: string | null,
+    request: OTRequest
+  ): boolean => {
+    if (!userId) return false;
+    const byGroupId = getRequestOvertimeGroupFirstApproverId(request);
+    if (byGroupId) return byGroupId === userId;
+
+    // Fallback to group-name based routing (covers any missing join fields).
+    const groupName = getRequestGroupName(request);
+    return isFirstApproverForGroup(userId, groupName);
+  };
 
   const isManagerStagePending = (request: OTRequest): boolean =>
     request.status === "pending" &&
@@ -121,16 +152,57 @@ export default function OvertimeApprovalPage() {
 
   const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
     if (request.status !== "pending") return false;
-    if (isAdmin || normalizedRole === "upper_management") return true;
+    if (isAdmin) return true;
     if (!currentUserId) return false;
+
+    const upperManagementFirstApproverId =
+      LOCATION_FIRST_APPROVER_BY_GROUP["upper management group"];
+
+    // Upper management: only the assigned approver can act.
+    if (normalizedRole === "upper_management") {
+      // Manager stage pending: only the first approver for the OT group can act.
+      if (isManagerStagePending(request)) {
+        return isUserFirstApproverForRequest(currentUserId, request);
+      }
+
+      // HR stage pending: only the approver already assigned (account_manager/project_manager) can act.
+      if (isHrStagePending(request)) {
+        return (
+          request.account_manager_id === currentUserId ||
+          request.project_manager_id === currentUserId
+        );
+      }
+
+      return false;
+    }
+
     if (
       normalizedRole === "operations_manager" &&
       isManagerStagePending(request)
     ) {
-      return isFirstApproverForGroup(currentUserId, getRequestGroupName(request));
+      return isUserFirstApproverForRequest(currentUserId, request);
     }
-    if (isHR && isHrStagePending(request)) {
-      return isFinalHrApprover(currentUserId);
+    if (isHR) {
+      // Standard HR step: HR can only act when the request is waiting for HR.
+      if (isHrStagePending(request)) {
+        // Special case: if upper management already endorsed the OT request,
+        // only that upper-management approver can finalize it.
+        if (
+          (request.account_manager_id === upperManagementFirstApproverId ||
+            request.project_manager_id === upperManagementFirstApproverId) &&
+          isFinalHrApprover(currentUserId)
+        ) {
+          return false;
+        }
+
+        return isFinalHrApprover(currentUserId);
+      }
+
+      // Skip rule: when HR is also the first approver for the OT group,
+      // the request should go directly to HR (so HR can act on manager-stage pending).
+      if (isManagerStagePending(request)) {
+        return isUserFirstApproverForRequest(currentUserId, request);
+      }
     }
     return false;
   };
@@ -138,12 +210,23 @@ export default function OvertimeApprovalPage() {
   const statusBadgeClass = (status: OTRequest["status"]) => {
     if (status === "approved") return "bg-emerald-50 text-emerald-700 border-emerald-200";
     if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
-    return "bg-amber-50 text-amber-700 border-amber-200";
+    // Pending should be high-contrast (white text on blue pill).
+    return "bg-blue-600 text-white border-blue-600";
   };
 
   const getWorkflowStep = (request: OTRequest): 1 | 2 | 3 => {
     if (request.status === "approved" || request.status === "rejected") return 3;
     if (isHrStagePending(request)) return 2;
+    const upperManagementFirstApproverId =
+      LOCATION_FIRST_APPROVER_BY_GROUP["upper management group"];
+    if (
+      isManagerStagePending(request) &&
+      getRequestOvertimeGroupFirstApproverId(request) ===
+        upperManagementFirstApproverId
+    ) {
+      // Upper management can approve in one step (skip Operations Manager + HR steps).
+      return 3;
+    }
     return 1;
   };
 
@@ -235,6 +318,7 @@ export default function OvertimeApprovalPage() {
           id,
           full_name,
           employee_id,
+          overtime_group_id,
           profile_picture_url,
           requires_ot_punch
         )
@@ -264,6 +348,9 @@ export default function OvertimeApprovalPage() {
     let dataWithDocs = (data || []) as OTRequest[];
     if (dataWithDocs.length > 0) {
       const requestIds = dataWithDocs.map((r) => r.id);
+      const requestIdsRequiringPunch = dataWithDocs
+        .filter((r) => r.employees?.requires_ot_punch === true)
+        .map((r) => r.id);
       const { data: docsRows, error: docsError } = await supabase
         .from("overtime_documents")
         .select("id, overtime_request_id, file_name, file_type, file_size")
@@ -298,67 +385,83 @@ export default function OvertimeApprovalPage() {
         }));
       }
 
-      const { data: otPunchRows, error: otPunchError } = await (supabase as any)
-        .from("ot_time_entries")
-        .select("ot_request_id, punch_type, punched_at")
-        .in("ot_request_id", requestIds)
-        .order("punched_at", { ascending: true });
+      if (requestIdsRequiringPunch.length > 0) {
+        const { data: otPunchRows, error: otPunchError } = await (supabase as any)
+          .from("ot_time_entries")
+          .select("ot_request_id, punch_type, punched_at")
+          .in("ot_request_id", requestIdsRequiringPunch)
+          .order("punched_at", { ascending: true });
 
-      if (otPunchError) {
-        console.error("Error loading OT punch records", otPunchError);
-        setOtPunchStatusByRequestId({});
-      } else {
-        const statusMap: Record<string, OtPunchStatus> = {};
-        const grouped: Record<
-          string,
-          Array<{ ot_request_id: string; punch_type: "in" | "out"; punched_at: string }>
-        > = {};
-        (otPunchRows || []).forEach(
-          (row: {
-            ot_request_id: string;
-            punch_type: "in" | "out";
-            punched_at: string;
-          }) => {
-            if (!grouped[row.ot_request_id]) grouped[row.ot_request_id] = [];
-            grouped[row.ot_request_id].push(row);
-          }
-        );
+        if (otPunchError) {
+          console.error("Error loading OT punch records", otPunchError);
+          setOtPunchStatusByRequestId({});
+        } else {
+          const statusMap: Record<string, OtPunchStatus> = {};
+          const grouped: Record<
+            string,
+            Array<{
+              ot_request_id: string;
+              punch_type: "in" | "out";
+              punched_at: string;
+            }>
+          > = {};
 
-        Object.entries(grouped).forEach(([requestId, punches]) => {
-          let open = false;
-          let pairs = 0;
-          punches.forEach((p) => {
-            if (p.punch_type === "in" && !open) {
-              open = true;
-            } else if (p.punch_type === "out" && open) {
-              open = false;
-              pairs += 1;
+          (otPunchRows || []).forEach(
+            (row: {
+              ot_request_id: string;
+              punch_type: "in" | "out";
+              punched_at: string;
+            }) => {
+              if (!grouped[row.ot_request_id]) grouped[row.ot_request_id] = [];
+              grouped[row.ot_request_id].push(row);
             }
+          );
+
+          Object.entries(grouped).forEach(([requestId, punches]) => {
+            let open = false;
+            let pairs = 0;
+            punches.forEach((p) => {
+              if (p.punch_type === "in" && !open) {
+                open = true;
+              } else if (p.punch_type === "out" && open) {
+                open = false;
+                pairs += 1;
+              }
+            });
+            const last = punches[punches.length - 1] || null;
+            statusMap[requestId] = {
+              hasCompletedPair: pairs > 0 && !open,
+              isOpen: open,
+              lastPunchedAt: last?.punched_at || null,
+              lastPunchType: last?.punch_type || null,
+            };
           });
-          const last = punches[punches.length - 1] || null;
-          statusMap[requestId] = {
-            hasCompletedPair: pairs > 0 && !open,
-            isOpen: open,
-            lastPunchedAt: last?.punched_at || null,
-            lastPunchType: last?.punch_type || null,
-          };
-        });
-        setOtPunchStatusByRequestId(statusMap);
+          setOtPunchStatusByRequestId(statusMap);
+        }
+      } else {
+        // No employees in this result set require OT punch verification.
+        setOtPunchStatusByRequestId({});
       }
     }
 
+    // Role-based visibility: show requests the user is allowed to view.
+    // Stage checks (manager vs HR pending) are kept for Approve/Reject permissions only.
     let filteredData: OTRequest[] | null = dataWithDocs;
     if (!isAdmin && normalizedRole !== "upper_management") {
       filteredData = dataWithDocs.filter((request) => {
         if (!currentUserId) return false;
         if (normalizedRole === "operations_manager") {
-          return (
-            isManagerStagePending(request) &&
-            isFirstApproverForGroup(currentUserId, getRequestGroupName(request))
-          );
+          // Operations Manager can view all statuses for requests in their OT group.
+          return isUserFirstApproverForRequest(currentUserId, request);
         }
         if (isHR) {
-          return isFinalHrApprover(currentUserId) && isHrStagePending(request);
+          // HR visibility:
+          // - Final HR approver can view all statuses.
+          // - HR first-approver (skip-manager groups) can also view all statuses for their group.
+          return (
+            isFinalHrApprover(currentUserId) ||
+            isUserFirstApproverForRequest(currentUserId, request)
+          );
         }
         return false;
       });
@@ -410,8 +513,10 @@ export default function OvertimeApprovalPage() {
 
   async function loadEmployeeGroupMap() {
     const [employeesRes, groupsRes] = await Promise.all([
-      supabase.from("employees").select("id, overtime_group_id"),
-      supabase.from("overtime_groups").select("id, name"),
+      supabase
+        .from("employees")
+        .select("id, employee_id, overtime_group_id"),
+      supabase.from("overtime_groups").select("id, name, approver_id"),
     ]);
 
     if (employeesRes.error || groupsRes.error) {
@@ -420,17 +525,24 @@ export default function OvertimeApprovalPage() {
     }
 
     const groupNameById: Record<string, string> = {};
+    const firstApproverIdById: Record<string, string> = {};
     (groupsRes.data || []).forEach((g: any) => {
       groupNameById[g.id] = g.name;
+      if (g.approver_id) firstApproverIdById[g.id] = g.approver_id;
     });
 
     const map: Record<string, string> = {};
     (employeesRes.data || []).forEach((emp: any) => {
       if (emp.overtime_group_id && groupNameById[emp.overtime_group_id]) {
+        // overtime_requests.employee_id may be either employees.employee_id (numeric/string)
+        // or employees.id (UUID) depending on how the row was created.
+        map[emp.employee_id] = groupNameById[emp.overtime_group_id];
         map[emp.id] = groupNameById[emp.overtime_group_id];
       }
     });
     setEmployeeGroupNameByEmployeeId(map);
+    setOvertimeGroupNameById(groupNameById);
+    setOvertimeGroupFirstApproverIdById(firstApproverIdById);
   }
 
   async function loadEmployees() {
@@ -454,7 +566,7 @@ export default function OvertimeApprovalPage() {
       if (normalizedRole === "operations_manager") {
         return isFirstApproverForGroup(
           currentUserId,
-          employeeGroupNameByEmployeeId[employee.id]
+          employeeGroupNameByEmployeeId[employee.employee_id]
         );
       }
       if (isHR) {
@@ -558,10 +670,24 @@ export default function OvertimeApprovalPage() {
 
     const now = new Date().toISOString();
     const managerStage = isManagerStagePending(request);
+    const skipManagerStageForHr =
+      isHR &&
+      Boolean(user?.id) &&
+      isFinalHrApprover(user?.id) &&
+      managerStage &&
+      isUserFirstApproverForRequest(user.id, request);
+    const skipManagerStageForUpperManagement =
+      normalizedRole === "upper_management" &&
+      Boolean(user?.id) &&
+      managerStage &&
+      isUserFirstApproverForRequest(user.id, request);
     const requiresOtPunch = request.employees?.requires_ot_punch === true;
     const punchStatus = otPunchStatusByRequestId[id];
 
-    if (!managerStage && requiresOtPunch) {
+    const effectiveManagerStage =
+      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+
+    if (!effectiveManagerStage && requiresOtPunch) {
       const isComplete = punchStatus?.hasCompletedPair === true;
       if (!isComplete) {
         toast.error("Cannot approve yet: OT punch in/out is incomplete.", {
@@ -573,7 +699,7 @@ export default function OvertimeApprovalPage() {
       }
     }
 
-    const patch: Record<string, unknown> = managerStage
+    const patch: Record<string, unknown> = effectiveManagerStage
       ? {
           status: "pending",
           project_manager_id: user.id,
@@ -599,7 +725,7 @@ export default function OvertimeApprovalPage() {
         description: finalError.message || "An error occurred while approving the request",
       });
     } else {
-      if (managerStage) {
+      if (effectiveManagerStage) {
         toast.success("Overtime request endorsed to HR", {
           description: `${employeeName}'s overtime request is now awaiting HR approval`,
         });
@@ -635,7 +761,20 @@ export default function OvertimeApprovalPage() {
 
     const now = new Date().toISOString();
     const managerStage = isManagerStagePending(request);
-    const patch: Record<string, unknown> = managerStage
+    const skipManagerStageForHr =
+      isHR &&
+      Boolean(user?.id) &&
+      isFinalHrApprover(user?.id) &&
+      managerStage &&
+      isUserFirstApproverForRequest(user.id, request);
+    const skipManagerStageForUpperManagement =
+      normalizedRole === "upper_management" &&
+      Boolean(user?.id) &&
+      managerStage &&
+      isUserFirstApproverForRequest(user.id, request);
+    const effectiveManagerStageFinal =
+      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+    const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {
           status: "rejected",
           project_manager_id: user.id,
@@ -723,7 +862,7 @@ export default function OvertimeApprovalPage() {
           <CardContent className="p-4">
             <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
               <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="border-primary/30 bg-primary/10 text-primary">
+                <Badge className="border-blue-200 bg-blue-600 text-white">
                   {stats.pending} pending
                 </Badge>
                 <Badge variant="outline">{stats.approved} approved</Badge>
@@ -895,7 +1034,7 @@ export default function OvertimeApprovalPage() {
                             <strong>Reason:</strong> {req.reason}
                           </BodySmall>
                         )}
-                        {req.employees?.requires_ot_punch && (
+                        {req.employees?.requires_ot_punch === true && (
                           <div className="mt-2">
                             {otPunchStatusByRequestId[req.id]?.hasCompletedPair ? (
                               <Badge
@@ -1155,7 +1294,7 @@ export default function OvertimeApprovalPage() {
                   </div>
                 )}
 
-                {selected.employees?.requires_ot_punch && (
+                {selected.employees?.requires_ot_punch === true && (
                   <div className="space-y-2">
                     <Label className="text-sm">OT Punch Status</Label>
                     {otPunchStatusByRequestId[selected.id]?.hasCompletedPair ? (

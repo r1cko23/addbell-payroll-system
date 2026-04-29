@@ -188,6 +188,9 @@ export default function LeaveApprovalPage() {
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [employeeGroupNameByEmployeeId, setEmployeeGroupNameByEmployeeId] =
     useState<Record<string, string>>({});
+  const [groupApproverIdByGroupName, setGroupApproverIdByGroupName] = useState<
+    Record<string, string>
+  >({});
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
@@ -201,6 +204,23 @@ export default function LeaveApprovalPage() {
   const getRequestGroupName = (request: LeaveRequest): string | null =>
     employeeGroupNameByEmployeeId[request.employee_id] || null;
 
+  const isUserApproverForGroup = (
+    userId: string | null | undefined,
+    groupName?: string | null
+  ): boolean => {
+    if (!userId || !groupName) return false;
+    const normalized = groupName.trim().toLowerCase();
+    const assignedApproverId =
+      groupApproverIdByGroupName[groupName] ||
+      groupApproverIdByGroupName[normalized] ||
+      null;
+    if (assignedApproverId) {
+      return assignedApproverId === userId;
+    }
+    // Fallback for legacy hardcoded routing.
+    return isFirstApproverForGroup(userId, groupName);
+  };
+
   const getApprovalLevel = (
     request: LeaveRequest
   ): "manager" | "hr" | null => {
@@ -213,9 +233,25 @@ export default function LeaveApprovalPage() {
     }
 
     if (request.status !== "pending") return null;
-    if (isAdmin || normalizedRole === "upper_management") return "manager";
+
+    // HR skip: if HR is the first approver for the group, they can approve the manager-stage pending request directly.
+    if (normalizedRole === "hr") {
+      if (!isFinalHrApprover(currentUserId)) return null;
+      return isUserApproverForGroup(currentUserId, getRequestGroupName(request))
+        ? "hr"
+        : null;
+    }
+
+    // Upper management skip: if upper management is the first approver for the group, approve directly (1-step).
+    if (normalizedRole === "upper_management") {
+      return isUserApproverForGroup(currentUserId, getRequestGroupName(request))
+        ? "hr"
+        : null;
+    }
+
+    if (isAdmin) return "manager";
     if (normalizedRole === "operations_manager") {
-      return isFirstApproverForGroup(currentUserId, getRequestGroupName(request))
+      return isUserApproverForGroup(currentUserId, getRequestGroupName(request))
         ? "manager"
         : null;
     }
@@ -259,10 +295,16 @@ export default function LeaveApprovalPage() {
   }, [canManageLeave]);
 
   async function loadEmployeeGroupMap() {
-    const [employeesRes, groupsRes] = await Promise.all([
-      supabase.from("employees").select("id, overtime_group_id"),
-      supabase.from("overtime_groups").select("id, name"),
-    ]);
+    const employeesRes = await supabase
+      .from("employees")
+      .select("id, employee_id, overtime_group_id");
+    let groupsRes = await supabase
+      .from("overtime_groups")
+      .select("id, name, approver_id");
+    if (groupsRes.error) {
+      // Fallback for environments where approver_id column is not present yet.
+      groupsRes = await supabase.from("overtime_groups").select("id, name");
+    }
 
     if (employeesRes.error || groupsRes.error) {
       setEmployeeGroupNameByEmployeeId({});
@@ -270,17 +312,26 @@ export default function LeaveApprovalPage() {
     }
 
     const groupNameById: Record<string, string> = {};
+    const approverByGroupName: Record<string, string> = {};
     (groupsRes.data || []).forEach((g: any) => {
       groupNameById[g.id] = g.name;
+      if (g.name && g.approver_id) {
+        approverByGroupName[g.name] = g.approver_id;
+        approverByGroupName[String(g.name).trim().toLowerCase()] = g.approver_id;
+      }
     });
 
     const map: Record<string, string> = {};
     (employeesRes.data || []).forEach((emp: any) => {
       if (emp.overtime_group_id && groupNameById[emp.overtime_group_id]) {
+        // leave_requests.employee_id may be either employees.employee_id
+        // (numeric/string) or employees.id (UUID), depending on how the row was created.
+        map[emp.employee_id] = groupNameById[emp.overtime_group_id];
         map[emp.id] = groupNameById[emp.overtime_group_id];
       }
     });
     setEmployeeGroupNameByEmployeeId(map);
+    setGroupApproverIdByGroupName(approverByGroupName);
   }
 
   async function loadEmployees() {
@@ -304,9 +355,9 @@ export default function LeaveApprovalPage() {
         return true;
       }
       if (normalizedRole === "operations_manager") {
-        return isFirstApproverForGroup(
+        return isUserApproverForGroup(
           currentUserId,
-          employeeGroupNameByEmployeeId[employee.id]
+          employeeGroupNameByEmployeeId[employee.employee_id]
         );
       }
       if (isHR) {
@@ -361,17 +412,7 @@ export default function LeaveApprovalPage() {
 
     let query = supabase
       .from("leave_requests")
-      .select(
-        `
-        *,
-        employees (
-          employee_id,
-          full_name,
-          profile_picture_url,
-          sil_credits
-        )
-      `
-      )
+      .select("*")
       // Filter by week - leave request overlaps with week if:
       // start_date <= weekEnd AND end_date >= weekStart
       .lte("start_date", weekEndStr)
@@ -404,21 +445,74 @@ export default function LeaveApprovalPage() {
       return;
     }
 
-    let filteredData = data;
+    const rawRequests = (data || []) as any[];
+    const employeeIds = Array.from(
+      new Set(
+        rawRequests
+          .map((r) => r.employee_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      )
+    );
+    let employeeById: Record<
+      string,
+      {
+        employee_id?: string;
+        full_name?: string;
+        profile_picture_url?: string | null;
+        sil_credits?: number | null;
+      }
+    > = {};
+    if (employeeIds.length > 0) {
+      const { data: employeeRows, error: employeeRowsError } = await supabase
+        .from("employees")
+        .select("id, employee_id, full_name, profile_picture_url, sil_credits")
+        .in("id", employeeIds);
+      if (!employeeRowsError && employeeRows) {
+        employeeById = (employeeRows as any[]).reduce((acc, row) => {
+          acc[row.id] = {
+            employee_id: row.employee_id,
+            full_name: row.full_name,
+            profile_picture_url: row.profile_picture_url ?? null,
+            sil_credits: row.sil_credits ?? null,
+          };
+          return acc;
+        }, {} as Record<string, { employee_id?: string; full_name?: string; profile_picture_url?: string | null; sil_credits?: number | null }>);
+      }
+    }
+
+    const dataWithEmployees = rawRequests.map((r) => ({
+      ...r,
+      employees:
+        employeeById[r.employee_id] ||
+        {
+          employee_id: null,
+          full_name: "Unknown Employee",
+          profile_picture_url: null,
+          sil_credits: 0,
+        },
+    }));
+
+    let filteredData = dataWithEmployees;
     if (!isAdmin && normalizedRole !== "upper_management") {
-      filteredData = data.filter((request: any) => {
+      filteredData = dataWithEmployees.filter((request: any) => {
         if (normalizedRole === "operations_manager") {
+          // Operations Manager can view all statuses for requests in their group.
+          return isUserApproverForGroup(
+            currentUserId,
+            employeeGroupNameByEmployeeId[request.employee_id]
+          );
+        }
+        if (normalizedRole === "hr") {
+          // HR visibility:
+          // - Final HR approver can view all statuses.
+          // - HR first-approver (skip-manager groups) can also view all statuses in their group.
           return (
-            request.status === "pending" &&
-            isFirstApproverForGroup(
+            isFinalHrApprover(currentUserId) ||
+            isUserApproverForGroup(
               currentUserId,
               employeeGroupNameByEmployeeId[request.employee_id]
             )
           );
-        }
-        if (normalizedRole === "hr") {
-          if (!isFinalHrApprover(currentUserId)) return false;
-          return request.status === "approved_by_pm";
         }
         return false;
       });
@@ -686,10 +780,23 @@ export default function LeaveApprovalPage() {
     if (!user) return;
 
     if (level === "hr" && !isManagerApprovedStatus(request.status)) {
-      toast.error("Approval workflow error", {
-        description: "HR can only approve requests already approved by the first approver",
-      });
-      return;
+      // Skip scenario: HR (or upper management acting as first approver) can approve the manager-stage
+      // pending request directly if they are the first approver for the employee's group.
+      const groupName = employeeGroupNameByEmployeeId[request.employee_id];
+      const isSkipPending =
+        request.status === "pending" &&
+        Boolean(currentUserId) &&
+        isUserApproverForGroup(currentUserId, groupName) &&
+        (normalizedRole === "upper_management" ||
+          (normalizedRole === "hr" && isFinalHrApprover(currentUserId)));
+
+      if (!isSkipPending) {
+        toast.error("Approval workflow error", {
+          description:
+            "HR can only approve requests already approved by the first approver",
+        });
+        return;
+      }
     }
 
     if (level === "manager" && request.status !== "pending") {
@@ -861,6 +968,16 @@ export default function LeaveApprovalPage() {
   const getWorkflowStep = (request: LeaveRequest): 1 | 2 | 3 => {
     if (request.status === "approved_by_hr" || request.status === "rejected") return 3;
     if (isManagerApprovedStatus(request.status)) return 2;
+    // HR skip: manager-stage is skipped, so pending is effectively HR step.
+    if (
+      request.status === "pending" &&
+      currentUserId &&
+      isUserApproverForGroup(currentUserId, getRequestGroupName(request)) &&
+      ((normalizedRole === "hr" && isFinalHrApprover(currentUserId)) ||
+        normalizedRole === "upper_management")
+    ) {
+      return 2;
+    }
     return 1;
   };
 
@@ -882,7 +999,7 @@ export default function LeaveApprovalPage() {
           <CardContent className="p-4">
             <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
               <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="border-primary/30 bg-primary/10 text-primary">
+                <Badge className="border-primary/30 bg-primary text-primary-foreground">
                   {stats.pending} pending
                 </Badge>
                 <Badge variant="outline">{stats.approvedByManager} manager-approved</Badge>

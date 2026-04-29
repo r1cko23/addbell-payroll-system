@@ -7,13 +7,15 @@ export const LOCATION_FIRST_APPROVER_BY_GROUP: Record<string, string> = {
   // Legacy names (kept for backward compatibility)
   laguna: "bf70e9c8-aa43-4468-878f-1cddc90d12f6",
   manila: "bc93a339-6a61-45fe-98d8-b51bf16cd889",
-  "manila-hr": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
+  "manila hr": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
   // Current official group names
-  "operations-laguna": "bf70e9c8-aa43-4468-878f-1cddc90d12f6",
-  "operations-manila i": "bc93a339-6a61-45fe-98d8-b51bf16cd889",
-  "operations-manila ii": "4ed5c668-bef6-4373-8e9f-1af55ef10f09",
-  "hr-laguna": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
-  "purchasing-laguna": "b7069605-1126-448b-b96f-f944e86e8e13",
+  "operations laguna": "bf70e9c8-aa43-4468-878f-1cddc90d12f6",
+  "operations manila i": "bc93a339-6a61-45fe-98d8-b51bf16cd889",
+  "operations manila ii": "4ed5c668-bef6-4373-8e9f-1af55ef10f09",
+  "hr laguna": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
+  // Common alternative naming
+  "laguna hr": "d8c2de99-1d65-432d-928f-5efaad8c1a55",
+  "purchasing laguna": "b7069605-1126-448b-b96f-f944e86e8e13",
   "upper management group": "f73d35f3-c79d-43e4-88da-53504477c725",
 };
 
@@ -29,7 +31,18 @@ export function normalizePositionName(positionName?: string | null): string {
 }
 
 export function normalizeGroupName(groupName?: string | null): string {
-  return (groupName || "").trim().toLowerCase();
+  // Normalize group names so we can match DB values like:
+  // "Laguna-HR", "Laguna HR", "Laguna - HR", etc.
+  return (groupName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_]/g, " ")
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    // Handle cases like "Manila 1" / "Manila 2" instead of Roman numerals.
+    .replace(/\b1\b/g, "i")
+    .replace(/\b2\b/g, "ii")
+    .trim();
 }
 
 export function isHrFirstApproverPosition(positionName?: string | null): boolean {

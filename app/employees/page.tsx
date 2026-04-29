@@ -164,7 +164,7 @@ function toUpperRequired(value: string): string {
 }
 
 function toUpperInput(value: string): string {
-  return value.toUpperCase();
+  return value;
 }
 
 function toUpperDisplay(value: string | null | undefined): string {
@@ -882,7 +882,7 @@ export default function EmployeesPage() {
                     inputMode="numeric"
                     pattern="[0-9]*"
                     value={formData.employee_code}
-                    onChange={(e) => setFormData({ ...formData, employee_code: e.target.value.replace(/\D/g, "") })}
+                    onChange={(e) => setFormData({ ...formData, employee_code: e.target.value })}
                     placeholder="1, 2, 3…"
                   />
                   <p className="text-xs text-muted-foreground">

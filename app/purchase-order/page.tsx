@@ -490,7 +490,7 @@ export default function PurchaseOrderPage() {
         <Card>
           <CardHeader><CardTitle>Payment Terms</CardTitle></CardHeader>
           <CardContent>
-            <Textarea value={paymentTerms.join("\n")} onChange={(e) => setPaymentTerms(e.target.value.split("\n").filter((l) => l.trim()))} rows={5} className="font-mono text-sm" />
+            <Textarea value={paymentTerms.join("\n")} onChange={(e) => setPaymentTerms(e.target.value.split("\n"))} rows={5} className="font-mono text-sm" />
           </CardContent>
         </Card>
       </div>

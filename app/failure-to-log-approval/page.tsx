@@ -71,6 +71,8 @@ interface FailureToLog {
   };
 }
 
+type ViewerFtlStatus = "pending" | "approved" | "rejected";
+
 type EmployeeFilterOption = {
   id: string;
   employee_id: string;
@@ -174,6 +176,25 @@ export default function FailureToLogApprovalPage() {
     return false;
   };
 
+  const isFirstApproverDashboardView =
+    normalizedRole === "operations_manager" ||
+    normalizedRole === "upper_management";
+
+  const getViewerStatus = (request: FailureToLog): ViewerFtlStatus => {
+    if (request.status === "approved" || request.status === "rejected") {
+      return request.status;
+    }
+    if (!isFirstApproverDashboardView) return "pending";
+    const endorsedToHr = Boolean(request.account_manager_id);
+    if (
+      endorsedToHr &&
+      isUserApproverForGroup(currentUserId, getRequestGroupName(request))
+    ) {
+      return "approved";
+    }
+    return "pending";
+  };
+
   // HR users also have approver permissions, so they can access this page
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
@@ -192,7 +213,7 @@ export default function FailureToLogApprovalPage() {
 
   const statusStyles: Record<FailureToLog["status"], string> = {
     pending: "bg-amber-100 text-amber-900 border-amber-200",
-    approved: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    approved: "bg-emerald-600 text-white border-emerald-600",
     rejected: "bg-rose-100 text-rose-900 border-rose-200",
     cancelled: "bg-muted text-muted-foreground border-transparent",
   };
@@ -348,7 +369,7 @@ export default function FailureToLogApprovalPage() {
 
     const applyFilters = <T extends { eq: Function }>(query: T): T => {
       let filtered = query;
-      if (statusFilter !== "all") {
+      if (statusFilter !== "all" && !isFirstApproverDashboardView) {
         filtered = filtered.eq("status", statusFilter);
       }
       if (selectedEmployee !== "all") {
@@ -455,7 +476,13 @@ export default function FailureToLogApprovalPage() {
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    setRequests(cleaned as any);
+    const viewerFiltered =
+      isFirstApproverDashboardView && statusFilter !== "all"
+        ? (cleaned as FailureToLog[]).filter(
+            (r) => getViewerStatus(r) === statusFilter
+          )
+        : (cleaned as FailureToLog[]);
+    setRequests(viewerFiltered as any);
 
     // Load approver names for approved items
     const approverIds = Array.from(
@@ -718,9 +745,9 @@ export default function FailureToLogApprovalPage() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => r.status === "pending").length,
-    approved: requests.filter((r) => r.status === "approved").length,
-    rejected: requests.filter((r) => r.status === "rejected").length,
+    pending: requests.filter((r) => getViewerStatus(r) === "pending").length,
+    approved: requests.filter((r) => getViewerStatus(r) === "approved").length,
+    rejected: requests.filter((r) => getViewerStatus(r) === "rejected").length,
   };
 
   if (roleLoading) {
@@ -970,7 +997,7 @@ export default function FailureToLogApprovalPage() {
                           {request.manual_notes}
                         </BodySmall>
                       )}
-                      {request.status === "approved" &&
+                      {getViewerStatus(request) === "approved" &&
                         (request.account_manager_id || request.approved_at) && (
                           <Caption className="mt-2 text-xs text-muted-foreground">
                             Approved by Manager:{" "}
@@ -981,7 +1008,7 @@ export default function FailureToLogApprovalPage() {
                               ` on ${format(new Date(request.approved_at), "MMM dd, yyyy h:mm a")}`}
                           </Caption>
                         )}
-                      {request.status === "rejected" && request.updated_at && (
+                      {getViewerStatus(request) === "rejected" && request.updated_at && (
                         <Caption className="mt-2 text-xs text-muted-foreground">
                           Rejected on{" "}
                           {format(new Date(request.updated_at), "MMM dd, yyyy h:mm a")}
@@ -990,17 +1017,17 @@ export default function FailureToLogApprovalPage() {
                     </div>
                     <Badge
                       variant={
-                        request.status === "pending"
+                        getViewerStatus(request) === "pending"
                           ? "secondary"
-                          : request.status === "approved"
+                          : getViewerStatus(request) === "approved"
                           ? "default"
-                          : request.status === "rejected"
+                          : getViewerStatus(request) === "rejected"
                           ? "destructive"
                           : "secondary"
                       }
-                      className={statusStyles[request.status]}
+                      className={statusStyles[getViewerStatus(request)]}
                     >
-                      {request.status.toUpperCase()}
+                      {getViewerStatus(request).toUpperCase()}
                     </Badge>
                   </HStack>
                   {canActOnFailureToLog && canCurrentUserActOnRequest(request) && (
@@ -1084,9 +1111,9 @@ export default function FailureToLogApprovalPage() {
                             variant="outline"
                             className={
                               isDone
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  ? "bg-emerald-600 text-white border-emerald-600"
                                 : isCurrent
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-slate-50 text-slate-500 border-slate-200"
                             }
                           >
@@ -1120,9 +1147,9 @@ export default function FailureToLogApprovalPage() {
                     <p className="text-sm text-muted-foreground">Status</p>
                     <Badge
                       variant="outline"
-                      className={statusStyles[selectedRequest.status]}
+                      className={statusStyles[getViewerStatus(selectedRequest)]}
                     >
-                      {selectedRequest.status.toUpperCase()}
+                      {getViewerStatus(selectedRequest).toUpperCase()}
                     </Badge>
                   </div>
                   <div className="space-y-1">
@@ -1186,7 +1213,7 @@ export default function FailureToLogApprovalPage() {
                   </div>
                 )}
 
-                {selectedRequest.status === "approved" &&
+                {getViewerStatus(selectedRequest) === "approved" &&
                   (selectedRequest.account_manager_id ||
                     selectedRequest.approved_at) && (
                     <div className="space-y-2">
@@ -1203,7 +1230,7 @@ export default function FailureToLogApprovalPage() {
                     </div>
                   )}
 
-                {selectedRequest.status === "rejected" &&
+                {getViewerStatus(selectedRequest) === "rejected" &&
                   selectedRequest.updated_at && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">

@@ -563,19 +563,19 @@ export default function FailureToLogPage() {
                           <>
                             <Badge
                               variant="outline"
-                              className="flex w-full items-center justify-center gap-2 text-center bg-blue-100 text-blue-800 border-blue-200 lg:w-auto"
+                              className="flex w-full items-center justify-center gap-2 text-center bg-emerald-600 text-white border-emerald-600 lg:w-auto"
                             >
                               <Icon name="CheckCircle" size={IconSizes.sm} />
                               APPROVED BY OPERATIONS MANAGER
                             </Badge>
-                            <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
+                            <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                               {request.manager_approval_name && (
                                 <div className="font-semibold">
                                   {request.manager_approval_name}
                                 </div>
                               )}
                               {(request.approved_at || request.updated_at) && (
-                                <div className="text-blue-700">
+                                <div className="text-emerald-700">
                                   {formatSafe(
                                     request.approved_at || request.updated_at,
                                     "MMM dd, yyyy h:mm a"

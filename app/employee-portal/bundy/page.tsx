@@ -84,6 +84,24 @@ function getManilaHourMinute(isoTimestamp: string): { hour: number; minute: numb
   return { hour, minute };
 }
 
+function formatTime12h(value?: string | null): string {
+  if (!value) return "—";
+  const raw = value.includes("T")
+    ? value.split("T")[1]?.split(".")[0] || value
+    : value;
+  const [h, m] = raw.split(":");
+  const hh = Number(h);
+  const mm = Number(m);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return value;
+  const date = new Date();
+  date.setHours(hh, mm, 0, 0);
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 import { determineDayType, getDayName } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
@@ -2216,6 +2234,14 @@ export default function BundyClockPage() {
     [pendingOtRequests, manilaNowMinutes]
   );
 
+  const hasCompletedOtSessionInPending = useMemo(
+    () =>
+      pendingOtRequests.some(
+        (r) => otPunchSummariesByRequestId[r.id]?.has_completed_pair === true
+      ),
+    [pendingOtRequests, otPunchSummariesByRequestId]
+  );
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
@@ -2362,6 +2388,11 @@ export default function BundyClockPage() {
                     : "No pending OT filing yet. Punch OT Time In/Out to create an OT request automatically."}
                 </BodySmall>
               )}
+              {hasCompletedOtSessionInPending && !activeOtPunchRequestId && (
+                <BodySmall className="text-emerald-700 mt-2 font-medium">
+                  OT session is already complete for today. OT Time In/Out is locked.
+                </BodySmall>
+              )}
                 <div className="mt-3 flex flex-col gap-3">
                   {pendingOtRequests.length > 1 && (
                     <div>
@@ -2385,7 +2416,7 @@ export default function BundyClockPage() {
                               : ot.ot_date;
                           return (
                             <option key={ot.id} value={ot.id}>
-                              {otDatePart} {ot.start_time}-{ot.end_time}
+                              {otDatePart} {formatTime12h(ot.start_time)}-{formatTime12h(ot.end_time)}
                             </option>
                           );
                         })}
@@ -2410,6 +2441,7 @@ export default function BundyClockPage() {
                       }}
                       disabled={
                         !!activeOtPunchRequestId ||
+                        hasCompletedOtSessionInPending ||
                         otPunchStatusLoading ||
                         !locationStatus?.isAllowed
                       }
@@ -2418,8 +2450,9 @@ export default function BundyClockPage() {
                         "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px] bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98] shadow-lg",
                         isBeyondBusinessHoursToday &&
                         !activeOtPunchRequestId &&
+                        !hasCompletedOtSessionInPending &&
                         !otPunchStatusLoading
-                          ? "ring-4 ring-amber-200 animate-pulse"
+                          ? "ring-4 ring-amber-200"
                           : ""
                       )}
                     >
@@ -2441,6 +2474,7 @@ export default function BundyClockPage() {
                         setShowLocationModal(true);
                       }}
                       disabled={
+                        hasCompletedOtSessionInPending ||
                         (!activeOtPunchRequestId &&
                           !getBestPendingOtRequestId("out")) ||
                         !locationStatus?.isAllowed ||
@@ -2452,7 +2486,7 @@ export default function BundyClockPage() {
                         isBeyondBusinessHoursToday &&
                         (activeOtPunchRequestId || getBestPendingOtRequestId("out"))
                         && !otPunchStatusLoading
-                          ? "ring-4 ring-amber-200 animate-pulse"
+                          ? "ring-4 ring-amber-200"
                           : ""
                       )}
                     >
@@ -2625,7 +2659,7 @@ export default function BundyClockPage() {
                         case "RD":
                           return "bg-green-100 text-green-700 border-green-200";
                         case "OB":
-                          return "bg-blue-100 text-blue-700 border-blue-200";
+                          return "bg-emerald-100 text-emerald-700 border-emerald-200";
                         case "LEAVE":
                         case "CTO":
                           return "bg-orange-100 text-orange-700 border-orange-200";
@@ -2814,7 +2848,7 @@ const HolidayCalendar = memo(
     );
 
     const leaveColor = (label: string) => {
-      if (label === "SIL") return "bg-blue-50 border-blue-200 text-blue-800";
+      if (label === "SIL") return "bg-emerald-50 border-emerald-200 text-emerald-800";
       if (label === "Maternity Leave")
         return "bg-purple-50 border-purple-200 text-purple-800";
       if (label === "Paternity Leave")
@@ -2872,7 +2906,7 @@ const HolidayCalendar = memo(
                 <span className="hidden sm:inline">Present</span>
               </span>
               <span className="inline-flex items-center gap-0.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500/60" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500/60" />
                 <span className="hidden sm:inline">Leave</span>
               </span>
             </div>

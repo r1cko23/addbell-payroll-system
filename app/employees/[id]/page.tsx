@@ -112,7 +112,7 @@ function toUpperRequired(value: string | null | undefined): string {
 }
 
 function toUpperInput(value: string): string {
-  return value.toUpperCase();
+  return value;
 }
 
 function toUpperDisplay(value: string | null | undefined): string {

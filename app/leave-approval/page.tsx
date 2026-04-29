@@ -154,8 +154,8 @@ function leaveStatusLabel(status: LeaveRequest["status"]): string {
 
 function leaveStatusClass(status: LeaveRequest["status"]): string {
   if (status === "pending") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (isManagerApprovedStatus(status)) return "bg-blue-50 text-blue-700 border-blue-200";
-  if (status === "approved_by_hr") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (isManagerApprovedStatus(status)) return "bg-emerald-600 text-white border-emerald-600";
+  if (status === "approved_by_hr") return "bg-emerald-600 text-white border-emerald-600";
   if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
   return "bg-slate-100 text-slate-700 border-slate-200";
 }
@@ -170,6 +170,9 @@ export default function LeaveApprovalPage() {
     normalizedRole === "upper_management" ||
     isHR ||
     normalizedRole === "operations_manager";
+  const isFirstApproverDashboardView =
+    normalizedRole === "operations_manager" ||
+    normalizedRole === "upper_management";
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
@@ -219,6 +222,21 @@ export default function LeaveApprovalPage() {
     }
     // Fallback for legacy hardcoded routing.
     return isFirstApproverForGroup(userId, groupName);
+  };
+
+  const getViewerStatus = (request: LeaveRequest): LeaveRequest["status"] => {
+    if (!isFirstApproverDashboardView) return request.status;
+    if (request.status !== "pending") return request.status;
+    const endorsedToHr = Boolean(
+      request.project_manager_id || request.account_manager_id
+    );
+    if (
+      endorsedToHr &&
+      isUserApproverForGroup(currentUserId, getRequestGroupName(request))
+    ) {
+      return "approved_by_pm";
+    }
+    return "pending";
   };
 
   const getApprovalLevel = (
@@ -421,7 +439,7 @@ export default function LeaveApprovalPage() {
 
     // HR can see all requests (pending, approved_by_manager, approved_by_hr, rejected)
     // Admin can see all requests (no filtering)
-    if (statusFilter !== "all") {
+    if (statusFilter !== "all" && !isFirstApproverDashboardView) {
       query = query.eq("status", statusFilter);
     }
     // Admin and HR see all requests regardless of status (no filtering)
@@ -555,7 +573,13 @@ export default function LeaveApprovalPage() {
       leave_type: normalizeLeaveTypeLabel(r.leave_type || ""),
       leave_request_documents: docsByRequestId[r.id] || [],
     }));
-    setRequests(withDocs as any);
+    const viewerFiltered =
+      isFirstApproverDashboardView && statusFilter !== "all"
+        ? (withDocs as LeaveRequest[]).filter(
+            (request) => getViewerStatus(request) === statusFilter
+          )
+        : (withDocs as LeaveRequest[]);
+    setRequests(viewerFiltered as any);
 
     // Load manager names for approved items
     const managerIds = Array.from(
@@ -954,11 +978,14 @@ export default function LeaveApprovalPage() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => r.status === "pending").length,
-    approvedByManager: requests.filter((r) => isManagerApprovedStatus(r.status))
+    pending: requests.filter((r) => getViewerStatus(r) === "pending").length,
+    approvedByManager: requests.filter((r) =>
+      isManagerApprovedStatus(getViewerStatus(r))
+    )
       .length,
-    approvedByHR: requests.filter((r) => r.status === "approved_by_hr").length,
-    rejected: requests.filter((r) => r.status === "rejected").length,
+    approvedByHR: requests.filter((r) => getViewerStatus(r) === "approved_by_hr")
+      .length,
+    rejected: requests.filter((r) => getViewerStatus(r) === "rejected").length,
   };
 
   const canApprove = (request: LeaveRequest): boolean => {
@@ -1289,17 +1316,17 @@ export default function LeaveApprovalPage() {
                     </div>
                     <Badge
                       variant={
-                        request.status === "pending"
+                        getViewerStatus(request) === "pending"
                           ? "secondary"
-                          : request.status === "approved_by_hr"
+                          : getViewerStatus(request) === "approved_by_hr"
                           ? "default"
-                          : request.status === "rejected"
+                          : getViewerStatus(request) === "rejected"
                           ? "destructive"
                           : "default"
                       }
-                      className={leaveStatusClass(request.status)}
+                      className={leaveStatusClass(getViewerStatus(request))}
                     >
-                      {leaveStatusLabel(request.status)}
+                      {leaveStatusLabel(getViewerStatus(request))}
                     </Badge>
                   </HStack>
                   {canApprove(request) && (
@@ -1387,9 +1414,9 @@ export default function LeaveApprovalPage() {
                             variant="outline"
                             className={
                               isDone
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                ? "bg-emerald-600 text-white border-emerald-600"
                                 : isCurrent
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-slate-50 text-slate-500 border-slate-200"
                             }
                           >
@@ -1426,7 +1453,7 @@ export default function LeaveApprovalPage() {
                       <div
                         className={`font-semibold px-2 py-1 rounded inline-block ${
                           normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL"
-                            ? "bg-blue-100 text-blue-800"
+                            ? "bg-emerald-100 text-emerald-800"
                             : "bg-orange-100 text-orange-800"
                         }`}
                       >
@@ -1569,7 +1596,7 @@ export default function LeaveApprovalPage() {
                       <div className="text-sm text-muted-foreground">
                         Manager Notes
                       </div>
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
                         {selectedRequest.project_manager_notes || selectedRequest.account_manager_notes}
                       </div>
                     </div>

@@ -9,7 +9,7 @@ type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   TextareaProps
->(({ className, autoCapitalizeWords = true, onChange, ...props }, ref) => {
+>(({ className, autoCapitalizeWords = false, onChange, ...props }, ref) => {
   const handleChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const nativeEvent = event.nativeEvent as Event & { isComposing?: boolean };
     if (nativeEvent.isComposing) {

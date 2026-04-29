@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       employee_id?: string;
       ot_request_id?: string | null;
       punch_type?: PunchType;
+      reason?: string | null;
       lat?: number;
       lng?: number;
       device_info?: string | null;
@@ -211,7 +212,10 @@ export async function POST(req: NextRequest) {
             start_time: time,
             end_time: time, // will be updated on OT time-out
             total_hours: 0,
-            reason: null,
+            reason:
+              typeof body.reason === "string" && body.reason.trim().length > 0
+                ? body.reason.trim()
+                : null,
             status: "pending",
             account_manager_id: null,
             project_manager_id: null,

@@ -714,8 +714,8 @@ export default function LeaveRequestPage() {
   ).length;
   const statusClasses: Record<LeaveRequest["status"], string> = {
     pending: "bg-amber-100 text-amber-800 border-amber-200",
-    approved_by_manager: "bg-blue-100 text-blue-800 border-blue-200",
-    approved_by_hr: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    approved_by_manager: "bg-emerald-600 text-white border-emerald-600",
+    approved_by_hr: "bg-emerald-600 text-white border-emerald-600",
     rejected: "bg-rose-100 text-rose-900 border-rose-200",
     cancelled: "bg-slate-100 text-slate-800 border-slate-200",
   };
@@ -784,7 +784,7 @@ export default function LeaveRequestPage() {
                   <Icon
                     name="CalendarBlank"
                     size={IconSizes.sm}
-                    className="text-blue-600"
+                    className="text-emerald-600"
                   />
                   <BodySmall className="font-medium text-muted-foreground">
                     Allotted SIL Credits
@@ -1179,7 +1179,7 @@ export default function LeaveRequestPage() {
                               variant="outline"
                               className={
                                 getLeaveTypeLabel(request.leave_type) === "SIL"
-                                  ? "bg-blue-50 text-blue-800 border-blue-200"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
                                   : "bg-amber-50 text-amber-800 border-amber-200"
                               }
                             >
@@ -1312,7 +1312,7 @@ export default function LeaveRequestPage() {
                               </Button>
                               {(request.manager_approval_name ||
                                 request.project_manager_approved_at) && (
-                                <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
+                                <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                                   <div className="font-semibold">
                                     Approved by Operations Manager
                                   </div>
@@ -1322,7 +1322,7 @@ export default function LeaveRequestPage() {
                                   {formatApprovalTime(
                                     request.project_manager_approved_at
                                   ) && (
-                                    <div className="text-blue-700">
+                                    <div className="text-emerald-700">
                                       {formatApprovalTime(
                                         request.project_manager_approved_at
                                       )}
@@ -1351,7 +1351,7 @@ export default function LeaveRequestPage() {
                               </Button>
                               {(request.manager_approval_name ||
                                 request.project_manager_approved_at) && (
-                                <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
+                                <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                                   <div className="font-semibold">
                                     Approved by Operations Manager
                                   </div>
@@ -1361,7 +1361,7 @@ export default function LeaveRequestPage() {
                                   {formatApprovalTime(
                                     request.project_manager_approved_at
                                   ) && (
-                                    <div className="text-blue-700">
+                                    <div className="text-emerald-700">
                                       {formatApprovalTime(
                                         request.project_manager_approved_at
                                       )}

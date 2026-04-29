@@ -43,6 +43,8 @@ type OtPunchStatus = {
   isOpen: boolean;
   lastPunchedAt: string | null;
   lastPunchType: "in" | "out" | null;
+  lastLat: number | null;
+  lastLng: number | null;
 };
 
 type OTRequest = {
@@ -72,6 +74,26 @@ type OTRequest = {
     overtime_group_id?: string | null;
   };
 };
+
+type ViewerOtStatus = "pending" | "approved" | "rejected";
+
+function formatTime12h(value?: string | null): string {
+  if (!value) return "—";
+  const raw = value.includes("T")
+    ? value.split("T")[1]?.split(".")[0] || value
+    : value;
+  const [h, m] = raw.split(":");
+  const hh = Number(h);
+  const mm = Number(m);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return value;
+  const d = new Date();
+  d.setHours(hh, mm, 0, 0);
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
@@ -207,8 +229,29 @@ export default function OvertimeApprovalPage() {
     return false;
   };
 
+  const isFirstApproverDashboardView =
+    normalizedRole === "operations_manager" ||
+    normalizedRole === "upper_management";
+
+  const getViewerStatus = (request: OTRequest): ViewerOtStatus => {
+    if (request.status === "approved" || request.status === "rejected") {
+      return request.status;
+    }
+    if (!isFirstApproverDashboardView) return "pending";
+    const endorsedToHr = Boolean(
+      request.project_manager_id || request.account_manager_id
+    );
+    if (
+      endorsedToHr &&
+      isUserFirstApproverForRequest(currentUserId, request)
+    ) {
+      return "approved";
+    }
+    return "pending";
+  };
+
   const statusBadgeClass = (status: OTRequest["status"]) => {
-    if (status === "approved") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (status === "approved") return "bg-emerald-600 text-white border-emerald-600";
     if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
     // Pending should be high-contrast (white text on blue pill).
     return "bg-blue-600 text-white border-blue-600";
@@ -328,7 +371,7 @@ export default function OvertimeApprovalPage() {
       .lte("ot_date", weekEndStr)
       .order("created_at", { ascending: false });
 
-    if (statusFilter !== "all") {
+    if (statusFilter !== "all" && !isFirstApproverDashboardView) {
       query = query.eq("status", statusFilter);
     }
 
@@ -388,7 +431,7 @@ export default function OvertimeApprovalPage() {
       if (requestIdsRequiringPunch.length > 0) {
         const { data: otPunchRows, error: otPunchError } = await (supabase as any)
           .from("ot_time_entries")
-          .select("ot_request_id, punch_type, punched_at")
+          .select("ot_request_id, punch_type, punched_at, lat, lng")
           .in("ot_request_id", requestIdsRequiringPunch)
           .order("punched_at", { ascending: true });
 
@@ -403,6 +446,8 @@ export default function OvertimeApprovalPage() {
               ot_request_id: string;
               punch_type: "in" | "out";
               punched_at: string;
+              lat: number | null;
+              lng: number | null;
             }>
           > = {};
 
@@ -411,6 +456,8 @@ export default function OvertimeApprovalPage() {
               ot_request_id: string;
               punch_type: "in" | "out";
               punched_at: string;
+              lat: number | null;
+              lng: number | null;
             }) => {
               if (!grouped[row.ot_request_id]) grouped[row.ot_request_id] = [];
               grouped[row.ot_request_id].push(row);
@@ -434,6 +481,8 @@ export default function OvertimeApprovalPage() {
               isOpen: open,
               lastPunchedAt: last?.punched_at || null,
               lastPunchType: last?.punch_type || null,
+              lastLat: last?.lat ?? null,
+              lastLng: last?.lng ?? null,
             };
           });
           setOtPunchStatusByRequestId(statusMap);
@@ -476,7 +525,13 @@ export default function OvertimeApprovalPage() {
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    setRequests(cleaned as OTRequest[]);
+    const viewerFiltered =
+      isFirstApproverDashboardView && statusFilter !== "all"
+        ? (cleaned as OTRequest[]).filter(
+            (r) => getViewerStatus(r) === statusFilter
+          )
+        : (cleaned as OTRequest[]);
+    setRequests(viewerFiltered);
 
     // Load approver names for approved/rejected requests (account_manager_id and approved_by)
     const approverIds = Array.from(
@@ -839,9 +894,9 @@ export default function OvertimeApprovalPage() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => r.status === "pending").length,
-    approved: requests.filter((r) => r.status === "approved").length,
-    rejected: requests.filter((r) => r.status === "rejected").length,
+    pending: requests.filter((r) => getViewerStatus(r) === "pending").length,
+    approved: requests.filter((r) => getViewerStatus(r) === "approved").length,
+    rejected: requests.filter((r) => getViewerStatus(r) === "rejected").length,
   };
 
   return (
@@ -1023,7 +1078,7 @@ export default function OvertimeApprovalPage() {
                           </HStack>
                           <HStack gap="1" align="center">
                             <Icon name="Timer" size={IconSizes.sm} />
-                            {req.start_time} - {req.end_time}
+                            {formatTime12h(req.start_time)} - {formatTime12h(req.end_time)}
                           </HStack>
                           <span className="font-semibold text-primary">
                             {req.total_hours}h
@@ -1102,7 +1157,7 @@ export default function OvertimeApprovalPage() {
                             </a>
                           </BodySmall>
                         ) : null}
-                        {req.status === "approved" &&
+                        {getViewerStatus(req) === "approved" &&
                           (req.account_manager_id || req.approved_by) && (
                             <Caption className="mt-2 text-xs text-muted-foreground">
                               Approved by Manager:{" "}
@@ -1112,7 +1167,7 @@ export default function OvertimeApprovalPage() {
                                 ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
                             </Caption>
                           )}
-                        {req.status === "rejected" &&
+                        {getViewerStatus(req) === "rejected" &&
                           (req.account_manager_id || req.approved_by) && (
                             <Caption className="mt-2 text-xs text-muted-foreground">
                               Rejected by:{" "}
@@ -1125,15 +1180,15 @@ export default function OvertimeApprovalPage() {
                       </div>
                       <Badge
                         variant={
-                          req.status === "approved"
+                          getViewerStatus(req) === "approved"
                             ? "default"
-                            : req.status === "rejected"
+                            : getViewerStatus(req) === "rejected"
                             ? "destructive"
                             : "secondary"
                         }
-                      className={statusBadgeClass(req.status)}
+                      className={statusBadgeClass(getViewerStatus(req))}
                       >
-                        {req.status.toUpperCase()}
+                        {getViewerStatus(req).toUpperCase()}
                       </Badge>
                     </HStack>
                     {canActOnPendingOvertime && canCurrentUserActOnRequest(req) && (
@@ -1217,9 +1272,9 @@ export default function OvertimeApprovalPage() {
                             variant="outline"
                             className={
                               isDone
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  ? "bg-emerald-600 text-white border-emerald-600"
                                 : isCurrent
-                                  ? "bg-blue-50 text-blue-700 border-blue-200"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-slate-50 text-slate-500 border-slate-200"
                             }
                           >
@@ -1251,9 +1306,9 @@ export default function OvertimeApprovalPage() {
                     <p className="text-sm text-muted-foreground">Status</p>
                     <Badge
                       variant="outline"
-                      className={statusBadgeClass(selected.status)}
+                      className={statusBadgeClass(getViewerStatus(selected))}
                     >
-                      {selected.status.toUpperCase()}
+                      {getViewerStatus(selected).toUpperCase()}
                     </Badge>
                   </div>
                   <div className="space-y-1">
@@ -1265,7 +1320,7 @@ export default function OvertimeApprovalPage() {
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Time Range</p>
                     <p className="text-base font-medium">
-                      {selected.start_time} - {selected.end_time}
+                      {formatTime12h(selected.start_time)} - {formatTime12h(selected.end_time)}
                     </p>
                   </div>
                   <div className="space-y-1">
@@ -1328,6 +1383,14 @@ export default function OvertimeApprovalPage() {
                         )}{" "}
                         (
                         {otPunchStatusByRequestId[selected.id].lastPunchType?.toUpperCase()})
+                      </p>
+                    )}
+                    {(otPunchStatusByRequestId[selected.id]?.lastLat != null &&
+                      otPunchStatusByRequestId[selected.id]?.lastLng != null) && (
+                      <p className="text-xs text-muted-foreground">
+                        Last punch location:{" "}
+                        {otPunchStatusByRequestId[selected.id].lastLat?.toFixed(6)},{" "}
+                        {otPunchStatusByRequestId[selected.id].lastLng?.toFixed(6)}
                       </p>
                     )}
                   </div>
@@ -1394,7 +1457,7 @@ export default function OvertimeApprovalPage() {
                   </div>
                 ) : null}
 
-                {selected.status === "approved" &&
+                {getViewerStatus(selected) === "approved" &&
                   (selected.account_manager_id || selected.approved_by) && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">
@@ -1408,7 +1471,7 @@ export default function OvertimeApprovalPage() {
                       </p>
                     </div>
                   )}
-                {selected.status === "rejected" &&
+                {getViewerStatus(selected) === "rejected" &&
                   (selected.account_manager_id || selected.approved_by) && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">

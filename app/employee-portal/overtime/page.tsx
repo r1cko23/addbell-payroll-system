@@ -45,6 +45,24 @@ type OtPunchSummary = {
   last_punched_at: string | null;
 };
 
+function formatTime12h(value?: string | null): string {
+  if (!value) return "—";
+  const raw = value.includes("T")
+    ? value.split("T")[1]?.split(".")[0] || value
+    : value;
+  const [h, m] = raw.split(":");
+  const hh = Number(h);
+  const mm = Number(m);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return value;
+  const d = new Date();
+  d.setHours(hh, mm, 0, 0);
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 export default function OvertimePage() {
   const { employee } = useEmployeeSession();
   const [requests, setRequests] = useState<OvertimeRequest[]>([]);
@@ -81,7 +99,7 @@ export default function OvertimePage() {
   ];
   const statusStyles: Record<OvertimeRequest["status"], string> = {
     pending: "bg-amber-100 text-amber-800 border-amber-200",
-    approved: "bg-emerald-100 text-emerald-900 border-emerald-200",
+    approved: "bg-emerald-600 text-white border-emerald-600",
     rejected: "bg-rose-100 text-rose-900 border-rose-200",
   };
   const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
@@ -293,6 +311,10 @@ export default function OvertimePage() {
       toast.error("Invalid time range. Please check your times.");
       return;
     }
+    if (!formData.reason.trim()) {
+      toast.error("Please provide a reason for this OT filing.");
+      return;
+    }
 
     if (supportingDoc) {
       if (!isAllowedFile(supportingDoc)) {
@@ -349,7 +371,7 @@ export default function OvertimePage() {
         start_time: formData.start_time,
         end_time: formData.end_time,
         total_hours: totalHours,
-        reason: formData.reason || null,
+        reason: formData.reason.trim(),
         document: documentPayload,
       }),
     });
@@ -447,7 +469,7 @@ export default function OvertimePage() {
                     required
                     value={formData.ot_date}
                     onChange={(e) =>
-                      setFormData({ ...formData, ot_date: e.target.value })
+                      setFormData((prev) => ({ ...prev, ot_date: e.target.value }))
                     }
                   />
                 </div>
@@ -459,7 +481,7 @@ export default function OvertimePage() {
                     required
                     value={formData.start_time}
                     onChange={(e) =>
-                      setFormData({ ...formData, start_time: e.target.value })
+                      setFormData((prev) => ({ ...prev, start_time: e.target.value }))
                     }
                   />
                 </div>
@@ -471,7 +493,7 @@ export default function OvertimePage() {
                     required
                     value={formData.end_time}
                     onChange={(e) =>
-                      setFormData({ ...formData, end_time: e.target.value })
+                      setFormData((prev) => ({ ...prev, end_time: e.target.value }))
                     }
                   />
                 </div>
@@ -510,7 +532,7 @@ export default function OvertimePage() {
                       value={formData.end_date}
                       min={formData.ot_date}
                       onChange={(e) =>
-                        setFormData({ ...formData, end_date: e.target.value })
+                        setFormData((prev) => ({ ...prev, end_date: e.target.value }))
                       }
                     />
                     <p className="text-xs text-muted-foreground">
@@ -538,7 +560,7 @@ export default function OvertimePage() {
                   rows={4}
                   value={formData.reason}
                   onChange={(e) =>
-                    setFormData({ ...formData, reason: e.target.value })
+                    setFormData((prev) => ({ ...prev, reason: e.target.value }))
                   }
                   placeholder="Provide reason for overtime request..."
                 />
@@ -603,7 +625,8 @@ export default function OvertimePage() {
                   submitting ||
                   !formData.ot_date ||
                   !formData.start_time ||
-                  !formData.end_time
+                  !formData.end_time ||
+                  !formData.reason.trim()
                 }
                 className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
                 size="lg"
@@ -694,8 +717,8 @@ export default function OvertimePage() {
                         </div>
 
                         <div className="text-sm mb-2">
-                          <strong>Time:</strong> {req.start_time} -{" "}
-                          {req.end_time}
+                          <strong>Time:</strong> {formatTime12h(req.start_time)} -{" "}
+                          {formatTime12h(req.end_time)}
                         </div>
 
                         {req.reason && (
@@ -747,7 +770,8 @@ export default function OvertimePage() {
                                 onClick={() => handleOtPunch(req.id, "in")}
                                 disabled={
                                   otPunchActionRequestId === req.id ||
-                                  otPunchSummariesByRequest[req.id]?.is_open === true
+                                  otPunchSummariesByRequest[req.id]?.is_open === true ||
+                                  otPunchSummariesByRequest[req.id]?.has_completed_pair === true
                                 }
                               >
                                 OT Time In
@@ -759,7 +783,8 @@ export default function OvertimePage() {
                                 onClick={() => handleOtPunch(req.id, "out")}
                                 disabled={
                                   otPunchActionRequestId === req.id ||
-                                  otPunchSummariesByRequest[req.id]?.is_open !== true
+                                  otPunchSummariesByRequest[req.id]?.is_open !== true ||
+                                  otPunchSummariesByRequest[req.id]?.has_completed_pair === true
                                 }
                               >
                                 OT Time Out
@@ -966,19 +991,19 @@ export default function OvertimePage() {
                           <>
                             <Badge
                               variant="outline"
-                              className="flex w-full items-center justify-center gap-2 text-center bg-blue-100 text-blue-800 border-blue-200 lg:w-auto"
+                              className="flex w-full items-center justify-center gap-2 text-center bg-emerald-600 text-white border-emerald-600 lg:w-auto"
                             >
                               <Icon name="CheckCircle" size={IconSizes.sm} />
                               APPROVED BY OPERATIONS MANAGER
                             </Badge>
-                            <div className="w-full rounded-md border bg-blue-50 px-3 py-2 text-left text-xs text-blue-900 lg:max-w-[220px] lg:text-right">
+                            <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
                               {req.manager_approval_name && (
                                 <div className="font-semibold">
                                   {req.manager_approval_name}
                                 </div>
                               )}
                               {req.project_manager_approved_at && (
-                                <div className="text-blue-700">
+                                <div className="text-emerald-700">
                                   {formatPHTime(
                                     req.project_manager_approved_at,
                                     "MMM dd, yyyy h:mm a"

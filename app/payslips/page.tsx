@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -240,6 +240,8 @@ function combineAdjustmentReasonForDb(rows: AdjustmentRow[]): string | null {
 
 export default function PayslipsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = createClient();
   const { canAccessSalaryInfo, canUpdatePayslip, loading: roleLoading } = useUserRole();
   const { canRead, loading: permissionsLoading } = usePermissions();
   const hasPayslipsAccess = canAccessSalaryInfo || canRead("payslips");
@@ -257,8 +259,23 @@ export default function PayslipsPage() {
     }
     return d;
   });
+  const [payrollRunId, setPayrollRunId] = useState<string | null>(null);
+  const [payrollRunStatus, setPayrollRunStatus] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<WeeklyAttendance | null>(null);
   const [deductions, setDeductions] = useState<EmployeeDeductions | null>(null);
+  const [govContributionOverrides, setGovContributionOverrides] = useState<{
+    sssReg: number | null;
+    sssWisp: number | null;
+    phil: number | null;
+    pagibig: number | null;
+    tax: number | null;
+  }>({
+    sssReg: null,
+    sssWisp: null,
+    phil: null,
+    pagibig: null,
+    tax: null,
+  });
   const [loading, setLoading] = useState(true);
   const [clockEntries, setClockEntries] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -282,6 +299,57 @@ export default function PayslipsPage() {
       }
     }
   }, [hasPayslipsAccess, roleLoading, permissionsLoading, router]);
+
+  // Deep-link support from Payroll Run: /payslips?employee_id=...&period_start=YYYY-MM-DD&payroll_run_id=...
+  useEffect(() => {
+    const employeeId = searchParams.get("employee_id");
+    const periodStartStr = searchParams.get("period_start");
+    const runId = searchParams.get("payroll_run_id");
+
+    if (runId) setPayrollRunId(runId);
+
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (employeeId && uuidRegex.test(employeeId)) {
+      setSelectedEmployeeId(employeeId);
+    }
+
+    if (periodStartStr && /^\d{4}-\d{2}-\d{2}$/.test(periodStartStr)) {
+      const d = new Date(`${periodStartStr}T00:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        setPeriodStart(d);
+      }
+    }
+    // Intentionally run once on mount; params shouldn't be reactive for editing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // If editing from a payroll run, only lock after finalization.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRunStatus(runId: string) {
+      try {
+        const { data, error } = await supabase
+          .from("payroll_runs")
+          .select("status")
+          .eq("id", runId)
+          .single();
+        if (error) throw error;
+        if (!cancelled) setPayrollRunStatus((data as any)?.status ?? null);
+      } catch {
+        if (!cancelled) setPayrollRunStatus(null);
+      }
+    }
+
+    if (payrollRunId) loadRunStatus(payrollRunId);
+    else setPayrollRunStatus(null);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [payrollRunId, supabase]);
 
   /**
    * Weekly pay (Wed–Tue): statutory month = calendar month of period end (Tuesday).
@@ -385,7 +453,12 @@ export default function PayslipsPage() {
   const [showSavePayslipConfirm, setShowSavePayslipConfirm] = useState(false);
   const [showUpdatePayslipConfirm, setShowUpdatePayslipConfirm] = useState(false);
 
-  const supabase = createClient();
+  const parseNumberInput = (value: string): number | null => {
+    if (value.trim() === "") return null;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return null;
+    return Math.round(Math.max(0, parsed) * 100) / 100;
+  };
 
   function handlePrintPayslip() {
     // Find the payslip container
@@ -478,6 +551,14 @@ export default function PayslipsPage() {
       setSelectedEmployee(emp || null);
       // Reset adjustments so they don't carry over when switching employees
       setAdjustmentRows(createDefaultAdjustmentRows());
+      // Reset manual government contribution edits for the new context.
+      setGovContributionOverrides({
+        sssReg: null,
+        sssWisp: null,
+        phil: null,
+        pagibig: null,
+        tax: null,
+      });
       // Only load attendance if employee is found in the list
       if (emp) {
         loadAttendanceAndDeductions();
@@ -682,13 +763,19 @@ export default function PayslipsPage() {
       });
 
       // Load saved payslip for this employee + period (if any). When present, we display DB values and lock edits.
-      const { data: existingPayslipRow } = await supabase
+      let existingPayslipQuery = supabase
         .from("payslips")
         .select("id, gross_pay, total_deductions, net_pay, adjustment_amount, adjustment_reason, deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount")
         .eq("employee_id", selectedEmployeeId)
         .eq("period_start", periodStartStr)
         .eq("period_end", periodEndStr)
-        .maybeSingle();
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (payrollRunId) {
+        existingPayslipQuery = existingPayslipQuery.eq("payroll_run_id", payrollRunId);
+      }
+      const { data: existingPayslipRows } = await existingPayslipQuery;
+      const existingPayslipRow = Array.isArray(existingPayslipRows) ? existingPayslipRows[0] : null;
 
       if (existingPayslipRow) {
         const ded = (existingPayslipRow.deductions_breakdown as Record<string, unknown>) || {};
@@ -1685,7 +1772,7 @@ export default function PayslipsPage() {
       const takeStatutory = isFourthStatutoryWeeklyPay(periodEndTuesday);
 
       // Full monthly employee shares on statutory week, × min(1, MTD work days / 26).
-      const sssRegularAmount =
+      const sssRegularAmountAuto =
         takeStatutory &&
         validMonthlySalary > 0 &&
         !isNaN(sssContribution?.regularEmployeeShare)
@@ -1694,7 +1781,7 @@ export default function PayslipsPage() {
               prorationFactorSave
             )
           : 0;
-      const sssWispAmount =
+      const sssWispAmountAuto =
         takeStatutory &&
         validMonthlySalary > 0 &&
         (sssContribution?.wispEmployeeShare ?? 0) > 0
@@ -1703,8 +1790,7 @@ export default function PayslipsPage() {
               prorationFactorSave
             )
           : 0;
-      const sssAmount = Math.round((sssRegularAmount + sssWispAmount) * 100) / 100;
-      const philhealthAmount =
+      const philhealthAmountAuto =
         takeStatutory &&
         validMonthlySalary > 0 &&
         !isNaN(philhealthContribution?.employeeShare)
@@ -1713,7 +1799,7 @@ export default function PayslipsPage() {
               prorationFactorSave
             )
           : 0;
-      const pagibigAmount =
+      const pagibigAmountAuto =
         takeStatutory &&
         validMonthlySalary > 0 &&
         !isNaN(pagibigContribution?.employeeShare)
@@ -1749,6 +1835,19 @@ export default function PayslipsPage() {
           : 0);
 
       // Full-month government contributions only on statutory week (4th Tue / last if <4)
+      let sssRegularAmount = sssRegularAmountAuto;
+      let sssWispAmount = sssWispAmountAuto;
+      let philhealthAmount = philhealthAmountAuto;
+      let pagibigAmount = pagibigAmountAuto;
+      if (govContributionOverrides.sssReg !== null)
+        sssRegularAmount = govContributionOverrides.sssReg;
+      if (govContributionOverrides.sssWisp !== null)
+        sssWispAmount = govContributionOverrides.sssWisp;
+      if (govContributionOverrides.phil !== null)
+        philhealthAmount = govContributionOverrides.phil;
+      if (govContributionOverrides.pagibig !== null)
+        pagibigAmount = govContributionOverrides.pagibig;
+      const sssAmount = Math.round((sssRegularAmount + sssWispAmount) * 100) / 100;
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
 
       let withholdingTax = 0;
@@ -1822,6 +1921,9 @@ export default function PayslipsPage() {
             semiMonthHalf: half,
           });
         }
+      }
+      if (govContributionOverrides.tax !== null) {
+        withholdingTax = govContributionOverrides.tax;
       }
       totalDeductions += withholdingTax;
 
@@ -2041,6 +2143,7 @@ export default function PayslipsPage() {
         net_pay: netPay,
         status: "draft",
         created_by: null, // Set to null initially to avoid RLS issues
+        ...(payrollRunId ? { payroll_run_id: payrollRunId } : {}),
       };
 
       console.log("Saving payslip to database:", {
@@ -2094,12 +2197,80 @@ export default function PayslipsPage() {
         });
       }
 
-      // Check if payslip already exists and load adjustments if present
-      const { data: existing, error: checkError } = await supabase
-        .from("payslips")
-        .select("id, payslip_number, adjustment_amount, adjustment_reason")
-        .eq("payslip_number", payslipNumber)
-        .maybeSingle();
+      const isMissingPayslipColumn = (
+        errorLike: unknown,
+        column: string
+      ) => {
+        const message = String((errorLike as any)?.message || "");
+        return (
+          message.includes(`column payslips.${column} does not exist`) ||
+          message.includes(`column "${column}" of relation "payslips" does not exist`)
+        );
+      };
+      const isAnyKnownOptionalPayslipColumnMissing = (errorLike: unknown) => {
+        const optionalColumns = [
+          "payslip_number",
+          "adjustment_amount",
+          "adjustment_reason",
+          "week_number",
+          "period_type",
+          "created_by",
+          "apply_sss",
+          "apply_philhealth",
+          "apply_pagibig",
+          "sss_amount",
+          "philhealth_amount",
+          "pagibig_amount",
+          "allowance_amount",
+          "thirteenth_month_pay",
+        ];
+        return optionalColumns.some((column) =>
+          isMissingPayslipColumn(errorLike, column)
+        );
+      };
+
+      // Check if payslip already exists.
+      // If we came from a payroll run, ALWAYS target that run's payslip row to avoid
+      // inserting a duplicate (unique: payroll_run_id + employee_id).
+      let existing: any = null;
+      let checkError: any = null;
+      if (payrollRunId) {
+        const byRun = await supabase
+          .from("payslips")
+          .select("id, payslip_number, adjustment_amount, adjustment_reason")
+          .eq("payroll_run_id", payrollRunId)
+          .eq("employee_id", selectedEmployee.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        existing = Array.isArray(byRun.data) ? byRun.data[0] : null;
+        checkError = byRun.error;
+      } else {
+        const byNumber = await supabase
+          .from("payslips")
+          .select("id, payslip_number, adjustment_amount, adjustment_reason")
+          .eq("payslip_number", payslipNumber)
+          .maybeSingle();
+        existing = byNumber.data;
+        checkError = byNumber.error;
+      }
+
+      if (
+        checkError &&
+        isAnyKnownOptionalPayslipColumnMissing(checkError)
+      ) {
+        let byPeriodQuery = supabase
+          .from("payslips")
+          .select("id")
+          .eq("employee_id", selectedEmployee.id)
+          .eq("period_start", format(periodStart, "yyyy-MM-dd"))
+          .eq("period_end", format(periodEnd, "yyyy-MM-dd"));
+        if (payrollRunId) {
+          byPeriodQuery = byPeriodQuery.eq("payroll_run_id", payrollRunId);
+        }
+        const byPeriod = await byPeriodQuery.maybeSingle();
+        existing = byPeriod.data;
+        checkError = byPeriod.error;
+      }
 
       if (checkError) {
         console.error("❌ Error checking for existing payslip:", {
@@ -2116,7 +2287,7 @@ export default function PayslipsPage() {
 
       const existingPayslip = existing as {
         id: string;
-        payslip_number: string;
+        payslip_number?: string;
         adjustment_amount?: number | null;
         adjustment_reason?: string | null;
       } | null;
@@ -2125,13 +2296,45 @@ export default function PayslipsPage() {
       if (existingPayslip) {
         console.log("Updating existing payslip:", existingPayslip.id);
         // Update
-        const { error, data: updatedData } = await (
+        let updatePayload: Record<string, unknown> = { ...payslipData };
+        let { error, data: updatedData } = await (
           supabase.from("payslips") as any
         )
-          .update(payslipData)
+          .update(updatePayload)
           .eq("id", existingPayslip.id)
           .select()
           .single();
+
+        if (
+          error &&
+          isAnyKnownOptionalPayslipColumnMissing(error)
+        ) {
+          const {
+            payslip_number: _dropPayslipNumber,
+            adjustment_amount: _dropAdjustmentAmount,
+            adjustment_reason: _dropAdjustmentReason,
+            week_number: _dropWeekNumber,
+            period_type: _dropPeriodType,
+            created_by: _dropCreatedBy,
+            apply_sss: _dropApplySss,
+            apply_philhealth: _dropApplyPhilhealth,
+            apply_pagibig: _dropApplyPagibig,
+            sss_amount: _dropSssAmount,
+            philhealth_amount: _dropPhilhealthAmount,
+            pagibig_amount: _dropPagibigAmount,
+            allowance_amount: _dropAllowanceAmount,
+            thirteenth_month_pay: _dropThirteenthMonthPay,
+            ...fallbackPayload
+          } = updatePayload as any;
+          updatePayload = fallbackPayload;
+          const retry = await (supabase.from("payslips") as any)
+            .update(updatePayload)
+            .eq("id", existingPayslip.id)
+            .select()
+            .single();
+          error = retry.error;
+          updatedData = retry.data;
+        }
 
         if (error) {
           console.error("Error updating payslip:", error);
@@ -2149,12 +2352,43 @@ export default function PayslipsPage() {
       } else {
         console.log("Creating new payslip...");
         // Create
-        const { error, data: insertedData } = await (
+        let insertPayload: Record<string, unknown> = { ...payslipData };
+        let { error, data: insertedData } = await (
           supabase.from("payslips") as any
         )
-          .insert([payslipData])
+          .insert([insertPayload])
           .select()
           .single();
+
+        if (
+          error &&
+          isAnyKnownOptionalPayslipColumnMissing(error)
+        ) {
+          const {
+            payslip_number: _dropPayslipNumber,
+            adjustment_amount: _dropAdjustmentAmount,
+            adjustment_reason: _dropAdjustmentReason,
+            week_number: _dropWeekNumber,
+            period_type: _dropPeriodType,
+            created_by: _dropCreatedBy,
+            apply_sss: _dropApplySss,
+            apply_philhealth: _dropApplyPhilhealth,
+            apply_pagibig: _dropApplyPagibig,
+            sss_amount: _dropSssAmount,
+            philhealth_amount: _dropPhilhealthAmount,
+            pagibig_amount: _dropPagibigAmount,
+            allowance_amount: _dropAllowanceAmount,
+            thirteenth_month_pay: _dropThirteenthMonthPay,
+            ...fallbackPayload
+          } = insertPayload as any;
+          insertPayload = fallbackPayload;
+          const retry = await (supabase.from("payslips") as any)
+            .insert([insertPayload])
+            .select()
+            .single();
+          error = retry.error;
+          insertedData = retry.data;
+        }
 
         if (error) {
           console.error("❌ Error creating payslip:", {
@@ -2546,7 +2780,7 @@ export default function PayslipsPage() {
   }, [mtdWorkDaysForStatutory]);
 
   /** Full monthly SSS (regular + WISP), PhilHealth, Pag-IBIG — 4th weekly pay only; × min(1, MTD days / 26). */
-  const weeklyStatutory = useMemo(() => {
+  const weeklyStatutoryAuto = useMemo(() => {
     if (monthlySalary <= 0 || !isFourthStatutoryWeeklyPay(periodEnd)) {
       return { sssReg: 0, sssWisp: 0, phil: 0, pagibig: 0, total: 0 };
     }
@@ -2584,9 +2818,21 @@ export default function PayslipsPage() {
     return { sssReg, sssWisp, phil, pagibig, total };
   }, [monthlySalary, periodEnd, statutoryProrationFactorPreview]);
 
+  const weeklyStatutory = useMemo(() => {
+    const sssReg =
+      govContributionOverrides.sssReg ?? weeklyStatutoryAuto.sssReg;
+    const sssWisp =
+      govContributionOverrides.sssWisp ?? weeklyStatutoryAuto.sssWisp;
+    const phil = govContributionOverrides.phil ?? weeklyStatutoryAuto.phil;
+    const pagibig =
+      govContributionOverrides.pagibig ?? weeklyStatutoryAuto.pagibig;
+    const total = Math.round((sssReg + sssWisp + phil + pagibig) * 100) / 100;
+    return { sssReg, sssWisp, phil, pagibig, total };
+  }, [govContributionOverrides, weeklyStatutoryAuto]);
+
   const govDed = weeklyStatutory.total;
 
-  const tax = useMemo(() => {
+  const taxAuto = useMemo(() => {
     const whOverride = deductions?.withholding_tax || 0;
     if (whOverride !== 0) return Math.round(whOverride * 100) / 100;
     if (!isLastWeeklyPayOfSemiMonth(periodEnd)) return 0;
@@ -2634,6 +2880,11 @@ export default function PayslipsPage() {
     statutoryProrationFactorPreview,
   ]);
 
+  const tax = useMemo(
+    () => govContributionOverrides.tax ?? taxAuto,
+    [govContributionOverrides.tax, taxAuto]
+  );
+
   const allowance = 0;
 
   // Memoize total deductions
@@ -2651,11 +2902,17 @@ export default function PayslipsPage() {
     return finalGrossPay - totalDed;
   }, [finalGrossPay, totalDed]);
 
-  // When a payslip is already saved for this period, display saved values (and lock edits)
-  const displayGrossPay = savedPayslip ? savedPayslip.gross_pay : finalGrossPay;
-  const displayTotalDed = savedPayslip ? savedPayslip.total_deductions : totalDed;
-  const displayNetPay = savedPayslip ? savedPayslip.net_pay : netPay;
   const isSavedPayslip = savedPayslip !== null;
+  const isRunFinalized = payrollRunId ? payrollRunStatus === "finalized" : false;
+  const isLocked = isSavedPayslip && !(payrollRunId && !isRunFinalized);
+
+  // When locked, show DB values; otherwise show live computed values (even if already saved).
+  const displayGrossPay =
+    isLocked && savedPayslip ? savedPayslip.gross_pay : finalGrossPay;
+  const displayTotalDed =
+    isLocked && savedPayslip ? savedPayslip.total_deductions : totalDed;
+  const displayNetPay =
+    isLocked && savedPayslip ? savedPayslip.net_pay : netPay;
 
   // Show loading or access denied - MUST be after all hooks
   if (roleLoading || permissionsLoading || loading) {
@@ -3000,7 +3257,7 @@ export default function PayslipsPage() {
                                   <td className="px-2 py-1 align-middle">
                                     <Select
                                       value={row.type}
-                                      disabled={isSavedPayslip}
+                                      disabled={isLocked}
                                       onValueChange={(newType) => {
                                         const t = newType as OtherDeductionType;
                                         setOtherDeductionRows((prev) => {
@@ -3056,7 +3313,7 @@ export default function PayslipsPage() {
                                           )
                                         );
                                       }}
-                                      disabled={isSavedPayslip}
+                                      disabled={isLocked}
                                       className="h-8 text-sm text-right"
                                     />
                                   </td>
@@ -3087,7 +3344,7 @@ export default function PayslipsPage() {
                                 <th className="px-2 py-1.5 font-medium text-xs uppercase text-muted-foreground text-right w-[140px]">
                                   Amount
                                 </th>
-                                {!isSavedPayslip && (
+                                {!isLocked && (
                                   <th className="w-10 px-1 py-1.5" aria-label="Remove row" />
                                 )}
                               </tr>
@@ -3112,8 +3369,8 @@ export default function PayslipsPage() {
                                         );
                                       }}
                                       placeholder="e.g. Correction, bonus"
-                                      readOnly={isSavedPayslip}
-                                      disabled={isSavedPayslip}
+                                      readOnly={isLocked}
+                                      disabled={isLocked}
                                       className="text-sm"
                                     />
                                   </td>
@@ -3132,12 +3389,12 @@ export default function PayslipsPage() {
                                         );
                                       }}
                                       placeholder="0.00"
-                                      readOnly={isSavedPayslip}
-                                      disabled={isSavedPayslip}
+                                      readOnly={isLocked}
+                                      disabled={isLocked}
                                       className="text-sm text-right"
                                     />
                                   </td>
-                                  {!isSavedPayslip && (
+                                  {!isLocked && (
                                     <td className="px-1 py-2 align-middle text-center">
                                       <Button
                                         type="button"
@@ -3161,7 +3418,7 @@ export default function PayslipsPage() {
                             </tbody>
                           </table>
                         </div>
-                        {!isSavedPayslip && (
+                        {!isLocked && (
                           <Button
                             type="button"
                             variant="outline"
@@ -3361,11 +3618,11 @@ export default function PayslipsPage() {
                       Government Contributions
                     </H4>
                     {/* Use grid layout for side-by-side cards - 2 columns on larger screens */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 w-full">
                       {monthlySalary > 0 ? (
                           <>
-                            <div className="p-2 border rounded-lg bg-blue-50 border-blue-200 col-span-2">
-                              <BodySmall className="text-blue-700 text-xs">
+                            <div className="p-2 border rounded-lg bg-emerald-50 border-emerald-200 col-span-2">
+                              <BodySmall className="text-emerald-700 text-xs">
                                 Based on monthly salary {formatCurrency(monthlySalary)}: SSS, PhilHealth, and Pag-IBIG are applied on the statutory deduction week only, while other weeks show ₱0.
                                 {mtdWorkDaysForStatutory !== null ? (
                                   <>
@@ -3380,76 +3637,90 @@ export default function PayslipsPage() {
                             <HStack
                               justify="between"
                               align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2"
+                              className="rounded-lg border border-border bg-muted/40 p-2.5"
                             >
-                              <VStack
-                                gap="0"
-                                align="start"
-                                className="flex-1 min-w-0"
-                              >
-                                <span className="font-medium text-sm">
-                                  SSS (Regular)
-                                </span>
-                              </VStack>
-                              <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(weeklyStatutory.sssReg)}
+                              <span className="font-medium text-sm">
+                                SSS (Regular)
                               </span>
-                            </HStack>
-                            {weeklyStatutory.sssWisp > 0 && (
-                              <HStack
-                                justify="between"
-                                align="center"
-                                className="rounded-lg border border-border bg-muted/40 p-2"
-                              >
-                                <VStack
-                                  gap="0"
-                                  align="start"
-                                  className="flex-1 min-w-0"
-                                >
-                                  <span className="font-medium text-sm">
-                                    SSS WISP
-                                  </span>
-                                </VStack>
-                                <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                  {formatCurrency(weeklyStatutory.sssWisp)}
-                                </span>
-                              </HStack>
-                            )}
-                            <HStack
-                              justify="between"
-                              align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2"
-                            >
-                              <VStack
-                                gap="0"
-                                align="start"
-                                className="flex-1 min-w-0"
-                              >
-                                <span className="font-medium text-sm">
-                                  PhilHealth
-                                </span>
-                              </VStack>
-                              <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(weeklyStatutory.phil)}
-                              </span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={weeklyStatutory.sssReg}
+                                onChange={(e) =>
+                                  setGovContributionOverrides((prev) => ({
+                                    ...prev,
+                                    sssReg: parseNumberInput(e.target.value),
+                                  }))
+                                }
+                                className="h-9 w-full max-w-[170px] text-right"
+                              />
                             </HStack>
                             <HStack
                               justify="between"
                               align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2"
+                              className="rounded-lg border border-border bg-muted/40 p-2.5"
                             >
-                              <VStack
-                                gap="0"
-                                align="start"
-                                className="flex-1 min-w-0"
-                              >
-                                <span className="font-medium text-sm">
-                                  Pag-IBIG
-                                </span>
-                              </VStack>
-                              <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(weeklyStatutory.pagibig)}
+                              <span className="font-medium text-sm">
+                                SSS WISP
                               </span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={weeklyStatutory.sssWisp}
+                                onChange={(e) =>
+                                  setGovContributionOverrides((prev) => ({
+                                    ...prev,
+                                    sssWisp: parseNumberInput(e.target.value),
+                                  }))
+                                }
+                                className="h-9 w-full max-w-[170px] text-right"
+                              />
+                            </HStack>
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="rounded-lg border border-border bg-muted/40 p-2.5"
+                            >
+                              <span className="font-medium text-sm">
+                                PhilHealth
+                              </span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={weeklyStatutory.phil}
+                                onChange={(e) =>
+                                  setGovContributionOverrides((prev) => ({
+                                    ...prev,
+                                    phil: parseNumberInput(e.target.value),
+                                  }))
+                                }
+                                className="h-9 w-full max-w-[170px] text-right"
+                              />
+                            </HStack>
+                            <HStack
+                              justify="between"
+                              align="center"
+                              className="rounded-lg border border-border bg-muted/40 p-2.5"
+                            >
+                              <span className="font-medium text-sm">
+                                Pag-IBIG
+                              </span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={weeklyStatutory.pagibig}
+                                onChange={(e) =>
+                                  setGovContributionOverrides((prev) => ({
+                                    ...prev,
+                                    pagibig: parseNumberInput(e.target.value),
+                                  }))
+                                }
+                                className="h-9 w-full max-w-[170px] text-right"
+                              />
                             </HStack>
                           </>
                         ) : null}
@@ -3503,14 +3774,22 @@ export default function PayslipsPage() {
                             : "2nd (days 16–end)";
 
                         return (
-                          <VStack gap="1" className="rounded-lg border border-border bg-muted/40 p-2">
+                          <VStack gap="1" className="rounded-lg border border-border bg-muted/40 p-2.5">
                             <HStack justify="between" align="center" className="w-full">
-                              <VStack gap="0" align="start" className="flex-1 min-w-0">
-                                <span className="font-medium text-sm">Tax</span>
-                              </VStack>
-                              <span className="font-semibold text-sm ml-2 flex-shrink-0">
-                                {formatCurrency(tax)}
-                              </span>
+                              <span className="font-medium text-sm">Tax</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={tax}
+                                onChange={(e) =>
+                                  setGovContributionOverrides((prev) => ({
+                                    ...prev,
+                                    tax: parseNumberInput(e.target.value),
+                                  }))
+                                }
+                                className="h-9 w-full max-w-[170px] text-right"
+                              />
                             </HStack>
                           </VStack>
                         );
@@ -3528,7 +3807,9 @@ export default function PayslipsPage() {
               {isSavedPayslip && (
                 <>
                   <div className="mb-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5 text-xs text-primary">
-                    This payslip has been saved. Values below are from the database. Adjustments cannot be edited.
+                    {isLocked
+                      ? "This payslip has been saved. Values below are from the database. Adjustments cannot be edited."
+                      : "This payslip has been saved. You can still edit it until the payroll run is finalized."}
                   </div>
                   {savedPayslip && (() => {
                     const earnings = earningsBaseForPeriod;
@@ -3670,7 +3951,8 @@ export default function PayslipsPage() {
                         <Icon name="CheckCircle" size={IconSizes.sm} />
                         Payslip saved
                       </Button>
-                      {canUpdatePayslip && (
+                      {((canUpdatePayslip && !isLocked) ||
+                        (payrollRunId && !isRunFinalized)) && (
                         <Button
                           onClick={() => setShowUpdatePayslipConfirm(true)}
                           disabled={generating}
@@ -3823,7 +4105,9 @@ export default function PayslipsPage() {
                   Are you sure you want to save the payslip for{" "}
                   <strong>{selectedEmployee?.full_name ?? "this employee"}</strong> for the cut-off period{" "}
                   <strong>{periodStart ? format(periodStart, "MMM d") : ""} – {periodEnd ? format(periodEnd, "MMM d, yyyy") : ""}</strong>?
-                  Once saved, adjustments cannot be edited for this period.
+                  {payrollRunId
+                    ? "You can continue editing until the payroll run is finalized."
+                    : "Once saved, adjustments cannot be edited for this period."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PayslipPrint } from "@/components/PayslipPrint";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -25,12 +27,6 @@ import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import {
-  calculateSSS,
-  calculatePhilHealth,
-  calculatePagIBIG,
-  calculateWithholdingTax,
-} from "@/utils/ph-deductions";
 
 interface PayrollRun {
   id: string;
@@ -43,6 +39,7 @@ interface PayrollRun {
   payslip_count?: number;
   total_gross?: number;
   total_net?: number;
+  selected_employee_ids?: string[] | null;
 }
 
 interface Employee {
@@ -59,14 +56,31 @@ interface Employee {
   positions: { name: string } | null;
 }
 
+interface RunSelectableEmployee {
+  id: string;
+  company_id_no: string;
+  employee_code: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  employment_status: string;
+}
+
 interface Payslip {
   id: string;
   employee_id: string;
+  period_start?: string;
+  period_end?: string;
   gross_pay: number;
   total_deductions: number;
   net_pay: number;
-  earnings_breakdown: Record<string, number>;
-  deductions_breakdown: Record<string, number>;
+  earnings_breakdown: any;
+  deductions_breakdown: any;
+  sss_amount?: number;
+  philhealth_amount?: number;
+  pagibig_amount?: number;
+  adjustment_amount?: number;
+  adjustment_reason?: string | null;
   employee?: Employee;
 }
 
@@ -86,15 +100,103 @@ export default function PayrollPage() {
   const [showNewRunDialog, setShowNewRunDialog] = useState(false);
   const [newRunForm, setNewRunForm] = useState({ cutoff_start: "", cutoff_end: "", pay_date: "" });
   const [creating, setCreating] = useState(false);
+  const [activeEmployeesForRun, setActiveEmployeesForRun] = useState<RunSelectableEmployee[]>([]);
+  const [selectedEmployeeIdsForRun, setSelectedEmployeeIdsForRun] = useState<string[]>([]);
 
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [printPayslip, setPrintPayslip] = useState<Payslip | null>(null);
+
+  function runScopeCount(run: PayrollRun) {
+    if (Array.isArray(run.selected_employee_ids) && run.selected_employee_ids.length > 0) {
+      return run.selected_employee_ids.length;
+    }
+    if (activeEmployeesForRun.length > 0) return activeEmployeesForRun.length;
+    return null;
+  }
+
+  function getPayslipAttendanceData(ps: Payslip) {
+    const breakdown = ps.earnings_breakdown;
+    if (Array.isArray(breakdown)) return breakdown;
+    if (Array.isArray(breakdown?.attendance_data)) return breakdown.attendance_data;
+    return [];
+  }
+
+  function triggerPrintFromContainer(container: HTMLElement, title: string) {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Please allow popups to download payslip");
+      return;
+    }
+    const payslipHTML = container.outerHTML;
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>${title}</title>
+          <style>
+            html, body { margin: 0; padding: 0; background: white; }
+            .payslip-container { width: 8.5in; padding: 0.5in; margin: 0 auto; }
+            @media print {
+              @page { size: letter portrait; margin: 0.5in; }
+              .payslip-container { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          ${payslipHTML}
+          <script>
+            window.onload = function() { setTimeout(function() { window.print(); }, 250); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
+  function handleDownloadPayslip(ps: Payslip) {
+    setPrintPayslip(ps);
+    window.setTimeout(() => {
+      const el = document.getElementById("payslip-print-content");
+      if (!el) {
+        toast.error("Payslip print layout is not ready.");
+        return;
+      }
+      const label = ps.employee?.company_id_no || ps.employee_id || "Employee";
+      triggerPrintFromContainer(el, `Payslip - ${label}`);
+    }, 30);
+  }
 
   useEffect(() => {
     fetchPayrollRuns();
+    loadActiveEmployeesForRun();
   }, []);
+
+  async function loadActiveEmployeesForRun() {
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, company_id_no, employee_code, first_name, middle_name, last_name, employment_status")
+        .eq("employment_status", "active")
+        .order("last_name", { ascending: true });
+      if (error) throw error;
+      setActiveEmployeesForRun((data || []) as RunSelectableEmployee[]);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load active employees");
+      setActiveEmployeesForRun([]);
+    }
+  }
+
+  function getRunEmployeeName(emp: RunSelectableEmployee) {
+    const middleInitial = emp.middle_name?.trim()
+      ? ` ${emp.middle_name.trim().charAt(0)}.`
+      : "";
+    return `${emp.last_name}, ${emp.first_name}${middleInitial}`;
+  }
 
   async function fetchPayrollRuns() {
     setLoading(true);
@@ -137,17 +239,45 @@ export default function PayrollPage() {
     setCreating(true);
     try {
       const { data: companyData } = await supabase.from("companies").select("id").limit(1).single();
-      const { data, error } = await supabase.from("payroll_runs").insert([{
+      const payloadWithScope = {
         company_id: companyData?.id,
         cutoff_start: newRunForm.cutoff_start,
         cutoff_end: newRunForm.cutoff_end,
         pay_date: newRunForm.pay_date || null,
         status: "draft",
-      } as never]).select().single();
+        selected_employee_ids:
+          selectedEmployeeIdsForRun.length > 0 ? selectedEmployeeIdsForRun : null,
+      } as never;
+
+      let { data, error } = await supabase
+        .from("payroll_runs")
+        .insert([payloadWithScope])
+        .select()
+        .single();
+
+      // Backward-compatible fallback for environments where migration is not yet applied.
+      if (error && String(error.message || "").includes("selected_employee_ids")) {
+        const payloadWithoutScope = {
+          company_id: companyData?.id,
+          cutoff_start: newRunForm.cutoff_start,
+          cutoff_end: newRunForm.cutoff_end,
+          pay_date: newRunForm.pay_date || null,
+          status: "draft",
+        } as never;
+        const retry = await supabase
+          .from("payroll_runs")
+          .insert([payloadWithoutScope])
+          .select()
+          .single();
+        data = retry.data;
+        error = retry.error;
+      }
+
       if (error) throw error;
       toast.success("Payroll run created.");
       setShowNewRunDialog(false);
       setNewRunForm({ cutoff_start: "", cutoff_end: "", pay_date: "" });
+      setSelectedEmployeeIdsForRun([]);
       fetchPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to create payroll run");
@@ -179,69 +309,24 @@ export default function PayrollPage() {
     if (!selectedRun) return;
     setProcessing(true);
     try {
-      const { data: employees, error: empErr } = await supabase
-        .from("employees")
-        .select("id, company_id_no, employee_code, first_name, last_name, salary_basis, base_rate, employment_status")
-        .eq("employment_status", "active");
-      if (empErr) throw empErr;
-
-      if (!employees || employees.length === 0) {
-        toast.error("No active employees found.");
-        setProcessing(false);
-        return;
+      const res = await fetch("/api/payroll-runs/generate-payslips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payroll_run_id: selectedRun.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to generate payslips");
       }
 
-      const cutoffStart = new Date(selectedRun.cutoff_start);
-      const cutoffEnd = new Date(selectedRun.cutoff_end);
-      const daysInPeriod = Math.ceil((cutoffEnd.getTime() - cutoffStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      await supabase
+        .from("payroll_runs")
+        .update({ status: "processing" } as never)
+        .eq("id", selectedRun.id);
 
-      const payslipInserts = employees.map((emp) => {
-        const monthlyRate = emp.salary_basis === "monthly"
-          ? Number(emp.base_rate)
-          : Number(emp.base_rate) * 26;
-
-        const basicPay = emp.salary_basis === "monthly"
-          ? monthlyRate / 2
-          : Number(emp.base_rate) * Math.min(daysInPeriod, 13);
-
-        const sss = calculateSSS(monthlyRate);
-        const philhealth = calculatePhilHealth(monthlyRate);
-        const pagibig = calculatePagIBIG(monthlyRate);
-        const totalGovtDeductions = (sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare) / 2;
-
-        const taxableIncome = basicPay - totalGovtDeductions;
-        const withholdingTax = calculateWithholdingTax(taxableIncome * 2) / 2;
-
-        const grossPay = basicPay;
-        const totalDeductions = totalGovtDeductions + Math.max(0, withholdingTax);
-        const netPay = grossPay - totalDeductions;
-
-        return {
-          payroll_run_id: selectedRun.id,
-          employee_id: emp.id,
-          gross_pay: Math.round(grossPay * 100) / 100,
-          total_deductions: Math.round(totalDeductions * 100) / 100,
-          net_pay: Math.round(netPay * 100) / 100,
-          earnings_breakdown: {
-            basic_pay: Math.round(basicPay * 100) / 100,
-          },
-          deductions_breakdown: {
-            sss: Math.round((sss.employeeShare / 2) * 100) / 100,
-            philhealth: Math.round((philhealth.employeeShare / 2) * 100) / 100,
-            pagibig: Math.round((pagibig.employeeShare / 2) * 100) / 100,
-            withholding_tax: Math.round(Math.max(0, withholdingTax) * 100) / 100,
-          },
-        };
-      });
-
-      await supabase.from("payslips").delete().eq("payroll_run_id", selectedRun.id);
-
-      const { error: insertErr } = await supabase.from("payslips").insert(payslipInserts as never[]);
-      if (insertErr) throw insertErr;
-
-      await supabase.from("payroll_runs").update({ status: "processing" } as never).eq("id", selectedRun.id);
-
-      toast.success(`Generated ${payslipInserts.length} payslips.`);
+      toast.success(
+        `Generated ${json?.generated ?? 0} draft payslip(s) for this run.`
+      );
       openRunDetail({ ...selectedRun, status: "processing" });
       fetchPayrollRuns();
     } catch (error: any) {
@@ -298,6 +383,12 @@ export default function PayrollPage() {
               <HStack gap="2" align="center">
                 <Badge variant="outline" className={statusStyles[selectedRun.status] || ""}>{selectedRun.status}</Badge>
                 {selectedRun.pay_date && <Caption>Pay Date: {format(new Date(selectedRun.pay_date), "MMM d, yyyy")}</Caption>}
+                <Caption>
+                  Scope:{" "}
+                  {selectedRun.selected_employee_ids?.length
+                    ? `${selectedRun.selected_employee_ids.length} selected employee(s)`
+                    : "All active employees"}
+                </Caption>
               </HStack>
             </VStack>
             <HStack gap="2">
@@ -330,7 +421,11 @@ export default function PayrollPage() {
             <Card>
               <CardContent className="pt-6">
                 <BodySmall className="text-muted-foreground">Employees</BodySmall>
-                <p className="text-2xl font-bold mt-1">{payslips.length}</p>
+                <p className="text-2xl font-bold mt-1">
+                  {payslips.length > 0
+                    ? payslips.length
+                    : runScopeCount(selectedRun) ?? 0}
+                </p>
               </CardContent>
             </Card>
             <Card>
@@ -379,6 +474,7 @@ export default function PayrollPage() {
                       <TableHead className="text-right">Pag-IBIG</TableHead>
                       <TableHead className="text-right">Tax</TableHead>
                       <TableHead className="text-right">Net Pay</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -399,6 +495,32 @@ export default function PayrollPage() {
                         <TableCell className="text-right text-sm text-destructive">{Number(ps.deductions_breakdown?.pagibig || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                         <TableCell className="text-right text-sm text-destructive">{Number(ps.deductions_breakdown?.withholding_tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                         <TableCell className="text-right font-bold text-primary">₱{Number(ps.net_pay).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right">
+                          <HStack gap="2" justify="end">
+                            <Link
+                              href={`/payslips?employee_id=${encodeURIComponent(
+                                ps.employee?.id || ps.employee_id
+                              )}&period_start=${encodeURIComponent(
+                                selectedRun.cutoff_start
+                              )}&payroll_run_id=${encodeURIComponent(
+                                selectedRun.id
+                              )}`}
+                            >
+                              <Button size="sm" variant="secondary">
+                                <Icon name="PencilSimple" size={IconSizes.sm} className="mr-1" />
+                                Edit
+                              </Button>
+                            </Link>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDownloadPayslip(ps)}
+                            >
+                              <Icon name="Download" size={IconSizes.sm} className="mr-1" />
+                              Payslip
+                            </Button>
+                          </HStack>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -406,6 +528,87 @@ export default function PayrollPage() {
               </div>
             )}
           </CardSection>
+
+          {printPayslip && (
+            <div className="hidden">
+              <PayslipPrint
+                employee={{
+                  employee_id: printPayslip.employee?.company_id_no || printPayslip.employee_id,
+                  full_name: [printPayslip.employee?.first_name, printPayslip.employee?.last_name]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim() || "Employee",
+                  rate_per_day:
+                    printPayslip.employee?.salary_basis === "daily"
+                      ? Number(printPayslip.employee?.base_rate || 0)
+                      : Number(printPayslip.employee?.base_rate || 0) / 26,
+                  rate_per_hour:
+                    printPayslip.employee?.salary_basis === "daily"
+                      ? Number(printPayslip.employee?.base_rate || 0) / 8
+                      : Number(printPayslip.employee?.base_rate || 0) / 26 / 8,
+                  position: printPayslip.employee?.positions?.name || null,
+                  assigned_hotel: null,
+                  employee_type: null,
+                  job_level: null,
+                }}
+                weekStart={new Date(
+                  printPayslip.period_start || selectedRun?.cutoff_start || new Date()
+                )}
+                weekEnd={new Date(
+                  printPayslip.period_end || selectedRun?.cutoff_end || new Date()
+                )}
+                attendance={{ attendance_data: getPayslipAttendanceData(printPayslip) }}
+                earnings={{
+                  regularPay: 0,
+                  regularOT: 0,
+                  regularOTHours: 0,
+                  nightDiff: 0,
+                  nightDiffHours: 0,
+                  sundayRestDay: 0,
+                  sundayRestDayHours: 0,
+                  specialHoliday: 0,
+                  specialHolidayHours: 0,
+                  regularHoliday: 0,
+                  regularHolidayHours: 0,
+                  grossIncome: Number(printPayslip.gross_pay || 0),
+                }}
+                deductions={{
+                  vale: Number(printPayslip.deductions_breakdown?.weekly?.vale || 0),
+                  sssLoan: Number(printPayslip.deductions_breakdown?.weekly?.sss_loan || 0),
+                  sssCalamityLoan: Number(
+                    printPayslip.deductions_breakdown?.weekly?.sss_calamity || 0
+                  ),
+                  pagibigLoan: Number(
+                    printPayslip.deductions_breakdown?.weekly?.pagibig_loan || 0
+                  ),
+                  pagibigCalamityLoan: Number(
+                    printPayslip.deductions_breakdown?.weekly?.pagibig_calamity || 0
+                  ),
+                  monthlyLoans: printPayslip.deductions_breakdown?.weekly?.monthly_loans,
+                  sssContribution: Number(printPayslip.deductions_breakdown?.sss || 0),
+                  sssWisp: Number(printPayslip.deductions_breakdown?.sss_wisp || 0),
+                  philhealthContribution: Number(
+                    printPayslip.deductions_breakdown?.philhealth || 0
+                  ),
+                  pagibigContribution: Number(printPayslip.deductions_breakdown?.pagibig || 0),
+                  withholdingTax: Number(
+                    printPayslip.deductions_breakdown?.withholding_tax ||
+                      printPayslip.deductions_breakdown?.tax ||
+                      0
+                  ),
+                  totalDeductions: Number(printPayslip.total_deductions || 0),
+                }}
+                adjustment={Number(printPayslip.adjustment_amount || 0)}
+                adjustmentReason={printPayslip.adjustment_reason || null}
+                netPay={Number(printPayslip.net_pay || 0)}
+                workingDays={getPayslipAttendanceData(printPayslip).filter(
+                  (d: any) => Number(d?.regularHours || 0) > 0
+                ).length}
+                absentDays={0}
+                preparedBy="HR"
+              />
+            </div>
+          )}
         </VStack>
       </DashboardLayout>
     );
@@ -420,7 +623,12 @@ export default function PayrollPage() {
             <BodySmall>Create payroll runs, generate payslips, and review totals before release.</BodySmall>
           </VStack>
           {(isAdmin || isHR) && (
-            <Button onClick={() => setShowNewRunDialog(true)}>
+            <Button
+              onClick={() => {
+                setSelectedEmployeeIdsForRun([]);
+                setShowNewRunDialog(true);
+              }}
+            >
               <Icon name="Plus" size={IconSizes.sm} />
               New Payroll Run
             </Button>
@@ -457,7 +665,11 @@ export default function PayrollPage() {
                         {format(new Date(run.cutoff_start), "MMM d")} – {format(new Date(run.cutoff_end), "MMM d, yyyy")}
                       </TableCell>
                       <TableCell>{run.pay_date ? format(new Date(run.pay_date), "MMM d, yyyy") : "—"}</TableCell>
-                      <TableCell className="text-center">{run.payslip_count || 0}</TableCell>
+                      <TableCell className="text-center">
+                        {run.payslip_count && run.payslip_count > 0
+                          ? run.payslip_count
+                          : runScopeCount(run) ?? 0}
+                      </TableCell>
                       <TableCell className="text-right">₱{(run.total_gross || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                       <TableCell className="text-right font-medium text-primary">₱{(run.total_net || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
                       <TableCell>
@@ -500,6 +712,56 @@ export default function PayrollPage() {
               <Label htmlFor="pay-date">Pay Date</Label>
               <Input id="pay-date" type="date" value={newRunForm.pay_date}
                 onChange={(e) => setNewRunForm({ ...newRunForm, pay_date: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <HStack justify="between" align="center">
+                <Label>Employee Scope (optional)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setSelectedEmployeeIdsForRun((prev) =>
+                      prev.length === activeEmployeesForRun.length
+                        ? []
+                        : activeEmployeesForRun.map((emp) => emp.id)
+                    )
+                  }
+                >
+                  {selectedEmployeeIdsForRun.length === activeEmployeesForRun.length
+                    ? "Clear all"
+                    : "Select all"}
+                </Button>
+              </HStack>
+              <div className="max-h-52 overflow-auto rounded-md border p-2 space-y-2">
+                {activeEmployeesForRun.length === 0 ? (
+                  <BodySmall className="text-muted-foreground">
+                    No active employees found.
+                  </BodySmall>
+                ) : (
+                  activeEmployeesForRun.map((emp) => (
+                    <label key={emp.id} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={selectedEmployeeIdsForRun.includes(emp.id)}
+                        onCheckedChange={(checked) => {
+                          const isChecked = checked === true;
+                          setSelectedEmployeeIdsForRun((prev) =>
+                            isChecked
+                              ? [...prev, emp.id]
+                              : prev.filter((id) => id !== emp.id)
+                          );
+                        }}
+                      />
+                      <span>
+                        {getRunEmployeeName(emp)} ({emp.employee_code || emp.company_id_no || "No ID"})
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              <Caption>
+                Leave empty to run payroll for all active employees.
+              </Caption>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowNewRunDialog(false)}>Cancel</Button>

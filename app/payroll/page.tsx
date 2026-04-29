@@ -308,6 +308,7 @@ export default function PayrollPage() {
   async function generatePayslips() {
     if (!selectedRun) return;
     setProcessing(true);
+    setPayslips([]);
     try {
       const res = await fetch("/api/payroll-runs/generate-payslips", {
         method: "POST",

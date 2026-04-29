@@ -125,8 +125,13 @@ export async function POST(req: NextRequest) {
       }-${parts.find((p) => p.type === "day")!.value}`;
     };
 
-    // Replace existing payslips for this run (draft regen)
-    await supabase.from("payslips").delete().eq("payroll_run_id", payroll_run_id);
+    // Replace existing payslips for this run (draft regen).
+    // Important: If RLS blocks this delete, we must fail; otherwise the UI will appear to "reuse cached" rows.
+    const { error: deleteErr } = await supabase
+      .from("payslips")
+      .delete()
+      .eq("payroll_run_id", payroll_run_id);
+    if (deleteErr) throw deleteErr;
 
     const inserts: any[] = [];
     const skipped: any[] = [];
@@ -239,7 +244,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { error: insertErr } = await supabase.from("payslips").insert(inserts as any);
+    // Upsert makes regenerate idempotent even if deletes are partially blocked by policies.
+    const { error: insertErr } = await supabase
+      .from("payslips")
+      .upsert(inserts as any, { onConflict: "payroll_run_id,employee_id" });
     if (insertErr) throw insertErr;
 
     return NextResponse.json({

@@ -8,6 +8,25 @@ import {
   fetchProjectTimeSessionsForEmployee,
   fetchSessionsForEmployee,
 } from "@/lib/timeEntries";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import {
+  calculatePagIBIG,
+  calculatePhilHealth,
+  calculateSSS,
+  calculateSemiMonthlyWithholdingTax,
+} from "@/utils/ph-deductions";
+import {
+  countWeeklyPaysInSemiMonth,
+  isFourthStatutoryWeeklyPay,
+  isLastWeeklyPayOfSemiMonth,
+  semiMonthlyPeriodIndex,
+} from "@/lib/weekly-statutory-deductions";
+import {
+  applyStatutoryProration,
+  fetchDistinctWorkDaysMonthToDate,
+  statutoryProrationFactorFromDays,
+  STATUTORY_PRORATION_REFERENCE_DAYS,
+} from "@/lib/statutory-proration";
 
 type EmployeeRow = {
   id: string;
@@ -16,6 +35,7 @@ type EmployeeRow = {
   base_rate?: number | null;
   employment_type?: string | null;
   position?: string | null;
+  transferred_from_employee_id?: string | null;
 };
 
 function ratePerHourFromEmployee(e: EmployeeRow) {
@@ -70,7 +90,9 @@ export async function POST(req: NextRequest) {
 
     let empQuery = supabase
       .from("employees")
-      .select("id, employment_status, salary_basis, base_rate, employment_type, position")
+      .select(
+        "id, employment_status, salary_basis, base_rate, employment_type, position, transferred_from_employee_id"
+      )
       .eq("employment_status", "active");
 
     if (employeeIdsScope) {
@@ -211,8 +233,147 @@ export async function POST(req: NextRequest) {
           : null;
 
       const grossPay = payrollResult?.grossPay ?? 0;
-      const deductionsBreakdown = {
-        // Draft: keep deductions editable; compute later if needed.
+      const periodEndTuesday = new Date(`${cutoffEnd}T00:00:00`);
+
+      // Monthly basic salary mapping (matches /payslips page behavior).
+      const basis = String(e.salary_basis || "").toLowerCase();
+      const baseRate = Number(e.base_rate ?? 0);
+      const monthlyBasicSalary =
+        baseRate > 0
+          ? basis === "monthly"
+            ? baseRate
+            : baseRate * 26
+          : 0;
+      const validMonthlySalary = monthlyBasicSalary > 0 ? monthlyBasicSalary : 0;
+
+      // Statutory contributions (employee shares)
+      const sssContribution = calculateSSS(validMonthlySalary);
+      const philhealthContribution = calculatePhilHealth(validMonthlySalary);
+      const pagibigContribution = calculatePagIBIG(validMonthlySalary);
+
+      let mtdWorkDaysForSave = STATUTORY_PRORATION_REFERENCE_DAYS;
+      let prorationFactorSave = 1;
+      try {
+        const clockIds = [
+          e.id,
+          e.transferred_from_employee_id,
+        ].filter(Boolean) as string[];
+        mtdWorkDaysForSave = await fetchDistinctWorkDaysMonthToDate(
+          supabase as any,
+          clockIds,
+          periodEndTuesday
+        );
+        prorationFactorSave = statutoryProrationFactorFromDays(mtdWorkDaysForSave);
+      } catch {
+        mtdWorkDaysForSave = STATUTORY_PRORATION_REFERENCE_DAYS;
+        prorationFactorSave = 1;
+      }
+
+      const takeStatutory = isFourthStatutoryWeeklyPay(periodEndTuesday);
+      const sssRegularAmount =
+        takeStatutory && validMonthlySalary > 0
+          ? applyStatutoryProration(
+              Math.round((sssContribution.regularEmployeeShare ?? 0) * 100) / 100,
+              prorationFactorSave
+            )
+          : 0;
+      const sssWispAmount =
+        takeStatutory && validMonthlySalary > 0 && (sssContribution.wispEmployeeShare ?? 0) > 0
+          ? applyStatutoryProration(
+              Math.round((sssContribution.wispEmployeeShare ?? 0) * 100) / 100,
+              prorationFactorSave
+            )
+          : 0;
+      const philhealthAmount =
+        takeStatutory && validMonthlySalary > 0
+          ? applyStatutoryProration(
+              Math.round((philhealthContribution.employeeShare ?? 0) * 100) / 100,
+              prorationFactorSave
+            )
+          : 0;
+      const pagibigAmount =
+        takeStatutory && validMonthlySalary > 0
+          ? applyStatutoryProration(
+              Math.round((pagibigContribution.employeeShare ?? 0) * 100) / 100,
+              prorationFactorSave
+            )
+          : 0;
+
+      // Withholding tax (semi-monthly settlement on last Tue of each half)
+      let withholdingTax = 0;
+      const takeSemiMonthTax = isLastWeeklyPayOfSemiMonth(periodEndTuesday);
+      if (takeSemiMonthTax && (grossPay > 0 || validMonthlySalary > 0)) {
+        const monthlyContributionsFull =
+          (sssContribution.employeeShare ?? 0) +
+          (philhealthContribution.employeeShare ?? 0) +
+          (pagibigContribution.employeeShare ?? 0);
+        const monthlyContributions = applyStatutoryProration(
+          Math.round(monthlyContributionsFull * 100) / 100,
+          prorationFactorSave
+        );
+        const halfMonthlyContrib = Math.round((monthlyContributions / 2) * 100) / 100;
+
+        const curEndStr = format(periodEndTuesday, "yyyy-MM-dd");
+        const startM = startOfMonth(periodEndTuesday);
+        const endM = endOfMonth(periodEndTuesday);
+        const half = semiMonthlyPeriodIndex(periodEndTuesday);
+
+        // Fetch existing payslips for same month to compute prior gross+tax in this semi-month.
+        const { data: monthRows } = await (supabase as any)
+          .from("payslips")
+          .select("gross_pay, adjustment_amount, period_end, deductions_breakdown")
+          .eq("employee_id", e.id)
+          .gte("period_end", format(startM, "yyyy-MM-dd"))
+          .lte("period_end", format(endM, "yyyy-MM-dd"));
+
+        let grossOther = 0;
+        let taxPrior = 0;
+        for (const row of monthRows || []) {
+          if (row.period_end === curEndStr) continue;
+          const [py, pm, pd] = String(row.period_end || "")
+            .split("-")
+            .map(Number);
+          if (!py || !pm || !pd) continue;
+          const rowEnd = new Date(py, pm - 1, pd);
+          if (semiMonthlyPeriodIndex(rowEnd) !== half) continue;
+          grossOther += Number(row.gross_pay ?? 0) + Number(row.adjustment_amount ?? 0);
+          const br = row.deductions_breakdown as { tax?: number } | undefined;
+          taxPrior += typeof br?.tax === "number" ? br.tax : 0;
+        }
+        grossOther = Math.round(grossOther * 100) / 100;
+        taxPrior = Math.round(taxPrior * 100) / 100;
+
+        const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEndTuesday);
+        const actualSemiGross =
+          monthRows != null
+            ? Math.round((grossOther + grossPay) * 100) / 100
+            : Math.round(grossPay * nSemiWeeks * 100) / 100;
+
+        const semiTaxableIncome = Math.max(0, actualSemiGross - halfMonthlyContrib);
+        const semiTaxDue = calculateSemiMonthlyWithholdingTax(semiTaxableIncome);
+        withholdingTax = Math.max(0, Math.round((semiTaxDue - taxPrior) * 100) / 100);
+      }
+
+      const totalDeductions =
+        Math.round(
+          (sssRegularAmount +
+            sssWispAmount +
+            philhealthAmount +
+            pagibigAmount +
+            withholdingTax) *
+            100
+        ) / 100;
+      const netPay = Math.round((grossPay - totalDeductions) * 100) / 100;
+
+      const deductionsBreakdown: any = {
+        tax: withholdingTax,
+        sss: sssRegularAmount,
+        sss_wisp: sssWispAmount,
+        philhealth: philhealthAmount,
+        pagibig: pagibigAmount,
+        statutory_mtd_work_days: mtdWorkDaysForSave,
+        statutory_proration_factor: prorationFactorSave,
+        statutory_reference_days: STATUTORY_PRORATION_REFERENCE_DAYS,
       };
 
       inserts.push({
@@ -226,8 +387,8 @@ export async function POST(req: NextRequest) {
         },
         gross_pay: Math.round(Number(grossPay || 0) * 100) / 100,
         deductions_breakdown: deductionsBreakdown,
-        total_deductions: 0,
-        net_pay: Math.round(Number(grossPay || 0) * 100) / 100,
+        total_deductions: totalDeductions,
+        net_pay: netPay,
         status: "draft",
       });
     }

@@ -931,6 +931,68 @@ export default function PayslipsPage() {
           ]);
           const clockEntries = [...(mainSessions || []), ...(projectSessions || [])];
 
+          // Merge approved FTL pairs (IN + OUT) as synthetic complete sessions,
+          // so Payslip Generation matches Time Attendance behavior.
+          const { data: approvedFtlRows, error: approvedFtlError } = await supabase
+            .from("failure_to_log")
+            .select(
+              "id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
+            )
+            .eq("employee_id", selectedEmployeeId)
+            .eq("status", "approved")
+            .gte("missed_date", periodStartStr)
+            .lte("missed_date", periodEndStr);
+          if (approvedFtlError) {
+            console.warn("Error loading approved FTL rows for payslip generation:", approvedFtlError);
+          } else {
+            const pairedByDate = new Map<
+              string,
+              { inTime: string | null; outTime: string | null; sourceId: string }
+            >();
+            (approvedFtlRows || []).forEach((row: any) => {
+              if (!row.missed_date) return;
+              const dateKey = String(row.missed_date).split("T")[0];
+              const pair = pairedByDate.get(dateKey) || {
+                inTime: null,
+                outTime: null,
+                sourceId: row.id,
+              };
+              if (
+                (row.entry_type === "in" || row.entry_type === "both") &&
+                row.actual_clock_in_time
+              ) {
+                pair.inTime = row.actual_clock_in_time;
+              }
+              if (
+                (row.entry_type === "out" || row.entry_type === "both") &&
+                row.actual_clock_out_time
+              ) {
+                pair.outTime = row.actual_clock_out_time;
+              }
+              pairedByDate.set(dateKey, pair);
+            });
+
+            pairedByDate.forEach((pair) => {
+              if (!pair.inTime || !pair.outTime) return;
+              clockEntries.push({
+                id: `ftl-${pair.sourceId}`,
+                employee_id: selectedEmployeeId,
+                clock_in_time: pair.inTime,
+                clock_out_time: pair.outTime,
+                status: "approved",
+                total_hours:
+                  Math.round(
+                    ((new Date(pair.outTime).getTime() - new Date(pair.inTime).getTime()) /
+                      (1000 * 60 * 60)) *
+                      100
+                  ) / 100,
+                regular_hours: null,
+                overtime_hours: 0,
+                total_night_diff_hours: 0,
+              } as any);
+            });
+          }
+
           if (!clockEntries || clockEntries.length === 0) {
             console.log("No time entries found for this period");
             // Set attendance to null - will show "No Attendance Data" message

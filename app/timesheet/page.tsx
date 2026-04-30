@@ -100,6 +100,59 @@ function clockEntryFromApprovedFtl(ftl: FailureToLogRequest): ClockEntry | null 
   };
 }
 
+function buildClockEntriesFromApprovedFtl(
+  approvedFtlRequests: FailureToLogRequest[]
+): ClockEntry[] {
+  const byDate = new Map<
+    string,
+    { inTime: string | null; outTime: string | null; sourceId: string }
+  >();
+
+  approvedFtlRequests.forEach((ftl) => {
+    if (!ftl.missed_date) return;
+    const dateKey =
+      typeof ftl.missed_date === "string"
+        ? ftl.missed_date.split("T")[0]
+        : format(new Date(ftl.missed_date), "yyyy-MM-dd");
+    const existing = byDate.get(dateKey) || {
+      inTime: null,
+      outTime: null,
+      sourceId: ftl.id,
+    };
+
+    if (
+      (ftl.entry_type === "in" || ftl.entry_type === "both") &&
+      ftl.actual_clock_in_time
+    ) {
+      existing.inTime = ftl.actual_clock_in_time;
+    }
+    if (
+      (ftl.entry_type === "out" || ftl.entry_type === "both") &&
+      ftl.actual_clock_out_time
+    ) {
+      existing.outTime = ftl.actual_clock_out_time;
+    }
+    existing.sourceId = existing.sourceId || ftl.id;
+    byDate.set(dateKey, existing);
+  });
+
+  const rows: ClockEntry[] = [];
+  byDate.forEach((pair, dateKey) => {
+    if (!pair.inTime || !pair.outTime) return;
+    const synthesized = clockEntryFromApprovedFtl({
+      id: pair.sourceId,
+      missed_date: dateKey,
+      actual_clock_in_time: pair.inTime,
+      actual_clock_out_time: pair.outTime,
+      entry_type: "both",
+      status: "approved",
+    });
+    if (synthesized) rows.push(synthesized);
+  });
+
+  return rows;
+}
+
 interface Schedule {
   schedule_date: string;
   start_time: string;
@@ -515,9 +568,9 @@ export default function TimesheetPage() {
       const validClockEntries = (validEntries as TimeEntrySession[]).map(
         clockEntryFromSession
       );
-      const approvedFtlCompleteEntries = approvedFtlData
-        .map(clockEntryFromApprovedFtl)
-        .filter((entry): entry is ClockEntry => entry !== null);
+      const approvedFtlCompleteEntries = buildClockEntriesFromApprovedFtl(
+        approvedFtlData
+      );
       const allClockEntries = [...validClockEntries, ...approvedFtlCompleteEntries];
       setClockEntries(allClockEntries);
 

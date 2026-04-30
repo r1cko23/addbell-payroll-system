@@ -100,6 +100,7 @@ interface FailureToLogEntry {
   missed_date: string | null;
   actual_clock_in_time: string | null;
   actual_clock_out_time: string | null;
+  entry_type: "in" | "out" | "both";
   status: string;
 }
 
@@ -563,12 +564,18 @@ export default function TimeEntriesPage() {
             .filter((id: string | null | undefined): id is string => Boolean(id))
         )
       );
-      let approvedFtlByEmployeeDate = new Map<string, FailureToLogEntry>();
+      const ftlCompositeKey = (employeeId: string, dateKey: string) =>
+        `${employeeId}::${dateKey}`;
+
+      let approvedFtlByEmployeeDate = new Map<
+        string,
+        { inTime: string | null; outTime: string | null }
+      >();
       if (employeeIdsForFtl.length > 0) {
         const { data: approvedFtlRows, error: approvedFtlError } = await supabase
           .from("failure_to_log")
           .select(
-            "employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, status"
+            "employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
           )
           .in("employee_id", employeeIdsForFtl)
           .gte("missed_date", periodStartStr)
@@ -578,14 +585,29 @@ export default function TimeEntriesPage() {
         if (approvedFtlError) {
           console.warn("Error loading approved failure-to-log rows:", approvedFtlError);
         } else {
-          approvedFtlByEmployeeDate = new Map(
-            ((approvedFtlRows || []) as FailureToLogEntry[])
-              .filter((row) => row.missed_date && row.actual_clock_out_time)
-              .map((row) => [
-                `${row.employee_id}-${String(row.missed_date).split("T")[0]}`,
-                row,
-              ])
-          );
+          ((approvedFtlRows || []) as FailureToLogEntry[]).forEach((row) => {
+            if (!row.missed_date) return;
+            const dateKey = String(row.missed_date).split("T")[0];
+            const key = ftlCompositeKey(row.employee_id, dateKey);
+            const existing = approvedFtlByEmployeeDate.get(key) || {
+              inTime: null,
+              outTime: null,
+            };
+
+            if (
+              (row.entry_type === "in" || row.entry_type === "both") &&
+              row.actual_clock_in_time
+            ) {
+              existing.inTime = row.actual_clock_in_time;
+            }
+            if (
+              (row.entry_type === "out" || row.entry_type === "both") &&
+              row.actual_clock_out_time
+            ) {
+              existing.outTime = row.actual_clock_out_time;
+            }
+            approvedFtlByEmployeeDate.set(key, existing);
+          });
         }
       }
 
@@ -614,7 +636,7 @@ export default function TimeEntriesPage() {
           );
           const entryDateKey = format(entryDateInPH, "yyyy-MM-dd");
           const ftlForEntry = approvedFtlByEmployeeDate.get(
-            `${entry.employee_id}-${entryDateKey}`
+            ftlCompositeKey(entry.employee_id, entryDateKey)
           );
 
           const resolvedClockOutTime =
@@ -635,6 +657,58 @@ export default function TimeEntriesPage() {
             employees: employeeData,
           };
         }) || [];
+
+      const existingEntryKeys = new Set(
+        transformedEntries.map((entry) => {
+          const entryDatePH = new Date(
+            new Date(entry.clock_in_time).toLocaleString("en-US", {
+              timeZone: "Asia/Manila",
+            })
+          );
+          return ftlCompositeKey(entry.employee_id, format(entryDatePH, "yyyy-MM-dd"));
+        })
+      );
+
+      approvedFtlByEmployeeDate.forEach((pair, key) => {
+        if (!pair.inTime || !pair.outTime) return;
+        if (existingEntryKeys.has(key)) return;
+
+        const [employeeId] = key.split("::");
+        const employeeData = employeesMap.get(employeeId) || {
+          employee_id: "",
+          full_name: "Unknown Employee",
+          profile_picture_url: null,
+          overtime_group_id: null,
+          employee_type: null,
+        };
+        const inTime = new Date(pair.inTime);
+        const outTime = new Date(pair.outTime);
+        const totalHours =
+          outTime > inTime
+            ? Math.round(((outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60)) * 100) / 100
+            : null;
+
+        transformedEntries.push({
+          id: `ftl-${key}`,
+          out_punch_id: null,
+          employee_id: employeeId,
+          clock_in_time: pair.inTime,
+          clock_out_time: pair.outTime,
+          total_hours: totalHours,
+          regular_hours: totalHours,
+          overtime_hours: 0,
+          total_night_diff_hours: 0,
+          status: "approved",
+          employee_notes: "Auto-generated from approved Failure-to-Log",
+          hr_notes: null,
+          clock_in_location: null,
+          clock_out_location: null,
+          clock_in_ip: null,
+          clock_out_ip: null,
+          is_manual_entry: true,
+          employees: employeeData,
+        });
+      });
 
       console.log("Transformed entries:", transformedEntries.length);
 

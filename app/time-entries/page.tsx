@@ -95,6 +95,14 @@ interface HolidayEntry {
   type: "regular" | "non-working";
 }
 
+interface FailureToLogEntry {
+  employee_id: string;
+  missed_date: string | null;
+  actual_clock_in_time: string | null;
+  actual_clock_out_time: string | null;
+  status: string;
+}
+
 // Alias for compatibility
 type Holiday = HolidayEntry;
 
@@ -548,6 +556,39 @@ export default function TimeEntriesPage() {
         `Filtered ${dateFilteredData.length} entries (from ${filteredData?.length || 0} total) using Asia/Manila timezone`
       );
 
+      const employeeIdsForFtl = Array.from(
+        new Set(
+          dateFilteredData
+            .map((entry: any) => entry.employee_id)
+            .filter((id: string | null | undefined): id is string => Boolean(id))
+        )
+      );
+      let approvedFtlByEmployeeDate = new Map<string, FailureToLogEntry>();
+      if (employeeIdsForFtl.length > 0) {
+        const { data: approvedFtlRows, error: approvedFtlError } = await supabase
+          .from("failure_to_log")
+          .select(
+            "employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, status"
+          )
+          .in("employee_id", employeeIdsForFtl)
+          .gte("missed_date", periodStartStr)
+          .lte("missed_date", periodEndStr)
+          .eq("status", "approved");
+
+        if (approvedFtlError) {
+          console.warn("Error loading approved failure-to-log rows:", approvedFtlError);
+        } else {
+          approvedFtlByEmployeeDate = new Map(
+            ((approvedFtlRows || []) as FailureToLogEntry[])
+              .filter((row) => row.missed_date && row.actual_clock_out_time)
+              .map((row) => [
+                `${row.employee_id}-${String(row.missed_date).split("T")[0]}`,
+                row,
+              ])
+          );
+        }
+      }
+
       // Transform data to ensure employees is a single object, not an array
       const transformedEntries: TimeEntry[] =
         dateFilteredData.map((entry: any) => {
@@ -566,8 +607,31 @@ export default function TimeEntriesPage() {
             }
           }
 
+          const entryDateInPH = new Date(
+            new Date(entry.clock_in_time).toLocaleString("en-US", {
+              timeZone: "Asia/Manila",
+            })
+          );
+          const entryDateKey = format(entryDateInPH, "yyyy-MM-dd");
+          const ftlForEntry = approvedFtlByEmployeeDate.get(
+            `${entry.employee_id}-${entryDateKey}`
+          );
+
+          const resolvedClockOutTime =
+            entry.clock_out_time ||
+            (entry.status === "clocked_in" ? ftlForEntry?.actual_clock_out_time || null : null);
+          const resolvedClockInTime =
+            entry.clock_in_time ||
+            (entry.status === "clocked_in" ? ftlForEntry?.actual_clock_in_time || null : null);
+
           return {
             ...entry,
+            clock_in_time: resolvedClockInTime,
+            clock_out_time: resolvedClockOutTime,
+            status:
+              entry.status === "clocked_in" && resolvedClockOutTime
+                ? "approved"
+                : entry.status,
             employees: employeeData,
           };
         }) || [];

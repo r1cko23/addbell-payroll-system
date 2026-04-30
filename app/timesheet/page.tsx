@@ -78,6 +78,28 @@ function clockEntryFromSession(s: TimeEntrySession): ClockEntry {
   };
 }
 
+function clockEntryFromApprovedFtl(ftl: FailureToLogRequest): ClockEntry | null {
+  if (!ftl.actual_clock_in_time || !ftl.actual_clock_out_time) return null;
+  const inTime = parseISO(ftl.actual_clock_in_time);
+  const outTime = parseISO(ftl.actual_clock_out_time);
+  if (Number.isNaN(inTime.getTime()) || Number.isNaN(outTime.getTime())) return null;
+  if (outTime <= inTime) return null;
+
+  const totalHours =
+    Math.round((((outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60)) * 100)) /
+    100;
+
+  return {
+    id: `ftl-${ftl.id}`,
+    clock_in_time: ftl.actual_clock_in_time,
+    clock_out_time: ftl.actual_clock_out_time,
+    regular_hours: totalHours,
+    total_hours: totalHours,
+    total_night_diff_hours: 0,
+    status: "approved",
+  };
+}
+
 interface Schedule {
   schedule_date: string;
   start_time: string;
@@ -102,6 +124,15 @@ interface OvertimeRequest {
   end_time: string;
   total_hours: number;
   status: string; // approved, pending, rejected
+}
+
+interface FailureToLogRequest {
+  id: string;
+  missed_date: string | null;
+  actual_clock_in_time: string | null;
+  actual_clock_out_time: string | null;
+  entry_type: "in" | "out" | "both";
+  status: string;
 }
 
 interface AttendanceDay {
@@ -208,6 +239,7 @@ export default function TimesheetPage() {
   const [schedules, setSchedules] = useState<Map<string, Schedule>>(new Map());
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [otRequests, setOtRequests] = useState<OvertimeRequest[]>([]);
+  const [failureToLogRequests, setFailureToLogRequests] = useState<FailureToLogRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
   const supabase = createClient();
@@ -464,16 +496,36 @@ export default function TimesheetPage() {
           );
         }
       }
+      const { data: ftlData, error: ftlError } = await supabase
+        .from("failure_to_log")
+        .select(
+          "id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
+        )
+        .eq("employee_id", selectedEmployee.id)
+        .gte("missed_date", periodStartStr)
+        .lte("missed_date", periodEndStr)
+        .eq("status", "approved");
+
+      if (ftlError) {
+        console.warn("Error loading approved failure-to-log requests:", ftlError);
+      }
+      const approvedFtlData = (ftlData || []) as FailureToLogRequest[];
+      setFailureToLogRequests(approvedFtlData);
+
       const validClockEntries = (validEntries as TimeEntrySession[]).map(
         clockEntryFromSession
       );
-      setClockEntries(validClockEntries);
+      const approvedFtlCompleteEntries = approvedFtlData
+        .map(clockEntryFromApprovedFtl)
+        .filter((entry): entry is ClockEntry => entry !== null);
+      const allClockEntries = [...validClockEntries, ...approvedFtlCompleteEntries];
+      setClockEntries(allClockEntries);
 
       // Separate complete and incomplete entries from valid clock entries only
-      const completeEntries = validClockEntries.filter(
+      const completeEntries = allClockEntries.filter(
         (entry) => entry.clock_out_time !== null
       );
-      const incompleteEntries = validClockEntries.filter(
+      const incompleteEntries = allClockEntries.filter(
         (entry) => entry.clock_out_time === null
       );
 
@@ -561,6 +613,7 @@ export default function TimesheetPage() {
         incompleteEntries,
         leaveData || [],
         otData || [],
+        approvedFtlData,
         scheduleMap,
         selectedEmployee?.employee_type
       );
@@ -579,6 +632,7 @@ export default function TimesheetPage() {
       setClockEntries([]);
       setLeaveRequests([]);
       setOtRequests([]);
+      setFailureToLogRequests([]);
       setAttendanceDays([]);
     }
   }
@@ -588,6 +642,7 @@ export default function TimesheetPage() {
     incompleteEntries: ClockEntry[],
     leaveRequests: LeaveRequest[],
     otRequests: OvertimeRequest[],
+    approvedFailureToLogs: FailureToLogRequest[],
     scheduleMap: Map<string, Schedule>,
     employeeType?: "office-based" | "client-based" | null
   ) {
@@ -726,6 +781,20 @@ export default function TimesheetPage() {
       otByDate.get(otDateStr)!.push(ot);
     });
 
+    // Group approved failure-to-log requests by missed_date
+    const approvedFailureToLogByDate = new Map<string, FailureToLogRequest[]>();
+    approvedFailureToLogs.forEach((ftl) => {
+      if (!ftl.missed_date) return;
+      const dateStr =
+        typeof ftl.missed_date === "string"
+          ? ftl.missed_date.split("T")[0]
+          : format(new Date(ftl.missed_date), "yyyy-MM-dd");
+      if (!approvedFailureToLogByDate.has(dateStr)) {
+        approvedFailureToLogByDate.set(dateStr, []);
+      }
+      approvedFailureToLogByDate.get(dateStr)!.push(ftl);
+    });
+
     console.log("Entries grouped by date:", entriesByDate.size);
     console.log("Incomplete entries:", incompleteByDate.size);
     console.log("Leave requests by date:", leavesByDate.size);
@@ -766,6 +835,7 @@ export default function TimesheetPage() {
       const incompleteDayEntries = incompleteByDate.get(dateStr) || [];
       const dayLeaves = leavesByDate.get(dateStr) || [];
       const dayOTs = otByDate.get(dateStr) || [];
+      const dayApprovedFtl = approvedFailureToLogByDate.get(dateStr) || [];
 
       // Check if this date is a holiday by checking the holidays array directly
       // This is a fallback in case determineDayType doesn't detect it
@@ -873,7 +943,7 @@ export default function TimesheetPage() {
         status = "LOG";
       } else if (incompleteDayEntries.length > 0) {
         // Incomplete entry (clock_in but no clock_out)
-        status = "INC";
+        status = dayApprovedFtl.length > 0 ? "LOG" : "INC";
       } else if (dayType === "sunday" || isRestDay) {
         // Rest day (Sunday is the designated rest day for office-based employees)
         // OR rest day from employee schedule (for Account Supervisors: Mon/Tue/Wed, or any day marked as rest day)

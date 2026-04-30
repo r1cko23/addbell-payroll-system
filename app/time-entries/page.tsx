@@ -641,10 +641,10 @@ export default function TimeEntriesPage() {
 
           const resolvedClockOutTime =
             entry.clock_out_time ||
-            (entry.status === "clocked_in" ? ftlForEntry?.actual_clock_out_time || null : null);
+            (entry.status === "clocked_in" ? ftlForEntry?.outTime || null : null);
           const resolvedClockInTime =
             entry.clock_in_time ||
-            (entry.status === "clocked_in" ? ftlForEntry?.actual_clock_in_time || null : null);
+            (entry.status === "clocked_in" ? ftlForEntry?.inTime || null : null);
 
           return {
             ...entry,

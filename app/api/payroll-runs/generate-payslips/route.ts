@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
@@ -39,6 +38,15 @@ type EmployeeRow = {
 };
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
+
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error("Missing Supabase service-role configuration");
+  }
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 function calculateApprovedOtNightDiffHours(
   startTimeRaw: string | null | undefined,
@@ -105,7 +113,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const supabase = createServerComponentClient({ cookies });
+    const admin = getAdminClient();
     const body = await req.json();
     const payroll_run_id = body?.payroll_run_id as string | undefined;
     if (!payroll_run_id) {
@@ -115,7 +123,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: run, error: runErr } = await supabase
+    const { data: run, error: runErr } = await admin
       .from("payroll_runs")
       .select("id, cutoff_start, cutoff_end, selected_employee_ids")
       .eq("id", payroll_run_id)
@@ -133,7 +141,7 @@ export async function POST(req: NextRequest) {
       employeeIdsScope = run.selected_employee_ids.map((x: any) => String(x));
     }
 
-    let empQuery = supabase
+    let empQuery = admin
       .from("employees")
       .select(
         "id, employment_status, salary_basis, base_rate, employment_type, position, transferred_from_employee_id"
@@ -159,7 +167,7 @@ export async function POST(req: NextRequest) {
     // Load holidays for the cutoff (best-effort; continue without holidays if schema differs)
     let holidays: any[] = [];
     try {
-      const { data: holidaysData } = await supabase
+      const { data: holidaysData } = await admin
         .from("holidays")
         .select("holiday_date, is_regular")
         .gte("holiday_date", cutoffStart)
@@ -200,7 +208,7 @@ export async function POST(req: NextRequest) {
       string,
       { inTime: string | null; outTime: string | null; sourceId: string }
     >();
-    const { data: approvedFtlRows } = await supabase
+    const { data: approvedFtlRows } = await admin
       .from("failure_to_log")
       .select(
         "id, employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
@@ -237,7 +245,7 @@ export async function POST(req: NextRequest) {
 
     const approvedOtByEmployeeDate = new Map<string, Map<string, number>>();
     const approvedNdByEmployeeDate = new Map<string, Map<string, number>>();
-    const { data: approvedOtRows } = await supabase
+    const { data: approvedOtRows } = await admin
       .from("overtime_requests")
       .select("employee_id, ot_date, end_date, start_time, end_time, total_hours, status")
       .in("employee_id", employeeIds)
@@ -271,7 +279,7 @@ export async function POST(req: NextRequest) {
 
     // Replace existing payslips for this run (draft regen).
     // Important: If RLS blocks this delete, we must fail; otherwise the UI will appear to "reuse cached" rows.
-    const { error: deleteErr } = await supabase
+    const { error: deleteErr } = await admin
       .from("payslips")
       .delete()
       .eq("payroll_run_id", payroll_run_id);
@@ -291,14 +299,14 @@ export async function POST(req: NextRequest) {
 
       const [mainSessions, projectSessions] = await Promise.all([
         fetchSessionsForEmployee(
-          supabase,
+          admin,
           e.id,
           startWide.toISOString(),
           endWide.toISOString(),
           getDateInManila
         ),
         fetchProjectTimeSessionsForEmployee(
-          supabase,
+          admin,
           e.id,
           startWide.toISOString(),
           endWide.toISOString(),
@@ -412,7 +420,7 @@ export async function POST(req: NextRequest) {
           e.transferred_from_employee_id,
         ].filter(Boolean) as string[];
         mtdWorkDaysForSave = await fetchDistinctWorkDaysMonthToDate(
-          supabase as any,
+          admin as any,
           clockIds,
           periodEndTuesday
         );
@@ -474,7 +482,7 @@ export async function POST(req: NextRequest) {
         const half = semiMonthlyPeriodIndex(periodEndTuesday);
 
         // Fetch existing payslips for same month to compute prior gross+tax in this semi-month.
-        const { data: monthRows } = await (supabase as any)
+        const { data: monthRows } = await (admin as any)
           .from("payslips")
           .select("gross_pay, adjustment_amount, period_end, deductions_breakdown")
           .eq("employee_id", e.id)
@@ -561,7 +569,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Upsert makes regenerate idempotent even if deletes are partially blocked by policies.
-    const { error: insertErr } = await supabase
+    const { error: insertErr } = await admin
       .from("payslips")
       .upsert(inserts as any, { onConflict: "payroll_run_id,employee_id" });
     if (insertErr) throw insertErr;

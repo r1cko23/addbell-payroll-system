@@ -124,6 +124,16 @@ export async function POST(request: NextRequest) {
       periodEndISO
     );
 
+    const { data: approvedFtlRows } = await supabase
+      .from("failure_to_log")
+      .select(
+        "id, employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
+      )
+      .in("employee_id", employeeIds)
+      .gte("missed_date", period_start)
+      .lte("missed_date", period_end)
+      .eq("status", "approved");
+
     const clockEntriesByEmployee = new Map<string, any[]>();
     allSessions.forEach((entry) => {
       const eid = entry.employee_id;
@@ -132,6 +142,55 @@ export async function POST(request: NextRequest) {
         clockEntriesByEmployee.set(eid, []);
       }
       clockEntriesByEmployee.get(eid)!.push(entry);
+    });
+
+    // Merge approved FTL rows as synthetic complete sessions (pairing IN+OUT by employee/date).
+    const ftlPairMap = new Map<
+      string,
+      { inTime: string | null; outTime: string | null; sourceId: string }
+    >();
+    (approvedFtlRows || []).forEach((row: any) => {
+      if (!row.employee_id || !row.missed_date) return;
+      const dateKey = String(row.missed_date).split("T")[0];
+      const key = `${row.employee_id}::${dateKey}`;
+      const pair = ftlPairMap.get(key) || {
+        inTime: null,
+        outTime: null,
+        sourceId: row.id,
+      };
+      if (
+        (row.entry_type === "in" || row.entry_type === "both") &&
+        row.actual_clock_in_time
+      ) {
+        pair.inTime = row.actual_clock_in_time;
+      }
+      if (
+        (row.entry_type === "out" || row.entry_type === "both") &&
+        row.actual_clock_out_time
+      ) {
+        pair.outTime = row.actual_clock_out_time;
+      }
+      pair.sourceId = pair.sourceId || row.id;
+      ftlPairMap.set(key, pair);
+    });
+
+    ftlPairMap.forEach((pair, key) => {
+      if (!pair.inTime || !pair.outTime) return;
+      const [employeeId] = key.split("::");
+      if (!employeeId) return;
+      if (!clockEntriesByEmployee.has(employeeId)) {
+        clockEntriesByEmployee.set(employeeId, []);
+      }
+      clockEntriesByEmployee.get(employeeId)!.push({
+        id: `ftl-${pair.sourceId}`,
+        employee_id: employeeId,
+        clock_in_time: pair.inTime,
+        clock_out_time: pair.outTime,
+        regular_hours: null,
+        overtime_hours: 0,
+        total_night_diff_hours: 0,
+        status: "approved",
+      });
     });
 
     // Batch fetch all existing timesheets for rate calculation (only for employees that need it)

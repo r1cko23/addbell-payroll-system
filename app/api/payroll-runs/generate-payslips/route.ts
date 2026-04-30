@@ -147,6 +147,46 @@ export async function POST(req: NextRequest) {
       }-${parts.find((p) => p.type === "day")!.value}`;
     };
 
+    // Preload approved Failure-to-Log rows for this cutoff and pair IN+OUT by employee/date.
+    const approvedFtlByEmployeeDate = new Map<
+      string,
+      { inTime: string | null; outTime: string | null; sourceId: string }
+    >();
+    const { data: approvedFtlRows } = await supabase
+      .from("failure_to_log")
+      .select(
+        "id, employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
+      )
+      .in("employee_id", employeeIds)
+      .gte("missed_date", cutoffStart)
+      .lte("missed_date", cutoffEnd)
+      .eq("status", "approved");
+
+    (approvedFtlRows || []).forEach((row: any) => {
+      if (!row.employee_id || !row.missed_date) return;
+      const dateKey = String(row.missed_date).split("T")[0];
+      const key = `${row.employee_id}::${dateKey}`;
+      const pair = approvedFtlByEmployeeDate.get(key) || {
+        inTime: null,
+        outTime: null,
+        sourceId: row.id,
+      };
+      if (
+        (row.entry_type === "in" || row.entry_type === "both") &&
+        row.actual_clock_in_time
+      ) {
+        pair.inTime = row.actual_clock_in_time;
+      }
+      if (
+        (row.entry_type === "out" || row.entry_type === "both") &&
+        row.actual_clock_out_time
+      ) {
+        pair.outTime = row.actual_clock_out_time;
+      }
+      pair.sourceId = pair.sourceId || row.id;
+      approvedFtlByEmployeeDate.set(key, pair);
+    });
+
     // Replace existing payslips for this run (draft regen).
     // Important: If RLS blocks this delete, we must fail; otherwise the UI will appear to "reuse cached" rows.
     const { error: deleteErr } = await supabase
@@ -192,6 +232,26 @@ export async function POST(req: NextRequest) {
           return dateStr >= cutoffStart && dateStr <= cutoffEnd;
         }
       );
+
+      // Add synthetic sessions from approved FTL IN+OUT pairs when both times exist.
+      const ftlSessionsForEmployee: any[] = [];
+      approvedFtlByEmployeeDate.forEach((pair, key) => {
+        const [employeeId, dateKey] = key.split("::");
+        if (employeeId !== e.id) return;
+        if (!pair.inTime || !pair.outTime) return;
+        if (dateKey < cutoffStart || dateKey > cutoffEnd) return;
+        ftlSessionsForEmployee.push({
+          id: `ftl-${pair.sourceId}`,
+          employee_id: e.id,
+          clock_in_time: pair.inTime,
+          clock_out_time: pair.outTime,
+          regular_hours: null,
+          overtime_hours: 0,
+          total_night_diff_hours: 0,
+          status: "approved",
+        });
+      });
+      employeeSessions.push(...ftlSessionsForEmployee);
 
       if (employeeSessions.length === 0) {
         skipped.push({ employee_id: e.id, reason: "No time entries in cutoff" });

@@ -362,18 +362,6 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const payableHours =
-        Number(timesheetData.total_regular_hours || 0) +
-        Number(timesheetData.total_overtime_hours || 0) +
-        Number(timesheetData.total_night_diff_hours || 0);
-      if (payableHours <= 0) {
-        skipped.push({
-          employee_id: e.id,
-          reason: "No payable hours in cutoff (incomplete or non-payable entries only)",
-        });
-        continue;
-      }
-
       const ratePerHour = ratePerHourFromEmployee(e);
       const payrollResult =
         ratePerHour > 0

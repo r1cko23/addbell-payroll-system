@@ -569,7 +569,7 @@ export default function PayslipsPage() {
         );
       }
     }
-  }, [selectedEmployeeId, periodStart, employees]);
+  }, [selectedEmployeeId, periodStart, employees, payrollRunId]);
 
   useEffect(() => {
     if (!selectedEmployee?.id) {
@@ -765,7 +765,7 @@ export default function PayslipsPage() {
       // Load saved payslip for this employee + period (if any). When present, we display DB values and lock edits.
       let existingPayslipQuery = supabase
         .from("payslips")
-        .select("id, gross_pay, total_deductions, net_pay, adjustment_amount, adjustment_reason, deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount")
+        .select("id, gross_pay, total_deductions, net_pay, adjustment_amount, adjustment_reason, deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount, earnings_breakdown")
         .eq("employee_id", selectedEmployeeId)
         .eq("period_start", periodStartStr)
         .eq("period_end", periodEndStr)
@@ -804,8 +804,57 @@ export default function PayslipsPage() {
         setAdjustmentRows(createDefaultAdjustmentRows());
       }
 
-      // Always generate from time_entries (sessions) to match timesheet data
-      let attData = null; // Don't use stored weekly_attendance - always regenerate from time_entries
+      // Prefer saved payslip attendance (source of truth for generated payroll runs).
+      // Fallback to regenerated sessions only when saved breakdown is unavailable.
+      let attData = null as any;
+      if (existingPayslipRow) {
+        const earnings = existingPayslipRow.earnings_breakdown as any;
+        const savedAttendanceDays = Array.isArray(earnings)
+          ? earnings
+          : Array.isArray(earnings?.attendance_data)
+          ? earnings.attendance_data
+          : [];
+        if (savedAttendanceDays.length > 0) {
+          const totalRegular =
+            Math.round(
+              savedAttendanceDays.reduce(
+                (sum: number, day: any) => sum + Number(day?.regularHours || 0),
+                0
+              ) * 100
+            ) / 100;
+          const totalOvertime =
+            Math.round(
+              savedAttendanceDays.reduce(
+                (sum: number, day: any) => sum + Number(day?.overtimeHours || 0),
+                0
+              ) * 100
+            ) / 100;
+          const totalNightDiff =
+            Math.round(
+              savedAttendanceDays.reduce(
+                (sum: number, day: any) => sum + Number(day?.nightDiffHours || 0),
+                0
+              ) * 100
+            ) / 100;
+
+          attData = {
+            id: `saved-${existingPayslipRow.id}`,
+            employee_id: selectedEmployeeId,
+            period_start: periodStartStr,
+            period_end: periodEndStr,
+            period_type: "weekly",
+            attendance_data: savedAttendanceDays,
+            total_regular_hours: totalRegular,
+            total_overtime_hours: totalOvertime,
+            total_night_diff_hours: totalNightDiff,
+            gross_pay: Number(existingPayslipRow.gross_pay || 0),
+            status: "draft",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            created_by: null,
+          };
+        }
+      }
 
       // Load leave requests for the period (needed for both existing and new attendance)
       const { data: leaveData, error: leaveError } = await supabase

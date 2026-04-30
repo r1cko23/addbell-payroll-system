@@ -77,6 +77,9 @@ type OTRequest = {
 
 type ViewerOtStatus = "pending" | "approved" | "rejected";
 
+// OT punch enforcement is only required for OT dates on/after this rollout date.
+const OT_PUNCH_REQUIRED_FROM_DATE = "2026-04-29";
+
 function formatTime12h(value?: string | null): string {
   if (!value) return "—";
   const raw = value.includes("T")
@@ -93,6 +96,12 @@ function formatTime12h(value?: string | null): string {
     minute: "2-digit",
     hour12: true,
   });
+}
+
+function requiresOtPunchForApproval(request: OTRequest): boolean {
+  if (request.employees?.requires_ot_punch !== true) return false;
+  if (!request.ot_date) return false;
+  return request.ot_date >= OT_PUNCH_REQUIRED_FROM_DATE;
 }
 
 export default function OvertimeApprovalPage() {
@@ -736,7 +745,7 @@ export default function OvertimeApprovalPage() {
       Boolean(user?.id) &&
       managerStage &&
       isUserFirstApproverForRequest(user.id, request);
-    const requiresOtPunch = request.employees?.requires_ot_punch === true;
+    const requiresOtPunch = requiresOtPunchForApproval(request);
     const punchStatus = otPunchStatusByRequestId[id];
 
     const effectiveManagerStage =

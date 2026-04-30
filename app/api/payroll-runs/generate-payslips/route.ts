@@ -406,6 +406,13 @@ export async function POST(req: NextRequest) {
         total_night_diff_hours: totalNightDiffHours,
         rate_per_hour: ratePerHour,
         gross_pay: Math.round(Number(grossPay || 0) * 100) / 100,
+        attendance_daily: (timesheetData.attendance_data || []).map((d: any) => ({
+          date: d?.date,
+          dayType: d?.dayType,
+          regularHours: d?.regularHours,
+          overtimeHours: d?.overtimeHours,
+          nightDiffHours: d?.nightDiffHours,
+        })),
       });
 
       // Monthly basic salary mapping (matches /payslips page behavior).

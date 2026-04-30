@@ -38,6 +38,49 @@ type EmployeeRow = {
   transferred_from_employee_id?: string | null;
 };
 
+function calculateApprovedOtNightDiffHours(
+  startTimeRaw: string | null | undefined,
+  endTimeRaw: string | null | undefined,
+  otDateRaw: string | null | undefined,
+  endDateRaw: string | null | undefined,
+  totalHoursRaw: number | null | undefined
+): number {
+  if (!startTimeRaw || !endTimeRaw) return 0;
+  const startTime = startTimeRaw.includes("T")
+    ? startTimeRaw.split("T")[1]?.substring(0, 8) || startTimeRaw
+    : startTimeRaw.substring(0, 8);
+  const endTime = endTimeRaw.includes("T")
+    ? endTimeRaw.split("T")[1]?.substring(0, 8) || endTimeRaw
+    : endTimeRaw.substring(0, 8);
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  if (![sh, sm, eh, em].every(Number.isFinite)) return 0;
+
+  const otDate = String(otDateRaw || "").split("T")[0];
+  const endDate = String(endDateRaw || otDate).split("T")[0];
+  const spansMidnight = Boolean(otDate && endDate && endDate !== otDate);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const nightStartMin = 22 * 60;
+  const nightEndMin = 6 * 60;
+  let nd = 0;
+
+  if (spansMidnight) {
+    const ndStart = Math.max(startMin, nightStartMin);
+    const hoursToMidnight = (24 * 60 - ndStart) / 60;
+    const hoursFromMidnight = Math.min(endMin, nightEndMin) / 60;
+    nd = hoursToMidnight + hoursFromMidnight;
+  } else if (startMin >= nightStartMin) {
+    nd = (endMin - startMin) / 60;
+  } else if (endMin >= nightStartMin) {
+    nd = (endMin - nightStartMin) / 60;
+  }
+
+  const totalHours = Number(totalHoursRaw || 0);
+  const capped = Math.min(Math.max(0, nd), totalHours > 0 ? totalHours : nd);
+  return Math.round(capped * 100) / 100;
+}
+
 function ratePerHourFromEmployee(e: EmployeeRow) {
   // Match the Payslips page's mapping logic:
   // - monthly_rate = (salary_basis === "monthly") ? base_rate : base_rate * 26
@@ -187,6 +230,39 @@ export async function POST(req: NextRequest) {
       approvedFtlByEmployeeDate.set(key, pair);
     });
 
+    const approvedOtByEmployeeDate = new Map<string, Map<string, number>>();
+    const approvedNdByEmployeeDate = new Map<string, Map<string, number>>();
+    const { data: approvedOtRows } = await supabase
+      .from("overtime_requests")
+      .select("employee_id, ot_date, end_date, start_time, end_time, total_hours, status")
+      .in("employee_id", employeeIds)
+      .gte("ot_date", cutoffStart)
+      .lte("ot_date", cutoffEnd)
+      .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+
+    (approvedOtRows || []).forEach((row: any) => {
+      const employeeId = row.employee_id as string | undefined;
+      if (!employeeId) return;
+      const dateKey = String(row.ot_date || "").split("T")[0];
+      if (!dateKey) return;
+      const otHours = Number(row.total_hours || 0);
+      const ndHours = calculateApprovedOtNightDiffHours(
+        row.start_time,
+        row.end_time,
+        row.ot_date,
+        row.end_date,
+        row.total_hours
+      );
+
+      const otByDate = approvedOtByEmployeeDate.get(employeeId) || new Map<string, number>();
+      otByDate.set(dateKey, Math.round(((otByDate.get(dateKey) || 0) + otHours) * 100) / 100);
+      approvedOtByEmployeeDate.set(employeeId, otByDate);
+
+      const ndByDate = approvedNdByEmployeeDate.get(employeeId) || new Map<string, number>();
+      ndByDate.set(dateKey, Math.round(((ndByDate.get(dateKey) || 0) + ndHours) * 100) / 100);
+      approvedNdByEmployeeDate.set(employeeId, ndByDate);
+    });
+
     // Replace existing payslips for this run (draft regen).
     // Important: If RLS blocks this delete, we must fail; otherwise the UI will appear to "reuse cached" rows.
     const { error: deleteErr } = await supabase
@@ -276,8 +352,8 @@ export async function POST(req: NextRequest) {
         true,
         true,
         isClientBasedAccountSupervisor,
-        undefined,
-        undefined,
+        approvedOtByEmployeeDate.get(e.id),
+        approvedNdByEmployeeDate.get(e.id),
         isClientBased
       );
 

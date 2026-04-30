@@ -22,6 +22,50 @@ import { calculateMonthlySalary } from "@/utils/ph-deductions";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { fetchSessionsInRange } from "@/lib/timeEntries";
 
+function calculateApprovedOtNightDiffHours(
+  startTimeRaw: string | null | undefined,
+  endTimeRaw: string | null | undefined,
+  otDateRaw: string | null | undefined,
+  endDateRaw: string | null | undefined,
+  totalHoursRaw: number | null | undefined
+): number {
+  if (!startTimeRaw || !endTimeRaw) return 0;
+  const startTime = startTimeRaw.includes("T")
+    ? startTimeRaw.split("T")[1]?.substring(0, 8) || startTimeRaw
+    : startTimeRaw.substring(0, 8);
+  const endTime = endTimeRaw.includes("T")
+    ? endTimeRaw.split("T")[1]?.substring(0, 8) || endTimeRaw
+    : endTimeRaw.substring(0, 8);
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  if (![sh, sm, eh, em].every(Number.isFinite)) return 0;
+
+  const otDate = String(otDateRaw || "").split("T")[0];
+  const endDate = String(endDateRaw || otDate).split("T")[0];
+  const spansMidnight = Boolean(otDate && endDate && endDate !== otDate);
+
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
+  const nightStartMin = 22 * 60; // 10:00 PM
+  const nightEndMin = 6 * 60; // 6:00 AM
+  let nd = 0;
+
+  if (spansMidnight) {
+    const ndStart = Math.max(startMin, nightStartMin);
+    const hoursToMidnight = (24 * 60 - ndStart) / 60;
+    const hoursFromMidnight = Math.min(endMin, nightEndMin) / 60;
+    nd = hoursToMidnight + hoursFromMidnight;
+  } else if (startMin >= nightStartMin) {
+    nd = (endMin - startMin) / 60;
+  } else if (endMin >= nightStartMin) {
+    nd = (endMin - nightStartMin) / 60;
+  }
+
+  const totalHours = Number(totalHoursRaw || 0);
+  const capped = Math.min(Math.max(0, nd), totalHours > 0 ? totalHours : nd);
+  return Math.round(capped * 100) / 100;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServerComponentClient({ cookies });
@@ -134,6 +178,14 @@ export async function POST(request: NextRequest) {
       .lte("missed_date", period_end)
       .eq("status", "approved");
 
+    const { data: approvedOtRows } = await supabase
+      .from("overtime_requests")
+      .select("employee_id, ot_date, end_date, start_time, end_time, total_hours, status")
+      .in("employee_id", employeeIds)
+      .gte("ot_date", period_start)
+      .lte("ot_date", period_end)
+      .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+
     const clockEntriesByEmployee = new Map<string, any[]>();
     allSessions.forEach((entry) => {
       const eid = entry.employee_id;
@@ -191,6 +243,32 @@ export async function POST(request: NextRequest) {
         total_night_diff_hours: 0,
         status: "approved",
       });
+    });
+
+    const approvedOtByEmployeeDate = new Map<string, Map<string, number>>();
+    const approvedNdByEmployeeDate = new Map<string, Map<string, number>>();
+    (approvedOtRows || []).forEach((row: any) => {
+      const employeeId = row.employee_id as string | undefined;
+      if (!employeeId) return;
+      const dateKey = String(row.ot_date || "").split("T")[0];
+      if (!dateKey) return;
+
+      const otHours = Number(row.total_hours || 0);
+      const ndHours = calculateApprovedOtNightDiffHours(
+        row.start_time,
+        row.end_time,
+        row.ot_date,
+        row.end_date,
+        row.total_hours
+      );
+
+      const otByDate = approvedOtByEmployeeDate.get(employeeId) || new Map<string, number>();
+      otByDate.set(dateKey, Math.round(((otByDate.get(dateKey) || 0) + otHours) * 100) / 100);
+      approvedOtByEmployeeDate.set(employeeId, otByDate);
+
+      const ndByDate = approvedNdByEmployeeDate.get(employeeId) || new Map<string, number>();
+      ndByDate.set(dateKey, Math.round(((ndByDate.get(dateKey) || 0) + ndHours) * 100) / 100);
+      approvedNdByEmployeeDate.set(employeeId, ndByDate);
     });
 
     // Batch fetch all existing timesheets for rate calculation (only for employees that need it)
@@ -266,8 +344,8 @@ export async function POST(request: NextRequest) {
           true, // eligibleForOT - default to true
           true, // eligibleForNightDiff - default to true
           isClientBasedAccountSupervisor,
-          undefined, // approvedOTByDate - not available in API route
-          undefined, // approvedNDByDate - not available in API route
+          approvedOtByEmployeeDate.get(employee.id),
+          approvedNdByEmployeeDate.get(employee.id),
           isClientBased // Pass client-based flag for Saturday/Sunday logic
         );
 

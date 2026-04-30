@@ -57,6 +57,9 @@ export function generateTimesheetFromClockEntries(
   total_overtime_hours: number;
   total_night_diff_hours: number;
 } {
+  const enforceApprovedOtNdOnly =
+    approvedOTByDate !== undefined || approvedNDByDate !== undefined;
+
   // Group entries by date
   const entriesByDate = new Map<string, TimeClockEntry[]>();
 
@@ -175,12 +178,16 @@ export function generateTimesheetFromClockEntries(
         // so Time Attendance and Payslip keep unpaid lunch excluded and cap to policy windows.
         // unless it is explicitly recorded as OT.
         const entryRegularHours = calculateBusinessRegularHours(entry);
-        const entryOTHours = entry.overtime_hours || 0;
-        const entryNDHours = entry.total_night_diff_hours || 0;
+        const entryOTHours = enforceApprovedOtNdOnly
+          ? 0
+          : entry.overtime_hours || 0;
+        const entryNDHours = enforceApprovedOtNdOnly
+          ? 0
+          : entry.total_night_diff_hours || 0;
         if (isSaturday) {
           // Saturday is outside the required office schedule for now.
           // Treat worked hours as OT instead of regular hours.
-          if (eligibleForOT) {
+          if (eligibleForOT && !enforceApprovedOtNdOnly) {
             // Prefer DB OT hours when present; otherwise fallback to worked business-window hours.
             overtimeHours += entryOTHours > 0 ? entryOTHours : entryRegularHours;
           }
@@ -349,7 +356,11 @@ export function generateTimesheetFromClockEntries(
     if (eligibleForNightDiff && approvedNDByDate) {
       const ndFromRequest = approvedNDByDate.get(dateStr) || 0;
       if (ndFromRequest > 0) {
-        nightDiffHours += ndFromRequest;
+        if (dayEntries.length === 0) {
+          nightDiffHours = ndFromRequest;
+        } else {
+          nightDiffHours = Math.max(nightDiffHours, ndFromRequest);
+        }
       }
     }
 

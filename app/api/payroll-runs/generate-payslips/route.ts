@@ -38,7 +38,7 @@ type EmployeeRow = {
 };
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
-const GENERATOR_VERSION = "payroll-run-generate-v3-service-role";
+const GENERATOR_VERSION = "payroll-run-generate-v4-manila-range";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -293,9 +293,11 @@ export async function POST(req: NextRequest) {
     for (const e of emps) {
       // Match Payslips page behavior: fetch both main + project sessions, bucketed by Manila date.
       // Use a slightly wider range to avoid timezone edge misses.
-      const startWide = new Date(`${cutoffStart}T00:00:00`);
+      // Build fetch bounds in explicit Asia/Manila offset to avoid
+      // environment-dependent parsing differences (local vs production timezone).
+      const startWide = new Date(`${cutoffStart}T00:00:00+08:00`);
       startWide.setDate(startWide.getDate() - 1);
-      const endWide = new Date(`${cutoffEnd}T23:59:59`);
+      const endWide = new Date(`${cutoffEnd}T23:59:59+08:00`);
       endWide.setDate(endWide.getDate() + 1);
 
       const [mainSessions, projectSessions] = await Promise.all([
@@ -349,8 +351,8 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const periodStartDate = new Date(`${cutoffStart}T00:00:00`);
-      const periodEndDate = new Date(`${cutoffEnd}T00:00:00`);
+      const periodStartDate = new Date(`${cutoffStart}T00:00:00+08:00`);
+      const periodEndDate = new Date(`${cutoffEnd}T00:00:00+08:00`);
 
       const isClientBased = e.employment_type === "client-based" || false;
       const isClientBasedAccountSupervisor =
@@ -387,7 +389,7 @@ export async function POST(req: NextRequest) {
       const totalRegularHours = Number(timesheetData.total_regular_hours || 0);
       const totalOvertimeHours = Number(timesheetData.total_overtime_hours || 0);
       const totalNightDiffHours = Number(timesheetData.total_night_diff_hours || 0);
-      const periodEndTuesday = new Date(`${cutoffEnd}T00:00:00`);
+      const periodEndTuesday = new Date(`${cutoffEnd}T00:00:00+08:00`);
       diagnostics.push({
         employee_id: e.id,
         employment_status: e.employment_status ?? null,

@@ -38,6 +38,8 @@ type EmployeeRow = {
   transferred_from_employee_id?: string | null;
 };
 
+const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
+
 function calculateApprovedOtNightDiffHours(
   startTimeRaw: string | null | undefined,
   endTimeRaw: string | null | undefined,
@@ -135,8 +137,7 @@ export async function POST(req: NextRequest) {
       .from("employees")
       .select(
         "id, employment_status, salary_basis, base_rate, employment_type, position, transferred_from_employee_id"
-      )
-      .eq("employment_status", "active");
+      );
 
     if (employeeIdsScope) {
       empQuery = empQuery.in("id", employeeIdsScope);
@@ -144,7 +145,11 @@ export async function POST(req: NextRequest) {
 
     const { data: employees, error: empErr } = await empQuery;
     if (empErr) throw empErr;
-    const emps = (employees || []) as EmployeeRow[];
+    const emps = ((employees || []) as EmployeeRow[]).filter((emp) => {
+      // If the run already stores explicit selected IDs, honor that scope as-is.
+      if (employeeIdsScope) return true;
+      return normalizeValue(emp.employment_status) === "active";
+    });
     if (emps.length === 0) {
       return NextResponse.json({ error: "No employees in scope" }, { status: 404 });
     }
@@ -202,10 +207,10 @@ export async function POST(req: NextRequest) {
       )
       .in("employee_id", employeeIds)
       .gte("missed_date", cutoffStart)
-      .lte("missed_date", cutoffEnd)
-      .eq("status", "approved");
+      .lte("missed_date", cutoffEnd);
 
     (approvedFtlRows || []).forEach((row: any) => {
+      if (normalizeValue(row.status) !== "approved") return;
       if (!row.employee_id || !row.missed_date) return;
       const dateKey = String(row.missed_date).split("T")[0];
       const key = `${row.employee_id}::${dateKey}`;
@@ -237,10 +242,11 @@ export async function POST(req: NextRequest) {
       .select("employee_id, ot_date, end_date, start_time, end_time, total_hours, status")
       .in("employee_id", employeeIds)
       .gte("ot_date", cutoffStart)
-      .lte("ot_date", cutoffEnd)
-      .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+      .lte("ot_date", cutoffEnd);
 
     (approvedOtRows || []).forEach((row: any) => {
+      const status = normalizeValue(row.status);
+      if (!["approved", "approved_by_manager", "approved_by_hr"].includes(status)) return;
       const employeeId = row.employee_id as string | undefined;
       if (!employeeId) return;
       const dateKey = String(row.ot_date || "").split("T")[0];
@@ -273,6 +279,7 @@ export async function POST(req: NextRequest) {
 
     const inserts: any[] = [];
     const skipped: any[] = [];
+    const diagnostics: Array<Record<string, unknown>> = [];
 
     for (const e of emps) {
       // Match Payslips page behavior: fetch both main + project sessions, bucketed by Manila date.
@@ -328,6 +335,16 @@ export async function POST(req: NextRequest) {
         });
       });
       employeeSessions.push(...ftlSessionsForEmployee);
+      diagnostics.push({
+        employee_id: e.id,
+        employment_status: e.employment_status ?? null,
+        sessions_main_count: (mainSessions || []).length,
+        sessions_project_count: (projectSessions || []).length,
+        sessions_cutoff_count: employeeSessions.length,
+        ftl_synthetic_sessions_count: ftlSessionsForEmployee.length,
+        approved_ot_dates_count: approvedOtByEmployeeDate.get(e.id)?.size || 0,
+        approved_nd_dates_count: approvedNdByEmployeeDate.get(e.id)?.size || 0,
+      });
 
       if (employeeSessions.length === 0) {
         skipped.push({ employee_id: e.id, reason: "No time entries in cutoff" });
@@ -554,6 +571,7 @@ export async function POST(req: NextRequest) {
       payroll_run_id,
       generated: inserts.length,
       skipped: skipped.length > 0 ? skipped : undefined,
+      diagnostics,
     });
   } catch (error: any) {
     console.error("Error generating payroll run payslips:", error);

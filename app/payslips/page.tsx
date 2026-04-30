@@ -80,6 +80,8 @@ import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee } from "@/lib/timeEntries";
 
+const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
+
 interface Employee {
   id: string;
   employee_id: string;
@@ -659,7 +661,6 @@ export default function PayslipsPage() {
         .select(
           "id, company_id_no, employee_code, first_name, middle_name, last_name, employment_status, salary_basis, base_rate, position, hire_date, employment_type, job_level, transferred_from_employee_id"
         )
-        .eq("employment_status", "active")
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -674,10 +675,13 @@ export default function PayslipsPage() {
         throw error;
       }
 
-      console.log(`Loaded ${data?.length || 0} active employees`);
-      if (data && data.length > 0) {
-        console.log("Sample employee:", data[0]);
-        const mappedEmployees = data.map((emp: any) => {
+      const activeEmployees = (data || []).filter(
+        (emp: any) => normalizeValue(emp?.employment_status) === "active"
+      );
+      console.log(`Loaded ${activeEmployees.length} active employees`);
+      if (activeEmployees.length > 0) {
+        console.log("Sample employee:", activeEmployees[0]);
+        const mappedEmployees = activeEmployees.map((emp: any) => {
           const full_name = [emp.first_name, emp.middle_name, emp.last_name].filter(Boolean).join(" ").trim() || "—";
           const employee_id = emp.company_id_no ?? emp.employee_code ?? emp.id;
           const monthly_rate = emp.salary_basis === "monthly" ? Number(emp.base_rate ?? 0) : Number(emp.base_rate ?? 0) * 26;
@@ -713,8 +717,8 @@ export default function PayslipsPage() {
             allEmployees?.length || 0
           );
           if (allEmployees && allEmployees.length > 0) {
-            const activeCount = (allEmployees as any[]).filter(
-              (e: any) => e.employment_status === "active"
+          const activeCount = (allEmployees as any[]).filter(
+              (e: any) => normalizeValue(e?.employment_status) === "active"
             ).length;
             console.log(
               `Found ${activeCount} active and ${(allEmployees?.length ?? 0) - activeCount} inactive employees`
@@ -863,7 +867,7 @@ export default function PayslipsPage() {
         .eq("employee_id", selectedEmployeeId)
         .lte("start_date", periodEndStr)
         .gte("end_date", periodStartStr)
-        .in("status", ["approved_by_manager", "approved_by_hr"]);
+        .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
 
       if (leaveError) {
         console.warn("Error loading leave requests:", leaveError);
@@ -956,7 +960,6 @@ export default function PayslipsPage() {
               "id, employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
             )
             .in("employee_id", employeeIdsToLoadFtl)
-            .eq("status", "approved")
             .gte("missed_date", periodStartStr)
             .lte("missed_date", periodEndStr);
           if (approvedFtlError) {
@@ -967,6 +970,7 @@ export default function PayslipsPage() {
               { inTime: string | null; outTime: string | null; sourceId: string }
             >();
             (approvedFtlRows || []).forEach((row: any) => {
+              if (normalizeValue(row.status) !== "approved") return;
               if (!row.missed_date) return;
               const dateKey = String(row.missed_date).split("T")[0];
               const pair = pairedByDate.get(dateKey) || {
@@ -1071,9 +1075,8 @@ export default function PayslipsPage() {
             : [selectedEmployeeId];
           const { data: otRequests, error: otError } = await supabase
             .from("overtime_requests")
-            .select("ot_date, end_date, start_time, end_time, total_hours")
+            .select("ot_date, end_date, start_time, end_time, total_hours, status")
             .in("employee_id", employeeIdsToLoad)
-            .in("status", ["approved", "approved_by_manager", "approved_by_hr"])
             .gte("ot_date", periodStartStr)
             .lte("ot_date", periodEndStr);
 
@@ -1085,6 +1088,8 @@ export default function PayslipsPage() {
           } else if (otRequests) {
             // Group OT hours and calculate ND by date
             otRequests.forEach((ot: any) => {
+                const status = normalizeValue(ot?.status);
+                if (!["approved", "approved_by_manager", "approved_by_hr"].includes(status)) return;
                 const dateStr =
                   typeof ot.ot_date === "string"
                     ? ot.ot_date.split("T")[0]
@@ -2200,7 +2205,7 @@ export default function PayslipsPage() {
             .from("leave_requests")
             .select("start_date, end_date, total_days, half_day_dates, leave_type, status")
             .eq("employee_id", selectedEmployee.id)
-            .eq("status", "approved")
+            .in("status", ["approved", "approved_by_manager", "approved_by_hr"])
             .eq("leave_type", "SIL")
             .gte("start_date", format(yearStart, "yyyy-MM-dd"))
             .lte("end_date", format(yearEnd, "yyyy-MM-dd"));

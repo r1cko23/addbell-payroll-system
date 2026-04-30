@@ -362,6 +362,18 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const payableHours =
+        Number(timesheetData.total_regular_hours || 0) +
+        Number(timesheetData.total_overtime_hours || 0) +
+        Number(timesheetData.total_night_diff_hours || 0);
+      if (payableHours <= 0) {
+        skipped.push({
+          employee_id: e.id,
+          reason: "No payable hours in cutoff (incomplete or non-payable entries only)",
+        });
+        continue;
+      }
+
       const ratePerHour = ratePerHourFromEmployee(e);
       const payrollResult =
         ratePerHour > 0
@@ -405,7 +417,8 @@ export async function POST(req: NextRequest) {
         prorationFactorSave = 1;
       }
 
-      const takeStatutory = isFourthStatutoryWeeklyPay(periodEndTuesday);
+      const takeStatutory =
+        grossPay > 0 && isFourthStatutoryWeeklyPay(periodEndTuesday);
       const sssRegularAmount =
         takeStatutory && validMonthlySalary > 0
           ? applyStatutoryProration(
@@ -437,7 +450,8 @@ export async function POST(req: NextRequest) {
 
       // Withholding tax (semi-monthly settlement on last Tue of each half)
       let withholdingTax = 0;
-      const takeSemiMonthTax = isLastWeeklyPayOfSemiMonth(periodEndTuesday);
+      const takeSemiMonthTax =
+        grossPay > 0 && isLastWeeklyPayOfSemiMonth(periodEndTuesday);
       if (takeSemiMonthTax && (grossPay > 0 || validMonthlySalary > 0)) {
         const monthlyContributionsFull =
           (sssContribution.employeeShare ?? 0) +

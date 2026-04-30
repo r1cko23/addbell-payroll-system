@@ -319,6 +319,7 @@ export default function PayrollPage() {
       if (!res.ok) {
         throw new Error(json?.error || "Failed to generate payslips");
       }
+      console.log("generate-payslips response:", json);
 
       await supabase
         .from("payroll_runs")
@@ -326,7 +327,7 @@ export default function PayrollPage() {
         .eq("id", selectedRun.id);
 
       toast.success(
-        `Generated ${json?.generated ?? 0} draft payslip(s) for this run.`
+        `Generated ${json?.generated ?? 0} draft payslip(s) for this run. ${json?.generator_version ? `[${json.generator_version}]` : ""}`
       );
       openRunDetail({ ...selectedRun, status: "processing" });
       fetchPayrollRuns();

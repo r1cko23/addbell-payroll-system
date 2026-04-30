@@ -38,6 +38,7 @@ type EmployeeRow = {
 };
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
+const GENERATOR_VERSION = "payroll-run-generate-v3-service-role";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -577,6 +578,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       payroll_run_id,
+      generator_version: GENERATOR_VERSION,
+      runtime_env: process.env.NODE_ENV || "unknown",
+      has_service_role: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
       generated: inserts.length,
       skipped: skipped.length > 0 ? skipped : undefined,
       diagnostics,

@@ -38,7 +38,7 @@ type EmployeeRow = {
 };
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
-const GENERATOR_VERSION = "payroll-run-generate-v6-manila-business-windows";
+const GENERATOR_VERSION = "payroll-run-generate-v7-inclusive-period-end";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -351,8 +351,10 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const periodStartDate = new Date(`${cutoffStart}T00:00:00+08:00`);
-      const periodEndDate = new Date(`${cutoffEnd}T00:00:00+08:00`);
+      // Use Manila noon anchors so date-fns day iteration stays stable across server timezones.
+      // Midnight +08 can become previous-day UTC on production and drop the final date.
+      const periodStartDate = new Date(`${cutoffStart}T12:00:00+08:00`);
+      const periodEndDate = new Date(`${cutoffEnd}T12:00:00+08:00`);
 
       const isClientBased = e.employment_type === "client-based" || false;
       const isClientBasedAccountSupervisor =
@@ -389,7 +391,7 @@ export async function POST(req: NextRequest) {
       const totalRegularHours = Number(timesheetData.total_regular_hours || 0);
       const totalOvertimeHours = Number(timesheetData.total_overtime_hours || 0);
       const totalNightDiffHours = Number(timesheetData.total_night_diff_hours || 0);
-      const periodEndTuesday = new Date(`${cutoffEnd}T00:00:00+08:00`);
+      const periodEndTuesday = new Date(`${cutoffEnd}T12:00:00+08:00`);
       diagnostics.push({
         employee_id: e.id,
         employment_status: e.employment_status ?? null,

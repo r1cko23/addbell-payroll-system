@@ -30,6 +30,7 @@ import { normalizeHolidays } from "@/utils/holidays";
 import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
+  BUSINESS_HOURS_GRACE_MINUTES,
   calculateHoursWithinWindows,
   getBusinessDayPolicyByDay,
 } from "@/utils/business-hours";
@@ -1201,7 +1202,10 @@ export default function TimesheetPage() {
         try {
           const actualIn = parseISO(firstEntry.clock_in_time);
           const actualInMinutes = actualIn.getHours() * 60 + actualIn.getMinutes();
-          lt = Math.max(0, actualInMinutes - resolvedStartMinutes);
+          lt = Math.max(
+            0,
+            actualInMinutes - resolvedStartMinutes - BUSINESS_HOURS_GRACE_MINUTES
+          );
         } catch (e) {
           console.warn("Error calculating late minutes:", e);
         }
@@ -1215,7 +1219,10 @@ export default function TimesheetPage() {
           const actualOut = parseISO(firstEntry.clock_out_time);
           const actualMinutes =
             actualOut.getHours() * 60 + actualOut.getMinutes();
-          const diffMinutes = resolvedEndMinutes - actualMinutes;
+          const diffMinutes =
+            resolvedEndMinutes -
+            actualMinutes -
+            BUSINESS_HOURS_GRACE_MINUTES;
           ut = diffMinutes > 0 ? diffMinutes : 0;
         } catch (e) {
           console.warn("Error calculating undertime:", e);

@@ -20,6 +20,7 @@ export interface BusinessDayPolicy {
 }
 
 export const BUSINESS_WINDOW_HOURS = 4;
+export const BUSINESS_HOURS_GRACE_MINUTES = 5;
 
 const REQUIRED_WEEKDAY_WINDOWS: TimeWindow[] = [
   { startHour: 7, endHour: 12 },
@@ -95,7 +96,8 @@ export function calculateHoursWithinWindows(
   clockIn: Date,
   clockOut: Date,
   workDate: Date,
-  windows: TimeWindow[]
+  windows: TimeWindow[],
+  graceMinutes: number = BUSINESS_HOURS_GRACE_MINUTES
 ): number {
   if (clockOut <= clockIn || windows.length === 0) return 0;
 
@@ -106,11 +108,35 @@ export function calculateHoursWithinWindows(
     return (end - start) / (1000 * 60 * 60);
   };
 
+  const dayStart = new Date(workDate);
+  dayStart.setHours(windows[0].startHour, 0, 0, 0);
+  const dayEnd = new Date(workDate);
+  dayEnd.setHours(windows[windows.length - 1].endHour, 0, 0, 0);
+
+  let adjustedClockIn = clockIn;
+  let adjustedClockOut = clockOut;
+
+  // Allow a short grace period before counting late/undertime deductions in paid hours.
+  if (
+    graceMinutes > 0 &&
+    adjustedClockIn > dayStart &&
+    adjustedClockIn.getTime() <= dayStart.getTime() + graceMinutes * 60 * 1000
+  ) {
+    adjustedClockIn = dayStart;
+  }
+  if (
+    graceMinutes > 0 &&
+    adjustedClockOut < dayEnd &&
+    adjustedClockOut.getTime() >= dayEnd.getTime() - graceMinutes * 60 * 1000
+  ) {
+    adjustedClockOut = dayEnd;
+  }
+
   return windows.reduce((sum, window) => {
     const start = new Date(workDate);
     start.setHours(window.startHour, 0, 0, 0);
     const end = new Date(workDate);
     end.setHours(window.endHour, 0, 0, 0);
-    return sum + overlapHours(clockIn, clockOut, start, end);
+    return sum + overlapHours(adjustedClockIn, adjustedClockOut, start, end);
   }, 0);
 }

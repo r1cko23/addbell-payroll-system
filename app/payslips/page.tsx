@@ -911,10 +911,10 @@ export default function PayslipsPage() {
 
       console.log("Leave dates map:", Array.from(leaveDatesMap.entries()));
 
-      console.log(
-        "Generating payslip from time_entries (matching timesheet)..."
-      );
-
+      if (!attData) {
+        console.log(
+          "Generating payslip from time_entries (matching timesheet)..."
+        );
       try {
           const periodStartDate = new Date(periodStart);
           periodStartDate.setHours(0, 0, 0, 0);
@@ -924,7 +924,19 @@ export default function PayslipsPage() {
           periodEndDate.setHours(23, 59, 59, 999);
           periodEndDate.setDate(periodEndDate.getDate() + 1);
 
-          const getDateInManila = (iso: string) => format(new Date(iso), "yyyy-MM-dd");
+          const getDateInManila = (iso: string) => {
+            const d = new Date(iso);
+            const formatter = new Intl.DateTimeFormat("en-US", {
+              timeZone: "Asia/Manila",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+            });
+            const parts = formatter.formatToParts(d);
+            return `${parts.find((p) => p.type === "year")?.value}-${
+              parts.find((p) => p.type === "month")?.value
+            }-${parts.find((p) => p.type === "day")?.value}`;
+          };
           const [mainSessions, projectSessions] = await Promise.all([
             fetchSessionsForEmployee(supabase, selectedEmployeeId, periodStartDate.toISOString(), periodEndDate.toISOString(), getDateInManila),
             fetchProjectTimeSessionsForEmployee(supabase, selectedEmployeeId, periodStartDate.toISOString(), periodEndDate.toISOString(), getDateInManila),
@@ -933,12 +945,17 @@ export default function PayslipsPage() {
 
           // Merge approved FTL pairs (IN + OUT) as synthetic complete sessions,
           // so Payslip Generation matches Time Attendance behavior.
+          const transferredFromIdForFtl = selectedEmployee?.transferred_from_employee_id ?? null;
+          const employeeIdsToLoadFtl = transferredFromIdForFtl
+            ? [selectedEmployeeId, transferredFromIdForFtl]
+            : [selectedEmployeeId];
+
           const { data: approvedFtlRows, error: approvedFtlError } = await supabase
             .from("failure_to_log")
             .select(
-              "id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
+              "id, employee_id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
             )
-            .eq("employee_id", selectedEmployeeId)
+            .in("employee_id", employeeIdsToLoadFtl)
             .eq("status", "approved")
             .gte("missed_date", periodStartStr)
             .lte("missed_date", periodEndStr);
@@ -1313,6 +1330,7 @@ export default function PayslipsPage() {
           setAttendance(null);
           return;
         }
+      }
 
       console.log("Attendance data loaded:", attData ? "Found" : "Not found");
       if (attData) {
@@ -1355,7 +1373,19 @@ export default function PayslipsPage() {
         ).toISOString();
         const periodEndISO = new Date(`${periodEndStr}T23:59:59`).toISOString();
 
-        const getDateManila = (iso: string) => format(new Date(iso), "yyyy-MM-dd");
+        const getDateManila = (iso: string) => {
+          const d = new Date(iso);
+          const formatter = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Manila",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          });
+          const parts = formatter.formatToParts(d);
+          return `${parts.find((p) => p.type === "year")?.value}-${
+            parts.find((p) => p.type === "month")?.value
+          }-${parts.find((p) => p.type === "day")?.value}`;
+        };
         const [checkMain, checkProject] = await Promise.all([
           fetchSessionsForEmployee(supabase, selectedEmployeeId, periodStartISO, periodEndISO, getDateManila),
           fetchProjectTimeSessionsForEmployee(supabase, selectedEmployeeId, periodStartISO, periodEndISO, getDateManila),

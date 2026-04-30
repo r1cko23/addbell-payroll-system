@@ -26,9 +26,11 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
+  FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
   isFirstApproverForGroup,
   LOCATION_FIRST_APPROVER_BY_GROUP,
+  normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
 
 type OvertimeDocument = {
@@ -592,7 +594,13 @@ export default function OvertimeApprovalPage() {
     const firstApproverIdById: Record<string, string> = {};
     (groupsRes.data || []).forEach((g: any) => {
       groupNameById[g.id] = g.name;
-      if (g.approver_id) firstApproverIdById[g.id] = g.approver_id;
+      const normalized = normalizeGroupName(g.name);
+      const forcedHrFirstApprover =
+        normalized === "hr laguna" || normalized === "laguna hr";
+      const effectiveApproverId = forcedHrFirstApprover
+        ? FINAL_HR_APPROVER_ID
+        : g.approver_id;
+      if (effectiveApproverId) firstApproverIdById[g.id] = effectiveApproverId;
     });
 
     const map: Record<string, string> = {};

@@ -40,8 +40,10 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { MetricCard } from "@/components/ui/metric-card";
 import {
+  FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
   isFirstApproverForGroup,
+  normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
 
 interface FailureToLog {
@@ -274,9 +276,16 @@ export default function FailureToLogApprovalPage() {
     const approverByGroupName: Record<string, string> = {};
     (groupsRes.data || []).forEach((g: any) => {
       groupNameById[g.id] = g.name;
-      if (g.name && g.approver_id) {
-        approverByGroupName[g.name] = g.approver_id;
-        approverByGroupName[String(g.name).trim().toLowerCase()] = g.approver_id;
+      const normalized = normalizeGroupName(g.name);
+      const forcedHrFirstApprover =
+        normalized === "hr laguna" || normalized === "laguna hr";
+      const effectiveApproverId = forcedHrFirstApprover
+        ? FINAL_HR_APPROVER_ID
+        : g.approver_id;
+      if (g.name && effectiveApproverId) {
+        approverByGroupName[g.name] = effectiveApproverId;
+        approverByGroupName[String(g.name).trim().toLowerCase()] = effectiveApproverId;
+        approverByGroupName[normalized] = effectiveApproverId;
       }
     });
 

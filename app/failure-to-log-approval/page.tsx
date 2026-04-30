@@ -654,6 +654,58 @@ export default function FailureToLogApprovalPage() {
       return;
     }
 
+    // On final approval, materialize approved FTL times into time_entries so
+    // Time Entries and downstream payroll/timesheet flows see real punch rows.
+    if (!effectiveManagerStageFinal) {
+      const punchRows: Array<{
+        employee_id: string;
+        punch_type: "in" | "out";
+        punched_at: string;
+        device_info: string;
+      }> = [];
+
+      if (
+        (requestData.entry_type === "in" || requestData.entry_type === "both") &&
+        requestData.actual_clock_in_time
+      ) {
+        punchRows.push({
+          employee_id: request.employee_id,
+          punch_type: "in",
+          punched_at: requestData.actual_clock_in_time,
+          device_info: `FTL approved (${requestData.entry_type}) - ${request.reason || "No reason provided"}`,
+        });
+      }
+
+      if (
+        (requestData.entry_type === "out" || requestData.entry_type === "both") &&
+        requestData.actual_clock_out_time
+      ) {
+        punchRows.push({
+          employee_id: request.employee_id,
+          punch_type: "out",
+          punched_at: requestData.actual_clock_out_time,
+          device_info: `FTL approved (${requestData.entry_type}) - ${request.reason || "No reason provided"}`,
+        });
+      }
+
+      if (punchRows.length > 0) {
+        const { error: insertPunchError } = await supabase
+          .from("time_entries")
+          .insert(punchRows);
+
+        if (insertPunchError) {
+          console.error("Error creating time_entries from approved FTL:", insertPunchError);
+          toast.error("FTL approved, but failed to create punch entry", {
+            description:
+              insertPunchError.message ||
+              "Please check time_entries insertion permissions/schema.",
+          });
+          setApproveLoading(false);
+          return;
+        }
+      }
+    }
+
     // Get employee name for toast message
     const approvedRequest = requests.find((r) => r.id === requestId);
     const employeeName = approvedRequest?.employees?.full_name || "Employee";

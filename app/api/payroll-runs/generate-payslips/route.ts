@@ -344,17 +344,6 @@ export async function POST(req: NextRequest) {
         });
       });
       employeeSessions.push(...ftlSessionsForEmployee);
-      diagnostics.push({
-        employee_id: e.id,
-        employment_status: e.employment_status ?? null,
-        sessions_main_count: (mainSessions || []).length,
-        sessions_project_count: (projectSessions || []).length,
-        sessions_cutoff_count: employeeSessions.length,
-        ftl_synthetic_sessions_count: ftlSessionsForEmployee.length,
-        approved_ot_dates_count: approvedOtByEmployeeDate.get(e.id)?.size || 0,
-        approved_nd_dates_count: approvedNdByEmployeeDate.get(e.id)?.size || 0,
-      });
-
       if (employeeSessions.length === 0) {
         skipped.push({ employee_id: e.id, reason: "No time entries in cutoff" });
         continue;
@@ -395,7 +384,27 @@ export async function POST(req: NextRequest) {
           : null;
 
       const grossPay = payrollResult?.grossPay ?? 0;
+      const totalRegularHours = Number(timesheetData.total_regular_hours || 0);
+      const totalOvertimeHours = Number(timesheetData.total_overtime_hours || 0);
+      const totalNightDiffHours = Number(timesheetData.total_night_diff_hours || 0);
       const periodEndTuesday = new Date(`${cutoffEnd}T00:00:00`);
+      diagnostics.push({
+        employee_id: e.id,
+        employment_status: e.employment_status ?? null,
+        salary_basis: e.salary_basis ?? null,
+        base_rate: e.base_rate ?? null,
+        sessions_main_count: (mainSessions || []).length,
+        sessions_project_count: (projectSessions || []).length,
+        sessions_cutoff_count: employeeSessions.length,
+        ftl_synthetic_sessions_count: ftlSessionsForEmployee.length,
+        approved_ot_dates_count: approvedOtByEmployeeDate.get(e.id)?.size || 0,
+        approved_nd_dates_count: approvedNdByEmployeeDate.get(e.id)?.size || 0,
+        total_regular_hours: totalRegularHours,
+        total_overtime_hours: totalOvertimeHours,
+        total_night_diff_hours: totalNightDiffHours,
+        rate_per_hour: ratePerHour,
+        gross_pay: Math.round(Number(grossPay || 0) * 100) / 100,
+      });
 
       // Monthly basic salary mapping (matches /payslips page behavior).
       const basis = String(e.salary_basis || "").toLowerCase();

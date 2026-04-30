@@ -38,7 +38,7 @@ type EmployeeRow = {
 };
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
-const GENERATOR_VERSION = "payroll-run-generate-v5-manila-naive-time-fix";
+const GENERATOR_VERSION = "payroll-run-generate-v6-manila-business-windows";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

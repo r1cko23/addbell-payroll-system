@@ -36,6 +36,17 @@ export interface TimesheetGenerationResult {
   errors?: string[];
 }
 
+function parseTimestampInManila(value: string): Date {
+  // If timestamp already has timezone info, preserve it.
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)) {
+    return parseISO(value);
+  }
+  // Supabase can return timezone-naive strings (timestamp without time zone).
+  // Interpret them as Asia/Manila to keep calculations consistent across runtimes.
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  return new Date(`${normalized}+08:00`);
+}
+
 /**
  * Generate timesheet data from time clock entries for a specific period
  */
@@ -68,7 +79,7 @@ export function generateTimesheetFromClockEntries(
 
     // Use Asia/Manila timezone for date grouping (same as timesheet page)
     // Convert UTC time to Asia/Manila timezone for correct date grouping
-    const entryDateUTC = parseISO(entry.clock_in_time);
+    const entryDateUTC = parseTimestampInManila(entry.clock_in_time);
     // Use Intl.DateTimeFormat to get date parts in Asia/Manila timezone
     const formatter = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Manila",
@@ -148,8 +159,8 @@ export function generateTimesheetFromClockEntries(
     const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
       if (!entry.clock_in_time || !entry.clock_out_time) return 0;
 
-      const clockIn = parseISO(entry.clock_in_time);
-      const clockOut = parseISO(entry.clock_out_time);
+      const clockIn = parseTimestampInManila(entry.clock_in_time);
+      const clockOut = parseTimestampInManila(entry.clock_out_time);
       if (clockOut <= clockIn) return 0;
 
       const workDate = parseISO(format(clockIn, "yyyy-MM-dd"));

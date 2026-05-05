@@ -27,6 +27,13 @@ import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { generatePayrollRunTemplatePDF } from "@/utils/payroll-run-pdf";
 
 interface PayrollRun {
   id: string;
@@ -49,6 +56,8 @@ interface Employee {
   first_name: string;
   middle_name: string | null;
   last_name: string;
+  bank_account_name?: string | null;
+  bank_account_number?: string | null;
   employment_status: string;
   salary_basis: string;
   base_rate: number;
@@ -292,7 +301,7 @@ export default function PayrollPage() {
     try {
       const { data, error } = await supabase
         .from("payslips")
-        .select("*, employees:employee_id ( id, company_id_no, employee_code, first_name, middle_name, last_name, salary_basis, base_rate, departments:department_id ( name ), positions:position_id ( name ) )")
+        .select("*, employees:employee_id ( id, company_id_no, employee_code, first_name, middle_name, last_name, bank_account_name, bank_account_number, salary_basis, base_rate, departments:department_id ( name ), positions:position_id ( name ) )")
         .eq("payroll_run_id", run.id)
         .order("created_at");
       if (error) throw error;
@@ -369,6 +378,130 @@ export default function PayrollPage() {
     return [emp.first_name, emp.last_name].filter(Boolean).join(" ");
   }
 
+  function exportBankPayrollFile() {
+    if (!selectedRun) return;
+    if (selectedRun.status !== "finalized") {
+      toast.error("Finalize the payroll run before exporting bank details.");
+      return;
+    }
+    if (payslips.length === 0) {
+      toast.error("No payslips found for this run.");
+      return;
+    }
+
+    const rows = payslips.map((ps) => {
+      const accountNumber = String(ps.employee?.bank_account_number || "").trim();
+      const preferredName = String(ps.employee?.bank_account_name || "").trim();
+      const fallbackName = empName(ps.employee);
+      const name = preferredName || fallbackName;
+      const amount = Number(ps.net_pay || 0);
+      return { accountNumber, amount, name };
+    });
+
+    const missingAccounts = rows.filter((r) => !r.accountNumber).length;
+    const header = ["ACCOUNT #", "AMOUNT", "NAME"];
+    const csvLines = [
+      header.join(","),
+      ...rows.map((r) =>
+        [
+          `"${r.accountNumber.replace(/"/g, '""')}"`,
+          r.amount.toFixed(2),
+          `"${r.name.replace(/"/g, '""')}"`,
+        ].join(",")
+      ),
+    ];
+
+    const cutoffLabel = `${selectedRun.cutoff_start}_to_${selectedRun.cutoff_end}`;
+    const fileName = `bank_payroll_${cutoffLabel}.csv`;
+    const csv = `\uFEFF${csvLines.join("\r\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    if (missingAccounts > 0) {
+      toast.warning(
+        `Exported with ${missingAccounts} employee(s) missing bank account number.`
+      );
+    } else {
+      toast.success("Bank payroll file exported.");
+    }
+  }
+
+  async function exportPayrollExcel() {
+    if (!selectedRun) return;
+    if (selectedRun.status !== "finalized") {
+      toast.error("Finalize the payroll run before exporting payroll excel.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/payroll-runs/export-payroll-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payroll_run_id: selectedRun.id }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || "Failed to export payroll excel");
+      }
+      const blob = await res.blob();
+      const cutoffLabel = `${selectedRun.cutoff_start}_to_${selectedRun.cutoff_end}`;
+      const fileName = `payroll_${cutoffLabel}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Payroll excel exported.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to export payroll excel");
+    }
+  }
+
+  async function exportPayrollPdf() {
+    if (!selectedRun) return;
+    if (selectedRun.status !== "finalized") {
+      toast.error("Finalize the payroll run before exporting payroll pdf.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/payroll-runs/export-payroll-table", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payroll_run_id: selectedRun.id }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || "Failed to prepare payroll pdf data");
+      }
+      const table = json?.table;
+      if (!table) throw new Error("Missing payroll table in response");
+
+      const doc = generatePayrollRunTemplatePDF({
+        title: table.title,
+        subtitle: table.subtitle,
+        columns: table.columns,
+        headerRows: table.headerRows,
+        dataRows: table.dataRows,
+        colorGroups: table.colorGroups,
+      });
+      const fileName = `payroll_${selectedRun.cutoff_start}_to_${selectedRun.cutoff_end}.pdf`;
+      doc.save(fileName);
+      toast.success("Payroll PDF exported.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to export payroll pdf");
+    }
+  }
+
   if (selectedRun) {
     return (
       <DashboardLayout>
@@ -414,6 +547,26 @@ export default function PayrollPage() {
               )}
               {(selectedRun.status === "draft" || selectedRun.status === "processing") && (
                 <Button variant="destructive" onClick={cancelRun}>Cancel Run</Button>
+              )}
+              {selectedRun.status === "finalized" && (
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline">
+                        <Icon name="Download" size={IconSizes.sm} className="mr-2" />
+                        Export Payroll
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={exportPayrollPdf}>Download PDF</DropdownMenuItem>
+                      <DropdownMenuItem onClick={exportPayrollExcel}>Download Excel</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button variant="outline" onClick={exportBankPayrollFile}>
+                    <Icon name="Download" size={IconSizes.sm} className="mr-2" />
+                    Export Bank File
+                  </Button>
+                </>
               )}
             </HStack>
           </HStack>

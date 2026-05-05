@@ -88,34 +88,34 @@ export function buildPayrollRunTemplateTable(params: {
     { key: "name", wch: 26 },
     { key: "rateday", wch: 12 },
     { key: "days", wch: 10 },
-    { key: "regular_total", wch: 14 },
+    { key: "regular_total", wch: 16 },
     { key: "rate_hr", wch: 10 },
     { key: "ot_reg_hr", wch: 11 },
     { key: "ot_rest_hr", wch: 13 },
     { key: "ot_nwh_hr", wch: 16 },
     { key: "ot_reg_hol_hr", wch: 12 },
     { key: "night_diff_hr", wch: 12 },
-    { key: "spacer1", wch: 2 },
-    { key: "ot_reg_amt", wch: 12 },
-    { key: "ot_rest_amt", wch: 12 },
-    { key: "ot_nwh_amt", wch: 14 },
-    { key: "ot_reg_hol_amt", wch: 12 },
-    { key: "night_diff_amt", wch: 12 },
-    { key: "spacer2", wch: 2 },
-    { key: "gross", wch: 14 },
-    { key: "sss", wch: 10 },
+    { key: "spacer1", wch: 4 },
+    { key: "ot_reg_amt", wch: 14 },
+    { key: "ot_rest_amt", wch: 14 },
+    { key: "ot_nwh_amt", wch: 16 },
+    { key: "ot_reg_hol_amt", wch: 14 },
+    { key: "night_diff_amt", wch: 14 },
+    { key: "spacer2", wch: 4 },
+    { key: "gross", wch: 16 },
+    { key: "sss", wch: 12 },
     { key: "philhealth", wch: 12 },
-    { key: "pagibig", wch: 10 },
+    { key: "pagibig", wch: 12 },
     { key: "salary_loan", wch: 12 },
     { key: "pagibig_loan", wch: 14 },
     { key: "calamity", wch: 12 },
     { key: "tax", wch: 10 },
     { key: "vale", wch: 10 },
-    { key: "uniform", wch: 16 },
+    { key: "uniform", wch: 20 },
     { key: "adjustments", wch: 12 },
     { key: "allowances", wch: 18 },
-    { key: "net", wch: 14 },
-    { key: "net_payroll", wch: 14 },
+    { key: "net", wch: 16 },
+    { key: "net_payroll", wch: 16 },
   ];
 
   const titleRow = Array(columns.length).fill("");
@@ -159,7 +159,7 @@ export function buildPayrollRunTemplateTable(params: {
   r4[16] = "HOLIDAY";
   r4[18] = "DIFF";
   r4[20] = " GROSS ";
-  r4[21] = " MONTH july 2025 ";
+  r4[21] = ` MONTH ${format(startD, "MMM yyyy")} `;
   r4[26] = " Calamity Loan ";
   r4[27] = " TAX ";
   r4[28] = " VALE ";

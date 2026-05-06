@@ -306,8 +306,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Legal Holiday
-      // Days Work includes eligible holidays (worked or not). The 1x base always goes to basic.
-      // Legal Holiday component only has hours/amount when they RENDERED WORK (extra 1x = double pay for rank-and-file, allowance for supervisory).
+      // Regular Holiday pay is computed separately from regular work hours.
       if (dayType === "regular-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
@@ -316,19 +315,18 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
 
         if (eligibleForHolidayPay) {
-          // Always add 1x to basic (Days Work includes all holidays)
           const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
-          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
-          earningsBreakdown.basic.days += hoursForBasic / 8;
-          earningsBreakdown.basic.hours += hoursForBasic;
+          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          earningsBreakdown.legalHoliday.days += hoursPaid / 8;
+          earningsBreakdown.legalHoliday.amount +=
+            useFixedAllowances
+              ? hoursPaid * ratePerHour
+              : (hasCompleteLog ? calculateRegularHoliday(hoursPaid, ratePerHour) : hoursPaid * ratePerHour);
 
           // Premium applies when there is a complete time in/out.
           if (regularHours > 0 && clockInTime && clockOutTime) {
             if (useFixedAllowances) {
-              earningsBreakdown.legalHoliday.days += 1; // 8h = 1 day for display
-              // Amount is 0 here; the 1x is in basic, premium is the allowance below
               if (clockInTime && regularHours >= 4) {
                 const allowance = calculateHolidayRestDayAllowance(regularHours);
                 if (allowance > 0) {
@@ -336,10 +334,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 }
               }
             } else {
-              // Rank and File: premium 1x (double pay = 1x base in basic + 1x here)
-              const premiumAmount = regularHours * ratePerHour;
-              earningsBreakdown.legalHoliday.days += regularHours / 8;
-              earningsBreakdown.legalHoliday.amount += premiumAmount;
+              // already included in calculateRegularHoliday above
             }
           }
         }
@@ -361,8 +356,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Special Holiday
-      // Days Work includes eligible holidays (worked or not). The 1x base always goes to basic.
-      // Special Holiday component only has hours/amount when they RENDERED WORK (extra 0.3x for rank-and-file, allowance for supervisory).
+      // Special Holiday pay is computed separately from regular work hours.
       if (dayType === "non-working-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
@@ -373,14 +367,15 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         if (eligibleForHolidayPay) {
           const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
-          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
-          earningsBreakdown.basic.days += hoursForBasic / 8;
-          earningsBreakdown.basic.hours += hoursForBasic;
+          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          earningsBreakdown.spHoliday.days += hoursPaid / 8;
+          earningsBreakdown.spHoliday.amount +=
+            useFixedAllowances
+              ? hoursPaid * ratePerHour
+              : (hasCompleteLog ? calculateNonWorkingHoliday(hoursPaid, ratePerHour) : hoursPaid * ratePerHour);
 
           if (regularHours > 0 && clockInTime && clockOutTime) {
             if (useFixedAllowances) {
-              earningsBreakdown.spHoliday.days += 1;
               if (clockInTime && regularHours >= 4) {
                 const allowance = calculateHolidayRestDayAllowance(regularHours);
                 if (allowance > 0) {
@@ -388,10 +383,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 }
               }
             } else {
-              // Rank and File: premium 0.3x only (1.3x total = 1x base in basic + 0.3x here)
-              const premiumAmount = regularHours * ratePerHour * 0.3;
-              earningsBreakdown.spHoliday.days += regularHours / 8;
-              earningsBreakdown.spHoliday.amount += premiumAmount;
+              // already included in calculateNonWorkingHoliday above
             }
           }
         }
@@ -474,10 +466,15 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         if (eligible) {
           const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
-          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
-          earningsBreakdown.basic.days += hoursForBasic / 8;
-          earningsBreakdown.basic.hours += hoursForBasic;
+          if (hasCompleteLog) {
+            const hoursForBasic = raw;
+            earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
+            earningsBreakdown.basic.days += hoursForBasic / 8;
+            earningsBreakdown.basic.hours += hoursForBasic;
+          } else {
+            earningsBreakdown.spHoliday.days += HOLIDAY_UNWORKED_CREDIT_HOURS / 8;
+            earningsBreakdown.spHoliday.amount += HOLIDAY_UNWORKED_CREDIT_HOURS * ratePerHour;
+          }
         }
         if (
           regularHours > 0 &&
@@ -519,10 +516,15 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         if (eligible) {
           const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
-          earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
-          earningsBreakdown.basic.days += hoursForBasic / 8;
-          earningsBreakdown.basic.hours += hoursForBasic;
+          if (hasCompleteLog) {
+            const hoursForBasic = raw;
+            earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
+            earningsBreakdown.basic.days += hoursForBasic / 8;
+            earningsBreakdown.basic.hours += hoursForBasic;
+          } else {
+            earningsBreakdown.legalHoliday.days += HOLIDAY_UNWORKED_CREDIT_HOURS / 8;
+            earningsBreakdown.legalHoliday.amount += HOLIDAY_UNWORKED_CREDIT_HOURS * ratePerHour;
+          }
         }
         if (
           regularHours > 0 &&
@@ -927,7 +929,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     fontWeight: "bold",
                   }}
                 >
-                  Legal Holiday
+                  Regular Holiday
                 </td>
                 <td
                   style={{
@@ -957,7 +959,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                       fontWeight: "bold",
                     }}
                   >
-                    Legal HD OT
+                    Regular Holiday OT
                   </td>
                   <td
                     style={{
@@ -990,7 +992,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                       fontWeight: "bold",
                     }}
                   >
-                    Legal HD ND
+                    Regular Holiday ND
                   </td>
                   <td
                     style={{
@@ -1352,7 +1354,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                             width: "40%",
                           }}
                         >
-                          Legal Holiday Allowance
+                          Regular Holiday Allowance
                         </td>
                         <td
                           style={{
@@ -1499,7 +1501,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                             width: "40%",
                           }}
                         >
-                          Legal Holiday on Rest Day Allowance
+                          Regular Holiday on Rest Day Allowance
                         </td>
                         <td
                           style={{

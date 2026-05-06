@@ -2832,10 +2832,11 @@ export default function PayslipsPage() {
 
   /** Prefer page-level gross (attendance + calculateWeeklyPayroll / AS rules); fallback to breakdown callback. Keeps summary in sync with preview. */
   const earningsBaseForPeriod = useMemo(() => {
-    if (grossPay > 0) return grossPay;
+    // Prefer the detailed breakdown gross when available (it reflects the on-screen earnings table).
     if (calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0) {
       return calculatedTotalGrossPay;
     }
+    if (grossPay > 0) return grossPay;
     return 0;
   }, [grossPay, calculatedTotalGrossPay]);
 

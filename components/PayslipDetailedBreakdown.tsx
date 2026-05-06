@@ -433,11 +433,7 @@ function PayslipDetailedBreakdownComponent({
         }
         // If finalRegularHours === 0, don't pay basic for that day
         // Rest days (Sunday for office-based, or Mon/Tue/Wed for client-based) are NOT paid if not worked
-      } else if (
-        dayType === "regular-holiday" ||
-        dayType === "non-working-holiday"
-      ) {
-        // Check if eligible for holiday pay (worked day before or worked on holiday)
+      } else if (dayType === "regular-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
           finalRegularHours,
@@ -446,15 +442,46 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          if (isClientBased || isEligibleForAllowances) {
-            const paidH = hasCompleteLog ? 8 : HOLIDAY_UNWORKED_CREDIT_HOURS;
-            hoursToCount = paidH;
-            basicSalary += paidH * ratePerHour;
-          } else {
-            const paidH = hasCompleteLog ? finalRegularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
-            hoursToCount = paidH;
-            basicSalary += paidH * ratePerHour;
-          }
+          const paidH =
+            isClientBased || isEligibleForAllowances
+              ? hasCompleteLog
+                ? 8
+                : HOLIDAY_UNWORKED_CREDIT_HOURS
+              : hasCompleteLog
+              ? finalRegularHours
+              : HOLIDAY_UNWORKED_CREDIT_HOURS;
+
+          hoursToCount = paidH;
+          breakdown.legalHoliday.hours += paidH;
+          breakdown.legalHoliday.amount +=
+            hasCompleteLog && !(isClientBased || isEligibleForAllowances)
+              ? calculateRegularHoliday(paidH, ratePerHour)
+              : paidH * ratePerHour;
+        }
+      } else if (dayType === "non-working-holiday") {
+        const eligibleForHolidayPay = isEligibleForHolidayPay(
+          date,
+          finalRegularHours,
+          attendanceData
+        );
+
+        if (eligibleForHolidayPay) {
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
+          const paidH =
+            isClientBased || isEligibleForAllowances
+              ? hasCompleteLog
+                ? 8
+                : HOLIDAY_UNWORKED_CREDIT_HOURS
+              : hasCompleteLog
+              ? finalRegularHours
+              : HOLIDAY_UNWORKED_CREDIT_HOURS;
+
+          hoursToCount = paidH;
+          breakdown.specialHoliday.hours += paidH;
+          breakdown.specialHoliday.amount +=
+            hasCompleteLog && !(isClientBased || isEligibleForAllowances)
+              ? calculateNonWorkingHoliday(paidH, ratePerHour)
+              : paidH * ratePerHour;
         }
       }
       // Sundays are excluded (dayType === "sunday") - they're paid separately
@@ -496,10 +523,7 @@ function PayslipDetailedBreakdownComponent({
         );
       }
 
-      // Legal Holiday (regular-holiday)
-      // NOTE: Holidays are included in basic salary (Days Work × daily rate). Eligible-but-didn't-work
-      // still get 1x in basic. The Legal Holiday component shows the EXTRA (double pay / allowance)
-      // only when they actually RENDERED WORK on that holiday.
+      // Regular Holiday (regular-holiday) — computed separately from regular work hours.
       if (dayType === "regular-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
@@ -508,15 +532,6 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // Premium applies only when there is a complete time in/out on the holiday.
-          if (regularHours > 0 && clockInTime && clockOutTime) {
-            const hoursToPay = (isClientBased || isEligibleForAllowances)
-              ? 8
-              : regularHours;
-            breakdown.legalHoliday.hours += hoursToPay;
-            breakdown.legalHoliday.amount += (hoursToPay / 8) * ratePerDay;
-          }
-
           // Allowance only when they actually worked (clockInTime and regularHours >= 4)
           if (clockInTime && regularHours >= 4) {
             const allowance = calculateHolidayRestDayAllowance(
@@ -556,10 +571,7 @@ function PayslipDetailedBreakdownComponent({
         }
       }
 
-      // Special Holiday (non-working-holiday)
-      // NOTE: Holidays are included in basic salary (Days Work × daily rate). Eligible-but-didn't-work
-      // still get 1x in basic. The Special Holiday component shows the EXTRA (1.3x / allowance)
-      // only when they actually RENDERED WORK on that holiday.
+      // Special Holiday (non-working-holiday) — computed separately from regular work hours.
       if (dayType === "non-working-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
           date,
@@ -568,18 +580,6 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          if (regularHours > 0 && clockInTime && clockOutTime) {
-            const hoursToPay = (isClientBased || isEligibleForAllowances)
-              ? 8
-              : regularHours;
-            breakdown.specialHoliday.hours += hoursToPay;
-            // Special: 1.3x for rank-and-file; full daily rate for allowance-eligible (display)
-            // Display: extra only (1.3x total, 1x in basic) = 0.3x for rank-and-file; full daily for allowance-eligible
-            breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances)
-              ? (hoursToPay / 8) * ratePerDay
-              : regularHours * ratePerHour * 0.3;
-          }
-
           // Allowance only when they actually worked (clockInTime and regularHours >= 4)
           if (clockInTime && regularHours >= 4) {
             const allowance = calculateHolidayRestDayAllowance(
@@ -950,10 +950,13 @@ function PayslipDetailedBreakdownComponent({
       return sum;
     }, 0);
 
-    // For hourly operations, Hours Worked should match actual BH from time attendance.
-    // Do NOT inflate with base-pay hours or cap it; Time Attendance is the source of truth.
+    // "Hours Work (Regular)" should include only REGULAR working-day hours (exclude holidays/rest days).
+    const regularHoursWorked = attendanceData.reduce((sum, d) => {
+      if (d.dayType === "regular") return sum + (d.regularHours || 0);
+      return sum;
+    }, 0);
     const totalBHForHoursWork = actualTotalBH;
-    const hoursWorked = totalBHForHoursWork;
+    const hoursWorked = regularHoursWorked;
 
     // #region agent log
     const _jan1 = attendanceData.find((d: { date: string }) => d.date === "2026-01-01");
@@ -993,8 +996,8 @@ function PayslipDetailedBreakdownComponent({
     }
     // #endregion
 
-    // Ensure basicSalary = hoursWorked × hourly rate (all hours worked including holidays)
-    // IMPORTANT: Use rounded hourly rate to match displayed value (ensures Hourly Rate × Hours = Basic Salary)
+    // Ensure basicSalary = regular hours worked × hourly rate
+    // IMPORTANT: Use rounded hourly rate to match displayed value
     const roundedRatePerHour = Math.round(ratePerHour * 100) / 100;
     const expectedBasicSalary = hoursWorked * roundedRatePerHour;
     // Use the calculated basicSalary if it's close to expected, otherwise use expected
@@ -1329,9 +1332,9 @@ function PayslipDetailedBreakdownComponent({
                         true
                       )}
 
-                      {/* Legal Holiday */}
+                      {/* Regular Holiday (PH term) */}
                       {renderEarningRow(
-                        "3. Legal Holiday",
+                        "3. Regular Holiday",
                         breakdown.legalHoliday.hours,
                         // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
                         // Rank and File: 2.0x multiplier
@@ -1388,7 +1391,7 @@ function PayslipDetailedBreakdownComponent({
                         true
                       )}
                       {renderEarningRow(
-                        "9. Legal Holiday OT",
+                        "9. Regular Holiday OT",
                         earningsOT.legalHolidayOT.hours,
                         PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY *
                           PAYROLL_MULTIPLIERS.OT_PREMIUM,
@@ -1412,7 +1415,7 @@ function PayslipDetailedBreakdownComponent({
                         true
                       )}
                       {renderEarningRow(
-                        "14. Legal Holiday on Rest Day OT",
+                        "14. Regular Holiday on Rest Day OT",
                         earningsOT.lhOnRDOT.hours,
                         PAYROLL_MULTIPLIERS.SUNDAY_REGULAR_HOLIDAY *
                           PAYROLL_MULTIPLIERS.OT_PREMIUM,
@@ -1430,7 +1433,7 @@ function PayslipDetailedBreakdownComponent({
 
                       {/* ND from OT (10PM–6AM overlap) — all employees */}
                       {renderEarningRow(
-                        "10. Legal Holiday ND",
+                        "10. Regular Holiday ND",
                         earningsOT.legalHolidayND.hours,
                         PAYROLL_MULTIPLIERS.NIGHT_DIFF,
                         earningsOT.legalHolidayND.amount,

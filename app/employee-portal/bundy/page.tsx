@@ -11,7 +11,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
+import { creditNightDiffHours, creditOvertimeHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
 import {
   getWednesdayWeekStart,
@@ -35,6 +35,7 @@ import {
   getDay,
 } from "date-fns";
 import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
+import { calculateLateHours } from "@/utils/business-hours";
 
 /**
  * Convert a UTC timestamp to Asia/Manila date string (YYYY-MM-DD)
@@ -1769,26 +1770,31 @@ export default function BundyClockPage() {
           try {
             const actualClockIn = getManilaHourMinute(firstEntry.clock_in_time);
             const actualClockInMinutes = actualClockIn.hour * 60 + actualClockIn.minute;
-            lt = Math.max(0, actualClockInMinutes - resolvedStartMinutes);
+            lt = calculateLateHours(resolvedStartMinutes, actualClockInMinutes);
           } catch (e) {
             console.warn("Error calculating late minutes:", e);
           }
         }
 
-        // Calculate UT (Undertime) - only if BH < 8 hours
-        // If employee already worked 8 hours (BH >= 8), there's no undertime
-        let ut = 0;
-        if (bh < 8 && firstEntry?.clock_out_time && resolvedEndMinutes !== null) {
-          try {
-            const actualOut = getManilaHourMinute(firstEntry.clock_out_time);
-            const actualMinutes = actualOut.hour * 60 + actualOut.minute;
-            const diffMinutes = resolvedEndMinutes - actualMinutes;
-            ut = diffMinutes > 0 ? diffMinutes : 0;
-          } catch (e) {
-            console.warn("Error calculating undertime:", e);
-          }
+        // Calculate UT (Undertime)
+        // Policy: UT is based on REQUIRED business hours for that day:
+        // - Mon–Thu: 10 hours (07–12, 13–18)
+        // - Fri: 8 hours (07–12, 13–16)
+        // - Uses employee schedule window when present; otherwise business-hours windows.
+        const requiredHoursFromWindows = (windows: Array<{ startHour: number; endHour: number }>) =>
+          windows.reduce((s, w) => s + Math.max(0, (w.endHour - w.startHour)), 0);
+
+        let requiredHours = businessPolicy.requiresOffice
+          ? requiredHoursFromWindows(businessPolicy.windows)
+          : 0;
+
+        if (hasScheduleWindow && resolvedStartMinutes !== null && resolvedEndMinutes !== null) {
+          requiredHours = Math.max(0, (resolvedEndMinutes - resolvedStartMinutes) / 60);
         }
-        // If BH >= 8, UT is automatically 0 (no undertime if they completed required hours)
+
+        const rawDeficit = Math.max(0, requiredHours - bh);
+        // Policy: UT is rounded up to the next FULL hour.
+        let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
 
         // Calculate ND (Night Differential) from approved OT requests
         // ND should come from overtime_requests, not from clock entries
@@ -1877,7 +1883,7 @@ export default function BundyClockPage() {
           timeOut,
           schedIn,
           schedOut,
-          bh: Math.round(bh * 100) / 100,
+          bh: creditWorkHoursHalfHour(Math.round(bh * 100) / 100),
           ot: Math.round(otHours * 100) / 100,
           lt,
           ut,

@@ -21,6 +21,22 @@ export interface BusinessDayPolicy {
 
 export const BUSINESS_WINDOW_HOURS = 4;
 export const BUSINESS_HOURS_GRACE_MINUTES = 5;
+export const LATE_GRACE_MINUTES = 15;
+
+export function calculateLateHours(
+  scheduledStartMinutes: number,
+  actualInMinutes: number,
+  graceMinutes: number = LATE_GRACE_MINUTES
+): number {
+  const lateMinutes = actualInMinutes - scheduledStartMinutes;
+  if (!Number.isFinite(lateMinutes) || lateMinutes <= graceMinutes) return 0;
+  // Bucket by hours with a grace window per hour:
+  // - 7:16–8:15 => 1 hour late
+  // - 8:16–9:15 => 2 hours late
+  // - 9:16–10:15 => 3 hours late
+  // Formula: ceil((lateMinutes - graceMinutes) / 60)
+  return Math.ceil((lateMinutes - graceMinutes) / 60);
+}
 
 const REQUIRED_WEEKDAY_WINDOWS: TimeWindow[] = [
   { startHour: 7, endHour: 12 },

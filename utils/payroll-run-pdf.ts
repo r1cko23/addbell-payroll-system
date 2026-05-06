@@ -26,16 +26,12 @@ export function generatePayrollRunTemplatePDF(params: {
     netCols: number[];
   };
 }) {
-  // Use A2 landscape so columns/rows aren't cramped.
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a2" });
-  const M = 10;
-  const PAGE_W = 594;
-  const PAGE_H = 420;
+  // Use A3 landscape and split wide tables across pages for readability.
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
+  const M = 8;
+  const PAGE_W = doc.internal.pageSize.getWidth();
+  const PAGE_H = doc.internal.pageSize.getHeight();
   const CONTENT_W = PAGE_W - M * 2;
-  const CONTENT_H = PAGE_H - M * 2;
-
-  const totalWch = params.columns.reduce((s, c) => s + (c.wch || 8), 0) || 1;
-  const colWidths = params.columns.map((c) => ((c.wch || 8) / totalWch) * CONTENT_W);
 
   const earningsSet = new Set(params.colorGroups.earningsCols);
   const deductionsSet = new Set(params.colorGroups.deductionCols);
@@ -45,15 +41,27 @@ export function generatePayrollRunTemplatePDF(params: {
 
   const drawTitle = () => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.text(params.title || "ADD-BELL TECHNICAL SERVICES INC.", PAGE_W / 2, y, { align: "center" });
     y += 7;
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.text(params.subtitle || "", PAGE_W / 2, y, { align: "center" });
     y += 6;
   };
 
-  const drawRow = (row: any[], fontSize: number, isHeader: boolean) => {
+  const buildColWidths = (colIdxs: number[]) => {
+    const totalWch =
+      colIdxs.reduce((s, idx) => s + (params.columns[idx]?.wch || 8), 0) || 1;
+    return colIdxs.map((idx) => ((params.columns[idx]?.wch || 8) / totalWch) * CONTENT_W);
+  };
+
+  const drawRow = (
+    row: any[],
+    fontSize: number,
+    isHeader: boolean,
+    colIdxs: number[],
+    colWidths: number[]
+  ) => {
     doc.setFont("helvetica", isHeader ? "bold" : "normal");
     doc.setFontSize(fontSize);
     const rowH = isHeader ? 9 : 7;
@@ -63,13 +71,14 @@ export function generatePayrollRunTemplatePDF(params: {
       y = M;
       drawTitle();
       // repeat the last two header rows for readability
-      drawRow(params.headerRows[2] || [], 7, true);
-      drawRow(params.headerRows[3] || [], 7, true);
+      drawRow(params.headerRows[2] || [], 7, true, colIdxs, colWidths);
+      drawRow(params.headerRows[3] || [], 7, true, colIdxs, colWidths);
     }
 
     let x = M;
-    for (let c = 0; c < params.columns.length; c++) {
-      const w = colWidths[c];
+    for (let i = 0; i < colIdxs.length; i++) {
+      const c = colIdxs[i];
+      const w = colWidths[i];
       if (isHeader) {
         if (earningsSet.has(c)) doc.setFillColor(234, 246, 234);
         else if (deductionsSet.has(c)) doc.setFillColor(255, 234, 234);
@@ -98,14 +107,29 @@ export function generatePayrollRunTemplatePDF(params: {
     y += rowH;
   };
 
-  drawTitle();
-  // Use the same Excel header rows 3-4 (index 2-3)
-  drawRow(params.headerRows[2] || [], 7, true);
-  drawRow(params.headerRows[3] || [], 7, true);
+  // Split into two pages:
+  // 1) left + earnings/OT/ND columns
+  // 2) identification + gross/deductions/net columns
+  const allIdxs = params.columns.map((_, i) => i);
+  const leftToNdIdxs = allIdxs.filter((i) => i <= 18);
+  const idAndMoneyIdxs = [0, 1, 2, 3, ...allIdxs.filter((i) => i >= 20)];
 
-  for (const r of params.dataRows) {
-    drawRow(r, 7, false);
-  }
+  const chunks = [
+    { colIdxs: leftToNdIdxs, font: 8 },
+    { colIdxs: idAndMoneyIdxs, font: 8 },
+  ];
+
+  chunks.forEach((chunk, chunkIdx) => {
+    if (chunkIdx > 0) doc.addPage();
+    y = M;
+    const colWidths = buildColWidths(chunk.colIdxs);
+    drawTitle();
+    drawRow(params.headerRows[2] || [], 7, true, chunk.colIdxs, colWidths);
+    drawRow(params.headerRows[3] || [], 7, true, chunk.colIdxs, colWidths);
+    for (const r of params.dataRows) {
+      drawRow(r, chunk.font, false, chunk.colIdxs, colWidths);
+    }
+  });
 
   return doc;
 }

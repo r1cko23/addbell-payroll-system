@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
+import { creditNightDiffHours, creditOvertimeHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
@@ -36,6 +36,7 @@ import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
   BUSINESS_HOURS_GRACE_MINUTES,
   calculateHoursWithinWindows,
+  calculateLateHours,
   getBusinessDayPolicyByDay,
 } from "@/utils/business-hours";
 import {
@@ -203,8 +204,8 @@ interface AttendanceDay {
   schedOut: string | null;
   bh: number; // Basic Hours
   ot: number; // Overtime Hours (from approved OT filings)
-  lt: number; // Late (minutes)
-  ut: number; // Undertime (minutes)
+  lt: number; // Late (hours, rounded up; after 15-min grace)
+  ut: number; // Undertime (hours; based on required business hours)
   nd: number; // Night Differential
   clockEntryIds?: string[]; // ids from time_entries (in + out punch ids for this day, for admin/HR remove)
 }
@@ -1274,7 +1275,9 @@ export default function TimesheetPage() {
               return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
             }
           }, 0);
-          bh = Math.round(bhFromBusinessWindows * 100) / 100;
+          bh = creditWorkHoursHalfHour(
+            Math.round(bhFromBusinessWindows * 100) / 100
+          );
         } else if (
           status === "OT" &&
           dayOTs.length > 0 &&
@@ -1355,33 +1358,32 @@ export default function TimesheetPage() {
         try {
           const actualIn = parseISO(firstEntry.clock_in_time);
           const actualInMinutes = actualIn.getHours() * 60 + actualIn.getMinutes();
-          lt = Math.max(
-            0,
-            actualInMinutes - resolvedStartMinutes - BUSINESS_HOURS_GRACE_MINUTES
-          );
+          lt = calculateLateHours(resolvedStartMinutes, actualInMinutes);
         } catch (e) {
           console.warn("Error calculating late minutes:", e);
         }
       }
 
-      // Calculate UT (Undertime) - only if BH < 8 hours
-      // If employee already worked 8 hours (BH >= 8), there's no undertime
-      let ut = 0;
-      if (bh < 8 && firstEntry?.clock_out_time && resolvedEndMinutes !== null) {
-        try {
-          const actualOut = parseISO(firstEntry.clock_out_time);
-          const actualMinutes =
-            actualOut.getHours() * 60 + actualOut.getMinutes();
-          const diffMinutes =
-            resolvedEndMinutes -
-            actualMinutes -
-            BUSINESS_HOURS_GRACE_MINUTES;
-          ut = diffMinutes > 0 ? diffMinutes : 0;
-        } catch (e) {
-          console.warn("Error calculating undertime:", e);
-        }
+      // Calculate UT (Undertime)
+      // Policy: UT is based on REQUIRED business hours for that day:
+      // - Mon–Thu: 10 hours (07–12, 13–18)
+      // - Fri: 8 hours (07–12, 13–16)
+      // - Uses employee schedule window when present; otherwise business-hours windows.
+      const requiredHoursFromWindows = (windows: Array<{ startHour: number; endHour: number }>) =>
+        windows.reduce((s, w) => s + Math.max(0, (w.endHour - w.startHour)), 0);
+
+      let requiredHours = businessPolicy.requiresOffice
+        ? requiredHoursFromWindows(businessPolicy.windows)
+        : 0;
+
+      if (hasScheduleWindow && resolvedStartMinutes !== null && resolvedEndMinutes !== null) {
+        requiredHours = Math.max(0, (resolvedEndMinutes - resolvedStartMinutes) / 60);
       }
-      // If BH >= 8, UT is automatically 0 (no undertime if they completed required hours)
+
+      // Undertime is the missing required hours after credited BH (BH already uses business windows).
+      // Policy: UT is rounded up to the next FULL hour.
+      const rawDeficit = Math.max(0, requiredHours - bh);
+      let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
 
       // ND now includes night-shift work from actual punches, with OT-derived ND used as source-of-truth
       // when it is greater than punch-derived ND.
@@ -1395,7 +1397,7 @@ export default function TimesheetPage() {
         timeOut,
         schedIn,
         schedOut,
-        bh: Math.round(bh * 100) / 100,
+        bh: creditWorkHoursHalfHour(Math.round(bh * 100) / 100),
         ot: Math.round(otHours * 100) / 100,
         lt,
         ut,
@@ -1685,7 +1687,8 @@ export default function TimesheetPage() {
     daysWorked = totalBH / 8;
   }
   const totalOT = attendanceDays.reduce((sum, d) => sum + d.ot, 0);
-  const totalUT = attendanceDays.reduce((sum, d) => sum + d.ut, 0);
+  const totalLTHours = attendanceDays.reduce((sum, d) => sum + (d.lt || 0), 0);
+  const totalUTHours = attendanceDays.reduce((sum, d) => sum + (d.ut || 0), 0);
   const totalND = attendanceDays.reduce((sum, d) => sum + d.nd, 0);
 
   if (loading) {
@@ -1903,6 +1906,9 @@ export default function TimesheetPage() {
                       OT
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
+                      LT (hrs)
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
                       UT (hrs)
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
@@ -1975,7 +1981,10 @@ export default function TimesheetPage() {
                           {day.ot > 0 ? day.ot.toFixed(2) : "-"}
                         </td>
                         <td className="px-4 py-2 text-sm text-right">
-                          {day.ut > 0 ? (day.ut / 60).toFixed(2) : "0"}
+                          {day.lt > 0 ? day.lt.toFixed(0) : "0"}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right">
+                          {day.ut > 0 ? day.ut.toFixed(1) : "0"}
                         </td>
                         <td className="px-4 py-2 text-sm text-right">
                           {day.nd > 0 ? day.nd.toFixed(2) : "0"}
@@ -2017,7 +2026,12 @@ export default function TimesheetPage() {
                     <td className="px-4 py-2 text-sm text-right">
                       {totalOT > 0 ? totalOT.toFixed(2) : "0"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-right">{totalUT}</td>
+                    <td className="px-4 py-2 text-sm text-right">
+                      {totalLTHours > 0 ? totalLTHours.toFixed(0) : "0"}
+                    </td>
+                    <td className="px-4 py-2 text-sm text-right">
+                      {totalUTHours > 0 ? totalUTHours.toFixed(2) : "0"}
+                    </td>
                     <td className="px-4 py-2 text-sm text-right">
                       {totalND > 0 ? totalND.toFixed(2) : "0"}
                     </td>

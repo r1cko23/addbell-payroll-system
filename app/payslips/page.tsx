@@ -2787,8 +2787,14 @@ export default function PayslipsPage() {
                 if (eligibleForHolidayPay) {
                   const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
                   const hoursToPay = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
-                  // For Account Supervisors: Holidays are paid at 1.0x (daily rate, no multiplier)
-                  holidayRestDayPay += hoursToPay * ratePerHour;
+                  // Policy: eligible holiday pay always uses statutory multipliers,
+                  // even if credited hours (no complete log).
+                  holidayRestDayPay +=
+                    hoursToPay *
+                    ratePerHour *
+                    (dayType === "regular-holiday"
+                      ? 2.0
+                      : 1.3);
                 }
               } else if (
                 dayType === "sunday" ||
@@ -2798,8 +2804,8 @@ export default function PayslipsPage() {
                 // For Rest Days (Sunday is the designated rest day for office-based employees):
                 // Account Supervisors/Supervisory: Only pay if they actually worked on rest day (no automatic 8 hours)
                 if (regularHours > 0) {
-                  // For Account Supervisors: Rest Days are paid at 1.0x (daily rate, no multiplier) only if worked
-                  holidayRestDayPay += regularHours * ratePerHour;
+                  // Rest day pay multiplier
+                  holidayRestDayPay += regularHours * ratePerHour * 1.3;
                 }
               }
             });

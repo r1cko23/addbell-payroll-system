@@ -448,9 +448,12 @@ function PayslipDetailedBreakdownComponent({
 
           hoursToCount = paidH;
           breakdown.legalHoliday.hours += paidH;
-          breakdown.legalHoliday.amount += hasCompleteLog
-            ? calculateRegularHoliday(paidH, ratePerHour)
-            : paidH * ratePerHour;
+          // Policy: eligible Regular Holiday pay always uses the multiplier,
+          // even if credited hours (no complete log).
+          breakdown.legalHoliday.amount += calculateRegularHoliday(
+            paidH,
+            ratePerHour
+          );
         }
       } else if (dayType === "non-working-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -467,9 +470,12 @@ function PayslipDetailedBreakdownComponent({
 
           hoursToCount = paidH;
           breakdown.specialHoliday.hours += paidH;
-          breakdown.specialHoliday.amount += hasCompleteLog
-            ? calculateNonWorkingHoliday(paidH, ratePerHour)
-            : paidH * ratePerHour;
+          // Policy: eligible Special Holiday pay always uses the multiplier,
+          // even if credited hours (no complete log).
+          breakdown.specialHoliday.amount += calculateNonWorkingHoliday(
+            paidH,
+            ratePerHour
+          );
         }
       }
       // Sundays are excluded (dayType === "sunday") - they're paid separately
@@ -736,9 +742,8 @@ function PayslipDetailedBreakdownComponent({
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
           breakdown.specialHoliday.hours += paidH;
-          breakdown.specialHoliday.amount += hasCompleteLog
-            ? regularHours * ratePerHour * 1.5
-            : paidH * ratePerHour;
+          // Policy: eligible Sunday+Special always uses 1.5x, even for credited hours.
+          breakdown.specialHoliday.amount += paidH * ratePerHour * 1.5;
         }
 
         // Add allowance ONLY if they actually worked (clockInTime exists)
@@ -791,9 +796,8 @@ function PayslipDetailedBreakdownComponent({
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
           breakdown.legalHoliday.hours += paidH;
-          breakdown.legalHoliday.amount += hasCompleteLog
-            ? regularHours * ratePerHour * 2.6
-            : paidH * ratePerHour;
+          // Policy: eligible Sunday+Regular always uses 2.6x, even for credited hours.
+          breakdown.legalHoliday.amount += paidH * ratePerHour * 2.6;
         }
 
         // Add allowance ONLY if they actually worked (clockInTime exists)
@@ -1299,11 +1303,7 @@ function PayslipDetailedBreakdownComponent({
                       {renderEarningRow(
                         "3. Regular Holiday",
                         breakdown.legalHoliday.hours,
-                        // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
-                        // Rank and File: 2.0x multiplier
-                        isClientBased || isEligibleForAllowances
-                          ? 1.0
-                          : PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY,
+                        PAYROLL_MULTIPLIERS.REGULAR_HOLIDAY,
                         breakdown.legalHoliday.amount,
                         true
                       )}
@@ -1312,11 +1312,7 @@ function PayslipDetailedBreakdownComponent({
                       {renderEarningRow(
                         "4. Special Holiday",
                         breakdown.specialHoliday.hours,
-                        // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
-                        // Rank and File: 1.3x multiplier
-                        isClientBased || isEligibleForAllowances
-                          ? 1.0
-                          : PAYROLL_MULTIPLIERS.SPECIAL_HOLIDAY,
+                        PAYROLL_MULTIPLIERS.SPECIAL_HOLIDAY,
                         breakdown.specialHoliday.amount,
                         true
                       )}
@@ -1325,11 +1321,7 @@ function PayslipDetailedBreakdownComponent({
                       {renderEarningRow(
                         "5. Rest Day",
                         breakdown.restDay.hours,
-                        // Supervisory/Managerial: 1.0x (daily rate only, no multiplier)
-                        // Rank and File: 1.3x multiplier
-                        isClientBased || isEligibleForAllowances
-                          ? 1.0
-                          : PAYROLL_MULTIPLIERS.REST_DAY,
+                        PAYROLL_MULTIPLIERS.REST_DAY,
                         breakdown.restDay.amount,
                         true
                       )}

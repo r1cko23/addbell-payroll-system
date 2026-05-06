@@ -319,9 +319,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
-          earningsBreakdown.legalHoliday.amount += hasCompleteLog
-            ? calculateRegularHoliday(hoursPaid, ratePerHour)
-            : hoursPaid * ratePerHour;
+          // Policy: eligible Regular Holiday pay always uses 2.0x, even for credited hours.
+          earningsBreakdown.legalHoliday.amount += calculateRegularHoliday(
+            hoursPaid,
+            ratePerHour
+          );
 
           // Premium applies when there is a complete time in/out.
           if (regularHours > 0 && clockInTime && clockOutTime) {
@@ -368,9 +370,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
-          earningsBreakdown.spHoliday.amount += hasCompleteLog
-            ? calculateNonWorkingHoliday(hoursPaid, ratePerHour)
-            : hoursPaid * ratePerHour;
+          // Policy: eligible Special Holiday pay always uses 1.3x, even for credited hours.
+          earningsBreakdown.spHoliday.amount += calculateNonWorkingHoliday(
+            hoursPaid,
+            ratePerHour
+          );
 
           if (regularHours > 0 && clockInTime && clockOutTime) {
             if (useFixedAllowances) {
@@ -466,9 +470,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
-          earningsBreakdown.spHoliday.amount += hasCompleteLog
-            ? raw * ratePerHour * 1.5
-            : hoursPaid * ratePerHour;
+          // Policy: eligible Sunday+Special always uses 1.5x, even for credited hours.
+          earningsBreakdown.spHoliday.amount += hoursPaid * ratePerHour * 1.5;
         }
         if (overtimeHours > 0) {
           earningsBreakdown.SHonRDOT.hours += overtimeHours;
@@ -493,9 +496,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
-          earningsBreakdown.legalHoliday.amount += hasCompleteLog
-            ? raw * ratePerHour * 2.6
-            : hoursPaid * ratePerHour;
+          // Policy: eligible Sunday+Regular always uses 2.6x, even for credited hours.
+          earningsBreakdown.legalHoliday.amount += hoursPaid * ratePerHour * 2.6;
         }
         if (overtimeHours > 0) {
           earningsBreakdown.LHonRDOT.hours += overtimeHours;

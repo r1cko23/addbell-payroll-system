@@ -29,7 +29,11 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
 import { format, addDays, parseISO, startOfYear, endOfYear } from "date-fns";
 import { formatCurrency } from "@/utils/format";
-import { creditWorkHoursHalfHour } from "@/utils/overtime";
+import {
+  creditNightDiffHours,
+  creditOvertimeHours,
+  creditWorkHoursHalfHour,
+} from "@/utils/overtime";
 import {
   getBiMonthlyPeriodStart,
   getBiMonthlyPeriodEnd,
@@ -424,8 +428,12 @@ export default function ReportsPage() {
             const regularHours = creditWorkHoursHalfHour(
               Math.round((Number(day.regularHours) || 0) * 100) / 100
             );
-            const overtimeHours = Number(day.overtimeHours) || 0;
-            const nightDiff = Number(day.nightDiffHours) || 0;
+            const overtimeHours = creditOvertimeHours(
+              Math.round((Number(day.overtimeHours) || 0) * 100) / 100
+            );
+            const nightDiff = creditNightDiffHours(
+              Math.round((Number(day.nightDiffHours) || 0) * 100) / 100
+            );
             const dayType = day.dayType || "regular";
 
             // If we don't have attendance totals, calculate from breakdown

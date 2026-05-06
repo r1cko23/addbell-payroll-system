@@ -13,6 +13,7 @@ import {
   type TimeEntryPunch,
   type TimeEntrySession,
 } from "@/lib/timeEntries";
+import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 
 export interface TimeClockEntry {
   id: string;
@@ -117,8 +118,8 @@ export function groupEntriesByDay(
 
     const summary = dailySummaries.get(date)!;
     summary.regularHours += entry.regular_hours || 0;
-    summary.overtimeHours += entry.overtime_hours || 0;
-    summary.nightDiffHours += entry.total_night_diff_hours || 0;
+    summary.overtimeHours += creditOvertimeHours(entry.overtime_hours || 0);
+    summary.nightDiffHours += creditNightDiffHours(entry.total_night_diff_hours || 0);
     summary.totalHours += entry.total_hours || 0;
     summary.entries.push(entry);
   });

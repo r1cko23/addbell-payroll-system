@@ -1054,8 +1054,34 @@ export default function PayslipsPage() {
             `Found ${clockEntries.length} time entries, ${filteredClockEntries.length} within period`
           );
 
-          // Schema does not include holidays or employee_week_schedules
-          setHolidays([]);
+          // Load holidays for this cutoff (with 7-day lookback for consecutive-holiday eligibility)
+          const lookbackStart = new Date(periodStart);
+          lookbackStart.setDate(lookbackStart.getDate() - 7);
+          const holidayStartStr = format(lookbackStart, "yyyy-MM-dd");
+          const holidayEndStr = periodEndStr;
+          let holidaysForPeriod: Array<{ holiday_date: string; holiday_type?: string }> = [];
+
+          try {
+            const { data: holidaysData, error: holidaysError } = await supabase
+              .from("holidays")
+              .select("holiday_date, is_regular")
+              .gte("holiday_date", holidayStartStr)
+              .lte("holiday_date", holidayEndStr);
+
+            if (holidaysError) {
+              console.warn("Error loading holidays:", holidaysError);
+              setHolidays([]);
+            } else {
+              holidaysForPeriod = (holidaysData || []).map((h: any) => ({
+                holiday_date: h.holiday_date,
+                holiday_type: h.is_regular ? "regular" : "non-working",
+              }));
+              setHolidays(holidaysForPeriod);
+            }
+          } catch (e) {
+            console.warn("Error loading holidays (exception):", e);
+            setHolidays([]);
+          }
 
           const restDaysMap = new Map<string, boolean>();
           setRestDaysMap(restDaysMap);
@@ -1219,7 +1245,7 @@ export default function PayslipsPage() {
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
           const isClientBased = selectedEmployee?.employee_type === "client-based" || false;
 
-          const holidaysForTimesheet = holidays.map((h) => ({
+          const holidaysForTimesheet = (holidaysForPeriod.length > 0 ? holidaysForPeriod : holidays).map((h: any) => ({
             holiday_date: h.holiday_date,
             holiday_type: h.holiday_type ?? "regular",
           }));

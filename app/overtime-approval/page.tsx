@@ -82,6 +82,9 @@ type ViewerOtStatus = "pending" | "approved" | "rejected";
 // OT punch enforcement is only required for OT dates on/after this rollout date.
 const OT_PUNCH_REQUIRED_FROM_DATE = "2026-04-29";
 
+/** When false, final approvers (e.g. HR) may approve OT without completed OT punches. */
+const REQUIRE_COMPLETED_OT_PUNCH_FOR_FINAL_APPROVAL = false;
+
 function formatTime12h(value?: string | null): string {
   if (!value) return "—";
   const raw = value.includes("T")
@@ -101,6 +104,7 @@ function formatTime12h(value?: string | null): string {
 }
 
 function requiresOtPunchForApproval(request: OTRequest): boolean {
+  if (!REQUIRE_COMPLETED_OT_PUNCH_FOR_FINAL_APPROVAL) return false;
   if (request.employees?.requires_ot_punch !== true) return false;
   if (!request.ot_date) return false;
   return request.ot_date >= OT_PUNCH_REQUIRED_FROM_DATE;
@@ -183,9 +187,12 @@ export default function OvertimeApprovalPage() {
     request.status === "pending" &&
     Boolean(request.project_manager_id || request.account_manager_id);
 
+  /** True admin only — upper_management must follow OT routing like other approvers. */
+  const isStrictAdmin = normalizedRole === "admin";
+
   const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
     if (request.status !== "pending") return false;
-    if (isAdmin) return true;
+    if (isStrictAdmin) return true;
     if (!currentUserId) return false;
 
     const upperManagementFirstApproverId =
@@ -507,12 +514,19 @@ export default function OvertimeApprovalPage() {
     // Role-based visibility: show requests the user is allowed to view.
     // Stage checks (manager vs HR pending) are kept for Approve/Reject permissions only.
     let filteredData: OTRequest[] | null = dataWithDocs;
-    if (!isAdmin && normalizedRole !== "upper_management") {
+    if (!isStrictAdmin) {
       filteredData = dataWithDocs.filter((request) => {
         if (!currentUserId) return false;
         if (normalizedRole === "operations_manager") {
           // Operations Manager can view all statuses for requests in their OT group.
           return isUserFirstApproverForRequest(currentUserId, request);
+        }
+        if (normalizedRole === "upper_management") {
+          return (
+            isUserFirstApproverForRequest(currentUserId, request) ||
+            request.account_manager_id === currentUserId ||
+            request.project_manager_id === currentUserId
+          );
         }
         if (isHR) {
           // HR visibility:
@@ -575,6 +589,7 @@ export default function OvertimeApprovalPage() {
     normalizedRole,
     currentUserId,
     employeeGroupNameByEmployeeId,
+    overtimeGroupFirstApproverIdById,
   ]);
 
   async function loadEmployeeGroupMap() {
@@ -597,8 +612,10 @@ export default function OvertimeApprovalPage() {
       const normalized = normalizeGroupName(g.name);
       const forcedHrFirstApprover =
         normalized === "hr laguna" || normalized === "laguna hr";
+      // Prefer group approver from DB (e.g. Laguna-HR lead) so routing matches production profiles;
+      // fall back to legacy constant only when unset.
       const effectiveApproverId = forcedHrFirstApprover
-        ? FINAL_HR_APPROVER_ID
+        ? g.approver_id || FINAL_HR_APPROVER_ID
         : g.approver_id;
       if (effectiveApproverId) firstApproverIdById[g.id] = effectiveApproverId;
     });
@@ -624,7 +641,7 @@ export default function OvertimeApprovalPage() {
     }
     const { data, error } = await supabase
       .from("employees")
-      .select("id, employee_id, full_name, last_name, first_name")
+      .select("id, employee_id, full_name, last_name, first_name, overtime_group_id")
       .order("last_name", { ascending: true, nullsFirst: false })
       .order("first_name", { ascending: true, nullsFirst: false });
 
@@ -634,8 +651,15 @@ export default function OvertimeApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      if (isAdmin || normalizedRole === "upper_management") return true;
-      if (normalizedRole === "operations_manager") {
+      if (isStrictAdmin) return true;
+      if (
+        normalizedRole === "operations_manager" ||
+        normalizedRole === "upper_management"
+      ) {
+        const gid = employee.overtime_group_id as string | null | undefined;
+        if (gid && overtimeGroupFirstApproverIdById[gid]) {
+          return overtimeGroupFirstApproverIdById[gid] === currentUserId;
+        }
         return isFirstApproverForGroup(
           currentUserId,
           employeeGroupNameByEmployeeId[employee.employee_id]
@@ -745,7 +769,6 @@ export default function OvertimeApprovalPage() {
     const skipManagerStageForHr =
       isHR &&
       Boolean(user?.id) &&
-      isFinalHrApprover(user?.id) &&
       managerStage &&
       isUserFirstApproverForRequest(user.id, request);
     const skipManagerStageForUpperManagement =
@@ -836,7 +859,6 @@ export default function OvertimeApprovalPage() {
     const skipManagerStageForHr =
       isHR &&
       Boolean(user?.id) &&
-      isFinalHrApprover(user?.id) &&
       managerStage &&
       isUserFirstApproverForRequest(user.id, request);
     const skipManagerStageForUpperManagement =

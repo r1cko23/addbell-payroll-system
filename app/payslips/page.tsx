@@ -72,7 +72,12 @@ import {
   getWithholdingTaxBreakdown,
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
-import { getWeekOfMonth } from "@/utils/holidays";
+import {
+  getWeekOfMonth,
+  isEligibleForHolidayPayRule,
+  isSubstantiveHolidayWork,
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+} from "@/utils/holidays";
 // Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
 import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -2729,7 +2734,8 @@ export default function PayslipsPage() {
               // Holiday/Rest Day allowance for REGULAR HOURS worked (not OT)
               // This applies if employee worked regular hours on holiday/rest day
               const regularHours = day.regularHours || 0;
-              if (isHolidayOrRestDay && regularHours > 0) {
+              const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+              if (isHolidayOrRestDay && hasCompleteLog && regularHours > 0) {
                 // Allowance for regular hours worked on holiday/rest day: ₱700 for ≥8 hours, ₱350 for ≥4 hours
                 if (regularHours >= 8) {
                   totalFixedAllowances += 700;
@@ -2738,44 +2744,6 @@ export default function PayslipsPage() {
                 }
               }
             });
-
-            // Helper function to check "1 Day Before" rule for holidays
-            const isEligibleForHolidayPay = (
-              currentDate: string,
-              currentRegularHours: number,
-              attendanceData: Array<any>
-            ): boolean => {
-              // If employee worked on the holiday itself, they get daily rate regardless
-              if (currentRegularHours > 0) {
-                return true;
-              }
-
-              // If they didn't work on the holiday, check if they worked a REGULAR WORKING DAY before
-              // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-              const currentDateObj = new Date(currentDate);
-              for (let i = 1; i <= 7; i++) {
-                const checkDateObj = new Date(currentDateObj);
-                checkDateObj.setDate(checkDateObj.getDate() - i);
-                const checkDateStr = checkDateObj.toISOString().split("T")[0];
-
-                // Find the day in attendance data
-                const checkDay = attendanceData.find(
-                  (day: any) => day.date === checkDateStr
-                );
-
-                if (checkDay) {
-                  // Only count REGULAR WORKING DAYS (skip holidays and rest days)
-                  if (
-                    checkDay.dayType === "regular" &&
-                    (checkDay.regularHours || 0) >= 8
-                  ) {
-                    return true; // Found a regular working day with 8+ hours
-                  }
-                }
-              }
-
-              return false;
-            };
 
             // Calculate basic pay (regular days only, excluding holidays)
             let basicPay = 0;
@@ -2800,15 +2768,15 @@ export default function PayslipsPage() {
                 dayType === "non-working-holiday"
               ) {
                 // For holidays: Check "1 Day Before" rule
-                const eligibleForHolidayPay = isEligibleForHolidayPay(
+                const eligibleForHolidayPay = isEligibleForHolidayPayRule(
                   date,
                   regularHours,
                   attendance.attendance_data
                 );
 
                 if (eligibleForHolidayPay) {
-                  // Determine hours to pay: if worked on holiday, use actual hours; if didn't work but eligible, use 8 hours (daily rate)
-                  const hoursToPay = regularHours > 0 ? regularHours : 8;
+                  const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+                  const hoursToPay = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
                   // For Account Supervisors: Holidays are paid at 1.0x (daily rate, no multiplier)
                   holidayRestDayPay += hoursToPay * ratePerHour;
                 }

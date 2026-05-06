@@ -24,6 +24,10 @@ import {
   calculateHoursWithinWindows,
   getBusinessDayPolicyByDay,
 } from "@/utils/business-hours";
+import {
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
+} from "@/utils/holidays";
 
 interface PayslipDetailedBreakdownProps {
   employee: {
@@ -244,68 +248,7 @@ function PayslipDetailedBreakdownComponent({
   // Calculate breakdown from attendance data
   // Use useMemo to ensure recalculation when employee type or attendance data changes
   const calculationResult = useMemo(() => {
-    /**
-     * Helper function to check "1 Day Before" rule for holidays
-     * Returns true if employee is eligible for holiday daily rate:
-     * - If they worked on the holiday itself (regularHours > 0), they get daily rate regardless
-     * - If they didn't work on the holiday, they must have worked the day before (regularHours >= 8)
-     * - CONSECUTIVE HOLIDAYS RULE: If holidays are consecutive, once the first holiday is eligible,
-     *   all consecutive holidays are also eligible (they should still be paid and recorded as work/present)
-     */
-    const isEligibleForHolidayPay = (
-      currentDate: string,
-      currentRegularHours: number,
-      attendanceDataArray: typeof attendanceData
-    ): boolean => {
-      // If employee worked on the holiday itself, they get daily rate regardless
-      if (currentRegularHours > 0) {
-        return true;
-      }
-
-      // Check if this is a consecutive holiday (previous day was also a holiday)
-      const currentDateObj = new Date(currentDate);
-      const prevDateObj = new Date(currentDateObj);
-      prevDateObj.setDate(prevDateObj.getDate() - 1);
-      const prevDateStr = prevDateObj.toISOString().split("T")[0];
-
-      const prevDay = attendanceDataArray.find((day) => day.date === prevDateStr);
-      const isPrevDayHoliday = prevDay && (
-        prevDay.dayType === "regular-holiday" ||
-        prevDay.dayType === "non-working-holiday"
-      );
-
-      // If previous day was a holiday and it was eligible (regularHours >= 8), this consecutive holiday is also eligible
-      if (isPrevDayHoliday && prevDay && (prevDay.regularHours || 0) >= 8) {
-        return true; // Consecutive holiday - eligible because previous holiday was eligible
-      }
-
-      // If they didn't work on the holiday, check if they worked a regular working day before
-      // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-      // This matches the timesheet logic
-      for (let i = 1; i <= 7; i++) {
-        const checkDateObj = new Date(currentDateObj);
-        checkDateObj.setDate(checkDateObj.getDate() - i);
-        const checkDateStr = checkDateObj.toISOString().split("T")[0];
-
-        // Find the day in attendance data
-        const checkDay = attendanceDataArray.find(
-          (day) => day.date === checkDateStr
-        );
-
-        if (checkDay) {
-          // Only count REGULAR WORKING DAYS (skip holidays and rest days)
-          if (
-            checkDay.dayType === "regular" &&
-            (checkDay.regularHours || 0) >= 8
-          ) {
-            return true; // Found a regular working day with 8+ hours
-          }
-          // If it's a rest day or holiday, continue searching backwards
-        }
-      }
-
-      return false;
-    };
+    const isEligibleForHolidayPay = isEligibleForHolidayPayRule;
 
     // Calculate base pay using simplified 104-hour method
     // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
@@ -502,21 +445,15 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // For Account Supervisors/Supervisory/Managerial: Always get full daily rate (8 hours) regardless of actual hours worked
-          // For other employees: Use actual hours if worked, otherwise 8 hours
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           if (isClientBased || isEligibleForAllowances) {
-            // Account Supervisors/Supervisory/Managerial: Always get 8 hours (full daily rate) in basic salary
-            hoursToCount = 8;
-            basicSalary += 8 * ratePerHour; // Full daily rate
+            const paidH = hasCompleteLog ? 8 : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            hoursToCount = paidH;
+            basicSalary += paidH * ratePerHour;
           } else {
-            // Other employees: Use actual hours if worked, otherwise 8 hours
-            if (finalRegularHours > 0) {
-              hoursToCount = finalRegularHours;
-              basicSalary += finalRegularHours * ratePerHour;
-            } else {
-              hoursToCount = 8;
-              basicSalary += 8 * ratePerHour;
-            }
+            const paidH = hasCompleteLog ? finalRegularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            hoursToCount = paidH;
+            basicSalary += paidH * ratePerHour;
           }
         }
       }
@@ -571,9 +508,8 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // Legal Holiday component: ONLY when they rendered work (regularHours > 0 AND have clock in/out).
-          // Eligible-but-didn't-work gets 8 in regularHours from timesheet but no clockIn/Out — exclude from this row.
-          if (regularHours > 0 && (clockInTime || clockOutTime)) {
+          // Premium applies only when there is a complete time in/out on the holiday.
+          if (regularHours > 0 && clockInTime && clockOutTime) {
             const hoursToPay = (isClientBased || isEligibleForAllowances)
               ? 8
               : regularHours;
@@ -632,8 +568,7 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // Special Holiday component: ONLY when they rendered work (regularHours > 0 AND have clock in/out).
-          if (regularHours > 0 && (clockInTime || clockOutTime)) {
+          if (regularHours > 0 && clockInTime && clockOutTime) {
             const hoursToPay = (isClientBased || isEligibleForAllowances)
               ? 8
               : regularHours;
@@ -813,23 +748,18 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // For Account Supervisors: Always get full daily rate (8 hours) regardless of actual hours worked
-          // For other employees: Use actual hours if worked, otherwise 8 hours
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           if (isClientBased || isEligibleForAllowances) {
-            // Account Supervisors: Always get 8 hours (full daily rate) in basic salary
-            basicSalary += 8 * ratePerHour; // Full daily rate
+            const paidH = hasCompleteLog ? 8 : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            basicSalary += paidH * ratePerHour;
           } else {
-            // Other employees: Use actual hours if worked, otherwise 8 hours
-            if (regularHours > 0) {
-              basicSalary += regularHours * ratePerHour;
-            } else {
-              basicSalary += 8 * ratePerHour;
-            }
+            const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            basicSalary += paidH * ratePerHour;
           }
         }
 
-        // Special Holiday component: ONLY when they rendered work (clock in/out).
-        if (regularHours > 0 && (clockInTime || clockOutTime)) {
+        // Premium applies when there is a complete time in/out.
+        if (regularHours > 0 && clockInTime && clockOutTime) {
           const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
           breakdown.specialHoliday.hours += hoursToDisplay;
           breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : (regularHours * ratePerHour * 0.5); // Sunday+Special: 1.5x total, 1x in basic → extra 0.5x
@@ -885,23 +815,18 @@ function PayslipDetailedBreakdownComponent({
         );
 
         if (eligibleForHolidayPay) {
-          // For Account Supervisors: Always get full daily rate (8 hours) regardless of actual hours worked
-          // For other employees: Use actual hours if worked, otherwise 8 hours
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           if (isClientBased || isEligibleForAllowances) {
-            // Account Supervisors: Always get 8 hours (full daily rate) in basic salary
-            basicSalary += 8 * ratePerHour; // Full daily rate
+            const paidH = hasCompleteLog ? 8 : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            basicSalary += paidH * ratePerHour;
           } else {
-            // Other employees: Use actual hours if worked, otherwise 8 hours
-            if (regularHours > 0) {
-              basicSalary += regularHours * ratePerHour;
-            } else {
-              basicSalary += 8 * ratePerHour;
-            }
+            const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            basicSalary += paidH * ratePerHour;
           }
         }
 
-        // Legal Holiday component: ONLY when they rendered work (clock in/out).
-        if (regularHours > 0 && (clockInTime || clockOutTime)) {
+        // Premium applies when there is a complete time in/out.
+        if (regularHours > 0 && clockInTime && clockOutTime) {
           const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
           breakdown.legalHoliday.hours += hoursToDisplay;
           // Sunday+Legal: 2.6x total, 1x in basic → extra 1.6x for rank-and-file
@@ -1007,7 +932,7 @@ function PayslipDetailedBreakdownComponent({
 
       // Count eligible holidays (legal and special) in Days Work
       // Days Work includes all days: regular, legal holidays, and special non-working holidays
-      // When worked: use actual regularHours; when eligible but didn't work: 8h (entitlement)
+      // When worked substantively: use actual regularHours; when eligible but absent/de minimis: credit hours
       if (
         dayType === "regular-holiday" || dayType === "non-working-holiday"
       ) {
@@ -1017,7 +942,8 @@ function PayslipDetailedBreakdownComponent({
           attendanceData
         );
         if (eligibleForHolidayPay) {
-          return sum + (regularHours > 0 ? regularHours : 8);
+          const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+          return sum + (hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS);
         }
       }
 

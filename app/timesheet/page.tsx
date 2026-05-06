@@ -22,11 +22,14 @@ import { toast } from "sonner";
 import { format, parseISO, getDay } from "date-fns";
 import {
   determineDayType,
-  getDayName,
   formatDateShort,
+  getDayName,
+  HOLIDAY_DE_MINIMIS_HOURS,
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  PH_HOLIDAYS_FALLBACK,
+  normalizeHolidays,
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
-import { normalizeHolidays } from "@/utils/holidays";
 import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
@@ -639,6 +642,45 @@ export default function TimesheetPage() {
       }
       setOtRequests(otData);
 
+      // Load holidays (PH) for the period + lookback (for consecutive holiday rule)
+      const lookbackStart = new Date(periodStart);
+      lookbackStart.setDate(lookbackStart.getDate() - 7);
+      const holidayStartStr = format(lookbackStart, "yyyy-MM-dd");
+      const holidayEndStr = periodEndStr;
+
+      let formattedHolidays: Holiday[] = [];
+      try {
+        const { data: holidaysData, error: holidaysError } = await supabase
+          .from("holidays")
+          .select("holiday_date, name, is_regular")
+          .gte("holiday_date", holidayStartStr)
+          .lte("holiday_date", holidayEndStr);
+
+        if (holidaysError) {
+          console.warn("Error loading holidays:", holidaysError);
+        }
+
+        formattedHolidays = normalizeHolidays(
+          (holidaysData || []).map((h: any) => ({
+            date: h.holiday_date,
+            name: h.name,
+            type: h.is_regular ? "regular" : "non-working",
+          }))
+        );
+      } catch (e) {
+        console.warn("Error loading holidays (exception):", e);
+      }
+
+      // Fallback when holidays table is empty/unavailable
+      if (formattedHolidays.length === 0) {
+        formattedHolidays = PH_HOLIDAYS_FALLBACK.filter((h) => {
+          const d = (h.date || "").split("T")[0];
+          return d >= holidayStartStr && d <= holidayEndStr;
+        });
+      }
+      setHolidays(formattedHolidays);
+      const holidaysForCalc = formattedHolidays;
+
       const scheduleMap = new Map<string, Schedule>();
       if (selectedEmployee?.shift_start_time && selectedEmployee?.shift_end_time) {
         const cursor = new Date(periodStart);
@@ -882,17 +924,18 @@ export default function TimesheetPage() {
       // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
       const isClientBased = employeeType === "client-based";
       const isClientBasedAccountSupervisor = isAccountSupervisor && isClientBased;
-      const dayType = determineDayType(dateStr, holidays, isRestDay, isClientBased);
+      const dayType = determineDayType(dateStr, holidaysForCalc ?? holidays, isRestDay, isClientBased);
       const dayOfWeek = getDay(date);
       const dayEntries = entriesByDate.get(dateStr) || [];
       const incompleteDayEntries = incompleteByDate.get(dateStr) || [];
       const dayLeaves = leavesByDate.get(dateStr) || [];
       const dayOTs = otByDate.get(dateStr) || [];
       const dayApprovedFtl = approvedFailureToLogByDate.get(dateStr) || [];
+      let eligibleForHolidayCredit = false;
 
       // Check if this date is a holiday by checking the holidays array directly
       // This is a fallback in case determineDayType doesn't detect it
-      const holidayForDate = holidays.find(h => {
+      const holidayForDate = (holidaysForCalc ?? holidays).find(h => {
         const normalizedHolidayDate = h.date.split('T')[0]; // Remove time if present
         return normalizedHolidayDate === dateStr;
       });
@@ -938,7 +981,7 @@ export default function TimesheetPage() {
           const checkDateStr = format(checkDate, "yyyy-MM-dd");
           const checkDayEntries = entriesByDate.get(checkDateStr) || [];
           const isClientBased = employeeType === "client-based";
-          const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
+          const checkDayType = determineDayType(checkDateStr, holidaysForCalc ?? holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
 
           // Only check regular working days (skip holidays and rest days)
           if (checkDayType === "regular" && checkDayEntries.length > 0) {
@@ -954,11 +997,15 @@ export default function TimesheetPage() {
         // For consecutive holidays, if previous holiday was eligible, this one is too
         if (!eligibleForHoliday && days.length > 0) {
           const prevDay = days[days.length - 1];
-          if ((prevDay.status === "RH" || prevDay.status === "SH") && prevDay.bh >= 8) {
+          if (
+            (prevDay.status === "RH" || prevDay.status === "SH") &&
+            prevDay.bh >= HOLIDAY_UNWORKED_CREDIT_HOURS
+          ) {
             eligibleForHoliday = true;
           }
         }
-        bh = eligibleForHoliday ? 8 : 0;
+        eligibleForHolidayCredit = eligibleForHoliday;
+        bh = 0;
       } else if (dayLeaves.length > 0) {
         // Check leave requests (but holidays take priority)
         const leave = dayLeaves[0];
@@ -1271,6 +1318,16 @@ export default function TimesheetPage() {
       // So January 1 should have BH = 8 unless they actually logged time
       if (dateStr === "2026-01-01" && bh === 0 && dayEntries.length === 0) {
         bh = 8;
+      }
+
+      // Holiday credit (4h) applies only when there is NO complete time log on the holiday.
+      // If they have a complete time in/out, they are considered to have worked and premiums apply downstream.
+      const hasCompleteTimeLog =
+        dayEntries.some((e) => e.clock_in_time && e.clock_out_time) ||
+        incompleteDayEntries.some((e) => e.clock_in_time && e.clock_out_time);
+
+      if (eligibleForHolidayCredit && !hasCompleteTimeLog && bh < HOLIDAY_DE_MINIMIS_HOURS) {
+        bh = HOLIDAY_UNWORKED_CREDIT_HOURS;
       }
 
       // Note: Employees do NOT get automatic BH for Saturday or Sunday.

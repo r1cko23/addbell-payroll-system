@@ -18,6 +18,10 @@ import {
   calculateSundayRegularHolidayOT,
   type DayType,
 } from "@/utils/payroll-calculator";
+import {
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
+} from "@/utils/holidays";
 
 interface PayslipPrintProps {
   employee: {
@@ -205,58 +209,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   let totalSalary = 0;
   let totalGrossPay = 0;
 
-  /**
-   * Helper function to check "1 Day Before" rule for holidays
-   * Returns true if employee is eligible for holiday daily rate:
-   * - If they worked on the holiday itself (regularHours > 0), they get daily rate regardless
-   * - If they didn't work on the holiday, they must have worked the day before (regularHours >= 8)
-   */
-  const isEligibleForHolidayPay = (
-    currentDate: string,
-    currentRegularHours: number,
-    attendanceData: Array<{
-      date: string;
-      dayType?: DayType;
-      regularHours: number;
-      overtimeHours: number;
-      nightDiffHours: number;
-      clockInTime?: string | null;
-      clockOutTime?: string | null;
-    }>
-  ): boolean => {
-    // If employee worked on the holiday itself, they get daily rate regardless
-    if (currentRegularHours > 0) {
-      return true;
-    }
-
-    // If they didn't work on the holiday, check if they worked a REGULAR WORKING DAY before
-    // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-    // This matches the timesheet generation logic
-    const currentDateObj = new Date(currentDate);
-    for (let i = 1; i <= 7; i++) {
-      const checkDateObj = new Date(currentDateObj);
-      checkDateObj.setDate(checkDateObj.getDate() - i);
-      const checkDateStr = checkDateObj.toISOString().split("T")[0];
-
-      // Find the day in attendance data
-      const checkDay = attendanceData.find(
-        (day) => day.date === checkDateStr
-      );
-
-      if (checkDay) {
-        // Only count REGULAR WORKING DAYS (skip holidays and rest days)
-        if (
-          checkDay.dayType === "regular" &&
-          (checkDay.regularHours || 0) >= 8
-        ) {
-          return true; // Found a regular working day with 8+ hours
-        }
-        // If it's a rest day or holiday, continue searching backwards
-      }
-    }
-
-    return false;
-  };
+  const isEligibleForHolidayPay = isEligibleForHolidayPayRule;
 
   // Process attendance data if available
   if (
@@ -364,13 +317,15 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
         if (eligibleForHolidayPay) {
           // Always add 1x to basic (Days Work includes all holidays)
-          const hoursForBasic = regularHours > 0 ? Number(regularHours) || 0 : 8;
+          const raw = Number(regularHours) || 0;
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
+          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
           earningsBreakdown.basic.hours += hoursForBasic;
 
-          // Legal Holiday component: ONLY when they rendered work (clock in/out). Eligible-no-work has regularHours=8 but no clock.
-          if (regularHours > 0 && (clockInTime || clockOutTime)) {
+          // Premium applies when there is a complete time in/out.
+          if (regularHours > 0 && clockInTime && clockOutTime) {
             if (useFixedAllowances) {
               earningsBreakdown.legalHoliday.days += 1; // 8h = 1 day for display
               // Amount is 0 here; the 1x is in basic, premium is the allowance below
@@ -416,14 +371,14 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
 
         if (eligibleForHolidayPay) {
-          // Always add 1x to basic (Days Work includes all holidays)
-          const hoursForBasic = regularHours > 0 ? Number(regularHours) || 0 : 8;
+          const raw = Number(regularHours) || 0;
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
+          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
           earningsBreakdown.basic.hours += hoursForBasic;
 
-          // Special Holiday component: ONLY when they rendered work (clock in/out). Eligible-no-work has regularHours=8 but no clock.
-          if (regularHours > 0 && (clockInTime || clockOutTime)) {
+          if (regularHours > 0 && clockInTime && clockOutTime) {
             if (useFixedAllowances) {
               earningsBreakdown.spHoliday.days += 1;
               if (clockInTime && regularHours >= 4) {
@@ -517,12 +472,18 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       if (dayType === "sunday-special-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
         if (eligible) {
-          const hoursForBasic = regularHours > 0 ? Number(regularHours) || 0 : 8;
+          const raw = Number(regularHours) || 0;
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
+          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
           earningsBreakdown.basic.hours += hoursForBasic;
         }
-        if (regularHours > 0 && (clockInTime || clockOutTime)) {
+        if (
+          regularHours > 0 &&
+          clockInTime &&
+          clockOutTime
+        ) {
           if (useFixedAllowances) {
             earningsBreakdown.spHoliday.days += 1;
             if (clockInTime && regularHours >= 4) {
@@ -556,12 +517,18 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       if (dayType === "sunday-regular-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
         if (eligible) {
-          const hoursForBasic = regularHours > 0 ? Number(regularHours) || 0 : 8;
+          const raw = Number(regularHours) || 0;
+          const hasCompleteLog = Boolean(clockInTime && clockOutTime);
+          const hoursForBasic = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
           earningsBreakdown.basic.days += hoursForBasic / 8;
           earningsBreakdown.basic.hours += hoursForBasic;
         }
-        if (regularHours > 0 && (clockInTime || clockOutTime)) {
+        if (
+          regularHours > 0 &&
+          clockInTime &&
+          clockOutTime
+        ) {
           if (useFixedAllowances) {
             earningsBreakdown.legalHoliday.days += 1;
             if (clockInTime && regularHours >= 4) {

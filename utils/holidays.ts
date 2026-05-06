@@ -263,3 +263,109 @@ export function isDateInWeek(
 ): boolean {
   return date >= weekStart && date <= weekEnd;
 }
+
+/** Paid BH/regular hours when eligible for a holiday but absent (or de minimis clock only). */
+export const HOLIDAY_UNWORKED_CREDIT_HOURS = 4;
+
+/** Below this many hours on a holiday counts as "did not work" for eligibility + credit (stray bundy punches). */
+export const HOLIDAY_DE_MINIMIS_HOURS = 1;
+
+export function isSubstantiveHolidayWork(
+  regularHours: number | null | undefined
+): boolean {
+  return (Number(regularHours) || 0) >= HOLIDAY_DE_MINIMIS_HOURS;
+}
+
+export type HolidayPayAttendanceDay = {
+  date: string;
+  dayType?: string;
+  regularHours?: number;
+};
+
+/**
+ * Holiday daily-rate eligibility:
+ * - Substantive work on the holiday (>= HOLIDAY_DE_MINIMIS_HOURS), or
+ * - Last regular working day before the holiday with 8+ hours, or
+ * - Consecutive holiday after an eligible holiday (prior day credited >= HOLIDAY_UNWORKED_CREDIT_HOURS).
+ */
+export function isEligibleForHolidayPayRule(
+  currentDate: string,
+  holidayRegularHours: number,
+  attendanceData: HolidayPayAttendanceDay[]
+): boolean {
+  if (isSubstantiveHolidayWork(holidayRegularHours)) {
+    return true;
+  }
+
+  const currentDateObj = new Date(currentDate);
+  const prevDateObj = new Date(currentDateObj);
+  prevDateObj.setDate(prevDateObj.getDate() - 1);
+  const prevDateStr = prevDateObj.toISOString().split("T")[0];
+
+  const prevDay = attendanceData.find((day) => day.date === prevDateStr);
+  const isPrevDayHoliday =
+    prevDay &&
+    (prevDay.dayType === "regular-holiday" ||
+      prevDay.dayType === "non-working-holiday");
+
+  if (
+    isPrevDayHoliday &&
+    prevDay &&
+    (prevDay.regularHours || 0) >= HOLIDAY_UNWORKED_CREDIT_HOURS
+  ) {
+    return true;
+  }
+
+  for (let i = 1; i <= 7; i++) {
+    const checkDateObj = new Date(currentDateObj);
+    checkDateObj.setDate(checkDateObj.getDate() - i);
+    const checkDateStr = checkDateObj.toISOString().split("T")[0];
+
+    const checkDay = attendanceData.find((day) => day.date === checkDateStr);
+
+    if (checkDay) {
+      if (
+        checkDay.dayType === "regular" &&
+        (checkDay.regularHours || 0) >= 8
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Fallback PH holidays used when the `holidays` table is empty/unavailable.
+ * NOTE: Movable holidays can vary year to year; prefer DB-driven holidays when possible.
+ */
+export const PH_HOLIDAYS_FALLBACK: Holiday[] = normalizeHolidays([
+  // 2025 (sample)
+  { date: "2025-01-01", name: "New Year's Day", type: "regular" },
+  { date: "2025-03-29", name: "Maundy Thursday", type: "regular" },
+  { date: "2025-03-30", name: "Good Friday", type: "regular" },
+  { date: "2025-04-09", name: "Araw ng Kagitingan", type: "regular" },
+  { date: "2025-05-01", name: "Labor Day", type: "regular" },
+  { date: "2025-06-12", name: "Independence Day", type: "regular" },
+  { date: "2025-08-25", name: "National Heroes Day", type: "regular" },
+  { date: "2025-11-30", name: "Bonifacio Day", type: "regular" },
+  { date: "2025-12-25", name: "Christmas Day", type: "regular" },
+  { date: "2025-02-09", name: "Chinese New Year", type: "non-working" },
+  { date: "2025-12-24", name: "Christmas Eve", type: "non-working" },
+  { date: "2025-12-31", name: "New Year's Eve", type: "non-working" },
+
+  // 2026 (includes May 1 Labor Day)
+  { date: "2026-01-01", name: "New Year's Day", type: "regular" },
+  { date: "2026-04-02", name: "Maundy Thursday", type: "regular" },
+  { date: "2026-04-03", name: "Good Friday", type: "regular" },
+  { date: "2026-04-09", name: "Araw ng Kagitingan", type: "regular" },
+  { date: "2026-05-01", name: "Labor Day", type: "regular" },
+  { date: "2026-06-12", name: "Independence Day", type: "regular" },
+  { date: "2026-08-31", name: "National Heroes Day", type: "regular" },
+  { date: "2026-11-30", name: "Bonifacio Day", type: "regular" },
+  { date: "2026-12-25", name: "Christmas Day", type: "regular" },
+  { date: "2026-02-17", name: "Chinese New Year", type: "non-working" },
+  { date: "2026-12-24", name: "Christmas Eve", type: "non-working" },
+  { date: "2026-12-31", name: "New Year's Eve", type: "non-working" },
+]);

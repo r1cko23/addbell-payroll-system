@@ -102,7 +102,12 @@ function formatTime12h(value?: string | null): string {
   });
 }
 
-import { determineDayType, getDayName } from "@/utils/holidays";
+import {
+  determineDayType,
+  getDayName,
+  HOLIDAY_DE_MINIMIS_HOURS,
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+} from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
 import {
@@ -1458,6 +1463,7 @@ export default function BundyClockPage() {
         // 8. No entry = ABSENT
         let status = "-";
         let bh = 0; // Basic Hours
+        let eligibleForHolidayCredit = false;
 
         // Check for holidays FIRST (before everything else) to ensure they're always detected
         // This is critical - holidays should be detected even if there are no clock entries
@@ -1506,11 +1512,15 @@ export default function BundyClockPage() {
           // For consecutive holidays, if previous holiday was eligible, this one is too
           if (!eligibleForHoliday && days.length > 0) {
             const prevDay = days[days.length - 1];
-            if ((prevDay.status === "RH" || prevDay.status === "SH") && prevDay.bh >= 8) {
+            if (
+              (prevDay.status === "RH" || prevDay.status === "SH") &&
+              prevDay.bh >= HOLIDAY_UNWORKED_CREDIT_HOURS
+            ) {
               eligibleForHoliday = true;
             }
           }
-          bh = eligibleForHoliday ? 8 : 0;
+          eligibleForHolidayCredit = eligibleForHoliday;
+          bh = 0;
         } else if (dayLeaves.length > 0) {
           // Check leave requests (but holidays take priority)
           const leave = dayLeaves[0];
@@ -1699,6 +1709,14 @@ export default function BundyClockPage() {
         // So January 1 should have BH = 8 unless they actually logged time
         if (dateStr === "2026-01-01" && bh === 0 && dayEntries.length === 0) {
           bh = 8;
+        }
+
+        // Holiday credit (4h) applies only when there is NO complete time log on the holiday.
+        const hasCompleteTimeLog = dayEntries.some(
+          (e) => e.clock_in_time && e.clock_out_time
+        );
+        if (eligibleForHolidayCredit && !hasCompleteTimeLog && bh < HOLIDAY_DE_MINIMIS_HOURS) {
+          bh = HOLIDAY_UNWORKED_CREDIT_HOURS;
         }
 
       // Note: Employees do NOT get automatic BH for Saturday or Sunday.
@@ -2326,6 +2344,36 @@ export default function BundyClockPage() {
             </div>
           </div>
 
+          {/* Mobile week navigation (so employees can view previous weeks) */}
+          <div className="flex flex-col gap-2 md:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0 px-3 py-3"
+                onClick={() => setPeriodStart(getPreviousWeeklyCutoff(periodStart))}
+                aria-label="Previous week"
+              >
+                <Icon name="CaretLeft" size={IconSizes.sm} />
+              </Button>
+              <VStack gap="0" align="center" className="min-w-0 flex-1 px-2">
+                <Caption className="text-center">Weekly Cutoff (Wed – Tue)</Caption>
+                <p className="text-center text-sm font-semibold text-foreground">
+                  {formatWeeklyCutoffPeriod(periodStart, periodEnd)}
+                </p>
+              </VStack>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="shrink-0 px-3 py-3"
+                onClick={() => setPeriodStart(getNextWeeklyCutoff(periodStart))}
+                aria-label="Next week"
+              >
+                <Icon name="CaretRight" size={IconSizes.sm} />
+              </Button>
+            </div>
+          </div>
+
           {isRestDayToday ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <BodySmall className="font-semibold mb-1 flex items-center gap-2">
@@ -2600,7 +2648,36 @@ export default function BundyClockPage() {
       {/* Time Attendance and Calendar Layout */}
       <div className="hidden md:grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
         {/* Time Attendance Table - Left Side (Bigger) */}
-        <CardSection title="Time Attendance">
+        <CardSection
+          title={
+            <div className="flex items-center justify-between gap-3">
+              <span>Time Attendance</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0 px-3 py-3"
+                  onClick={() => setPeriodStart(getPreviousWeeklyCutoff(periodStart))}
+                  aria-label="Previous week"
+                >
+                  <Icon name="CaretLeft" size={IconSizes.sm} />
+                </Button>
+                <span className="hidden sm:inline text-xs text-muted-foreground">
+                  {formatWeeklyCutoffPeriod(periodStart, periodEnd)}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="shrink-0 px-3 py-3"
+                  onClick={() => setPeriodStart(getNextWeeklyCutoff(periodStart))}
+                  aria-label="Next week"
+                >
+                  <Icon name="CaretRight" size={IconSizes.sm} />
+                </Button>
+              </div>
+            </div>
+          }
+        >
           <div className="-mx-4 overflow-x-auto rounded-xl border border-border/80 bg-background/80 px-4 sm:mx-0 sm:px-0">
             <table className="w-full min-w-0 table-fixed border-collapse text-xs">
               <thead>

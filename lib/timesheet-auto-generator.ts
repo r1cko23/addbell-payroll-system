@@ -6,7 +6,13 @@
  */
 
 import { format, parseISO, startOfDay, isWithinInterval, startOfWeek } from "date-fns";
-import { determineDayType, normalizeHolidays } from "@/utils/holidays";
+import {
+  determineDayType,
+  HOLIDAY_DE_MINIMIS_HOURS,
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
+  normalizeHolidays,
+} from "@/utils/holidays";
 import type { DailyAttendance } from "@/utils/payroll-calculator";
 import {
   BUSINESS_HOURS_GRACE_MINUTES,
@@ -322,88 +328,20 @@ export function generateTimesheetFromClockEntries(
     // The payslip calculation will handle the payment logic based on employee type
     // We keep regularHours = 0 if they didn't work, so the payslip can check if they actually worked
 
-    // Holidays: Set regularHours = 8 if employee is eligible (worked REGULAR WORKING DAY before) even if didn't work on holiday
-    // Check "1 Day Before" rule for holidays - must be a REGULAR WORKING DAY (not a holiday or rest day)
-    // CONSECUTIVE HOLIDAYS RULE: If holidays are consecutive, once the first holiday is eligible,
-    // all consecutive holidays are also eligible (they should still be paid and recorded as work/present)
-    // Eligible holidays count towards "Days Work" and "Hours Worked"
-    // SPECIAL CASE: January 1, 2026 - Set regularHours = 8 if no time log entries exist
-    // This is because employees started using the system on January 6, 2026
-    if (
-      (dayType === "regular-holiday" || dayType === "non-working-holiday") &&
-      regularHours === 0
-    ) {
-      // Special handling for January 1, 2026
-      if (dateStr === "2026-01-01") {
-        regularHours = 8; // All employees present on first day of system
-      } else {
-        const dateObj = parseISO(dateStr);
-        let foundRegularWorkingDay = false;
-        let isConsecutiveHoliday = false;
-        let previousHolidayEligible = false;
-
-        // Check if this is a consecutive holiday (check if previous day was also a holiday)
-        const prevDateObj = new Date(dateObj);
-        prevDateObj.setDate(prevDateObj.getDate() - 1);
-        const prevDateStr = format(prevDateObj, "yyyy-MM-dd");
-        const normalizedHolidays = normalizeHolidays(
-          holidays.map((h) => ({
-            date: h.holiday_date,
-            name: "",
-            type: h.holiday_type as "regular" | "non-working",
-          }))
-        );
-        const prevDayType = determineDayType(prevDateStr, normalizedHolidays, undefined, isClientBasedAccountSupervisor);
-        const isPrevDayHoliday = prevDayType === "regular-holiday" || prevDayType === "non-working-holiday";
-
-        if (isPrevDayHoliday) {
-          // This is a consecutive holiday - check if previous holiday was already marked as eligible
-          // Look in attendance_data we've already processed
-          const prevDayInAttendance = attendance_data.find((d) => d.date === prevDateStr);
-          if (prevDayInAttendance && (prevDayInAttendance.regularHours || 0) >= 8) {
-            // Previous holiday is eligible, so this consecutive holiday is also eligible
-            isConsecutiveHoliday = true;
-            previousHolidayEligible = true;
-          }
-        }
-
-        if (!isConsecutiveHoliday || !previousHolidayEligible) {
-          // Not a consecutive holiday, or previous holiday wasn't eligible - check "1 day before" rule
-          // Search up to 7 days back to find the last REGULAR WORKING DAY (skip holidays and rest days)
-          // This matches the payslip calculation logic
-          for (let i = 1; i <= 7; i++) {
-            const checkDateObj = new Date(dateObj);
-            checkDateObj.setDate(checkDateObj.getDate() - i);
-            const checkDateStr = format(checkDateObj, "yyyy-MM-dd");
-
-            // Check if this date is a regular working day (not a holiday or rest day)
-            const checkDayType = determineDayType(checkDateStr, normalizedHolidays, undefined, isClientBasedAccountSupervisor);
-
-            // Only check regular working days (skip holidays and rest days)
-            if (checkDayType === "regular") {
-              // Check if employee worked this regular working day (has entry with regular_hours >= 8)
-              // Use entriesByDate map for faster lookup (already grouped by date)
-              const checkDayEntries = entriesByDate.get(checkDateStr) || [];
-              const checkDayEntry = checkDayEntries.find((entry) => {
-                return (
-                  (entry.status === "approved" ||
-                    entry.status === "auto_approved" ||
-                    entry.status === "clocked_out") &&
-                  (entry.regular_hours ?? (entry as any).total_hours ?? 0) >= 8
-                );
-              });
-
-              if (checkDayEntry) {
-                foundRegularWorkingDay = true;
-                break; // Found the immediately preceding regular working day with 8+ hours
-              }
-            }
-            // If it's a holiday or rest day, continue searching backwards
-          }
-        }
-
-        if (foundRegularWorkingDay || (isConsecutiveHoliday && previousHolidayEligible)) {
-          regularHours = 8; // Eligible holiday: 8 hours even if not worked
+    // Holidays: credit HOLIDAY_UNWORKED_CREDIT_HOURS when eligible (previous regular day / consecutive holiday)
+    // and hours on the holiday are below HOLIDAY_DE_MINIMIS_HOURS (absent or stray punch only).
+    // Jan 1, 2026: 8h if no time logs (system go-live exception).
+    if (dayType === "regular-holiday" || dayType === "non-working-holiday") {
+      // Only give holiday credit when there's NO actual time log on the holiday.
+      // If they have a complete time in/out, we treat it as "worked" and premiums apply downstream.
+      if (dateStr === "2026-01-01" && dayEntries.length === 0) {
+        regularHours = 8;
+      } else if (dayEntries.length === 0) {
+        if (
+          regularHours < HOLIDAY_DE_MINIMIS_HOURS &&
+          isEligibleForHolidayPayRule(dateStr, regularHours, attendance_data)
+        ) {
+          regularHours = HOLIDAY_UNWORKED_CREDIT_HOURS;
         }
       }
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 
 interface UseEmployeeDataOptions {
   employeeId: string | null;
@@ -100,8 +101,11 @@ export function useHolidays(startDate: string, endDate: string) {
     const fetchHolidays = async () => {
       try {
         setLoading(true);
-        // Schema does not include holidays table — use empty list
-        const formattedHolidays: { date: string; name: string; type: "regular" | "non-working" }[] = [];
+        const formattedHolidays = await fetchHolidaysRange(supabase as any, {
+          start: startDate,
+          end: endDate,
+          lookbackDays: 0,
+        });
 
         cacheRef.current[cacheKey] = {
           data: formattedHolidays,

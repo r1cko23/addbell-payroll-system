@@ -78,6 +78,7 @@ import {
   isSubstantiveHolidayWork,
   HOLIDAY_UNWORKED_CREDIT_HOURS,
 } from "@/utils/holidays";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 // Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
 import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -1054,34 +1055,17 @@ export default function PayslipsPage() {
             `Found ${clockEntries.length} time entries, ${filteredClockEntries.length} within period`
           );
 
-          // Load holidays for this cutoff (with 7-day lookback for consecutive-holiday eligibility)
-          const lookbackStart = new Date(periodStart);
-          lookbackStart.setDate(lookbackStart.getDate() - 7);
-          const holidayStartStr = format(lookbackStart, "yyyy-MM-dd");
-          const holidayEndStr = periodEndStr;
-          let holidaysForPeriod: Array<{ holiday_date: string; holiday_type?: string }> = [];
-
-          try {
-            const { data: holidaysData, error: holidaysError } = await supabase
-              .from("holidays")
-              .select("holiday_date, is_regular")
-              .gte("holiday_date", holidayStartStr)
-              .lte("holiday_date", holidayEndStr);
-
-            if (holidaysError) {
-              console.warn("Error loading holidays:", holidaysError);
-              setHolidays([]);
-            } else {
-              holidaysForPeriod = (holidaysData || []).map((h: any) => ({
-                holiday_date: h.holiday_date,
-                holiday_type: h.is_regular ? "regular" : "non-working",
-              }));
-              setHolidays(holidaysForPeriod);
-            }
-          } catch (e) {
-            console.warn("Error loading holidays (exception):", e);
-            setHolidays([]);
-          }
+          const holidaysNormalized = await fetchHolidaysRange(supabase as any, {
+            start: periodStartStr,
+            end: periodEndStr,
+            lookbackDays: 7,
+          });
+          const holidaysForPeriod: Array<{ holiday_date: string; holiday_type?: string }> =
+            holidaysNormalized.map((h) => ({
+              holiday_date: h.date,
+              holiday_type: h.type,
+            }));
+          setHolidays(holidaysForPeriod);
 
           const restDaysMap = new Map<string, boolean>();
           setRestDaysMap(restDaysMap);

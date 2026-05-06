@@ -21,6 +21,7 @@ import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import { calculateMonthlySalary } from "@/utils/ph-deductions";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { fetchSessionsInRange } from "@/lib/timeEntries";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 
 function calculateApprovedOtNightDiffHours(
   startTimeRaw: string | null | undefined,
@@ -94,29 +95,13 @@ export async function POST(request: NextRequest) {
     const periodStart = new Date(period_start);
     const periodEnd = new Date(period_end);
 
-    // Load holidays for the period
-    const { data: holidaysData, error: holidaysError } = await supabase
-      .from("holidays")
-      .select("holiday_date, name, is_regular")
-      .gte("holiday_date", period_start)
-      .lte("holiday_date", period_end);
+    const holidaysNormalized = await fetchHolidaysRange(supabase as any, {
+      start: period_start,
+      end: period_end,
+      lookbackDays: 0,
+    });
 
-    if (holidaysError) {
-      console.error("Error loading holidays:", holidaysError);
-      // Continue without holidays if there's an error
-    }
-
-    // Normalize holidays to ensure consistent date format
-    const { normalizeHolidays } = await import("@/utils/holidays");
-    const normalizedHolidays = normalizeHolidays(
-      (holidaysData || []).map((h) => ({
-        date: h.holiday_date,
-        name: h.name || "",
-        type: h.is_regular ? "regular" : "non-working",
-      }))
-    );
-
-    const holidays = normalizedHolidays.map((h) => ({
+    const holidays = holidaysNormalized.map((h) => ({
       holiday_date: h.date,
       holiday_type: h.type,
     }));

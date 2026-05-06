@@ -26,6 +26,7 @@ import {
   statutoryProrationFactorFromDays,
   STATUTORY_PRORATION_REFERENCE_DAYS,
 } from "@/lib/statutory-proration";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 
 type EmployeeRow = {
   id: string;
@@ -165,30 +166,12 @@ export async function POST(req: NextRequest) {
 
     const employeeIds = emps.map((e) => e.id);
 
-    // Load holidays for the cutoff (best-effort; continue without holidays if schema differs)
-    let holidays: any[] = [];
-    try {
-      const { data: holidaysData } = await admin
-        .from("holidays")
-        .select("holiday_date, is_regular")
-        .gte("holiday_date", cutoffStart)
-        .lte("holiday_date", cutoffEnd);
-
-      const { normalizeHolidays } = await import("@/utils/holidays");
-      const normalized = normalizeHolidays(
-        (holidaysData || []).map((h: any) => ({
-          date: h.holiday_date,
-          name: "",
-          type: h.is_regular ? "regular" : "non-working",
-        }))
-      );
-      holidays = normalized.map((h: any) => ({
+    const holidays = (await fetchHolidaysRange(admin as any, { start: cutoffStart, end: cutoffEnd })).map(
+      (h) => ({
         holiday_date: h.date,
         holiday_type: h.type,
-      }));
-    } catch {
-      holidays = [];
-    }
+      })
+    );
 
     const getDateInManila = (iso: string) => {
       const d = new Date(iso);

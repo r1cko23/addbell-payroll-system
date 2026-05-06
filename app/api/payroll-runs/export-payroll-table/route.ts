@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { buildPayrollRunTemplateTable } from "@/lib/payroll-export/build-payroll-run-template";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     const cutoffStart = String(run.cutoff_start);
     const cutoffEnd = String(run.cutoff_end);
 
-    const [{ data: slips, error: slipsErr }, { data: holidays }] = await Promise.all([
+    const [{ data: slips, error: slipsErr }, holidaysNormalized] = await Promise.all([
       admin
         .from("payslips")
         .select(
@@ -46,11 +47,7 @@ export async function POST(req: NextRequest) {
         )
         .eq("payroll_run_id", payroll_run_id)
         .order("created_at", { ascending: true }),
-      admin
-        .from("holidays")
-        .select("holiday_date, is_regular")
-        .gte("holiday_date", cutoffStart)
-        .lte("holiday_date", cutoffEnd),
+      fetchHolidaysRange(admin as any, { start: cutoffStart, end: cutoffEnd }),
     ]);
     if (slipsErr) throw slipsErr;
 
@@ -60,7 +57,10 @@ export async function POST(req: NextRequest) {
         cutoff_end: cutoffEnd,
         company_name: String((run as any)?.companies?.name || "ADD-BELL TECHNICAL SERVICES INC."),
       },
-      holidays: (holidays || []) as any[],
+      holidays: holidaysNormalized.map((h) => ({
+        holiday_date: h.date,
+        is_regular: h.type === "regular",
+      })) as any[],
       slips: (slips || []) as any[],
     });
 

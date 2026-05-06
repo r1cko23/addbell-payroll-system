@@ -26,10 +26,10 @@ import {
   getDayName,
   HOLIDAY_DE_MINIMIS_HOURS,
   HOLIDAY_UNWORKED_CREDIT_HOURS,
-  PH_HOLIDAYS_FALLBACK,
   normalizeHolidays,
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
@@ -642,42 +642,11 @@ export default function TimesheetPage() {
       }
       setOtRequests(otData);
 
-      // Load holidays (PH) for the period + lookback (for consecutive holiday rule)
-      const lookbackStart = new Date(periodStart);
-      lookbackStart.setDate(lookbackStart.getDate() - 7);
-      const holidayStartStr = format(lookbackStart, "yyyy-MM-dd");
-      const holidayEndStr = periodEndStr;
-
-      let formattedHolidays: Holiday[] = [];
-      try {
-        const { data: holidaysData, error: holidaysError } = await supabase
-          .from("holidays")
-          .select("holiday_date, name, is_regular")
-          .gte("holiday_date", holidayStartStr)
-          .lte("holiday_date", holidayEndStr);
-
-        if (holidaysError) {
-          console.warn("Error loading holidays:", holidaysError);
-        }
-
-        formattedHolidays = normalizeHolidays(
-          (holidaysData || []).map((h: any) => ({
-            date: h.holiday_date,
-            name: h.name,
-            type: h.is_regular ? "regular" : "non-working",
-          }))
-        );
-      } catch (e) {
-        console.warn("Error loading holidays (exception):", e);
-      }
-
-      // Fallback when holidays table is empty/unavailable
-      if (formattedHolidays.length === 0) {
-        formattedHolidays = PH_HOLIDAYS_FALLBACK.filter((h) => {
-          const d = (h.date || "").split("T")[0];
-          return d >= holidayStartStr && d <= holidayEndStr;
-        });
-      }
+      const formattedHolidays: Holiday[] = await fetchHolidaysRange(supabase as any, {
+        start: periodStartStr,
+        end: periodEndStr,
+        lookbackDays: 7,
+      });
       setHolidays(formattedHolidays);
       const holidaysForCalc = formattedHolidays;
 

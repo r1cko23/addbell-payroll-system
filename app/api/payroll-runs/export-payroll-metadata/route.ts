@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { format, subMonths } from "date-fns";
+import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,16 +48,14 @@ export async function POST(req: NextRequest) {
     let nonWorkingLabel = "Non-working holiday";
     let regularHolidayLabel = "REG HOL";
     try {
-      const { data: holidays } = await admin
-        .from("holidays")
-        .select("holiday_date, is_regular")
-        .gte("holiday_date", cutoffStart)
-        .lte("holiday_date", cutoffEnd);
-
-      const parsed = (holidays || [])
-        .map((h: any) => ({
-          date: new Date(String(h.holiday_date).split("T")[0]),
-          isRegular: Boolean(h.is_regular),
+      const holidaysNormalized = await fetchHolidaysRange(admin as any, {
+        start: cutoffStart,
+        end: cutoffEnd,
+      });
+      const parsed = holidaysNormalized
+        .map((h) => ({
+          date: new Date(String(h.date).split("T")[0]),
+          isRegular: h.type === "regular",
         }))
         .filter((h) => Number.isFinite(h.date.getTime()));
 

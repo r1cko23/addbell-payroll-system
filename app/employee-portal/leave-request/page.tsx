@@ -375,8 +375,30 @@ export default function LeaveRequestPage() {
   }
 
   async function fetchHolidayDates() {
-    // Schema does not include holidays table — use empty set
-    setHolidayDates(new Set<string>());
+    try {
+      const year = new Date().getFullYear();
+      const start = `${year}-01-01`;
+      const end = `${year}-12-31`;
+
+      const { data, error } = await supabase
+        .from("holidays")
+        .select("holiday_date")
+        .gte("holiday_date", start)
+        .lte("holiday_date", end);
+
+      if (error) {
+        console.warn("Error loading holidays for leave request:", error);
+        setHolidayDates(new Set<string>());
+        return;
+      }
+
+      setHolidayDates(
+        new Set<string>((data || []).map((h: any) => String(h.holiday_date)))
+      );
+    } catch (e) {
+      console.warn("Error loading holidays for leave request (exception):", e);
+      setHolidayDates(new Set<string>());
+    }
   }
 
   async function fetchLeaveRequests(employeeId: string | undefined) {

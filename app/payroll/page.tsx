@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
@@ -90,6 +91,8 @@ interface Payslip {
   pagibig_amount?: number;
   adjustment_amount?: number;
   adjustment_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
   employee?: Employee;
 }
 
@@ -103,6 +106,8 @@ const statusStyles: Record<string, string> = {
 export default function PayrollPage() {
   const supabase = createClient();
   const { isAdmin, isHR, canAccessSalaryInfo } = useUserRole();
+  const searchParams = useSearchParams();
+  const runIdFromQuery = searchParams.get("run_id");
 
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,6 +189,16 @@ export default function PayrollPage() {
     fetchPayrollRuns();
     loadActiveEmployeesForRun();
   }, []);
+
+  // If navigated back from payslip editing, auto-open the payroll run.
+  useEffect(() => {
+    if (!runIdFromQuery) return;
+    if (selectedRun?.id === runIdFromQuery) return;
+    const match = payrollRuns.find((r) => r.id === runIdFromQuery);
+    if (match) {
+      openRunDetail(match);
+    }
+  }, [runIdFromQuery, payrollRuns, selectedRun?.id]);
 
   async function loadActiveEmployeesForRun() {
     try {
@@ -638,9 +653,16 @@ export default function PayrollPage() {
                         <TableCell className="font-mono text-sm">{ps.employee?.company_id_no || "—"}</TableCell>
                         <TableCell>
                           {ps.employee ? (
-                            <Link href={`/employees/${ps.employee.id}`} className="text-primary hover:underline text-sm">
-                              {empName(ps.employee)}
-                            </Link>
+                            <HStack gap="2" align="center">
+                              <Link href={`/employees/${ps.employee.id}`} className="text-primary hover:underline text-sm">
+                                {empName(ps.employee)}
+                              </Link>
+                              {ps.created_at && ps.updated_at && ps.updated_at !== ps.created_at && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+                                  Edited
+                                </Badge>
+                              )}
+                            </HStack>
                           ) : "Unknown"}
                         </TableCell>
                         <TableCell className="text-sm">{(ps.employee as any)?.departments?.name || "—"}</TableCell>

@@ -4078,6 +4078,19 @@ export default function PayslipsPage() {
                 {canAccessSalaryInfo && (
                   isSavedPayslip ? (
                     <HStack gap="2">
+                      {payrollRunId && (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            router.push(
+                              `/payroll?run_id=${encodeURIComponent(payrollRunId)}`
+                            )
+                          }
+                        >
+                          <Icon name="ArrowLeft" size={IconSizes.sm} />
+                          Back to Payroll Run
+                        </Button>
+                      )}
                       <Button disabled className="opacity-80" variant="secondary">
                         <Icon name="CheckCircle" size={IconSizes.sm} />
                         Payslip saved

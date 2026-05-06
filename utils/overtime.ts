@@ -32,12 +32,12 @@ export function creditNightDiffHours(rawHours: number): number {
 }
 
 /**
- * Convert raw worked hours (BH/regular hours display) into 0.5-hour steps.
- * Example: 8.1 -> 8.0, 8.6 -> 8.5
+ * Convert raw worked hours (BH/regular hours display) into whole-hour steps (floored).
+ * Example: 8.9 -> 8, 10.0 -> 10
  */
 export function creditWorkHoursHalfHour(rawHours: number): number {
   const h = Number(rawHours) || 0;
-  if (h < 0.5) return 0;
-  return Math.floor(h * 2) / 2;
+  if (h < 1) return 0;
+  return Math.floor(h);
 }
 

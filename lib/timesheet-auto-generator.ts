@@ -18,6 +18,7 @@ import {
   BUSINESS_HOURS_GRACE_MINUTES,
   getBusinessDayPolicyByDay,
 } from "@/utils/business-hours";
+import { creditWorkHoursHalfHour } from "@/utils/overtime";
 
 export interface TimeClockEntry {
   id: string;
@@ -221,11 +222,12 @@ export function generateTimesheetFromClockEntries(
         adjustedClockOut = dayEnd;
       }
 
-      return dayPolicy.windows.reduce((sum, _window, idx) => {
+      const raw = dayPolicy.windows.reduce((sum, _window, idx) => {
         const start = windowStarts[idx];
         const end = windowEnds[idx];
         return sum + overlapHours(adjustedClockIn, adjustedClockOut, start, end);
       }, 0);
+      return creditWorkHoursHalfHour(Math.round(raw * 100) / 100);
     };
 
     // Aggregate hours from all entries for this day

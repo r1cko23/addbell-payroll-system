@@ -3,6 +3,8 @@
  * Converts punch rows (in/out) into session-shaped entries for UI compatibility.
  */
 
+import { creditWorkHoursHalfHour } from "@/utils/overtime";
+
 export type PunchType = "in" | "out";
 
 export interface TimeEntryPunch {
@@ -70,7 +72,7 @@ function calculateCappedRegularHours(
   const totalHours =
     (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   const capped = Math.min(8, Math.max(0, totalHours));
-  return Math.round(capped * 100) / 100;
+  return creditWorkHoursHalfHour(Math.round(capped * 100) / 100);
 }
 
 /**

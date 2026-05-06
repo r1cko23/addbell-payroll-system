@@ -1162,14 +1162,9 @@ export default function TimesheetPage() {
       }
 
       // Calculate ND (Night Differential)
-      // 1) Base ND from actual worked sessions (supports night regular shifts, e.g. 5PM–2AM)
-      // 2) Compare with approved OT-derived ND and take the higher value to avoid double-counting.
-      //    OT remains the source of truth for hours beyond regular shift.
-      let ndHours = dayEntries.reduce(
-        (sum, e) => sum + (e.total_night_diff_hours ?? 0),
-        0
-      );
-      ndHours = creditNightDiffHours(ndHours);
+      // Policy: ND is counted ONLY when there is approved OT filing.
+      // (Ignore any ND that might exist on clock/attendance rows.)
+      let ndHours = 0;
       let ndFromApprovedOT = 0;
 
       if (dayOTs.length > 0) {
@@ -1248,8 +1243,7 @@ export default function TimesheetPage() {
         });
       }
 
-      ndHours = Math.max(ndHours, ndFromApprovedOT);
-      ndHours = creditNightDiffHours(ndHours);
+      ndHours = creditNightDiffHours(ndFromApprovedOT);
 
       // Calculate BH (Basic Hours): sum of all sessions (main Bundy + project time) for this day
       // One day can have multiple project sessions (e.g. 3h + 2h + 3h = 8h) — single BH for HRIS

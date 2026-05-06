@@ -29,6 +29,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
 import { format, addDays, parseISO, startOfYear, endOfYear } from "date-fns";
 import { formatCurrency } from "@/utils/format";
+import { creditWorkHoursHalfHour } from "@/utils/overtime";
 import {
   getBiMonthlyPeriodStart,
   getBiMonthlyPeriodEnd,
@@ -306,7 +307,9 @@ export default function ReportsPage() {
         // Calculate basic salary for this payslip period
         let basicSalaryForPeriod = 0;
         payslip.earnings_breakdown.forEach((day: any) => {
-          const regularHours = Number(day.regularHours) || 0;
+          const regularHours = creditWorkHoursHalfHour(
+            Math.round((Number(day.regularHours) || 0) * 100) / 100
+          );
           const dayType = day.dayType || "regular";
 
           // Basic salary = regular hours × hourly rate (only regular work days)
@@ -418,7 +421,9 @@ export default function ReportsPage() {
           const breakdown = payslip.earnings_breakdown;
 
           breakdown.forEach((day: any) => {
-            const regularHours = Number(day.regularHours) || 0;
+            const regularHours = creditWorkHoursHalfHour(
+              Math.round((Number(day.regularHours) || 0) * 100) / 100
+            );
             const overtimeHours = Number(day.overtimeHours) || 0;
             const nightDiff = Number(day.nightDiffHours) || 0;
             const dayType = day.dayType || "regular";

@@ -22,6 +22,7 @@ import {
   HOLIDAY_UNWORKED_CREDIT_HOURS,
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
+import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 
 interface PayslipPrintProps {
   employee: {
@@ -230,7 +231,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       const {
         date,
         dayType = "regular",
-        regularHours,
+        regularHours: rawRegularHours,
         overtimeHours: rawOvertimeHours,
         nightDiffHours,
         clockInTime,
@@ -242,6 +243,13 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         typeof rawOvertimeHours === "string"
           ? parseFloat(rawOvertimeHours)
           : rawOvertimeHours || 0;
+
+      const regularHours = creditWorkHoursHalfHour(
+        Math.round((Number(rawRegularHours) || 0) * 100) / 100
+      );
+      const creditedNightDiffHours = creditNightDiffHours(
+        Math.round((Number(nightDiffHours) || 0) * 100) / 100
+      );
 
       // Basic salary (regular working days — Mon–Sat; Sunday rest for office-based)
       // IMPORTANT:
@@ -263,8 +271,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
         // Regular Mon–Sat + eligible Sunday AS workdays: basic = actual regular hours only
         if ((dayOfWeek !== 0 || isSundayRegularWorkday) && regularHours > 0) {
-          const regularHoursNum = Number(regularHours) || 0;
-          const hoursForBasic = regularHoursNum;
+          const hoursForBasic = regularHours;
           // Day-equivalent and hours (do not use ++ per day — that showed "2" for two partial-hour days)
           earningsBreakdown.basic.days += hoursForBasic / 8;
           earningsBreakdown.basic.hours += hoursForBasic;
@@ -284,10 +291,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Night Differential (regular days); holidays/rest days use separate ND lines
-      if (dayType === "regular" && nightDiffHours > 0) {
-        earningsBreakdown.nightDiff.hours += nightDiffHours;
+      if (dayType === "regular" && creditedNightDiffHours > 0) {
+        earningsBreakdown.nightDiff.hours += creditedNightDiffHours;
         earningsBreakdown.nightDiff.amount += calculateNightDiff(
-          nightDiffHours,
+          creditedNightDiffHours,
           ratePerHour
         );
       }
@@ -295,9 +302,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       if (
         dayType === "regular" &&
         overtimeHours > 0 &&
-        nightDiffHours > 0
+        creditedNightDiffHours > 0
       ) {
-        const ndotHours = Math.min(overtimeHours, nightDiffHours);
+        const ndotHours = Math.min(overtimeHours, creditedNightDiffHours);
         earningsBreakdown.NDOT.hours += ndotHours;
         earningsBreakdown.NDOT.amount += calculateNightDiff(
           ndotHours,
@@ -315,9 +322,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
 
         if (eligibleForHolidayPay) {
-          const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const hoursPaid = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
           // Policy: eligible Regular Holiday pay always uses 2.0x, even for credited hours.
           earningsBreakdown.legalHoliday.amount += calculateRegularHoliday(
@@ -347,10 +353,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             ratePerHour
           );
         }
-        if (nightDiffHours > 0) {
-          earningsBreakdown.legalHDND.hours += nightDiffHours;
+        if (creditedNightDiffHours > 0) {
+          earningsBreakdown.legalHDND.hours += creditedNightDiffHours;
           earningsBreakdown.legalHDND.amount += calculateNightDiff(
-            nightDiffHours,
+            creditedNightDiffHours,
             ratePerHour
           );
         }
@@ -366,9 +372,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
 
         if (eligibleForHolidayPay) {
-          const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const hoursPaid = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
           // Policy: eligible Special Holiday pay always uses 1.3x, even for credited hours.
           earningsBreakdown.spHoliday.amount += calculateNonWorkingHoliday(
@@ -397,10 +402,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             ratePerHour
           );
         }
-        if (nightDiffHours > 0) {
-          earningsBreakdown.SHND.hours += nightDiffHours;
+        if (creditedNightDiffHours > 0) {
+          earningsBreakdown.SHND.hours += creditedNightDiffHours;
           earningsBreakdown.SHND.amount += calculateNightDiff(
-            nightDiffHours,
+            creditedNightDiffHours,
             ratePerHour
           );
         }
@@ -452,10 +457,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           );
         }
 
-        if (nightDiffHours > 0) {
-          earningsBreakdown.restDayND.hours += nightDiffHours;
+        if (creditedNightDiffHours > 0) {
+          earningsBreakdown.restDayND.hours += creditedNightDiffHours;
           earningsBreakdown.restDayND.amount += calculateNightDiff(
-            nightDiffHours,
+            creditedNightDiffHours,
             ratePerHour
           );
         }
@@ -466,9 +471,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       if (dayType === "sunday-special-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
         if (eligible) {
-          const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const hoursPaid = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
           // Policy: eligible Sunday+Special always uses 1.5x, even for credited hours.
           earningsBreakdown.spHoliday.amount += hoursPaid * ratePerHour * 1.5;
@@ -478,10 +482,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.SHonRDOT.amount +=
             calculateSundaySpecialHolidayOT(overtimeHours, ratePerHour);
         }
-        if (nightDiffHours > 0) {
-          earningsBreakdown.SHND.hours += nightDiffHours;
+        if (creditedNightDiffHours > 0) {
+          earningsBreakdown.SHND.hours += creditedNightDiffHours;
           earningsBreakdown.SHND.amount += calculateNightDiff(
-            nightDiffHours,
+            creditedNightDiffHours,
             ratePerHour
           );
         }
@@ -492,9 +496,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       if (dayType === "sunday-regular-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
         if (eligible) {
-          const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const hoursPaid = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
           // Policy: eligible Sunday+Regular always uses 2.6x, even for credited hours.
           earningsBreakdown.legalHoliday.amount += hoursPaid * ratePerHour * 2.6;
@@ -504,10 +507,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           earningsBreakdown.LHonRDOT.amount +=
             calculateSundayRegularHolidayOT(overtimeHours, ratePerHour);
         }
-        if (nightDiffHours > 0) {
-          earningsBreakdown.legalHDND.hours += nightDiffHours;
+        if (creditedNightDiffHours > 0) {
+          earningsBreakdown.legalHDND.hours += creditedNightDiffHours;
           earningsBreakdown.legalHDND.amount += calculateNightDiff(
-            nightDiffHours,
+            creditedNightDiffHours,
             ratePerHour
           );
         }

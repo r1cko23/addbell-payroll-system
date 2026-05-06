@@ -385,7 +385,9 @@ function PayslipDetailedBreakdownComponent({
       let regularHours = creditWorkHoursHalfHour(
         Math.round((dayRegularHours || 0) * 100) / 100
       );
-      let nightDiffHours = dayNightDiffHours;
+      let nightDiffHours = creditNightDiffHours(
+        Math.round((dayNightDiffHours || 0) * 100) / 100
+      );
 
       // Only recalculate from clock times if:
       // 1. Clock times are available

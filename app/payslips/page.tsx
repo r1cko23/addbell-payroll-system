@@ -72,7 +72,11 @@ import {
   getWithholdingTaxBreakdown,
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
-import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
+import {
+  creditNightDiffHours,
+  creditOvertimeHours,
+  creditWorkHoursHalfHour,
+} from "@/utils/overtime";
 import {
   getWeekOfMonth,
   isEligibleForHolidayPayRule,
@@ -829,7 +833,11 @@ export default function PayslipsPage() {
           const totalRegular =
             Math.round(
               savedAttendanceDays.reduce(
-                (sum: number, day: any) => sum + Number(day?.regularHours || 0),
+                (sum: number, day: any) =>
+                  sum +
+                  creditWorkHoursHalfHour(
+                    Math.round(Number(day?.regularHours || 0) * 100) / 100
+                  ),
                 0
               ) * 100
             ) / 100;
@@ -843,7 +851,11 @@ export default function PayslipsPage() {
           const totalNightDiff =
             Math.round(
               savedAttendanceDays.reduce(
-                (sum: number, day: any) => sum + Number(day?.nightDiffHours || 0),
+                (sum: number, day: any) =>
+                  sum +
+                  creditNightDiffHours(
+                    Math.round(Number(day?.nightDiffHours || 0) * 100) / 100
+                  ),
                 0
               ) * 100
             ) / 100;
@@ -2748,7 +2760,9 @@ export default function PayslipsPage() {
 
               // Holiday/Rest Day allowance for REGULAR HOURS worked (not OT)
               // This applies if employee worked regular hours on holiday/rest day
-              const regularHours = day.regularHours || 0;
+              const regularHours = creditWorkHoursHalfHour(
+                Math.round(Number(day.regularHours || 0) * 100) / 100
+              );
               const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
               if (isHolidayOrRestDay && hasCompleteLog && regularHours > 0) {
                 // Allowance for regular hours worked on holiday/rest day: ₱700 for ≥8 hours, ₱350 for ≥4 hours
@@ -2765,7 +2779,9 @@ export default function PayslipsPage() {
             let holidayRestDayPay = 0;
             attendance.attendance_data.forEach((day: any) => {
               const dayType = day.dayType || "regular";
-              const regularHours = day.regularHours || 0;
+              const regularHours = creditWorkHoursHalfHour(
+                Math.round(Number(day.regularHours || 0) * 100) / 100
+              );
               const date = day.date || "";
               const ratePerHour =
                 selectedEmployee.rate_per_hour ||
@@ -3330,11 +3346,17 @@ export default function PayslipsPage() {
                               // If day.regularHours is >= 8, it's likely a leave day - prioritize it over clock entry hours
                               const isLeaveDayWithFullHours =
                                 (day.regularHours || 0) >= 8;
-                              const regularHours = isLeaveDayWithFullHours
-                                ? day.regularHours
-                                : matchingEntry?.regular_hours ||
-                                  day.regularHours ||
-                                  0;
+                              const regularHours = creditWorkHoursHalfHour(
+                                Math.round(
+                                  Number(
+                                    isLeaveDayWithFullHours
+                                      ? day.regularHours
+                                      : matchingEntry?.regular_hours ||
+                                        day.regularHours ||
+                                        0
+                                  ) * 100
+                                ) / 100
+                              );
 
                               // ND when OT overlaps 10PM–6AM (from approved OT). Do not use matchingEntry.total_night_diff_hours for payslip.
                               return {

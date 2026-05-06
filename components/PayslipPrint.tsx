@@ -158,7 +158,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     SHND: { hours: 0, amount: 0 },
     SHonRDOT: { hours: 0, amount: 0 },
     LHonRDOT: { hours: 0, amount: 0 },
-    NDOT: { hours: 0, amount: 0 },
     restDay: { days: 0, amount: 0 },
     restDayOT: { hours: 0, amount: 0 },
     restDayND: { hours: 0, amount: 0 },
@@ -291,6 +290,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Night Differential (regular days); holidays/rest days use separate ND lines
+      // Policy: ND is derived from approved OT only (regular work ends at 6PM),
+      // but it's displayed under the single "Night Differential" line.
       if (dayType === "regular" && creditedNightDiffHours > 0) {
         earningsBreakdown.nightDiff.hours += creditedNightDiffHours;
         earningsBreakdown.nightDiff.amount += calculateNightDiff(
@@ -299,18 +300,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         );
       }
 
-      if (
-        dayType === "regular" &&
-        overtimeHours > 0 &&
-        creditedNightDiffHours > 0
-      ) {
-        const ndotHours = Math.min(overtimeHours, creditedNightDiffHours);
-        earningsBreakdown.NDOT.hours += ndotHours;
-        earningsBreakdown.NDOT.amount += calculateNightDiff(
-          ndotHours,
-          ratePerHour
-        );
-      }
+      // Removed: NDOT line item. ND is already represented in Night Differential above.
 
       // Legal Holiday
       // Regular Holiday pay is computed separately from regular work hours.
@@ -1134,39 +1124,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   </td>
                 </tr>
               )}
-              {(
-                <tr>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "3px 5px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    NDOT
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "3px 5px",
-                      textAlign: "right",
-                    }}
-                  >
-                    {earningsBreakdown.NDOT.hours > 0
-                      ? earningsBreakdown.NDOT.hours.toFixed(2)
-                      : "-"}
-                  </td>
-                  <td
-                    style={{
-                      border: "1px solid #000",
-                      padding: "3px 5px",
-                      textAlign: "right",
-                    }}
-                  >
-                    {formatCurrencyOrDash(earningsBreakdown.NDOT.amount)}
-                  </td>
-                </tr>
-              )}
+              {/* Removed: NDOT (ND is row 2) */}
               <tr>
                 <td
                   style={{

@@ -523,6 +523,8 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Night Differential (regular days only - holidays and rest days have separate ND calculations)
+      // Policy: ND is derived from approved OT only (regular work ends at 6PM).
+      // So we attribute all regular-day ND into the single "Night Differential" line.
       if (dayType === "regular" && nightDiffHours > 0) {
         breakdown.nightDifferential.hours += nightDiffHours;
         breakdown.nightDifferential.amount += calculateNightDiff(
@@ -849,16 +851,8 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Regular Nightdiff OT (regular day with OT and night diff)
-      if (dayType === "regular" && overtimeHours > 0 && nightDiffHours > 0) {
-        earningsOT.regularNightdiffOT.hours += Math.min(
-          overtimeHours,
-          nightDiffHours
-        );
-        earningsOT.regularNightdiffOT.amount += calculateNightDiff(
-          Math.min(overtimeHours, nightDiffHours),
-          ratePerHour
-        );
-      }
+      // Removed: "Regular Night Differential OT" line item.
+      // ND is already fully represented under the single "Night Differential" line above.
     });
 
     // Calculate "Days Work" as: (104 hours - absence hours) / 8
@@ -1420,13 +1414,7 @@ function PayslipDetailedBreakdownComponent({
                         earningsOT.shNightDiff.amount,
                         true
                       )}
-                      {renderEarningRow(
-                        "16. Regular Night Differential OT",
-                        earningsOT.regularNightdiffOT.hours,
-                        PAYROLL_MULTIPLIERS.NIGHT_DIFF,
-                        earningsOT.regularNightdiffOT.amount,
-                        true
-                      )}
+                      {/* Removed: Regular Night Differential OT (ND is row 2) */}
                     </>
                   );
                 })()}
@@ -1453,7 +1441,6 @@ function PayslipDetailedBreakdownComponent({
                     earningsOT.shOnRDOT.amount +
                     earningsOT.lhOnRDOT.amount +
                     earningsOT.restDayOT.amount +
-                    earningsOT.regularNightdiffOT.amount +
                     breakdown.legalHoliday.amount +
                     breakdown.specialHoliday.amount
                 )}

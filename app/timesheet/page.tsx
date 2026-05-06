@@ -710,7 +710,8 @@ export default function TimesheetPage() {
         otData || [],
         approvedFtlData,
         scheduleMap,
-        selectedEmployee?.employee_type
+        selectedEmployee?.employee_type,
+        formattedHolidays
       );
     } catch (error: any) {
       console.error("Error loading attendance data:", error);
@@ -739,7 +740,8 @@ export default function TimesheetPage() {
     otRequests: OvertimeRequest[],
     approvedFailureToLogs: FailureToLogRequest[],
     scheduleMap: Map<string, Schedule>,
-    employeeType?: "office-based" | "client-based" | null
+    employeeType?: "office-based" | "client-based" | null,
+    holidaysForCalc?: Holiday[]
   ) {
     // Check if employee is account supervisor (for ND eligibility)
     const isAccountSupervisor = selectedEmployee?.position
@@ -924,7 +926,8 @@ export default function TimesheetPage() {
       // Pass isClientBased so Sunday is not automatically treated as rest day for client-based employees
       const isClientBased = employeeType === "client-based";
       const isClientBasedAccountSupervisor = isAccountSupervisor && isClientBased;
-      const dayType = determineDayType(dateStr, holidaysForCalc ?? holidays, isRestDay, isClientBased);
+      const holidayList = holidaysForCalc ?? holidays;
+      const dayType = determineDayType(dateStr, holidayList, isRestDay, isClientBased);
       const dayOfWeek = getDay(date);
       const dayEntries = entriesByDate.get(dateStr) || [];
       const incompleteDayEntries = incompleteByDate.get(dateStr) || [];
@@ -935,7 +938,7 @@ export default function TimesheetPage() {
 
       // Check if this date is a holiday by checking the holidays array directly
       // This is a fallback in case determineDayType doesn't detect it
-      const holidayForDate = (holidaysForCalc ?? holidays).find(h => {
+      const holidayForDate = holidayList.find(h => {
         const normalizedHolidayDate = h.date.split('T')[0]; // Remove time if present
         return normalizedHolidayDate === dateStr;
       });
@@ -981,7 +984,7 @@ export default function TimesheetPage() {
           const checkDateStr = format(checkDate, "yyyy-MM-dd");
           const checkDayEntries = entriesByDate.get(checkDateStr) || [];
           const isClientBased = employeeType === "client-based";
-          const checkDayType = determineDayType(checkDateStr, holidaysForCalc ?? holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
+          const checkDayType = determineDayType(checkDateStr, holidayList, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
 
           // Only check regular working days (skip holidays and rest days)
           if (checkDayType === "regular" && checkDayEntries.length > 0) {

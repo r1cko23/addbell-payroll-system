@@ -232,7 +232,9 @@ export default function PayrollPage() {
       if (error) throw error;
 
       const runsWithCounts = await Promise.all(
-        (runs || []).map(async (run: PayrollRun) => {
+        (runs || [])
+          .filter((run: PayrollRun) => String(run.status) !== "cancelled")
+          .map(async (run: PayrollRun) => {
           const { data: slips } = await supabase
             .from("payslips")
             .select("gross_pay, net_pay")

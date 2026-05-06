@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
+import { creditOvertimeHours } from "@/utils/overtime";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,7 +171,8 @@ export default function OvertimePage() {
 
     const diffMs = endDate.getTime() - startDate.getTime();
     if (diffMs <= 0) return 0;
-    return Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+    const rawHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
+    return creditOvertimeHours(rawHours);
   }, [
     formData.start_time,
     formData.end_time,
@@ -712,7 +714,7 @@ export default function OvertimePage() {
                             OT
                           </Badge>
                           <span className="text-lg font-bold text-primary">
-                            {req.total_hours}h
+                            {creditOvertimeHours(req.total_hours)}h
                           </span>
                         </div>
 

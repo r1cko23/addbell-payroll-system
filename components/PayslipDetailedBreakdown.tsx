@@ -24,6 +24,7 @@ import {
   calculateHoursWithinWindows,
   getBusinessDayPolicyByDay,
 } from "@/utils/business-hours";
+import { creditNightDiffHours } from "@/utils/overtime";
 import {
   HOLIDAY_UNWORKED_CREDIT_HOURS,
   isEligibleForHolidayPayRule,
@@ -240,7 +241,9 @@ function PayslipDetailedBreakdownComponent({
 
     return {
       regularHours: Math.round(regularHours * 100) / 100,
-      nightDiffHours: Math.round(nightDiffHours * 100) / 100,
+      nightDiffHours: creditNightDiffHours(
+        Math.round(nightDiffHours * 100) / 100
+      ),
       totalHours: Math.round(totalHours * 100) / 100,
     };
   }

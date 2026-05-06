@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
@@ -1153,7 +1154,11 @@ export default function TimesheetPage() {
           ot.status === "approved_by_manager" ||
           ot.status === "approved_by_hr"
         );
-        otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
+        // Normalize legacy OT rows: apply min 1h, then 0.5 increments.
+        otHours = approvedOTs.reduce(
+          (sum, ot) => sum + creditOvertimeHours(Number(ot.total_hours || 0)),
+          0
+        );
       }
 
       // Calculate ND (Night Differential)
@@ -1164,6 +1169,7 @@ export default function TimesheetPage() {
         (sum, e) => sum + (e.total_night_diff_hours ?? 0),
         0
       );
+      ndHours = creditNightDiffHours(ndHours);
       let ndFromApprovedOT = 0;
 
       if (dayOTs.length > 0) {
@@ -1232,10 +1238,10 @@ export default function TimesheetPage() {
               }
             }
 
-            // Cap ND hours at total_hours (can't exceed OT hours) and ensure non-negative
+            // Cap ND hours at credited OT hours (can't exceed OT credit) and ensure non-negative
             ndFromThisOT = Math.min(
               Math.max(0, ndFromThisOT),
-              ot.total_hours || 0
+              creditOvertimeHours(Number(ot.total_hours || 0))
             );
             ndFromApprovedOT += ndFromThisOT;
           }
@@ -1243,6 +1249,7 @@ export default function TimesheetPage() {
       }
 
       ndHours = Math.max(ndHours, ndFromApprovedOT);
+      ndHours = creditNightDiffHours(ndHours);
 
       // Calculate BH (Basic Hours): sum of all sessions (main Bundy + project time) for this day
       // One day can have multiple project sessions (e.g. 3h + 2h + 3h = 8h) — single BH for HRIS

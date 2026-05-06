@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { creditOvertimeHours } from "@/utils/overtime";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -118,7 +119,8 @@ export async function POST(req: NextRequest) {
 
       const safeMinutes = diffMinutes > 0 ? diffMinutes : 0;
       const hours = safeMinutes / 60;
-      return Math.round(hours * 100) / 100;
+      const rawHours = Math.round(hours * 100) / 100;
+      return creditOvertimeHours(rawHours);
     };
 
     const otRequestIdFromBody = body.ot_request_id || null;

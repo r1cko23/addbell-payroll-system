@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
+import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -162,6 +163,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const creditedHours = creditOvertimeHours(body.total_hours);
+    if (creditedHours < OT_MIN_HOURS) {
+      return NextResponse.json(
+        { error: `Minimum OT credit is ${OT_MIN_HOURS} hour.` },
+        { status: 400 }
+      );
+    }
+
     const admin = getAdminClient();
     const { data, error } = await admin
       .from("overtime_requests")
@@ -171,7 +180,7 @@ export async function POST(req: NextRequest) {
         end_date: body.end_date || null,
         start_time: body.start_time,
         end_time: body.end_time,
-        total_hours: body.total_hours,
+        total_hours: creditedHours,
         reason: body.reason || null,
         status: "pending",
       })

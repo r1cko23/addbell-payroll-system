@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
+import { creditOvertimeHours } from "@/utils/overtime";
 import { toast } from "sonner";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -1138,7 +1139,7 @@ export default function OvertimeApprovalPage() {
                             {formatTime12h(req.start_time)} - {formatTime12h(req.end_time)}
                           </HStack>
                           <span className="font-semibold text-primary">
-                            {req.total_hours}h
+                            {creditOvertimeHours(req.total_hours)}h
                           </span>
                         </HStack>
                         {req.reason && (
@@ -1381,7 +1382,7 @@ export default function OvertimeApprovalPage() {
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Total Hours</p>
                     <p className="text-base font-semibold text-primary">
-                      {selected.total_hours}h
+                      {creditOvertimeHours(selected.total_hours)}h
                     </p>
                   </div>
                   <div className="space-y-1">

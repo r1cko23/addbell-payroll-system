@@ -72,6 +72,7 @@ import {
   getWithholdingTaxBreakdown,
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
+import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import {
   getWeekOfMonth,
   isEligibleForHolidayPayRule,
@@ -1110,9 +1111,10 @@ export default function PayslipsPage() {
                     ? ot.ot_date.split("T")[0]
                     : format(new Date(ot.ot_date), "yyyy-MM-dd");
 
-                // Add OT hours
+                // Add OT hours (credited: min 1h, then 0.5 increments)
                 const existingOT = approvedOTByDate.get(dateStr) || 0;
-                const newOT = existingOT + (ot.total_hours || 0);
+                const credited = creditOvertimeHours(Number(ot.total_hours || 0));
+                const newOT = existingOT + credited;
                 approvedOTByDate.set(dateStr, newOT);
 
                 let ndHours = 0;
@@ -1170,7 +1172,10 @@ export default function PayslipsPage() {
                   }
 
                   // Cap ND hours at total_hours (can't exceed OT hours) and ensure non-negative
-                  ndHours = Math.min(Math.max(0, ndHours), ot.total_hours || 0);
+                  // Cap ND hours at credited OT hours (can't exceed OT credit)
+                  ndHours = Math.min(Math.max(0, ndHours), credited);
+                  // Credit ND to 0.5-hour increments (>= 0.5 only)
+                  ndHours = creditNightDiffHours(ndHours);
 
                   if (ndHours > 0) {
                     console.log(

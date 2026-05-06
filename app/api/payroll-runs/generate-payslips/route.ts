@@ -26,6 +26,7 @@ import {
   statutoryProrationFactorFromDays,
   STATUTORY_PRORATION_REFERENCE_DAYS,
 } from "@/lib/statutory-proration";
+import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 
 type EmployeeRow = {
@@ -90,7 +91,7 @@ function calculateApprovedOtNightDiffHours(
 
   const totalHours = Number(totalHoursRaw || 0);
   const capped = Math.min(Math.max(0, nd), totalHours > 0 ? totalHours : nd);
-  return Math.round(capped * 100) / 100;
+  return creditNightDiffHours(Math.round(capped * 100) / 100);
 }
 
 function ratePerHourFromEmployee(e: EmployeeRow) {
@@ -243,7 +244,8 @@ export async function POST(req: NextRequest) {
       if (!employeeId) return;
       const dateKey = String(row.ot_date || "").split("T")[0];
       if (!dateKey) return;
-      const otHours = Number(row.total_hours || 0);
+      // Normalize legacy OT rows: min 1h, then 0.5 increments.
+      const otHours = creditOvertimeHours(Number(row.total_hours || 0));
       const ndHours = calculateApprovedOtNightDiffHours(
         row.start_time,
         row.end_time,

@@ -11,6 +11,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
 import {
   getWednesdayWeekStart,
@@ -1688,7 +1689,11 @@ export default function BundyClockPage() {
             ot.status === "approved_by_manager" ||
             ot.status === "approved_by_hr"
           );
-          otHours = approvedOTs.reduce((sum, ot) => sum + (ot.total_hours || 0), 0);
+          // Normalize legacy OT rows: apply min 1h, then 0.5 increments.
+          otHours = approvedOTs.reduce(
+            (sum, ot) => sum + creditOvertimeHours(Number(ot.total_hours || 0)),
+            0
+          );
         }
 
         // Calculate BH (Basic Hours)
@@ -1853,14 +1858,15 @@ export default function BundyClockPage() {
                 ndFromThisOT = Math.max(0, (ndEndMin - ndStartMin) / 60);
               }
 
-              ndHours += ndFromThisOT;
+              // Apply 0.5-hour crediting rule per OT filing policy.
+              ndHours += creditNightDiffHours(ndFromThisOT);
             }
           });
         }
 
         // ND is already calculated from overtime_requests above
         // No need to calculate from clock entries - ND must come from approved OT requests only
-        const nd = ndHours;
+        const nd = creditNightDiffHours(ndHours);
 
         days.push({
           date: dateStr,
@@ -1875,7 +1881,7 @@ export default function BundyClockPage() {
           ot: Math.round(otHours * 100) / 100,
           lt,
           ut,
-          nd: Math.round(ndHours * 100) / 100,
+          nd: Math.round(nd * 100) / 100,
         });
       });
 

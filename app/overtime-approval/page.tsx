@@ -157,6 +157,19 @@ export default function OvertimeApprovalPage() {
     return employeeGroupNameByEmployeeId[request.employee_id] || null;
   };
 
+  /** OT requests for employees in this group are owned by any user with role upper_management (not only the UUID in legacy maps). */
+  const isUpperManagementOvertimeGroupLabel = (
+    groupName: string | null
+  ): boolean => {
+    const n = normalizeGroupName(groupName);
+    if (!n) return false;
+    return (
+      n === "upper management group" ||
+      n === "upper management" ||
+      n.includes("upper management")
+    );
+  };
+
   const getRequestOvertimeGroupFirstApproverId = (
     request: OTRequest
   ): string | null => {
@@ -198,11 +211,14 @@ export default function OvertimeApprovalPage() {
     const upperManagementFirstApproverId =
       LOCATION_FIRST_APPROVER_BY_GROUP["upper management group"];
 
-    // Upper management: only the assigned approver can act.
+    // Upper management: first approver for the OT group, or any UM for "Upper Management" OT group employees.
     if (normalizedRole === "upper_management") {
-      // Manager stage pending: only the first approver for the OT group can act.
+      // Manager stage pending: designated first approver or UM queue by group name.
       if (isManagerStagePending(request)) {
-        return isUserFirstApproverForRequest(currentUserId, request);
+        return (
+          isUserFirstApproverForRequest(currentUserId, request) ||
+          isUpperManagementOvertimeGroupLabel(getRequestGroupName(request))
+        );
       }
 
       // HR stage pending: only the approver already assigned (account_manager/project_manager) can act.
@@ -261,7 +277,9 @@ export default function OvertimeApprovalPage() {
     );
     if (
       endorsedToHr &&
-      isUserFirstApproverForRequest(currentUserId, request)
+      (isUserFirstApproverForRequest(currentUserId, request) ||
+        (normalizedRole === "upper_management" &&
+          isUpperManagementOvertimeGroupLabel(getRequestGroupName(request))))
     ) {
       return "approved";
     }
@@ -282,8 +300,9 @@ export default function OvertimeApprovalPage() {
       LOCATION_FIRST_APPROVER_BY_GROUP["upper management group"];
     if (
       isManagerStagePending(request) &&
-      getRequestOvertimeGroupFirstApproverId(request) ===
-        upperManagementFirstApproverId
+      (getRequestOvertimeGroupFirstApproverId(request) ===
+        upperManagementFirstApproverId ||
+        isUpperManagementOvertimeGroupLabel(getRequestGroupName(request)))
     ) {
       // Upper management can approve in one step (skip Operations Manager + HR steps).
       return 3;
@@ -525,7 +544,8 @@ export default function OvertimeApprovalPage() {
           return (
             isUserFirstApproverForRequest(currentUserId, request) ||
             request.account_manager_id === currentUserId ||
-            request.project_manager_id === currentUserId
+            request.project_manager_id === currentUserId ||
+            isUpperManagementOvertimeGroupLabel(getRequestGroupName(request))
           );
         }
         if (isHR) {
@@ -652,14 +672,25 @@ export default function OvertimeApprovalPage() {
 
     const filteredEmployees = (data || []).filter((employee: any) => {
       if (isStrictAdmin) return true;
-      if (
-        normalizedRole === "operations_manager" ||
-        normalizedRole === "upper_management"
-      ) {
+      if (normalizedRole === "operations_manager") {
         const gid = employee.overtime_group_id as string | null | undefined;
         if (gid && overtimeGroupFirstApproverIdById[gid]) {
           return overtimeGroupFirstApproverIdById[gid] === currentUserId;
         }
+        return isFirstApproverForGroup(
+          currentUserId,
+          employeeGroupNameByEmployeeId[employee.employee_id]
+        );
+      }
+      if (normalizedRole === "upper_management") {
+        const gid = employee.overtime_group_id as string | null | undefined;
+        if (gid && overtimeGroupFirstApproverIdById[gid]) {
+          if (overtimeGroupFirstApproverIdById[gid] === currentUserId) {
+            return true;
+          }
+        }
+        const gName = employeeGroupNameByEmployeeId[employee.employee_id];
+        if (isUpperManagementOvertimeGroupLabel(gName)) return true;
         return isFirstApproverForGroup(
           currentUserId,
           employeeGroupNameByEmployeeId[employee.employee_id]
@@ -775,7 +806,8 @@ export default function OvertimeApprovalPage() {
       normalizedRole === "upper_management" &&
       Boolean(user?.id) &&
       managerStage &&
-      isUserFirstApproverForRequest(user.id, request);
+      (isUserFirstApproverForRequest(user.id, request) ||
+        isUpperManagementOvertimeGroupLabel(getRequestGroupName(request)));
     const requiresOtPunch = requiresOtPunchForApproval(request);
     const punchStatus = otPunchStatusByRequestId[id];
 
@@ -865,7 +897,8 @@ export default function OvertimeApprovalPage() {
       normalizedRole === "upper_management" &&
       Boolean(user?.id) &&
       managerStage &&
-      isUserFirstApproverForRequest(user.id, request);
+      (isUserFirstApproverForRequest(user.id, request) ||
+        isUpperManagementOvertimeGroupLabel(getRequestGroupName(request)));
     const effectiveManagerStageFinal =
       managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
     const patch: Record<string, unknown> = effectiveManagerStageFinal

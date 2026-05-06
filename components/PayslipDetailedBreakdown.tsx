@@ -24,7 +24,10 @@ import {
   calculateHoursWithinWindows,
   getBusinessDayPolicyByDay,
 } from "@/utils/business-hours";
-import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
+import {
+  creditNightDiffHours,
+  creditWorkHoursHalfHour,
+} from "@/utils/overtime";
 import {
   HOLIDAY_UNWORKED_CREDIT_HOURS,
   isEligibleForHolidayPayRule,
@@ -374,10 +377,14 @@ function PayslipDetailedBreakdownComponent({
           ? parseFloat(rawOvertimeHours)
           : rawOvertimeHours || 0;
 
-      // Use regularHours directly from attendance_data (same as timesheet uses bh)
+      // Use regularHours from attendance_data (same as timesheet uses bh),
+      // but apply current BH crediting (whole-hour floor) for consistency,
+      // especially for legacy records that still have decimals.
       // The attendance_data is generated from time clock entries, so it already has the correct hours
       // Only recalculate from clock times if clock times are available AND regularHours is 0 (to catch missing data)
-      let regularHours = dayRegularHours;
+      let regularHours = creditWorkHoursHalfHour(
+        Math.round((dayRegularHours || 0) * 100) / 100
+      );
       let nightDiffHours = dayNightDiffHours;
 
       // Only recalculate from clock times if:
@@ -924,7 +931,12 @@ function PayslipDetailedBreakdownComponent({
 
     // "Hours Work (Regular)" should include only REGULAR working-day hours (exclude holidays/rest days).
     const regularHoursWorked = attendanceData.reduce((sum, d) => {
-      if (d.dayType === "regular") return sum + (d.regularHours || 0);
+      if (d.dayType === "regular") {
+        return (
+          sum +
+          creditWorkHoursHalfHour(Math.round((d.regularHours || 0) * 100) / 100)
+        );
+      }
       return sum;
     }, 0);
     const totalBHForHoursWork = actualTotalBH;

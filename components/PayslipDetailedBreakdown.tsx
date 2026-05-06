@@ -442,21 +442,15 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const paidH =
-            isClientBased || isEligibleForAllowances
-              ? hasCompleteLog
-                ? 8
-                : HOLIDAY_UNWORKED_CREDIT_HOURS
-              : hasCompleteLog
-              ? finalRegularHours
-              : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const paidH = hasCompleteLog
+            ? finalRegularHours
+            : HOLIDAY_UNWORKED_CREDIT_HOURS;
 
           hoursToCount = paidH;
           breakdown.legalHoliday.hours += paidH;
-          breakdown.legalHoliday.amount +=
-            hasCompleteLog && !(isClientBased || isEligibleForAllowances)
-              ? calculateRegularHoliday(paidH, ratePerHour)
-              : paidH * ratePerHour;
+          breakdown.legalHoliday.amount += hasCompleteLog
+            ? calculateRegularHoliday(paidH, ratePerHour)
+            : paidH * ratePerHour;
         }
       } else if (dayType === "non-working-holiday") {
         const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -467,21 +461,15 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const paidH =
-            isClientBased || isEligibleForAllowances
-              ? hasCompleteLog
-                ? 8
-                : HOLIDAY_UNWORKED_CREDIT_HOURS
-              : hasCompleteLog
-              ? finalRegularHours
-              : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const paidH = hasCompleteLog
+            ? finalRegularHours
+            : HOLIDAY_UNWORKED_CREDIT_HOURS;
 
           hoursToCount = paidH;
           breakdown.specialHoliday.hours += paidH;
-          breakdown.specialHoliday.amount +=
-            hasCompleteLog && !(isClientBased || isEligibleForAllowances)
-              ? calculateNonWorkingHoliday(paidH, ratePerHour)
-              : paidH * ratePerHour;
+          breakdown.specialHoliday.amount += hasCompleteLog
+            ? calculateNonWorkingHoliday(paidH, ratePerHour)
+            : paidH * ratePerHour;
         }
       }
       // Sundays are excluded (dayType === "sunday") - they're paid separately
@@ -736,9 +724,6 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Sunday + Special Holiday
-      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
-      // Holiday pay is NOT added separately to gross pay - it's already part of basicSalary
-      // Only OT allowances and ND are added separately
       if (dayType === "sunday-special-holiday") {
         // Check if eligible for holiday pay (worked day before or worked on holiday)
         const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -749,20 +734,11 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          if (isClientBased || isEligibleForAllowances) {
-            const paidH = hasCompleteLog ? 8 : HOLIDAY_UNWORKED_CREDIT_HOURS;
-            basicSalary += paidH * ratePerHour;
-          } else {
-            const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
-            basicSalary += paidH * ratePerHour;
-          }
-        }
-
-        // Premium applies when there is a complete time in/out.
-        if (regularHours > 0 && clockInTime && clockOutTime) {
-          const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
-          breakdown.specialHoliday.hours += hoursToDisplay;
-          breakdown.specialHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : (regularHours * ratePerHour * 0.5); // Sunday+Special: 1.5x total, 1x in basic → extra 0.5x
+          const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          breakdown.specialHoliday.hours += paidH;
+          breakdown.specialHoliday.amount += hasCompleteLog
+            ? regularHours * ratePerHour * 1.5
+            : paidH * ratePerHour;
         }
 
         // Add allowance ONLY if they actually worked (clockInTime exists)
@@ -803,9 +779,6 @@ function PayslipDetailedBreakdownComponent({
       }
 
       // Sunday + Regular Holiday
-      // NOTE: Holidays are now included in basic salary (all days worked × daily rate)
-      // Holiday pay is NOT added separately to gross pay - it's already part of basicSalary
-      // Only OT allowances and ND are added separately
       if (dayType === "sunday-regular-holiday") {
         // Check if eligible for holiday pay (worked day before or worked on holiday)
         const eligibleForHolidayPay = isEligibleForHolidayPay(
@@ -816,21 +789,11 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          if (isClientBased || isEligibleForAllowances) {
-            const paidH = hasCompleteLog ? 8 : HOLIDAY_UNWORKED_CREDIT_HOURS;
-            basicSalary += paidH * ratePerHour;
-          } else {
-            const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
-            basicSalary += paidH * ratePerHour;
-          }
-        }
-
-        // Premium applies when there is a complete time in/out.
-        if (regularHours > 0 && clockInTime && clockOutTime) {
-          const hoursToDisplay = (isClientBased || isEligibleForAllowances) ? 8 : regularHours;
-          breakdown.legalHoliday.hours += hoursToDisplay;
-          // Sunday+Legal: 2.6x total, 1x in basic → extra 1.6x for rank-and-file
-          breakdown.legalHoliday.amount += (isClientBased || isEligibleForAllowances) ? ratePerDay : (regularHours * ratePerHour * 1.6);
+          const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          breakdown.legalHoliday.hours += paidH;
+          breakdown.legalHoliday.amount += hasCompleteLog
+            ? regularHours * ratePerHour * 2.6
+            : paidH * ratePerHour;
         }
 
         // Add allowance ONLY if they actually worked (clockInTime exists)

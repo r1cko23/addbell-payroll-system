@@ -319,10 +319,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
-          earningsBreakdown.legalHoliday.amount +=
-            useFixedAllowances
-              ? hoursPaid * ratePerHour
-              : (hasCompleteLog ? calculateRegularHoliday(hoursPaid, ratePerHour) : hoursPaid * ratePerHour);
+          earningsBreakdown.legalHoliday.amount += hasCompleteLog
+            ? calculateRegularHoliday(hoursPaid, ratePerHour)
+            : hoursPaid * ratePerHour;
 
           // Premium applies when there is a complete time in/out.
           if (regularHours > 0 && clockInTime && clockOutTime) {
@@ -369,10 +368,9 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
-          earningsBreakdown.spHoliday.amount +=
-            useFixedAllowances
-              ? hoursPaid * ratePerHour
-              : (hasCompleteLog ? calculateNonWorkingHoliday(hoursPaid, ratePerHour) : hoursPaid * ratePerHour);
+          earningsBreakdown.spHoliday.amount += hasCompleteLog
+            ? calculateNonWorkingHoliday(hoursPaid, ratePerHour)
+            : hoursPaid * ratePerHour;
 
           if (regularHours > 0 && clockInTime && clockOutTime) {
             if (useFixedAllowances) {
@@ -460,40 +458,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Sunday + Special Holiday
-      // Days Work includes eligible; 1x in basic. Special Holiday component only when rendered work (premium 0.5x for rank-and-file, allowance for supervisory).
+      // Everyone receives the same Sunday+Special Holiday multiplier when worked.
       if (dayType === "sunday-special-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
         if (eligible) {
           const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          if (hasCompleteLog) {
-            const hoursForBasic = raw;
-            earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
-            earningsBreakdown.basic.days += hoursForBasic / 8;
-            earningsBreakdown.basic.hours += hoursForBasic;
-          } else {
-            earningsBreakdown.spHoliday.days += HOLIDAY_UNWORKED_CREDIT_HOURS / 8;
-            earningsBreakdown.spHoliday.amount += HOLIDAY_UNWORKED_CREDIT_HOURS * ratePerHour;
-          }
-        }
-        if (
-          regularHours > 0 &&
-          clockInTime &&
-          clockOutTime
-        ) {
-          if (useFixedAllowances) {
-            earningsBreakdown.spHoliday.days += 1;
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(regularHours);
-              if (allowance > 0) {
-                fixedAllowances.specialHolidayOnRestDayAllowance.amount += allowance;
-              }
-            }
-          } else {
-            // Rank and File: premium 0.5x only (1.5x total = 1x in basic + 0.5x here)
-            earningsBreakdown.spHoliday.days += regularHours / 8;
-            earningsBreakdown.spHoliday.amount += regularHours * ratePerHour * 0.5;
-          }
+          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          earningsBreakdown.spHoliday.days += hoursPaid / 8;
+          earningsBreakdown.spHoliday.amount += hasCompleteLog
+            ? raw * ratePerHour * 1.5
+            : hoursPaid * ratePerHour;
         }
         if (overtimeHours > 0) {
           earningsBreakdown.SHonRDOT.hours += overtimeHours;
@@ -510,40 +485,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       }
 
       // Sunday + Regular Holiday
-      // Days Work includes eligible; 1x in basic. Legal Holiday component only when rendered work (premium 1.6x for rank-and-file, allowance for supervisory).
+      // Everyone receives the same Sunday+Regular Holiday multiplier when worked.
       if (dayType === "sunday-regular-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
         if (eligible) {
           const raw = Number(regularHours) || 0;
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          if (hasCompleteLog) {
-            const hoursForBasic = raw;
-            earningsBreakdown.basic.amount += hoursForBasic * ratePerHour;
-            earningsBreakdown.basic.days += hoursForBasic / 8;
-            earningsBreakdown.basic.hours += hoursForBasic;
-          } else {
-            earningsBreakdown.legalHoliday.days += HOLIDAY_UNWORKED_CREDIT_HOURS / 8;
-            earningsBreakdown.legalHoliday.amount += HOLIDAY_UNWORKED_CREDIT_HOURS * ratePerHour;
-          }
-        }
-        if (
-          regularHours > 0 &&
-          clockInTime &&
-          clockOutTime
-        ) {
-          if (useFixedAllowances) {
-            earningsBreakdown.legalHoliday.days += 1;
-            if (clockInTime && regularHours >= 4) {
-              const allowance = calculateHolidayRestDayAllowance(regularHours);
-              if (allowance > 0) {
-                fixedAllowances.legalHolidayOnRestDayAllowance.amount += allowance;
-              }
-            }
-          } else {
-            // Rank and File: premium 1.6x only (2.6x total = 1x in basic + 1.6x here)
-            earningsBreakdown.legalHoliday.days += regularHours / 8;
-            earningsBreakdown.legalHoliday.amount += regularHours * ratePerHour * 1.6;
-          }
+          const hoursPaid = hasCompleteLog ? raw : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          earningsBreakdown.legalHoliday.days += hoursPaid / 8;
+          earningsBreakdown.legalHoliday.amount += hasCompleteLog
+            ? raw * ratePerHour * 2.6
+            : hoursPaid * ratePerHour;
         }
         if (overtimeHours > 0) {
           earningsBreakdown.LHonRDOT.hours += overtimeHours;

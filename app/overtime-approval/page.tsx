@@ -110,6 +110,16 @@ function requiresOtPunchForApproval(request: OTRequest): boolean {
   return request.ot_date >= OT_PUNCH_REQUIRED_FROM_DATE;
 }
 
+/** User id to show as approver/rejector — prefer final `approved_by`, then HR, then endorsement ids. */
+function getOvertimeDecisionActorId(request: OTRequest): string | null {
+  const id =
+    request.approved_by ||
+    request.hr_approved_by ||
+    request.project_manager_id ||
+    request.account_manager_id;
+  return id || null;
+}
+
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -200,12 +210,10 @@ export default function OvertimeApprovalPage() {
     request.status === "pending" &&
     Boolean(request.project_manager_id || request.account_manager_id);
 
-  /** True admin only — upper_management must follow OT routing like other approvers. */
-  const isStrictAdmin = normalizedRole === "admin";
-
   const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
     if (request.status !== "pending") return false;
-    if (isStrictAdmin) return true;
+    // Admin and Upper Management (isAdmin) may act on any pending OT — same as original product behavior.
+    if (isAdmin) return true;
     if (!currentUserId) return false;
 
     const upperManagementFirstApproverId =
@@ -533,20 +541,12 @@ export default function OvertimeApprovalPage() {
     // Role-based visibility: show requests the user is allowed to view.
     // Stage checks (manager vs HR pending) are kept for Approve/Reject permissions only.
     let filteredData: OTRequest[] | null = dataWithDocs;
-    if (!isStrictAdmin) {
+    if (!isAdmin) {
       filteredData = dataWithDocs.filter((request) => {
         if (!currentUserId) return false;
         if (normalizedRole === "operations_manager") {
           // Operations Manager can view all statuses for requests in their OT group.
           return isUserFirstApproverForRequest(currentUserId, request);
-        }
-        if (normalizedRole === "upper_management") {
-          return (
-            isUserFirstApproverForRequest(currentUserId, request) ||
-            request.account_manager_id === currentUserId ||
-            request.project_manager_id === currentUserId ||
-            isUpperManagementOvertimeGroupLabel(getRequestGroupName(request))
-          );
         }
         if (isHR) {
           // HR visibility:
@@ -578,12 +578,18 @@ export default function OvertimeApprovalPage() {
         : (cleaned as OTRequest[]);
     setRequests(viewerFiltered);
 
-    // Load approver names for approved/rejected requests (account_manager_id and approved_by)
+    // Load display names for anyone who may appear on approved/rejected rows.
     const approverIds = Array.from(
       new Set(
-        cleaned.flatMap((r) =>
-          [r.account_manager_id, r.approved_by].filter((id): id is string => Boolean(id))
-        )
+        cleaned.flatMap((r) => {
+          const row = r as OTRequest;
+          return [
+            row.approved_by,
+            row.hr_approved_by,
+            row.project_manager_id,
+            row.account_manager_id,
+          ].filter((id): id is string => Boolean(id));
+        })
       )
     );
     if (approverIds.length > 0) {
@@ -671,26 +677,12 @@ export default function OvertimeApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      if (isStrictAdmin) return true;
+      if (isAdmin) return true;
       if (normalizedRole === "operations_manager") {
         const gid = employee.overtime_group_id as string | null | undefined;
         if (gid && overtimeGroupFirstApproverIdById[gid]) {
           return overtimeGroupFirstApproverIdById[gid] === currentUserId;
         }
-        return isFirstApproverForGroup(
-          currentUserId,
-          employeeGroupNameByEmployeeId[employee.employee_id]
-        );
-      }
-      if (normalizedRole === "upper_management") {
-        const gid = employee.overtime_group_id as string | null | undefined;
-        if (gid && overtimeGroupFirstApproverIdById[gid]) {
-          if (overtimeGroupFirstApproverIdById[gid] === currentUserId) {
-            return true;
-          }
-        }
-        const gName = employeeGroupNameByEmployeeId[employee.employee_id];
-        if (isUpperManagementOvertimeGroupLabel(gName)) return true;
         return isFirstApproverForGroup(
           currentUserId,
           employeeGroupNameByEmployeeId[employee.employee_id]
@@ -706,50 +698,43 @@ export default function OvertimeApprovalPage() {
   }
 
   async function loadApproverNames(ids: string[]) {
-    if (ids.length === 0) return;
+    const uniq = Array.from(new Set(ids.filter(Boolean)));
+    if (uniq.length === 0) return;
+
+    const next: Record<string, string> = {};
 
     const { data: userData, error: userError } = await supabase
       .from("profiles")
       .select("id, full_name, email")
-      .in("id", ids);
+      .in("id", uniq);
 
-    if (userData && !userError) {
-      const usersArray = userData as Array<{
-        id: string;
-        full_name: string | null;
-        email: string | null;
-      }>;
-
-      setApproverNames((prev) => {
-        const next = { ...prev };
-        usersArray.forEach((row) => {
+    if (!userError && userData) {
+      (userData as Array<{ id: string; full_name: string | null; email: string | null }>).forEach(
+        (row) => {
           next[row.id] = row.full_name || row.email || row.id;
-        });
-        return next;
-      });
-      return;
+        }
+      );
     }
 
-    const { data: empData, error: empError } = await supabase
-      .from("employees")
-      .select("id, full_name, email")
-      .in("id", ids);
+    const missing = uniq.filter((id) => !next[id]);
+    if (missing.length > 0) {
+      const { data: empData, error: empError } = await supabase
+        .from("employees")
+        .select("id, full_name, email")
+        .in("id", missing);
 
-    if (empError || !empData) return;
+      if (!empError && empData) {
+        (empData as Array<{ id: string; full_name: string | null; email: string | null }>).forEach(
+          (row) => {
+            next[row.id] = row.full_name || row.email || row.id;
+          }
+        );
+      }
+    }
 
-    const employeesArray = empData as Array<{
-      id: string;
-      full_name: string | null;
-      email: string | null;
-    }>;
+    if (Object.keys(next).length === 0) return;
 
-    setApproverNames((prev) => {
-      const next = { ...prev };
-      employeesArray.forEach((row) => {
-        next[row.id] = row.full_name || row.email || row.id;
-      });
-      return next;
-    });
+    setApproverNames((prev) => ({ ...prev, ...next }));
   }
 
   useEffect(() => {
@@ -1230,21 +1215,19 @@ export default function OvertimeApprovalPage() {
                           </BodySmall>
                         ) : null}
                         {getViewerStatus(req) === "approved" &&
-                          (req.account_manager_id || req.approved_by) && (
+                          getOvertimeDecisionActorId(req) && (
                             <Caption className="mt-2 text-xs text-muted-foreground">
-                              Approved by Manager:{" "}
-                              {approverNames[req.account_manager_id || req.approved_by!] ||
-                                "Manager"}
+                              Approved by:{" "}
+                              {approverNames[getOvertimeDecisionActorId(req)!] || "Unknown approver"}
                               {req.approved_at &&
                                 ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
                             </Caption>
                           )}
                         {getViewerStatus(req) === "rejected" &&
-                          (req.account_manager_id || req.approved_by) && (
+                          getOvertimeDecisionActorId(req) && (
                             <Caption className="mt-2 text-xs text-muted-foreground">
                               Rejected by:{" "}
-                              {approverNames[req.account_manager_id || req.approved_by!] ||
-                                "Manager"}
+                              {approverNames[getOvertimeDecisionActorId(req)!] || "Unknown approver"}
                               {req.approved_at &&
                                 ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
                             </Caption>
@@ -1530,13 +1513,12 @@ export default function OvertimeApprovalPage() {
                 ) : null}
 
                 {getViewerStatus(selected) === "approved" &&
-                  (selected.account_manager_id || selected.approved_by) && (
+                  getOvertimeDecisionActorId(selected) && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">
-                        Approved by Manager:{" "}
+                        Approved by:{" "}
                         <span className="font-medium text-foreground">
-                          {approverNames[selected.account_manager_id || selected.approved_by!] ||
-                            "Manager"}
+                          {approverNames[getOvertimeDecisionActorId(selected)!] || "Unknown approver"}
                         </span>
                         {selected.approved_at &&
                           ` on ${format(new Date(selected.approved_at), "MMM dd, yyyy h:mm a")}`}
@@ -1544,13 +1526,12 @@ export default function OvertimeApprovalPage() {
                     </div>
                   )}
                 {getViewerStatus(selected) === "rejected" &&
-                  (selected.account_manager_id || selected.approved_by) && (
+                  getOvertimeDecisionActorId(selected) && (
                     <div className="space-y-2">
                       <p className="text-sm text-muted-foreground">
                         Rejected by:{" "}
                         <span className="font-medium text-foreground">
-                          {approverNames[selected.account_manager_id || selected.approved_by!] ||
-                            "Manager"}
+                          {approverNames[getOvertimeDecisionActorId(selected)!] || "Unknown approver"}
                         </span>
                         {selected.approved_at &&
                           ` on ${format(new Date(selected.approved_at), "MMM dd, yyyy h:mm a")}`}

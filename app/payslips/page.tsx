@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -255,6 +255,43 @@ function combineAdjustmentReasonForDb(rows: AdjustmentRow[]): string | null {
   return parts.join(" | ").slice(0, 2000);
 }
 
+function fingerprintAdjustmentRows(rows: AdjustmentRow[]): string {
+  return JSON.stringify(
+    rows.map((r) => ({
+      id: r.id,
+      description: r.description.trim(),
+      amount: r.amount,
+    }))
+  );
+}
+
+function fingerprintOtherDeductionRows(rows: OtherDeductionRow[]): string {
+  return JSON.stringify(
+    rows.map((r) => ({
+      id: r.id,
+      type: r.type,
+      amount: r.amount,
+    }))
+  );
+}
+
+type GovOverridesState = {
+  sssReg: number | null;
+  sssWisp: number | null;
+  phil: number | null;
+  pagibig: number | null;
+  tax: number | null;
+};
+
+type PayslipEditBaseline = {
+  payslipId: string | null;
+  dbGrossPay: number;
+  dbAdjustmentAmount: number;
+  adjFp: string;
+  otherFp: string;
+  govFp: string;
+};
+
 export default function PayslipsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -280,19 +317,16 @@ export default function PayslipsPage() {
   const [payrollRunStatus, setPayrollRunStatus] = useState<string | null>(null);
   const [attendance, setAttendance] = useState<WeeklyAttendance | null>(null);
   const [deductions, setDeductions] = useState<EmployeeDeductions | null>(null);
-  const [govContributionOverrides, setGovContributionOverrides] = useState<{
-    sssReg: number | null;
-    sssWisp: number | null;
-    phil: number | null;
-    pagibig: number | null;
-    tax: number | null;
-  }>({
+  const [govContributionOverrides, setGovContributionOverrides] = useState<GovOverridesState>({
     sssReg: null,
     sssWisp: null,
     phil: null,
     pagibig: null,
     tax: null,
   });
+  const payslipEditBaselineRef = useRef<PayslipEditBaseline | null>(null);
+  const [payslipBaselineTick, setPayslipBaselineTick] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [clockEntries, setClockEntries] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -301,11 +335,6 @@ export default function PayslipsPage() {
   >([]);
   const [restDaysMap, setRestDaysMap] = useState<Map<string, boolean>>(new Map());
   const [calculatedTotalGrossPay, setCalculatedTotalGrossPay] = useState<number | null>(null);
-
-  // Debug: Log when calculatedTotalGrossPay changes
-  useEffect(() => {
-    console.log('[PayslipsPage] calculatedTotalGrossPay state updated:', calculatedTotalGrossPay);
-  }, [calculatedTotalGrossPay]);
 
   // Redirect HR users without salary access
   useEffect(() => {
@@ -469,6 +498,30 @@ export default function PayslipsPage() {
   } | null>(null);
   const [showSavePayslipConfirm, setShowSavePayslipConfirm] = useState(false);
   const [showUpdatePayslipConfirm, setShowUpdatePayslipConfirm] = useState(false);
+
+  const applyPayslipEditBaseline = (
+    row: {
+      id: string;
+      gross_pay: number | null;
+      adjustment_amount?: number | null;
+    } | null,
+    adjRows: AdjustmentRow[],
+    otherRows: OtherDeductionRow[]
+  ) => {
+    if (!row) {
+      payslipEditBaselineRef.current = null;
+    } else {
+      payslipEditBaselineRef.current = {
+        payslipId: row.id,
+        dbGrossPay: Number(row.gross_pay ?? 0),
+        dbAdjustmentAmount: Number(row.adjustment_amount ?? 0),
+        adjFp: fingerprintAdjustmentRows(adjRows),
+        otherFp: fingerprintOtherDeductionRows(otherRows),
+        govFp: JSON.stringify(govContributionOverrides),
+      };
+    }
+    setPayslipBaselineTick((n) => n + 1);
+  };
 
   const parseNumberInput = (value: string): number | null => {
     if (value.trim() === "") return null;
@@ -796,6 +849,14 @@ export default function PayslipsPage() {
       const { data: existingPayslipRows } = await existingPayslipQuery;
       const existingPayslipRow = Array.isArray(existingPayslipRows) ? existingPayslipRows[0] : null;
 
+      const mergedAdjRowsForBaseline = existingPayslipRow
+        ? mergeAdjustmentRowsFromSaved(
+            existingPayslipRow.adjustment_amount ?? 0,
+            existingPayslipRow.adjustment_reason,
+            (existingPayslipRow.deductions_breakdown as Record<string, unknown>) || {}
+          )
+        : createDefaultAdjustmentRows();
+
       if (existingPayslipRow) {
         const ded = (existingPayslipRow.deductions_breakdown as Record<string, unknown>) || {};
         setSavedPayslip({
@@ -811,17 +872,10 @@ export default function PayslipsPage() {
           pagibig_amount: existingPayslipRow.pagibig_amount ?? 0,
           withholding_tax: typeof ded.tax === "number" ? ded.tax : 0,
         });
-        setAdjustmentRows(
-          mergeAdjustmentRowsFromSaved(
-            existingPayslipRow.adjustment_amount ?? 0,
-            existingPayslipRow.adjustment_reason,
-            ded
-          )
-        );
       } else {
         setSavedPayslip(null);
-        setAdjustmentRows(createDefaultAdjustmentRows());
       }
+      setAdjustmentRows(mergedAdjRowsForBaseline);
 
       // Attendance for the payslip UI always regenerates from the same inputs as Time Attendance
       // (sessions + approved OT + FTL). Saved payslip rows still supply deductions/adjustments only.
@@ -1664,15 +1718,23 @@ export default function PayslipsPage() {
           | Record<string, unknown>
           | undefined;
         const savedLines = savedBr?.other_deduction_lines;
-        if (Array.isArray(savedLines) && savedLines.length > 0) {
-          setOtherDeductionRows(
-            mergeOtherDeductionRowsFromSaved(savedLines, dedRow?.vale_amount ?? 0)
-          );
-        } else {
-          setOtherDeductionRows(
-            mergeOtherDeductionRowsFromSaved(undefined, dedRow?.vale_amount ?? 0)
-          );
-        }
+        const nextOtherDeductionRows =
+          Array.isArray(savedLines) && savedLines.length > 0
+            ? mergeOtherDeductionRowsFromSaved(savedLines, dedRow?.vale_amount ?? 0)
+            : mergeOtherDeductionRowsFromSaved(undefined, dedRow?.vale_amount ?? 0);
+        setOtherDeductionRows(nextOtherDeductionRows);
+
+        applyPayslipEditBaseline(
+          existingPayslipRow
+            ? {
+                id: existingPayslipRow.id as string,
+                gross_pay: Number(existingPayslipRow.gross_pay ?? 0),
+                adjustment_amount: existingPayslipRow.adjustment_amount ?? 0,
+              }
+            : null,
+          mergedAdjRowsForBaseline,
+          nextOtherDeductionRows
+        );
       } catch (dedErr) {
         console.error("Exception loading deductions:", dedErr);
         setDeductions({
@@ -1686,11 +1748,25 @@ export default function PayslipsPage() {
           pagibig_contribution: 0,
           withholding_tax: 0,
         });
-        setOtherDeductionRows(createDefaultOtherDeductionRows());
+        const fallbackOther = createDefaultOtherDeductionRows();
+        setOtherDeductionRows(fallbackOther);
+        applyPayslipEditBaseline(
+          existingPayslipRow
+            ? {
+                id: existingPayslipRow.id as string,
+                gross_pay: Number(existingPayslipRow.gross_pay ?? 0),
+                adjustment_amount: existingPayslipRow.adjustment_amount ?? 0,
+              }
+            : null,
+          mergedAdjRowsForBaseline,
+          fallbackOther
+        );
       }
     } catch (error) {
       console.error("Error loading data:", error);
       toast.error("Failed to load attendance/deductions");
+      payslipEditBaselineRef.current = null;
+      setPayslipBaselineTick((n) => n + 1);
     }
   }
 
@@ -3064,6 +3140,22 @@ export default function PayslipsPage() {
     return finalGrossPay - totalDed;
   }, [finalGrossPay, totalDed]);
 
+  const payslipHasLocalEdits = useMemo(() => {
+    const b = payslipEditBaselineRef.current;
+    if (!savedPayslip || !b?.payslipId) return false;
+    return (
+      fingerprintAdjustmentRows(adjustmentRows) !== b.adjFp ||
+      fingerprintOtherDeductionRows(otherDeductionRows) !== b.otherFp ||
+      JSON.stringify(govContributionOverrides) !== b.govFp
+    );
+  }, [
+    adjustmentRows,
+    otherDeductionRows,
+    govContributionOverrides,
+    savedPayslip,
+    payslipBaselineTick,
+  ]);
+
   const isSavedPayslip = savedPayslip !== null;
   const isRunFinalized = payrollRunId ? payrollRunStatus === "finalized" : false;
   const isLocked = isSavedPayslip && !(payrollRunId && !isRunFinalized);
@@ -3120,14 +3212,6 @@ export default function PayslipsPage() {
     );
   }
 
-  // Debug: Log finalGrossPay calculation
-  console.log('[PayslipsPage] finalGrossPay calculation:', {
-    calculatedTotalGrossPay,
-    finalGrossPay,
-    totalDed,
-    netPay: finalGrossPay - totalDed,
-  });
-
   // Helper function to calculate earnings breakdown from attendance data
   function calculateEarningsBreakdown() {
     // Return empty breakdown since rates are removed
@@ -3145,35 +3229,6 @@ export default function PayslipsPage() {
       regularHolidayHours: 0,
       grossIncome: attendance?.gross_pay || 0,
     };
-  }
-
-  // Show access denied message if user doesn't have permission - MUST be after all hooks
-  if (!hasPayslipsAccess) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <Card className="max-w-md">
-            <CardContent className="pt-6">
-              <VStack gap="4" align="center">
-                <Icon
-                  name="Lock"
-                  size={IconSizes.xl}
-                  className="text-destructive"
-                />
-                <H3>Access Denied</H3>
-                <BodySmall className="text-center text-muted-foreground">
-                  You do not have permission to access the payslip management
-                  page. Please contact your administrator if you need access.
-                </BodySmall>
-                <Button onClick={() => router.push("/dashboard")}>
-                  Go to Dashboard
-                </Button>
-              </VStack>
-            </CardContent>
-          </Card>
-        </div>
-      </DashboardLayout>
-    );
   }
 
   return (
@@ -3976,46 +4031,65 @@ export default function PayslipsPage() {
                 <>
                   <div className="mb-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5 text-xs text-primary">
                     {isLocked
-                      ? "This payslip has been saved. Values below are from the database. Adjustments cannot be edited."
-                      : "This payslip has been saved. You can still edit it until the payroll run is finalized."}
+                      ? "This payslip is finalized from the database; edits are locked."
+                      : "The on-screen payslip is your working copy (live attendance and rates). The database is updated only when you click Save."}
                   </div>
                   {savedPayslip && (() => {
                     const earnings = earningsBaseForPeriod;
-                    const savedAdj = savedPayslip.adjustment_amount;
-                    const impliedDiff = Math.round((savedPayslip.gross_pay - earnings - savedAdj) * 100) / 100;
-                    const showImplied = Math.abs(impliedDiff) > 0.01;
+                    const previewGross = finalGrossPay;
+                    const dbGross = savedPayslip.gross_pay;
+                    const grossDiffDbVsPreview =
+                      Math.round((dbGross - previewGross) * 100) / 100;
+                    const showGrossMismatchExplainer =
+                      payslipHasLocalEdits && Math.abs(grossDiffDbVsPreview) > 0.01;
+
                     return (
+                      <>
+                        {!isLocked && !payslipHasLocalEdits && (
+                          <div className="mb-2 text-xs text-muted-foreground">
+                            Totals above follow the generated payslip from time entries. Use{" "}
+                            <span className="font-medium text-foreground">Save payslip</span> to persist
+                            this cutoff to the database.
+                          </div>
+                        )}
+                        {!isLocked && payslipHasLocalEdits && !showGrossMismatchExplainer && (
+                          <div className="mb-2 text-xs text-amber-800 dark:text-amber-200/90 rounded border border-amber-200/80 bg-amber-50/90 dark:bg-amber-950/30 px-2 py-1.5">
+                            You have unsaved edits (adjustments, other deductions, or government
+                            amounts). Save payslip to write them to the database.
+                          </div>
+                        )}
+                        {showGrossMismatchExplainer && (
                       <div className="mb-2 space-y-1 rounded border border-border/80 bg-muted/40 px-2 py-1.5 text-xs text-foreground">
-                        <div className="font-medium text-foreground">Why is Gross Pay {formatCurrency(displayGrossPay)}?</div>
+                        <div className="font-medium text-foreground">Unsaved preview vs last saved gross</div>
                         <div className="flex flex-col gap-0.5">
                           <div className="flex justify-between">
-                            <span>Earnings (this period):</span>
+                            <span>Preview earnings (this period):</span>
                             <span>{formatCurrency(earnings)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Adjustment (saved in DB):</span>
-                            <span className={savedAdj >= 0 ? "text-primary" : "text-destructive"}>
-                              {savedAdj >= 0 ? "+" : ""}{formatCurrency(savedAdj)}
+                            <span>Adjustment (form, included in preview gross):</span>
+                            <span className={adjustment >= 0 ? "text-primary" : "text-destructive"}>
+                              {adjustment >= 0 ? "+" : ""}{formatCurrency(adjustment)}
                             </span>
                           </div>
-                          {showImplied && (
-                            <div className="flex justify-between text-primary/80">
-                              <span>Difference (included in saved gross):</span>
-                              <span>{impliedDiff >= 0 ? "+" : ""}{formatCurrency(impliedDiff)}</span>
-                            </div>
-                          )}
+                          <div className="flex justify-between text-primary/80">
+                            <span>Difference (DB gross − preview gross):</span>
+                            <span>{grossDiffDbVsPreview >= 0 ? "+" : ""}{formatCurrency(grossDiffDbVsPreview)}</span>
+                          </div>
                           <div className="flex justify-between border-t border-border pt-1 font-medium">
-                            <span>Gross pay (saved):</span>
-                            <span>{formatCurrency(earnings + savedAdj + (showImplied ? impliedDiff : 0))}</span>
+                            <span>Last saved gross (database):</span>
+                            <span>{formatCurrency(dbGross)}</span>
+                          </div>
+                          <div className="flex justify-between font-medium">
+                            <span>Preview gross (this screen):</span>
+                            <span>{formatCurrency(previewGross)}</span>
                           </div>
                         </div>
-                        {showImplied && (
-                          <div className="mt-1 text-[10px] text-primary/80">
-                            {impliedDiff > 0
-                              ? `The saved gross is ${formatCurrency(impliedDiff)} more than Earnings + Adjustment. This may have been saved as part of gross when the payslip was created.`
-                              : `The saved gross is ${formatCurrency(Math.abs(impliedDiff))} less than Earnings + Adjustment (${formatCurrency(earnings)}). If the second cutoff gross should match current earnings, the saved value may need to be corrected.`}
-                          </div>
-                        )}
+                        <div className="mt-1 text-[10px] text-primary/80">
+                          {grossDiffDbVsPreview > 0
+                            ? `The database gross is ${formatCurrency(grossDiffDbVsPreview)} higher than your current preview. Saving will overwrite the stored gross with the preview amount (unless you change the preview first).`
+                            : `The database gross is ${formatCurrency(Math.abs(grossDiffDbVsPreview))} lower than your current preview. Save payslip to update the stored gross to ${formatCurrency(previewGross)}.`}
+                        </div>
                         {(() => {
                           const lines = savedPayslip.deductions_breakdown
                             ?.adjustment_lines;
@@ -4042,13 +4116,15 @@ export default function PayslipsPage() {
                           if (savedPayslip.adjustment_reason) {
                             return (
                               <div className="mt-1 text-muted-foreground">
-                                Reason: {savedPayslip.adjustment_reason}
+                                Last saved reason: {savedPayslip.adjustment_reason}
                               </div>
                             );
                           }
                           return null;
                         })()}
                       </div>
+                        )}
+                      </>
                     );
                   })()}
                 </>

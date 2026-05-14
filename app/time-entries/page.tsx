@@ -55,7 +55,7 @@ import {
 } from "@/components/ui/select";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { fetchSessionsInRange, type TimeEntrySession } from "@/lib/timeEntries";
-import { syntheticClockOutFromApprovedOt } from "@/lib/ftl-ot-synthesis";
+import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 
 interface TimeEntry {
   id: string;
@@ -654,6 +654,13 @@ export default function TimeEntriesPage() {
           pair.outTime = syn;
           approvedFtlByEmployeeDate.set(key, pair);
         }
+      });
+
+      approvedFtlByEmployeeDate.forEach((pair) => {
+        if (!pair.inTime || !pair.outTime) return;
+        const n = normalizeApprovedFtlClockPair(pair.inTime, pair.outTime);
+        pair.inTime = n.clockInIso;
+        pair.outTime = n.clockOutIso;
       });
 
       // Transform data to ensure employees is a single object, not an array

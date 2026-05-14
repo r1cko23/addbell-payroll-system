@@ -45,7 +45,10 @@ import {
   filterSyntheticFtlWhenBundyExists,
   type TimeEntrySession,
 } from "@/lib/timeEntries";
-import { syntheticClockOutFromApprovedOt } from "@/lib/ftl-ot-synthesis";
+import {
+  syntheticClockOutFromApprovedOt,
+  normalizeApprovedFtlClockPair,
+} from "@/lib/ftl-ot-synthesis";
 
 interface Employee {
   id: string;
@@ -87,8 +90,12 @@ function clockEntryFromSession(s: TimeEntrySession): ClockEntry {
 
 function clockEntryFromApprovedFtl(ftl: FailureToLogRequest): ClockEntry | null {
   if (!ftl.actual_clock_in_time || !ftl.actual_clock_out_time) return null;
-  const inTime = parseISO(ftl.actual_clock_in_time);
-  const outTime = parseISO(ftl.actual_clock_out_time);
+  const { clockInIso, clockOutIso } = normalizeApprovedFtlClockPair(
+    ftl.actual_clock_in_time,
+    ftl.actual_clock_out_time
+  );
+  const inTime = parseISO(clockInIso);
+  const outTime = parseISO(clockOutIso);
   if (Number.isNaN(inTime.getTime()) || Number.isNaN(outTime.getTime())) return null;
   if (outTime <= inTime) return null;
 
@@ -98,8 +105,8 @@ function clockEntryFromApprovedFtl(ftl: FailureToLogRequest): ClockEntry | null 
 
   return {
     id: `ftl-${ftl.id}`,
-    clock_in_time: ftl.actual_clock_in_time,
-    clock_out_time: ftl.actual_clock_out_time,
+    clock_in_time: clockInIso,
+    clock_out_time: clockOutIso,
     regular_hours: totalHours,
     total_hours: totalHours,
     total_night_diff_hours: 0,
@@ -1289,9 +1296,17 @@ export default function TimesheetPage() {
               return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
             }
           }, 0);
-          bh = creditWorkHoursHalfHour(
+          const credited = creditWorkHoursHalfHour(
             Math.round(bhFromBusinessWindows * 100) / 100
           );
+          if (dayOfWeek === 6) {
+            // Saturday is not part of the compressed Mon–Fri base schedule; worked time is OT
+            // (matches lib/timesheet-auto-generator.ts: isSaturday → overtimeHours, not regularHours).
+            bh = 0;
+            otHours = Math.round(Math.max(otHours, credited) * 100) / 100;
+          } else {
+            bh = credited;
+          }
         } else if (
           status === "OT" &&
           dayOTs.length > 0 &&
@@ -1324,10 +1339,10 @@ export default function TimesheetPage() {
       // They must log time on scheduled workdays or be marked as ABSENT/rest day.
 
       // IMPORTANT: BH is set based on:
-      // 1. Actual completed time log entries (regular_hours from clock entries)
-      // 2. Saturday company benefit (8 BH even if not worked) - matches payslip calculation
-      // 3. Leave types (CTO, SIL, etc.) - handled above
-      // The payslip calculation uses the same logic, ensuring consistency between timesheet and payslip
+      // 1. Actual completed time log entries (business-window overlap Mon–Fri)
+      // 2. Saturday: worked overlap is OT, not BH (compressed work week; matches timesheet-auto-generator)
+      // 3. Leave types (CTO, SIL, etc.) — handled above
+      // Payslip uses generateTimesheetFromClockEntries with the same Saturday rule.
 
       // LT/UT priority: employee schedule first, then business-hours fallback.
       const businessPolicy = getBusinessDayPolicyByDay(getDay(parseISO(dateStr)));
@@ -1602,11 +1617,7 @@ export default function TimesheetPage() {
           return sum + d.bh;
         }
       } else {
-        // For regular days: count if BH > 0
-        // This matches payslip calculation which counts regular days with regularHours > 0
-        // Saturday (regular work day per law) gets 8 BH even if not worked, so it will be counted
-        // Regular days (Mon-Fri) with BH > 0 are also counted (whether from clock entries or other sources)
-        // Note: BH can come from clock entries, approved OT requests, or other sources
+        // For regular days: count if BH > 0 (Saturday work is OT, not BH — see generateAttendanceDays)
         if (d.bh > 0) {
           // Regular day with BH > 0 counts in attendance rollup.
           return sum + d.bh;
@@ -1670,11 +1681,7 @@ export default function TimesheetPage() {
           return sum + d.bh;
         }
       } else {
-        // For regular days: count if BH > 0
-        // This matches payslip calculation which counts regular days with regularHours > 0
-        // Saturday (regular work day per law) gets 8 BH even if not worked, so it will be counted
-        // Regular days (Mon-Fri) with BH > 0 are also counted (whether from clock entries or other sources)
-        // Note: BH can come from clock entries, approved OT requests, or other sources
+        // For regular days: count if BH > 0 (Saturday work is OT, not BH — see generateAttendanceDays)
         if (d.bh > 0) {
           // Regular day with BH > 0 counts in attendance rollup.
           return sum + d.bh;

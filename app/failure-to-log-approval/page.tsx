@@ -45,6 +45,7 @@ import {
   isFirstApproverForGroup,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
+import { normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 
 interface FailureToLog {
   id: string;
@@ -648,6 +649,27 @@ export default function FailureToLogApprovalPage() {
           approved_at: now,
           updated_at: now,
         };
+
+    if (
+      !effectiveManagerStageFinal &&
+      requestData.entry_type === "both" &&
+      requestData.actual_clock_in_time &&
+      requestData.actual_clock_out_time
+    ) {
+      const n = normalizeApprovedFtlClockPair(
+        requestData.actual_clock_in_time,
+        requestData.actual_clock_out_time
+      );
+      if (
+        n.clockInIso !== requestData.actual_clock_in_time ||
+        n.clockOutIso !== requestData.actual_clock_out_time
+      ) {
+        patch.actual_clock_in_time = n.clockInIso;
+        patch.actual_clock_out_time = n.clockOutIso;
+        requestData.actual_clock_in_time = n.clockInIso;
+        requestData.actual_clock_out_time = n.clockOutIso;
+      }
+    }
     const { error: finalError } = await supabase
       .from("failure_to_log")
       .update(patch)

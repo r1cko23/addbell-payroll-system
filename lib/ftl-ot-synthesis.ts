@@ -1,5 +1,60 @@
 import { format, parseISO } from "date-fns";
 
+function parseTimestampInManila(value: string): Date {
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)) {
+    return parseISO(value);
+  }
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  return new Date(`${normalized}+08:00`);
+}
+
+function manilaCalendarDateKey(d: Date): string {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(d);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * When clock-out is not after clock-in on the same Manila calendar day, treat the
+ * most common data-entry mistake (e.g. 6:00 AM meaning 6:00 PM) by shifting clock-out +12h,
+ * then +24h if still invalid. Matches timesheet generator's `clockOut <= clockIn → 0 BH` guard.
+ */
+export function normalizeApprovedFtlClockPair(
+  clockInIso: string,
+  clockOutIso: string
+): { clockInIso: string; clockOutIso: string } {
+  const cin = parseTimestampInManila(clockInIso);
+  const cout = parseTimestampInManila(clockOutIso);
+  if (Number.isNaN(cin.getTime()) || Number.isNaN(cout.getTime())) {
+    return { clockInIso, clockOutIso };
+  }
+  if (cout > cin) return { clockInIso, clockOutIso };
+
+  const dayIn = manilaCalendarDateKey(cin);
+  const dayOut = manilaCalendarDateKey(cout);
+
+  if (dayIn === dayOut) {
+    const plus12 = new Date(cout.getTime() + 12 * 60 * 60 * 1000);
+    if (plus12 > cin) {
+      return { clockInIso, clockOutIso: plus12.toISOString() };
+    }
+    const plus24 = new Date(cout.getTime() + 24 * 60 * 60 * 1000);
+    if (plus24 > cin) {
+      return { clockInIso, clockOutIso: plus24.toISOString() };
+    }
+  }
+
+  return { clockInIso, clockOutIso };
+}
+
 export type OtRequestLike = {
   ot_date: string;
   end_date?: string | null;
@@ -104,5 +159,12 @@ export function fillMissingFtlClockOutsFromApprovedOtByEmployeeDate(
     });
     const syn = syntheticClockOutFromApprovedOt(pair.inTime, dateKey, ots);
     if (syn) pair.outTime = syn;
+  });
+
+  pairMap.forEach((pair) => {
+    if (!pair.inTime || !pair.outTime) return;
+    const n = normalizeApprovedFtlClockPair(pair.inTime, pair.outTime);
+    pair.inTime = n.clockInIso;
+    pair.outTime = n.clockOutIso;
   });
 }

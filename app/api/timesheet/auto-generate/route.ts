@@ -20,9 +20,13 @@ import { format } from "date-fns";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import { calculateMonthlySalary } from "@/utils/ph-deductions";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
-import { fetchSessionsInRange } from "@/lib/timeEntries";
+import { fetchSessionsInRange, filterSyntheticFtlWhenBundyExists, getDateInManilaDefault } from "@/lib/timeEntries";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
+import {
+  fillMissingFtlClockOutsFromApprovedOtByEmployeeDate,
+  type OtRowWithEmployee,
+} from "@/lib/ftl-ot-synthesis";
 
 function calculateApprovedOtNightDiffHours(
   startTimeRaw: string | null | undefined,
@@ -182,6 +186,35 @@ export async function POST(request: NextRequest) {
       clockEntriesByEmployee.get(eid)!.push(entry);
     });
 
+    const { data: projectRowsForBundy } = await supabase
+      .from("project_time_entries")
+      .select("id, project_id, employee_id, clock_in, clock_out, regular_hours, total_hours")
+      .in("employee_id", employeeIds)
+      .gte("clock_in", periodStartISO)
+      .lte("clock_in", periodEndISO)
+      .not("clock_out", "is", null)
+      .order("clock_in", { ascending: true });
+
+    (projectRowsForBundy || []).forEach((r: any) => {
+      const eid = r.employee_id as string | undefined;
+      if (!eid || !r.clock_in || !r.clock_out) return;
+      const hours = r.regular_hours ?? r.total_hours ?? 0;
+      if (!clockEntriesByEmployee.has(eid)) {
+        clockEntriesByEmployee.set(eid, []);
+      }
+      clockEntriesByEmployee.get(eid)!.push({
+        id: r.id,
+        clock_in_time: r.clock_in,
+        clock_out_time: r.clock_out,
+        clock_in_date_ph: getDateInManilaDefault(r.clock_in),
+        status: "clocked_out",
+        total_hours: r.total_hours ?? hours,
+        regular_hours: hours,
+        total_night_diff_hours: null,
+        employee_id: eid,
+      });
+    });
+
     // Merge approved FTL rows as synthetic complete sessions (pairing IN+OUT by employee/date).
     const ftlPairMap = new Map<
       string,
@@ -212,14 +245,34 @@ export async function POST(request: NextRequest) {
       ftlPairMap.set(key, pair);
     });
 
+    fillMissingFtlClockOutsFromApprovedOtByEmployeeDate(
+      ftlPairMap,
+      (approvedOtRows || []) as OtRowWithEmployee[]
+    );
+
+    const ftlSessionsByEmployee = new Map<
+      string,
+      Array<{
+        id: string;
+        employee_id: string;
+        clock_in_time: string;
+        clock_out_time: string;
+        regular_hours: null;
+        overtime_hours: number;
+        total_night_diff_hours: number;
+        status: string;
+      }>
+    >();
+
     ftlPairMap.forEach((pair, key) => {
       if (!pair.inTime || !pair.outTime) return;
       const [employeeId] = key.split("::");
       if (!employeeId) return;
-      if (!clockEntriesByEmployee.has(employeeId)) {
-        clockEntriesByEmployee.set(employeeId, []);
+      if (new Date(pair.outTime) <= new Date(pair.inTime)) return;
+      if (!ftlSessionsByEmployee.has(employeeId)) {
+        ftlSessionsByEmployee.set(employeeId, []);
       }
-      clockEntriesByEmployee.get(employeeId)!.push({
+      ftlSessionsByEmployee.get(employeeId)!.push({
         id: `ftl-${pair.sourceId}`,
         employee_id: employeeId,
         clock_in_time: pair.inTime,
@@ -229,6 +282,15 @@ export async function POST(request: NextRequest) {
         total_night_diff_hours: 0,
         status: "approved",
       });
+    });
+
+    ftlSessionsByEmployee.forEach((ftlList, employeeId) => {
+      const merged = clockEntriesByEmployee.get(employeeId) || [];
+      const kept = filterSyntheticFtlWhenBundyExists(merged, ftlList, getDateInManilaDefault);
+      if (!clockEntriesByEmployee.has(employeeId)) {
+        clockEntriesByEmployee.set(employeeId, []);
+      }
+      kept.forEach((s) => clockEntriesByEmployee.get(employeeId)!.push(s));
     });
 
     const approvedOtByEmployeeDate = new Map<string, Map<string, number>>();

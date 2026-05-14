@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { fetchSessionsInRange, type TimeEntrySession } from "@/lib/timeEntries";
+import { syntheticClockOutFromApprovedOt } from "@/lib/ftl-ot-synthesis";
 
 interface TimeEntry {
   id: string;
@@ -610,6 +611,50 @@ export default function TimeEntriesPage() {
           });
         }
       }
+
+      let approvedOtRowsForFtl: Array<{
+        employee_id: string;
+        ot_date: string;
+        end_date?: string | null;
+        start_time: string;
+        end_time: string;
+        status?: string | null;
+        total_hours?: number | null;
+      }> = [];
+      if (employeeIdsForFtl.length > 0) {
+        const { data: otRowsForFtl, error: otForFtlError } = await supabase
+          .from("overtime_requests")
+          .select(
+            "employee_id, ot_date, end_date, start_time, end_time, total_hours, status"
+          )
+          .in("employee_id", employeeIdsForFtl)
+          .gte("ot_date", periodStartStr)
+          .lte("ot_date", periodEndStr)
+          .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+        if (otForFtlError) {
+          console.warn("Error loading OT for FTL clock-out synthesis:", otForFtlError);
+        } else {
+          approvedOtRowsForFtl = (otRowsForFtl || []) as typeof approvedOtRowsForFtl;
+        }
+      }
+
+      approvedFtlByEmployeeDate.forEach((pair, key) => {
+        if (!pair.inTime || pair.outTime || approvedOtRowsForFtl.length === 0) return;
+        const parts = key.split("::");
+        const employeeId = parts[0];
+        const dateKey = parts.slice(1).join("::");
+        if (!employeeId || !dateKey) return;
+        const ots = approvedOtRowsForFtl.filter(
+          (ot) =>
+            ot.employee_id === employeeId &&
+            String(ot.ot_date).split("T")[0] === dateKey
+        );
+        const syn = syntheticClockOutFromApprovedOt(pair.inTime, dateKey, ots);
+        if (syn) {
+          pair.outTime = syn;
+          approvedFtlByEmployeeDate.set(key, pair);
+        }
+      });
 
       // Transform data to ensure employees is a single object, not an array
       const transformedEntries: TimeEntry[] =

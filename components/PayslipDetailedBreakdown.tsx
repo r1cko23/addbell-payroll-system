@@ -1421,41 +1421,55 @@ function PayslipDetailedBreakdownComponent({
 
           {/* Summary: old "Total Earnings" omitted basic row 1 — show premium subtotal + table total vs gross */}
           <div className="bg-gray-50 border-t border-gray-200 px-2 py-1.5 space-y-1">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-700">
+            <div className="flex justify-between items-center gap-2 min-w-0">
+              <span className="text-xs font-medium text-gray-700 min-w-0 shrink">
                 Premium subtotal (OT, holidays, ND — excl. row 1):
               </span>
-              <span className="text-xs font-semibold text-gray-900">
-                {formatCurrency(premiumPaySubtotalExcludingBasic)}
+              <span className="text-xs font-semibold text-gray-900 shrink-0 tabular-nums text-right">
+                {formatCurrency(
+                  Number.isFinite(premiumPaySubtotalExcludingBasic)
+                    ? premiumPaySubtotalExcludingBasic
+                    : 0
+                )}
               </span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-medium text-gray-700">
+            <div className="flex justify-between items-center gap-2 min-w-0">
+              <span className="text-xs font-medium text-gray-700 min-w-0 shrink">
                 Total (basic + table above
                 {otherPayAllowancesTotal >= 0.01
                   ? ", excl. Other Pay below"
                   : ""}
                 ):
               </span>
-              <span className="text-sm font-bold text-primary-700">
-                {formatCurrency(earningsTableTotalExcludingAllowances)}
+              <span className="text-sm font-bold text-primary-700 shrink-0 tabular-nums text-right">
+                {formatCurrency(
+                  Number.isFinite(earningsTableTotalExcludingAllowances)
+                    ? earningsTableTotalExcludingAllowances
+                    : 0
+                )}
               </span>
             </div>
             {otherPayAllowancesTotal >= 0.01 && (
-              <div className="flex justify-between items-center border-t border-gray-200 pt-1">
-                <span className="text-xs font-medium text-gray-700">
+              <div className="flex justify-between items-center gap-2 min-w-0 border-t border-gray-200 pt-1">
+                <span className="text-xs font-medium text-gray-700 min-w-0 shrink">
                   Other pay (allowances below):
                 </span>
-                <span className="text-xs font-semibold text-gray-900">
-                  {formatCurrency(otherPayAllowancesTotal)}
+                <span className="text-xs font-semibold text-gray-900 shrink-0 tabular-nums text-right">
+                  {formatCurrency(
+                    Number.isFinite(otherPayAllowancesTotal)
+                      ? otherPayAllowancesTotal
+                      : 0
+                  )}
                 </span>
               </div>
             )}
             {otherPayAllowancesTotal >= 0.01 && (
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-gray-800">Gross pay:</span>
-                <span className="text-sm font-bold text-primary-700">
-                  {formatCurrency(totalGrossPay)}
+              <div className="flex justify-between items-center gap-2 min-w-0">
+                <span className="text-xs font-semibold text-gray-800 shrink">Gross pay:</span>
+                <span className="text-sm font-bold text-primary-700 shrink-0 tabular-nums text-right">
+                  {formatCurrency(
+                    Number.isFinite(totalGrossPay) ? totalGrossPay : 0
+                  )}
                 </span>
               </div>
             )}

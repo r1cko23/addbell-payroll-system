@@ -37,6 +37,7 @@ import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
+import { syntheticClockOutFromApprovedOt } from "@/lib/ftl-ot-synthesis";
 import {
   H1,
   H2,
@@ -1012,9 +1013,30 @@ export default function PayslipsPage() {
               pairedByDate.set(dateKey, pair);
             });
 
+            const { data: approvedOtRowsForFtl } = await supabase
+              .from("overtime_requests")
+              .select(
+                "employee_id, ot_date, end_date, start_time, end_time, total_hours, status"
+              )
+              .in("employee_id", employeeIdsToLoadFtl)
+              .gte("ot_date", periodStartStr)
+              .lte("ot_date", periodEndStr)
+              .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+
+            pairedByDate.forEach((pair, dateKey) => {
+              if (!pair.inTime || pair.outTime || !approvedOtRowsForFtl?.length) return;
+              const ots = approvedOtRowsForFtl.filter((ot: any) => {
+                const d = String(ot.ot_date).split("T")[0];
+                return employeeIdsToLoadFtl.includes(ot.employee_id) && d === dateKey;
+              });
+              const syn = syntheticClockOutFromApprovedOt(pair.inTime, dateKey, ots);
+              if (syn) pair.outTime = syn;
+            });
+
             const bundyDatesForFtl = manilaDatesWithCompleteBundySession(
               mainSessions || [],
-              getDateInManila
+              getDateInManila,
+              projectSessions || []
             );
             pairedByDate.forEach((pair, dateKey) => {
               if (!pair.inTime || !pair.outTime) return;

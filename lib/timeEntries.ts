@@ -236,13 +236,18 @@ export function punchesToSessions(
  */
 export function manilaDatesWithCompleteBundySession(
   mainSessions: TimeEntrySession[],
-  getDateInManila: (iso: string) => string
+  getDateInManila: (iso: string) => string,
+  ...additionalSessionLists: TimeEntrySession[][]
 ): Set<string> {
   const dates = new Set<string>();
-  for (const s of mainSessions) {
-    if (!s.clock_in_time || !s.clock_out_time) continue;
-    if (new Date(s.clock_out_time) <= new Date(s.clock_in_time)) continue;
-    dates.add(getDateInManila(s.clock_in_time));
+  const lists = [mainSessions, ...additionalSessionLists];
+  for (const list of lists) {
+    if (!list?.length) continue;
+    for (const s of list) {
+      if (!s.clock_in_time || !s.clock_out_time) continue;
+      if (new Date(s.clock_out_time) <= new Date(s.clock_in_time)) continue;
+      dates.add(getDateInManila(s.clock_in_time));
+    }
   }
   return dates;
 }
@@ -254,14 +259,18 @@ type SessionLike = {
 
 /**
  * When approved failure-to-log is merged with real Bundy punches, omit FTL-only sessions
- * for dates that already have a complete Bundy (time_entries) session — avoids double BH.
+ * for dates that already have a complete Bundy session on main and/or project clocks — avoids double BH.
  */
 export function filterSyntheticFtlWhenBundyExists<T extends SessionLike>(
   mainSessions: TimeEntrySession[],
   ftlEntries: T[],
-  getDateInManila: (iso: string) => string
+  getDateInManila: (iso: string) => string,
+  projectSessions?: TimeEntrySession[] | null
 ): T[] {
-  const bundyDates = manilaDatesWithCompleteBundySession(mainSessions, getDateInManila);
+  const bundyDates =
+    projectSessions?.length ?
+      manilaDatesWithCompleteBundySession(mainSessions, getDateInManila, projectSessions)
+    : manilaDatesWithCompleteBundySession(mainSessions, getDateInManila);
   return ftlEntries.filter((e) => {
     if (!e.clock_out_time) return true;
     if (new Date(e.clock_out_time) <= new Date(e.clock_in_time)) return true;
@@ -293,7 +302,7 @@ export function getOpenEntryFromPunches(
   return openSessions.length > 0 ? openSessions[openSessions.length - 1] : null;
 }
 
-function defaultGetDateInManila(iso: string): string {
+export function getDateInManilaDefault(iso: string): string {
   const date = new Date(iso);
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila",
@@ -318,7 +327,7 @@ export async function fetchProjectTimeSessionsForEmployee(
   employeeId: string,
   startIso: string,
   endIso: string,
-  getDateInManila: (iso: string) => string = defaultGetDateInManila
+  getDateInManila: (iso: string) => string = getDateInManilaDefault
 ): Promise<TimeEntrySession[]> {
   const { data: rows } = await supabase
     .from("project_time_entries")
@@ -362,7 +371,7 @@ export async function fetchSessionsForEmployee(
   employeeId: string,
   startIso: string,
   endIso: string,
-  getDateInManila: (iso: string) => string = defaultGetDateInManila
+  getDateInManila: (iso: string) => string = getDateInManilaDefault
 ): Promise<TimeEntrySession[]> {
   const { data: punches } = await supabase
     .from("time_entries")
@@ -413,7 +422,7 @@ export async function fetchSessionsInRange(
   byEmployee.forEach((empPunches, empId) => {
     const sessions = punchesToSessions(
       empPunches,
-      (iso) => defaultGetDateInManila(iso)
+      (iso) => getDateInManilaDefault(iso)
     ).map((s) => ({ ...s, employee_id: empId }));
     allSessions.push(...sessions);
   });

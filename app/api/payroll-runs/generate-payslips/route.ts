@@ -6,7 +6,12 @@ import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generato
 import {
   fetchProjectTimeSessionsForEmployee,
   fetchSessionsForEmployee,
+  filterSyntheticFtlWhenBundyExists,
 } from "@/lib/timeEntries";
+import {
+  fillMissingFtlClockOutsFromApprovedOtByEmployeeDate,
+  type OtRowWithEmployee,
+} from "@/lib/ftl-ot-synthesis";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import {
   calculatePagIBIG,
@@ -237,6 +242,11 @@ export async function POST(req: NextRequest) {
       .gte("ot_date", cutoffStart)
       .lte("ot_date", cutoffEnd);
 
+    fillMissingFtlClockOutsFromApprovedOtByEmployeeDate(
+      approvedFtlByEmployeeDate,
+      (approvedOtRows || []) as OtRowWithEmployee[]
+    );
+
     (approvedOtRows || []).forEach((row: any) => {
       const status = normalizeValue(row.status);
       if (!["approved", "approved_by_manager", "approved_by_hr"].includes(status)) return;
@@ -302,7 +312,7 @@ export async function POST(req: NextRequest) {
         ),
       ]);
 
-      const employeeSessions = [...(mainSessions || []), ...(projectSessions || [])].filter(
+      const bundyInCutoff = [...(mainSessions || []), ...(projectSessions || [])].filter(
         (s: any) => {
           const clockIn = s?.clock_in_time || s?.clockInTime || s?.clock_in || s?.time_in;
           const iso = String(clockIn || "");
@@ -312,14 +322,14 @@ export async function POST(req: NextRequest) {
         }
       );
 
-      // Add synthetic sessions from approved FTL IN+OUT pairs when both times exist.
-      const ftlSessionsForEmployee: any[] = [];
+      const ftlSessionsBuilt: any[] = [];
       approvedFtlByEmployeeDate.forEach((pair, key) => {
         const [employeeId, dateKey] = key.split("::");
         if (employeeId !== e.id) return;
         if (!pair.inTime || !pair.outTime) return;
         if (dateKey < cutoffStart || dateKey > cutoffEnd) return;
-        ftlSessionsForEmployee.push({
+        if (new Date(pair.outTime) <= new Date(pair.inTime)) return;
+        ftlSessionsBuilt.push({
           id: `ftl-${pair.sourceId}`,
           employee_id: e.id,
           clock_in_time: pair.inTime,
@@ -330,7 +340,15 @@ export async function POST(req: NextRequest) {
           status: "approved",
         });
       });
-      employeeSessions.push(...ftlSessionsForEmployee);
+
+      const ftlSessionsForEmployee = filterSyntheticFtlWhenBundyExists(
+        mainSessions || [],
+        ftlSessionsBuilt,
+        getDateInManila,
+        projectSessions || []
+      );
+
+      const employeeSessions = [...bundyInCutoff, ...ftlSessionsForEmployee];
       if (employeeSessions.length === 0) {
         skipped.push({ employee_id: e.id, reason: "No time entries in cutoff" });
         continue;
@@ -386,6 +404,7 @@ export async function POST(req: NextRequest) {
         sessions_project_count: (projectSessions || []).length,
         sessions_cutoff_count: employeeSessions.length,
         ftl_synthetic_sessions_count: ftlSessionsForEmployee.length,
+        ftl_synthetic_sessions_built_count: ftlSessionsBuilt.length,
         approved_ot_dates_count: approvedOtByEmployeeDate.get(e.id)?.size || 0,
         approved_nd_dates_count: approvedNdByEmployeeDate.get(e.id)?.size || 0,
         total_regular_hours: totalRegularHours,

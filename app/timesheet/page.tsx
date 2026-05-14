@@ -45,6 +45,7 @@ import {
   filterSyntheticFtlWhenBundyExists,
   type TimeEntrySession,
 } from "@/lib/timeEntries";
+import { syntheticClockOutFromApprovedOt } from "@/lib/ftl-ot-synthesis";
 
 interface Employee {
   id: string;
@@ -107,7 +108,8 @@ function clockEntryFromApprovedFtl(ftl: FailureToLogRequest): ClockEntry | null 
 }
 
 function buildClockEntriesFromApprovedFtl(
-  approvedFtlRequests: FailureToLogRequest[]
+  approvedFtlRequests: FailureToLogRequest[],
+  otRequests?: OvertimeRequest[]
 ): ClockEntry[] {
   const byDate = new Map<
     string,
@@ -144,12 +146,21 @@ function buildClockEntriesFromApprovedFtl(
 
   const rows: ClockEntry[] = [];
   byDate.forEach((pair, dateKey) => {
-    if (!pair.inTime || !pair.outTime) return;
+    let { inTime, outTime } = pair;
+    if (inTime && !outTime && otRequests?.length) {
+      const syntheticOut = syntheticClockOutFromApprovedOt(
+        inTime,
+        dateKey,
+        otRequests
+      );
+      if (syntheticOut) outTime = syntheticOut;
+    }
+    if (!inTime || !outTime) return;
     const synthesized = clockEntryFromApprovedFtl({
       id: pair.sourceId,
       missed_date: dateKey,
-      actual_clock_in_time: pair.inTime,
-      actual_clock_out_time: pair.outTime,
+      actual_clock_in_time: inTime,
+      actual_clock_out_time: outTime,
       entry_type: "both",
       status: "approved",
     });
@@ -571,30 +582,7 @@ export default function TimesheetPage() {
       const approvedFtlData = (ftlData || []) as FailureToLogRequest[];
       setFailureToLogRequests(approvedFtlData);
 
-      const validClockEntries = (validEntries as TimeEntrySession[]).map(
-        clockEntryFromSession
-      );
-      const approvedFtlCompleteEntries = filterSyntheticFtlWhenBundyExists(
-        mainSessions || [],
-        buildClockEntriesFromApprovedFtl(approvedFtlData),
-        getDateInManila
-      );
-      const allClockEntries = [...validClockEntries, ...approvedFtlCompleteEntries];
-      setClockEntries(allClockEntries);
-
-      // Separate complete and incomplete entries from valid clock entries only
-      const completeEntries = allClockEntries.filter(
-        (entry) => entry.clock_out_time !== null
-      );
-      const incompleteEntries = allClockEntries.filter(
-        (entry) => entry.clock_out_time === null
-      );
-
-
-      console.log("Loaded complete entries:", completeEntries.length);
-      console.log("Loaded incomplete entries:", incompleteEntries.length);
-
-      // Load leave requests for the period
+      // Load leave requests for the period (before OT + FTL merge so OT is available for synthetic clock-out)
       // Leave requests overlap if: start_date <= periodEnd AND end_date >= periodStart
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
@@ -646,6 +634,28 @@ export default function TimesheetPage() {
         console.log("Sample OT request:", otData[0]);
       }
       setOtRequests(otData);
+
+      const validClockEntries = (validEntries as TimeEntrySession[]).map(
+        clockEntryFromSession
+      );
+      const approvedFtlCompleteEntries = filterSyntheticFtlWhenBundyExists(
+        mainSessions || [],
+        buildClockEntriesFromApprovedFtl(approvedFtlData, otData),
+        getDateInManila,
+        projectSessions || []
+      );
+      const allClockEntries = [...validClockEntries, ...approvedFtlCompleteEntries];
+      setClockEntries(allClockEntries);
+
+      const completeEntries = allClockEntries.filter(
+        (entry) => entry.clock_out_time !== null
+      );
+      const incompleteEntries = allClockEntries.filter(
+        (entry) => entry.clock_out_time === null
+      );
+
+      console.log("Loaded complete entries:", completeEntries.length);
+      console.log("Loaded incomplete entries:", incompleteEntries.length);
 
       const formattedHolidays: Holiday[] = await fetchHolidaysRange(supabase as any, {
         start: periodStartStr,
@@ -1010,7 +1020,8 @@ export default function TimesheetPage() {
         if (dayEntries.length > 0) {
           status = "LOG";
         } else if (incompleteDayEntries.length > 0) {
-          status = "INC";
+          // Match incomplete-only path: approved FTL documents the day → LOG, not INC.
+          status = dayApprovedFtl.length > 0 ? "LOG" : "INC";
         } else {
           status = "OT"; // OT-only day (no clock entries)
         }
@@ -1501,8 +1512,7 @@ export default function TimesheetPage() {
   let absences = 0;
   let useBasePayMethod = false;
 
-  if (selectedEmployee && clockEntries.length > 0 && schedules.size > 0 && holidays.length > 0) {
-    // Create rest days map from schedules
+  if (selectedEmployee) {
     const restDaysMap = new Map<string, boolean>();
     schedules.forEach((schedule, dateStr) => {
       if (schedule.day_off) {
@@ -1510,7 +1520,6 @@ export default function TimesheetPage() {
       }
     });
 
-    // Extract clock entries for base pay calculation
     const clockEntriesForBasePay = clockEntries
       .filter((entry) => entry.clock_out_time !== null)
       .map((entry) => ({
@@ -1518,7 +1527,6 @@ export default function TimesheetPage() {
         clock_out_time: entry.clock_out_time!,
       }));
 
-    // Calculate base pay
     const basePayResult = calculateBasePay({
       periodStart,
       periodEnd,
@@ -2009,9 +2017,14 @@ export default function TimesheetPage() {
                   {/* Summary Row */}
                   <tr className="border-t-2 border-primary/30 bg-primary/5 font-semibold">
                     <td colSpan={3} className="px-4 py-2 text-sm">
-                      Days Work : {Math.round(daysWorked)}
+                      <span title="Weekly cutoff: scheduled days × 8h − absences (same as payslip Hours Worked)">
+                        Days Work: {(daysWorked || 0).toFixed(2)}
+                      </span>
                     </td>
-                    <td className="px-4 py-2 text-sm text-right">
+                    <td
+                      className="px-4 py-2 text-sm text-right"
+                      title="Weekly cutoff base hours (same as payslip Hours Worked); may differ from sum of daily BH"
+                    >
                       {totalBH > 0 ? totalBH.toFixed(1) : "0"}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">

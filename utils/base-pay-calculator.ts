@@ -8,7 +8,7 @@
  *   then hire/termination proration on that total.
  * - **Scheduled work day**: not a rest day, not a public holiday (holiday pay is handled elsewhere).
  * - **Absence**: a scheduled work day with no complete clock entry (−8h each).
- * - Office-based: rest = Saturday + Sunday (Sat forced rest for absence policy).
+ * - Office-based: calendar Sunday is rest (Saturday is a scheduled workday; matches timesheet BH when worked).
  * - Client-based: rest days from schedule (`restDays` map).
  */
 
@@ -133,12 +133,12 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     if (isClientBased) {
       isRestDay = restDays?.get(dateStr) === true;
     } else {
-      const dayOfWeek = getDay(currentDate);
-      isRestDay = dayOfWeek === 0 || dayOfWeek === 6;
+      // Office: Sunday only (aligns with timesheet / payslip — Saturday can be a normal workday).
+      isRestDay = getDay(currentDate) === 0;
     }
 
-    const dayOfWeek = getDay(currentDate);
-    if (dayOfWeek === 6) {
+    // Client-based: Saturday is not a default scheduled workday in this policy.
+    if (isClientBased && getDay(currentDate) === 6) {
       isRestDay = true;
     }
 

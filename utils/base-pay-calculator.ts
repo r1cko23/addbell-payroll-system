@@ -8,9 +8,11 @@
  *   then hire/termination proration on that total.
  * - **Scheduled work day**: not a rest day, not a public holiday (holiday pay is handled elsewhere).
  * - **Absence**: a scheduled work day with no complete clock entry (−8h each).
- * - Office-based: calendar Sunday is rest. **Saturday is not a scheduled base slot** (compressed week:
- *   Saturday is OT/optional; avoids a false −8h absence when there is no Saturday Bundy punch).
- * - Client-based: rest days from schedule (`restDays` map); Saturday is also excluded from base slots.
+ * - **Default schedule** (`isClientBased === false`): calendar **Sunday** is rest. **Saturday** is not a
+ *   scheduled base slot (compressed week: Saturday is OT/optional; avoids a false −8h absence when there is
+ *   no Saturday Bundy punch). Legacy `employee_type` may still read `office-based` in the DB for this path.
+ * - **Site / custom rest map** (`isClientBased === true`): rest days from `restDays`; **Saturday** is also
+ *   excluded from base slots. Legacy `employee_type` may read `client-based` in the DB for this path.
  */
 
 import { format, parseISO, getDay } from "date-fns";
@@ -21,7 +23,7 @@ export interface BasePayCalculationParams {
   clockEntries: Array<{ clock_in_time: string; clock_out_time: string | null }>;
   restDays?: Map<string, boolean>; // Map of date string to isRestDay boolean
   holidays: Array<{ holiday_date: string }>; // Holidays in the period
-  isClientBased: boolean; // true for client-based, false for office-based
+  isClientBased: boolean; // true: `restDays` drives rest days (site schedule). false: Sunday fixed rest; Sat not a base slot
   hireDate?: Date; // For proration
   terminationDate?: Date; // For proration
 }
@@ -134,16 +136,16 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     if (isClientBased) {
       isRestDay = restDays?.get(dateStr) === true;
     } else {
-      // Office: Sunday only (aligns with timesheet / payslip — Saturday can be a normal workday).
+      // Default schedule: Sunday only as fixed weekly rest (timesheet / payslip alignment).
       isRestDay = getDay(currentDate) === 0;
     }
 
-    // Client-based: Saturday is not a default scheduled workday in this policy.
+    // Site schedule: Saturday is not a default 8h base slot in this policy.
     if (isClientBased && getDay(currentDate) === 6) {
       isRestDay = true;
     }
 
-    // Office-based: Saturday is not part of Mon–Fri compressed base slots (no absence if no punch).
+    // Default schedule: Saturday is optional OT — not a base slot (no absence if no Saturday punch).
     if (!isClientBased && getDay(currentDate) === 6) {
       currentDate.setDate(currentDate.getDate() + 1);
       continue;

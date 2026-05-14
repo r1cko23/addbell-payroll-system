@@ -1,3 +1,6 @@
+import { parseISO } from "date-fns";
+import { creditWorkHoursHalfHour } from "@/utils/overtime";
+
 /**
  * Company business hours policy (Asia/Manila local time).
  *
@@ -106,6 +109,121 @@ export function formatHourLabel24(hour: number): string {
   if (hour < 12) return `${hour}:00 AM`;
   if (hour === 12) return "12:00 NN";
   return `${hour - 12}:00 PM`;
+}
+
+/**
+ * Parse a clock string as an instant in Asia/Manila when no offset is present.
+ * Matches timesheet / payslip Bundy handling for naive DB timestamps.
+ */
+export function parseTimestampInManila(value: string): Date {
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)) {
+    return parseISO(value);
+  }
+  const normalized = value.includes("T") ? value : value.replace(" ", "T");
+  return new Date(`${normalized}+08:00`);
+}
+
+/** yyyy-MM-dd for the Asia/Manila calendar day of this instant (from ISO wall time). */
+export function getManilaDateKeyFromIso(iso: string): string {
+  const date = parseTimestampInManila(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+/** Clock face in Asia/Manila for an ISO timestamp (uses same naive→+08:00 rules as `parseTimestampInManila`). */
+export function getManilaHourMinute(isoTimestamp: string): { hour: number; minute: number } {
+  const date = parseTimestampInManila(isoTimestamp);
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = formatter.formatToParts(date);
+  const hour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+  const minute = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  return { hour, minute };
+}
+
+function calendarDowFromManilaKey(manilaYyyyMmDd: string): number {
+  const segs = manilaYyyyMmDd.split("-").map((x) => parseInt(x, 10));
+  if (segs.length !== 3 || segs.some((n) => !Number.isFinite(n))) return 0;
+  const [y, mo, d] = segs;
+  return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)).getUTCDay();
+}
+
+/**
+ * Regular (BH) hours for one Bundy in/out pair: overlap with scheduled windows in Manila
+ * (unpaid lunch excluded via split windows). No fixed 8h cap — Mon–Thu can credit up to ~10h.
+ * Sunday (no policy windows): 0. Same math as `generateTimesheetFromClockEntries`.
+ */
+export function regularHoursFromBundyClockPair(
+  clockInISO: string,
+  clockOutISO: string
+): number {
+  const clockIn = parseTimestampInManila(clockInISO);
+  const clockOut = parseTimestampInManila(clockOutISO);
+  if (Number.isNaN(clockIn.getTime()) || Number.isNaN(clockOut.getTime())) return 0;
+  if (clockOut <= clockIn) return 0;
+
+  const manilaDate = getManilaDateKeyFromIso(clockInISO);
+  if (!manilaDate) return 0;
+
+  const dayOfWeek = calendarDowFromManilaKey(manilaDate);
+  const dayPolicy = getBusinessDayPolicyByDay(dayOfWeek);
+  if (dayPolicy.windows.length === 0) return 0;
+
+  const overlapHours = (startA: Date, endA: Date, startB: Date, endB: Date) => {
+    const start = Math.max(startA.getTime(), startB.getTime());
+    const end = Math.min(endA.getTime(), endB.getTime());
+    if (end <= start) return 0;
+    return (end - start) / (1000 * 60 * 60);
+  };
+
+  const windowStarts = dayPolicy.windows.map(
+    (w) => new Date(`${manilaDate}T${String(w.startHour).padStart(2, "0")}:00:00+08:00`)
+  );
+  const windowEnds = dayPolicy.windows.map(
+    (w) => new Date(`${manilaDate}T${String(w.endHour).padStart(2, "0")}:00:00+08:00`)
+  );
+
+  const dayStart = windowStarts[0];
+  const dayEnd = windowEnds[windowEnds.length - 1];
+  let adjustedClockIn = clockIn;
+  let adjustedClockOut = clockOut;
+
+  // Clock-in: use the same grace as `calculateLateHours` (LT) so a 7:07 start is not
+  // both "0h late" and a full hour of UT after BH is floored vs 10h required Mon–Thu.
+  if (
+    adjustedClockIn > dayStart &&
+    adjustedClockIn.getTime() <= dayStart.getTime() + LATE_GRACE_MINUTES * 60 * 1000
+  ) {
+    adjustedClockIn = dayStart;
+  }
+  if (
+    adjustedClockOut < dayEnd &&
+    adjustedClockOut.getTime() >=
+      dayEnd.getTime() - BUSINESS_HOURS_GRACE_MINUTES * 60 * 1000
+  ) {
+    adjustedClockOut = dayEnd;
+  }
+
+  const raw = dayPolicy.windows.reduce((sum, _window, idx) => {
+    const start = windowStarts[idx];
+    const end = windowEnds[idx];
+    return sum + overlapHours(adjustedClockIn, adjustedClockOut, start, end);
+  }, 0);
+  return creditWorkHoursHalfHour(Math.round(raw * 100) / 100);
 }
 
 export function calculateHoursWithinWindows(

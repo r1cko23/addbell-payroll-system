@@ -15,8 +15,8 @@ import {
 } from "@/utils/holidays";
 import type { DailyAttendance } from "@/utils/payroll-calculator";
 import {
-  BUSINESS_HOURS_GRACE_MINUTES,
-  getBusinessDayPolicyByDay,
+  parseTimestampInManila,
+  regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 import { creditWorkHoursHalfHour } from "@/utils/overtime";
 
@@ -41,31 +41,6 @@ export interface TimesheetGenerationResult {
   total_overtime_hours: number;
   total_night_diff_hours: number;
   errors?: string[];
-}
-
-function parseTimestampInManila(value: string): Date {
-  // If timestamp already has timezone info, preserve it.
-  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)) {
-    return parseISO(value);
-  }
-  // Supabase can return timezone-naive strings (timestamp without time zone).
-  // Interpret them as Asia/Manila to keep calculations consistent across runtimes.
-  const normalized = value.includes("T") ? value : value.replace(" ", "T");
-  return new Date(`${normalized}+08:00`);
-}
-
-function getManilaDateString(value: Date): string {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const parts = formatter.formatToParts(value);
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
-  return `${year}-${month}-${day}`;
 }
 
 /** Full punch span in hours (credited), for Saturday OT when business-window overlap is 0. */
@@ -187,58 +162,10 @@ export function generateTimesheetFromClockEntries(
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay, isClientBasedAccountSupervisor);
     const isSaturday = parseISO(dateStr).getDay() === 6;
 
-    // Helper to calculate regular business hours based on company business-day policy.
+    // Helper: regular BH from Manila business windows (Mon–Thu up to ~10h; lunch excluded).
     const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
       if (!entry.clock_in_time || !entry.clock_out_time) return 0;
-
-      const clockIn = parseTimestampInManila(entry.clock_in_time);
-      const clockOut = parseTimestampInManila(entry.clock_out_time);
-      if (clockOut <= clockIn) return 0;
-      const manilaDate = getManilaDateString(clockIn);
-      const workDate = parseISO(manilaDate);
-      const dayPolicy = getBusinessDayPolicyByDay(workDate.getDay());
-      if (dayPolicy.windows.length === 0) return 0;
-
-      const overlapHours = (startA: Date, endA: Date, startB: Date, endB: Date) => {
-        const start = Math.max(startA.getTime(), startB.getTime());
-        const end = Math.min(endA.getTime(), endB.getTime());
-        if (end <= start) return 0;
-        return (end - start) / (1000 * 60 * 60);
-      };
-
-      const windowStarts = dayPolicy.windows.map(
-        (w) => new Date(`${manilaDate}T${String(w.startHour).padStart(2, "0")}:00:00+08:00`)
-      );
-      const windowEnds = dayPolicy.windows.map(
-        (w) => new Date(`${manilaDate}T${String(w.endHour).padStart(2, "0")}:00:00+08:00`)
-      );
-
-      const dayStart = windowStarts[0];
-      const dayEnd = windowEnds[windowEnds.length - 1];
-      let adjustedClockIn = clockIn;
-      let adjustedClockOut = clockOut;
-
-      if (
-        adjustedClockIn > dayStart &&
-        adjustedClockIn.getTime() <=
-          dayStart.getTime() + BUSINESS_HOURS_GRACE_MINUTES * 60 * 1000
-      ) {
-        adjustedClockIn = dayStart;
-      }
-      if (
-        adjustedClockOut < dayEnd &&
-        adjustedClockOut.getTime() >=
-          dayEnd.getTime() - BUSINESS_HOURS_GRACE_MINUTES * 60 * 1000
-      ) {
-        adjustedClockOut = dayEnd;
-      }
-
-      const raw = dayPolicy.windows.reduce((sum, _window, idx) => {
-        const start = windowStarts[idx];
-        const end = windowEnds[idx];
-        return sum + overlapHours(adjustedClockIn, adjustedClockOut, start, end);
-      }, 0);
-      return creditWorkHoursHalfHour(Math.round(raw * 100) / 100);
+      return regularHoursFromBundyClockPair(entry.clock_in_time, entry.clock_out_time);
     };
 
     // Aggregate hours from all entries for this day

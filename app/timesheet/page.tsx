@@ -34,10 +34,10 @@ import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
-  BUSINESS_HOURS_GRACE_MINUTES,
-  calculateHoursWithinWindows,
   calculateLateHours,
   getBusinessDayPolicyByDay,
+  getManilaHourMinute,
+  regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 import {
   fetchSessionsForEmployee,
@@ -58,6 +58,7 @@ interface Employee {
   first_name?: string | null;
   eligible_for_ot?: boolean | null;
   position?: string | null;
+  /** Legacy DB values: `client-based` = site rest-day map; otherwise default Sunday rest + compressed-week rules */
   employee_type?: "office-based" | "client-based" | null;
   hire_date?: string | null;
   termination_date?: string | null;
@@ -1040,7 +1041,7 @@ export default function TimesheetPage() {
         // Incomplete entry (clock_in but no clock_out)
         status = dayApprovedFtl.length > 0 ? "LOG" : "INC";
       } else if (dayType === "sunday" || isRestDay) {
-        // Rest day (Sunday is the designated rest day for office-based employees)
+        // Rest day (Sunday is the fixed weekly rest for the default schedule; client-site uses schedule map)
         // OR rest day from employee schedule (for Account Supervisors: Mon/Tue/Wed, or any day marked as rest day)
         // If no work, still show as rest day (paid)
         // If worked, show as LOG with rest day pay
@@ -1082,7 +1083,7 @@ export default function TimesheetPage() {
         }
       } else if (dayOfWeek === 0) {
         // Sunday handling:
-        // - Office-based: Sunday is rest day (handled above)
+        // - Default schedule: Sunday is rest day (handled above)
         // - Client-based: Sunday is a normal workday if NOT their rest day - shows ABSENT if no logs
         if (isClientBased) {
           const isSundayRestDay = isRestDay; // Already checked above
@@ -1103,12 +1104,12 @@ export default function TimesheetPage() {
             }
           }
         } else {
-          // Office-based: Sunday is rest day (already handled above, but fallback)
+          // Default schedule: Sunday is rest day (already handled above, but fallback)
           status = "RD";
         }
       } else {
         // Monday-Friday: Normal workdays
-        // - Office-based: Must have logs or be ABSENT
+        // - Default schedule: must have logs or be ABSENT
         // - Client-based: Must have logs or be ABSENT (unless it's their rest day, which is handled above)
         // Check if the date is in the future (hasn't occurred yet)
         const today = new Date();
@@ -1129,7 +1130,7 @@ export default function TimesheetPage() {
       // Only show times if there are actual clock entries
       // For LWOP and LEAVE, don't show clock times
       // For OT-only days (no clock entries), don't show clock times
-      // For Saturday LOG (office-based, no entries), don't show clock times
+      // For Saturday LOG (default schedule, no entries), don't show clock times
       const firstEntry = dayEntries[0] || incompleteDayEntries[0];
       const hasActualClockEntry = firstEntry !== undefined && firstEntry !== null;
 
@@ -1271,25 +1272,16 @@ export default function TimesheetPage() {
       // One day can have multiple project sessions (e.g. 3h + 2h + 3h = 8h) — single BH for HRIS
       if (bh === 0) {
         if (dayEntries.length > 0) {
-          const dayPolicy = getBusinessDayPolicyByDay(getDay(parseISO(dateStr)));
           const bhFromBusinessWindows = dayEntries.reduce((sum, entry) => {
             if (!entry.clock_in_time || !entry.clock_out_time) {
               return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
             }
             try {
-              const clockIn = parseISO(entry.clock_in_time);
-              const clockOut = parseISO(entry.clock_out_time);
-              if (clockOut <= clockIn) {
-                return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
-              }
-              const workDate = parseISO(dateStr);
               return (
                 sum +
-                calculateHoursWithinWindows(
-                  clockIn,
-                  clockOut,
-                  workDate,
-                  dayPolicy.windows
+                regularHoursFromBundyClockPair(
+                  entry.clock_in_time,
+                  entry.clock_out_time
                 )
               );
             } catch {
@@ -1408,8 +1400,8 @@ export default function TimesheetPage() {
       let lt = 0;
       if (firstEntry?.clock_in_time && resolvedStartMinutes !== null) {
         try {
-          const actualIn = parseISO(firstEntry.clock_in_time);
-          const actualInMinutes = actualIn.getHours() * 60 + actualIn.getMinutes();
+          const { hour, minute } = getManilaHourMinute(firstEntry.clock_in_time);
+          const actualInMinutes = hour * 60 + minute;
           lt = calculateLateHours(resolvedStartMinutes, actualInMinutes);
         } catch (e) {
           console.warn("Error calculating late minutes:", e);
@@ -1616,7 +1608,7 @@ export default function TimesheetPage() {
       // Rest days: Only exclude if NOT worked
       // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
       // Days Work can exceed scheduled window if employee works on rest days.
-      // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
+      // Default schedule: Sunday is rest day (dayType === "sunday" or status === "RD")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
       const isRestDay = d.dayType === "sunday" || d.status === "RD";
       if (isRestDay) {
@@ -1681,7 +1673,7 @@ export default function TimesheetPage() {
       // Rest days: Only exclude if NOT worked
       // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
       // Days Work can exceed scheduled window if employee works on rest days.
-      // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
+      // Default schedule: Sunday is rest day (dayType === "sunday" or status === "RD")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
       const isRestDay = d.dayType === "sunday" || d.status === "RD";
       if (isRestDay) {

@@ -3,7 +3,7 @@
  * Converts punch rows (in/out) into session-shaped entries for UI compatibility.
  */
 
-import { creditWorkHoursHalfHour } from "@/utils/overtime";
+import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 
 export type PunchType = "in" | "out";
 
@@ -54,25 +54,6 @@ function getManilaDateString(iso: string): string {
   const month = parts.find((p) => p.type === "month")?.value;
   const day = parts.find((p) => p.type === "day")?.value;
   return `${year}-${month}-${day}`;
-}
-
-/**
- * Regular hours rule (shift-agnostic):
- * - Count actual worked duration from punch in/out
- * - Cap regular hours at 8.00 per completed session
- * - Any hours beyond 8 must be handled via approved OT workflows
- */
-function calculateCappedRegularHours(
-  clockInISO: string,
-  clockOutISO: string
-): number {
-  const start = new Date(clockInISO);
-  const end = new Date(clockOutISO);
-  if (end <= start) return 0;
-  const totalHours =
-    (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-  const capped = Math.min(8, Math.max(0, totalHours));
-  return creditWorkHoursHalfHour(Math.round(capped * 100) / 100);
 }
 
 /**
@@ -190,7 +171,7 @@ export function punchesToSessions(
       const totalHours =
         (new Date(clockOut).getTime() - new Date(clockIn).getTime()) /
         (1000 * 60 * 60);
-      const regularHours = calculateCappedRegularHours(clockIn, clockOut);
+      const regularHours = regularHoursFromBundyClockPair(clockIn, clockOut);
       const nightDiffHours = calculateNightDiffHours(clockIn, clockOut);
       sessions.push({
         id: p.id,

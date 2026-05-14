@@ -40,6 +40,7 @@ import { getBiMonthlyPeriodEnd } from "@/utils/bimonthly";
 import { OfficeLocation, resolveLocationDetails } from "@/lib/location";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { determineDayType, normalizeHolidays } from "@/utils/holidays";
+import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 import { getDayTypeLabel } from "@/utils/payroll-calculator";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
@@ -163,23 +164,13 @@ export default function TimeEntriesPage() {
     return d;
   })();
 
-  /**
-   * Regular hours rule (shift-agnostic):
-   * - Compute actual session duration from clock in/out
-   * - Cap regular hours at 8.00
-   * - Beyond 8.00 should be represented via approved OT flows
-   */
+  /** Regular BH from Manila business windows (matches timesheet / punch sessions; not capped at 8). */
   const calculateBusinessRegularHours = (
     clockInISO: string,
     clockOutISO: string | null
   ): number => {
     if (!clockOutISO) return 0;
-    const start = new Date(clockInISO);
-    const end = new Date(clockOutISO);
-    if (end <= start) return 0;
-    const totalHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-    const capped = Math.min(8, Math.max(0, totalHours));
-    return Math.round(capped * 100) / 100;
+    return regularHoursFromBundyClockPair(clockInISO, clockOutISO);
   };
 
   useEffect(() => {

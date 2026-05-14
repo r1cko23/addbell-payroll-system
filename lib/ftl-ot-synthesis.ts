@@ -1,12 +1,5 @@
 import { format, parseISO } from "date-fns";
-
-function parseTimestampInManila(value: string): Date {
-  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(value)) {
-    return parseISO(value);
-  }
-  const normalized = value.includes("T") ? value : value.replace(" ", "T");
-  return new Date(`${normalized}+08:00`);
-}
+import { parseTimestampInManila } from "@/utils/business-hours";
 
 function manilaCalendarDateKey(d: Date): string {
   const formatter = new Intl.DateTimeFormat("en-US", {

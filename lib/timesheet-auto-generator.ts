@@ -17,6 +17,7 @@ import type { DailyAttendance } from "@/utils/payroll-calculator";
 import {
   parseTimestampInManila,
   regularHoursFromBundyClockPair,
+  calendarDowFromManilaKey,
 } from "@/utils/business-hours";
 import { creditWorkHoursHalfHour } from "@/utils/overtime";
 
@@ -160,7 +161,8 @@ export function generateTimesheetFromClockEntries(
     // Determine day type (regular, holiday, sunday/rest day, etc.)
     // Pass isClientBasedAccountSupervisor so Sunday is not automatically treated as rest day for client-based employees
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay, isClientBasedAccountSupervisor);
-    const isSaturday = parseISO(dateStr).getDay() === 6;
+    const dayOfWeek = calendarDowFromManilaKey(dateStr);
+    const isSaturday = dayOfWeek === 6;
 
     // Helper: regular BH from Manila business windows (Mon–Thu up to ~10h; lunch excluded).
     const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {

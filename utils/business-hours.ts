@@ -155,7 +155,8 @@ export function getManilaHourMinute(isoTimestamp: string): { hour: number; minut
   return { hour, minute };
 }
 
-function calendarDowFromManilaKey(manilaYyyyMmDd: string): number {
+/** Sun=0 … Sat=6 for a **calendar** yyyy-MM-dd (not parseISO midnight — host-TZ safe). */
+export function calendarDowFromManilaKey(manilaYyyyMmDd: string): number {
   const segs = manilaYyyyMmDd.split("-").map((x) => parseInt(x, 10));
   if (segs.length !== 3 || segs.some((n) => !Number.isFinite(n))) return 0;
   const [y, mo, d] = segs;

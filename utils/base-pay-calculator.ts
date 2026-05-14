@@ -1,18 +1,18 @@
 /**
- * Base Pay Calculator for Bi-Monthly Periods
+ * Base Pay Calculator — weekly (and arbitrary) payroll cutoffs
  *
- * Simplified calculation:
- * - Base: 104 hours (13 days × 8 hours) per bi-monthly period for all employees.
- *   Saturday is paid (company benefit) but only actual absences are deducted.
- * - Deduct 8 hours only for each absence on scheduled work days (no clock entry).
- * - Office-based: work Mon–Fri only; rest days = Saturday + Sunday (no absence for Sat/Sun).
- * - Client-based: work days = all days except rest days from schedule (e.g. Mon/Tue/Wed off);
- *   absences on their working days (e.g. Thu–Sun) are deducted.
- * - Holidays count toward the 13 days; missing a holiday is not an absence (handled separately).
+ * This organization uses **weekly cutoffs** (e.g. Wed–Tue), not a fixed 104h semi-month bucket per slice.
+ *
+ * Rules:
+ * - **Base hours** for [periodStart, periodEnd] = (scheduled work days in that range) × 8 hours,
+ *   then hire/termination proration on that total.
+ * - **Scheduled work day**: not a rest day, not a public holiday (holiday pay is handled elsewhere).
+ * - **Absence**: a scheduled work day with no complete clock entry (−8h each).
+ * - Office-based: rest = Saturday + Sunday (Sat forced rest for absence policy).
+ * - Client-based: rest days from schedule (`restDays` map).
  */
 
 import { format, parseISO, getDay } from "date-fns";
-import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "./bimonthly";
 
 export interface BasePayCalculationParams {
   periodStart: Date;
@@ -26,7 +26,7 @@ export interface BasePayCalculationParams {
 }
 
 export interface BasePayCalculationResult {
-  baseHours: number; // Base hours (104 or prorated)
+  baseHours: number; // Scheduled slots × 8h (after hire/term proration), before absence deductions
   absences: number; // Number of absences
   absenceHours: number; // Total hours deducted for absences
   finalBaseHours: number; // Final base hours after deductions
@@ -34,7 +34,7 @@ export interface BasePayCalculationResult {
 }
 
 /**
- * Calculate base pay for bi-monthly period
+ * Calculate base pay hours for the given cutoff window (typically one week).
  */
 export function calculateBasePay(params: BasePayCalculationParams): BasePayCalculationResult {
   const {
@@ -48,7 +48,7 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     terminationDate,
   } = params;
 
-  // Calculate proration factor if employee is new or terminated
+  // Proration if employee started or ended mid-cutoff
   let prorationFactor = 1;
   const periodStartStr = format(periodStart, "yyyy-MM-dd");
   const periodEndStr = format(periodEnd, "yyyy-MM-dd");
@@ -56,15 +56,16 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
   if (hireDate) {
     const hireDateStr = format(hireDate, "yyyy-MM-dd");
     if (hireDateStr > periodStartStr) {
-      // Employee started mid-period
       const actualStart = hireDate > periodStart ? hireDate : periodStart;
       const actualEnd = terminationDate && terminationDate < periodEnd ? terminationDate : periodEnd;
-      const actualDays = Math.ceil(
-        (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-      const totalDays = Math.ceil(
-        (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
+      const actualDays =
+        Math.ceil(
+          (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)
+        ) + 1;
+      const totalDays =
+        Math.ceil(
+          (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)
+        ) + 1;
       prorationFactor = actualDays / totalDays;
     }
   }
@@ -72,28 +73,24 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
   if (terminationDate) {
     const terminationDateStr = format(terminationDate, "yyyy-MM-dd");
     if (terminationDateStr < periodEndStr) {
-      // Employee terminated mid-period
       const actualStart = hireDate && hireDate > periodStart ? hireDate : periodStart;
       const actualEnd = terminationDate < periodEnd ? terminationDate : periodEnd;
-      const actualDays = Math.ceil(
-        (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-      const totalDays = Math.ceil(
-        (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
+      const actualDays =
+        Math.ceil(
+          (actualEnd.getTime() - actualStart.getTime()) / (1000 * 60 * 60 * 24)
+        ) + 1;
+      const totalDays =
+        Math.ceil(
+          (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)
+        ) + 1;
       prorationFactor = actualDays / totalDays;
     }
   }
 
-  // Base hours: 104 hours (13 days × 8 hours) per bi-monthly period
-  const baseHours = Math.round(104 * prorationFactor * 100) / 100;
-
-  // Create a set of dates with clock entries (for absence detection)
   const clockEntryDates = new Set<string>();
   clockEntries.forEach((entry) => {
-    if (!entry.clock_out_time) return; // Skip incomplete entries
+    if (!entry.clock_out_time) return;
 
-    // Use Asia/Manila timezone for date grouping
     const entryDateUTC = parseISO(entry.clock_in_time);
     const formatter = new Intl.DateTimeFormat("en-US", {
       timeZone: "Asia/Manila",
@@ -109,65 +106,54 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     clockEntryDates.add(entryDate);
   });
 
-  // Create a set of holiday dates
   const holidayDates = new Set<string>();
   holidays.forEach((h) => {
-    holidayDates.add(h.holiday_date);
+    holidayDates.add(String(h.holiday_date).split("T")[0]);
   });
 
-  // Count absences: scheduled work days with no clock entry
   const absenceDates: string[] = [];
+  let scheduledWorkSlots = 0;
   let currentDate = new Date(periodStart);
   const endDate = new Date(periodEnd);
 
   while (currentDate <= endDate) {
     const dateStr = format(currentDate, "yyyy-MM-dd");
 
-    // Skip if before hire date
     if (hireDate && dateStr < format(hireDate, "yyyy-MM-dd")) {
       currentDate.setDate(currentDate.getDate() + 1);
       continue;
     }
 
-    // Skip if after termination date
     if (terminationDate && dateStr > format(terminationDate, "yyyy-MM-dd")) {
       currentDate.setDate(currentDate.getDate() + 1);
       continue;
     }
 
-    // Check if it's a rest day (days that are not expected work — no absence if no clock)
     let isRestDay = false;
     if (isClientBased) {
-      // Client-based: rest days from schedule (e.g. Mon, Tue, Wed); work Thu–Sun. Absences only on working days.
       isRestDay = restDays?.get(dateStr) === true;
     } else {
-      // Office-based: only Mon–Fri are expected office days. Sat & Sun are not counted for absence.
       const dayOfWeek = getDay(currentDate);
-      isRestDay = dayOfWeek === 0 || dayOfWeek === 6; // Sunday and Saturday
+      isRestDay = dayOfWeek === 0 || dayOfWeek === 6;
     }
 
-    // Saturday should never be deducted as an absence under compressed-workweek policy.
-    // Worked Saturday hours are handled separately as OT in attendance/payroll flows.
     const dayOfWeek = getDay(currentDate);
     if (dayOfWeek === 6) {
       isRestDay = true;
     }
 
-    // If it's a rest day, skip (don't count as absence)
     if (isRestDay) {
       currentDate.setDate(currentDate.getDate() + 1);
       continue;
     }
 
-    // If it's a holiday, it counts toward the 13 days (already included in 104 hours)
-    // But if they didn't work on a holiday, it's not an absence (holiday pay handled separately)
-    // So we skip holidays from absence calculation
+    // Holiday: not a scheduled clock day here (premium handled in payroll/timesheet elsewhere)
     if (holidayDates.has(dateStr)) {
       currentDate.setDate(currentDate.getDate() + 1);
       continue;
     }
 
-    // If it's a scheduled work day (not rest day, not holiday) and no clock entry = absence
+    scheduledWorkSlots += 1;
     if (!clockEntryDates.has(dateStr)) {
       absenceDates.push(dateStr);
     }
@@ -175,6 +161,7 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     currentDate.setDate(currentDate.getDate() + 1);
   }
 
+  const baseHours = Math.round(scheduledWorkSlots * 8 * prorationFactor * 100) / 100;
   const absences = absenceDates.length;
   const absenceHours = absences * 8;
   const finalBaseHours = Math.max(0, baseHours - absenceHours);

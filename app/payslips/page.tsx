@@ -2631,9 +2631,7 @@ export default function PayslipsPage() {
     if (!attendance || !attendance.attendance_data || !selectedEmployee) return 0;
     const days = attendance.attendance_data as any[];
 
-    // Use base pay method: (104 hours - absences × 8) / 8
-    // This matches both timesheet and PayslipDetailedBreakdown calculations
-    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
+    // Weekly cutoff base hours (scheduled days × 8 − absences×8), same as timesheet / PayslipDetailedBreakdown
 
     try {
       // Extract clock entries from attendance data
@@ -2660,7 +2658,7 @@ export default function PayslipsPage() {
         terminationDate: undefined, // termination_date doesn't exist in employees table
       });
 
-      // Days Work = (104 - absences × 8) / 8
+      // Days Work = finalBaseHours / 8
       return basePayResult.finalBaseHours / 8;
     } catch (error) {
       console.error("Error calculating working days:", error);

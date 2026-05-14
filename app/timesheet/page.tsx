@@ -1496,8 +1496,7 @@ export default function TimesheetPage() {
     "MMM d"
   )}`;
 
-  // Calculate base pay using simplified 104-hour method (if employee data is available)
-  // This applies to both client-based and office-based employees
+  // Base pay hours for the weekly cutoff window (calculateBasePay — scheduled days × 8 − absences)
   let basePayHours = 0;
   let absences = 0;
   let useBasePayMethod = false;
@@ -1547,19 +1546,13 @@ export default function TimesheetPage() {
   const todayForDaysWork = new Date();
   todayForDaysWork.setHours(0, 0, 0, 0);
 
-  // Calculate "Days Work" using base pay method: (104 hours - absences × 8) / 8
-  // This matches the payslip calculation exactly
-  // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
+  // When base pay is available: Hours Work / Days Work use weekly cutoff base from calculateBasePay.
+  // actualTotalBH below is for diagnostics / parity checks with attendance BH (holidays, rest days worked).
   let totalBH = 0;
   let daysWorked = 0;
 
   if (useBasePayMethod) {
-    // Use base pay method: 104 hours - (absences × 8)
-    // This matches payslip calculation
-    // However, we need to count actual BH including holidays with BH > 0
-    // Base pay method gives us the minimum, but holidays with BH should also count
-
-    // Calculate total BH from actual attendance data (includes holidays with BH > 0)
+    // Base pay hours from weekly window; attendance BH rollup still reflects holidays / RD worked.
     const actualTotalBH = attendanceDays.reduce((sum, d) => {
       const dayDate = new Date(d.date);
       dayDate.setHours(0, 0, 0, 0);
@@ -1576,7 +1569,7 @@ export default function TimesheetPage() {
 
       // Rest days: Only exclude if NOT worked
       // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
-      // Days Work can exceed 13 if employee works on rest days (e.g., 13 regular days + 2 rest days = 15 days)
+      // Days Work can exceed scheduled window if employee works on rest days.
       // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
       const isRestDay = d.dayType === "sunday" || d.status === "RD";
@@ -1584,7 +1577,7 @@ export default function TimesheetPage() {
         // If rest day was worked (has BH > 0), count it toward Days Work
         // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay for rank/file)
         if (d.bh > 0) {
-          // Rest day was worked - count it toward Days Work (no cap, can exceed 13 days)
+          // Rest day was worked — count toward actual BH rollup.
           return sum + d.bh;
         } else {
           // Rest day was NOT worked - exclude from Days Work (paid separately)
@@ -1596,8 +1589,7 @@ export default function TimesheetPage() {
       const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
 
       if (isHoliday) {
-        // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
-        // Holidays count toward the 13 days (they're included in the 104-hour base)
+        // Eligible holidays with BH > 0 count in attendance rollup.
         if (d.bh > 0) {
           return sum + d.bh;
         }
@@ -1608,8 +1600,7 @@ export default function TimesheetPage() {
         // Regular days (Mon-Fri) with BH > 0 are also counted (whether from clock entries or other sources)
         // Note: BH can come from clock entries, approved OT requests, or other sources
         if (d.bh > 0) {
-          // Regular day with BH > 0 counts toward the 13 days
-          // This matches payslip logic: dayType === "regular" && regularHours > 0
+          // Regular day with BH > 0 counts in attendance rollup.
           return sum + d.bh;
         }
       }
@@ -1617,8 +1608,8 @@ export default function TimesheetPage() {
       return sum;
     }, 0);
 
-    // Per cutoff: 104 hours max (13 days × 8). Deduct 8h per absence; do not exceed 104.
-    totalBH = Math.min(104, basePayHours);
+    // Weekly cutoff: base BH from scheduled days in window × 8h minus absences (no 104h cap).
+    totalBH = basePayHours;
     daysWorked = totalBH / 8;
     // #region agent log
     if (attendanceDays.some((d) => d.date === "2026-01-01") || (format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
@@ -1626,7 +1617,7 @@ export default function TimesheetPage() {
       fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "timesheet/page.tsx:DaysWork", message: "Timesheet Days Work", data: { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd"), employeeName: selectedEmployee?.full_name, jan1: jan1 ? { date: jan1.date, status: jan1.status, bh: jan1.bh, dayType: jan1.dayType } : null, basePayHours, actualTotalBH, totalBH, daysWorked }, hypothesisId: "H1", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
     }
     // #endregion
-    // Hours Work and Days Work per cutoff must not exceed 104 hours / 13 days
+    // Hours Work / Days Work follow weekly cutoff base (calculateBasePay)
   } else {
     // Fallback: sum BH from attendance days (for display purposes)
     // But Days Work should still match base pay method if possible
@@ -1646,7 +1637,7 @@ export default function TimesheetPage() {
 
       // Rest days: Only exclude if NOT worked
       // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
-      // Days Work can exceed 13 if employee works on rest days (e.g., 13 regular days + 2 rest days = 15 days)
+      // Days Work can exceed scheduled window if employee works on rest days.
       // Office-based: Sunday is rest day (dayType === "sunday" or status === "RD")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
       const isRestDay = d.dayType === "sunday" || d.status === "RD";
@@ -1654,7 +1645,7 @@ export default function TimesheetPage() {
         // If rest day was worked (has BH > 0), count it toward Days Work
         // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay for rank/file)
         if (d.bh > 0) {
-          // Rest day was worked - count it toward Days Work (no cap, can exceed 13 days)
+          // Rest day was worked — count toward actual BH rollup.
           return sum + d.bh;
         } else {
           // Rest day was NOT worked - exclude from Days Work (paid separately)
@@ -1666,8 +1657,7 @@ export default function TimesheetPage() {
       const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
 
       if (isHoliday) {
-        // For holidays: count if BH > 0 (eligible holidays get 8 BH even without clock entries)
-        // Holidays count toward the 13 days (they're included in the 104-hour base)
+        // Eligible holidays with BH > 0 count in attendance rollup.
         if (d.bh > 0) {
           return sum + d.bh;
         }
@@ -1678,15 +1668,13 @@ export default function TimesheetPage() {
         // Regular days (Mon-Fri) with BH > 0 are also counted (whether from clock entries or other sources)
         // Note: BH can come from clock entries, approved OT requests, or other sources
         if (d.bh > 0) {
-          // Regular day with BH > 0 counts toward the 13 days
-          // This matches payslip logic: dayType === "regular" && regularHours > 0
+          // Regular day with BH > 0 counts in attendance rollup.
           return sum + d.bh;
         }
       }
 
       return sum;
     }, 0);
-    totalBH = Math.min(104, totalBH);
     daysWorked = totalBH / 8;
   }
   const totalOT = attendanceDays.reduce((sum, d) => sum + d.ot, 0);

@@ -258,10 +258,8 @@ function PayslipDetailedBreakdownComponent({
   const calculationResult = useMemo(() => {
     const isEligibleForHolidayPay = isEligibleForHolidayPayRule;
 
-    // Calculate base pay using simplified 104-hour method
-    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
-    // This applies to both client-based and office-based employees
-    let basePayHours = 104; // Start with 104 hours (13 days × 8 hours) per cutoff
+    // Weekly cutoff: base hours = scheduled work days in period × 8, minus absences (see calculateBasePay)
+    let basePayHours = 0;
     let basePayAmount = 0;
     let absences = 0;
     let useBasePayMethod = true; // Always use base pay method
@@ -275,7 +273,6 @@ function PayslipDetailedBreakdownComponent({
           clock_out_time: day.clockOutTime!,
         }));
 
-      // Calculate base pay (104 hours - absences × 8)
       const basePayResult = calculateBasePay({
         periodStart,
         periodEnd,
@@ -291,10 +288,7 @@ function PayslipDetailedBreakdownComponent({
           : undefined,
       });
 
-      basePayHours = basePayResult.finalBaseHours; // This is 104 - (absences × 8)
-      // Ensure basePayHours never exceeds 104 (13 days × 8 hours)
-      // Holidays are already included in the 104 hours base, so they shouldn't add to it
-      basePayHours = Math.min(basePayHours, 104);
+      basePayHours = basePayResult.finalBaseHours;
       basePayAmount = basePayHours * ratePerHour;
       absences = basePayResult.absences;
     }
@@ -306,15 +300,10 @@ function PayslipDetailedBreakdownComponent({
     let totalRegularHours = 0; // Total regular hours for "Days Work" calculation
     let basicSalary = 0; // Basic salary from REGULAR WORK DAYS ONLY (excludes holidays, rest days, OT, allowances)
 
-    // If using base pay method, start with base pay hours but add eligible holidays
-    // Base pay includes holidays as part of 13 days, but we need to verify eligibility
-    // Basic Salary should still be calculated from actual regular work days rendered
+    // Base pay hours = scheduled work days in cutoff × 8 − absences (weekly model).
     if (useBasePayMethod) {
-      // Start with base pay hours (includes holidays as part of 13 days)
       totalRegularHours = basePayHours;
-      totalHours = basePayHours; // For display purposes
-      // Eligible holidays will be added in the loop below if they're not already counted
-      // basicSalary will be calculated from actual regular work days in the loop below
+      totalHours = basePayHours;
     }
 
     const breakdown = {
@@ -494,22 +483,10 @@ function PayslipDetailedBreakdownComponent({
       }
       // Sundays are excluded (dayType === "sunday") - they're paid separately
 
-      // Add hours to both totals (they should match exactly)
-      // For base pay method: basePayHours already includes all 13 days (104 hours) including holidays
-      // So we should NOT add any hours to totalRegularHours - it's already set to basePayHours
-      // For non-base pay method: count all eligible days including holidays
-      // Rest days are separate and should still be counted for display purposes
-      if (hoursToCount > 0) {
-        if (useBasePayMethod) {
-          // Base pay method: basePayHours already includes all regular days AND holidays (13 days = 104 hours)
-          // Don't add any hours here - totalRegularHours is already set to basePayHours above
-          // The base pay calculation already accounts for holidays as part of the 13 days
-          // We only need to calculate basicSalary and other pay components here
-        } else {
-          // Non-base pay method: count all eligible days including holidays
-          totalRegularHours += hoursToCount;
-          totalHours += hoursToCount;
-        }
+      // When using weekly base pay, totalRegularHours/totalHours are set from basePayHours once; do not add per day.
+      if (hoursToCount > 0 && !useBasePayMethod) {
+        totalRegularHours += hoursToCount;
+        totalHours += hoursToCount;
       }
 
       // Regular overtime — statutory (Labor Code) hourly OT for all employees
@@ -855,13 +832,7 @@ function PayslipDetailedBreakdownComponent({
       // ND is already fully represented under the single "Night Differential" line above.
     });
 
-    // Calculate "Days Work" as: (104 hours - absence hours) / 8
-    // Base logic: 104 hours per cutoff (13 days × 8 hours), then subtract absences
-    // Each absence = 8 hours deduction
-    // IMPORTANT: "Days Work" should count actual BH including eligible holidays with BH > 0
-    // basePayHours = 104 - (absences × 8), but this doesn't account for eligible holidays
-    // Eligible holidays (with BH > 0) should also count toward "Days Work"
-    // Basic Salary = Days Worked × Daily Rate (includes all days worked: regular days + holidays)
+    // "Days Work" / BH display: weekly cutoff base from calculateBasePay, plus eligible holiday/rest-day BH from attendance when applicable.
 
     // Calculate actual total BH from attendance data (includes eligible holidays with BH > 0)
     // IMPORTANT: Only count days that are today or earlier (exclude future dates)
@@ -882,7 +853,7 @@ function PayslipDetailedBreakdownComponent({
 
       // Rest days: Only exclude if NOT worked
       // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
-      // Days Work can exceed 13 if employee works on rest days (e.g., 13 regular days + 2 rest days = 15 days)
+      // Days Work can exceed scheduled window if employee works on rest days.
       // Office-based: Sunday is rest day (dayType === "sunday")
       // Account Supervisors: Rest days are Mon/Tue/Wed (from restDays map)
       const isRestDay = dayType === "sunday" ||
@@ -891,7 +862,7 @@ function PayslipDetailedBreakdownComponent({
         // If rest day was worked (has regularHours > 0), count it toward Days Work
         // If rest day was NOT worked (regularHours === 0), exclude it (paid separately as rest day pay for rank/file)
         if (regularHours > 0) {
-          // Rest day was worked - count it toward Days Work (no cap, can exceed 13 days)
+          // Rest day was worked — count toward Days Work (no fixed cap vs. scheduled window).
           return sum + regularHours;
         } else {
           // Rest day was NOT worked - exclude from Days Work (paid separately)
@@ -899,8 +870,7 @@ function PayslipDetailedBreakdownComponent({
         }
       }
 
-      // Count regular days with hours
-      // Regular work days (Mon-Sat for office-based, or excluding rest days for account supervisors) count toward the 13 days
+      // Regular work days with hours (per attendance BH).
       if (dayType === "regular" && regularHours > 0) {
         return sum + regularHours;
       }
@@ -935,8 +905,11 @@ function PayslipDetailedBreakdownComponent({
       }
       return sum;
     }, 0);
+    // Match timesheet: entitled base hours for this cutoff from calculateBasePay (weekly slots × 8 − absences).
+    const hoursWorked =
+      periodStart && periodEnd ? basePayHours : regularHoursWorked;
+
     const totalBHForHoursWork = actualTotalBH;
-    const hoursWorked = regularHoursWorked;
 
     // #region agent log
     const _jan1 = attendanceData.find((d: { date: string }) => d.date === "2026-01-01");
@@ -1083,6 +1056,24 @@ function PayslipDetailedBreakdownComponent({
       roundedAllowances.legalHolidayOnRestDayAllowance;
     const totalGrossPay = Math.round(totalGrossPayUnroundedRounded * 100) / 100;
 
+    const otherPayAllowancesTotal = Math.round(
+      (roundedAllowances.legalHolidayAllowance +
+        roundedAllowances.specialHolidayAllowance +
+        roundedAllowances.restDayAllowance +
+        roundedAllowances.specialHolidayOnRestDayAllowance +
+        roundedAllowances.legalHolidayOnRestDayAllowance) *
+        100
+    ) / 100;
+
+    /** Basic + all amounts in the earnings table (excludes "Other Pay" allowances section below). */
+    const earningsTableTotalExcludingAllowances = Math.round(
+      (totalGrossPay - otherPayAllowancesTotal) * 100
+    ) / 100;
+
+    const premiumPaySubtotalExcludingBasic = Math.round(
+      (earningsTableTotalExcludingAllowances - basicSalary) * 100
+    ) / 100;
+
     return {
       totalHours,
       hoursWorked,
@@ -1095,6 +1086,9 @@ function PayslipDetailedBreakdownComponent({
       absences,
       useBasePayMethod,
       totalGrossPay,
+      otherPayAllowancesTotal,
+      earningsTableTotalExcludingAllowances,
+      premiumPaySubtotalExcludingBasic,
     };
   }, [
     attendanceData,
@@ -1120,6 +1114,9 @@ function PayslipDetailedBreakdownComponent({
     earningsOT,
     otherPay,
     totalGrossPay,
+    otherPayAllowancesTotal,
+    earningsTableTotalExcludingAllowances,
+    premiumPaySubtotalExcludingBasic,
   } = calculationResult;
   const totalSalary = basicSalary;
 
@@ -1201,14 +1198,14 @@ function PayslipDetailedBreakdownComponent({
         </div>
       </div>
 
-      {/* Overtimes/Holiday Earning(s) Section - Regular work = 104 hrs/13 days only; rest day, holiday, OT recorded separately with hours and pay below / in Other Pay. */}
+      {/* Overtimes/Holiday Earning(s) Section — regular row uses weekly cutoff base hours; premiums below */}
       <div className="mt-3">
         <div className="flex items-center gap-2 mb-2">
           <h4 className="text-sm font-semibold text-gray-800">
             Overtimes/Holiday Earning(s)
           </h4>
           <span className="text-xs text-gray-500 italic">
-            Regular work = 104 hrs (13 days) per cutoff. Rest day, holiday, overtime, and night differential use statutory rates in the table below.
+            Regular work uses this cutoff’s scheduled days × 8h (weekly Wed–Tue windows). Rest day, holiday, overtime, and night differential use statutory rates in the table below.
           </span>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -1422,30 +1419,46 @@ function PayslipDetailedBreakdownComponent({
             </table>
           </div>
 
-          {/* Summary Footer - Compact */}
-          <div className="bg-gray-50 border-t border-gray-200 px-2 py-1.5">
+          {/* Summary: old "Total Earnings" omitted basic row 1 — show premium subtotal + table total vs gross */}
+          <div className="bg-gray-50 border-t border-gray-200 px-2 py-1.5 space-y-1">
             <div className="flex justify-between items-center">
               <span className="text-xs font-medium text-gray-700">
-                Total Earnings:
+                Premium subtotal (OT, holidays, ND — excl. row 1):
               </span>
-              <span className="text-sm font-bold text-primary-700">
-                {formatCurrency(
-                  breakdown.nightDifferential.amount +
-                    breakdown.restDay.amount +
-                    breakdown.restDayNightDiff.amount +
-                    earningsOT.regularOvertime.amount +
-                    earningsOT.legalHolidayOT.amount +
-                    earningsOT.legalHolidayND.amount +
-                    earningsOT.shOT.amount +
-                    earningsOT.shNightDiff.amount +
-                    earningsOT.shOnRDOT.amount +
-                    earningsOT.lhOnRDOT.amount +
-                    earningsOT.restDayOT.amount +
-                    breakdown.legalHoliday.amount +
-                    breakdown.specialHoliday.amount
-                )}
+              <span className="text-xs font-semibold text-gray-900">
+                {formatCurrency(premiumPaySubtotalExcludingBasic)}
               </span>
             </div>
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-medium text-gray-700">
+                Total (basic + table above
+                {otherPayAllowancesTotal >= 0.01
+                  ? ", excl. Other Pay below"
+                  : ""}
+                ):
+              </span>
+              <span className="text-sm font-bold text-primary-700">
+                {formatCurrency(earningsTableTotalExcludingAllowances)}
+              </span>
+            </div>
+            {otherPayAllowancesTotal >= 0.01 && (
+              <div className="flex justify-between items-center border-t border-gray-200 pt-1">
+                <span className="text-xs font-medium text-gray-700">
+                  Other pay (allowances below):
+                </span>
+                <span className="text-xs font-semibold text-gray-900">
+                  {formatCurrency(otherPayAllowancesTotal)}
+                </span>
+              </div>
+            )}
+            {otherPayAllowancesTotal >= 0.01 && (
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-gray-800">Gross pay:</span>
+                <span className="text-sm font-bold text-primary-700">
+                  {formatCurrency(totalGrossPay)}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

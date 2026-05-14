@@ -293,6 +293,17 @@ function PayslipDetailedBreakdownComponent({
       absences = basePayResult.absences;
     }
 
+    // Sum of generator regularHours on calendar "regular" days (matches timesheet BH column for Mon–Sat).
+    const regularHoursWorked = attendanceData.reduce((sum, d) => {
+      if (d.dayType === "regular") {
+        return (
+          sum +
+          creditWorkHoursHalfHour(Math.round((d.regularHours || 0) * 100) / 100)
+        );
+      }
+      return sum;
+    }, 0);
+
     // Total hours for "Hours Work" - should match timesheet calculation exactly
     // Only count regular days (Mon–Sat per actual hours), and eligible holidays
     // Exclude Sundays from "Hours Work" (they're paid separately)
@@ -300,10 +311,10 @@ function PayslipDetailedBreakdownComponent({
     let totalRegularHours = 0; // Total regular hours for "Days Work" calculation
     let basicSalary = 0; // Basic salary from REGULAR WORK DAYS ONLY (excludes holidays, rest days, OT, allowances)
 
-    // Base pay hours = scheduled work days in cutoff × 8 − absences (weekly model).
+    // Base pay hours from scheduled slots (see calculateBasePay); used for absence diagnostics.
     if (useBasePayMethod) {
-      totalRegularHours = basePayHours;
-      totalHours = basePayHours;
+      totalRegularHours = regularHoursWorked;
+      totalHours = regularHoursWorked;
     }
 
     const breakdown = {
@@ -895,19 +906,10 @@ function PayslipDetailedBreakdownComponent({
       return sum;
     }, 0);
 
-    // "Hours Work (Regular)" should include only REGULAR working-day hours (exclude holidays/rest days).
-    const regularHoursWorked = attendanceData.reduce((sum, d) => {
-      if (d.dayType === "regular") {
-        return (
-          sum +
-          creditWorkHoursHalfHour(Math.round((d.regularHours || 0) * 100) / 100)
-        );
-      }
-      return sum;
-    }, 0);
-    // Match timesheet: entitled base hours for this cutoff from calculateBasePay (weekly slots × 8 − absences).
+    // Hours Worked / "Hours Work (Regular)" = actual credited regular hours from attendance (sum of dayType regular).
+    // Scheduled slot×8 from calculateBasePay is kept as basePayHours for absence messaging only.
     const hoursWorked =
-      periodStart && periodEnd ? basePayHours : regularHoursWorked;
+      periodStart && periodEnd ? regularHoursWorked : basePayHours;
 
     const totalBHForHoursWork = actualTotalBH;
 
@@ -1205,7 +1207,7 @@ function PayslipDetailedBreakdownComponent({
             Overtimes/Holiday Earning(s)
           </h4>
           <span className="text-xs text-gray-500 italic">
-            Regular work uses this cutoff’s scheduled days × 8h (weekly Wed–Tue windows). Rest day, holiday, overtime, and night differential use statutory rates in the table below.
+            Regular work uses **actual regular hours** from this cutoff’s attendance (same as timesheet BH sum). Scheduled-day absence logic is separate (see calculateBasePay). Rest day, holiday, overtime, and night differential use statutory rates in the table below.
           </span>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">

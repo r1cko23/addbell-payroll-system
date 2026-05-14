@@ -2685,7 +2685,19 @@ export default function PayslipsPage() {
         terminationDate: undefined, // termination_date doesn't exist in employees table
       });
 
-      // Days Work = finalBaseHours / 8
+      const regularSum = days
+        .filter((d: any) => d.dayType === "regular")
+        .reduce(
+          (s: number, d: any) =>
+            s +
+            creditWorkHoursHalfHour(Math.round((Number(d.regularHours) || 0) * 100) / 100),
+          0
+        );
+
+      // Days work from actual regular hours in attendance (matches payslip / timesheet footer).
+      if (regularSum > 0) {
+        return regularSum / 8;
+      }
       return basePayResult.finalBaseHours / 8;
     } catch (error) {
       console.error("Error calculating working days:", error);

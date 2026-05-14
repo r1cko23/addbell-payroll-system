@@ -1303,7 +1303,30 @@ export default function TimesheetPage() {
             // Saturday is not part of the compressed Mon–Fri base schedule; worked time is OT
             // (matches lib/timesheet-auto-generator.ts: isSaturday → overtimeHours, not regularHours).
             bh = 0;
-            otHours = Math.round(Math.max(otHours, credited) * 100) / 100;
+            let saturdayOt = credited;
+            if (saturdayOt <= 0 && dayEntries.length > 0) {
+              saturdayOt = dayEntries.reduce((sum, entry) => {
+                if (!entry.clock_in_time || !entry.clock_out_time) {
+                  return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+                }
+                try {
+                  const cin = parseISO(entry.clock_in_time);
+                  const cout = parseISO(entry.clock_out_time);
+                  if (cout <= cin) {
+                    return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+                  }
+                  const rawH =
+                    (cout.getTime() - cin.getTime()) / (1000 * 60 * 60);
+                  return (
+                    sum +
+                    creditWorkHoursHalfHour(Math.round(Math.min(24, rawH) * 100) / 100)
+                  );
+                } catch {
+                  return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+                }
+              }, 0);
+            }
+            otHours = Math.round(Math.max(otHours, saturdayOt) * 100) / 100;
           } else {
             bh = credited;
           }
@@ -1569,8 +1592,8 @@ export default function TimesheetPage() {
   const todayForDaysWork = new Date();
   todayForDaysWork.setHours(0, 0, 0, 0);
 
-  // When base pay is available: Hours Work / Days Work use weekly cutoff base from calculateBasePay.
-  // actualTotalBH below is for diagnostics / parity checks with attendance BH (holidays, rest days worked).
+  // When base pay is available: footer still shows summed daily BH/OT columns; basePayHours is slot-based reference.
+  // actualTotalBH below matches payslip regular-hour rollup (holidays, RD worked).
   let totalBH = 0;
   let daysWorked = 0;
 
@@ -1627,16 +1650,17 @@ export default function TimesheetPage() {
       return sum;
     }, 0);
 
-    // Weekly cutoff: base BH from scheduled days in window × 8h minus absences (no 104h cap).
-    totalBH = basePayHours;
-    daysWorked = totalBH / 8;
+    // Footer Total BH = sum of daily BH (matches payslip "Hours Work (Regular)" from attendance).
+    // basePayHours stays available via calculateBasePay for scheduled-slot diagnostics only.
+    totalBH = actualTotalBH;
+    daysWorked = totalBH > 0 ? totalBH / 8 : 0;
     // #region agent log
     if (attendanceDays.some((d) => d.date === "2026-01-01") || (format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
       const jan1 = attendanceDays.find((d) => d.date === "2026-01-01");
       fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "timesheet/page.tsx:DaysWork", message: "Timesheet Days Work", data: { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd"), employeeName: selectedEmployee?.full_name, jan1: jan1 ? { date: jan1.date, status: jan1.status, bh: jan1.bh, dayType: jan1.dayType } : null, basePayHours, actualTotalBH, totalBH, daysWorked }, hypothesisId: "H1", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
     }
     // #endregion
-    // Hours Work / Days Work follow weekly cutoff base (calculateBasePay)
+    // Footer totals use summed daily BH (actualTotalBH); basePayHours remains for diagnostics.
   } else {
     // Fallback: sum BH from attendance days (for display purposes)
     // But Days Work should still match base pay method if possible
@@ -2024,13 +2048,13 @@ export default function TimesheetPage() {
                   {/* Summary Row */}
                   <tr className="border-t-2 border-primary/30 bg-primary/5 font-semibold">
                     <td colSpan={3} className="px-4 py-2 text-sm">
-                      <span title="Weekly cutoff: scheduled days × 8h − absences (same as payslip Hours Worked)">
+                      <span title="Sum of daily BH for this week (same basis as payslip regular hours); OT is separate">
                         Days Work: {(daysWorked || 0).toFixed(2)}
                       </span>
                     </td>
                     <td
                       className="px-4 py-2 text-sm text-right"
-                      title="Weekly cutoff base hours (same as payslip Hours Worked); may differ from sum of daily BH"
+                      title="Total BH = sum of daily BH (compressed Mon–Fri); Saturday shows in OT column"
                     >
                       {totalBH > 0 ? totalBH.toFixed(1) : "0"}
                     </td>

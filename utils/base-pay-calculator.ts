@@ -8,8 +8,9 @@
  *   then hire/termination proration on that total.
  * - **Scheduled work day**: not a rest day, not a public holiday (holiday pay is handled elsewhere).
  * - **Absence**: a scheduled work day with no complete clock entry (−8h each).
- * - Office-based: calendar Sunday is rest (Saturday is a scheduled workday; matches timesheet BH when worked).
- * - Client-based: rest days from schedule (`restDays` map).
+ * - Office-based: calendar Sunday is rest. **Saturday is not a scheduled base slot** (compressed week:
+ *   Saturday is OT/optional; avoids a false −8h absence when there is no Saturday Bundy punch).
+ * - Client-based: rest days from schedule (`restDays` map); Saturday is also excluded from base slots.
  */
 
 import { format, parseISO, getDay } from "date-fns";
@@ -140,6 +141,12 @@ export function calculateBasePay(params: BasePayCalculationParams): BasePayCalcu
     // Client-based: Saturday is not a default scheduled workday in this policy.
     if (isClientBased && getDay(currentDate) === 6) {
       isRestDay = true;
+    }
+
+    // Office-based: Saturday is not part of Mon–Fri compressed base slots (no absence if no punch).
+    if (!isClientBased && getDay(currentDate) === 6) {
+      currentDate.setDate(currentDate.getDate() + 1);
+      continue;
     }
 
     if (isRestDay) {

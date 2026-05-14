@@ -68,6 +68,17 @@ function getManilaDateString(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+/** Full punch span in hours (credited), for Saturday OT when business-window overlap is 0. */
+function rawWorkedHoursBetweenPunches(entry: TimeClockEntry): number {
+  if (!entry.clock_in_time || !entry.clock_out_time) return 0;
+  const clockIn = parseTimestampInManila(entry.clock_in_time);
+  const clockOut = parseTimestampInManila(entry.clock_out_time);
+  if (clockOut <= clockIn) return 0;
+  return creditWorkHoursHalfHour(
+    Math.round(((clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60)) * 100) / 100
+  );
+}
+
 /**
  * Generate timesheet data from time clock entries for a specific period
  */
@@ -256,8 +267,13 @@ export function generateTimesheetFromClockEntries(
           // Saturday is outside the required office schedule for now.
           // Treat worked hours as OT instead of regular hours.
           if (eligibleForOT && !enforceApprovedOtNdOnly) {
-            // Prefer DB OT hours when present; otherwise fallback to worked business-window hours.
-            overtimeHours += entryOTHours > 0 ? entryOTHours : entryRegularHours;
+            const saturdayOtHours =
+              entryOTHours > 0
+                ? entryOTHours
+                : entryRegularHours > 0
+                  ? entryRegularHours
+                  : rawWorkedHoursBetweenPunches(entry);
+            overtimeHours += saturdayOtHours;
           }
         } else {
           regularHours += entryRegularHours;

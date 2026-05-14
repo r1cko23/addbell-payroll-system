@@ -89,7 +89,7 @@ import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generato
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
-import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee } from "@/lib/timeEntries";
+import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, manilaDatesWithCompleteBundySession } from "@/lib/timeEntries";
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
 
@@ -1012,8 +1012,19 @@ export default function PayslipsPage() {
               pairedByDate.set(dateKey, pair);
             });
 
-            pairedByDate.forEach((pair) => {
+            const bundyDatesForFtl = manilaDatesWithCompleteBundySession(
+              mainSessions || [],
+              getDateInManila
+            );
+            pairedByDate.forEach((pair, dateKey) => {
               if (!pair.inTime || !pair.outTime) return;
+              if (new Date(pair.outTime) <= new Date(pair.inTime)) return;
+              if (
+                bundyDatesForFtl.has(dateKey) ||
+                bundyDatesForFtl.has(getDateInManila(pair.inTime))
+              ) {
+                return;
+              }
               clockEntries.push({
                 id: `ftl-${pair.sourceId}`,
                 employee_id: selectedEmployeeId,
@@ -1186,7 +1197,7 @@ export default function PayslipsPage() {
                   // Cap ND hours at total_hours (can't exceed OT hours) and ensure non-negative
                   // Cap ND hours at credited OT hours (can't exceed OT credit)
                   ndHours = Math.min(Math.max(0, ndHours), credited);
-                  // Credit ND to 0.5-hour increments (>= 0.5 only)
+                  // Credit ND: minimum 1h, then 0.5h steps (see creditNightDiffHours)
                   ndHours = creditNightDiffHours(ndHours);
 
                   if (ndHours > 0) {

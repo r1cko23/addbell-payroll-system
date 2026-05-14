@@ -42,6 +42,7 @@ import {
 import {
   fetchSessionsForEmployee,
   fetchProjectTimeSessionsForEmployee,
+  filterSyntheticFtlWhenBundyExists,
   type TimeEntrySession,
 } from "@/lib/timeEntries";
 
@@ -573,8 +574,10 @@ export default function TimesheetPage() {
       const validClockEntries = (validEntries as TimeEntrySession[]).map(
         clockEntryFromSession
       );
-      const approvedFtlCompleteEntries = buildClockEntriesFromApprovedFtl(
-        approvedFtlData
+      const approvedFtlCompleteEntries = filterSyntheticFtlWhenBundyExists(
+        mainSessions || [],
+        buildClockEntriesFromApprovedFtl(approvedFtlData),
+        getDateInManila
       );
       const allClockEntries = [...validClockEntries, ...approvedFtlCompleteEntries];
       setClockEntries(allClockEntries);

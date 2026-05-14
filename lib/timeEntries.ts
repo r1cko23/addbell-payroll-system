@@ -124,9 +124,14 @@ function calculateNightDiffHours(
   return Math.round(total * 100) / 100;
 }
 
+/** Do not pair an OUT to an IN if the gap exceeds this (avoids binding to a distant OUT). */
+const MAX_PAIR_GAP_MS = 20 * 60 * 60 * 1000;
+
 /**
  * Converts punch rows (ordered by punched_at asc) into sessions.
- * Pairs consecutive in/out; trailing 'in' without 'out' becomes one session with clock_out_time null.
+ * Pairs each IN with the first OUT that is strictly after the IN (skips orphan OUTs and
+ * mistaken OUT-before-IN on the same wall-clock narrative). Caps pair duration at MAX_PAIR_GAP_MS.
+ * Trailing IN without a valid OUT becomes one session with clock_out_time null.
  */
 export function punchesToSessions(
   punches: TimeEntryPunch[],
@@ -159,13 +164,29 @@ export function punchesToSessions(
       i++;
       continue;
     }
-    // p is 'in'
     const clockIn = p.punched_at;
+    const clockInMs = new Date(clockIn).getTime();
     const clockInDatePh = getDateInManila(clockIn);
-    const next = sorted[i + 1];
 
-    if (next?.punch_type === "out") {
-      const clockOut = next.punched_at;
+    let j = i + 1;
+    let pairedOut: TimeEntryPunch | null = null;
+    while (j < sorted.length) {
+      const q = sorted[j];
+      if (q.punch_type !== "out") break;
+      const outMs = new Date(q.punched_at).getTime();
+      if (outMs > clockInMs) {
+        if (outMs - clockInMs <= MAX_PAIR_GAP_MS) {
+          pairedOut = q;
+          break;
+        }
+        j++;
+        continue;
+      }
+      j++;
+    }
+
+    if (pairedOut) {
+      const clockOut = pairedOut.punched_at;
       const totalHours =
         (new Date(clockOut).getTime() - new Date(clockIn).getTime()) /
         (1000 * 60 * 60);
@@ -173,7 +194,7 @@ export function punchesToSessions(
       const nightDiffHours = calculateNightDiffHours(clockIn, clockOut);
       sessions.push({
         id: p.id,
-        out_punch_id: next.id,
+        out_punch_id: pairedOut.id,
         clock_in_time: clockIn,
         clock_out_time: clockOut,
         clock_in_date_ph: clockInDatePh,
@@ -182,11 +203,11 @@ export function punchesToSessions(
         regular_hours: regularHours,
         total_night_diff_hours: nightDiffHours,
         clock_in_location: formatLocation(p),
-        clock_out_location: formatLocation(next),
+        clock_out_location: formatLocation(pairedOut),
         clock_in_device: p.device_info ?? null,
-        clock_out_device: next.device_info ?? null,
+        clock_out_device: pairedOut.device_info ?? null,
       });
-      i += 2;
+      i = j + 1;
     } else {
       sessions.push({
         id: p.id,
@@ -207,6 +228,46 @@ export function punchesToSessions(
     }
   }
   return sessions;
+}
+
+/**
+ * Manila dates (yyyy-MM-dd) that already have a valid complete Bundy session
+ * (clock-out strictly after clock-in). Used to drop redundant FTL synthetic rows.
+ */
+export function manilaDatesWithCompleteBundySession(
+  mainSessions: TimeEntrySession[],
+  getDateInManila: (iso: string) => string
+): Set<string> {
+  const dates = new Set<string>();
+  for (const s of mainSessions) {
+    if (!s.clock_in_time || !s.clock_out_time) continue;
+    if (new Date(s.clock_out_time) <= new Date(s.clock_in_time)) continue;
+    dates.add(getDateInManila(s.clock_in_time));
+  }
+  return dates;
+}
+
+type SessionLike = {
+  clock_in_time: string;
+  clock_out_time: string | null;
+};
+
+/**
+ * When approved failure-to-log is merged with real Bundy punches, omit FTL-only sessions
+ * for dates that already have a complete Bundy (time_entries) session — avoids double BH.
+ */
+export function filterSyntheticFtlWhenBundyExists<T extends SessionLike>(
+  mainSessions: TimeEntrySession[],
+  ftlEntries: T[],
+  getDateInManila: (iso: string) => string
+): T[] {
+  const bundyDates = manilaDatesWithCompleteBundySession(mainSessions, getDateInManila);
+  return ftlEntries.filter((e) => {
+    if (!e.clock_out_time) return true;
+    if (new Date(e.clock_out_time) <= new Date(e.clock_in_time)) return true;
+    const d = getDateInManila(e.clock_in_time);
+    return !bundyDates.has(d);
+  });
 }
 
 /**

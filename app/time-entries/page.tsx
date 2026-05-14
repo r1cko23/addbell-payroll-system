@@ -639,9 +639,17 @@ export default function TimeEntriesPage() {
             ftlCompositeKey(entry.employee_id, entryDateKey)
           );
 
-          const resolvedClockOutTime =
-            entry.clock_out_time ||
-            (entry.status === "clocked_in" ? ftlForEntry?.outTime || null : null);
+          const resolvedClockOutTime = (() => {
+            if (entry.clock_out_time) return entry.clock_out_time;
+            if (entry.status !== "clocked_in" || !entry.clock_in_time || !ftlForEntry?.outTime) {
+              return null;
+            }
+            if (new Date(ftlForEntry.outTime) <= new Date(entry.clock_in_time)) {
+              return null;
+            }
+            return ftlForEntry.outTime;
+          })();
+
           const resolvedClockInTime =
             entry.clock_in_time ||
             (entry.status === "clocked_in" ? ftlForEntry?.inTime || null : null);
@@ -671,6 +679,7 @@ export default function TimeEntriesPage() {
 
       approvedFtlByEmployeeDate.forEach((pair, key) => {
         if (!pair.inTime || !pair.outTime) return;
+        if (new Date(pair.outTime) <= new Date(pair.inTime)) return;
         if (existingEntryKeys.has(key)) return;
 
         const [employeeId] = key.split("::");

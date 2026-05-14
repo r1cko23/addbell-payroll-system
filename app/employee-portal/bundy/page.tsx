@@ -1799,7 +1799,8 @@ export default function BundyClockPage() {
         // Calculate ND (Night Differential) from approved OT requests
         // ND should come from overtime_requests, not from clock entries
         // Note: isAccountSupervisor is already defined at function level (above the loop)
-        let ndHours = 0;
+        /** Raw ND overlap for the day (sum across OT filings); one creditNightDiffHours applied below. */
+        let ndRawTotal = 0;
 
         if (dayOTs.length > 0) {
           // Calculate ND from each approved OT request's start_time and end_time
@@ -1864,15 +1865,15 @@ export default function BundyClockPage() {
                 ndFromThisOT = Math.max(0, (ndEndMin - ndStartMin) / 60);
               }
 
-              // Apply 0.5-hour crediting rule per OT filing policy.
-              ndHours += creditNightDiffHours(ndFromThisOT);
+              const creditedOt = creditOvertimeHours(Number(ot.total_hours || 0));
+              ndFromThisOT = Math.min(Math.max(0, ndFromThisOT), creditedOt);
+              ndRawTotal += ndFromThisOT;
             }
           });
         }
 
-        // ND is already calculated from overtime_requests above
-        // No need to calculate from clock entries - ND must come from approved OT requests only
-        const nd = creditNightDiffHours(ndHours);
+        // ND from approved OT only: sum raw overlap for the day, then 1h minimum + 0.5h steps (same as Time Attendance).
+        const nd = creditNightDiffHours(Math.round(ndRawTotal * 100) / 100);
 
         days.push({
           date: dateStr,

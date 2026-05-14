@@ -823,65 +823,9 @@ export default function PayslipsPage() {
         setAdjustmentRows(createDefaultAdjustmentRows());
       }
 
-      // Prefer saved payslip attendance (source of truth for generated payroll runs).
-      // Fallback to regenerated sessions only when saved breakdown is unavailable.
+      // Attendance for the payslip UI always regenerates from the same inputs as Time Attendance
+      // (sessions + approved OT + FTL). Saved payslip rows still supply deductions/adjustments only.
       let attData = null as any;
-      if (existingPayslipRow) {
-        const earnings = existingPayslipRow.earnings_breakdown as any;
-        const savedAttendanceDays = Array.isArray(earnings)
-          ? earnings
-          : Array.isArray(earnings?.attendance_data)
-          ? earnings.attendance_data
-          : [];
-        if (savedAttendanceDays.length > 0) {
-          const totalRegular =
-            Math.round(
-              savedAttendanceDays.reduce(
-                (sum: number, day: any) =>
-                  sum +
-                  creditWorkHoursHalfHour(
-                    Math.round(Number(day?.regularHours || 0) * 100) / 100
-                  ),
-                0
-              ) * 100
-            ) / 100;
-          const totalOvertime =
-            Math.round(
-              savedAttendanceDays.reduce(
-                (sum: number, day: any) => sum + Number(day?.overtimeHours || 0),
-                0
-              ) * 100
-            ) / 100;
-          const totalNightDiff =
-            Math.round(
-              savedAttendanceDays.reduce(
-                (sum: number, day: any) =>
-                  sum +
-                  creditNightDiffHours(
-                    Math.round(Number(day?.nightDiffHours || 0) * 100) / 100
-                  ),
-                0
-              ) * 100
-            ) / 100;
-
-          attData = {
-            id: `saved-${existingPayslipRow.id}`,
-            employee_id: selectedEmployeeId,
-            period_start: periodStartStr,
-            period_end: periodEndStr,
-            period_type: "weekly",
-            attendance_data: savedAttendanceDays,
-            total_regular_hours: totalRegular,
-            total_overtime_hours: totalOvertime,
-            total_night_diff_hours: totalNightDiff,
-            gross_pay: Number(existingPayslipRow.gross_pay || 0),
-            status: "draft",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            created_by: null,
-          };
-        }
-      }
 
       // Load leave requests for the period (needed for both existing and new attendance)
       const { data: leaveData, error: leaveError } = await supabase
@@ -890,7 +834,7 @@ export default function PayslipsPage() {
         .eq("employee_id", selectedEmployeeId)
         .lte("start_date", periodEndStr)
         .gte("end_date", periodStartStr)
-        .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+        .in("status", ["approved_by_manager", "approved_by_hr"]);
 
       if (leaveError) {
         console.warn("Error loading leave requests:", leaveError);
@@ -1094,7 +1038,17 @@ export default function PayslipsPage() {
             }
           );
 
-          if (filteredClockEntries.length === 0) {
+          const validStatusClockEntries = filteredClockEntries.filter(
+            (e: any) =>
+              e.status !== "rejected" &&
+              e.status !== "pending" &&
+              (e.status === "auto_approved" ||
+                e.status === "approved" ||
+                e.status === "clocked_out" ||
+                e.status === "clocked_in")
+          );
+
+          if (validStatusClockEntries.length === 0) {
             console.log(
               "No time entries found after filtering for period"
             );
@@ -1103,7 +1057,7 @@ export default function PayslipsPage() {
           }
 
           console.log(
-            `Found ${clockEntries.length} time entries, ${filteredClockEntries.length} within period`
+            `Found ${clockEntries.length} time entries, ${validStatusClockEntries.length} within period (valid status)`
           );
 
           const holidaysNormalized = await fetchHolidaysRange(supabase as any, {
@@ -1133,7 +1087,8 @@ export default function PayslipsPage() {
           // Always load approved OT (same as Time Attendance). Merge all approved OT into payslip
           // so already-approved OT always shows; eligible_for_ot only controls filing new OT requests.
           let approvedOTByDate = new Map<string, number>();
-          let approvedNDByDate = new Map<string, number>();
+          /** Raw ND overlap per date (sum of capped per-OT raw); credited once per date like Time Attendance */
+          const approvedNDRawByDate = new Map<string, number>();
           // Load OT for current employee and, if transferred, for predecessor so OT is not lost
           const transferredFromId = selectedEmployee?.transferred_from_employee_id ?? null;
           const employeeIdsToLoad = transferredFromId
@@ -1167,7 +1122,8 @@ export default function PayslipsPage() {
                 const newOT = existingOT + credited;
                 approvedOTByDate.set(dateStr, newOT);
 
-                let ndHours = 0;
+                let ndOverlap = 0;
+                let ndRawForOt = 0;
                 // Calculate night differential from OT request: ND only when OT overlaps 10PM–6AM Philippine time
                 if (isEligibleForNightDiff && ot.start_time && ot.end_time) {
                   const startTime = ot.start_time.includes("T")
@@ -1211,39 +1167,39 @@ export default function PayslipsPage() {
                       hoursFromMidnight = nightEndMin / 60;
                     }
 
-                    ndHours = hoursToMidnight + hoursFromMidnight;
+                    ndOverlap = hoursToMidnight + hoursFromMidnight;
                   } else {
                     // OT on same day
                     if (startTotalMin >= nightStartMin) {
-                      ndHours = (endTotalMin - startTotalMin) / 60;
+                      ndOverlap = (endTotalMin - startTotalMin) / 60;
                     } else if (endTotalMin >= nightStartMin) {
-                      ndHours = (endTotalMin - nightStartMin) / 60;
+                      ndOverlap = (endTotalMin - nightStartMin) / 60;
                     }
                   }
 
-                  // Cap ND hours at total_hours (can't exceed OT hours) and ensure non-negative
-                  // Cap ND hours at credited OT hours (can't exceed OT credit)
-                  ndHours = Math.min(Math.max(0, ndHours), credited);
-                  // Credit ND: minimum 1h, then 0.5h steps (see creditNightDiffHours)
-                  ndHours = creditNightDiffHours(ndHours);
+                  // Cap raw ND at credited OT hours (can't exceed OT credit); credit ND once per day below
+                  ndRawForOt = Math.min(Math.max(0, ndOverlap), credited);
 
-                  if (ndHours > 0) {
+                  if (ndRawForOt > 0) {
                     console.log(
-                      `Night Differential calculated for ${dateStr}:`,
+                      `Night Differential (raw overlap) for ${dateStr}:`,
                       {
                         ot_date: dateStr,
                         start_time: ot.start_time,
                         end_time: ot.end_time,
                         end_date: ot.end_date,
                         total_hours: ot.total_hours,
-                        nd_hours: ndHours,
+                        nd_raw_hours: ndRawForOt,
                         spansMidnight,
                       }
                     );
                   }
 
-                  const existingND = approvedNDByDate.get(dateStr) || 0;
-                  approvedNDByDate.set(dateStr, existingND + ndHours);
+                  const existingRaw = approvedNDRawByDate.get(dateStr) || 0;
+                  approvedNDRawByDate.set(
+                    dateStr,
+                    Math.round((existingRaw + ndRawForOt) * 100) / 100
+                  );
                 }
 
                 // Record for ND check log (all OT requests, with or without ND)
@@ -1252,18 +1208,24 @@ export default function PayslipsPage() {
                   start_time: ot.start_time ?? "",
                   end_time: ot.end_time ?? "",
                   total_hours: ot.total_hours ?? 0,
-                  ndHours,
-                  overlaps10pm6am: ndHours > 0,
+                  ndHours: ndRawForOt,
+                  overlaps10pm6am: ndOverlap > 0,
                 });
             });
             console.log("Approved OT requests by date:", approvedOTByDate);
-            console.log("Approved ND by date:", approvedNDByDate);
           }
+
+          const approvedNDByDate = new Map<string, number>();
+          approvedNDRawByDate.forEach((raw, d) => {
+            const cr = creditNightDiffHours(Math.round(raw * 100) / 100);
+            if (cr > 0) approvedNDByDate.set(d, cr);
+          });
+          console.log("Approved ND by date (credited once per day):", approvedNDByDate);
 
           // Map clock entries to match the generator function's expected format.
           // Keep regular/session-derived ND so night regular shifts are counted.
           // OT hours still come from approved OT requests map below.
-          const mappedClockEntries = filteredClockEntries.map((entry: any) => {
+          const mappedClockEntries = validStatusClockEntries.map((entry: any) => {
             return {
               ...entry,
               // OT should come from approved OT requests (avoid double-counting from raw entries).

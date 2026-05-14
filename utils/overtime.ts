@@ -4,12 +4,12 @@ export const ND_MIN_HOURS = 1;
 export const ND_INCREMENT_HOURS = 0.5;
 
 /**
- * Convert raw OT duration (hours) to credited OT hours.
+ * Credited **overtime** hours from a raw duration (e.g. approved OT `total_hours` or computed span).
  *
- * Rules:
- * - Minimum OT credit is 1.0 hour
- * - After 1.0 hour, credits are in 0.5-hour increments
- * - Credit is floored (e.g., 1.49 -> 1.0, 1.50 -> 1.5)
+ * Policy (OT and ND use the same staircase):
+ * - Below **1 full hour** raw → **0** credited (nothing payable).
+ * - From **1.0 hour** upward, credit is floored to **0.5 h steps**: 1, 1.5, 2, 2.5, 3, …
+ * - Examples: 0.99 → 0 · 1.0 → 1 · 1.49 → 1 · 1.5 → 1.5 · 2.25 → 2 · 2.5 → 2.5
  */
 export function creditOvertimeHours(rawHours: number): number {
   const h = Number(rawHours) || 0;
@@ -18,12 +18,11 @@ export function creditOvertimeHours(rawHours: number): number {
 }
 
 /**
- * Convert raw night-differential duration (hours) to credited ND hours.
+ * Credited **night differential** hours from raw night-window overlap (sum for the day before crediting).
  *
- * Rules (aligned with OT-style crediting):
- * - Minimum ND credit is 1.0 hour (raw overlap below 1h credits as 0)
- * - From 1.0h onward, credits are in 0.5-hour increments (1, 1.5, 2, …)
- * - Credit is floored (e.g., 1.49 -> 1.0, 1.50 -> 1.5, 0.99 -> 0)
+ * Same staircase as {@link creditOvertimeHours}:
+ * - Below **1 full hour** raw → **0** credited.
+ * - From **1.0 hour** upward: **0.5 h steps** (1, 1.5, 2, 2.5, …), floored.
  */
 export function creditNightDiffHours(rawHours: number): number {
   const h = Number(rawHours) || 0;

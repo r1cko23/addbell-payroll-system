@@ -28,7 +28,8 @@ import {
   type OtRowWithEmployee,
 } from "@/lib/ftl-ot-synthesis";
 
-function calculateApprovedOtNightDiffHours(
+/** Raw 22:00–06:00 overlap from an approved OT window, capped by credited OT hours (no ND staircase yet). */
+function approvedOtNightOverlapHoursRaw(
   startTimeRaw: string | null | undefined,
   endTimeRaw: string | null | undefined,
   otDateRaw: string | null | undefined,
@@ -67,9 +68,9 @@ function calculateApprovedOtNightDiffHours(
     nd = (endMin - nightStartMin) / 60;
   }
 
-  const totalHours = Number(totalHoursRaw || 0);
-  const capped = Math.min(Math.max(0, nd), totalHours > 0 ? totalHours : nd);
-  return creditNightDiffHours(Math.round(capped * 100) / 100);
+  const creditedOt = creditOvertimeHours(Number(totalHoursRaw || 0));
+  const capped = Math.min(Math.max(0, nd), creditedOt);
+  return Math.round(capped * 100) / 100;
 }
 
 export async function POST(request: NextRequest) {
@@ -294,7 +295,7 @@ export async function POST(request: NextRequest) {
     });
 
     const approvedOtByEmployeeDate = new Map<string, Map<string, number>>();
-    const approvedNdByEmployeeDate = new Map<string, Map<string, number>>();
+    const approvedNdRawByEmployeeDate = new Map<string, Map<string, number>>();
     (approvedOtRows || []).forEach((row: any) => {
       const employeeId = row.employee_id as string | undefined;
       if (!employeeId) return;
@@ -303,7 +304,7 @@ export async function POST(request: NextRequest) {
 
       // Normalize legacy OT rows: min 1h, then 0.5 increments.
       const otHours = creditOvertimeHours(Number(row.total_hours || 0));
-      const ndHours = calculateApprovedOtNightDiffHours(
+      const ndRaw = approvedOtNightOverlapHoursRaw(
         row.start_time,
         row.end_time,
         row.ot_date,
@@ -315,9 +316,23 @@ export async function POST(request: NextRequest) {
       otByDate.set(dateKey, Math.round(((otByDate.get(dateKey) || 0) + otHours) * 100) / 100);
       approvedOtByEmployeeDate.set(employeeId, otByDate);
 
-      const ndByDate = approvedNdByEmployeeDate.get(employeeId) || new Map<string, number>();
-      ndByDate.set(dateKey, Math.round(((ndByDate.get(dateKey) || 0) + ndHours) * 100) / 100);
-      approvedNdByEmployeeDate.set(employeeId, ndByDate);
+      const ndRawByDate =
+        approvedNdRawByEmployeeDate.get(employeeId) || new Map<string, number>();
+      ndRawByDate.set(
+        dateKey,
+        Math.round(((ndRawByDate.get(dateKey) || 0) + ndRaw) * 100) / 100
+      );
+      approvedNdRawByEmployeeDate.set(employeeId, ndRawByDate);
+    });
+
+    const approvedNdByEmployeeDate = new Map<string, Map<string, number>>();
+    approvedNdRawByEmployeeDate.forEach((ndRawMap, employeeId) => {
+      const ndMap = new Map<string, number>();
+      ndRawMap.forEach((raw, dateKey) => {
+        const cr = creditNightDiffHours(Math.round(raw * 100) / 100);
+        if (cr > 0) ndMap.set(dateKey, cr);
+      });
+      approvedNdByEmployeeDate.set(employeeId, ndMap);
     });
 
     // Batch fetch all existing timesheets for rate calculation (only for employees that need it)

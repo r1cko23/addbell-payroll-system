@@ -37,7 +37,10 @@ import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
-import { syntheticClockOutFromApprovedOt } from "@/lib/ftl-ot-synthesis";
+import {
+  fillMissingFtlClockOutsFromApprovedOtByEmployeeDate,
+  type OtRowWithEmployee,
+} from "@/lib/ftl-ot-synthesis";
 import {
   H1,
   H2,
@@ -985,15 +988,16 @@ export default function PayslipsPage() {
           if (approvedFtlError) {
             console.warn("Error loading approved FTL rows for payslip generation:", approvedFtlError);
           } else {
-            const pairedByDate = new Map<
+            const pairedByEmployeeDate = new Map<
               string,
               { inTime: string | null; outTime: string | null; sourceId: string }
             >();
             (approvedFtlRows || []).forEach((row: any) => {
               if (normalizeValue(row.status) !== "approved") return;
-              if (!row.missed_date) return;
+              if (!row.missed_date || !row.employee_id) return;
               const dateKey = String(row.missed_date).split("T")[0];
-              const pair = pairedByDate.get(dateKey) || {
+              const mapKey = `${row.employee_id}::${dateKey}`;
+              const pair = pairedByEmployeeDate.get(mapKey) || {
                 inTime: null,
                 outTime: null,
                 sourceId: row.id,
@@ -1010,7 +1014,8 @@ export default function PayslipsPage() {
               ) {
                 pair.outTime = row.actual_clock_out_time;
               }
-              pairedByDate.set(dateKey, pair);
+              pair.sourceId = pair.sourceId || row.id;
+              pairedByEmployeeDate.set(mapKey, pair);
             });
 
             const { data: approvedOtRowsForFtl } = await supabase
@@ -1023,22 +1028,22 @@ export default function PayslipsPage() {
               .lte("ot_date", periodEndStr)
               .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
 
-            pairedByDate.forEach((pair, dateKey) => {
-              if (!pair.inTime || pair.outTime || !approvedOtRowsForFtl?.length) return;
-              const ots = approvedOtRowsForFtl.filter((ot: any) => {
-                const d = String(ot.ot_date).split("T")[0];
-                return employeeIdsToLoadFtl.includes(ot.employee_id) && d === dateKey;
-              });
-              const syn = syntheticClockOutFromApprovedOt(pair.inTime, dateKey, ots);
-              if (syn) pair.outTime = syn;
-            });
+            fillMissingFtlClockOutsFromApprovedOtByEmployeeDate(
+              pairedByEmployeeDate,
+              (approvedOtRowsForFtl || []) as OtRowWithEmployee[]
+            );
 
             const bundyDatesForFtl = manilaDatesWithCompleteBundySession(
               mainSessions || [],
               getDateInManila,
               projectSessions || []
             );
-            pairedByDate.forEach((pair, dateKey) => {
+            pairedByEmployeeDate.forEach((pair, mapKey) => {
+              const sep = mapKey.indexOf("::");
+              if (sep < 0) return;
+              const empId = mapKey.slice(0, sep);
+              const dateKey = mapKey.slice(sep + 2);
+              if (!employeeIdsToLoadFtl.includes(empId)) return;
               if (!pair.inTime || !pair.outTime) return;
               if (new Date(pair.outTime) <= new Date(pair.inTime)) return;
               if (

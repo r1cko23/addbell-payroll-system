@@ -22,6 +22,7 @@ import {
   HOLIDAY_UNWORKED_CREDIT_HOURS,
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
+import { aggregateMetricsFromAttendanceDays } from "@/lib/day-attendance-summary";
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 
 interface PayslipPrintProps {
@@ -99,6 +100,26 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     workingDays,
     preparedBy,
   } = props;
+
+  const attendanceMetrics = useMemo(() => {
+    const saved = attendance?.attendance_metrics as
+      | { late_hours?: number; undertime_hours?: number }
+      | undefined;
+    if (saved && (saved.late_hours != null || saved.undertime_hours != null)) {
+      return {
+        lateHours: Number(saved.late_hours ?? 0),
+        undertimeHours: Number(saved.undertime_hours ?? 0),
+      };
+    }
+    const data = Array.isArray(attendance?.attendance_data)
+      ? (attendance.attendance_data as Array<{
+          date: string;
+          clockInTime?: string | null;
+          clockOutTime?: string | null;
+        }>)
+      : [];
+    return aggregateMetricsFromAttendanceDays(data);
+  }, [attendance]);
 
   // Calculate detailed earnings breakdown from attendance data
   const ratePerHour = employee.rate_per_hour || 0;
@@ -604,7 +625,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   // Calculate total deductions
   // Note: withholdingTax is already included in deductions.totalDeductions from props
   const totalDeductions = deductions.totalDeductions;
-  const tardiness = 0; // Can be calculated later if needed
+
+  const tardiness =
+    ratePerHour > 0 ? attendanceMetrics.lateHours * ratePerHour : 0;
+  const undertimeAmount =
+    ratePerHour > 0 ? attendanceMetrics.undertimeHours * ratePerHour : 0;
 
   // Ensure Total Salary is calculated if not already set
   if (totalSalary === 0 && earningsBreakdown.basic.amount > 0) {
@@ -612,9 +637,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     totalSalary = earningsBreakdown.basic.amount;
   }
 
-  // Total Gross Pay = Total Salary (sum of all earnings)
-  // Tardiness is currently 0, but can be deducted in the future if needed
-  totalGrossPay = totalSalary - tardiness;
+  // Gross pay follows saved/on-screen totals; late/undertime amounts are shown for reference only.
+  totalGrossPay = totalSalary;
   totalSalary = totalGrossPay;
 
   // Net Pay = Gross Pay - Deductions + Adjustment (adjustment can be + or -)
@@ -1939,6 +1963,31 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 }}
               >
                 {formatCurrency(tardiness)}
+                {attendanceMetrics.lateHours > 0 && (
+                  <span style={{ fontSize: "7pt", color: "#444" }}>
+                    {" "}
+                    ({attendanceMetrics.lateHours}h)
+                  </span>
+                )}
+              </div>
+              <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
+                Less Undertime:
+              </div>
+              <div
+                style={{
+                  textAlign: "right",
+                  marginBottom: "8px",
+                  borderBottom: "1px solid #000",
+                  paddingBottom: "2px",
+                }}
+              >
+                {formatCurrency(undertimeAmount)}
+                {attendanceMetrics.undertimeHours > 0 && (
+                  <span style={{ fontSize: "7pt", color: "#444" }}>
+                    {" "}
+                    ({attendanceMetrics.undertimeHours}h)
+                  </span>
+                )}
               </div>
               <div
                 style={{

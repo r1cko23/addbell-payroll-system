@@ -78,6 +78,7 @@ import {
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import {
   buildStoredEarningsBreakdown,
+  regularHoursBasicGross,
   resolveGrossPayForSave,
 } from "@/lib/payroll-earnings-breakdown";
 import { mapPayslipAttendanceDays } from "@/lib/map-payslip-attendance-days";
@@ -1357,39 +1358,28 @@ export default function PayslipsPage() {
               ) * 100
             ) / 100;
 
-          // Calculate gross pay - try to get from employee's monthly_rate or per_day
-          let grossPay = 0;
           const selectedEmp = employees.find(
             (e) => e.id === selectedEmployeeId
           );
-          if (selectedEmp && timesheetData.attendance_data.length > 0) {
-            let ratePerHour = 0;
-            const workingDaysPerMonth = 26;
-
-            if (selectedEmp.monthly_rate) {
-              ratePerHour =
-                selectedEmp.monthly_rate / (workingDaysPerMonth * 8);
-            } else if (selectedEmp.per_day) {
-              ratePerHour = selectedEmp.per_day / 8;
-            }
-
-            if (ratePerHour > 0) {
-              try {
-                const payrollResult = calculateWeeklyPayroll(
-                  timesheetData.attendance_data,
-                  ratePerHour
-                );
-                grossPay = Math.round(payrollResult.grossPay * 100) / 100;
-              } catch (calcError) {
-                console.error("Error calculating payroll:", calcError);
-                // Fallback: estimate from hours
-                grossPay =
-                  Math.round(
-                    timesheetData.total_regular_hours * ratePerHour * 100
-                  ) / 100;
-              }
-            }
+          let ratePerHour = 0;
+          if (selectedEmp?.monthly_rate) {
+            ratePerHour = selectedEmp.monthly_rate / (26 * 8);
+          } else if (selectedEmp?.per_day) {
+            ratePerHour = selectedEmp.per_day / 8;
           }
+
+          const mergedAttendanceDays = mapPayslipAttendanceDays(
+            timesheetData.attendance_data,
+            validStatusClockEntries
+          );
+          const payrollResult =
+            ratePerHour > 0
+              ? calculateWeeklyPayroll(mergedAttendanceDays, ratePerHour)
+              : null;
+          const basicGross = regularHoursBasicGross(mergedAttendanceDays, ratePerHour);
+          const grossPay = Math.round(
+            Math.max(basicGross, payrollResult?.grossPay ?? 0) * 100
+          ) / 100;
 
           // Create attendance object from clock entries data
           attData = {
@@ -1398,7 +1388,7 @@ export default function PayslipsPage() {
             period_start: periodStartStr,
             period_end: periodEndStr,
             period_type: "weekly",
-            attendance_data: timesheetData.attendance_data,
+            attendance_data: mergedAttendanceDays,
             total_regular_hours: timesheetData.total_regular_hours,
             total_overtime_hours: timesheetData.total_overtime_hours,
             total_night_diff_hours: timesheetData.total_night_diff_hours,
@@ -2877,32 +2867,30 @@ export default function PayslipsPage() {
     return calculatedGrossPay;
   }, [attendance, selectedEmployee]);
 
-  /** Matches PayslipDetailedBreakdown "Hours Work (Regular)" × rate (Mon–Sat regular hours). */
-  const regularHoursBasicGross = useMemo(() => {
-    if (
-      !attendance?.attendance_data ||
-      !Array.isArray(attendance.attendance_data) ||
-      !selectedEmployee
-    ) {
-      return 0;
+  /** Clock-merged days — shared by earnings breakdown and print preview. */
+  const payslipAttendanceDays = useMemo(() => {
+    if (!attendance?.attendance_data || !Array.isArray(attendance.attendance_data)) {
+      return [];
     }
-    const ratePerHour =
+    return mapPayslipAttendanceDays(attendance.attendance_data, clockEntries);
+  }, [attendance?.attendance_data, clockEntries]);
+
+  const ratePerHourForPayslip = useMemo(() => {
+    if (!selectedEmployee) return 0;
+    return (
       selectedEmployee.rate_per_hour ||
       (selectedEmployee.per_day
         ? selectedEmployee.per_day / 8
         : selectedEmployee.rate_per_day
         ? selectedEmployee.rate_per_day / 8
-        : 0);
-    if (ratePerHour <= 0) return 0;
-    const regularHours = attendance.attendance_data.reduce((sum: number, day: any) => {
-      if ((day.dayType || "regular") !== "regular") return sum;
-      return (
-        sum +
-        creditWorkHoursHalfHour(Math.round(Number(day.regularHours || 0) * 100) / 100)
-      );
-    }, 0);
-    return Math.round(regularHours * ratePerHour * 100) / 100;
-  }, [attendance, selectedEmployee]);
+        : 0)
+    );
+  }, [selectedEmployee]);
+
+  const basicGrossFromAttendance = useMemo(() => {
+    if (payslipAttendanceDays.length === 0) return 0;
+    return regularHoursBasicGross(payslipAttendanceDays, ratePerHourForPayslip);
+  }, [payslipAttendanceDays, ratePerHourForPayslip]);
 
   /** Prefer page-level gross (attendance + calculateWeeklyPayroll / AS rules); fallback to breakdown callback. Keeps summary in sync with preview. */
   const earningsBaseForPeriod = useMemo(() => {
@@ -2910,10 +2898,10 @@ export default function PayslipsPage() {
     if (calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0) {
       return calculatedTotalGrossPay;
     }
-    if (regularHoursBasicGross > 0) return regularHoursBasicGross;
+    if (basicGrossFromAttendance > 0) return basicGrossFromAttendance;
     if (grossPay > 0) return grossPay;
     return 0;
-  }, [grossPay, calculatedTotalGrossPay, regularHoursBasicGross]);
+  }, [grossPay, calculatedTotalGrossPay, basicGrossFromAttendance]);
 
   const otherManualDeductionSum = useMemo(
     () =>
@@ -3074,14 +3062,6 @@ export default function PayslipsPage() {
     savedPayslip,
     payslipBaselineTick,
   ]);
-
-  /** Clock-merged days — shared by earnings breakdown and print preview. */
-  const payslipAttendanceDays = useMemo(() => {
-    if (!attendance?.attendance_data || !Array.isArray(attendance.attendance_data)) {
-      return [];
-    }
-    return mapPayslipAttendanceDays(attendance.attendance_data, clockEntries);
-  }, [attendance?.attendance_data, clockEntries]);
 
   const attendanceForPrint = useMemo(() => {
     if (!attendance) return null;

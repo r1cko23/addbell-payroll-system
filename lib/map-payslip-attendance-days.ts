@@ -1,3 +1,4 @@
+import { getDay, parseISO } from "date-fns";
 import { creditWorkHoursHalfHour } from "@/utils/overtime";
 import type { DayType } from "@/utils/payroll-calculator";
 
@@ -48,33 +49,56 @@ export function mapPayslipAttendanceDays(
   return attendanceData.map((day: any) => {
     const dayDate = day.date || day.clock_in_time?.split("T")[0] || "";
 
-    const matchingEntry = clockEntries.find((entry) => {
+    const dayPunches = clockEntries.filter((entry) => {
       if (!entry.clock_in_time) return false;
       return manilaDateKeyFromIso(entry.clock_in_time) === dayDate;
     });
 
+    const isSaturday =
+      dayDate.length >= 10 &&
+      getDay(parseISO(dayDate.split("T")[0])) === 6;
+
     const isLeaveDayWithFullHours = (day.regularHours || 0) >= 8;
-    const regularHours = creditWorkHoursHalfHour(
-      Math.round(
-        Number(
-          isLeaveDayWithFullHours
-            ? day.regularHours
-            : matchingEntry?.regular_hours ?? day.regularHours ?? 0
-        ) * 100
-      ) / 100
+    let workedHours = 0;
+    if (isLeaveDayWithFullHours) {
+      workedHours = Number(day.regularHours || 0);
+    } else if (dayPunches.length > 0) {
+      workedHours = dayPunches.reduce(
+        (sum, entry) => sum + Number(entry.regular_hours ?? 0),
+        0
+      );
+    } else {
+      workedHours = Number(day.regularHours ?? 0);
+    }
+    workedHours = creditWorkHoursHalfHour(
+      Math.round(workedHours * 100) / 100
     );
+
+    let regularHours = 0;
+    let overtimeHours = Number(day.overtimeHours || 0);
+    if (isSaturday) {
+      regularHours = 0;
+      overtimeHours =
+        workedHours > 0
+          ? workedHours
+          : creditWorkHoursHalfHour(Math.round(overtimeHours * 100) / 100);
+    } else {
+      regularHours = workedHours;
+    }
+
+    const firstPunch = dayPunches[0];
 
     return {
       date: dayDate,
       dayType: (day.dayType || "regular") as DayType,
       regularHours,
-      overtimeHours: Number(day.overtimeHours || 0),
+      overtimeHours,
       nightDiffHours: Number(day.nightDiffHours || 0),
       clockInTime: orUndefined(
-        matchingEntry?.clock_in_time ?? day.clockInTime ?? day.clock_in_time
+        firstPunch?.clock_in_time ?? day.clockInTime ?? day.clock_in_time
       ),
       clockOutTime: orUndefined(
-        matchingEntry?.clock_out_time ?? day.clockOutTime ?? day.clock_out_time
+        firstPunch?.clock_out_time ?? day.clockOutTime ?? day.clock_out_time
       ),
     };
   });

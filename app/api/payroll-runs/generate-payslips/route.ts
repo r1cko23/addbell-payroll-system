@@ -33,6 +33,11 @@ import {
 } from "@/lib/statutory-proration";
 import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
+import { mapPayslipAttendanceDays } from "@/lib/map-payslip-attendance-days";
+import {
+  buildStoredEarningsBreakdown,
+  regularHoursBasicGross,
+} from "@/lib/payroll-earnings-breakdown";
 
 type EmployeeRow = {
   id: string;
@@ -396,13 +401,26 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const clockForMap = employeeSessions.map((s: any) => ({
+        clock_in_time: s.clock_in_time,
+        clock_out_time: s.clock_out_time,
+        regular_hours: s.regular_hours ?? s.total_hours ?? null,
+      }));
+      const mappedAttendanceDays = mapPayslipAttendanceDays(
+        timesheetData.attendance_data,
+        clockForMap
+      );
+
       const ratePerHour = ratePerHourFromEmployee(e);
       const payrollResult =
         ratePerHour > 0
-          ? calculateWeeklyPayroll(timesheetData.attendance_data, ratePerHour)
+          ? calculateWeeklyPayroll(mappedAttendanceDays, ratePerHour)
           : null;
 
-      const grossPay = payrollResult?.grossPay ?? 0;
+      const basicGross = regularHoursBasicGross(mappedAttendanceDays, ratePerHour);
+      const grossPay = Math.round(
+        Math.max(basicGross, payrollResult?.grossPay ?? 0) * 100
+      ) / 100;
       const totalRegularHours = Number(timesheetData.total_regular_hours || 0);
       const totalOvertimeHours = Number(timesheetData.total_overtime_hours || 0);
       const totalNightDiffHours = Number(timesheetData.total_night_diff_hours || 0);
@@ -415,7 +433,7 @@ export async function POST(req: NextRequest) {
         sessions_main_count: (mainSessions || []).length,
         sessions_project_count: (projectSessions || []).length,
         sessions_cutoff_count: employeeSessions.length,
-        ftl_synthetic_sessions_count: ftlSessionsForEmployee.length,
+        ftl_synthetic_sessions_count: ftlSessionsBuilt.length,
         ftl_synthetic_sessions_built_count: ftlSessionsBuilt.length,
         approved_ot_dates_count: approvedOtByEmployeeDate.get(e.id)?.size || 0,
         approved_nd_dates_count: approvedNdByEmployeeDate.get(e.id)?.size || 0,
@@ -581,10 +599,10 @@ export async function POST(req: NextRequest) {
         employee_id: e.id,
         period_start: cutoffStart,
         period_end: cutoffEnd,
-        earnings_breakdown: {
-          attendance_data: timesheetData.attendance_data,
-          payroll_result: payrollResult,
-        },
+        earnings_breakdown: buildStoredEarningsBreakdown(
+          mappedAttendanceDays,
+          ratePerHour
+        ),
         gross_pay: Math.round(Number(grossPay || 0) * 100) / 100,
         deductions_breakdown: deductionsBreakdown,
         total_deductions: totalDeductions,

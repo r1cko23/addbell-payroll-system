@@ -55,7 +55,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { fetchSessionsInRange, getDateInManilaDefault, type TimeEntrySession } from "@/lib/timeEntries";
+import { computeDayAttendanceMetrics } from "@/lib/day-attendance-summary";
+import { fetchSessionsInRange, getDateInManilaDefault } from "@/lib/timeEntries";
 import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 
 interface TimeEntry {
@@ -325,19 +326,21 @@ export default function TimeEntriesPage() {
       dateLabel: string;
       entries: TimeEntry[];
       totalHours: number;
+      metrics: ReturnType<typeof computeDayAttendanceMetrics>;
     }> = [];
     map.forEach((dayEntries, key) => {
       const first = dayEntries[0];
       const emp = first.employees ?? { full_name: "Unknown", employee_id: first.employee_id ?? "", profile_picture_url: null };
       const dateKey = keyToDateStr(first.clock_in_time);
       const dateLabel = format(new Date(first.clock_in_time), "MMM d, yyyy");
-      const totalHours = dayEntries.reduce(
-        (sum, e) =>
-          sum +
-          (e.clock_out_time
-            ? calculateBusinessRegularHours(e.clock_in_time, e.clock_out_time)
-            : 0),
-        0
+      const metrics = computeDayAttendanceMetrics(
+        dateKey,
+        dayEntries.map((e) => ({
+          clock_in_time: e.clock_in_time,
+          clock_out_time: e.clock_out_time,
+          regular_hours: e.regular_hours,
+          total_hours: e.total_hours,
+        }))
       );
       result.push({
         key,
@@ -346,7 +349,8 @@ export default function TimeEntriesPage() {
         dateKey,
         dateLabel,
         entries: dayEntries,
-        totalHours,
+        totalHours: metrics.totalWorked,
+        metrics,
       });
     });
     result.sort((a, b) => {
@@ -668,9 +672,7 @@ export default function TimeEntriesPage() {
             }
           }
 
-          const entryDateKey =
-            (entry as TimeEntrySession).clock_in_date_ph ||
-            getDateInManilaDefault(entry.clock_in_time);
+          const entryDateKey = getDateInManilaDefault(entry.clock_in_time);
           const ftlForEntry = approvedFtlByEmployeeDate.get(
             ftlCompositeKey(entry.employee_id, entryDateKey)
           );
@@ -704,9 +706,7 @@ export default function TimeEntriesPage() {
 
       const existingEntryKeys = new Set(
         transformedEntries.map((entry) => {
-          const dateKey =
-            (entry as TimeEntrySession).clock_in_date_ph ||
-            getDateInManilaDefault(entry.clock_in_time);
+          const dateKey = getDateInManilaDefault(entry.clock_in_time);
           return ftlCompositeKey(entry.employee_id, dateKey);
         })
       );
@@ -1467,6 +1467,18 @@ export default function TimeEntriesPage() {
                       Holiday
                     </TableHead>
                     <TableHead className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      BH
+                    </TableHead>
+                    <TableHead className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      OT
+                    </TableHead>
+                    <TableHead className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      Late
+                    </TableHead>
+                    <TableHead className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
+                      UT
+                    </TableHead>
+                    <TableHead className="text-right p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
                       Hours
                     </TableHead>
                     <TableHead className="text-center p-2 sm:p-3 text-xs sm:text-sm font-medium whitespace-nowrap">
@@ -1481,7 +1493,7 @@ export default function TimeEntriesPage() {
                   {loading ? (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={11}
                         className="text-center py-8 sm:py-12 text-muted-foreground p-2 sm:p-3"
                       >
                         <Icon
@@ -1495,7 +1507,7 @@ export default function TimeEntriesPage() {
                   ) : groupedByDay.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={11}
                         className="text-center py-8 sm:py-12 text-muted-foreground p-2 sm:p-3"
                       >
                         <Icon
@@ -1516,7 +1528,7 @@ export default function TimeEntriesPage() {
                             className="bg-muted/40 hover:bg-muted/60 cursor-pointer border-b"
                             onClick={() => toggleDayExpanded(group.key)}
                           >
-                            <TableCell colSpan={7} className="p-2 sm:p-3">
+                            <TableCell colSpan={11} className="p-2 sm:p-3">
                               <div className="flex items-center justify-between gap-4 flex-wrap">
                                 <HStack gap="3" align="center" className="min-w-0">
                                   <EmployeeAvatar
@@ -1533,8 +1545,12 @@ export default function TimeEntriesPage() {
                                     </Caption>
                                   </VStack>
                                 </HStack>
-                                <HStack gap="4" align="center" className="text-xs sm:text-sm text-muted-foreground shrink-0">
+                                <HStack gap="4" align="center" className="text-xs sm:text-sm text-muted-foreground shrink-0 flex-wrap justify-end">
                                   <span>{dayTypeLabel}</span>
+                                  <span title="Basic hours">BH {group.metrics.bh.toFixed(2)}</span>
+                                  <span title="Overtime (Saturday work counts here)">OT {group.metrics.ot.toFixed(2)}</span>
+                                  <span title="Late (hours)">Late {group.metrics.lt > 0 ? group.metrics.lt : "—"}</span>
+                                  <span title="Undertime (hours)">UT {group.metrics.ut > 0 ? group.metrics.ut : "—"}</span>
                                   <span className="font-medium text-foreground">{group.totalHours.toFixed(2)}h</span>
                                   <span>{group.entries.length} punch{group.entries.length !== 1 ? "es" : ""}</span>
                                   <Icon
@@ -1632,6 +1648,18 @@ export default function TimeEntriesPage() {
                                         Logged on holiday
                                       </div>
                                     )}
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-right text-muted-foreground text-xs">
+                                    —
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-right text-muted-foreground text-xs">
+                                    —
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-right text-muted-foreground text-xs">
+                                    —
+                                  </TableCell>
+                                  <TableCell className="p-2 sm:p-3 text-right text-muted-foreground text-xs">
+                                    —
                                   </TableCell>
                                   <TableCell className="p-2 sm:p-3 text-right font-medium">
                                     {entry.clock_out_time ? (

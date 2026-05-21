@@ -122,6 +122,15 @@ export default function PayrollPage() {
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [printPayslip, setPrintPayslip] = useState<Payslip | null>(null);
+  const [printPayload, setPrintPayload] = useState<{
+    employee: any;
+    attendance: { attendance_data: any[]; gross_pay: number };
+    gross_pay: number;
+    net_pay: number;
+    adjustment_amount: number;
+    adjustment_reason: string | null;
+    deductions: any;
+  } | null>(null);
 
   function runScopeCount(run: PayrollRun) {
     if (Array.isArray(run.selected_employee_ids) && run.selected_employee_ids.length > 0) {
@@ -172,17 +181,30 @@ export default function PayrollPage() {
     printWindow.document.close();
   }
 
-  function handleDownloadPayslip(ps: Payslip) {
-    setPrintPayslip(ps);
-    window.setTimeout(() => {
-      const el = document.getElementById("payslip-print-content");
-      if (!el) {
-        toast.error("Payslip print layout is not ready.");
-        return;
+  async function handleDownloadPayslip(ps: Payslip) {
+    try {
+      const res = await fetch(
+        `/api/payroll-runs/payslip-print?payslip_id=${encodeURIComponent(ps.id)}`
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload.error || "Failed to load payslip print data");
       }
-      const label = ps.employee?.company_id_no || ps.employee_id || "Employee";
-      triggerPrintFromContainer(el, `Payslip - ${label}`);
-    }, 30);
+      setPrintPayload(payload);
+      setPrintPayslip(ps);
+      window.setTimeout(() => {
+        const el = document.getElementById("payslip-print-content");
+        if (!el) {
+          toast.error("Payslip print layout is not ready.");
+          return;
+        }
+        const label = ps.employee?.company_id_no || ps.employee_id || "Employee";
+        triggerPrintFromContainer(el, `Payslip - ${label}`);
+      }, 50);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to print payslip";
+      toast.error(message);
+    }
   }
 
   useEffect(() => {
@@ -708,37 +730,19 @@ export default function PayrollPage() {
             )}
           </CardSection>
 
-          {printPayslip && (
+          {printPayslip && printPayload && (
             <div className="hidden">
               <PayslipPrint
-                employee={{
-                  employee_id: printPayslip.employee?.company_id_no || printPayslip.employee_id,
-                  full_name: [printPayslip.employee?.first_name, printPayslip.employee?.last_name]
-                    .filter(Boolean)
-                    .join(" ")
-                    .trim() || "Employee",
-                  rate_per_day:
-                    printPayslip.employee?.salary_basis === "daily"
-                      ? Number(printPayslip.employee?.base_rate || 0)
-                      : Number(printPayslip.employee?.base_rate || 0) / 26,
-                  rate_per_hour:
-                    printPayslip.employee?.salary_basis === "daily"
-                      ? Number(printPayslip.employee?.base_rate || 0) / 8
-                      : Number(printPayslip.employee?.base_rate || 0) / 26 / 8,
-                  position: printPayslip.employee?.positions?.name || null,
-                  assigned_hotel: null,
-                  employee_type: null,
-                  job_level: null,
-                }}
+                employee={printPayload.employee}
                 weekStart={new Date(
                   printPayslip.period_start || selectedRun?.cutoff_start || new Date()
                 )}
                 weekEnd={new Date(
                   printPayslip.period_end || selectedRun?.cutoff_end || new Date()
                 )}
-                attendance={{ attendance_data: getPayslipAttendanceData(printPayslip) }}
+                attendance={printPayload.attendance}
                 earnings={{
-                  regularPay: 0,
+                  regularPay: printPayload.gross_pay,
                   regularOT: 0,
                   regularOTHours: 0,
                   nightDiff: 0,
@@ -749,38 +753,15 @@ export default function PayrollPage() {
                   specialHolidayHours: 0,
                   regularHoliday: 0,
                   regularHolidayHours: 0,
-                  grossIncome: Number(printPayslip.gross_pay || 0),
+                  grossIncome: printPayload.gross_pay,
                 }}
-                deductions={{
-                  vale: Number(printPayslip.deductions_breakdown?.weekly?.vale || 0),
-                  sssLoan: Number(printPayslip.deductions_breakdown?.weekly?.sss_loan || 0),
-                  sssCalamityLoan: Number(
-                    printPayslip.deductions_breakdown?.weekly?.sss_calamity || 0
-                  ),
-                  pagibigLoan: Number(
-                    printPayslip.deductions_breakdown?.weekly?.pagibig_loan || 0
-                  ),
-                  pagibigCalamityLoan: Number(
-                    printPayslip.deductions_breakdown?.weekly?.pagibig_calamity || 0
-                  ),
-                  monthlyLoans: printPayslip.deductions_breakdown?.weekly?.monthly_loans,
-                  sssContribution: Number(printPayslip.deductions_breakdown?.sss || 0),
-                  sssWisp: Number(printPayslip.deductions_breakdown?.sss_wisp || 0),
-                  philhealthContribution: Number(
-                    printPayslip.deductions_breakdown?.philhealth || 0
-                  ),
-                  pagibigContribution: Number(printPayslip.deductions_breakdown?.pagibig || 0),
-                  withholdingTax: Number(
-                    printPayslip.deductions_breakdown?.withholding_tax ||
-                      printPayslip.deductions_breakdown?.tax ||
-                      0
-                  ),
-                  totalDeductions: Number(printPayslip.total_deductions || 0),
-                }}
-                adjustment={Number(printPayslip.adjustment_amount || 0)}
-                adjustmentReason={printPayslip.adjustment_reason || null}
-                netPay={Number(printPayslip.net_pay || 0)}
-                workingDays={getPayslipAttendanceData(printPayslip).filter(
+                deductions={printPayload.deductions}
+                adjustment={printPayload.adjustment_amount}
+                adjustmentReason={printPayload.adjustment_reason}
+                netPay={printPayload.net_pay}
+                summaryGrossPay={printPayload.gross_pay}
+                summaryNetPay={printPayload.net_pay}
+                workingDays={(printPayload.attendance.attendance_data || []).filter(
                   (d: any) => Number(d?.regularHours || 0) > 0
                 ).length}
                 absentDays={0}

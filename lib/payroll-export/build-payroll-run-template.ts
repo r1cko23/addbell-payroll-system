@@ -2,6 +2,7 @@ import { format, subMonths } from "date-fns";
 import {
   buildStoredEarningsBreakdown,
   normalizeEarningsBreakdownForExport,
+  regularHoursBasicGross,
 } from "@/lib/payroll-earnings-breakdown";
 
 type RunRow = {
@@ -105,7 +106,8 @@ export function buildPayrollRunTemplateTable(params: {
     { key: "ot_nwh_amt", wch: 16 },
     { key: "ot_reg_hol_amt", wch: 14 },
     { key: "night_diff_amt", wch: 14 },
-    { key: "spacer2", wch: 4 },
+    { key: "late_hr", wch: 8 },
+    { key: "undertime_hr", wch: 10 },
     { key: "gross", wch: 16 },
     { key: "sss", wch: 12 },
     { key: "philhealth", wch: 12 },
@@ -139,14 +141,16 @@ export function buildPayrollRunTemplateTable(params: {
   r3[14] = "Rest Day";
   r3[16] = "Regular";
   r3[18] = "NIGHT";
-  r3[20] = " GROSS ";
-  r3[21] = " SSS ";
-  r3[22] = " PHILHEALTH ";
-  r3[23] = " PAG-IBIG ";
-  r3[24] = " Salary Loan ";
-  r3[25] = " Pag-IBIG Loan ";
-  r3[31] = allowancesHeader;
-  r3[32] = " NET ";
+  r3[19] = "LATE";
+  r3[20] = "UNDERTIME";
+  r3[21] = " GROSS ";
+  r3[22] = " SSS ";
+  r3[23] = " PHILHEALTH ";
+  r3[24] = " PAG-IBIG ";
+  r3[25] = " Salary Loan ";
+  r3[26] = " Pag-IBIG Loan ";
+  r3[33] = allowancesHeader;
+  r3[34] = " NET ";
 
   const r4 = Array(columns.length).fill("");
   r4[4] = "Rateday";
@@ -162,14 +166,16 @@ export function buildPayrollRunTemplateTable(params: {
   r4[15] = "Non-working Holiday";
   r4[16] = "HOLIDAY";
   r4[18] = "DIFF";
-  r4[20] = " GROSS ";
-  r4[21] = ` MONTH ${format(startD, "MMM yyyy")} `;
-  r4[26] = " Calamity Loan ";
-  r4[27] = " TAX ";
-  r4[28] = " VALE ";
-  r4[29] = " UNIFORM / SAFETY SHOES / PPE / GASUL ";
-  r4[30] = " ADJUSTMENTS ";
-  r4[33] = " PAYROLL ";
+  r4[19] = "HR";
+  r4[20] = "HR";
+  r4[21] = " GROSS ";
+  r4[22] = ` MONTH ${format(startD, "MMM yyyy")} `;
+  r4[27] = " Calamity Loan ";
+  r4[28] = " TAX ";
+  r4[29] = " VALE ";
+  r4[30] = " UNIFORM / SAFETY SHOES / PPE / GASUL ";
+  r4[31] = " ADJUSTMENTS ";
+  r4[34] = " PAYROLL ";
 
   const dataRows: any[][] = [];
   (params.slips || []).forEach((ps: any, idx: number) => {
@@ -181,6 +187,10 @@ export function buildPayrollRunTemplateTable(params: {
 
     const normalized = normalizeEarningsBreakdownForExport(ps.earnings_breakdown);
     const attendance: any[] = normalized?.attendance_data || [];
+    const lateHours = safeNumber(normalized?.attendance_metrics?.late_hours);
+    const undertimeHours = safeNumber(
+      normalized?.attendance_metrics?.undertime_hours
+    );
     const { perHour } = ratePerDayAndHourFromEmployee(emp);
     const payrollResult =
       normalized?.payroll_result ||
@@ -202,7 +212,9 @@ export function buildPayrollRunTemplateTable(params: {
 
     const otPay = safeNumber(payrollResult?.totals?.overtimePay);
     const ndPay = safeNumber(payrollResult?.totals?.nightDiffPay);
-    const regularPay = safeNumber(payrollResult?.totals?.regularPay);
+    const regularPay =
+      safeNumber(payrollResult?.totals?.regularPay) ||
+      (perHour > 0 ? regularHoursBasicGross(attendance, perHour) : 0);
 
     const gross = safeNumber(ps.gross_pay);
     const net = safeNumber(ps.net_pay);
@@ -242,20 +254,22 @@ export function buildPayrollRunTemplateTable(params: {
     row[12] = totalNightDiffHours;
     row[13] = otPay;
     row[18] = ndPay;
-    row[20] = gross;
-    row[21] = sss;
-    row[22] = philhealth;
-    row[23] = pagibig;
-    row[24] = salaryLoan;
-    row[25] = pagibigLoan;
-    row[26] = calamity;
-    row[27] = tax;
-    row[28] = vale;
-    row[29] = uniformCombined;
-    row[30] = adjustments;
-    row[31] = allowances;
-    row[32] = net;
+    row[19] = lateHours > 0 ? lateHours : "";
+    row[20] = undertimeHours > 0 ? undertimeHours : "";
+    row[21] = gross;
+    row[22] = sss;
+    row[23] = philhealth;
+    row[24] = pagibig;
+    row[25] = salaryLoan;
+    row[26] = pagibigLoan;
+    row[27] = calamity;
+    row[28] = tax;
+    row[29] = vale;
+    row[30] = uniformCombined;
+    row[31] = adjustments;
+    row[32] = allowances;
     row[33] = net;
+    row[34] = net;
     dataRows.push(row);
   });
 
@@ -267,8 +281,8 @@ export function buildPayrollRunTemplateTable(params: {
     dataRows,
     colorGroups: {
       earningsCols: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-      deductionCols: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
-      netCols: [32, 33],
+      deductionCols: [22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
+      netCols: [33, 34],
     },
   };
 }

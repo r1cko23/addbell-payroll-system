@@ -91,6 +91,24 @@ export function EmployeeSearchSelect({
     setQuery("");
   };
 
+  const tryCommitQuery = () => {
+    const q = query.trim();
+    if (!q) return;
+    const matches = employees.filter((emp) => matchEmployee(q, emp));
+    if (matches.length === 1) {
+      handleSelect(matches[0].id);
+      return;
+    }
+    const exact = matches.find((emp) => {
+      const label = formatEmployeeDisplay(emp).toLowerCase();
+      return label === q.toLowerCase() || emp.full_name?.toLowerCase() === q.toLowerCase();
+    });
+    if (exact) handleSelect(exact.id);
+  };
+
+  const highlightAll =
+    (value === "all" || !value) && (!open || !query.trim());
+
   return (
     <div ref={containerRef} className={cn("relative", className)}>
       <div className="relative">
@@ -111,6 +129,24 @@ export function EmployeeSearchSelect({
             setOpen(true);
             setQuery(value === "all" || !value ? "" : displayValue);
           }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              tryCommitQuery();
+            }
+            if (e.key === "Escape") {
+              setOpen(false);
+              setQuery("");
+            }
+          }}
+          onBlur={() => {
+            window.setTimeout(() => {
+              if (!containerRef.current?.contains(document.activeElement)) {
+                tryCommitQuery();
+                setOpen(false);
+              }
+            }, 150);
+          }}
           disabled={disabled}
           className={cn("pl-9", triggerClassName)}
         />
@@ -124,11 +160,17 @@ export function EmployeeSearchSelect({
               role="option"
               className={cn(
                 "cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground",
-                (value === "all" || !value) && "bg-accent/50"
+                highlightAll && "bg-accent/50"
               )}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect("all")}
             >
               All Employees
+            </li>
+          )}
+          {query.trim() && filtered.length > 0 && (
+            <li className="px-3 py-1.5 text-[11px] text-muted-foreground border-b border-border/60">
+              Press Enter or click a name to filter
             </li>
           )}
           {filtered.length === 0 ? (
@@ -142,6 +184,7 @@ export function EmployeeSearchSelect({
                   "cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground",
                   value === emp.id && "bg-accent/50"
                 )}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => handleSelect(emp.id)}
               >
                 {formatEmployeeDisplay(emp)}

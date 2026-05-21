@@ -1,4 +1,11 @@
-import { normalizeEarningsBreakdownForExport } from "@/lib/payroll-earnings-breakdown";
+import {
+  normalizeEarningsBreakdownForExport,
+  regularHoursBasicGross,
+} from "@/lib/payroll-earnings-breakdown";
+import { mapPayslipAttendanceDays } from "@/lib/map-payslip-attendance-days";
+import type { ClockEntryForPayslipMap } from "@/lib/map-payslip-attendance-days";
+
+export { regularHoursBasicGross };
 
 export type PayslipRowForDisplay = {
   gross_pay: number;
@@ -49,6 +56,18 @@ export function ratePerDayAndHourFromProfile(profile: EmployeeProfileForPayslip)
 export function getAttendanceDataFromEarningsBreakdown(raw: unknown): any[] {
   const normalized = normalizeEarningsBreakdownForExport(raw);
   return normalized?.attendance_data ?? [];
+}
+
+/** Attendance days for print/breakdown; merges clock when sessions are provided. */
+export function attendanceDataForPayslipView(
+  earningsBreakdown: unknown,
+  clockEntries: ClockEntryForPayslipMap[] = []
+): any[] {
+  const raw = getAttendanceDataFromEarningsBreakdown(earningsBreakdown);
+  if (clockEntries.length > 0) {
+    return mapPayslipAttendanceDays(raw, clockEntries);
+  }
+  return raw;
 }
 
 export function attendanceForPayslipPrint(payslip: PayslipRowForDisplay) {

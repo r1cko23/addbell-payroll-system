@@ -42,7 +42,7 @@ import {
 import {
   fetchSessionsForEmployee,
   fetchProjectTimeSessionsForEmployee,
-  filterSyntheticFtlWhenBundyExists,
+  mergeBundyAndFtlClockSessions,
   type TimeEntrySession,
 } from "@/lib/timeEntries";
 import {
@@ -478,8 +478,56 @@ export default function TimesheetPage() {
         ),
       ]);
 
-      // Merge main clock (Bundy) and project time entries so BH = sum of all hours per day
-      const clockData = [...(mainSessions || []), ...(projectSessions || [])];
+      const { data: ftlData, error: ftlError } = await supabase
+        .from("failure_to_log")
+        .select(
+          "id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
+        )
+        .eq("employee_id", selectedEmployee.id)
+        .gte("missed_date", periodStartStr)
+        .lte("missed_date", periodEndStr)
+        .eq("status", "approved");
+
+      if (ftlError) {
+        console.warn("Error loading approved failure-to-log requests:", ftlError);
+      }
+      const approvedFtlData = (ftlData || []) as FailureToLogRequest[];
+      setFailureToLogRequests(approvedFtlData);
+
+      const transferredFromId = selectedEmployee?.transferred_from_employee_id ?? null;
+      const employeeIdsToLoad = transferredFromId
+        ? [selectedEmployee.id, transferredFromId]
+        : [selectedEmployee.id];
+      const { data: otRequests, error: otError } = await supabase
+        .from("overtime_requests")
+        .select(
+          "id, ot_date, end_date, start_time, end_time, total_hours, status"
+        )
+        .in("employee_id", employeeIdsToLoad)
+        .gte("ot_date", periodStartStr)
+        .lte("ot_date", periodEndStr)
+        .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
+
+      let otData: any[] = [];
+      if (otError) {
+        console.warn("Error loading OT requests:", otError);
+      } else {
+        otData = otRequests || [];
+      }
+      setOtRequests(otData);
+
+      const ftlAsSessions = buildClockEntriesFromApprovedFtl(
+        approvedFtlData,
+        otData
+      ) as unknown as TimeEntrySession[];
+
+      // One logical session per day: drop duplicate FTL when Bundy is complete; merge FTL into incomplete Bundy
+      const clockData = mergeBundyAndFtlClockSessions(
+        mainSessions || [],
+        ftlAsSessions,
+        getDateInManila,
+        projectSessions || []
+      );
 
       // Filter entries by date in Asia/Manila timezone to ensure accuracy
       const filteredClockData = (clockData || []).filter((entry: any) => {
@@ -574,23 +622,7 @@ export default function TimesheetPage() {
           );
         }
       }
-      const { data: ftlData, error: ftlError } = await supabase
-        .from("failure_to_log")
-        .select(
-          "id, missed_date, actual_clock_in_time, actual_clock_out_time, entry_type, status"
-        )
-        .eq("employee_id", selectedEmployee.id)
-        .gte("missed_date", periodStartStr)
-        .lte("missed_date", periodEndStr)
-        .eq("status", "approved");
-
-      if (ftlError) {
-        console.warn("Error loading approved failure-to-log requests:", ftlError);
-      }
-      const approvedFtlData = (ftlData || []) as FailureToLogRequest[];
-      setFailureToLogRequests(approvedFtlData);
-
-      // Load leave requests for the period (before OT + FTL merge so OT is available for synthetic clock-out)
+      // Load leave requests for the period
       // Leave requests overlap if: start_date <= periodEnd AND end_date >= periodStart
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
@@ -615,50 +647,15 @@ export default function TimesheetPage() {
       }
       setLeaveRequests(leaveData || []);
 
-      // Load OT requests for the period (current employee and, if transferred, predecessor so OT is not lost)
-      const transferredFromId = selectedEmployee?.transferred_from_employee_id ?? null;
-      const employeeIdsToLoad = transferredFromId
-        ? [selectedEmployee.id, transferredFromId]
-        : [selectedEmployee.id];
-      const { data: otRequests, error: otError } = await supabase
-        .from("overtime_requests")
-        .select(
-          "id, ot_date, end_date, start_time, end_time, total_hours, status"
-        )
-        .in("employee_id", employeeIdsToLoad)
-        .gte("ot_date", periodStartStr)
-        .lte("ot_date", periodEndStr)
-        .in("status", ["approved", "approved_by_manager", "approved_by_hr"]);
-
-      let otData: any[] = [];
-      if (otError) {
-        console.warn("Error loading OT requests:", otError);
-      } else {
-        otData = otRequests || [];
-      }
-
-      console.log("Loaded OT requests:", otData.length);
-      if (otData.length > 0) {
-        console.log("Sample OT request:", otData[0]);
-      }
-      setOtRequests(otData);
-
       const validClockEntries = (validEntries as TimeEntrySession[]).map(
         clockEntryFromSession
       );
-      const approvedFtlCompleteEntries = filterSyntheticFtlWhenBundyExists(
-        mainSessions || [],
-        buildClockEntriesFromApprovedFtl(approvedFtlData, otData),
-        getDateInManila,
-        projectSessions || []
-      );
-      const allClockEntries = [...validClockEntries, ...approvedFtlCompleteEntries];
-      setClockEntries(allClockEntries);
+      setClockEntries(validClockEntries);
 
-      const completeEntries = allClockEntries.filter(
+      const completeEntries = validClockEntries.filter(
         (entry) => entry.clock_out_time !== null
       );
-      const incompleteEntries = allClockEntries.filter(
+      const incompleteEntries = validClockEntries.filter(
         (entry) => entry.clock_out_time === null
       );
 

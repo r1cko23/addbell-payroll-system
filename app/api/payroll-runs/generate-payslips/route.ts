@@ -6,7 +6,7 @@ import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generato
 import {
   fetchProjectTimeSessionsForEmployee,
   fetchSessionsForEmployee,
-  filterSyntheticFtlWhenBundyExists,
+  mergeBundyAndFtlClockSessions,
 } from "@/lib/timeEntries";
 import {
   fillMissingFtlClockOutsFromApprovedOtByEmployeeDate,
@@ -355,14 +355,12 @@ export async function POST(req: NextRequest) {
         });
       });
 
-      const ftlSessionsForEmployee = filterSyntheticFtlWhenBundyExists(
-        mainSessions || [],
+      const employeeSessions = mergeBundyAndFtlClockSessions(
+        bundyInCutoff,
         ftlSessionsBuilt,
         getDateInManila,
-        projectSessions || []
+        null
       );
-
-      const employeeSessions = [...bundyInCutoff, ...ftlSessionsForEmployee];
       if (employeeSessions.length === 0) {
         skipped.push({ employee_id: e.id, reason: "No time entries in cutoff" });
         continue;

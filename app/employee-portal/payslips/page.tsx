@@ -12,13 +12,7 @@ import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { formatCurrency } from "@/utils/format";
-import {
-  countWeeklyPayPeriodsInMonth,
-  isFourthStatutoryWeeklyPay,
-  isLastWeeklyPayOfSemiMonth,
-  tuesdayPayIndexInMonth,
-} from "@/lib/weekly-statutory-deductions";
-import { PayslipPrint } from "@/components/PayslipPrint";
+import { EmployeePayslipDetail } from "@/components/EmployeePayslipDetail";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileArrowDown, Eye, Calendar } from "phosphor-react";
+import type { EmployeeProfileForPayslip } from "@/lib/payslip-display";
 
 interface Payslip {
   id: string;
@@ -52,75 +46,35 @@ interface Payslip {
   updated_at: string;
 }
 
-/** DB JSON keys from HR payslip save (`sss`, `sss_wisp`) — avoid typo-prone identifiers. */
-const BR_SSS = String.fromCharCode(115, 115, 115);
-const BR_SSS_WISP = `${BR_SSS}_wisp`;
-
-function sssPartsFromPayslip(p: Payslip): { regular: number; wisp: number } {
-  const br = p.deductions_breakdown;
-  if (!br || typeof br !== "object") {
-    return { regular: p.sss_amount, wisp: 0 };
-  }
-  const o = br as Record<string, unknown>;
-  const wisp = Number(o[BR_SSS_WISP] ?? 0);
-  const reg = Number(o[BR_SSS] ?? NaN);
-  if (Number.isFinite(reg) && reg >= 0 && (reg > 0 || wisp > 0)) {
-    return { regular: reg, wisp: Number.isFinite(wisp) ? wisp : 0 };
-  }
-  return {
-    regular: Math.max(0, p.sss_amount - (Number.isFinite(wisp) ? wisp : 0)),
-    wisp: Number.isFinite(wisp) ? wisp : 0,
-  };
-}
-
-function weeklyStatutoryCaption(periodEndStr: string): string {
-  try {
-    const [y, m, d] = periodEndStr.split("-").map(Number);
-    if (!y || !m || !d) throw new Error("bad date");
-    const end = new Date(y, m - 1, d);
-    end.setHours(0, 0, 0, 0);
-    const n = countWeeklyPayPeriodsInMonth(end);
-    const statutoryWeek = isFourthStatutoryWeeklyPay(end);
-    const semiSettle = isLastWeeklyPayOfSemiMonth(end);
-    const payNum = tuesdayPayIndexInMonth(end) + 1;
-    const parts = [
-      `Wed–Tue pay · ${format(end, "MMM yyyy")} · Weekly pay ${payNum} of ${n}.`,
-      `SSS, PhilHealth, and Pag-IBIG (prorated full month) apply on the 4th weekly pay (last Tuesday if fewer than four).`,
-      `BIR withholding is semi-monthly: last Tuesday in days 1–15 and last Tuesday of the month (days 16–end).`,
-    ];
-    if (statutoryWeek) {
-      parts.push("This payslip includes full-month SSS / PhilHealth / Pag-IBIG.");
-    }
-    if (semiSettle) {
-      parts.push("This payslip is a BIR withholding settlement for that half-month.");
-    }
-    if (!statutoryWeek && !semiSettle) {
-      parts.push("Contribution and tax lines are usually ₱0 this week unless HR entered overrides.");
-    }
-    return parts.join(" ");
-  } catch {
-    return "SSS / PhilHealth / Pag-IBIG on the 4th weekly pay; BIR withholding on the last Tuesday of each half-month (1–15 and 16–end).";
-  }
-}
-
 export default function EmployeePayslipsPage() {
   const { employee } = useEmployeeSession();
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<EmployeeProfileForPayslip | null>(
+    null
+  );
+  const [holidays, setHolidays] = useState<Array<{ holiday_date: string }>>([]);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
 
-  const sssSplit = useMemo(
-    () =>
-      selectedPayslip
-        ? sssPartsFromPayslip(selectedPayslip)
-        : { regular: 0, wisp: 0 },
-    [selectedPayslip]
-  );
+  const payslipProfile = useMemo((): EmployeeProfileForPayslip | null => {
+    if (!profile) return null;
+    return {
+      employee_id: employee.employee_id,
+      full_name: profile.full_name || employee.full_name,
+      position: profile.position ?? null,
+      employment_type: profile.employment_type ?? null,
+      job_level: profile.job_level ?? null,
+      salary_basis: profile.salary_basis ?? null,
+      base_rate: profile.base_rate ?? null,
+      hire_date: profile.hire_date ?? null,
+    };
+  }, [profile, employee]);
 
   useEffect(() => {
     loadPayslips();
+    loadProfile();
   }, [employee.id]);
 
   async function loadPayslips() {
@@ -141,11 +95,59 @@ export default function EmployeePayslipsPage() {
 
       const payslipData = (payload.payslips as Payslip[]) || [];
       setPayslips(payslipData);
+      if (payslipData.length > 0) {
+        const starts = payslipData.map((p) => p.period_start).sort();
+        const ends = payslipData.map((p) => p.period_end).sort();
+        await loadHolidays(starts[0], ends[ends.length - 1]);
+      }
     } catch (err) {
       console.error("Exception loading payslips:", err);
       toast.error("Failed to load payslips");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadProfile() {
+    try {
+      const response = await fetch(
+        `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+          employee.id
+        )}`
+      );
+      const payload = await response.json();
+      if (!response.ok) return;
+      setProfile({
+        employee_id: employee.employee_id,
+        full_name: payload.full_name || employee.full_name,
+        position: payload.position ?? null,
+        employment_type: payload.employment_type ?? null,
+        job_level: payload.job_level ?? null,
+        salary_basis: payload.salary_basis ?? null,
+        base_rate: payload.base_rate ?? null,
+        hire_date: payload.hire_date ?? null,
+      });
+    } catch {
+      setProfile({
+        employee_id: employee.employee_id,
+        full_name: employee.full_name,
+      });
+    }
+  }
+
+  async function loadHolidays(start: string, end: string) {
+    try {
+      const response = await fetch(
+        `/api/employee-portal/holidays?start=${encodeURIComponent(
+          start
+        )}&end=${encodeURIComponent(end)}`
+      );
+      const payload = await response.json();
+      if (response.ok && Array.isArray(payload.holidays)) {
+        setHolidays(payload.holidays);
+      }
+    } catch {
+      setHolidays([]);
     }
   }
 
@@ -431,71 +433,19 @@ export default function EmployeePayslipsPage() {
           <DialogHeader>
             <DialogTitle>Payslip</DialogTitle>
           </DialogHeader>
-          {selectedPayslip && (
-            <div id="payslip-print-content">
-              <PayslipPrint
-                employee={{
-                  employee_id: employee.employee_id,
-                  full_name: employee.full_name,
-                  rate_per_day: 0,
-                  rate_per_hour: 0,
-                }}
-                weekStart={new Date(selectedPayslip.period_start)}
-                weekEnd={new Date(selectedPayslip.period_end)}
-                attendance={selectedPayslip.earnings_breakdown || {}}
-                earnings={{
-                  regularPay:
-                    selectedPayslip.earnings_breakdown?.regularPay || 0,
-                  regularOT: selectedPayslip.earnings_breakdown?.regularOT || 0,
-                  regularOTHours:
-                    selectedPayslip.earnings_breakdown?.regularOTHours || 0,
-                  nightDiff: selectedPayslip.earnings_breakdown?.nightDiff || 0,
-                  nightDiffHours:
-                    selectedPayslip.earnings_breakdown?.nightDiffHours || 0,
-                  sundayRestDay:
-                    selectedPayslip.earnings_breakdown?.sundayRestDay || 0,
-                  sundayRestDayHours:
-                    selectedPayslip.earnings_breakdown?.sundayRestDayHours || 0,
-                  specialHoliday:
-                    selectedPayslip.earnings_breakdown?.specialHoliday || 0,
-                  specialHolidayHours:
-                    selectedPayslip.earnings_breakdown?.specialHolidayHours ||
-                    0,
-                  regularHoliday:
-                    selectedPayslip.earnings_breakdown?.regularHoliday || 0,
-                  regularHolidayHours:
-                    selectedPayslip.earnings_breakdown?.regularHolidayHours ||
-                    0,
-                  grossIncome: selectedPayslip.gross_pay,
-                }}
-                deductions={{
-                  vale: selectedPayslip.deductions_breakdown?.vale_amount || 0,
-                  sssLoan:
-                    selectedPayslip.deductions_breakdown?.sss_salary_loan || 0,
-                  sssCalamityLoan:
-                    selectedPayslip.deductions_breakdown?.sss_calamity_loan ||
-                    0,
-                  pagibigLoan:
-                    selectedPayslip.deductions_breakdown?.pagibig_salary_loan ||
-                    0,
-                  pagibigCalamityLoan:
-                    selectedPayslip.deductions_breakdown
-                      ?.pagibig_calamity_loan || 0,
-                  sssContribution: sssSplit.regular,
-                  sssWisp: sssSplit.wisp,
-                  philhealthContribution: selectedPayslip.philhealth_amount,
-                  pagibigContribution: selectedPayslip.pagibig_amount,
-                  withholdingTax: selectedPayslip.withholding_tax,
-                  totalDeductions: selectedPayslip.total_deductions,
-                }}
-                adjustment={selectedPayslip.adjustment_amount}
-                netPay={selectedPayslip.net_pay}
-                workingDays={0}
-                absentDays={0}
-                preparedBy="HR Department"
-              />
-            </div>
-          )}
+          {selectedPayslip && payslipProfile ? (
+            <EmployeePayslipDetail
+              payslip={selectedPayslip}
+              profile={payslipProfile}
+              holidays={holidays}
+              variant="both"
+              inlinePrint
+            />
+          ) : selectedPayslip ? (
+            <BodySmall className="text-muted-foreground py-4">
+              Loading pay rates… refresh the page if this message persists.
+            </BodySmall>
+          ) : null}
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="outline" onClick={() => setShowPrintModal(false)}>
               Close
@@ -510,214 +460,24 @@ export default function EmployeePayslipsPage() {
 
       {/* Breakdown Modal */}
       <Dialog open={showBreakdownModal} onOpenChange={setShowBreakdownModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Payslip Breakdown - {selectedPayslip?.payslip_number}
+              Payslip breakdown — {selectedPayslip?.payslip_number}
             </DialogTitle>
           </DialogHeader>
-          {selectedPayslip && (
-            <div className="space-y-6">
-              {/* Period Info */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Period Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <VStack gap="2">
-                    <HStack justify="between">
-                      <BodySmall>Period:</BodySmall>
-                      <BodySmall className="font-semibold">
-                        {format(
-                          new Date(selectedPayslip.period_start),
-                          "MMM d"
-                        )}{" "}
-                        -{" "}
-                        {format(
-                          new Date(selectedPayslip.period_end),
-                          "MMM d, yyyy"
-                        )}
-                      </BodySmall>
-                    </HStack>
-                    <HStack justify="between">
-                      <BodySmall>Status:</BodySmall>
-                      <Badge
-                        variant={getStatusBadgeVariant(selectedPayslip.status)}
-                      >
-                        {selectedPayslip.status.toUpperCase()}
-                      </Badge>
-                    </HStack>
-                  </VStack>
-                </CardContent>
-              </Card>
-
-              {/* Earnings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Earnings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <VStack gap="2">
-                    <HStack justify="between">
-                      <BodySmall>Gross Pay:</BodySmall>
-                      <BodySmall className="font-semibold">
-                        {formatCurrency(selectedPayslip.gross_pay)}
-                      </BodySmall>
-                    </HStack>
-                    {selectedPayslip.allowance_amount > 0 && (
-                      <HStack justify="between">
-                        <BodySmall>Allowance:</BodySmall>
-                        <BodySmall className="font-semibold">
-                          {formatCurrency(selectedPayslip.allowance_amount)}
-                        </BodySmall>
-                      </HStack>
-                    )}
-                    {selectedPayslip.adjustment_amount !== 0 && (
-                      <HStack justify="between">
-                        <BodySmall>
-                          Adjustment{" "}
-                          {selectedPayslip.adjustment_reason &&
-                            `(${selectedPayslip.adjustment_reason})`}
-                          :
-                        </BodySmall>
-                        <BodySmall
-                          className={`font-semibold ${
-                            selectedPayslip.adjustment_amount > 0
-                              ? "text-primary"
-                              : "text-destructive"
-                          }`}
-                        >
-                          {selectedPayslip.adjustment_amount > 0 ? "+" : ""}
-                          {formatCurrency(selectedPayslip.adjustment_amount)}
-                        </BodySmall>
-                      </HStack>
-                    )}
-                  </VStack>
-                </CardContent>
-              </Card>
-
-              {/* Deductions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Deductions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <VStack gap="2">
-                    <Caption className="text-muted-foreground block mb-2">
-                      {weeklyStatutoryCaption(selectedPayslip.period_end)}
-                    </Caption>
-                    {selectedPayslip.sss_amount > 0 && (
-                      <>
-                        <HStack justify="between">
-                          <BodySmall>SSS (Regular):</BodySmall>
-                          <BodySmall className="font-semibold text-destructive">
-                            -{formatCurrency(sssSplit.regular)}
-                          </BodySmall>
-                        </HStack>
-                        {sssSplit.wisp > 0 && (
-                          <HStack justify="between">
-                            <BodySmall>SSS WISP:</BodySmall>
-                            <BodySmall className="font-semibold text-destructive">
-                              -{formatCurrency(sssSplit.wisp)}
-                            </BodySmall>
-                          </HStack>
-                        )}
-                      </>
-                    )}
-                    {selectedPayslip.philhealth_amount > 0 && (
-                      <HStack justify="between">
-                        <BodySmall>PhilHealth Contribution:</BodySmall>
-                        <BodySmall className="font-semibold text-destructive">
-                          -{formatCurrency(selectedPayslip.philhealth_amount)}
-                        </BodySmall>
-                      </HStack>
-                    )}
-                    {selectedPayslip.pagibig_amount > 0 && (
-                      <HStack justify="between">
-                        <BodySmall>Pag-IBIG Contribution:</BodySmall>
-                        <BodySmall className="font-semibold text-destructive">
-                          -{formatCurrency(selectedPayslip.pagibig_amount)}
-                        </BodySmall>
-                      </HStack>
-                    )}
-                    {selectedPayslip.withholding_tax > 0 && (
-                      <HStack justify="between">
-                        <BodySmall>Withholding Tax:</BodySmall>
-                        <BodySmall className="font-semibold text-destructive">
-                          -{formatCurrency(selectedPayslip.withholding_tax)}
-                        </BodySmall>
-                      </HStack>
-                    )}
-                    {selectedPayslip.deductions_breakdown && (
-                      <>
-                        {(selectedPayslip.deductions_breakdown.vale_amount ||
-                          0) > 0 && (
-                          <HStack justify="between">
-                            <BodySmall>Vale:</BodySmall>
-                            <BodySmall className="font-semibold text-destructive">
-                              -
-                              {formatCurrency(
-                                selectedPayslip.deductions_breakdown
-                                  .vale_amount || 0
-                              )}
-                            </BodySmall>
-                          </HStack>
-                        )}
-                        {(selectedPayslip.deductions_breakdown
-                          .sss_salary_loan || 0) > 0 && (
-                          <HStack justify="between">
-                            <BodySmall>SSS Salary Loan:</BodySmall>
-                            <BodySmall className="font-semibold text-destructive">
-                              -
-                              {formatCurrency(
-                                selectedPayslip.deductions_breakdown
-                                  .sss_salary_loan || 0
-                              )}
-                            </BodySmall>
-                          </HStack>
-                        )}
-                        {(selectedPayslip.deductions_breakdown
-                          .pagibig_salary_loan || 0) > 0 && (
-                          <HStack justify="between">
-                            <BodySmall>Pag-IBIG Salary Loan:</BodySmall>
-                            <BodySmall className="font-semibold text-destructive">
-                              -
-                              {formatCurrency(
-                                selectedPayslip.deductions_breakdown
-                                  .pagibig_salary_loan || 0
-                              )}
-                            </BodySmall>
-                          </HStack>
-                        )}
-                      </>
-                    )}
-                    <div className="border-t pt-2 mt-2">
-                      <HStack justify="between">
-                        <BodySmall className="font-semibold">
-                          Total Deductions:
-                        </BodySmall>
-                        <BodySmall className="font-semibold text-destructive">
-                          -{formatCurrency(selectedPayslip.total_deductions)}
-                        </BodySmall>
-                      </HStack>
-                    </div>
-                  </VStack>
-                </CardContent>
-              </Card>
-
-              {/* Net Pay */}
-              <Card className="border-primary/20 bg-primary/5">
-                <CardContent className="pt-6">
-                  <HStack justify="between" align="center">
-                    <H2 className="text-lg">Net Pay:</H2>
-                    <H2 className="text-2xl font-bold text-primary">
-                      {formatCurrency(selectedPayslip.net_pay)}
-                    </H2>
-                  </HStack>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          {selectedPayslip && payslipProfile ? (
+            <EmployeePayslipDetail
+              payslip={selectedPayslip}
+              profile={payslipProfile}
+              holidays={holidays}
+              variant="screen"
+            />
+          ) : selectedPayslip ? (
+            <BodySmall className="text-muted-foreground py-4">
+              Loading pay details…
+            </BodySmall>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

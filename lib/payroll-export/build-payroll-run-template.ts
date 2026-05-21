@@ -1,4 +1,8 @@
 import { format, subMonths } from "date-fns";
+import {
+  buildStoredEarningsBreakdown,
+  normalizeEarningsBreakdownForExport,
+} from "@/lib/payroll-earnings-breakdown";
 
 type RunRow = {
   cutoff_start: string;
@@ -175,11 +179,14 @@ export function buildPayrollRunTemplateTable(params: {
       : "";
     const fullName = `${String(emp.last_name || "").trim()}, ${String(emp.first_name || "").trim()}${middleInitial}`.trim();
 
-    const attendance: any[] =
-      ps.earnings_breakdown?.attendance_data ||
-      ps.earnings_breakdown?.payroll_result?.attendance_data ||
-      [];
-    const payrollResult = ps.earnings_breakdown?.payroll_result || null;
+    const normalized = normalizeEarningsBreakdownForExport(ps.earnings_breakdown);
+    const attendance: any[] = normalized?.attendance_data || [];
+    const { perHour } = ratePerDayAndHourFromEmployee(emp);
+    const payrollResult =
+      normalized?.payroll_result ||
+      (perHour > 0 && attendance.length > 0
+        ? buildStoredEarningsBreakdown(attendance, perHour).payroll_result
+        : null);
 
     const totalRegularHours = Array.isArray(attendance)
       ? attendance.reduce((s, d) => s + safeNumber(d?.regularHours), 0)
@@ -190,11 +197,12 @@ export function buildPayrollRunTemplateTable(params: {
     const totalNightDiffHours = Array.isArray(attendance)
       ? attendance.reduce((s, d) => s + safeNumber(d?.nightDiffHours), 0)
       : 0;
-    const { perDay, perHour } = ratePerDayAndHourFromEmployee(emp);
+    const { perDay } = ratePerDayAndHourFromEmployee(emp);
     const daysWorked = totalRegularHours > 0 ? totalRegularHours / 8 : 0;
 
     const otPay = safeNumber(payrollResult?.totals?.overtimePay);
     const ndPay = safeNumber(payrollResult?.totals?.nightDiffPay);
+    const regularPay = safeNumber(payrollResult?.totals?.regularPay);
 
     const gross = safeNumber(ps.gross_pay);
     const net = safeNumber(ps.net_pay);
@@ -228,7 +236,7 @@ export function buildPayrollRunTemplateTable(params: {
     row[3] = fullName || "—";
     row[4] = perDay;
     row[5] = daysWorked;
-    row[6] = perDay > 0 ? perDay * daysWorked : gross;
+    row[6] = regularPay > 0 ? regularPay : perDay > 0 ? perDay * daysWorked : gross;
     row[7] = perHour;
     row[8] = totalOvertimeHours;
     row[12] = totalNightDiffHours;

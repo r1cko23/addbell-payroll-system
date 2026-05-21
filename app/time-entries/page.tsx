@@ -55,7 +55,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { fetchSessionsInRange, type TimeEntrySession } from "@/lib/timeEntries";
+import { fetchSessionsInRange, getDateInManilaDefault, type TimeEntrySession } from "@/lib/timeEntries";
 import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 
 interface TimeEntry {
@@ -534,12 +534,8 @@ export default function TimeEntriesPage() {
       const dateFilteredData = (filteredData || []).filter((entry: any) => {
         if (!entry.clock_in_time) return false;
 
-        const entryDate = new Date(entry.clock_in_time);
-        // Convert to Asia/Manila timezone for date comparison
-        const entryDatePH = new Date(
-          entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-        );
-        const entryDateStr = format(entryDatePH, "yyyy-MM-dd");
+        const entryDateStr =
+          entry.clock_in_date_ph || getDateInManilaDefault(entry.clock_in_time);
 
         // Check if entry date falls within the period
         return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
@@ -672,12 +668,9 @@ export default function TimeEntriesPage() {
             }
           }
 
-          const entryDateInPH = new Date(
-            new Date(entry.clock_in_time).toLocaleString("en-US", {
-              timeZone: "Asia/Manila",
-            })
-          );
-          const entryDateKey = format(entryDateInPH, "yyyy-MM-dd");
+          const entryDateKey =
+            (entry as TimeEntrySession).clock_in_date_ph ||
+            getDateInManilaDefault(entry.clock_in_time);
           const ftlForEntry = approvedFtlByEmployeeDate.get(
             ftlCompositeKey(entry.employee_id, entryDateKey)
           );
@@ -711,12 +704,10 @@ export default function TimeEntriesPage() {
 
       const existingEntryKeys = new Set(
         transformedEntries.map((entry) => {
-          const entryDatePH = new Date(
-            new Date(entry.clock_in_time).toLocaleString("en-US", {
-              timeZone: "Asia/Manila",
-            })
-          );
-          return ftlCompositeKey(entry.employee_id, format(entryDatePH, "yyyy-MM-dd"));
+          const dateKey =
+            (entry as TimeEntrySession).clock_in_date_ph ||
+            getDateInManilaDefault(entry.clock_in_time);
+          return ftlCompositeKey(entry.employee_id, dateKey);
         })
       );
 

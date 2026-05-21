@@ -77,6 +77,11 @@ import {
 } from "@/utils/ph-deductions";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import {
+  buildStoredEarningsBreakdown,
+  resolveGrossPayForSave,
+} from "@/lib/payroll-earnings-breakdown";
+import { mapPayslipAttendanceDays } from "@/lib/map-payslip-attendance-days";
+import {
   creditNightDiffHours,
   creditOvertimeHours,
   creditWorkHoursHalfHour,
@@ -93,7 +98,7 @@ import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generato
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
-import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, manilaDatesWithCompleteBundySession } from "@/lib/timeEntries";
+import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, mergeBundyAndFtlClockSessions } from "@/lib/timeEntries";
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
 
@@ -629,6 +634,7 @@ export default function PayslipsPage() {
         pagibig: null,
         tax: null,
       });
+      setCalculatedTotalGrossPay(null);
       // Only load attendance if employee is found in the list
       if (emp) {
         loadAttendanceAndDeductions();
@@ -810,6 +816,7 @@ export default function PayslipsPage() {
 
   async function loadAttendanceAndDeductions() {
     if (!selectedEmployeeId) return;
+    setCalculatedTotalGrossPay(null);
 
     // Validate employee_id is a valid UUID
     const uuidRegex =
@@ -966,10 +973,7 @@ export default function PayslipsPage() {
             fetchSessionsForEmployee(supabase, selectedEmployeeId, periodStartDate.toISOString(), periodEndDate.toISOString(), getDateInManila),
             fetchProjectTimeSessionsForEmployee(supabase, selectedEmployeeId, periodStartDate.toISOString(), periodEndDate.toISOString(), getDateInManila),
           ]);
-          const clockEntries = [...(mainSessions || []), ...(projectSessions || [])];
-
-          // Merge approved FTL pairs (IN + OUT) as synthetic complete sessions,
-          // so Payslip Generation matches Time Attendance behavior.
+          // Merge approved FTL pairs (IN + OUT) with Bundy+project so each Manila day has one logical session.
           const transferredFromIdForFtl = selectedEmployee?.transferred_from_employee_id ?? null;
           const employeeIdsToLoadFtl = transferredFromIdForFtl
             ? [selectedEmployeeId, transferredFromIdForFtl]
@@ -985,7 +989,10 @@ export default function PayslipsPage() {
             .lte("missed_date", periodEndStr);
           if (approvedFtlError) {
             console.warn("Error loading approved FTL rows for payslip generation:", approvedFtlError);
-          } else {
+          }
+
+          const ftlSessionsBuilt: any[] = [];
+          if (!approvedFtlError) {
             const pairedByEmployeeDate = new Map<
               string,
               { inTime: string | null; outTime: string | null; sourceId: string }
@@ -1031,30 +1038,19 @@ export default function PayslipsPage() {
               (approvedOtRowsForFtl || []) as OtRowWithEmployee[]
             );
 
-            const bundyDatesForFtl = manilaDatesWithCompleteBundySession(
-              mainSessions || [],
-              getDateInManila,
-              projectSessions || []
-            );
             pairedByEmployeeDate.forEach((pair, mapKey) => {
               const sep = mapKey.indexOf("::");
               if (sep < 0) return;
               const empId = mapKey.slice(0, sep);
-              const dateKey = mapKey.slice(sep + 2);
               if (!employeeIdsToLoadFtl.includes(empId)) return;
               if (!pair.inTime || !pair.outTime) return;
               if (new Date(pair.outTime) <= new Date(pair.inTime)) return;
-              if (
-                bundyDatesForFtl.has(dateKey) ||
-                bundyDatesForFtl.has(getDateInManila(pair.inTime))
-              ) {
-                return;
-              }
-              clockEntries.push({
+              ftlSessionsBuilt.push({
                 id: `ftl-${pair.sourceId}`,
                 employee_id: selectedEmployeeId,
                 clock_in_time: pair.inTime,
                 clock_out_time: pair.outTime,
+                clock_in_date_ph: getDateInManila(pair.inTime),
                 status: "approved",
                 total_hours:
                   Math.round(
@@ -1068,6 +1064,13 @@ export default function PayslipsPage() {
               } as any);
             });
           }
+
+          const clockEntries = mergeBundyAndFtlClockSessions(
+            [...(mainSessions || []), ...(projectSessions || [])],
+            ftlSessionsBuilt,
+            getDateInManila,
+            null
+          );
 
           if (!clockEntries || clockEntries.length === 0) {
             console.log("No time entries found for this period");
@@ -1941,32 +1944,22 @@ export default function PayslipsPage() {
     setGenerating(true);
 
     try {
-      // Calculate gross pay from attendance data if not already calculated
-      let grossPay = attendance.gross_pay || 0;
+      const ratePerHour =
+        selectedEmployee.rate_per_hour ||
+        (selectedEmployee.monthly_rate
+          ? selectedEmployee.monthly_rate / 26 / 8
+          : selectedEmployee.per_day
+          ? selectedEmployee.per_day / 8
+          : selectedEmployee.rate_per_day
+          ? selectedEmployee.rate_per_day / 8
+          : 0);
 
-      // If gross_pay is 0 or missing, calculate it from attendance_data
-      if (
-        grossPay === 0 &&
-        attendance.attendance_data &&
-        Array.isArray(attendance.attendance_data)
-      ) {
-        const ratePerHour =
-          selectedEmployee.rate_per_hour ||
-          (selectedEmployee.monthly_rate
-            ? selectedEmployee.monthly_rate / 26 / 8
-            : selectedEmployee.per_day
-            ? selectedEmployee.per_day / 8
-            : selectedEmployee.rate_per_day
-            ? selectedEmployee.rate_per_day / 8
-            : 0);
-        if (ratePerHour > 0) {
-          const payrollResult = calculateWeeklyPayroll(
-            attendance.attendance_data,
-            ratePerHour
-          );
-          grossPay = Math.round(payrollResult.grossPay * 100) / 100;
-        }
-      }
+      const grossPay = resolveGrossPayForSave({
+        previewGrossPay: calculatedTotalGrossPay,
+        attendanceGrossPay: attendance.gross_pay || 0,
+        attendanceData: attendance.attendance_data || [],
+        ratePerHour,
+      });
 
       // Gross = basic + OT + ND + adjustment. Tax uses calendar-month gross (saved other weeks + this period).
       const adjustment = Math.round(
@@ -2105,79 +2098,14 @@ export default function PayslipsPage() {
       totalDeductions += sssAmount + philhealthAmount + pagibigAmount;
 
       let withholdingTax = 0;
-      const takeSemiMonthTax = isLastWeeklyPayOfSemiMonth(periodEndTuesday);
-      if (periodGross > 0 || validMonthlySalary > 0) {
-        const whOverride = deductions?.withholding_tax || 0;
-        if (whOverride !== 0) {
-          withholdingTax = Math.round(whOverride * 100) / 100;
-        } else if (takeSemiMonthTax) {
-          const monthlyContributionsFull =
-            sssContribution.employeeShare +
-            philhealthContribution.employeeShare +
-            pagibigContribution.employeeShare;
-          const monthlyContributions = applyStatutoryProration(
-            Math.round(monthlyContributionsFull * 100) / 100,
-            prorationFactorSave
-          );
-          const halfMonthlyContrib = Math.round((monthlyContributions / 2) * 100) / 100;
-
-          const curEndStr = format(periodEndTuesday, "yyyy-MM-dd");
-          const startM = startOfMonth(periodEndTuesday);
-          const endM = endOfMonth(periodEndTuesday);
-          const half = semiMonthlyPeriodIndex(periodEndTuesday);
-          const { data: monthRows } = await supabase
-            .from("payslips")
-            .select("gross_pay, adjustment_amount, period_end, deductions_breakdown")
-            .eq("employee_id", selectedEmployee.id)
-            .gte("period_end", format(startM, "yyyy-MM-dd"))
-            .lte("period_end", format(endM, "yyyy-MM-dd"));
-
-          let grossOther = 0;
-          let taxPrior = 0;
-          for (const row of monthRows || []) {
-            if (row.period_end === curEndStr) continue;
-            const [py, pm, pd] = (row.period_end || "").split("-").map(Number);
-            if (!py || !pm || !pd) continue;
-            const rowEnd = new Date(py, pm - 1, pd);
-            if (semiMonthlyPeriodIndex(rowEnd) !== half) continue;
-            grossOther += (row.gross_pay ?? 0) + (row.adjustment_amount ?? 0);
-            const br = row.deductions_breakdown as { tax?: number } | undefined;
-            taxPrior += typeof br?.tax === "number" ? br.tax : 0;
-          }
-          grossOther = Math.round(grossOther * 100) / 100;
-          taxPrior = Math.round(taxPrior * 100) / 100;
-
-          const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEndTuesday);
-          const actualSemiGross =
-            monthRows != null
-              ? Math.round((grossOther + periodGross) * 100) / 100
-              : Math.round(periodGross * nSemiWeeks * 100) / 100;
-
-          const semiTaxableIncome = Math.max(
-            0,
-            actualSemiGross - halfMonthlyContrib
-          );
-          const semiTaxDue = calculateSemiMonthlyWithholdingTax(semiTaxableIncome);
-          withholdingTax = Math.max(
-            0,
-            Math.round((semiTaxDue - taxPrior) * 100) / 100
-          );
-
-          console.log("Withholding tax (BIR semi-monthly):", {
-            grossOther,
-            periodGross,
-            actualSemiGross,
-            halfMonthlyContrib,
-            semiTaxableIncome,
-            semiTaxDue,
-            taxPrior,
-            withholdingTax,
-            semiMonthHalf: half,
-          });
-        }
-      }
-      if (govContributionOverrides.tax !== null) {
-        withholdingTax = govContributionOverrides.tax;
+      if (
+        govContributionOverrides.tax !== null &&
+        govContributionOverrides.tax !== undefined
+      ) {
+        withholdingTax = Math.max(
+          0,
+          Math.round(govContributionOverrides.tax * 100) / 100
+        );
       }
       totalDeductions += withholdingTax;
 
@@ -2379,7 +2307,13 @@ export default function PayslipsPage() {
         period_start: format(periodStart, "yyyy-MM-dd"),
         period_end: format(periodEnd, "yyyy-MM-dd"),
         period_type: "weekly",
-        earnings_breakdown: attendance.attendance_data || [], // Ensure it's never null
+        earnings_breakdown: buildStoredEarningsBreakdown(
+          mapPayslipAttendanceDays(
+            attendance.attendance_data || [],
+            clockEntries
+          ),
+          ratePerHour
+        ),
         gross_pay: grossPay,
         deductions_breakdown: deductionsBreakdown || {}, // Ensure it's never null
         total_deductions: totalDeductions,
@@ -2943,15 +2877,43 @@ export default function PayslipsPage() {
     return calculatedGrossPay;
   }, [attendance, selectedEmployee]);
 
+  /** Matches PayslipDetailedBreakdown "Hours Work (Regular)" × rate (Mon–Sat regular hours). */
+  const regularHoursBasicGross = useMemo(() => {
+    if (
+      !attendance?.attendance_data ||
+      !Array.isArray(attendance.attendance_data) ||
+      !selectedEmployee
+    ) {
+      return 0;
+    }
+    const ratePerHour =
+      selectedEmployee.rate_per_hour ||
+      (selectedEmployee.per_day
+        ? selectedEmployee.per_day / 8
+        : selectedEmployee.rate_per_day
+        ? selectedEmployee.rate_per_day / 8
+        : 0);
+    if (ratePerHour <= 0) return 0;
+    const regularHours = attendance.attendance_data.reduce((sum: number, day: any) => {
+      if ((day.dayType || "regular") !== "regular") return sum;
+      return (
+        sum +
+        creditWorkHoursHalfHour(Math.round(Number(day.regularHours || 0) * 100) / 100)
+      );
+    }, 0);
+    return Math.round(regularHours * ratePerHour * 100) / 100;
+  }, [attendance, selectedEmployee]);
+
   /** Prefer page-level gross (attendance + calculateWeeklyPayroll / AS rules); fallback to breakdown callback. Keeps summary in sync with preview. */
   const earningsBaseForPeriod = useMemo(() => {
     // Prefer the detailed breakdown gross when available (it reflects the on-screen earnings table).
     if (calculatedTotalGrossPay !== null && calculatedTotalGrossPay >= 0) {
       return calculatedTotalGrossPay;
     }
+    if (regularHoursBasicGross > 0) return regularHoursBasicGross;
     if (grossPay > 0) return grossPay;
     return 0;
-  }, [grossPay, calculatedTotalGrossPay]);
+  }, [grossPay, calculatedTotalGrossPay, regularHoursBasicGross]);
 
   const otherManualDeductionSum = useMemo(
     () =>
@@ -3070,57 +3032,14 @@ export default function PayslipsPage() {
 
   const govDed = weeklyStatutory.total;
 
-  const taxAuto = useMemo(() => {
-    const whOverride = deductions?.withholding_tax || 0;
-    if (whOverride !== 0) return Math.round(whOverride * 100) / 100;
-    if (!isLastWeeklyPayOfSemiMonth(periodEnd)) return 0;
-
-    const periodGross = earningsBaseForPeriod + adjustment;
-    const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEnd);
-    const grossOther =
-      semiMonthlyRollupForTax?.grossFromSavedOtherWeeksInSemiMonth ?? 0;
-    const actualSemiGross =
-      semiMonthlyRollupForTax != null
-        ? Math.round((grossOther + periodGross) * 100) / 100
-        : Math.round(periodGross * nSemiWeeks * 100) / 100;
-
-    if (actualSemiGross <= 0) return 0;
-
-    const sss = calculateSSS(monthlySalary);
-    const philhealth = calculatePhilHealth(monthlySalary);
-    const pagibig = calculatePagIBIG(monthlySalary);
-    const monthlyContributionsFull =
-      sss.employeeShare + philhealth.employeeShare + pagibig.employeeShare;
-    const monthlyContributions = applyStatutoryProration(
-      Math.round(monthlyContributionsFull * 100) / 100,
-      statutoryProrationFactorPreview
-    );
-    const halfMonthlyContrib = Math.round((monthlyContributions / 2) * 100) / 100;
-    const semiTaxableIncome = Math.max(
-      0,
-      actualSemiGross - halfMonthlyContrib
-    );
-    const semiTaxDue = calculateSemiMonthlyWithholdingTax(semiTaxableIncome);
-    const taxPrior =
-      semiMonthlyRollupForTax?.taxWithheldPriorExcludingCurrentInSemiMonth ??
-      0;
-    return Math.max(
-      0,
-      Math.round((semiTaxDue - taxPrior) * 100) / 100
-    );
-  }, [
-    earningsBaseForPeriod,
-    adjustment,
-    monthlySalary,
-    deductions?.withholding_tax,
-    periodEnd,
-    semiMonthlyRollupForTax,
-    statutoryProrationFactorPreview,
-  ]);
-
+  /** Manual tax only: auto BIR semi-monthly WH is disabled until HR enters an amount. */
   const tax = useMemo(
-    () => govContributionOverrides.tax ?? taxAuto,
-    [govContributionOverrides.tax, taxAuto]
+    () =>
+      govContributionOverrides.tax !== null &&
+      govContributionOverrides.tax !== undefined
+        ? govContributionOverrides.tax
+        : 0,
+    [govContributionOverrides.tax]
   );
 
   const allowance = 0;
@@ -3156,17 +3075,37 @@ export default function PayslipsPage() {
     payslipBaselineTick,
   ]);
 
+  /** Clock-merged days — shared by earnings breakdown and print preview. */
+  const payslipAttendanceDays = useMemo(() => {
+    if (!attendance?.attendance_data || !Array.isArray(attendance.attendance_data)) {
+      return [];
+    }
+    return mapPayslipAttendanceDays(attendance.attendance_data, clockEntries);
+  }, [attendance?.attendance_data, clockEntries]);
+
+  const attendanceForPrint = useMemo(() => {
+    if (!attendance) return null;
+    return {
+      ...attendance,
+      attendance_data: payslipAttendanceDays,
+      gross_pay: finalGrossPay,
+    };
+  }, [attendance, payslipAttendanceDays, finalGrossPay]);
+
   const isSavedPayslip = savedPayslip !== null;
   const isRunFinalized = payrollRunId ? payrollRunStatus === "finalized" : false;
   const isLocked = isSavedPayslip && !(payrollRunId && !isRunFinalized);
 
-  // When locked, show DB values; otherwise show live computed values (even if already saved).
-  const displayGrossPay =
-    isLocked && savedPayslip ? savedPayslip.gross_pay : finalGrossPay;
+  const savedGrossMismatch =
+    savedPayslip &&
+    Math.abs(Number(savedPayslip.gross_pay) - finalGrossPay) > 0.01;
+
+  // Summary always follows live earnings (matches breakdown). DB gross is reference only when stale.
+  const displayGrossPay = finalGrossPay;
   const displayTotalDed =
-    isLocked && savedPayslip ? savedPayslip.total_deductions : totalDed;
+    isLocked && savedPayslip ? Number(savedPayslip.total_deductions) : totalDed;
   const displayNetPay =
-    isLocked && savedPayslip ? savedPayslip.net_pay : netPay;
+    Math.round((displayGrossPay - displayTotalDed) * 100) / 100;
 
   // Show loading or access denied - MUST be after all hooks
   if (roleLoading || permissionsLoading || loading) {
@@ -3214,9 +3153,8 @@ export default function PayslipsPage() {
 
   // Helper function to calculate earnings breakdown from attendance data
   function calculateEarningsBreakdown() {
-    // Return empty breakdown since rates are removed
     return {
-      regularPay: 0,
+      regularPay: earningsBaseForPeriod,
       regularOT: 0,
       regularOTHours: 0,
       nightDiff: 0,
@@ -3227,7 +3165,7 @@ export default function PayslipsPage() {
       specialHolidayHours: 0,
       regularHoliday: 0,
       regularHolidayHours: 0,
-      grossIncome: attendance?.gross_pay || 0,
+      grossIncome: earningsBaseForPeriod,
     };
   }
 
@@ -3386,61 +3324,7 @@ export default function PayslipsPage() {
                           console.log('[PayslipsPage] onTotalGrossPayChange callback called with:', value);
                           setCalculatedTotalGrossPay(value);
                         }}
-                        attendanceData={Array.isArray(attendance.attendance_data)
-                          ? (attendance.attendance_data as any[]).map((day: any) => {
-                              const dayDate =
-                                day.date || day.clock_in_time?.split("T")[0] || "";
-
-                              // Find matching clock entry for this date (use Asia/Manila timezone)
-                              const matchingEntry = clockEntries.find((entry) => {
-                                if (!entry.clock_in_time) return false;
-                                const entryDateUTC = new Date(entry.clock_in_time);
-                                const formatter = new Intl.DateTimeFormat("en-US", {
-                                  timeZone: "Asia/Manila",
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                });
-                                const parts = formatter.formatToParts(entryDateUTC);
-                                const entryDateStr = `${parts.find((p) => p.type === "year")!.value}-${
-                                  parts.find((p) => p.type === "month")!.value
-                                }-${parts.find((p) => p.type === "day")!.value}`;
-                                return entryDateStr === dayDate;
-                              });
-
-                              // If day.regularHours is >= 8, it's likely a leave day - prioritize it over clock entry hours
-                              const isLeaveDayWithFullHours =
-                                (day.regularHours || 0) >= 8;
-                              const regularHours = creditWorkHoursHalfHour(
-                                Math.round(
-                                  Number(
-                                    isLeaveDayWithFullHours
-                                      ? day.regularHours
-                                      : matchingEntry?.regular_hours ||
-                                        day.regularHours ||
-                                        0
-                                  ) * 100
-                                ) / 100
-                              );
-
-                              // ND when OT overlaps 10PM–6AM (from approved OT). Do not use matchingEntry.total_night_diff_hours for payslip.
-                              return {
-                                date: dayDate,
-                                dayType: day.dayType || "regular",
-                                regularHours: regularHours,
-                                overtimeHours: day.overtimeHours || 0,
-                                nightDiffHours: day.nightDiffHours || 0,
-                                clockInTime:
-                                  matchingEntry?.clock_in_time ||
-                                  day.clockInTime ||
-                                  day.clock_in_time,
-                                clockOutTime:
-                                  matchingEntry?.clock_out_time ||
-                                  day.clockOutTime ||
-                                  day.clock_out_time,
-                              };
-                            })
-                          : []}
+                        attendanceData={payslipAttendanceDays}
                       />
                     </div>
                   </CardSection>
@@ -4004,11 +3888,19 @@ export default function PayslipsPage() {
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                value={tax}
+                                value={
+                                  govContributionOverrides.tax === null ||
+                                  govContributionOverrides.tax === undefined
+                                    ? ""
+                                    : govContributionOverrides.tax
+                                }
                                 onChange={(e) =>
                                   setGovContributionOverrides((prev) => ({
                                     ...prev,
-                                    tax: parseNumberInput(e.target.value),
+                                    tax:
+                                      e.target.value.trim() === ""
+                                        ? null
+                                        : parseNumberInput(e.target.value),
                                   }))
                                 }
                                 className="h-9 w-full max-w-[170px] text-right"
@@ -4041,7 +3933,8 @@ export default function PayslipsPage() {
                     const grossDiffDbVsPreview =
                       Math.round((dbGross - previewGross) * 100) / 100;
                     const showGrossMismatchExplainer =
-                      payslipHasLocalEdits && Math.abs(grossDiffDbVsPreview) > 0.01;
+                      (payslipHasLocalEdits || savedGrossMismatch) &&
+                      Math.abs(grossDiffDbVsPreview) > 0.01;
 
                     return (
                       <>
@@ -4050,6 +3943,13 @@ export default function PayslipsPage() {
                             Totals above follow the generated payslip from time entries. Use{" "}
                             <span className="font-medium text-foreground">Save payslip</span> to persist
                             this cutoff to the database.
+                          </div>
+                        )}
+                        {savedGrossMismatch && isLocked && (
+                          <div className="mb-2 text-xs text-amber-800 dark:text-amber-200/90 rounded border border-amber-200/80 bg-amber-50/90 dark:bg-amber-950/30 px-2 py-1.5">
+                            Saved gross in the database does not match live attendance (
+                            {formatCurrency(dbGross)} saved vs {formatCurrency(previewGross)} preview).
+                            Re-open the payroll run or save again after correcting attendance.
                           </div>
                         )}
                         {!isLocked && payslipHasLocalEdits && !showGrossMismatchExplainer && (
@@ -4270,7 +4170,7 @@ export default function PayslipsPage() {
           {/* Print Modal */}
           <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              {selectedEmployee && attendance && (
+              {selectedEmployee && attendanceForPrint && (
                 <>
                   <DialogHeader>
                     <DialogTitle>Payslip Preview</DialogTitle>
@@ -4296,8 +4196,12 @@ export default function PayslipsPage() {
                       }}
                       weekStart={periodStart}
                       weekEnd={periodEnd}
-                      attendance={attendance}
-                      earnings={calculateEarningsBreakdown()}
+                      attendance={attendanceForPrint}
+                      earnings={{
+                        ...calculateEarningsBreakdown(),
+                        regularPay: earningsBaseForPeriod,
+                        grossIncome: earningsBaseForPeriod,
+                      }}
                       deductions={{
                         vale: deductions?.vale_amount || 0,
                         sssLoan: deductions?.sss_salary_loan || 0,
@@ -4331,6 +4235,8 @@ export default function PayslipsPage() {
                       adjustment={adjustment}
                       adjustmentReason={adjustmentReasonForPrint}
                       netPay={displayNetPay}
+                      summaryGrossPay={displayGrossPay}
+                      summaryNetPay={displayNetPay}
                       workingDays={workingDays}
                       absentDays={0}
                       preparedBy={preparedBy}

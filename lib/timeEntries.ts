@@ -261,6 +261,105 @@ export function filterSyntheticFtlWhenBundyExists<T extends SessionLike>(
 }
 
 /**
+ * One logical clock session per Manila workday when Bundy (main + optional project) overlaps
+ * approved Failure-to-Log (FTL) synthetic sessions:
+ *
+ * - If a **complete** Bundy session already exists for that Manila date, skip the duplicate
+ *   full FTL session (same work documented twice).
+ * - If only an **incomplete** Bundy session exists (missing clock-out or invalid pair), merge
+ *   FTL times in so there is a single complete row (Bundy punches win when both define a side).
+ * - If there is no Bundy row for that date, append the FTL synthetic session.
+ *
+ * `mainSessions` and `projectSessions` are kept separate only for computing “complete” dates;
+ * you may pass **all Bundy+project rows in `mainSessions`** and `null` for project (batch routes).
+ */
+export function mergeBundyAndFtlClockSessions(
+  mainSessions: TimeEntrySession[],
+  ftlSessions: TimeEntrySession[],
+  getDateInManila: (iso: string) => string,
+  projectSessions?: TimeEntrySession[] | null
+): TimeEntrySession[] {
+  const project = projectSessions ?? [];
+  const out: TimeEntrySession[] = [...mainSessions, ...project].map((s) => ({ ...s }));
+  const completeDates = manilaDatesWithCompleteBundySession(
+    mainSessions,
+    getDateInManila,
+    project
+  );
+
+  for (const ftl of ftlSessions) {
+    if (!ftl.clock_in_time || !ftl.clock_out_time) continue;
+    const cinF = new Date(ftl.clock_in_time);
+    const coutF = new Date(ftl.clock_out_time);
+    if (Number.isNaN(cinF.getTime()) || Number.isNaN(coutF.getTime()) || coutF <= cinF) continue;
+
+    const empId = ftl.employee_id;
+    const d = getDateInManila(ftl.clock_in_time);
+    if (completeDates.has(d)) {
+      continue;
+    }
+
+    const sameEmployee = (s: TimeEntrySession) =>
+      !empId || !s.employee_id || s.employee_id === empId;
+
+    const incIdx = out.findIndex((s) => {
+      if (!sameEmployee(s) || !s.clock_in_time) return false;
+      if (getDateInManila(s.clock_in_time) !== d) return false;
+      if (!s.clock_out_time) return true;
+      const cin = new Date(s.clock_in_time);
+      const cout = new Date(s.clock_out_time);
+      return (
+        !Number.isNaN(cin.getTime()) &&
+        !Number.isNaN(cout.getTime()) &&
+        cout <= cin
+      );
+    });
+
+    if (incIdx >= 0) {
+      const s = out[incIdx];
+      const cinB = s.clock_in_time ? new Date(s.clock_in_time) : null;
+      const coutB = s.clock_out_time ? new Date(s.clock_out_time) : null;
+      const bundyOutValid =
+        cinB &&
+        coutB &&
+        !Number.isNaN(cinB.getTime()) &&
+        !Number.isNaN(coutB.getTime()) &&
+        coutB > cinB;
+
+      const mergedIn = s.clock_in_time || ftl.clock_in_time;
+      const mergedOut = bundyOutValid ? s.clock_out_time! : ftl.clock_out_time;
+      const nextStatus =
+        s.status === "clocked_in" && mergedOut ? "clocked_out" : s.status || ftl.status || "approved";
+
+      out[incIdx] = {
+        ...s,
+        clock_in_time: mergedIn,
+        clock_out_time: mergedOut,
+        status: nextStatus,
+        clock_in_date_ph: getDateInManila(mergedIn),
+        total_hours:
+          s.total_hours ??
+          ftl.total_hours ??
+          Math.round(
+            ((new Date(mergedOut).getTime() - new Date(mergedIn).getTime()) / (1000 * 60 * 60)) *
+              100
+          ) / 100,
+        regular_hours: s.regular_hours ?? ftl.regular_hours ?? null,
+      };
+      continue;
+    }
+
+    out.push({
+      ...ftl,
+      employee_id: ftl.employee_id ?? empId,
+      clock_in_date_ph: ftl.clock_in_date_ph || d,
+    });
+  }
+
+  return out;
+}
+
+/**
  * Finds the current open entry: an 'in' that has no matching 'out' (using same pairing as punchesToSessions).
  * If todayManilaStr is provided, only treats as open if that unpaired 'in' is from today.
  */

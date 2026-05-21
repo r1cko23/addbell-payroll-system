@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from("employees")
       .select(
-        "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at, position, employment_type, job_level, shift_start_time, shift_end_time, requires_ot_punch"
+        "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at, position, employment_type, job_level, shift_start_time, shift_end_time, requires_ot_punch, salary_basis, base_rate, hire_date"
       )
       .eq("id", employeeId)
       .maybeSingle();
@@ -59,6 +59,9 @@ export async function GET(req: NextRequest) {
       shift_start_time: data?.shift_start_time ?? null,
       shift_end_time: data?.shift_end_time ?? null,
       requires_ot_punch: data?.requires_ot_punch ?? false,
+      salary_basis: data?.salary_basis ?? null,
+      base_rate: data?.base_rate != null ? Number(data.base_rate) : null,
+      hire_date: data?.hire_date ?? null,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";

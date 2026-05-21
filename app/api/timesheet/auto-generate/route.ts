@@ -20,7 +20,7 @@ import { format } from "date-fns";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
 import { calculateMonthlySalary } from "@/utils/ph-deductions";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
-import { fetchSessionsInRange, filterSyntheticFtlWhenBundyExists, getDateInManilaDefault } from "@/lib/timeEntries";
+import { fetchSessionsInRange, mergeBundyAndFtlClockSessions, getDateInManilaDefault, type TimeEntrySession } from "@/lib/timeEntries";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import {
@@ -251,19 +251,7 @@ export async function POST(request: NextRequest) {
       (approvedOtRows || []) as OtRowWithEmployee[]
     );
 
-    const ftlSessionsByEmployee = new Map<
-      string,
-      Array<{
-        id: string;
-        employee_id: string;
-        clock_in_time: string;
-        clock_out_time: string;
-        regular_hours: null;
-        overtime_hours: number;
-        total_night_diff_hours: number;
-        status: string;
-      }>
-    >();
+    const ftlSessionsByEmployee = new Map<string, TimeEntrySession[]>();
 
     ftlPairMap.forEach((pair, key) => {
       if (!pair.inTime || !pair.outTime) return;
@@ -278,20 +266,25 @@ export async function POST(request: NextRequest) {
         employee_id: employeeId,
         clock_in_time: pair.inTime,
         clock_out_time: pair.outTime,
+        clock_in_date_ph: getDateInManilaDefault(pair.inTime),
         regular_hours: null,
-        overtime_hours: 0,
-        total_night_diff_hours: 0,
+        total_hours:
+          Math.round(
+            ((new Date(pair.outTime).getTime() - new Date(pair.inTime).getTime()) /
+              (1000 * 60 * 60)) *
+              100
+          ) / 100,
+        total_night_diff_hours: null,
         status: "approved",
       });
     });
 
     ftlSessionsByEmployee.forEach((ftlList, employeeId) => {
-      const merged = clockEntriesByEmployee.get(employeeId) || [];
-      const kept = filterSyntheticFtlWhenBundyExists(merged, ftlList, getDateInManilaDefault);
-      if (!clockEntriesByEmployee.has(employeeId)) {
-        clockEntriesByEmployee.set(employeeId, []);
-      }
-      kept.forEach((s) => clockEntriesByEmployee.get(employeeId)!.push(s));
+      const bundy = clockEntriesByEmployee.get(employeeId) || [];
+      clockEntriesByEmployee.set(
+        employeeId,
+        mergeBundyAndFtlClockSessions(bundy, ftlList, getDateInManilaDefault, null)
+      );
     });
 
     const approvedOtByEmployeeDate = new Map<string, Map<string, number>>();

@@ -76,6 +76,9 @@ interface PayslipPrintProps {
   adjustment: number;
   adjustmentReason?: string | null;
   netPay: number;
+  /** When set, print summary uses these instead of recalculated totals (matches payslip page). */
+  summaryGrossPay?: number;
+  summaryNetPay?: number;
   workingDays: number;
   absentDays: number;
   preparedBy: string;
@@ -91,6 +94,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     adjustment = 0,
     adjustmentReason,
     netPay: netPayProp,
+    summaryGrossPay,
+    summaryNetPay,
     workingDays,
     preparedBy,
   } = props;
@@ -608,17 +613,38 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   }
 
   // Total Gross Pay = Total Salary (sum of all earnings)
-  // Total Salary should equal Gross Pay (they are the same thing)
   // Tardiness is currently 0, but can be deducted in the future if needed
   totalGrossPay = totalSalary - tardiness;
-
-  // Ensure Total Salary equals Total Gross Pay (they should be the same)
-  // If they differ, use totalGrossPay as the source of truth
   totalSalary = totalGrossPay;
 
   // Net Pay = Gross Pay - Deductions + Adjustment (adjustment can be + or -)
-  const netPay =
+  let netPay =
     totalGrossPay - totalDeductions + (typeof adjustment === "number" ? adjustment : 0);
+
+  // When parent passes summary totals (live payslip screen), keep print in sync.
+  if (
+    typeof summaryGrossPay === "number" &&
+    summaryGrossPay >= 0 &&
+    Math.abs(totalGrossPay - summaryGrossPay) > 0.01
+  ) {
+    totalGrossPay = summaryGrossPay;
+    totalSalary = summaryGrossPay;
+    netPay =
+      typeof summaryNetPay === "number" && summaryNetPay >= 0
+        ? summaryNetPay
+        : summaryGrossPay -
+            totalDeductions +
+            (typeof adjustment === "number" ? adjustment : 0);
+  }
+
+  const printGrossPay =
+    typeof summaryGrossPay === "number" && summaryGrossPay >= 0
+      ? summaryGrossPay
+      : totalGrossPay;
+  const printNetPay =
+    typeof summaryNetPay === "number" && summaryNetPay >= 0
+      ? summaryNetPay
+      : netPay || netPayProp || 0;
 
   return (
     <div
@@ -1934,7 +1960,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   paddingBottom: "3px",
                 }}
               >
-                {formatCurrency(totalGrossPay)}
+                {formatCurrency(printGrossPay)}
               </div>
             </td>
             <td
@@ -2005,7 +2031,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   fontSize: "11pt",
                 }}
               >
-                {formatCurrency(netPay || netPayProp || 0)}
+                {formatCurrency(printNetPay)}
               </div>
             </td>
           </tr>

@@ -27,7 +27,9 @@ export function listCompletedBundySessions(
   punches: TimeEntryPunch[],
   options?: {
     businessDayKey?: string;
+    allowedBusinessDayKeys?: Set<string>;
     excludePairsUsedByOt?: Set<string>;
+    excludeFirstSessionPerBusinessDay?: boolean;
   }
 ): BundyCompletedSession[] {
   const sessions = punchesToSessions(
@@ -45,9 +47,12 @@ export function listCompletedBundySessions(
     if (!s.clock_out_time || !s.out_punch_id) return;
     const businessDay = getBundyBusinessDayKey(s.clock_in_time);
     if (
-      options?.businessDayKey &&
-      businessDay !== options.businessDayKey
+      options?.allowedBusinessDayKeys &&
+      !options.allowedBusinessDayKeys.has(businessDay)
     ) {
+      return;
+    }
+    if (options?.businessDayKey && businessDay !== options.businessDayKey) {
       return;
     }
     const pairKey = `${s.id}::${s.out_punch_id}`;
@@ -79,10 +84,29 @@ export function listCompletedBundySessions(
     });
   });
 
-  return out.sort(
+  const sorted = out.sort(
     (a, b) =>
       new Date(b.clock_in_time).getTime() - new Date(a.clock_in_time).getTime()
   );
+
+  if (!options?.excludeFirstSessionPerBusinessDay) return sorted;
+
+  // Exclude the earliest (first) session per business day (assumed regular hours entry).
+  const earliestByDay = new Map<string, BundyCompletedSession>();
+  for (const s of sorted) {
+    const existing = earliestByDay.get(s.business_day_key);
+    if (!existing) {
+      earliestByDay.set(s.business_day_key, s);
+      continue;
+    }
+    if (
+      new Date(s.clock_in_time).getTime() < new Date(existing.clock_in_time).getTime()
+    ) {
+      earliestByDay.set(s.business_day_key, s);
+    }
+  }
+
+  return sorted.filter((s) => earliestByDay.get(s.business_day_key) !== s);
 }
 
 export function sessionPairKey(inId: string, outId: string): string {

@@ -148,8 +148,7 @@ export function BundySessionPicker({
         )}
       </div>
       <BodySmall className="text-muted-foreground">
-        Choose a completed clock pair. Date and start/end will fill from this pair; you enter
-        OT hours manually.
+        Pick a completed pair to auto-fill the date and time.
       </BodySmall>
       {loading ? (
         <Caption className="text-muted-foreground">Loading clock sessions…</Caption>
@@ -157,8 +156,7 @@ export function BundySessionPicker({
         <Caption className="text-destructive">{error}</Caption>
       ) : sessions.length === 0 ? (
         <Caption className="text-muted-foreground">
-          No completed Time In / Out pairs found
-          {otDate ? ` for ${otDate}` : ""}. Clock in and out on Bundy first, then file OT.
+          No completed pairs{otDate ? ` for ${otDate}` : ""}.
         </Caption>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto rounded-md border border-input p-2">

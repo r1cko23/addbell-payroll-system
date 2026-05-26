@@ -80,60 +80,50 @@ function getPurposeFieldConfig(purpose: string): PurposeFieldConfig {
       return {
         referenceCardTitle: "Client / Project Reference",
         referenceCardDescription:
-          "Material requests usually need the client P.O. and project reference plus the itemized material breakdown. Vendor progress-billing fields are not typically needed here.",
-        detailsSectionTitle: "Material Request Details",
-        detailsSectionDescription:
-          "List the material items, quantities, or supplier charges that need funding.",
+          "Include client P.O. and project reference when applicable.",
+        detailsSectionTitle: "Material details",
+        detailsSectionDescription: "List items, quantities, or charges.",
         detailPlaceholderPrefix: "Material item",
       };
     case "Subcontractor Payment":
       return {
         referenceCardTitle: "Client / Project Reference",
         referenceCardDescription:
-          "Subcontractor payment requests usually reference the client P.O. and project, then include vendor billing values such as vendor P.O. amount, billing percentage, and project progress.",
-        detailsSectionTitle: "Subcontractor Billing Details",
-        detailsSectionDescription:
-          "List billing milestones, scope items, or invoice details for the subcontractor payment.",
+          "Client P.O., project reference, and vendor billing details.",
+        detailsSectionTitle: "Subcontractor billing",
+        detailsSectionDescription: "Milestones, scope, or invoice lines.",
         detailPlaceholderPrefix: "Billing item",
       };
     case "Project Funds":
       return {
         referenceCardTitle: "Project Reference",
-        referenceCardDescription:
-          "Use the project details for internal project funding. Client P.O. is optional when there is no direct client P.O. reference.",
-        detailsSectionTitle: "Project Fund Breakdown",
-        detailsSectionDescription:
-          "Describe where the requested project funds will be used on site or across the job.",
+        referenceCardDescription: "Project reference. Client P.O. optional.",
+        detailsSectionTitle: "Fund breakdown",
+        detailsSectionDescription: "Where funds will be used.",
         detailPlaceholderPrefix: "Fund item",
       };
     case "Liquidation":
       return {
         referenceCardTitle: "Liquidation Reference",
-        referenceCardDescription:
-          "Liquidation requests focus on the project or work reference and the expense breakdown. Client and Addbell P.O. details are not required here.",
-        detailsSectionTitle: "Liquidation Details",
-        detailsSectionDescription:
-          "Break down the expenses being liquidated, reimbursed, or cleared against previous releases.",
+        referenceCardDescription: "Project or work reference.",
+        detailsSectionTitle: "Liquidation details",
+        detailsSectionDescription: "Expense breakdown to liquidate.",
         detailPlaceholderPrefix: "Liquidation item",
       };
     case "Others":
       return {
         referenceCardTitle: "Request Reference",
-        referenceCardDescription:
-          "Provide the most relevant reference for this request. Include a client P.O. only when it applies.",
-        detailsSectionTitle: "Request Details",
-        detailsSectionDescription:
-          "List the request items or cost breakdown needed to support this fund request.",
+        referenceCardDescription: "Reference for this request.",
+        detailsSectionTitle: "Request details",
+        detailsSectionDescription: "Itemized costs.",
         detailPlaceholderPrefix: "Request item",
       };
     default:
       return {
         referenceCardTitle: "Reference Details",
-        referenceCardDescription:
-          "Select a purpose first so the form can show only the fields needed for that request type.",
-        detailsSectionTitle: "Details of Request",
-        detailsSectionDescription:
-          "Add the itemized details and amounts for this request.",
+        referenceCardDescription: "Select a purpose to show the right fields.",
+        detailsSectionTitle: "Details",
+        detailsSectionDescription: "Items and amounts.",
         detailPlaceholderPrefix: "Item",
       };
   }
@@ -676,11 +666,7 @@ export default function NewFundRequestPage() {
       </Link>
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-primary/20 bg-card/95">
         <CardHeader className="pb-4 shrink-0">
-          <div className="section-label mb-2 w-fit">
-            <span className="pulse-dot" />
-            New request
-          </div>
-          <CardTitle>Fund Request Form</CardTitle>
+          <CardTitle>New fund request</CardTitle>
           <p className="text-sm text-muted-foreground">{workflow.workflowLabel}</p>
         </CardHeader>
         <CardContent className="overflow-y-auto min-h-0 flex-1">

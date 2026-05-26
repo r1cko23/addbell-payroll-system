@@ -4,6 +4,7 @@
  */
 
 import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
+import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 
 export type PunchType = "in" | "out";
@@ -464,11 +465,13 @@ export async function fetchSessionsForEmployee(
     .lte("punched_at", endIso)
     .order("punched_at", { ascending: true });
   const list = (punches || []) as TimeEntryPunch[];
-  return punchesToSessions(list, getDateInManila).map((s) => ({
-    ...s,
-    employee_id: employeeId,
-    regular_hours: s.regular_hours ?? s.total_hours ?? null,
-  }));
+  return filterOfficialBundySessions(
+    punchesToSessions(list, getDateInManila).map((s) => ({
+      ...s,
+      employee_id: employeeId,
+      regular_hours: s.regular_hours ?? s.total_hours ?? null,
+    }))
+  );
 }
 
 /**
@@ -503,10 +506,11 @@ export async function fetchSessionsInRange(
 
   const allSessions: TimeEntrySession[] = [];
   byEmployee.forEach((empPunches, empId) => {
-    const sessions = punchesToSessions(
-      empPunches,
-      (iso) => getDateInManilaDefault(iso)
-    ).map((s) => ({ ...s, employee_id: empId }));
+    const sessions = filterOfficialBundySessions(
+      punchesToSessions(empPunches, (iso) => getDateInManilaDefault(iso)).map(
+        (s) => ({ ...s, employee_id: empId })
+      )
+    );
     allSessions.push(...sessions);
   });
   allSessions.sort(

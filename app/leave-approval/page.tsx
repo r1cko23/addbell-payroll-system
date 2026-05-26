@@ -1021,14 +1021,8 @@ export default function LeaveApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
-          <div className="section-label">
-            <span className="pulse-dot" />
-            Approval queue
-          </div>
           <H1>Leave approvals</H1>
-          <BodySmall>
-            Review leave filings, filter by employee and week, and act on pending requests.
-          </BodySmall>
+          <BodySmall>Review and act on pending leave requests.</BodySmall>
         </VStack>
 
         <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">

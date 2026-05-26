@@ -942,7 +942,7 @@ export default function LoansPage() {
     <DashboardLayout>
       <div className="min-w-0 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <H1>Loan Management</H1>
+          <H1>Loans</H1>
           <Button onClick={openAddModal}>
             <Icon name="Plus" className="mr-2 h-4 w-4" />
             Add Loan

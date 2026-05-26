@@ -24,6 +24,7 @@ import {
   manilaDateFromIso,
   manilaTimeFromIso,
 } from "@/lib/bundy-sessions";
+import { computeRawOtSpanHours } from "@/lib/ot-claimed-range";
 
 type OvertimeDocSummary = { id: string; file_name: string };
 
@@ -100,6 +101,9 @@ export default function OvertimePage() {
   const [requiresOtPunch, setRequiresOtPunch] = useState(false);
   const [bundySelection, setBundySelection] =
     useState<BundySessionSelection | null>(null);
+  const [bundyInAddress, setBundyInAddress] = useState<string>("");
+  const [bundyOutAddress, setBundyOutAddress] = useState<string>("");
+  const [bundyAddressLoading, setBundyAddressLoading] = useState(false);
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -153,31 +157,37 @@ export default function OvertimePage() {
 
   const useBundyLinkedHours = requiresOtPunch || Boolean(bundySelection);
 
-  const hoursFromTimeRange = useMemo(() => {
+  const rawHoursFromTimeRange = useMemo(() => {
     if (!formData.start_time || !formData.end_time || !formData.ot_date) return 0;
-    const startDate = new Date(`${formData.ot_date}T${formData.start_time}:00`);
-    let endDate: Date;
-    if (formData.end_date) {
-      endDate = new Date(`${formData.end_date}T${formData.end_time}:00`);
-    } else {
+    let calculatedEndDate: string | null = formData.end_date || null;
+    if (!calculatedEndDate) {
       const startTimeOnly = new Date(`2000-01-01T${formData.start_time}:00`);
       const endTimeOnly = new Date(`2000-01-01T${formData.end_time}:00`);
       if (endTimeOnly.getTime() <= startTimeOnly.getTime()) {
-        endDate = new Date(`${formData.ot_date}T${formData.end_time}:00`);
-        endDate.setDate(endDate.getDate() + 1);
-      } else {
-        endDate = new Date(`${formData.ot_date}T${formData.end_time}:00`);
+        const endDateObj = new Date(formData.ot_date);
+        endDateObj.setDate(endDateObj.getDate() + 1);
+        calculatedEndDate = endDateObj.toISOString().split("T")[0];
       }
     }
-    const diffMs = endDate.getTime() - startDate.getTime();
-    if (diffMs <= 0) return 0;
-    return creditOvertimeHours(Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100);
+    return (
+      computeRawOtSpanHours({
+        otDate: formData.ot_date,
+        endDate: calculatedEndDate,
+        startTime: formData.start_time,
+        endTime: formData.end_time,
+      }) ?? 0
+    );
   }, [
     formData.start_time,
     formData.end_time,
     formData.ot_date,
     formData.end_date,
   ]);
+
+  const hoursFromTimeRange = useMemo(() => {
+    if (rawHoursFromTimeRange <= 0) return 0;
+    return creditOvertimeHours(rawHoursFromTimeRange);
+  }, [rawHoursFromTimeRange]);
 
   const manualClaimedHours = useMemo(() => {
     const raw = Number(formData.claimed_hours);
@@ -186,6 +196,15 @@ export default function OvertimePage() {
   }, [formData.claimed_hours]);
 
   const submittedHours = useBundyLinkedHours ? manualClaimedHours : hoursFromTimeRange;
+  const exceedsClaimedTimeRange =
+    useBundyLinkedHours &&
+    Number(formData.claimed_hours) > 0 &&
+    rawHoursFromTimeRange > 0 &&
+    Number(formData.claimed_hours) > rawHoursFromTimeRange + 1e-9;
+  const spanTooShortForOt =
+    useBundyLinkedHours &&
+    rawHoursFromTimeRange > 0 &&
+    rawHoursFromTimeRange < OT_MIN_HOURS;
 
   const loadRequests = async () => {
     setLoading(true);
@@ -226,6 +245,56 @@ export default function OvertimePage() {
     loadProfile();
   }, [employee.id]);
 
+  useEffect(() => {
+    if (!bundySelection) {
+      setBundyInAddress("");
+      setBundyOutAddress("");
+      setBundyAddressLoading(false);
+      return;
+    }
+
+    const inLat = bundySelection.session.clock_in_lat;
+    const inLng = bundySelection.session.clock_in_lng;
+    const outLat = bundySelection.session.clock_out_lat;
+    const outLng = bundySelection.session.clock_out_lng;
+
+    if (inLat == null || inLng == null) setBundyInAddress("No GPS recorded");
+    if (outLat == null || outLng == null) setBundyOutAddress("No GPS recorded");
+
+    let cancelled = false;
+    const resolve = async (lat: number, lng: number) => {
+      const res = await fetch(
+        `/api/geocode/reverse?lat=${encodeURIComponent(
+          String(lat)
+        )}&lng=${encodeURIComponent(String(lng))}`
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        address?: string | null;
+      };
+      if (!res.ok) return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      return json.address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    };
+
+    (async () => {
+      setBundyAddressLoading(true);
+      try {
+        const [inAddr, outAddr] = await Promise.all([
+          inLat != null && inLng != null ? resolve(inLat, inLng) : null,
+          outLat != null && outLng != null ? resolve(outLat, outLng) : null,
+        ]);
+        if (cancelled) return;
+        if (inAddr) setBundyInAddress(inAddr);
+        if (outAddr) setBundyOutAddress(outAddr);
+      } finally {
+        if (!cancelled) setBundyAddressLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bundySelection]);
+
   const applyBundySelectionToForm = (sel: BundySessionSelection | null) => {
     setBundySelection(sel);
     if (!sel) return;
@@ -244,12 +313,12 @@ export default function OvertimePage() {
     e.preventDefault();
 
     if (requiresOtPunch && !bundySelection) {
-      toast.error("Select a completed Bundy Time In / Time Out pair for this OT.");
+      toast.error("Select a Bundy pair.");
       return;
     }
 
     if (!formData.ot_date || !formData.start_time || !formData.end_time) {
-      toast.error("Please enter the OT date and the start and end time you are claiming.");
+      toast.error("Enter OT date, start, and end.");
       return;
     }
     if (useBundyLinkedHours) {
@@ -263,12 +332,26 @@ export default function OvertimePage() {
         );
         return;
       }
+      if (exceedsClaimedTimeRange) {
+        toast.error(
+          `Claimed OT hours cannot exceed the time range (${rawHoursFromTimeRange.toFixed(
+            2
+          )}h).`
+        );
+        return;
+      }
+      if (spanTooShortForOt) {
+        toast.error(
+          `Claimed OT time range must be at least ${OT_MIN_HOURS} hour.`
+        );
+        return;
+      }
     } else if (hoursFromTimeRange <= 0) {
       toast.error("Invalid time range. Check your OT start and end times.");
       return;
     }
     if (!formData.reason.trim()) {
-      toast.error("Please provide a reason for this OT filing.");
+      toast.error("Add a reason.");
       return;
     }
 
@@ -389,13 +472,9 @@ export default function OvertimePage() {
   return (
     <VStack gap="6" className="w-full">
       <VStack gap="2" align="start">
-        <div className="section-label">
-          <span className="pulse-dot" />
-          Overtime workflow
-        </div>
         <H1>OT filing</H1>
         <BodySmall className="text-muted-foreground">
-          Submit overtime hours, attach supporting documents, and track request status.
+          File an overtime request for approval.
         </BodySmall>
       </VStack>
       {/* Request Form */}
@@ -408,13 +487,11 @@ export default function OvertimePage() {
             </HStack>
           </CardTitle>
           <BodySmall className="text-muted-foreground">
-            File overtime request for approval.
+            Add details and submit.
           </BodySmall>
           {requiresOtPunch && (
             <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
-              Select a Bundy Time In / Out pair first—date and times fill from that pair.
-              Enter only the OT hours you actually worked (e.g. 2 if you forgot to clock out
-              early). Subject to approval.
+              Select a Bundy pair to auto-fill date and time.
             </div>
           )}
         </CardHeader>
@@ -431,14 +508,76 @@ export default function OvertimePage() {
 
               {bundySelection && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  Clock pair span:{" "}
-                  <strong>{bundySelection.session.total_hours.toFixed(2)}h</strong> on the
-                  Bundy clock. Date and start/end below are filled from this pair; enter your
-                  actual OT hours separately.
+                  Bundy span:{" "}
+                  <strong>{bundySelection.session.total_hours.toFixed(2)}h</strong>.
                 </div>
               )}
 
               <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                {bundySelection && (
+                  <>
+                    <div className="w-full space-y-2">
+                      <Label>Time In location</Label>
+                      <Input
+                        value={
+                          bundyAddressLoading && !bundyInAddress
+                            ? "Resolving address…"
+                            : bundyInAddress ||
+                              (bundySelection.session.clock_in_lat != null &&
+                              bundySelection.session.clock_in_lng != null
+                                ? `${bundySelection.session.clock_in_lat.toFixed(
+                                    6
+                                  )}, ${bundySelection.session.clock_in_lng.toFixed(6)}`
+                                : "No GPS recorded")
+                        }
+                        readOnly
+                        className="bg-muted/70"
+                      />
+                      {bundySelection.session.clock_in_lat != null &&
+                        bundySelection.session.clock_in_lng != null && (
+                          <a
+                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            href={`https://www.google.com/maps?q=${bundySelection.session.clock_in_lat},${bundySelection.session.clock_in_lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Icon name="MapPin" size={IconSizes.xs} />
+                            View in Google Maps
+                          </a>
+                        )}
+                    </div>
+                    <div className="w-full space-y-2">
+                      <Label>Time Out location</Label>
+                      <Input
+                        value={
+                          bundyAddressLoading && !bundyOutAddress
+                            ? "Resolving address…"
+                            : bundyOutAddress ||
+                              (bundySelection.session.clock_out_lat != null &&
+                              bundySelection.session.clock_out_lng != null
+                                ? `${bundySelection.session.clock_out_lat.toFixed(
+                                    6
+                                  )}, ${bundySelection.session.clock_out_lng.toFixed(6)}`
+                                : "No GPS recorded")
+                        }
+                        readOnly
+                        className="bg-muted/70"
+                      />
+                      {bundySelection.session.clock_out_lat != null &&
+                        bundySelection.session.clock_out_lng != null && (
+                          <a
+                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                            href={`https://www.google.com/maps?q=${bundySelection.session.clock_out_lat},${bundySelection.session.clock_out_lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Icon name="MapPin" size={IconSizes.xs} />
+                            View in Google Maps
+                          </a>
+                        )}
+                    </div>
+                  </>
+                )}
                 <div className="w-full space-y-2">
                   <Label htmlFor="ot-date">Claimed OT date</Label>
                   <Input
@@ -490,6 +629,11 @@ export default function OvertimePage() {
                         type="number"
                         inputMode="decimal"
                         min={OT_MIN_HOURS}
+                        max={
+                          rawHoursFromTimeRange >= OT_MIN_HOURS
+                            ? rawHoursFromTimeRange
+                            : undefined
+                        }
                         step={0.5}
                         required
                         placeholder="e.g. 2"
@@ -502,9 +646,18 @@ export default function OvertimePage() {
                         }
                       />
                       <p className="text-xs text-muted-foreground">
-                        Hours you actually worked (min {OT_MIN_HOURS}h, 0.5h steps). Not
-                        auto-filled from the clock pair.
+                        Hours worked (min {OT_MIN_HOURS}h, 0.5h steps).
                       </p>
+                      {spanTooShortForOt && (
+                        <p className="text-xs font-medium text-destructive">
+                          Time range is below the {OT_MIN_HOURS}h minimum for OT.
+                        </p>
+                      )}
+                      {exceedsClaimedTimeRange && (
+                        <p className="text-xs font-medium text-destructive">
+                          Max {rawHoursFromTimeRange.toFixed(2)}h for this time range.
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
@@ -556,8 +709,8 @@ export default function OvertimePage() {
                     />
                     <p className="text-xs text-muted-foreground">
                       {autoSpansMidnight
-                        ? "Automatically set to next day. Change only if OT spans multiple days."
-                        : "Optional: Only needed if overtime spans multiple days beyond the next day."}
+                        ? "Auto-set to next day."
+                        : "Only needed if OT spans multiple days."}
                     </p>
                   </div>
                 );
@@ -579,9 +732,7 @@ export default function OvertimePage() {
                         submittedHours - bundySelection.session.total_hours
                       ) > 0.25 && (
                         <span className="block text-xs font-normal text-muted-foreground mt-1">
-                          Bundy pair span was{" "}
-                          {bundySelection.session.total_hours.toFixed(2)}h — approver will
-                          review the difference.
+                          Bundy span: {bundySelection.session.total_hours.toFixed(2)}h
                         </span>
                       )}
                   </div>
@@ -597,14 +748,12 @@ export default function OvertimePage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, reason: e.target.value }))
                   }
-                  placeholder="Provide reason for overtime request..."
+                  placeholder="Reason for OT"
                 />
               </div>
 
               <div className="w-full space-y-2">
-                <Label htmlFor="ot-doc">
-                  Supporting Document (optional, PDF/DOC/DOCX)
-                </Label>
+                <Label htmlFor="ot-doc">Attachment (optional)</Label>
                 <input
                   id="ot-doc"
                   type="file"
@@ -631,9 +780,7 @@ export default function OvertimePage() {
                   }}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Optional: attach supporting document for overtime. Max 5MB.
-                </p>
+                <p className="text-xs text-muted-foreground">PDF, DOC, or DOCX. Max 5MB.</p>
                 {supportingDoc && !docError && (
                   <HStack
                     gap="2"
@@ -661,7 +808,9 @@ export default function OvertimePage() {
                   !formData.ot_date ||
                   !formData.start_time ||
                   !formData.end_time ||
-                  !formData.reason.trim()
+                  !formData.reason.trim() ||
+                  exceedsClaimedTimeRange ||
+                  spanTooShortForOt
                 }
                 className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
                 size="lg"
@@ -712,8 +861,7 @@ export default function OvertimePage() {
                 <VStack gap="2" align="center">
                   <H3 className="text-lg font-semibold">No OT Requests Yet</H3>
                   <BodySmall className="text-muted-foreground max-w-md">
-                    You haven't filed any overtime requests. Use the form above
-                    to submit a new OT request.
+                    No OT requests yet.
                   </BodySmall>
                 </VStack>
               </VStack>

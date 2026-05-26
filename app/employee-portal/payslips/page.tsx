@@ -295,13 +295,9 @@ export default function EmployeePayslipsPage() {
         <CardSection>
           <HStack align="center" justify="between" className="mb-6">
             <VStack gap="1" align="start">
-              <div className="section-label">
-                <span className="pulse-dot" />
-                Payroll records
-              </div>
               <H1>My payslips</H1>
               <BodySmall className="text-muted-foreground">
-                View payroll periods, review breakdowns, and print your approved payslips.
+                View and print your payslips.
               </BodySmall>
             </VStack>
             <Icon
@@ -325,8 +321,7 @@ export default function EmployeePayslipsPage() {
                   <VStack gap="2" align="center">
                     <H3 className="text-xl font-semibold">No Payslips Found</H3>
                     <BodySmall className="text-muted-foreground max-w-md">
-                      Your payslips will appear here once they are generated and
-                      approved by HR.
+                      Payslips will appear here once available.
                     </BodySmall>
                   </VStack>
                 </VStack>

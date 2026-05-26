@@ -1246,7 +1246,7 @@ export default function TimeEntriesPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <VStack gap="2" align="start">
             <H1>Time entries</H1>
-            <BodySmall>Review employee punches, add manual entries, and export logs.</BodySmall>
+            <BodySmall>View punches and export logs.</BodySmall>
           </VStack>
           <HStack gap="2" className="w-full sm:w-auto">
             {/* Admin-only: Add Time Entry for any employee */}

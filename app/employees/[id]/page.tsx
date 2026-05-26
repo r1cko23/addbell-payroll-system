@@ -922,10 +922,9 @@ export default function EmployeeDetailPage() {
                           className="mt-0.5"
                         />
                         <div className="space-y-0.5 min-w-0">
-                          <p className="font-medium text-sm">Require OT punch in/out</p>
+                          <p className="font-medium text-sm">Link OT to Bundy pair</p>
                           <p className="text-xs text-muted-foreground">
-                            Employee must submit OT time in/out for pending OT requests before HR
-                            can approve.
+                            Requires a completed clock pair when filing OT.
                           </p>
                         </div>
                       </label>

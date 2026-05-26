@@ -6,6 +6,7 @@ import {
   validateBundyOtSessionPair,
 } from "@/lib/validate-bundy-ot-session";
 import type { TimeEntryPunch } from "@/lib/timeEntries";
+import { computeRawOtSpanHours } from "@/lib/ot-claimed-range";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 
 function getAdminClient() {
@@ -267,6 +268,36 @@ export async function POST(req: NextRequest) {
     if (creditedHours < OT_MIN_HOURS) {
       return NextResponse.json(
         { error: `Minimum OT credit is ${OT_MIN_HOURS} hour.` },
+        { status: 400 }
+      );
+    }
+
+    const rawSpanHours = computeRawOtSpanHours({
+      otDate,
+      endDate: endDate || undefined,
+      startTime,
+      endTime,
+    });
+    if (rawSpanHours == null) {
+      return NextResponse.json(
+        { error: "Invalid OT date/time range." },
+        { status: 400 }
+      );
+    }
+    if (rawSpanHours < OT_MIN_HOURS) {
+      return NextResponse.json(
+        {
+          error: `Claimed OT time range must be at least ${OT_MIN_HOURS} hour.`,
+        },
+        { status: 400 }
+      );
+    }
+    if (creditedHours > rawSpanHours + 1e-9) {
+      return NextResponse.json(
+        {
+          error:
+            "Claimed OT hours cannot be greater than the claimed OT time range.",
+        },
         { status: 400 }
       );
     }

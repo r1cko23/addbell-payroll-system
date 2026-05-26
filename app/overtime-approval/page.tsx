@@ -961,14 +961,8 @@ export default function OvertimeApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
-          <div className="section-label">
-            <span className="pulse-dot" />
-            Approval queue
-          </div>
           <H1>OT approvals</H1>
-          <BodySmall>
-            Review overtime filings, filter by employee and week, and act on pending requests.
-          </BodySmall>
+          <BodySmall>Review and act on pending OT requests.</BodySmall>
         </VStack>
 
         <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -1417,14 +1411,13 @@ export default function OvertimeApprovalPage() {
                           Linked
                         </Badge>
                         <p className="text-xs text-muted-foreground">
-                          Clock pair span:{" "}
+                          Span{" "}
                           {(
                             (new Date(selected.bundy_session.clock_out_time).getTime() -
                               new Date(selected.bundy_session.clock_in_time).getTime()) /
                             (1000 * 60 * 60)
                           ).toFixed(2)}
-                          h · Claimed on request:{" "}
-                          <strong>{creditOvertimeHours(selected.total_hours)}h</strong>
+                          h · Claimed {creditOvertimeHours(selected.total_hours)}h
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Time In:{" "}

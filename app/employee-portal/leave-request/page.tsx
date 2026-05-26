@@ -112,35 +112,32 @@ const LEAVE_SUBTYPE_OPTIONS: {
   {
     value: "regular_sil",
     label: "Regular SIL",
-    notice: "Requires at least 3 days notice before leave date.",
+    notice: "File at least 3 days ahead.",
   },
   {
     value: "vacation_leave",
     label: "Vacation Leave",
-    notice: "Requires at least 3 days notice before leave date.",
+    notice: "File at least 3 days ahead.",
   },
   {
     value: "emergency_leave",
     label: "Emergency Leave",
-    notice:
-      `Must be filed within the first ${BUSINESS_WINDOW_HOURS} hours of business start (${BUSINESS_START_LABEL} to ${BUSINESS_WINDOW_END_LABEL}).`,
+    notice: `File on leave day, ${BUSINESS_START_LABEL}–${BUSINESS_WINDOW_END_LABEL}.`,
   },
   {
     value: "sick_leave",
     label: "Sick Leave",
-    notice:
-      `Must be filed within the first ${BUSINESS_WINDOW_HOURS} hours of business start (${BUSINESS_START_LABEL} to ${BUSINESS_WINDOW_END_LABEL}).`,
+    notice: `File on leave day, ${BUSINESS_START_LABEL}–${BUSINESS_WINDOW_END_LABEL}.`,
   },
   {
     value: "others",
     label: "Others",
-    notice: "Requires at least 3 days notice. Please specify clear reason.",
+    notice: "File at least 3 days ahead.",
   },
   {
     value: "half_day_leave",
     label: "Half-Day Leave",
-    notice:
-      "Select one leave date and mark it as half-day to file for 0.5 day leave.",
+    notice: "Pick one date and mark half-day (0.5 day).",
   },
 ];
 
@@ -749,13 +746,9 @@ export default function LeaveRequestPage() {
     <>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
-          <div className="section-label">
-            <span className="pulse-dot" />
-            Leave management
-          </div>
           <H1>Leave request</H1>
           <BodySmall className="text-muted-foreground">
-            Review balances, select dates, and file leave for {employee.full_name}.
+            File leave for approval.
           </BodySmall>
         </VStack>
 
@@ -931,11 +924,10 @@ export default function LeaveRequestPage() {
                       </option>
                     ))}
                   </select>
-                  <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
-                    <strong>Notice:</strong>{" "}
+                  <p className="text-xs text-muted-foreground">
                     {LEAVE_SUBTYPE_OPTIONS.find((option) => option.value === leaveSubtype)
-                      ?.notice ?? "Please follow the leave filing notice policy."}
-                  </div>
+                      ?.notice ?? "Follow company leave policy."}
+                  </p>
                 </div>
 
                 <div className="w-full space-y-2">
@@ -947,8 +939,7 @@ export default function LeaveRequestPage() {
                     holidayDates={holidayDates}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Select multiple non-consecutive dates by clicking on
-                    them in the calendar. You can file leave requests for dates within the current cutoff period (even if they have passed). Weekend dates are allowed, while holidays are excluded from the day count.
+                    Tap dates in the calendar. Holidays are excluded from the count.
                   </p>
 
                   {/* Half-day option for SIL and LWOP */}
@@ -958,9 +949,7 @@ export default function LeaveRequestPage() {
                         Half-Day Leave Options
                       </Label>
                       <p className="mb-3 text-xs text-primary/80">
-                        {leaveType === "SIL"
-                          ? "Mark dates as half-day to consume only 0.5 SIL credits per day (4 hours instead of 8 hours)."
-                          : "Mark dates as half-day for 0.5 day (4 hours) unpaid leave per date."}
+                        Half-day = 0.5 day per date.
                       </p>
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {selectedDates

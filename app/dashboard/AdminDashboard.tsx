@@ -174,9 +174,7 @@ export default function AdminDashboard() {
             <div className="space-y-2">
               <Badge variant="outline" className="font-normal">Executive dashboard</Badge>
               <H1>Business overview</H1>
-              <BodySmall>
-                Track workforce, active projects, pending approvals, and overall project value in one place.
-              </BodySmall>
+              <BodySmall>Workforce, projects, and pending actions.</BodySmall>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} finance actions
@@ -287,7 +285,7 @@ export default function AdminDashboard() {
         <div className="space-y-1">
           <h2 className="font-display text-3xl font-normal leading-tight">Performance snapshot</h2>
           <BodySmall className="text-muted-foreground">
-            Core business indicators and pending actions across finance, projects, and workforce.
+            Key metrics and pending actions.
           </BodySmall>
         </div>
         <HStack gap="2" className="flex-wrap">
@@ -335,7 +333,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Projects Overview */}
-      <CardSection title="Recent projects" description="Latest project activity and delivery progress.">
+      <CardSection title="Recent projects" description="Latest project activity.">
         {projects.length === 0 ? (
           <p className="text-muted-foreground text-center py-6">No projects yet.</p>
         ) : (
@@ -386,7 +384,7 @@ export default function AdminDashboard() {
 
       {/* Fund Requests & PO Side by Side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <CardSection title="Recent fund requests" description="Newest requests that may need attention.">
+        <CardSection title="Recent fund requests" description="Newest fund requests.">
           {recentFR.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No fund requests.</p>
           ) : (
@@ -412,7 +410,7 @@ export default function AdminDashboard() {
           </div>
         </CardSection>
 
-        <CardSection title="Recent purchase orders" description="Newest purchase orders and approval status.">
+        <CardSection title="Recent purchase orders" description="Latest PO status.">
           {recentPO.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No purchase orders.</p>
           ) : (

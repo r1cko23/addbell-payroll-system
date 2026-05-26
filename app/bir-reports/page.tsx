@@ -556,16 +556,14 @@ export default function BIRReportsPage() {
         {/* Header */}
         <VStack gap="2" align="start">
           <H1>BIR Reports</H1>
-          <BodySmall>
-            Generate BIR-compliant reports for tax filing and compliance
-          </BodySmall>
+          <BodySmall>BIR tax filing reports.</BodySmall>
         </VStack>
 
         {/* Year Selection */}
         <Card>
           <CardHeader>
             <CardTitle>Report Year</CardTitle>
-            <CardDescription>Select the year for BIR reporting</CardDescription>
+            <CardDescription>Report year</CardDescription>
           </CardHeader>
           <CardContent>
             <HStack gap="4" align="end">

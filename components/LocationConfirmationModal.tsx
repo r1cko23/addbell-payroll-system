@@ -161,19 +161,12 @@ export function LocationConfirmationModal({
 
   const handleConfirm = async () => {
     if (!location || !locationStatus?.isAllowed || isConfirming) {
-      console.log("handleConfirm blocked", {
-        location: !!location,
-        isAllowed: locationStatus?.isAllowed,
-        isConfirming,
-      });
       return;
     }
 
-    console.log("handleConfirm called, setting isConfirming to true");
     setIsConfirming(true);
 
     try {
-      console.log("Calling onConfirm with location:", location);
       const result = await Promise.race([
         onConfirm(location),
         new Promise<boolean>((_, reject) =>
@@ -184,19 +177,15 @@ export function LocationConfirmationModal({
         ),
       ]);
 
-      console.log("onConfirm result:", result);
-
       // If onConfirm returns false, it means the operation failed
       // The modal will stay open so the user can try again
       if (result === false) {
         // Operation failed, keep modal open
-        console.log("Operation failed, keeping modal open");
         setIsConfirming(false);
         return;
       }
       // If result is true or undefined, the parent will close the modal
       // Don't set isConfirming to false here as the modal will close
-      console.log("Operation succeeded, modal will close");
     } catch (error) {
       console.error("Error in handleConfirm:", error);
       toast.error(
@@ -231,12 +220,10 @@ export function LocationConfirmationModal({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            Confirm Time {type === "in" ? "In" : "Out"} Location
+            Confirm location
           </DialogTitle>
           <DialogDescription>
-            Please verify your current location before confirming your time{" "}
-            {type === "in" ? "in" : "out"}. Your location will be refreshed
-            automatically every 10 seconds.
+            We’ll capture your current GPS for Time {type === "in" ? "In" : "Out"}.
           </DialogDescription>
         </DialogHeader>
 
@@ -313,7 +300,7 @@ export function LocationConfirmationModal({
           {/* Refresh Countdown */}
           {lastRefresh && (
             <div className="text-xs text-gray-500 text-center">
-              Next auto-refresh in {refreshCountdown} seconds
+              Auto-refresh in {refreshCountdown}s
             </div>
           )}
 
@@ -345,7 +332,7 @@ export function LocationConfirmationModal({
                     rel="noopener noreferrer"
                     className="bg-white px-3 py-1.5 rounded shadow-sm text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition"
                   >
-                    Google Maps →
+                    Open in Maps →
                   </a>
                   <a
                     href={openStreetMapLink}
@@ -353,7 +340,7 @@ export function LocationConfirmationModal({
                     rel="noopener noreferrer"
                     className="bg-white px-3 py-1.5 rounded shadow-sm text-xs font-medium text-green-600 hover:text-green-700 hover:bg-green-50 transition"
                   >
-                    OpenStreetMap →
+                    OSM →
                   </a>
                 </div>
               </>

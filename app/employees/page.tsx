@@ -650,8 +650,8 @@ export default function EmployeesPage() {
       <VStack gap="8" className="w-full min-w-0 pb-24">
         <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row sm:gap-4">
           <VStack gap="2" align="start">
-            <H1>Employee Management</H1>
-            <BodySmall>View, add, and update employee records.</BodySmall>
+            <H1>Employees</H1>
+            <BodySmall>Add and update employee records.</BodySmall>
           </VStack>
           <Button onClick={openAddModal}>
             <Icon name="Plus" size={IconSizes.sm} />
@@ -660,7 +660,7 @@ export default function EmployeesPage() {
         </HStack>
 
         <div className="min-w-0 space-y-4">
-          <CardSection title="Directory" description="Search, filter, and manage employees.">
+          <CardSection title="Directory" description="Search and manage employees.">
             <HStack justify="between" align="end" gap="4" className="w-full flex-col sm:flex-row sm:items-end">
               <div className="relative w-full flex-1 sm:max-w-md">
                 <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
@@ -943,8 +943,7 @@ export default function EmployeesPage() {
                     <div className="space-y-0.5 min-w-0">
                       <p className="font-medium text-sm">Link OT to Bundy clock pairs</p>
                       <p className="text-xs text-muted-foreground">
-                        When filing OT, employee must select a Bundy Time In / Out pair (GPS)
-                        and separately enter claimed OT hours/times for approval.
+                        Requires a completed Bundy pair when filing OT.
                       </p>
                     </div>
                   </label>

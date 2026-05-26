@@ -253,13 +253,9 @@ export default function EmployeeInfoPage() {
   return (
     <VStack gap="6" className="w-full">
       <VStack gap="2" align="start">
-        <div className="section-label">
-          <span className="pulse-dot" />
-          Employee profile
-        </div>
-        <H1>Employee information</H1>
-        <BodySmall>
-          Review the profile details HR has on file and update your portal password.
+        <H1>My information</H1>
+        <BodySmall className="text-muted-foreground">
+          Profile details and password.
         </BodySmall>
       </VStack>
       <CardSection

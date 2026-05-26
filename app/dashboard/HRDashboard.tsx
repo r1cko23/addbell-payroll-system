@@ -299,9 +299,7 @@ export default function HRDashboard() {
             <div className="space-y-2">
               <Badge variant="outline" className="font-normal">Workforce overview</Badge>
               <H1>People snapshot</H1>
-              <BodySmall>
-                Monitor workforce count, team distribution, and recent hires from one HR workspace.
-              </BodySmall>
+              <BodySmall>Headcount, teams, and recent hires.</BodySmall>
               <HStack gap="2" className="flex-wrap">
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {totalPendingApprovals} approvals waiting
@@ -413,7 +411,7 @@ export default function HRDashboard() {
         <div className="space-y-1">
           <h2 className="font-display text-3xl font-normal leading-tight">Workforce health</h2>
           <BodySmall className="text-muted-foreground">
-            Snapshot metrics and breakdowns to support daily staffing decisions.
+            Staffing metrics at a glance.
           </BodySmall>
         </div>
       </HStack>
@@ -463,7 +461,7 @@ export default function HRDashboard() {
 
       {/* Department Breakdown & Currently Clocked In */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <CardSection title="By department" description="Active employee count per department." className="xl:col-span-4">
+        <CardSection title="By department" description="Active count per department." className="xl:col-span-4">
           {deptStats.length === 0 ? (
             <p className="text-muted-foreground text-center py-6">No assigned departments yet.</p>
           ) : (
@@ -490,7 +488,7 @@ export default function HRDashboard() {
 
         <CardSection
           title="Currently clocked in"
-          description="Employees with latest punch set to time in today."
+          description="Employees clocked in today."
           className="xl:col-span-8"
         >
           {currentlyClockedIn.length === 0 ? (

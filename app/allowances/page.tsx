@@ -214,10 +214,7 @@ export default function AllowancesPage() {
     <DashboardLayout>
       <VStack gap="8">
         <H1>Cutoff Allowances</H1>
-        <BodySmall>
-          Manage manual allowances per employee per cutoff period. These
-          allowances will be included in the payroll report.
-        </BodySmall>
+        <BodySmall>Manual allowances per cutoff period.</BodySmall>
 
         <CardSection>
           <VStack gap="4">

@@ -3117,8 +3117,7 @@ export default function PayslipsPage() {
                 />
                 <H3>Access Denied</H3>
                 <BodySmall className="text-center text-muted-foreground">
-                  You do not have permission to access the payslip management
-                  page. Please contact your administrator if you need access.
+                  You don&apos;t have access to this page.
                 </BodySmall>
                 <Button onClick={() => router.push("/dashboard")}>
                   Return to Dashboard
@@ -4120,19 +4119,9 @@ export default function PayslipsPage() {
                     size={IconSizes.lg}
                     className="text-muted-foreground"
                   />
-                  <H3 className="text-lg">No Attendance Record Found</H3>
-                  <BodySmall className="text-xs">
-                    The system attempted to generate attendance data from time
-                    clock entries, but no data was found for this period.
-                  </BodySmall>
-                  <ul className="list-disc list-inside text-left text-xs text-muted-foreground space-y-0.5 mt-1">
-                    <li>No time clock entries exist for this period</li>
-                    <li>Time entries are incomplete (missing clock out)</li>
-                    <li>Time entries need approval before they can be used</li>
-                  </ul>
-                  <BodySmall className="mt-2 text-xs">
-                    Please check the Time Entries page to verify time attendance
-                    records.
+                  <H3 className="text-lg">No attendance</H3>
+                  <BodySmall className="text-xs text-muted-foreground">
+                    No time entries for this period. Check Time entries.
                   </BodySmall>
                   <HStack gap="2" justify="center" className="mt-2">
                     <Button

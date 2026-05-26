@@ -1729,14 +1729,8 @@ export default function TimesheetPage() {
       <VStack gap="8" className="w-full pb-24">
         <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
           <VStack gap="2" align="start">
-            <div className="section-label">
-              <span className="pulse-dot" />
-              Attendance control center
-            </div>
             <H1>Timesheet</H1>
-            <BodySmall>
-              Review attendance by cutoff week, inspect schedules, and prepare payroll-ready records.
-            </BodySmall>
+            <BodySmall>Attendance by cutoff week.</BodySmall>
           </VStack>
           <HStack gap="3" align="center" className="flex-wrap justify-end">
             {/* Year Selector */}

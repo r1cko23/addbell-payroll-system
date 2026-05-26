@@ -63,11 +63,7 @@ export default function EmployeePortalProjectTimePage() {
   if (!employeeId) {
     return (
       <div className="space-y-6">
-        <div className="section-label">
-          <span className="pulse-dot" />
-          Project assignments
-        </div>
-        <H1>Project Assignments</H1>
+        <H1>Project assignments</H1>
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             Employee session not found. Please log in again.
@@ -80,13 +76,9 @@ export default function EmployeePortalProjectTimePage() {
   return (
     <div className="space-y-6">
       <div>
-        <div className="section-label mb-2">
-          <span className="pulse-dot" />
-          Project assignments
-        </div>
-        <H1>Project Assignments</H1>
+        <H1>Project assignments</H1>
         <BodySmall className="mt-1 text-muted-foreground">
-          Your working time is recorded based on where you time in and out. Projects below show where you’re assigned, but you no longer clock per project.
+          Log time on assigned projects.
         </BodySmall>
       </div>
 
@@ -96,8 +88,7 @@ export default function EmployeePortalProjectTimePage() {
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             <MapPin className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>You’re not assigned to any projects yet.</p>
-            <p className="text-sm mt-1">Ask your supervisor to add you to a project from the main app.</p>
+            <p>No project assignments yet.</p>
           </CardContent>
         </Card>
       ) : (

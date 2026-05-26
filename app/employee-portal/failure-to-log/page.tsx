@@ -251,13 +251,9 @@ export default function FailureToLogPage() {
     <>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
-          <div className="section-label">
-            <span className="pulse-dot" />
-            Attendance correction
-          </div>
-          <H1>Failure to log request</H1>
+          <H1>Failure to log</H1>
           <BodySmall className="text-muted-foreground">
-            Submit missed clock-in or clock-out corrections for {employee.full_name}.
+            Report a missed clock-in or clock-out.
           </BodySmall>
         </VStack>
 
@@ -397,15 +393,14 @@ export default function FailureToLogPage() {
                   id="reason"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Explain why you forgot to clock in/out. Be specific about the circumstances..."
+                  placeholder="What happened? (short and clear)"
                   rows={4}
                   className="resize-none"
                   required
                   aria-describedby="reason-help"
                 />
                 <Caption id="reason-help" className="text-muted-foreground">
-                  Please provide a detailed explanation to help HR process your
-                  request faster
+                  Keep it short—HR may follow up.
                 </Caption>
               </VStack>
 
@@ -450,9 +445,7 @@ export default function FailureToLogPage() {
                 <VStack gap="2" align="center">
                   <H3 className="text-lg font-semibold">No Requests Yet</H3>
                   <BodySmall className="text-muted-foreground max-w-md">
-                    You haven't filed any failure to log requests. Use the form
-                    above to submit a new request if you forgot to clock in or
-                    out.
+                    No requests yet.
                   </BodySmall>
                 </VStack>
               </VStack>

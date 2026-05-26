@@ -120,11 +120,7 @@ export default function FundRequestDetailPage() {
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">← Back to Fund Requests</Link>
       <Card className="border-border/80 bg-card/95">
         <CardHeader>
-          <div className="section-label mb-2 w-fit">
-            <span className="pulse-dot" />
-            Request details
-          </div>
-          <CardTitle>Fund Request</CardTitle>
+          <CardTitle>Fund request</CardTitle>
           <p className="text-sm text-muted-foreground">
             Request date: {format(new Date(request.request_date), 'MMMM d, yyyy')} · Requested by {requesterName}
           </p>

@@ -22,6 +22,21 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+function ymdMinusDays(ymd: string, days: number): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - days);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
@@ -66,14 +81,26 @@ export async function GET(req: NextRequest) {
 
     const usedPairKeys = buildUsedOtPairKeys(otRows || []);
 
-    let businessDayKey = businessDayParam || null;
-    if (!businessDayKey && otDateParam) {
-      businessDayKey = getBundyBusinessDayKey(`${otDateParam}T12:00:00+08:00`);
-    }
+    // OT filing: show pairs for anchor date's business day + 1 calendar day before.
+    const anchorYmd =
+      otDateParam || getDateInManilaDefault(new Date().toISOString());
+    const prevYmd = ymdMinusDays(anchorYmd, 1);
+    const currentBizKey = getBundyBusinessDayKey(`${anchorYmd}T12:00:00+08:00`);
+    const prevBizKey = prevYmd
+      ? getBundyBusinessDayKey(`${prevYmd}T12:00:00+08:00`)
+      : null;
+    const allowedBusinessDayKeys = new Set<string>(
+      [currentBizKey, prevBizKey].filter((k): k is string => Boolean(k))
+    );
+
+    const businessDayKey = businessDayParam || undefined;
 
     const sessions = listCompletedBundySessions(punchList, {
-      businessDayKey: businessDayKey || undefined,
+      businessDayKey,
+      allowedBusinessDayKeys,
       excludePairsUsedByOt: usedPairKeys,
+      // For OT filing, only allow pairs beyond the first session of the business day.
+      excludeFirstSessionPerBusinessDay: true,
     });
 
     const activeBusinessDay = getBundyBusinessDayKey(new Date());

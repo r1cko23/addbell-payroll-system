@@ -113,6 +113,7 @@ import {
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
+import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import {
   punchesToSessions,
   getOpenEntryFromPunches,
@@ -181,6 +182,7 @@ const PHILIPPINE_HOLIDAYS: Record<number, CalendarHoliday[]> = {
     { date: "2026-04-03", name: "Good Friday", type: "regular" },
     { date: "2026-04-09", name: "Araw ng Kagitingan", type: "regular" },
     { date: "2026-05-01", name: "Labor Day", type: "regular" },
+    { date: "2026-05-27", name: "Eid al-Adha (Feast of Sacrifice)", type: "non-working" },
     { date: "2026-06-12", name: "Independence Day", type: "regular" },
     { date: "2026-08-31", name: "National Heroes Day", type: "regular" },
     { date: "2026-11-30", name: "Bonifacio Day", type: "regular" },
@@ -515,9 +517,8 @@ export default function BundyClockPage() {
       console.error("fetchEntries:", json.error || res.statusText);
     }
     const list = (json.punches || []) as TimeEntryPunch[];
-    const sessions = punchesToSessions(
-      list,
-      (iso) => getDateInManilaTimezone(iso)
+    const sessions = filterOfficialBundySessions(
+      punchesToSessions(list, (iso) => getDateInManilaTimezone(iso))
     ).reverse();
     setEntries(sessions as any[]);
   }, [employee.id, periodEnd, periodStart, supabase]);
@@ -613,9 +614,8 @@ export default function BundyClockPage() {
 
       // Convert punch rows to sessions, then map to calendar days
       const punchesList = (timeData || []) as TimeEntryPunch[];
-      const timeSessions = punchesToSessions(
-        punchesList,
-        (iso) => getDateInManilaTimezone(iso)
+      const timeSessions = filterOfficialBundySessions(
+        punchesToSessions(punchesList, (iso) => getDateInManilaTimezone(iso))
       );
       timeSessions.forEach((entry) => {
         const dateIso =
@@ -936,9 +936,8 @@ export default function BundyClockPage() {
       }
 
       const clockPunches = (clockJson.punches || []) as TimeEntryPunch[];
-      const clockData = punchesToSessions(
-        clockPunches,
-        (iso) => getDateInManilaTimezone(iso)
+      const clockData = filterOfficialBundySessions(
+        punchesToSessions(clockPunches, (iso) => getDateInManilaTimezone(iso))
       );
       const leaveData = (leaveJson.requests || []).filter(
         (r) =>
@@ -1476,8 +1475,9 @@ export default function BundyClockPage() {
           });
         }
 
-        // Pair time in / time out: 1st in with 1st out, 2nd in with 2nd out, etc. (multiple shifts per day)
-        const allDayEntries = [...dayEntries, ...incompleteDayEntries].sort(
+        // Show only the official first Time In / Time Out pair for the day.
+        const officialDayEntries = dayEntries.slice(0, 1);
+        const allDayEntries = [...officialDayEntries, ...incompleteDayEntries].sort(
           (a, b) =>
             new Date(a.clock_in_time).getTime() -
             new Date(b.clock_in_time).getTime()
@@ -1543,8 +1543,8 @@ export default function BundyClockPage() {
         // Otherwise, sum regular hours from complete entries
         // BH should always show regular hours (8), not OT hours
         if (bh === 0) {
-          if (dayEntries.length > 0) {
-            bh = dayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+          if (officialDayEntries.length > 0) {
+            bh = officialDayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
           } else if (dayOTs.length > 0 && dayEntries.length === 0) {
             // Approved OT but no clock entries: BH stays 0 (OT hours in OT column)
             bh = 0;
@@ -1559,7 +1559,7 @@ export default function BundyClockPage() {
         }
 
         // Holiday credit (4h) applies only when there is NO complete time log on the holiday.
-        const hasCompleteTimeLog = dayEntries.some(
+        const hasCompleteTimeLog = officialDayEntries.some(
           (e) => e.clock_in_time && e.clock_out_time
         );
         if (eligibleForHolidayCredit && !hasCompleteTimeLog && bh < HOLIDAY_DE_MINIMIS_HOURS) {
@@ -2139,9 +2139,7 @@ export default function BundyClockPage() {
                 <Icon name="WarningCircle" size={IconSizes.sm} />
                 Rest Day Today
               </BodySmall>
-              <BodySmall>
-                You cannot clock in or out on your rest day. Please enjoy your day off!
-              </BodySmall>
+              <BodySmall>Rest day — clock in/out is disabled.</BodySmall>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2180,10 +2178,7 @@ export default function BundyClockPage() {
 
           {!isRestDayToday && (
             <Caption className="text-center text-muted-foreground block mt-2">
-              Business day runs 7:00 AM–6:59 AM next day. You may Time In and Time Out
-              multiple times—each pair must be closed before the next Time In. Auto clock-out
-              at 6:59 AM if you forget. File OT on the Overtime page and select the clock pair
-              to attach times and locations.
+              Business day: 7:00 AM–6:59 AM. Close each Time In before the next.
             </Caption>
           )}
 
@@ -2230,7 +2225,7 @@ export default function BundyClockPage() {
                   Location required
                 </BodySmall>
                 <BodySmall>
-                  Please enable GPS/location services and refresh the page.
+                  Please enable location services.
                 </BodySmall>
               </div>
             )}

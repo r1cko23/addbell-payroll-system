@@ -863,14 +863,8 @@ export default function FailureToLogApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
-          <div className="section-label">
-            <span className="pulse-dot" />
-            Approval queue
-          </div>
-          <H1>Failure to log approvals</H1>
-          <BodySmall>
-            Review missed punch requests, filter by employee and week, and act on pending items.
-          </BodySmall>
+          <H1>Failure to log</H1>
+          <BodySmall>Review and act on pending missed-punch requests.</BodySmall>
         </VStack>
 
         <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">

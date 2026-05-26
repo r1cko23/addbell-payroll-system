@@ -135,13 +135,9 @@ export default function FundRequestListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="section-label mb-2">
-            <span className="pulse-dot" />
-            Request tracker
-          </div>
-          <h1 className="font-display text-4xl font-normal leading-tight tracking-tight">Fund Requests</h1>
+          <h1 className="font-display text-4xl font-normal leading-tight tracking-tight">Fund requests</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Request funds for materials, subcontractor payment, project funds, or liquidation.
+            Materials, subcontractor, project funds, or liquidation.
           </p>
         </div>
         {canCreate && (

@@ -168,11 +168,6 @@ export function EmployeeSearchSelect({
               All Employees
             </li>
           )}
-          {query.trim() && filtered.length > 0 && (
-            <li className="px-3 py-1.5 text-[11px] text-muted-foreground border-b border-border/60">
-              Press Enter or click a name to filter
-            </li>
-          )}
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-muted-foreground">No employees found.</li>
           ) : (

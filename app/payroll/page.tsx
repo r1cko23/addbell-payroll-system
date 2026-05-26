@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PayslipPrint } from "@/components/PayslipPrint";
@@ -21,6 +21,15 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import {
+  buildPayrollRunFormFromWeekStart,
+  formatWeeklyPeriod,
+  getDefaultPayrollRunWeek,
+  getNextWeeklyPeriod,
+  getPreviousWeeklyPeriod,
+  getWeeklyCutoffEndDate,
+  getWeeklyPeriodStart,
+} from "@/utils/weekly";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -112,10 +121,18 @@ export default function PayrollPage() {
   const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewRunDialog, setShowNewRunDialog] = useState(false);
-  const [newRunForm, setNewRunForm] = useState({ cutoff_start: "", cutoff_end: "", pay_date: "" });
+  const [newRunForm, setNewRunForm] = useState(() =>
+    buildPayrollRunFormFromWeekStart(getDefaultPayrollRunWeek().weekStart)
+  );
+  const [newRunWeekStart, setNewRunWeekStart] = useState<Date>(() =>
+    getDefaultPayrollRunWeek().weekStart
+  );
   const [creating, setCreating] = useState(false);
   const [activeEmployeesForRun, setActiveEmployeesForRun] = useState<RunSelectableEmployee[]>([]);
   const [selectedEmployeeIdsForRun, setSelectedEmployeeIdsForRun] = useState<string[]>([]);
+  const [employeeScopeQuery, setEmployeeScopeQuery] = useState("");
+  const [copyFromRunId, setCopyFromRunId] = useState("");
+  const [loadingRunScope, setLoadingRunScope] = useState(false);
 
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -244,6 +261,126 @@ export default function PayrollPage() {
     return `${emp.last_name}, ${emp.first_name}${middleInitial}`;
   }
 
+  function matchesRunEmployee(emp: RunSelectableEmployee, query: string) {
+    const q = query.toLowerCase().trim();
+    if (!q) return false;
+    const name = getRunEmployeeName(emp).toLowerCase();
+    const code = String(emp.employee_code || emp.company_id_no || "").toLowerCase();
+    return (
+      name.includes(q) ||
+      emp.first_name.toLowerCase().includes(q) ||
+      emp.last_name.toLowerCase().includes(q) ||
+      code.includes(q)
+    );
+  }
+
+  const filteredEmployeesForRun = useMemo(() => {
+    const q = employeeScopeQuery.trim();
+    if (!q) return [];
+    return activeEmployeesForRun.filter((emp) => matchesRunEmployee(emp, q));
+  }, [activeEmployeesForRun, employeeScopeQuery]);
+
+  const selectedEmployeesForRun = useMemo(
+    () =>
+      selectedEmployeeIdsForRun
+        .map((id) => activeEmployeesForRun.find((emp) => emp.id === id))
+        .filter((emp): emp is RunSelectableEmployee => Boolean(emp)),
+    [activeEmployeesForRun, selectedEmployeeIdsForRun]
+  );
+
+  const previousRunsForScope = useMemo(
+    () => payrollRuns.filter((run) => String(run.status) !== "cancelled"),
+    [payrollRuns]
+  );
+
+  const copyFromRun = useMemo(
+    () => previousRunsForScope.find((run) => run.id === copyFromRunId) ?? null,
+    [copyFromRunId, previousRunsForScope]
+  );
+
+  async function loadEmployeesFromPayrollRun(
+    runId: string,
+    options?: { silent?: boolean }
+  ) {
+    const run = payrollRuns.find((item) => item.id === runId);
+    if (!run) return 0;
+
+    setLoadingRunScope(true);
+    try {
+      let ids: string[] = [];
+      if (Array.isArray(run.selected_employee_ids) && run.selected_employee_ids.length > 0) {
+        ids = run.selected_employee_ids.map((id) => String(id));
+      } else {
+        const { data: slips, error } = await supabase
+          .from("payslips")
+          .select("employee_id")
+          .eq("payroll_run_id", runId);
+        if (error) throw error;
+        if (slips && slips.length > 0) {
+          ids = [...new Set(slips.map((slip) => String(slip.employee_id)))];
+        } else {
+          ids = activeEmployeesForRun.map((emp) => emp.id);
+        }
+      }
+
+      const activeIds = new Set(activeEmployeesForRun.map((emp) => emp.id));
+      const validIds = ids.filter((id) => activeIds.has(id));
+
+      setSelectedEmployeeIdsForRun(validIds);
+
+      if (!options?.silent) {
+        toast.success(
+          `Loaded ${validIds.length} employee(s) from ${format(
+            new Date(run.cutoff_start),
+            "MMM d"
+          )} – ${format(new Date(run.cutoff_end), "MMM d, yyyy")}.`
+        );
+      }
+
+      return validIds.length;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load employees from payroll run";
+      toast.error(message);
+      return 0;
+    } finally {
+      setLoadingRunScope(false);
+    }
+  }
+
+  async function initNewRunEmployeeScope() {
+    const latest = previousRunsForScope[0];
+    if (!latest) {
+      setCopyFromRunId("");
+      setSelectedEmployeeIdsForRun([]);
+      return;
+    }
+    setCopyFromRunId(latest.id);
+    await loadEmployeesFromPayrollRun(latest.id, { silent: true });
+  }
+
+  function applyPayrollWeekStart(weekStart: Date) {
+    const normalized = new Date(
+      weekStart.getFullYear(),
+      weekStart.getMonth(),
+      weekStart.getDate()
+    );
+    setNewRunWeekStart(normalized);
+    setNewRunForm(buildPayrollRunFormFromWeekStart(normalized));
+  }
+
+  function openNewRunDialog() {
+    setShowNewRunDialog(true);
+  }
+
+  function shiftPayrollWeek(direction: -1 | 1) {
+    const nextStart =
+      direction === -1
+        ? getPreviousWeeklyPeriod(newRunWeekStart)
+        : getNextWeeklyPeriod(newRunWeekStart);
+    applyPayrollWeekStart(nextStart);
+  }
+
   async function fetchPayrollRuns() {
     setLoading(true);
     try {
@@ -326,6 +463,7 @@ export default function PayrollPage() {
       setShowNewRunDialog(false);
       setNewRunForm({ cutoff_start: "", cutoff_end: "", pay_date: "" });
       setSelectedEmployeeIdsForRun([]);
+      setEmployeeScopeQuery("");
       fetchPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to create payroll run");
@@ -780,29 +918,24 @@ export default function PayrollPage() {
         <HStack justify="between" align="center" className="flex-col gap-4 sm:flex-row">
           <VStack gap="2" align="start">
             <H1>Payroll</H1>
-            <BodySmall>Create payroll runs, generate payslips, and review totals before release.</BodySmall>
+            <BodySmall>Runs, payslips, and totals.</BodySmall>
           </VStack>
           {(isAdmin || isHR) && (
-            <Button
-              onClick={() => {
-                setSelectedEmployeeIdsForRun([]);
-                setShowNewRunDialog(true);
-              }}
-            >
+            <Button onClick={openNewRunDialog}>
               <Icon name="Plus" size={IconSizes.sm} />
               New Payroll Run
             </Button>
           )}
         </HStack>
 
-        <CardSection title="Payroll runs" description="All payroll runs sorted by most recent.">
+        <CardSection title="Payroll runs" description="Most recent first.">
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
             </div>
           ) : payrollRuns.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
-              No payroll runs yet. Click "New Payroll Run" to get started.
+              No payroll runs yet.
             </div>
           ) : (
             <div className="w-full max-w-full overflow-x-auto rounded-lg border">
@@ -851,77 +984,245 @@ export default function PayrollPage() {
       </VStack>
 
       {/* New Payroll Run Dialog */}
-      <Dialog open={showNewRunDialog} onOpenChange={setShowNewRunDialog}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={showNewRunDialog}
+        onOpenChange={(open) => {
+          setShowNewRunDialog(open);
+          if (open) {
+            applyPayrollWeekStart(getDefaultPayrollRunWeek().weekStart);
+            setEmployeeScopeQuery("");
+            void initNewRunEmployeeScope();
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl sm:max-w-2xl max-h-[min(90vh,800px)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>New Payroll Run</DialogTitle>
-            <DialogDescription>Define the cutoff period and optional pay date for this run.</DialogDescription>
+            <DialogDescription>
+              Weekly cutoff Wed–Tue. Dates are prefilled — adjust if needed.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateRun} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="cutoff-start">Cutoff Start *</Label>
-              <Input id="cutoff-start" type="date" required value={newRunForm.cutoff_start}
-                onChange={(e) => setNewRunForm({ ...newRunForm, cutoff_start: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cutoff-end">Cutoff End *</Label>
-              <Input id="cutoff-end" type="date" required value={newRunForm.cutoff_end}
-                onChange={(e) => setNewRunForm({ ...newRunForm, cutoff_end: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="pay-date">Pay Date</Label>
-              <Input id="pay-date" type="date" value={newRunForm.pay_date}
-                onChange={(e) => setNewRunForm({ ...newRunForm, pay_date: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <HStack justify="between" align="center">
-                <Label>Employee Scope (optional)</Label>
+              <Label>Cutoff week</Label>
+              <HStack gap="2" align="center">
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    setSelectedEmployeeIdsForRun((prev) =>
-                      prev.length === activeEmployeesForRun.length
-                        ? []
-                        : activeEmployeesForRun.map((emp) => emp.id)
-                    )
-                  }
+                  variant="outline"
+                  size="icon"
+                  onClick={() => shiftPayrollWeek(-1)}
+                  aria-label="Previous week"
                 >
-                  {selectedEmployeeIdsForRun.length === activeEmployeesForRun.length
-                    ? "Clear all"
-                    : "Select all"}
+                  <Icon name="CaretLeft" size={IconSizes.sm} />
+                </Button>
+                <BodySmall className="flex-1 text-center font-medium">
+                  {formatWeeklyPeriod(
+                    newRunWeekStart,
+                    getWeeklyCutoffEndDate(newRunWeekStart)
+                  )}
+                </BodySmall>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => shiftPayrollWeek(1)}
+                  aria-label="Next week"
+                >
+                  <Icon name="CaretRight" size={IconSizes.sm} />
                 </Button>
               </HStack>
-              <div className="max-h-52 overflow-auto rounded-md border p-2 space-y-2">
-                {activeEmployeesForRun.length === 0 ? (
-                  <BodySmall className="text-muted-foreground">
-                    No active employees found.
-                  </BodySmall>
-                ) : (
-                  activeEmployeesForRun.map((emp) => (
-                    <label key={emp.id} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={selectedEmployeeIdsForRun.includes(emp.id)}
-                        onCheckedChange={(checked) => {
-                          const isChecked = checked === true;
-                          setSelectedEmployeeIdsForRun((prev) =>
-                            isChecked
-                              ? [...prev, emp.id]
-                              : prev.filter((id) => id !== emp.id)
-                          );
-                        }}
-                      />
-                      <span>
-                        {getRunEmployeeName(emp)} ({emp.employee_code || emp.company_id_no || "No ID"})
-                      </span>
-                    </label>
-                  ))
-                )}
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="cutoff-start">Cutoff Start *</Label>
+                <Input
+                  id="cutoff-start"
+                  type="date"
+                  required
+                  value={newRunForm.cutoff_start}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setNewRunForm((prev) => ({ ...prev, cutoff_start: value }));
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                      setNewRunWeekStart(getWeeklyPeriodStart(new Date(`${value}T12:00:00`)));
+                    }
+                  }}
+                />
               </div>
-              <Caption>
-                Leave empty to run payroll for all active employees.
-              </Caption>
+              <div className="space-y-2">
+                <Label htmlFor="cutoff-end">Cutoff End *</Label>
+                <Input
+                  id="cutoff-end"
+                  type="date"
+                  required
+                  value={newRunForm.cutoff_end}
+                  onChange={(e) =>
+                    setNewRunForm((prev) => ({ ...prev, cutoff_end: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pay-date">Pay Date</Label>
+                <Input
+                  id="pay-date"
+                  type="date"
+                  value={newRunForm.pay_date}
+                  onChange={(e) =>
+                    setNewRunForm((prev) => ({ ...prev, pay_date: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <Caption>Suggested pay date: Friday after cutoff. Edit anytime.</Caption>
+            <div className="space-y-3">
+              {previousRunsForScope.length > 0 && (
+                <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                  <Label htmlFor="copy-from-run">Start from previous run</Label>
+                  <HStack gap="2" align="end" className="flex-col sm:flex-row">
+                    <Select
+                      value={copyFromRunId || undefined}
+                      onValueChange={(runId) => {
+                        setCopyFromRunId(runId);
+                        void loadEmployeesFromPayrollRun(runId);
+                      }}
+                      disabled={loadingRunScope}
+                    >
+                      <SelectTrigger id="copy-from-run" className="w-full sm:flex-1">
+                        <SelectValue placeholder="Select payroll run" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {previousRunsForScope.map((run) => (
+                          <SelectItem key={run.id} value={run.id}>
+                            {format(new Date(run.cutoff_start), "MMM d")} –{" "}
+                            {format(new Date(run.cutoff_end), "MMM d, yyyy")}
+                            {run.payslip_count ? ` · ${run.payslip_count} payslips` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      disabled={!copyFromRunId || loadingRunScope}
+                      onClick={() => {
+                        if (copyFromRunId) {
+                          void loadEmployeesFromPayrollRun(copyFromRunId);
+                        }
+                      }}
+                    >
+                      {loadingRunScope ? "Loading..." : "Reload list"}
+                    </Button>
+                  </HStack>
+                  {copyFromRun && selectedEmployeeIdsForRun.length > 0 && (
+                    <Caption>
+                      {selectedEmployeeIdsForRun.length} loaded from{" "}
+                      {format(new Date(copyFromRun.cutoff_start), "MMM d")} –{" "}
+                      {format(new Date(copyFromRun.cutoff_end), "MMM d, yyyy")}. Search below to
+                      add more.
+                    </Caption>
+                  )}
+                </div>
+              )}
+              <HStack justify="between" align="center">
+                <Label htmlFor="employee-scope-search">Employee scope (optional)</Label>
+                <HStack gap="1">
+                  {selectedEmployeeIdsForRun.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedEmployeeIdsForRun([])}
+                    >
+                      Clear ({selectedEmployeeIdsForRun.length})
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setSelectedEmployeeIdsForRun(activeEmployeesForRun.map((emp) => emp.id))
+                    }
+                  >
+                    Select all
+                  </Button>
+                </HStack>
+              </HStack>
+              <div className="relative">
+                <Icon
+                  name="MagnifyingGlass"
+                  size={IconSizes.sm}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+                />
+                <Input
+                  id="employee-scope-search"
+                  type="search"
+                  placeholder="Search by name or employee ID..."
+                  value={employeeScopeQuery}
+                  onChange={(e) => setEmployeeScopeQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {selectedEmployeesForRun.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedEmployeesForRun.map((emp) => (
+                    <Badge key={emp.id} variant="secondary" className="gap-1 pr-1 font-normal">
+                      {getRunEmployeeName(emp)}
+                      <button
+                        type="button"
+                        className="rounded-sm p-0.5 hover:bg-muted"
+                        aria-label={`Remove ${getRunEmployeeName(emp)}`}
+                        onClick={() =>
+                          setSelectedEmployeeIdsForRun((prev) =>
+                            prev.filter((id) => id !== emp.id)
+                          )
+                        }
+                      >
+                        <Icon name="X" size={IconSizes.xs} />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {employeeScopeQuery.trim() ? (
+                <div className="max-h-44 overflow-y-auto rounded-md border">
+                  {filteredEmployeesForRun.length === 0 ? (
+                    <BodySmall className="p-3 text-muted-foreground">No matches.</BodySmall>
+                  ) : (
+                    filteredEmployeesForRun.map((emp) => (
+                      <label
+                        key={emp.id}
+                        className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-sm last:border-b-0 hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          checked={selectedEmployeeIdsForRun.includes(emp.id)}
+                          onCheckedChange={(checked) => {
+                            const isChecked = checked === true;
+                            setSelectedEmployeeIdsForRun((prev) =>
+                              isChecked
+                                ? prev.includes(emp.id)
+                                  ? prev
+                                  : [...prev, emp.id]
+                                : prev.filter((id) => id !== emp.id)
+                            );
+                          }}
+                        />
+                        <span>
+                          {getRunEmployeeName(emp)} (
+                          {emp.employee_code || emp.company_id_no || "No ID"})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <BodySmall className="text-muted-foreground">
+                  {selectedEmployeeIdsForRun.length > 0
+                    ? "Search to add more employees."
+                    : "Search to add employees, or leave empty to run payroll for all active employees."}
+                </BodySmall>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowNewRunDialog(false)}>Cancel</Button>

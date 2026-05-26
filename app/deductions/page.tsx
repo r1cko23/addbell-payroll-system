@@ -354,18 +354,15 @@ export default function DeductionsPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
-          <H1>Deductions Management</H1>
-          <BodySmall>
-            Configure bi-monthly deductions and government contributions per
-            employee
-          </BodySmall>
+          <H1>Deductions</H1>
+          <BodySmall>Bi-monthly deductions and government contributions.</BodySmall>
         </VStack>
 
         <CardSection>
           <VStack gap="4">
             {/* Period Navigation */}
             <VStack gap="2" align="start">
-              <Label>Select Bi-Monthly Period (Monday - Friday, 2 weeks)</Label>
+              <Label>Bi-monthly period</Label>
               <HStack gap="3" align="center" className="w-full">
                 <Button
                   variant="secondary"
@@ -670,8 +667,7 @@ export default function DeductionsPage() {
                   </span>
                 </HStack>
                 <BodySmall className="text-emerald-600 mt-2">
-                  These will be applied when you check the boxes in the payslip
-                  (usually 3rd or 4th week)
+                  Applied when enabled on the payslip.
                 </BodySmall>
               </div>
             </CardSection>

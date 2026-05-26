@@ -20,8 +20,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
+import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
+import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import {
   getOpenEntryFromPunches,
+  getDateInManilaDefault,
   fetchSessionsForEmployee,
   type TimeEntryPunch,
   type TimeEntrySession,
@@ -196,9 +199,13 @@ export default function ClockPage() {
   async function checkClockStatus() {
     if (!selectedEmployeeId) return;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = format(today, "yyyy-MM-dd");
+    try {
+      await applyBundyAutoClockOutIfNeeded(supabase, selectedEmployeeId);
+    } catch (autoErr) {
+      console.error("Bundy auto clock-out:", autoErr);
+    }
+
+    const activeBusinessDay = getBundyBusinessDayKey(new Date());
 
     const { data: punches } = await supabase
       .from("time_entries")
@@ -210,8 +217,8 @@ export default function ClockPage() {
     const list = (punches || []) as TimeEntryPunch[];
     const open = getOpenEntryFromPunches(
       list,
-      (iso) => format(new Date(iso), "yyyy-MM-dd"),
-      todayStr
+      getDateInManilaDefault,
+      activeBusinessDay
     );
     setCurrentEntry(open ? clockEntryFromSession(open) : null);
   }

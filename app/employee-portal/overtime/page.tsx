@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
-import { creditOvertimeHours } from "@/utils/overtime";
+import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,14 @@ import { BodySmall, Caption, H1, H3 } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
+import {
+  BundySessionPicker,
+  type BundySessionSelection,
+} from "@/components/BundySessionPicker";
+import {
+  manilaDateFromIso,
+  manilaTimeFromIso,
+} from "@/lib/bundy-sessions";
 
 type OvertimeDocSummary = { id: string; file_name: string };
 
@@ -37,13 +45,16 @@ type OvertimeRequest = {
   final_approval_name?: string | null;
   created_at: string;
   overtime_documents?: OvertimeDocSummary[];
-};
-
-type OtPunchSummary = {
-  is_open: boolean;
-  has_completed_pair: boolean;
-  last_punch_type: "in" | "out" | null;
-  last_punched_at: string | null;
+  bundy_in_punch_id?: string | null;
+  bundy_out_punch_id?: string | null;
+  bundy_session?: {
+    clock_in_time: string;
+    clock_out_time: string;
+    clock_in_lat: number | null;
+    clock_in_lng: number | null;
+    clock_out_lat: number | null;
+    clock_out_lng: number | null;
+  } | null;
 };
 
 function formatTime12h(value?: string | null): string {
@@ -75,6 +86,7 @@ export default function OvertimePage() {
     end_date: "",
     start_time: "",
     end_time: "",
+    claimed_hours: "",
     reason: "",
   });
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
@@ -86,12 +98,8 @@ export default function OvertimePage() {
     null
   );
   const [requiresOtPunch, setRequiresOtPunch] = useState(false);
-  const [otPunchSummariesByRequest, setOtPunchSummariesByRequest] = useState<
-    Record<string, OtPunchSummary>
-  >({});
-  const [otPunchActionRequestId, setOtPunchActionRequestId] = useState<
-    string | null
-  >(null);
+  const [bundySelection, setBundySelection] =
+    useState<BundySessionSelection | null>(null);
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -143,42 +151,41 @@ export default function OvertimePage() {
       reader.readAsDataURL(file);
     });
 
-  const totalHours = useMemo(() => {
-    if (!formData.start_time || !formData.end_time) return 0;
-    if (!formData.ot_date) return 0;
+  const useBundyLinkedHours = requiresOtPunch || Boolean(bundySelection);
 
-    // Build start datetime
+  const hoursFromTimeRange = useMemo(() => {
+    if (!formData.start_time || !formData.end_time || !formData.ot_date) return 0;
     const startDate = new Date(`${formData.ot_date}T${formData.start_time}:00`);
-
-    // Build end datetime
     let endDate: Date;
-
-    // If end_date is explicitly provided, use it (for multi-day OT)
     if (formData.end_date) {
       endDate = new Date(`${formData.end_date}T${formData.end_time}:00`);
     } else {
-      // Auto-detect: if end_time < start_time, it spans midnight
       const startTimeOnly = new Date(`2000-01-01T${formData.start_time}:00`);
       const endTimeOnly = new Date(`2000-01-01T${formData.end_time}:00`);
       if (endTimeOnly.getTime() <= startTimeOnly.getTime()) {
-        // Spans midnight - automatically add 1 day
         endDate = new Date(`${formData.ot_date}T${formData.end_time}:00`);
         endDate.setDate(endDate.getDate() + 1);
       } else {
         endDate = new Date(`${formData.ot_date}T${formData.end_time}:00`);
       }
     }
-
     const diffMs = endDate.getTime() - startDate.getTime();
     if (diffMs <= 0) return 0;
-    const rawHours = Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100;
-    return creditOvertimeHours(rawHours);
+    return creditOvertimeHours(Math.round((diffMs / (1000 * 60 * 60)) * 100) / 100);
   }, [
     formData.start_time,
     formData.end_time,
     formData.ot_date,
     formData.end_date,
   ]);
+
+  const manualClaimedHours = useMemo(() => {
+    const raw = Number(formData.claimed_hours);
+    if (!Number.isFinite(raw) || raw <= 0) return 0;
+    return creditOvertimeHours(raw);
+  }, [formData.claimed_hours]);
+
+  const submittedHours = useBundyLinkedHours ? manualClaimedHours : hoursFromTimeRange;
 
   const loadRequests = async () => {
     setLoading(true);
@@ -214,103 +221,50 @@ export default function OvertimePage() {
     }
   };
 
-  const loadOtPunchSummaries = async () => {
-    if (!requiresOtPunch) {
-      setOtPunchSummariesByRequest({});
-      return;
-    }
-    const res = await fetch(
-      `/api/employee-portal/ot-time-entries?employee_id=${encodeURIComponent(
-        employee.id
-      )}&all_for_employee=true`
-    );
-    const json = (await res.json().catch(() => ({}))) as {
-      summaries_by_request?: Record<string, OtPunchSummary>;
-    };
-    if (!res.ok) return;
-    setOtPunchSummariesByRequest(json.summaries_by_request || {});
-  };
-
   useEffect(() => {
     loadRequests();
     loadProfile();
   }, [employee.id]);
 
-  useEffect(() => {
-    loadOtPunchSummaries();
-  }, [requiresOtPunch, requests.length]);
-
-  const getFreshLocation = async (): Promise<{ lat: number; lng: number } | null> =>
-    new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        resolve(null);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (position) =>
-          resolve({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          }),
-        () => resolve(null),
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
-    });
-
-  const handleOtPunch = async (requestId: string, punchType: "in" | "out") => {
-    setOtPunchActionRequestId(requestId);
-    try {
-      const location = await getFreshLocation();
-      if (!location) {
-        toast.error("Location is required for OT punch.");
-        return;
-      }
-
-      const deviceInfo = navigator.userAgent?.slice(0, 255) || null;
-      const res = await fetch("/api/employee-portal/ot-clock-punch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employee_id: employee.id,
-          ot_request_id: requestId,
-          punch_type: punchType,
-          lat: location.lat,
-          lng: location.lng,
-          device_info: deviceInfo,
-        }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast.error(json.error || "Failed to save OT punch");
-        return;
-      }
-
-      toast.success(
-        punchType === "in"
-          ? "OT time in recorded successfully."
-          : "OT time out recorded successfully."
-      );
-      await loadOtPunchSummaries();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to process OT punch.");
-    } finally {
-      setOtPunchActionRequestId(null);
-    }
+  const applyBundySelectionToForm = (sel: BundySessionSelection | null) => {
+    setBundySelection(sel);
+    if (!sel) return;
+    const otDate = manilaDateFromIso(sel.session.clock_in_time);
+    const clockOutDate = manilaDateFromIso(sel.session.clock_out_time);
+    setFormData((prev) => ({
+      ...prev,
+      ot_date: otDate,
+      end_date: clockOutDate !== otDate ? clockOutDate : "",
+      start_time: manilaTimeFromIso(sel.session.clock_in_time),
+      end_time: manilaTimeFromIso(sel.session.clock_out_time),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.ot_date || !formData.start_time || !formData.end_time) {
-      toast.error("Please fill date, start time, and end time.");
+
+    if (requiresOtPunch && !bundySelection) {
+      toast.error("Select a completed Bundy Time In / Time Out pair for this OT.");
       return;
     }
-    if (totalHours <= 0) {
-      toast.error("Invalid time range. Please check your times.");
+
+    if (!formData.ot_date || !formData.start_time || !formData.end_time) {
+      toast.error("Please enter the OT date and the start and end time you are claiming.");
+      return;
+    }
+    if (useBundyLinkedHours) {
+      if (!formData.claimed_hours.trim()) {
+        toast.error("Enter how many OT hours you actually worked.");
+        return;
+      }
+      if (manualClaimedHours <= 0) {
+        toast.error(
+          `Minimum OT credit is ${OT_MIN_HOURS} hour (half-hour steps after that).`
+        );
+        return;
+      }
+    } else if (hoursFromTimeRange <= 0) {
+      toast.error("Invalid time range. Check your OT start and end times.");
       return;
     }
     if (!formData.reason.trim()) {
@@ -372,8 +326,10 @@ export default function OvertimePage() {
         end_date: formData.end_date || calculatedEndDate || null,
         start_time: formData.start_time,
         end_time: formData.end_time,
-        total_hours: totalHours,
+        total_hours: submittedHours,
         reason: formData.reason.trim(),
+        bundy_in_punch_id: bundySelection?.in_punch_id ?? null,
+        bundy_out_punch_id: bundySelection?.out_punch_id ?? null,
         document: documentPayload,
       }),
     });
@@ -408,11 +364,11 @@ export default function OvertimePage() {
 
       if (createPayload?.warning) {
         toast.warning(createPayload.warning, {
-          description: `Date: ${dateRange} • ${totalHours.toFixed(2)} hours`,
+          description: `Date: ${dateRange} • ${submittedHours.toFixed(2)} hours`,
         });
       } else {
         toast.success("Overtime request submitted successfully!", {
-          description: `Date: ${dateRange} • ${totalHours.toFixed(2)} hours`,
+          description: `Date: ${dateRange} • ${submittedHours.toFixed(2)} hours`,
         });
       }
       setFormData({
@@ -420,8 +376,10 @@ export default function OvertimePage() {
         end_date: "",
         start_time: "",
         end_time: "",
+        claimed_hours: "",
         reason: "",
       });
+      setBundySelection(null);
       setSupportingDoc(null);
       await loadRequests();
     }
@@ -454,21 +412,41 @@ export default function OvertimePage() {
           </BodySmall>
           {requiresOtPunch && (
             <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
-              OT Punch Workflow is enabled for your account. For each OT filing, record OT Time
-              In and OT Time Out so HR can approve.
+              Select a Bundy Time In / Out pair first—date and times fill from that pair.
+              Enter only the OT hours you actually worked (e.g. 2 if you forgot to clock out
+              early). Subject to approval.
             </div>
           )}
         </CardHeader>
         <CardContent className="w-full">
           <form onSubmit={handleSubmit} className="w-full">
             <VStack gap="6" className="w-full">
+              <BundySessionPicker
+                employeeId={employee.id}
+                otDate={formData.ot_date || undefined}
+                value={bundySelection}
+                onChange={applyBundySelectionToForm}
+                required={requiresOtPunch}
+              />
+
+              {bundySelection && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  Clock pair span:{" "}
+                  <strong>{bundySelection.session.total_hours.toFixed(2)}h</strong> on the
+                  Bundy clock. Date and start/end below are filled from this pair; enter your
+                  actual OT hours separately.
+                </div>
+              )}
+
               <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="w-full space-y-2">
-                  <Label htmlFor="ot-date">OT Date</Label>
+                  <Label htmlFor="ot-date">Claimed OT date</Label>
                   <Input
                     id="ot-date"
                     type="date"
                     required
+                    readOnly={Boolean(bundySelection)}
+                    className={bundySelection ? "bg-muted/70" : undefined}
                     value={formData.ot_date}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, ot_date: e.target.value }))
@@ -476,11 +454,13 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className="w-full space-y-2">
-                  <Label htmlFor="start-time">Start Time</Label>
+                  <Label htmlFor="start-time">Claimed OT start</Label>
                   <Input
                     id="start-time"
                     type="time"
                     required
+                    readOnly={Boolean(bundySelection)}
+                    className={bundySelection ? "bg-muted/70" : undefined}
                     value={formData.start_time}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, start_time: e.target.value }))
@@ -488,11 +468,13 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className="w-full space-y-2">
-                  <Label htmlFor="end-time">End Time</Label>
+                  <Label htmlFor="end-time">Claimed OT end</Label>
                   <Input
                     id="end-time"
                     type="time"
                     required
+                    readOnly={Boolean(bundySelection)}
+                    className={bundySelection ? "bg-muted/70" : undefined}
                     value={formData.end_time}
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, end_time: e.target.value }))
@@ -500,18 +482,53 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className="w-full space-y-2">
-                  <Label htmlFor="total-hours">Total Hours (auto)</Label>
-                  <Input
-                    id="total-hours"
-                    value={totalHours.toFixed(2)}
-                    readOnly
-                    className="bg-muted/70"
-                  />
+                  <Label htmlFor="claimed-hours">Claimed OT hours *</Label>
+                  {useBundyLinkedHours ? (
+                    <>
+                      <Input
+                        id="claimed-hours"
+                        type="number"
+                        inputMode="decimal"
+                        min={OT_MIN_HOURS}
+                        step={0.5}
+                        required
+                        placeholder="e.g. 2"
+                        value={formData.claimed_hours}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            claimed_hours: e.target.value,
+                          }))
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Hours you actually worked (min {OT_MIN_HOURS}h, 0.5h steps). Not
+                        auto-filled from the clock pair.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        id="claimed-hours"
+                        value={
+                          hoursFromTimeRange > 0
+                            ? hoursFromTimeRange.toFixed(2)
+                            : ""
+                        }
+                        readOnly
+                        className="bg-muted/70"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Computed from claimed start/end above.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Optional end date for multi-day OT */}
-              {(() => {
+              {!bundySelection &&
+              (() => {
                 const startTimeOnly = new Date(
                   `2000-01-01T${formData.start_time}:00`
                 );
@@ -546,11 +563,27 @@ export default function OvertimePage() {
                 );
               })()}
 
-              {totalHours > 0 && (
+              {bundySelection && formData.end_date && (
+                <p className="text-xs text-muted-foreground">
+                  End date: {formData.end_date} (from clock out)
+                </p>
+              )}
+
+              {submittedHours > 0 && (
                 <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
                   <div className="text-sm font-semibold text-primary">
-                    Calculated Hours:{" "}
-                    <span className="text-lg">{totalHours.toFixed(2)}</span>
+                    Hours you are claiming:{" "}
+                    <span className="text-lg">{submittedHours.toFixed(2)}</span>
+                    {bundySelection &&
+                      Math.abs(
+                        submittedHours - bundySelection.session.total_hours
+                      ) > 0.25 && (
+                        <span className="block text-xs font-normal text-muted-foreground mt-1">
+                          Bundy pair span was{" "}
+                          {bundySelection.session.total_hours.toFixed(2)}h — approver will
+                          review the difference.
+                        </span>
+                      )}
                   </div>
                 </div>
               )}
@@ -732,82 +765,41 @@ export default function OvertimePage() {
                           </div>
                         )}
 
-                        {requiresOtPunch && req.status === "pending" && (
-                          <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3">
-                            <HStack
-                              gap="2"
-                              align="center"
-                              className="flex-wrap justify-between"
-                            >
-                              <BodySmall className="font-semibold text-primary">
-                                OT Punch Tracking
-                              </BodySmall>
-                              {otPunchSummariesByRequest[req.id]?.has_completed_pair ? (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-emerald-100 text-emerald-900 border-emerald-200"
-                                >
-                                  Complete
-                                </Badge>
-                              ) : otPunchSummariesByRequest[req.id]?.is_open ? (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-amber-100 text-amber-900 border-amber-200"
-                                >
-                                  Open (clocked in)
-                                </Badge>
-                              ) : (
-                                <Badge
-                                  variant="outline"
-                                  className="bg-slate-100 text-slate-800 border-slate-200"
-                                >
-                                  Not started
-                                </Badge>
+                        {req.bundy_session && (
+                          <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
+                            <BodySmall className="font-semibold text-primary">
+                              Bundy clock (reference) · Claimed {creditOvertimeHours(req.total_hours)}h
+                            </BodySmall>
+                            <div>
+                              Time In:{" "}
+                              {format(
+                                new Date(req.bundy_session.clock_in_time),
+                                "MMM d, h:mm a"
                               )}
-                            </HStack>
-                            <HStack gap="2" className="mt-2 flex-wrap">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => handleOtPunch(req.id, "in")}
-                                disabled={
-                                  otPunchActionRequestId === req.id ||
-                                  otPunchSummariesByRequest[req.id]?.is_open === true ||
-                                  otPunchSummariesByRequest[req.id]?.has_completed_pair === true
-                                }
-                              >
-                                OT Time In
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleOtPunch(req.id, "out")}
-                                disabled={
-                                  otPunchActionRequestId === req.id ||
-                                  otPunchSummariesByRequest[req.id]?.is_open !== true ||
-                                  otPunchSummariesByRequest[req.id]?.has_completed_pair === true
-                                }
-                              >
-                                OT Time Out
-                              </Button>
-                              {otPunchSummariesByRequest[req.id]?.last_punched_at && (
-                                <Caption>
-                                  Last punch:{" "}
-                                  {format(
-                                    new Date(
-                                      otPunchSummariesByRequest[req.id].last_punched_at!
-                                    ),
-                                    "MMM dd, yyyy h:mm a"
-                                  )}{" "}
-                                  (
-                                  {otPunchSummariesByRequest[
-                                    req.id
-                                  ].last_punch_type?.toUpperCase()}
-                                  )
-                                </Caption>
+                              {req.bundy_session.clock_in_lat != null &&
+                                req.bundy_session.clock_in_lng != null && (
+                                  <>
+                                    {" "}
+                                    · {req.bundy_session.clock_in_lat.toFixed(6)},{" "}
+                                    {req.bundy_session.clock_in_lng.toFixed(6)}
+                                  </>
+                                )}
+                            </div>
+                            <div>
+                              Time Out:{" "}
+                              {format(
+                                new Date(req.bundy_session.clock_out_time),
+                                "MMM d, h:mm a"
                               )}
-                            </HStack>
+                              {req.bundy_session.clock_out_lat != null &&
+                                req.bundy_session.clock_out_lng != null && (
+                                  <>
+                                    {" "}
+                                    · {req.bundy_session.clock_out_lat.toFixed(6)},{" "}
+                                    {req.bundy_session.clock_out_lng.toFixed(6)}
+                                  </>
+                                )}
+                            </div>
                           </div>
                         )}
 

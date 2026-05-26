@@ -67,7 +67,17 @@ type OTRequest = {
   approved_at?: string | null;
   approved_by?: string | null;
   created_at: string;
+  bundy_in_punch_id?: string | null;
+  bundy_out_punch_id?: string | null;
   overtime_documents?: OvertimeDocument[];
+  bundy_session?: {
+    clock_in_time: string;
+    clock_out_time: string;
+    clock_in_lat: number | null;
+    clock_in_lng: number | null;
+    clock_out_lat: number | null;
+    clock_out_lng: number | null;
+  } | null;
   employees?: {
     id?: string;
     full_name: string;
@@ -437,9 +447,6 @@ export default function OvertimeApprovalPage() {
     let dataWithDocs = (data || []) as OTRequest[];
     if (dataWithDocs.length > 0) {
       const requestIds = dataWithDocs.map((r) => r.id);
-      const requestIdsRequiringPunch = dataWithDocs
-        .filter((r) => r.employees?.requires_ot_punch === true)
-        .map((r) => r.id);
       const { data: docsRows, error: docsError } = await supabase
         .from("overtime_documents")
         .select("id, overtime_request_id, file_name, file_type, file_size")
@@ -474,69 +481,60 @@ export default function OvertimeApprovalPage() {
         }));
       }
 
-      if (requestIdsRequiringPunch.length > 0) {
-        const { data: otPunchRows, error: otPunchError } = await (supabase as any)
-          .from("ot_time_entries")
-          .select("ot_request_id, punch_type, punched_at, lat, lng")
-          .in("ot_request_id", requestIdsRequiringPunch)
-          .order("punched_at", { ascending: true });
-
-        if (otPunchError) {
-          console.error("Error loading OT punch records", otPunchError);
-          setOtPunchStatusByRequestId({});
+      const bundyPunchIds = new Set<string>();
+      dataWithDocs.forEach((r) => {
+        if (r.bundy_in_punch_id) bundyPunchIds.add(r.bundy_in_punch_id);
+        if (r.bundy_out_punch_id) bundyPunchIds.add(r.bundy_out_punch_id);
+      });
+      const punchById: Record<
+        string,
+        { id: string; punched_at: string; lat: number | null; lng: number | null }
+      > = {};
+      if (bundyPunchIds.size > 0) {
+        const { data: punchRows, error: punchError } = await supabase
+          .from("time_entries")
+          .select("id, punched_at, lat, lng")
+          .in("id", Array.from(bundyPunchIds));
+        if (punchError) {
+          console.error("Error loading Bundy punches for OT", punchError);
         } else {
-          const statusMap: Record<string, OtPunchStatus> = {};
-          const grouped: Record<
-            string,
-            Array<{
-              ot_request_id: string;
-              punch_type: "in" | "out";
-              punched_at: string;
-              lat: number | null;
-              lng: number | null;
-            }>
-          > = {};
-
-          (otPunchRows || []).forEach(
-            (row: {
-              ot_request_id: string;
-              punch_type: "in" | "out";
-              punched_at: string;
-              lat: number | null;
-              lng: number | null;
-            }) => {
-              if (!grouped[row.ot_request_id]) grouped[row.ot_request_id] = [];
-              grouped[row.ot_request_id].push(row);
-            }
-          );
-
-          Object.entries(grouped).forEach(([requestId, punches]) => {
-            let open = false;
-            let pairs = 0;
-            punches.forEach((p) => {
-              if (p.punch_type === "in" && !open) {
-                open = true;
-              } else if (p.punch_type === "out" && open) {
-                open = false;
-                pairs += 1;
-              }
-            });
-            const last = punches[punches.length - 1] || null;
-            statusMap[requestId] = {
-              hasCompletedPair: pairs > 0 && !open,
-              isOpen: open,
-              lastPunchedAt: last?.punched_at || null,
-              lastPunchType: last?.punch_type || null,
-              lastLat: last?.lat ?? null,
-              lastLng: last?.lng ?? null,
-            };
+          (punchRows || []).forEach((p: any) => {
+            punchById[p.id] = p;
           });
-          setOtPunchStatusByRequestId(statusMap);
         }
-      } else {
-        // No employees in this result set require OT punch verification.
-        setOtPunchStatusByRequestId({});
       }
+
+      const statusMap: Record<string, OtPunchStatus> = {};
+      dataWithDocs = dataWithDocs.map((r) => {
+        const inP = r.bundy_in_punch_id ? punchById[r.bundy_in_punch_id] : null;
+        const outP = r.bundy_out_punch_id ? punchById[r.bundy_out_punch_id] : null;
+        const hasPair = Boolean(inP && outP);
+        if (r.employees?.requires_ot_punch === true) {
+          statusMap[r.id] = {
+            hasCompletedPair: hasPair,
+            isOpen: false,
+            lastPunchedAt: outP?.punched_at || inP?.punched_at || null,
+            lastPunchType: hasPair ? "out" : inP ? "in" : null,
+            lastLat: outP?.lat ?? inP?.lat ?? null,
+            lastLng: outP?.lng ?? inP?.lng ?? null,
+          };
+        }
+        return {
+          ...r,
+          bundy_session:
+            inP && outP
+              ? {
+                  clock_in_time: inP.punched_at,
+                  clock_out_time: outP.punched_at,
+                  clock_in_lat: inP.lat,
+                  clock_in_lng: inP.lng,
+                  clock_out_lat: outP.lat,
+                  clock_out_lng: outP.lng,
+                }
+              : null,
+        };
+      });
+      setOtPunchStatusByRequestId(statusMap);
     }
 
     // Role-based visibility: show requests the user is allowed to view.
@@ -801,11 +799,13 @@ export default function OvertimeApprovalPage() {
       managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
 
     if (!effectiveManagerStage && requiresOtPunch) {
-      const isComplete = punchStatus?.hasCompletedPair === true;
-      if (!isComplete) {
-        toast.error("Cannot approve yet: OT punch in/out is incomplete.", {
+      const hasBundyPair = Boolean(
+        request.bundy_in_punch_id && request.bundy_out_punch_id
+      );
+      if (!hasBundyPair) {
+        toast.error("Cannot approve yet: Bundy clock pair not linked.", {
           description:
-            "This employee requires OT punch records. Ensure OT time in and time out are both completed.",
+            "This employee must file OT with a completed Time In / Time Out pair from Bundy.",
         });
         setActioningId(null);
         return;
@@ -1407,47 +1407,63 @@ export default function OvertimeApprovalPage() {
 
                 {selected.employees?.requires_ot_punch === true && (
                   <div className="space-y-2">
-                    <Label className="text-sm">OT Punch Status</Label>
-                    {otPunchStatusByRequestId[selected.id]?.hasCompletedPair ? (
-                      <Badge
-                        variant="outline"
-                      className="border-primary/30 bg-primary/10 text-primary"
-                      >
-                        Complete
-                      </Badge>
-                    ) : otPunchStatusByRequestId[selected.id]?.isOpen ? (
-                      <Badge
-                        variant="outline"
-                      className="border-primary/30 bg-primary/10 text-primary"
-                      >
-                        Open (awaiting OT time out)
-                      </Badge>
+                    <Label className="text-sm">Bundy clock pair</Label>
+                    {selected.bundy_session ? (
+                      <>
+                        <Badge
+                          variant="outline"
+                          className="border-primary/30 bg-primary/10 text-primary"
+                        >
+                          Linked
+                        </Badge>
+                        <p className="text-xs text-muted-foreground">
+                          Clock pair span:{" "}
+                          {(
+                            (new Date(selected.bundy_session.clock_out_time).getTime() -
+                              new Date(selected.bundy_session.clock_in_time).getTime()) /
+                            (1000 * 60 * 60)
+                          ).toFixed(2)}
+                          h · Claimed on request:{" "}
+                          <strong>{creditOvertimeHours(selected.total_hours)}h</strong>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Time In:{" "}
+                          {format(
+                            new Date(selected.bundy_session.clock_in_time),
+                            "MMM d, h:mm a"
+                          )}
+                          {selected.bundy_session.clock_in_lat != null &&
+                            selected.bundy_session.clock_in_lng != null && (
+                              <>
+                                {" "}
+                                · {selected.bundy_session.clock_in_lat.toFixed(6)},{" "}
+                                {selected.bundy_session.clock_in_lng.toFixed(6)}
+                              </>
+                            )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Time Out:{" "}
+                          {format(
+                            new Date(selected.bundy_session.clock_out_time),
+                            "MMM d, h:mm a"
+                          )}
+                          {selected.bundy_session.clock_out_lat != null &&
+                            selected.bundy_session.clock_out_lng != null && (
+                              <>
+                                {" "}
+                                · {selected.bundy_session.clock_out_lat.toFixed(6)},{" "}
+                                {selected.bundy_session.clock_out_lng.toFixed(6)}
+                              </>
+                            )}
+                        </p>
+                      </>
                     ) : (
                       <Badge
                         variant="outline"
                         className="bg-red-100 text-red-900 border-red-200"
                       >
-                        Not completed
+                        No Bundy pair linked
                       </Badge>
-                    )}
-                    {otPunchStatusByRequestId[selected.id]?.lastPunchedAt && (
-                      <p className="text-xs text-muted-foreground">
-                        Last OT punch:{" "}
-                        {format(
-                          new Date(otPunchStatusByRequestId[selected.id].lastPunchedAt!),
-                          "MMM dd, yyyy h:mm a"
-                        )}{" "}
-                        (
-                        {otPunchStatusByRequestId[selected.id].lastPunchType?.toUpperCase()})
-                      </p>
-                    )}
-                    {(otPunchStatusByRequestId[selected.id]?.lastLat != null &&
-                      otPunchStatusByRequestId[selected.id]?.lastLng != null) && (
-                      <p className="text-xs text-muted-foreground">
-                        Last punch location:{" "}
-                        {otPunchStatusByRequestId[selected.id].lastLat?.toFixed(6)},{" "}
-                        {otPunchStatusByRequestId[selected.id].lastLng?.toFixed(6)}
-                      </p>
                     )}
                   </div>
                 )}

@@ -7,6 +7,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
+import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
+import {
+  getDateInManilaDefault,
+  getOpenEntryFromPunches,
+  type TimeEntryPunch,
+} from "@/lib/timeEntries";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -42,6 +49,12 @@ export async function POST(req: NextRequest) {
 
     const admin = getAdminClient();
 
+    try {
+      await applyBundyAutoClockOutIfNeeded(admin, body.employee_id);
+    } catch (autoErr) {
+      console.error("Bundy auto clock-out:", autoErr);
+    }
+
     const { data: serverTimeData, error: timeError } = await admin.rpc(
       "get_server_time"
     );
@@ -52,6 +65,40 @@ export async function POST(req: NextRequest) {
       );
     }
     const punchedAt = new Date(serverTimeData as string).toISOString();
+
+    const { data: recentPunches } = await admin
+      .from("time_entries")
+      .select("id, employee_id, punch_type, punched_at")
+      .eq("employee_id", body.employee_id)
+      .order("punched_at", { ascending: false })
+      .limit(100);
+    const punchList = (recentPunches || []) as TimeEntryPunch[];
+    const activeBiz = getBundyBusinessDayKey(punchedAt);
+    const open = getOpenEntryFromPunches(
+      punchList,
+      getDateInManilaDefault,
+      activeBiz
+    );
+
+    if (body.punch_type === "in") {
+      if (open) {
+        return NextResponse.json(
+          {
+            error:
+              "You already have an open Time In. Clock out first before starting another session.",
+          },
+          { status: 409 }
+        );
+      }
+    } else if (!open) {
+      return NextResponse.json(
+        {
+          error:
+            "No open Time In found for this business day. Clock in before clocking out.",
+        },
+        { status: 409 }
+      );
+    }
 
     const { data: insertData, error: insertError } = await admin
       .from("time_entries")

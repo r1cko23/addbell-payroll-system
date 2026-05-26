@@ -34,6 +34,7 @@ import {
   parseISO,
   getDay,
 } from "date-fns";
+import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
 import { calculateLateHours } from "@/utils/business-hours";
 
@@ -314,29 +315,6 @@ export default function BundyClockPage() {
   const [schedules, setSchedules] = useState<Map<string, Schedule>>(new Map());
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [otRequests, setOtRequests] = useState<OvertimeRequest[]>([]);
-  const [requiresOtPunch, setRequiresOtPunch] = useState(false);
-  const [pendingOtRequests, setPendingOtRequests] = useState<OvertimeRequest[]>([]);
-  const [selectedPendingOtRequestId, setSelectedPendingOtRequestId] = useState<string | null>(null);
-  const [isOtRequestManuallySelected, setIsOtRequestManuallySelected] =
-    useState(false);
-  // When multiple OT requests are pending, keep in/out paired to the same request id.
-  const [activeOtPunchRequestId, setActiveOtPunchRequestId] = useState<string | null>(null);
-  const [otPunchStatusLoading, setOtPunchStatusLoading] = useState(true);
-  const [otPunchSummariesByRequestId, setOtPunchSummariesByRequestId] = useState<
-    Record<
-      string,
-      {
-        is_open: boolean;
-        has_completed_pair: boolean;
-        last_punch_type: "in" | "out" | null;
-        last_punched_at: string | null;
-      }
-    >
-  >({});
-  const [pendingOtPunchAction, setPendingOtPunchAction] = useState<{
-    requestId: string | null;
-    punchType: "in" | "out";
-  } | null>(null);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [employeePosition, setEmployeePosition] = useState<string | null>(null);
   const [isRestDayToday, setIsRestDayToday] = useState<boolean>(false);
@@ -357,7 +335,6 @@ export default function BundyClockPage() {
           position?: string | null;
           employment_type?: string | null;
           job_level?: string | null;
-          requires_ot_punch?: boolean;
           error?: string;
         };
         if (!res.ok) {
@@ -369,7 +346,6 @@ export default function BundyClockPage() {
           setEmployeePosition(json.position ?? null);
           setEmployeeType(json.employment_type ?? null);
           setEmployeeJobLevel(json.job_level ?? null);
-          setRequiresOtPunch(json.requires_ot_punch === true);
 
           // Check if today is a rest day
           const today = new Date();
@@ -390,139 +366,6 @@ export default function BundyClockPage() {
     };
     fetchEmployeeInfo();
   }, [employee?.id]);
-
-  // Load today's pending OT requests so the employee can record OT punch in/out.
-  useEffect(() => {
-    if (!employee?.id) return;
-
-    if (!requiresOtPunch) {
-      setPendingOtRequests([]);
-      setSelectedPendingOtRequestId(null);
-      setActiveOtPunchRequestId(null);
-      return;
-    }
-
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
-            employee.id
-          )}`
-        );
-        const json = (await res.json().catch(() => ({}))) as {
-          requests?: Array<{
-            id: string;
-            ot_date: string;
-            end_date?: string | null;
-            status: string;
-            start_time: string;
-            end_time: string;
-          }>;
-          error?: string;
-        };
-
-        if (!res.ok) {
-          toast.error(json.error || "Failed to load OT requests");
-          return;
-        }
-
-        const todayStr = getManilaTodayString();
-
-        const pending = (json.requests || []).filter((r) => {
-          if (r.status !== "pending") return false;
-          const otDatePart =
-            typeof r.ot_date === "string"
-              ? r.ot_date.split("T")[0]
-              : (r.ot_date as string);
-          const endDatePart = r.end_date
-            ? typeof r.end_date === "string"
-              ? r.end_date.split("T")[0]
-              : r.end_date
-            : otDatePart;
-
-          return todayStr >= otDatePart && todayStr <= endDatePart;
-        });
-
-        setPendingOtRequests(pending as OvertimeRequest[]);
-      } catch (err) {
-        console.error("Failed to load pending OT requests:", err);
-      }
-    })();
-  }, [employee?.id, requiresOtPunch]);
-
-  useEffect(() => {
-    if (pendingOtRequests.length === 0) {
-      setSelectedPendingOtRequestId(null);
-      setIsOtRequestManuallySelected(false);
-      return;
-    }
-
-    setSelectedPendingOtRequestId((prev) => {
-      if (prev && pendingOtRequests.some((r) => r.id === prev)) return prev;
-      return pendingOtRequests[0]?.id ?? null;
-    });
-  }, [pendingOtRequests]);
-
-  // Re-load any open OT punch (Time In without Time Out) so the UI doesn't
-  // re-enable/pulse OT Time In after a refresh.
-  useEffect(() => {
-    if (!employee?.id || !requiresOtPunch) {
-      setOtPunchSummariesByRequestId({});
-      setActiveOtPunchRequestId(null);
-      setOtPunchStatusLoading(false);
-      return;
-    }
-
-    setOtPunchStatusLoading(true);
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/employee-portal/ot-time-entries?employee_id=${encodeURIComponent(
-            employee.id
-          )}&all_for_employee=true`
-        );
-        const json = (await res.json().catch(() => ({}))) as {
-          summaries_by_request?: Record<
-            string,
-            {
-              is_open: boolean;
-              has_completed_pair: boolean;
-              last_punch_type: "in" | "out" | null;
-              last_punched_at: string | null;
-            }
-          >;
-          error?: string;
-        };
-
-        if (!res.ok || !json.summaries_by_request) {
-          return;
-        }
-
-        const summaries = json.summaries_by_request;
-        setOtPunchSummariesByRequestId(summaries);
-
-        // Choose the most recently opened OT request (if multiple exist).
-        let bestOpenId: string | null = null;
-        let bestOpenedAtMs = -1;
-        for (const [rid, summary] of Object.entries(summaries)) {
-          if (!summary?.is_open) continue;
-          // Only treat "open" that is currently after OT Time In.
-          if (summary.last_punch_type !== "in") continue;
-          const ts = summary.last_punched_at ? new Date(summary.last_punched_at).getTime() : 0;
-          if (Number.isFinite(ts) && ts > bestOpenedAtMs) {
-            bestOpenedAtMs = ts;
-            bestOpenId = rid;
-          }
-        }
-
-        setActiveOtPunchRequestId(bestOpenId);
-      } catch (err) {
-        console.error("Failed to load OT punch summaries:", err);
-      } finally {
-        setOtPunchStatusLoading(false);
-      }
-    })();
-  }, [employee?.id, requiresOtPunch]);
 
   // Fetch client IP once for logging
   useEffect(() => {
@@ -633,9 +476,7 @@ export default function BundyClockPage() {
   );
 
   const checkClockStatus = useCallback(async () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = getDateInManilaTimezone(today);
+    const activeBusinessDay = getBundyBusinessDayKey(new Date());
 
     const res = await fetch(
       `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(
@@ -653,7 +494,7 @@ export default function BundyClockPage() {
     const open = getOpenEntryFromPunches(
       list,
       (iso) => getDateInManilaTimezone(iso),
-      todayStr
+      activeBusinessDay
     );
     setCurrentEntry(open ? (open as any) : null);
   }, [employee.id, supabase]);
@@ -2061,67 +1902,11 @@ export default function BundyClockPage() {
     }
   }
 
-  async function confirmOtPunch(location: { lat: number; lng: number }): Promise<boolean> {
-    if (!pendingOtPunchAction) {
-      console.error("No pending OT punch action");
-      toast.error("No OT punch action pending");
-      return false;
-    }
-
-    try {
-      const deviceInfo = navigator.userAgent?.slice(0, 255) || null;
-      const res = await fetch("/api/employee-portal/ot-clock-punch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employee_id: employee.id,
-          ot_request_id: pendingOtPunchAction.requestId,
-          punch_type: pendingOtPunchAction.punchType,
-          lat: location.lat,
-          lng: location.lng,
-          device_info: deviceInfo,
-        }),
-      });
-
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        toast.error(json.error || "Failed to save OT punch");
-        return false;
-      }
-
-      toast.success(
-        pendingOtPunchAction.punchType === "in"
-          ? "OT time in recorded successfully!"
-          : "OT time out recorded successfully!"
-      );
-
-      setShowLocationModal(false);
-      setPendingClockAction(null);
-      setPendingOtPunchAction(null);
-      if (pendingOtPunchAction.punchType === "in") {
-        setActiveOtPunchRequestId(
-          // API returns the request id when it auto-creates on Time In.
-          (json as any).ot_request_id || pendingOtPunchAction.requestId || null
-        );
-      } else {
-        setActiveOtPunchRequestId(null);
-      }
-      return true;
-    } catch (err) {
-      console.error("Unexpected error in confirmOtPunch:", err);
-      toast.error("An unexpected error occurred while saving OT punch.");
-      return false;
-    }
-  }
-
   const handleLocationModalConfirm = useCallback(
     async (location: { lat: number; lng: number }): Promise<boolean | void> => {
-      if (pendingOtPunchAction) {
-        return confirmOtPunch(location);
-      }
       return confirmClock(location);
     },
-    [pendingOtPunchAction, employee?.id, confirmClock, confirmOtPunch]
+    [confirmClock]
   );
 
   // Wrapper for validateLocation to match modal's expected signature
@@ -2233,45 +2018,6 @@ export default function BundyClockPage() {
     // If the current time is strictly after the business end, OT is expected.
     return manilaNowMinutes > end;
   }, [currentTime, isRestDayToday, schedules, manilaNowMinutes]);
-
-  const getBestPendingOtRequestId = useCallback(
-    (punchType: "in" | "out"): string | null => {
-      if (!pendingOtRequests || pendingOtRequests.length === 0) return null;
-      if (manilaNowMinutes == null) return pendingOtRequests[0]?.id ?? null;
-
-      const toleranceMinutes = 30; // allow small mismatches like ~2 minutes
-      let best: { id: string; diff: number } | null = null;
-
-      for (const r of pendingOtRequests) {
-        const startMin = parseHHMMToMinutes(r.start_time);
-        const endMin = parseHHMMToMinutes(r.end_time);
-        if (startMin == null || endMin == null) continue;
-
-        const targetMin = punchType === "in" ? startMin : endMin;
-        const diff = Math.abs(manilaNowMinutes - targetMin);
-
-        if (!best || diff < best.diff) {
-          best = { id: r.id, diff };
-        }
-      }
-
-      if (!best) return pendingOtRequests[0]?.id ?? null;
-      // If it's wildly off, still pick the closest (so OT punches can be recorded),
-      // but return null when nothing is reasonable.
-      return best.diff <= toleranceMinutes
-        ? best.id
-        : pendingOtRequests[0]?.id ?? best.id;
-    },
-    [pendingOtRequests, manilaNowMinutes]
-  );
-
-  const hasCompletedOtSessionInPending = useMemo(
-    () =>
-      pendingOtRequests.some(
-        (r) => otPunchSummariesByRequestId[r.id]?.has_completed_pair === true
-      ),
-    [pendingOtRequests, otPunchSummariesByRequestId]
-  );
 
   if (loading) {
     return (
@@ -2432,131 +2178,13 @@ export default function BundyClockPage() {
             </div>
           )}
 
-          {requiresOtPunch && (
-            <div className="mt-2 md:mt-0">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <BodySmall className="font-semibold">OT Punch</BodySmall>
-                <Caption className="text-muted-foreground">
-                  {pendingOtRequests.length} pending OT request
-                  {pendingOtRequests.length === 1 ? "" : "s"}
-                </Caption>
-              </div>
-
-              {pendingOtRequests.length === 0 && (
-                <BodySmall className="text-muted-foreground mt-2">
-                  {isBeyondBusinessHoursToday
-                    ? "OT window opened. Punch OT Time In/Out (OT request will be created automatically)."
-                    : "No pending OT filing yet. Punch OT Time In/Out to create an OT request automatically."}
-                </BodySmall>
-              )}
-              {hasCompletedOtSessionInPending && !activeOtPunchRequestId && (
-                <BodySmall className="text-emerald-700 mt-2 font-medium">
-                  OT session is already complete for today. OT Time In/Out is locked.
-                </BodySmall>
-              )}
-                <div className="mt-3 flex flex-col gap-3">
-                  {pendingOtRequests.length > 1 && (
-                    <div>
-                      <BodySmall className="text-muted-foreground text-xs font-medium mb-1">
-                        Select OT request
-                      </BodySmall>
-                      <select
-                        value={selectedPendingOtRequestId ?? ""}
-                        onChange={(e) =>
-                          {
-                            setSelectedPendingOtRequestId(e.target.value || null);
-                            setIsOtRequestManuallySelected(true);
-                          }
-                        }
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      >
-                        {pendingOtRequests.map((ot) => {
-                          const otDatePart =
-                            typeof ot.ot_date === "string"
-                              ? ot.ot_date.split("T")[0]
-                              : ot.ot_date;
-                          return (
-                            <option key={ot.id} value={ot.id}>
-                              {otDatePart} {formatTime12h(ot.start_time)}-{formatTime12h(ot.end_time)}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Button
-                      onClick={() => {
-                        if (activeOtPunchRequestId) return;
-                        const requestIdToUse =
-                          isOtRequestManuallySelected &&
-                          selectedPendingOtRequestId
-                            ? selectedPendingOtRequestId
-                            : getBestPendingOtRequestId("in");
-                        setPendingOtPunchAction({
-                          requestId: requestIdToUse ?? null,
-                          punchType: "in",
-                        });
-                        setShowLocationModal(true);
-                      }}
-                      disabled={
-                        !!activeOtPunchRequestId ||
-                        hasCompletedOtSessionInPending ||
-                        otPunchStatusLoading ||
-                        !locationStatus?.isAllowed
-                      }
-                      size="lg"
-                      className={cn(
-                        "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px] bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98] shadow-lg",
-                        isBeyondBusinessHoursToday &&
-                        !activeOtPunchRequestId &&
-                        !hasCompletedOtSessionInPending &&
-                        !otPunchStatusLoading
-                          ? "ring-4 ring-amber-200"
-                          : ""
-                      )}
-                    >
-                      <Icon name="Clock" size={IconSizes.md} className="mr-2" />
-                      OT Time In
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        const requestIdToUse =
-                          activeOtPunchRequestId ||
-                          (isOtRequestManuallySelected &&
-                          selectedPendingOtRequestId
-                            ? selectedPendingOtRequestId
-                            : getBestPendingOtRequestId("out"));
-                        setPendingOtPunchAction({
-                          requestId: requestIdToUse ?? null,
-                          punchType: "out",
-                        });
-                        setShowLocationModal(true);
-                      }}
-                      disabled={
-                        hasCompletedOtSessionInPending ||
-                        (!activeOtPunchRequestId &&
-                          !getBestPendingOtRequestId("out")) ||
-                        !locationStatus?.isAllowed ||
-                        otPunchStatusLoading
-                      }
-                      size="lg"
-                      className={cn(
-                        "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px] bg-gradient-to-br from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 hover:shadow-xl active:scale-[0.98] shadow-lg",
-                        isBeyondBusinessHoursToday &&
-                        (activeOtPunchRequestId || getBestPendingOtRequestId("out"))
-                        && !otPunchStatusLoading
-                          ? "ring-4 ring-amber-200"
-                          : ""
-                      )}
-                    >
-                      <Icon name="Clock" size={IconSizes.md} className="mr-2" />
-                      OT Time Out
-                    </Button>
-                  </div>
-                </div>
-            </div>
+          {!isRestDayToday && (
+            <Caption className="text-center text-muted-foreground block mt-2">
+              Business day runs 7:00 AM–6:59 AM next day. You may Time In and Time Out
+              multiple times—each pair must be closed before the next Time In. Auto clock-out
+              at 6:59 AM if you forget. File OT on the Overtime page and select the clock pair
+              to attach times and locations.
+            </Caption>
           )}
 
           <div>
@@ -2885,20 +2513,15 @@ export default function BundyClockPage() {
       </div>
 
       {/* Location Confirmation Modal */}
-      {(pendingClockAction || pendingOtPunchAction) && (
+      {pendingClockAction && (
         <LocationConfirmationModal
           isOpen={showLocationModal}
           onClose={() => {
             setShowLocationModal(false);
             setPendingClockAction(null);
-            setPendingOtPunchAction(null);
           }}
           onConfirm={handleLocationModalConfirm}
-          type={
-            pendingOtPunchAction?.punchType ??
-            pendingClockAction ??
-            "in"
-          }
+          type={pendingClockAction ?? "in"}
           validateLocation={validateLocationForModal}
         />
       )}

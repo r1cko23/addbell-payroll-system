@@ -928,7 +928,7 @@ export default function EmployeesPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Require OT punch in/out</Label>
+                  <Label>Require Bundy pair for OT filing</Label>
                   <label className="flex items-start gap-3 rounded-lg border bg-background p-3 cursor-pointer">
                     <Checkbox
                       checked={formData.requires_ot_punch}
@@ -941,10 +941,10 @@ export default function EmployeesPage() {
                       className="mt-0.5"
                     />
                     <div className="space-y-0.5 min-w-0">
-                      <p className="font-medium text-sm">Enable OT punch workflow</p>
+                      <p className="font-medium text-sm">Link OT to Bundy clock pairs</p>
                       <p className="text-xs text-muted-foreground">
-                        Employee must OT time in/out for each pending OT filing before HR can
-                        approve.
+                        When filing OT, employee must select a Bundy Time In / Out pair (GPS)
+                        and separately enter claimed OT hours/times for approval.
                       </p>
                     </div>
                   </label>

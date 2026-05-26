@@ -7,9 +7,12 @@
 
 import { createClient } from "@/lib/supabase/client";
 import { startOfWeek, endOfWeek, format, parseISO, addDays } from "date-fns";
+import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
+import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import {
   fetchSessionsForEmployee,
   getOpenEntryFromPunches,
+  getDateInManilaDefault,
   type TimeEntryPunch,
   type TimeEntrySession,
 } from "@/lib/timeEntries";
@@ -169,6 +172,12 @@ export async function isEmployeeClockedIn(
   employeeId: string
 ): Promise<boolean> {
   const supabase = createClient();
+  try {
+    await applyBundyAutoClockOutIfNeeded(supabase, employeeId);
+  } catch (e) {
+    console.error("Bundy auto clock-out:", e);
+  }
+  const activeBusinessDay = getBundyBusinessDayKey(new Date());
   const { data: punches } = await supabase
     .from("time_entries")
     .select("id, employee_id, punch_type, punched_at")
@@ -178,7 +187,8 @@ export async function isEmployeeClockedIn(
   const list = (punches || []) as TimeEntryPunch[];
   const open = getOpenEntryFromPunches(
     list,
-    (iso) => format(new Date(iso), "yyyy-MM-dd")
+    getDateInManilaDefault,
+    activeBusinessDay
   );
   return open != null;
 }
@@ -190,6 +200,12 @@ export async function getCurrentClockEntry(
   employeeId: string
 ): Promise<TimeClockEntry | null> {
   const supabase = createClient();
+  try {
+    await applyBundyAutoClockOutIfNeeded(supabase, employeeId);
+  } catch (e) {
+    console.error("Bundy auto clock-out:", e);
+  }
+  const activeBusinessDay = getBundyBusinessDayKey(new Date());
   const { data: punches } = await supabase
     .from("time_entries")
     .select("id, employee_id, punch_type, punched_at")
@@ -199,7 +215,8 @@ export async function getCurrentClockEntry(
   const list = (punches || []) as TimeEntryPunch[];
   const open = getOpenEntryFromPunches(
     list,
-    (iso) => format(new Date(iso), "yyyy-MM-dd")
+    getDateInManilaDefault,
+    activeBusinessDay
   );
   if (!open) return null;
   return sessionToTimeClockEntry(open, employeeId);

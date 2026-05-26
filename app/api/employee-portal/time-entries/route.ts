@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,6 +35,13 @@ export async function GET(req: NextRequest) {
     );
 
     const admin = getAdminClient();
+
+    try {
+      await applyBundyAutoClockOutIfNeeded(admin, employeeId);
+    } catch (autoErr) {
+      console.error("Bundy auto clock-out:", autoErr);
+    }
+
     let q = admin
       .from("time_entries")
       .select(

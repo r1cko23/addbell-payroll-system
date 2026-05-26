@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
+import {
+  buildUsedOtPairKeys,
+  validateBundyOtSessionPair,
+} from "@/lib/validate-bundy-ot-session";
+import type { TimeEntryPunch } from "@/lib/timeEntries";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 
 function getAdminClient() {
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from("overtime_requests")
       .select(
-        "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, project_manager_id, account_manager_id, project_manager_approved_at, approved_by, hr_approved_by, approved_at, created_at"
+        "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, project_manager_id, account_manager_id, project_manager_approved_at, approved_by, hr_approved_by, approved_at, created_at, bundy_in_punch_id, bundy_out_punch_id"
       )
       .eq("employee_id", employeeId)
       .order("ot_date", { ascending: false })
@@ -110,18 +115,52 @@ export async function GET(req: NextRequest) {
       ])
     );
 
-    const requests = rows.map((r: any) => ({
-      ...r,
-      overtime_documents: docsByRequest[r.id] || [],
-      manager_approval_name:
-        (r.project_manager_id && approverNameMap[r.project_manager_id]) ||
-        (r.account_manager_id && approverNameMap[r.account_manager_id]) ||
-        null,
-      final_approval_name:
-        (r.hr_approved_by && approverNameMap[r.hr_approved_by]) ||
-        (r.approved_by && approverNameMap[r.approved_by]) ||
-        null,
-    }));
+    const punchIds = new Set<string>();
+    rows.forEach((r) => {
+      if (r.bundy_in_punch_id) punchIds.add(r.bundy_in_punch_id);
+      if (r.bundy_out_punch_id) punchIds.add(r.bundy_out_punch_id);
+    });
+    const punchById: Record<
+      string,
+      { id: string; punched_at: string; lat: number | null; lng: number | null; punch_type: string }
+    > = {};
+    if (punchIds.size > 0) {
+      const { data: punchRows } = await admin
+        .from("time_entries")
+        .select("id, punched_at, lat, lng, punch_type")
+        .in("id", Array.from(punchIds));
+      (punchRows || []).forEach((p: any) => {
+        punchById[p.id] = p;
+      });
+    }
+
+    const requests = rows.map((r: any) => {
+      const inP = r.bundy_in_punch_id ? punchById[r.bundy_in_punch_id] : null;
+      const outP = r.bundy_out_punch_id ? punchById[r.bundy_out_punch_id] : null;
+      return {
+        ...r,
+        overtime_documents: docsByRequest[r.id] || [],
+        bundy_session:
+          inP && outP
+            ? {
+                clock_in_time: inP.punched_at,
+                clock_out_time: outP.punched_at,
+                clock_in_lat: inP.lat,
+                clock_in_lng: inP.lng,
+                clock_out_lat: outP.lat,
+                clock_out_lng: outP.lng,
+              }
+            : null,
+        manager_approval_name:
+          (r.project_manager_id && approverNameMap[r.project_manager_id]) ||
+          (r.account_manager_id && approverNameMap[r.account_manager_id]) ||
+          null,
+        final_approval_name:
+          (r.hr_approved_by && approverNameMap[r.hr_approved_by]) ||
+          (r.approved_by && approverNameMap[r.approved_by]) ||
+          null,
+      };
+    });
 
     return NextResponse.json({ requests });
   } catch (err: any) {
@@ -136,12 +175,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as {
       employee_id: string;
-      ot_date: string;
+      ot_date?: string;
       end_date?: string | null;
-      start_time: string;
-      end_time: string;
-      total_hours: number;
+      start_time?: string;
+      end_time?: string;
+      total_hours?: number;
       reason?: string | null;
+      bundy_in_punch_id?: string | null;
+      bundy_out_punch_id?: string | null;
       document?: {
         file_name: string;
         file_type: string;
@@ -150,20 +191,79 @@ export async function POST(req: NextRequest) {
       } | null;
     };
 
-    if (
-      !body?.employee_id ||
-      !body?.ot_date ||
-      !body?.start_time ||
-      !body?.end_time ||
-      !body?.total_hours
-    ) {
+    if (!body?.employee_id) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "employee_id is required" },
         { status: 400 }
       );
     }
 
-    const creditedHours = creditOvertimeHours(body.total_hours);
+    const admin = getAdminClient();
+
+    const { data: empRow } = await admin
+      .from("employees")
+      .select("requires_ot_punch")
+      .eq("id", body.employee_id)
+      .maybeSingle();
+
+    const requiresBundyLink = empRow?.requires_ot_punch === true;
+
+    let otDate = body.ot_date || "";
+    let endDate = body.end_date || null;
+    let startTime = body.start_time || "";
+    let endTime = body.end_time || "";
+    let creditedHours = 0;
+    let bundyInId: string | null = body.bundy_in_punch_id || null;
+    let bundyOutId: string | null = body.bundy_out_punch_id || null;
+
+    if (requiresBundyLink && (!bundyInId || !bundyOutId)) {
+      return NextResponse.json(
+        {
+          error:
+            "Select a completed Time In / Time Out pair from Bundy clock for this OT filing.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!otDate || !startTime || !endTime || body.total_hours == null) {
+      return NextResponse.json(
+        {
+          error:
+            "OT date, start time, end time, and claimed hours are required.",
+        },
+        { status: 400 }
+      );
+    }
+
+    creditedHours = creditOvertimeHours(body.total_hours);
+
+    if (bundyInId && bundyOutId) {
+      const { data: punches } = await admin
+        .from("time_entries")
+        .select("id, employee_id, punch_type, punched_at, lat, lng")
+        .eq("employee_id", body.employee_id)
+        .order("punched_at", { ascending: true })
+        .limit(200);
+
+      const { data: otRows } = await admin
+        .from("overtime_requests")
+        .select("bundy_in_punch_id, bundy_out_punch_id, status")
+        .eq("employee_id", body.employee_id)
+        .not("bundy_in_punch_id", "is", null);
+
+      const validated = validateBundyOtSessionPair({
+        punches: (punches || []) as TimeEntryPunch[],
+        inPunchId: bundyInId,
+        outPunchId: bundyOutId,
+        usedPairKeys: buildUsedOtPairKeys(otRows || []),
+      });
+
+      if ("error" in validated) {
+        return NextResponse.json({ error: validated.error }, { status: 400 });
+      }
+    }
+
     if (creditedHours < OT_MIN_HOURS) {
       return NextResponse.json(
         { error: `Minimum OT credit is ${OT_MIN_HOURS} hour.` },
@@ -171,18 +271,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const admin = getAdminClient();
     const { data, error } = await admin
       .from("overtime_requests")
       .insert({
         employee_id: body.employee_id,
-        ot_date: body.ot_date,
-        end_date: body.end_date || null,
-        start_time: body.start_time,
-        end_time: body.end_time,
+        ot_date: otDate,
+        end_date: endDate,
+        start_time: startTime,
+        end_time: endTime,
         total_hours: creditedHours,
         reason: body.reason || null,
         status: "pending",
+        bundy_in_punch_id: bundyInId,
+        bundy_out_punch_id: bundyOutId,
       })
       .select("id")
       .single();

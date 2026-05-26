@@ -3,6 +3,7 @@
  * Converts punch rows (in/out) into session-shaped entries for UI compatibility.
  */
 
+import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 
 export type PunchType = "in" | "out";
@@ -361,12 +362,13 @@ export function mergeBundyAndFtlClockSessions(
 
 /**
  * Finds the current open entry: an 'in' that has no matching 'out' (using same pairing as punchesToSessions).
- * If todayManilaStr is provided, only treats as open if that unpaired 'in' is from today.
+ * If activeBusinessDayKey is provided, only treats as open when clock-in belongs to that Bundy business day
+ * (7:00 AM–06:59 AM next calendar day), not calendar midnight.
  */
 export function getOpenEntryFromPunches(
   punches: TimeEntryPunch[],
   getDateInManila: (iso: string) => string,
-  todayManilaStr?: string
+  activeBusinessDayKey?: string
 ): TimeEntrySession | null {
   const sessions = punchesToSessions(
     [...punches].sort(
@@ -377,7 +379,8 @@ export function getOpenEntryFromPunches(
   const openSessions = sessions.filter(
     (s) =>
       !s.clock_out_time &&
-      (todayManilaStr == null || s.clock_in_date_ph === todayManilaStr)
+      (activeBusinessDayKey == null ||
+        getBundyBusinessDayKey(s.clock_in_time) === activeBusinessDayKey)
   );
   return openSessions.length > 0 ? openSessions[openSessions.length - 1] : null;
 }

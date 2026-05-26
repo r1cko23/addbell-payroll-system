@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
@@ -22,9 +23,8 @@ type Props = {
   required?: boolean;
 };
 
-function formatLocation(lat: number | null, lng: number | null): string {
-  if (lat == null || lng == null) return "No GPS recorded";
-  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+function formatCoordinatesKey(lat: number, lng: number): string {
+  return `${lat.toFixed(6)},${lng.toFixed(6)}`;
 }
 
 export function BundySessionPicker({
@@ -37,6 +37,9 @@ export function BundySessionPicker({
   const [sessions, setSessions] = useState<BundyCompletedSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reverseGeocodeMap, setReverseGeocodeMap] = useState<
+    Record<string, string>
+  >({});
 
   useEffect(() => {
     if (!employeeId) return;
@@ -68,11 +71,82 @@ export function BundySessionPicker({
     ? sessionPairKey(value.in_punch_id, value.out_punch_id)
     : "";
 
+  useEffect(() => {
+    const coordinateKeys = new Set<string>();
+    sessions.forEach((s) => {
+      if (s.clock_in_lat != null && s.clock_in_lng != null) {
+        coordinateKeys.add(formatCoordinatesKey(s.clock_in_lat, s.clock_in_lng));
+      }
+      if (s.clock_out_lat != null && s.clock_out_lng != null) {
+        coordinateKeys.add(
+          formatCoordinatesKey(s.clock_out_lat, s.clock_out_lng)
+        );
+      }
+    });
+
+    const unresolved = Array.from(coordinateKeys).filter(
+      (k) => !reverseGeocodeMap[k]
+    );
+    if (unresolved.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const updates: Record<string, string> = {};
+      await Promise.all(
+        unresolved.slice(0, 80).map(async (key) => {
+          const [latStr, lngStr] = key.split(",");
+          const lat = Number.parseFloat(latStr);
+          const lng = Number.parseFloat(lngStr);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+          try {
+            const res = await fetch(
+              `/api/geocode/reverse?lat=${encodeURIComponent(
+                String(lat)
+              )}&lng=${encodeURIComponent(String(lng))}`
+            );
+            const json = (await res.json()) as { address?: string | null };
+            if (res.ok && json.address) {
+              updates[key] = json.address;
+            }
+          } catch {
+            // ignore
+          }
+        })
+      );
+
+      if (cancelled || Object.keys(updates).length === 0) return;
+      setReverseGeocodeMap((prev) => ({ ...prev, ...updates }));
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessions, reverseGeocodeMap]);
+
+  const resolveAddressOrCoords = (lat: number | null, lng: number | null) => {
+    if (lat == null || lng == null) return "No GPS recorded";
+    const key = formatCoordinatesKey(lat, lng);
+    return reverseGeocodeMap[key] || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  };
+
   return (
     <div className="space-y-2 w-full">
-      <Label>
-        Bundy Time In / Out pair{required ? " *" : ""}
-      </Label>
+      <div className="flex items-center justify-between gap-2">
+        <Label>
+          Bundy Time In / Out pair{required ? " *" : ""}
+        </Label>
+        {value && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => onChange(null)}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
       <BodySmall className="text-muted-foreground">
         Choose a completed clock pair. Date and start/end will fill from this pair; you enter
         OT hours manually.
@@ -124,11 +198,25 @@ export function BundySessionPicker({
                   <div className="text-xs text-muted-foreground flex items-start gap-1">
                     <Icon name="MapPin" size={IconSizes.xs} className="shrink-0 mt-0.5" />
                     <span>
-                      In: {formatLocation(s.clock_in_lat, s.clock_in_lng)}
+                      In: {resolveAddressOrCoords(s.clock_in_lat, s.clock_in_lng)}
                       <br />
-                      Out: {formatLocation(s.clock_out_lat, s.clock_out_lng)}
+                      Out: {resolveAddressOrCoords(s.clock_out_lat, s.clock_out_lng)}
                     </span>
                   </div>
+                  {(s.clock_in_lat != null &&
+                    s.clock_in_lng != null &&
+                    s.clock_out_lat != null &&
+                    s.clock_out_lng != null) && (
+                    <a
+                      className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                      href={`https://www.google.com/maps?q=${s.clock_in_lat},${s.clock_in_lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Icon name="MapPin" size={IconSizes.xs} />
+                      View in Google Maps
+                    </a>
+                  )}
                 </div>
               </label>
             );

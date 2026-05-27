@@ -99,8 +99,8 @@ export async function GET(req: NextRequest) {
       businessDayKey,
       allowedBusinessDayKeys,
       excludePairsUsedByOt: usedPairKeys,
-      // For OT filing, only allow pairs beyond the first session of the business day.
-      excludeFirstSessionPerBusinessDay: true,
+      // OT filing may reference the main day pair (e.g. 7 AM → next-day time out).
+      excludeFirstSessionPerBusinessDay: false,
     });
 
     const activeBusinessDay = getBundyBusinessDayKey(new Date());

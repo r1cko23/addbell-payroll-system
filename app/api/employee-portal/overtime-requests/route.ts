@@ -6,7 +6,10 @@ import {
   validateBundyOtSessionPair,
 } from "@/lib/validate-bundy-ot-session";
 import type { TimeEntryPunch } from "@/lib/timeEntries";
-import { computeRawOtSpanHours } from "@/lib/ot-claimed-range";
+import {
+  computeRawOtSpanHours,
+  isClaimedOtWithinBundySession,
+} from "@/lib/ot-claimed-range";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 
 function getAdminClient() {
@@ -225,7 +228,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "OT date, start time, end time, and claimed hours are required.",
+            "Overtime date, start time, end time, and total hours are required.",
         },
         { status: 400 }
       );
@@ -257,6 +260,23 @@ export async function POST(req: NextRequest) {
       if ("error" in validated) {
         return NextResponse.json({ error: validated.error }, { status: 400 });
       }
+
+      if (
+        !isClaimedOtWithinBundySession(validated.session, {
+          otDate,
+          endDate,
+          startTime,
+          endTime,
+        })
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "OT start and end must fall within the linked clock in/out.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     if (creditedHours < OT_MIN_HOURS) {
@@ -281,7 +301,7 @@ export async function POST(req: NextRequest) {
     if (rawSpanHours < OT_MIN_HOURS) {
       return NextResponse.json(
         {
-          error: `Claimed OT time range must be at least ${OT_MIN_HOURS} hour.`,
+          error: `OT period must be at least ${OT_MIN_HOURS} hour.`,
         },
         { status: 400 }
       );
@@ -290,7 +310,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Claimed OT hours cannot be greater than the claimed OT time range.",
+            "Total OT hours cannot exceed the time between OT start and end.",
         },
         { status: 400 }
       );

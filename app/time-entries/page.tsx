@@ -1367,7 +1367,7 @@ export default function TimeEntriesPage() {
         </div>
 
         {/* Filters — full width */}
-        <Card className="w-full max-w-full">
+        <Card className="relative z-20 w-full max-w-full">
           <CardContent className="p-4 sm:p-6 w-full max-w-full">
             <div className="flex flex-col gap-4 md:flex-row md:items-center w-full max-w-full">
               {/* Weekly Cutoff (Wednesday–Tuesday) */}

@@ -3,7 +3,10 @@
  * Converts punch rows (in/out) into session-shaped entries for UI compatibility.
  */
 
-import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
+import {
+  extendCutoffPeriodEndForPunchFetch,
+  getBundyBusinessDayKey,
+} from "@/lib/bundy-business-day";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 
@@ -457,12 +460,13 @@ export async function fetchSessionsForEmployee(
   endIso: string,
   getDateInManila: (iso: string) => string = getDateInManilaDefault
 ): Promise<TimeEntrySession[]> {
+  const punchFetchEnd = extendCutoffPeriodEndForPunchFetch(new Date(endIso)).toISOString();
   const { data: punches } = await supabase
     .from("time_entries")
     .select("id, employee_id, punch_type, punched_at, lat, lng, device_info, source, office_location_id")
     .eq("employee_id", employeeId)
     .gte("punched_at", startIso)
-    .lte("punched_at", endIso)
+    .lte("punched_at", punchFetchEnd)
     .order("punched_at", { ascending: true });
   const list = (punches || []) as TimeEntryPunch[];
   return filterOfficialBundySessions(
@@ -484,11 +488,12 @@ export async function fetchSessionsInRange(
   endIso: string,
   options?: { employeeId?: string; statusFilter?: string }
 ): Promise<TimeEntrySession[]> {
+  const punchFetchEnd = extendCutoffPeriodEndForPunchFetch(new Date(endIso)).toISOString();
   let query = supabase
     .from("time_entries")
     .select("id, employee_id, punch_type, punched_at, lat, lng, device_info, source, office_location_id")
     .gte("punched_at", startIso)
-    .lte("punched_at", endIso)
+    .lte("punched_at", punchFetchEnd)
     .order("punched_at", { ascending: true });
 
   if (options?.employeeId) {

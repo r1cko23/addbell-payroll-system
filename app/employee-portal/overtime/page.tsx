@@ -20,12 +20,11 @@ import {
   BundySessionPicker,
   type BundySessionSelection,
 } from "@/components/BundySessionPicker";
-import {
-  manilaDateFromIso,
-  manilaTimeFromIso,
-} from "@/lib/bundy-sessions";
 import { getOtHistoryWindow } from "@/utils/weekly";
-import { computeRawOtSpanHours } from "@/lib/ot-claimed-range";
+import {
+  computeRawOtSpanHours,
+  isClaimedOtWithinBundySession,
+} from "@/lib/ot-claimed-range";
 
 type OvertimeDocSummary = { id: string; file_name: string };
 
@@ -88,7 +87,6 @@ export default function OvertimePage() {
     end_date: "",
     start_time: "",
     end_time: "",
-    claimed_hours: "",
     reason: "",
   });
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
@@ -156,8 +154,6 @@ export default function OvertimePage() {
       reader.readAsDataURL(file);
     });
 
-  const useBundyLinkedHours = Boolean(bundySelection);
-
   const rawHoursFromTimeRange = useMemo(() => {
     if (!formData.start_time || !formData.end_time || !formData.ot_date) return 0;
     let calculatedEndDate: string | null = formData.end_date || null;
@@ -190,22 +186,20 @@ export default function OvertimePage() {
     return creditOvertimeHours(rawHoursFromTimeRange);
   }, [rawHoursFromTimeRange]);
 
-  const manualClaimedHours = useMemo(() => {
-    const raw = Number(formData.claimed_hours);
-    if (!Number.isFinite(raw) || raw <= 0) return 0;
-    return creditOvertimeHours(raw);
-  }, [formData.claimed_hours]);
-
-  const submittedHours = useBundyLinkedHours ? manualClaimedHours : hoursFromTimeRange;
-  const exceedsClaimedTimeRange =
-    useBundyLinkedHours &&
-    Number(formData.claimed_hours) > 0 &&
-    rawHoursFromTimeRange > 0 &&
-    Number(formData.claimed_hours) > rawHoursFromTimeRange + 1e-9;
+  const submittedHours = hoursFromTimeRange;
   const spanTooShortForOt =
-    useBundyLinkedHours &&
-    rawHoursFromTimeRange > 0 &&
-    rawHoursFromTimeRange < OT_MIN_HOURS;
+    rawHoursFromTimeRange > 0 && rawHoursFromTimeRange < OT_MIN_HOURS;
+  const claimedOutsideBundy =
+    Boolean(bundySelection) &&
+    formData.ot_date &&
+    formData.start_time &&
+    formData.end_time &&
+    !isClaimedOtWithinBundySession(bundySelection.session, {
+      otDate: formData.ot_date,
+      endDate: formData.end_date || null,
+      startTime: formData.start_time,
+      endTime: formData.end_time,
+    });
 
   const loadRequests = async () => {
     setLoading(true);
@@ -289,18 +283,8 @@ export default function OvertimePage() {
     };
   }, [bundySelection]);
 
-  const applyBundySelectionToForm = (sel: BundySessionSelection | null) => {
+  const applyBundySelection = (sel: BundySessionSelection | null) => {
     setBundySelection(sel);
-    if (!sel) return;
-    const otDate = manilaDateFromIso(sel.session.clock_in_time);
-    const clockOutDate = manilaDateFromIso(sel.session.clock_out_time);
-    setFormData((prev) => ({
-      ...prev,
-      ot_date: otDate,
-      end_date: clockOutDate !== otDate ? clockOutDate : "",
-      start_time: manilaTimeFromIso(sel.session.clock_in_time),
-      end_time: manilaTimeFromIso(sel.session.clock_out_time),
-    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -310,33 +294,16 @@ export default function OvertimePage() {
       toast.error("Enter OT date, start, and end.");
       return;
     }
-    if (useBundyLinkedHours) {
-      if (!formData.claimed_hours.trim()) {
-        toast.error("Enter how many OT hours you actually worked.");
-        return;
-      }
-      if (manualClaimedHours <= 0) {
-        toast.error(
-          `Minimum OT credit is ${OT_MIN_HOURS} hour (half-hour steps after that).`
-        );
-        return;
-      }
-      if (exceedsClaimedTimeRange) {
-        toast.error(
-          `Claimed OT hours cannot exceed the time range (${rawHoursFromTimeRange.toFixed(
-            2
-          )}h).`
-        );
-        return;
-      }
-      if (spanTooShortForOt) {
-        toast.error(
-          `Claimed OT time range must be at least ${OT_MIN_HOURS} hour.`
-        );
-        return;
-      }
-    } else if (hoursFromTimeRange <= 0) {
-      toast.error("Invalid time range. Check your OT start and end times.");
+    if (hoursFromTimeRange <= 0 || spanTooShortForOt) {
+      toast.error(
+        `Enter a valid OT period (at least ${OT_MIN_HOURS} hour).`
+      );
+      return;
+    }
+    if (bundySelection && claimedOutsideBundy) {
+      toast.error(
+        "OT period must fall within linked clock in/out."
+      );
       return;
     }
     if (!formData.reason.trim()) {
@@ -463,7 +430,7 @@ export default function OvertimePage() {
       <VStack gap="2" align="start">
         <H1>OT filing</H1>
         <BodySmall className="text-muted-foreground">
-          File an overtime request for approval.
+          Submit overtime for approval.
         </BodySmall>
       </VStack>
       {/* Request Form */}
@@ -476,32 +443,141 @@ export default function OvertimePage() {
             </HStack>
           </CardTitle>
           <BodySmall className="text-muted-foreground">
-            Add details and submit.
+            Enter OT date and times. Optionally link clock in/out for location.
           </BodySmall>
         </CardHeader>
         <CardContent className="w-full">
           <form onSubmit={handleSubmit} className="w-full">
             <VStack gap="6" className="w-full">
+              <div className="w-full space-y-2">
+                <Label htmlFor="ot-date">Overtime date *</Label>
+                <Input
+                  id="ot-date"
+                  type="date"
+                  required
+                  value={formData.ot_date}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData((prev) => ({ ...prev, ot_date: value }));
+                    setBundySelection(null);
+                  }}
+                />
+                <Caption>Work day when OT started.</Caption>
+              </div>
+
               <BundySessionPicker
                 employeeId={employee.id}
                 otDate={formData.ot_date || undefined}
                 value={bundySelection}
-                onChange={applyBundySelectionToForm}
+                onChange={applyBundySelection}
                 required={false}
               />
 
               {bundySelection && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  Bundy span:{" "}
-                  <strong>{bundySelection.session.total_hours.toFixed(2)}h</strong>.
+                <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Linked clock span</p>
+                  <p>
+                    {format(new Date(bundySelection.session.clock_in_time), "MMM d, h:mm a")}{" "}
+                    –{" "}
+                    {format(new Date(bundySelection.session.clock_out_time), "MMM d, h:mm a")}
+                  </p>
+                  <p>Enter OT times within this span.</p>
                 </div>
               )}
 
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                {bundySelection && (
-                  <>
+              <div className="w-full space-y-3 rounded-lg border border-border p-4">
+                <p className="text-sm font-medium text-foreground">Overtime period</p>
+                <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full space-y-2">
+                  <Label htmlFor="start-time">OT start time *</Label>
+                  <Input
+                    id="start-time"
+                    type="time"
+                    required
+                    value={formData.start_time}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, start_time: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="w-full space-y-2">
+                  <Label htmlFor="end-time">OT end time *</Label>
+                  <Input
+                    id="end-time"
+                    type="time"
+                    required
+                    value={formData.end_time}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, end_time: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="w-full space-y-2">
+                  <Label htmlFor="claimed-hours">Total OT hours</Label>
+                  <Input
+                    id="claimed-hours"
+                    value={
+                      hoursFromTimeRange > 0 ? hoursFromTimeRange.toFixed(2) : ""
+                    }
+                    readOnly
+                    className="bg-muted/70"
+                  />
+                  <Caption>Computed from start and end times.</Caption>
+                  {spanTooShortForOt && (
+                    <p className="text-xs font-medium text-destructive">
+                      OT must be at least {OT_MIN_HOURS} hour.
+                    </p>
+                  )}
+                  {claimedOutsideBundy && (
+                    <p className="text-xs font-medium text-destructive">
+                      OT must fall within linked clock in/out.
+                    </p>
+                  )}
+                </div>
+                </div>
+              </div>
+
+              {(() => {
+                const startTimeOnly = new Date(
+                  `2000-01-01T${formData.start_time}:00`
+                );
+                const endTimeOnly = new Date(
+                  `2000-01-01T${formData.end_time}:00`
+                );
+                const autoSpansMidnight =
+                  formData.start_time &&
+                  formData.end_time &&
+                  endTimeOnly.getTime() <= startTimeOnly.getTime();
+
+                return (
+                  <div className="w-full space-y-2">
+                    <Label htmlFor="end-date">
+                      OT end date {autoSpansMidnight && "(auto-filled)"}
+                    </Label>
+                    <Input
+                      id="end-date"
+                      type="date"
+                      value={formData.end_date}
+                      min={formData.ot_date}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, end_date: e.target.value }))
+                      }
+                    />
+                    <Caption>
+                      {autoSpansMidnight
+                        ? "Set to next day (OT past midnight)."
+                        : "Required if OT ends on another date."}
+                    </Caption>
+                  </div>
+                );
+              })()}
+
+              {bundySelection && (
+                <div className="w-full space-y-3 rounded-lg border border-dashed border-muted p-4">
+                  <p className="text-sm font-medium text-foreground">Clock locations</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="w-full space-y-2">
-                      <Label>Time In location</Label>
+                      <Label>Clock-in location</Label>
                       <Input
                         value={
                           bundyAddressLoading && !bundyInAddress
@@ -531,7 +607,7 @@ export default function OvertimePage() {
                         )}
                     </div>
                     <div className="w-full space-y-2">
-                      <Label>Time Out location</Label>
+                      <Label>Clock-out location</Label>
                       <Input
                         value={
                           bundyAddressLoading && !bundyOutAddress
@@ -560,171 +636,21 @@ export default function OvertimePage() {
                           </a>
                         )}
                     </div>
-                  </>
-                )}
-                <div className="w-full space-y-2">
-                  <Label htmlFor="ot-date">Claimed OT date</Label>
-                  <Input
-                    id="ot-date"
-                    type="date"
-                    required
-                    readOnly={Boolean(bundySelection)}
-                    className={bundySelection ? "bg-muted/70" : undefined}
-                    value={formData.ot_date}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, ot_date: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="w-full space-y-2">
-                  <Label htmlFor="start-time">Claimed OT start</Label>
-                  <Input
-                    id="start-time"
-                    type="time"
-                    required
-                    readOnly={Boolean(bundySelection)}
-                    className={bundySelection ? "bg-muted/70" : undefined}
-                    value={formData.start_time}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, start_time: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="w-full space-y-2">
-                  <Label htmlFor="end-time">Claimed OT end</Label>
-                  <Input
-                    id="end-time"
-                    type="time"
-                    required
-                    readOnly={Boolean(bundySelection)}
-                    className={bundySelection ? "bg-muted/70" : undefined}
-                    value={formData.end_time}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, end_time: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="w-full space-y-2">
-                  <Label htmlFor="claimed-hours">Claimed OT hours *</Label>
-                  {useBundyLinkedHours ? (
-                    <>
-                      <Input
-                        id="claimed-hours"
-                        type="number"
-                        inputMode="decimal"
-                        min={OT_MIN_HOURS}
-                        max={
-                          rawHoursFromTimeRange >= OT_MIN_HOURS
-                            ? rawHoursFromTimeRange
-                            : undefined
-                        }
-                        step={0.5}
-                        required
-                        placeholder="e.g. 2"
-                        value={formData.claimed_hours}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            claimed_hours: e.target.value,
-                          }))
-                        }
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Hours worked (min {OT_MIN_HOURS}h, 0.5h steps).
-                      </p>
-                      {spanTooShortForOt && (
-                        <p className="text-xs font-medium text-destructive">
-                          Time range is below the {OT_MIN_HOURS}h minimum for OT.
-                        </p>
-                      )}
-                      {exceedsClaimedTimeRange && (
-                        <p className="text-xs font-medium text-destructive">
-                          Max {rawHoursFromTimeRange.toFixed(2)}h for this time range.
-                        </p>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <Input
-                        id="claimed-hours"
-                        value={
-                          hoursFromTimeRange > 0
-                            ? hoursFromTimeRange.toFixed(2)
-                            : ""
-                        }
-                        readOnly
-                        className="bg-muted/70"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Computed from claimed start/end above.
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Optional end date for multi-day OT */}
-              {!bundySelection &&
-              (() => {
-                const startTimeOnly = new Date(
-                  `2000-01-01T${formData.start_time}:00`
-                );
-                const endTimeOnly = new Date(
-                  `2000-01-01T${formData.end_time}:00`
-                );
-                const autoSpansMidnight =
-                  formData.start_time &&
-                  formData.end_time &&
-                  endTimeOnly.getTime() <= startTimeOnly.getTime();
-
-                return (
-                  <div className="w-full space-y-2">
-                    <Label htmlFor="end-date">
-                      End Date {autoSpansMidnight && "(auto-calculated)"}
-                    </Label>
-                    <Input
-                      id="end-date"
-                      type="date"
-                      value={formData.end_date}
-                      min={formData.ot_date}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, end_date: e.target.value }))
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {autoSpansMidnight
-                        ? "Auto-set to next day."
-                        : "Only needed if OT spans multiple days."}
-                    </p>
                   </div>
-                );
-              })()}
-
-              {bundySelection && formData.end_date && (
-                <p className="text-xs text-muted-foreground">
-                  End date: {formData.end_date} (from clock out)
-                </p>
+                </div>
               )}
 
               {submittedHours > 0 && (
                 <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
                   <div className="text-sm font-semibold text-primary">
-                    Hours you are claiming:{" "}
-                    <span className="text-lg">{submittedHours.toFixed(2)}</span>
-                    {bundySelection &&
-                      Math.abs(
-                        submittedHours - bundySelection.session.total_hours
-                      ) > 0.25 && (
-                        <span className="block text-xs font-normal text-muted-foreground mt-1">
-                          Bundy span: {bundySelection.session.total_hours.toFixed(2)}h
-                        </span>
-                      )}
+                    Total OT:{" "}
+                    <span className="text-lg">{submittedHours.toFixed(2)} h</span>
                   </div>
                 </div>
               )}
 
               <div className="w-full space-y-2">
-                <Label htmlFor="reason">Reason</Label>
+                <Label htmlFor="reason">Reason *</Label>
                 <Textarea
                   id="reason"
                   rows={4}
@@ -732,7 +658,7 @@ export default function OvertimePage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, reason: e.target.value }))
                   }
-                  placeholder="Reason for OT"
+                  placeholder="Work performed during OT"
                 />
               </div>
 
@@ -764,7 +690,7 @@ export default function OvertimePage() {
                   }}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
                 />
-                <p className="text-xs text-muted-foreground">PDF, DOC, or DOCX. Max 5MB.</p>
+                <Caption>PDF, DOC, or DOCX · 5MB max.</Caption>
                 {supportingDoc && !docError && (
                   <HStack
                     gap="2"
@@ -793,8 +719,9 @@ export default function OvertimePage() {
                   !formData.start_time ||
                   !formData.end_time ||
                   !formData.reason.trim() ||
-                  exceedsClaimedTimeRange ||
-                  spanTooShortForOt
+                  spanTooShortForOt ||
+                  claimedOutsideBundy ||
+                  hoursFromTimeRange <= 0
                 }
                 className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
                 size="lg"
@@ -907,7 +834,7 @@ export default function OvertimePage() {
                         {req.bundy_session && (
                           <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
                             <BodySmall className="font-semibold text-primary">
-                              Bundy clock (reference) · Claimed {creditOvertimeHours(req.total_hours)}h
+                              Clock reference · {creditOvertimeHours(req.total_hours)}h OT
                             </BodySmall>
                             <div>
                               Time In:{" "}

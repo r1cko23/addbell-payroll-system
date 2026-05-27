@@ -14,7 +14,7 @@ export function validateBundyOtSessionPair(params: {
 }): { session: BundyCompletedSession } | { error: string } {
   const sessions = listCompletedBundySessions(params.punches, {
     excludePairsUsedByOt: params.usedPairKeys,
-    excludeFirstSessionPerBusinessDay: true,
+    excludeFirstSessionPerBusinessDay: false,
   });
   const match = sessions.find(
     (s) =>

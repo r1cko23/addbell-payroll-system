@@ -79,3 +79,14 @@ export function isPastBundyAutoClockOut(
 
 export const BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO =
   "auto:business-day-close@06:59 Manila";
+
+/**
+ * Extend cutoff period end when querying time_entries so clock-outs on the
+ * calendar day after the last cutoff day are included (e.g. Tue shift out at Wed 12:00 AM).
+ */
+export function extendCutoffPeriodEndForPunchFetch(periodEnd: Date): Date {
+  const d = new Date(periodEnd);
+  d.setDate(d.getDate() + 1);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}

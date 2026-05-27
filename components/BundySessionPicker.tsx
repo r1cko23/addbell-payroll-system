@@ -134,7 +134,7 @@ export function BundySessionPicker({
     <div className="space-y-2 w-full">
       <div className="flex items-center justify-between gap-2">
         <Label>
-          Bundy Time In / Out pair (optional){required ? " *" : ""}
+          Clock in / out (optional){required ? " *" : ""}
         </Label>
         {value && (
           <Button
@@ -148,16 +148,19 @@ export function BundySessionPicker({
         )}
       </div>
       <BodySmall className="text-muted-foreground">
-        Optional — link a completed pair from today or yesterday to auto-fill date
-        and time (2nd session onward per day), or enter them manually below.
+        {otDate
+          ? "For location reference only. Does not set OT hours."
+          : "Select OT date first."}
       </BodySmall>
       {loading ? (
-        <Caption className="text-muted-foreground">Loading clock sessions…</Caption>
+        <Caption className="text-muted-foreground">Loading…</Caption>
       ) : error ? (
         <Caption className="text-destructive">{error}</Caption>
       ) : sessions.length === 0 ? (
         <Caption className="text-muted-foreground">
-          No completed pairs{otDate ? ` for ${otDate}` : " for today or yesterday"}.
+          {otDate
+            ? `No clock record for ${otDate}. OT may be filed without a link.`
+            : "Select OT date first."}
         </Caption>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto rounded-md border border-input p-2">
@@ -191,7 +194,7 @@ export function BundySessionPicker({
                     {format(new Date(s.clock_in_time), "MMM d, h:mm a")} –{" "}
                     {format(new Date(s.clock_out_time), "h:mm a")}
                     <span className="text-muted-foreground font-normal ml-2">
-                      ({s.total_hours.toFixed(2)}h)
+                      ({s.total_hours.toFixed(2)}h shift)
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground flex items-start gap-1">

@@ -90,12 +90,6 @@ type OTRequest = {
 
 type ViewerOtStatus = "pending" | "approved" | "rejected";
 
-// OT punch enforcement is only required for OT dates on/after this rollout date.
-const OT_PUNCH_REQUIRED_FROM_DATE = "2026-04-29";
-
-/** When false, final approvers (e.g. HR) may approve OT without completed OT punches. */
-const REQUIRE_COMPLETED_OT_PUNCH_FOR_FINAL_APPROVAL = false;
-
 function formatTime12h(value?: string | null): string {
   if (!value) return "—";
   const raw = value.includes("T")
@@ -112,13 +106,6 @@ function formatTime12h(value?: string | null): string {
     minute: "2-digit",
     hour12: true,
   });
-}
-
-function requiresOtPunchForApproval(request: OTRequest): boolean {
-  if (!REQUIRE_COMPLETED_OT_PUNCH_FOR_FINAL_APPROVAL) return false;
-  if (request.employees?.requires_ot_punch !== true) return false;
-  if (!request.ot_date) return false;
-  return request.ot_date >= OT_PUNCH_REQUIRED_FROM_DATE;
 }
 
 /** User id to show as approver/rejector — prefer final `approved_by`, then HR, then endorsement ids. */
@@ -792,25 +779,8 @@ export default function OvertimeApprovalPage() {
       managerStage &&
       (isUserFirstApproverForRequest(user.id, request) ||
         isUpperManagementOvertimeGroupLabel(getRequestGroupName(request)));
-    const requiresOtPunch = requiresOtPunchForApproval(request);
-    const punchStatus = otPunchStatusByRequestId[id];
-
     const effectiveManagerStage =
       managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
-
-    if (!effectiveManagerStage && requiresOtPunch) {
-      const hasBundyPair = Boolean(
-        request.bundy_in_punch_id && request.bundy_out_punch_id
-      );
-      if (!hasBundyPair) {
-        toast.error("Cannot approve yet: Bundy clock pair not linked.", {
-          description:
-            "This employee must file OT with a completed Time In / Time Out pair from Bundy.",
-        });
-        setActioningId(null);
-        return;
-      }
-    }
 
     const patch: Record<string, unknown> = effectiveManagerStage
       ? {
@@ -1399,10 +1369,9 @@ export default function OvertimeApprovalPage() {
                   </div>
                 )}
 
-                {selected.employees?.requires_ot_punch === true && (
-                  <div className="space-y-2">
-                    <Label className="text-sm">Bundy clock pair</Label>
-                    {selected.bundy_session ? (
+                <div className="space-y-2">
+                  <Label className="text-sm">Bundy reference (optional)</Label>
+                  {selected.bundy_session ? (
                       <>
                         <Badge
                           variant="outline"
@@ -1451,15 +1420,11 @@ export default function OvertimeApprovalPage() {
                         </p>
                       </>
                     ) : (
-                      <Badge
-                        variant="outline"
-                        className="bg-red-100 text-red-900 border-red-200"
-                      >
-                        No Bundy pair linked
-                      </Badge>
+                      <Caption className="text-muted-foreground">
+                        None — filed with manual date and time only.
+                      </Caption>
                     )}
-                  </div>
-                )}
+                </div>
 
                 {selected.overtime_documents && selected.overtime_documents.length > 0 ? (
                   <div className="space-y-2">

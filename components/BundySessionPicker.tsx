@@ -134,7 +134,7 @@ export function BundySessionPicker({
     <div className="space-y-2 w-full">
       <div className="flex items-center justify-between gap-2">
         <Label>
-          Bundy Time In / Out pair{required ? " *" : ""}
+          Bundy Time In / Out pair (optional){required ? " *" : ""}
         </Label>
         {value && (
           <Button
@@ -148,7 +148,8 @@ export function BundySessionPicker({
         )}
       </div>
       <BodySmall className="text-muted-foreground">
-        Pick a completed pair to auto-fill the date and time.
+        Optional — link a completed pair to auto-fill date and time, or enter them
+        manually below.
       </BodySmall>
       {loading ? (
         <Caption className="text-muted-foreground">Loading clock sessions…</Caption>

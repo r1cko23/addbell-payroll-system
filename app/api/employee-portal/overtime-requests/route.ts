@@ -201,14 +201,6 @@ export async function POST(req: NextRequest) {
 
     const admin = getAdminClient();
 
-    const { data: empRow } = await admin
-      .from("employees")
-      .select("requires_ot_punch")
-      .eq("id", body.employee_id)
-      .maybeSingle();
-
-    const requiresBundyLink = empRow?.requires_ot_punch === true;
-
     let otDate = body.ot_date || "";
     let endDate = body.end_date || null;
     let startTime = body.start_time || "";
@@ -216,16 +208,6 @@ export async function POST(req: NextRequest) {
     let creditedHours = 0;
     let bundyInId: string | null = body.bundy_in_punch_id || null;
     let bundyOutId: string | null = body.bundy_out_punch_id || null;
-
-    if (requiresBundyLink && (!bundyInId || !bundyOutId)) {
-      return NextResponse.json(
-        {
-          error:
-            "Select a completed Time In / Time Out pair from Bundy clock for this OT filing.",
-        },
-        { status: 400 }
-      );
-    }
 
     if (!otDate || !startTime || !endTime || body.total_hours == null) {
       return NextResponse.json(

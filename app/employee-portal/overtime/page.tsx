@@ -98,7 +98,6 @@ export default function OvertimePage() {
   const [replaceDocLoadingId, setReplaceDocLoadingId] = useState<string | null>(
     null
   );
-  const [requiresOtPunch, setRequiresOtPunch] = useState(false);
   const [bundySelection, setBundySelection] =
     useState<BundySessionSelection | null>(null);
   const [bundyInAddress, setBundyInAddress] = useState<string>("");
@@ -155,7 +154,7 @@ export default function OvertimePage() {
       reader.readAsDataURL(file);
     });
 
-  const useBundyLinkedHours = requiresOtPunch || Boolean(bundySelection);
+  const useBundyLinkedHours = Boolean(bundySelection);
 
   const rawHoursFromTimeRange = useMemo(() => {
     if (!formData.start_time || !formData.end_time || !formData.ot_date) return 0;
@@ -226,23 +225,8 @@ export default function OvertimePage() {
     setLoading(false);
   };
 
-  const loadProfile = async () => {
-    const res = await fetch(
-      `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
-        employee.id
-      )}`
-    );
-    const json = (await res.json().catch(() => ({}))) as {
-      requires_ot_punch?: boolean;
-    };
-    if (res.ok) {
-      setRequiresOtPunch(json.requires_ot_punch === true);
-    }
-  };
-
   useEffect(() => {
     loadRequests();
-    loadProfile();
   }, [employee.id]);
 
   useEffect(() => {
@@ -311,11 +295,6 @@ export default function OvertimePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (requiresOtPunch && !bundySelection) {
-      toast.error("Select a Bundy pair.");
-      return;
-    }
 
     if (!formData.ot_date || !formData.start_time || !formData.end_time) {
       toast.error("Enter OT date, start, and end.");
@@ -489,11 +468,6 @@ export default function OvertimePage() {
           <BodySmall className="text-muted-foreground">
             Add details and submit.
           </BodySmall>
-          {requiresOtPunch && (
-            <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
-              Select a Bundy pair to auto-fill date and time.
-            </div>
-          )}
         </CardHeader>
         <CardContent className="w-full">
           <form onSubmit={handleSubmit} className="w-full">
@@ -503,7 +477,7 @@ export default function OvertimePage() {
                 otDate={formData.ot_date || undefined}
                 value={bundySelection}
                 onChange={applyBundySelectionToForm}
-                required={requiresOtPunch}
+                required={false}
               />
 
               {bundySelection && (

@@ -190,7 +190,7 @@ export default function OvertimePage() {
   const spanTooShortForOt =
     rawHoursFromTimeRange > 0 && rawHoursFromTimeRange < OT_MIN_HOURS;
   const claimedOutsideBundy =
-    Boolean(bundySelection) &&
+    bundySelection != null &&
     formData.ot_date &&
     formData.start_time &&
     formData.end_time &&
@@ -415,7 +415,6 @@ export default function OvertimePage() {
         end_date: "",
         start_time: "",
         end_time: "",
-        claimed_hours: "",
         reason: "",
       });
       setBundySelection(null);

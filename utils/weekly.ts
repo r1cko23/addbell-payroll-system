@@ -96,3 +96,40 @@ export function buildDefaultPayrollRunForm(referenceDate?: Date) {
     getDefaultPayrollRunWeek(referenceDate).weekStart
   );
 }
+
+function parseYmd(ymd: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  return new Date(y, mo - 1, d);
+}
+
+/** Wed–Tue cutoff week containing anchorYmd (yyyy-MM-dd). */
+export function getWeeklyCutoffWindowForOtFiling(anchorYmd: string) {
+  const anchor = parseYmd(anchorYmd);
+  if (!anchor) return null;
+  const weekStart = getWeeklyPeriodStart(anchor);
+  const weekEnd = getWeeklyCutoffEndDate(weekStart);
+  return {
+    start_ymd: format(weekStart, "yyyy-MM-dd"),
+    end_ymd: format(weekEnd, "yyyy-MM-dd"),
+    label: formatWeeklyPeriod(weekStart, weekEnd),
+  };
+}
+
+/** Previous + current Wed–Tue weeks for employee OT history. */
+export function getOtHistoryWindow(anchorYmd: string) {
+  const anchor = parseYmd(anchorYmd);
+  if (!anchor) return null;
+  const currentWeekStart = getWeeklyPeriodStart(anchor);
+  const previousWeekStart = getPreviousWeeklyPeriod(currentWeekStart);
+  const currentWeekEnd = getWeeklyCutoffEndDate(currentWeekStart);
+  return {
+    start_ymd: format(previousWeekStart, "yyyy-MM-dd"),
+    end_ymd: format(currentWeekEnd, "yyyy-MM-dd"),
+    label: formatWeeklyPeriod(previousWeekStart, currentWeekEnd),
+  };
+}

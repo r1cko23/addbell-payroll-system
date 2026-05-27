@@ -24,6 +24,7 @@ import {
   manilaDateFromIso,
   manilaTimeFromIso,
 } from "@/lib/bundy-sessions";
+import { getOtHistoryWindow } from "@/utils/weekly";
 import { computeRawOtSpanHours } from "@/lib/ot-claimed-range";
 
 type OvertimeDocSummary = { id: string; file_name: string };
@@ -103,6 +104,7 @@ export default function OvertimePage() {
   const [bundyInAddress, setBundyInAddress] = useState<string>("");
   const [bundyOutAddress, setBundyOutAddress] = useState<string>("");
   const [bundyAddressLoading, setBundyAddressLoading] = useState(false);
+  const [historyWindowLabel, setHistoryWindowLabel] = useState<string | null>(null);
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -207,10 +209,18 @@ export default function OvertimePage() {
 
   const loadRequests = async () => {
     setLoading(true);
+    const todayYmd = format(new Date(), "yyyy-MM-dd");
+    const historyWindow = getOtHistoryWindow(todayYmd);
+    setHistoryWindowLabel(historyWindow?.label ?? null);
+
+    const params = new URLSearchParams({ employee_id: employee.id });
+    if (historyWindow) {
+      params.set("ot_date_from", historyWindow.start_ymd);
+      params.set("ot_date_to", historyWindow.end_ymd);
+    }
+
     const response = await fetch(
-      `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
-        employee.id
-      )}`
+      `/api/employee-portal/overtime-requests?${params.toString()}`
     );
     const payload = await response.json();
 
@@ -814,6 +824,11 @@ export default function OvertimePage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle>My OT Requests</CardTitle>
+          {historyWindowLabel && (
+            <BodySmall className="text-muted-foreground">
+              Showing this week and previous week ({historyWindowLabel}).
+            </BodySmall>
+          )}
         </CardHeader>
         <CardContent className="w-full">
           {loading ? (
@@ -833,19 +848,21 @@ export default function OvertimePage() {
                   />
                 </div>
                 <VStack gap="2" align="center">
-                  <H3 className="text-lg font-semibold">No OT Requests Yet</H3>
+                  <H3 className="text-lg font-semibold">No Recent OT Requests</H3>
                   <BodySmall className="text-muted-foreground max-w-md">
-                    No OT requests yet.
+                    {historyWindowLabel
+                      ? `No filings for ${historyWindowLabel}.`
+                      : "No OT requests for the last two cutoff weeks."}
                   </BodySmall>
                 </VStack>
               </VStack>
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((req, idx) => (
+              {requests.map((req) => (
                 <Card
                   key={req.id}
-                  className={`w-full ${idx > 0 ? "hidden md:block" : ""} ${
+                  className={`w-full ${
                     req.status === "pending"
                       ? "border-yellow-300"
                       : req.status === "approved"

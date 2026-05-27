@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     const usedPairKeys = buildUsedOtPairKeys(otRows || []);
 
-    // OT filing: show pairs for anchor date's business day + 1 calendar day before.
+    // OT filing: anchor date's business day + 1 calendar day before.
     const anchorYmd =
       otDateParam || getDateInManilaDefault(new Date().toISOString());
     const prevYmd = ymdMinusDays(anchorYmd, 1);

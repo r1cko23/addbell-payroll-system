@@ -148,8 +148,8 @@ export function BundySessionPicker({
         )}
       </div>
       <BodySmall className="text-muted-foreground">
-        Optional — link a completed pair to auto-fill date and time, or enter them
-        manually below.
+        Optional — link a completed pair from today or yesterday to auto-fill date
+        and time (2nd session onward per day), or enter them manually below.
       </BodySmall>
       {loading ? (
         <Caption className="text-muted-foreground">Loading clock sessions…</Caption>
@@ -157,7 +157,7 @@ export function BundySessionPicker({
         <Caption className="text-destructive">{error}</Caption>
       ) : sessions.length === 0 ? (
         <Caption className="text-muted-foreground">
-          No completed pairs{otDate ? ` for ${otDate}` : ""}.
+          No completed pairs{otDate ? ` for ${otDate}` : " for today or yesterday"}.
         </Caption>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto rounded-md border border-input p-2">

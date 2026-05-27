@@ -61,13 +61,25 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const otDateFrom = req.nextUrl.searchParams.get("ot_date_from");
+    const otDateTo = req.nextUrl.searchParams.get("ot_date_to");
+
     const admin = getAdminClient();
-    const { data, error } = await admin
+    let query = admin
       .from("overtime_requests")
       .select(
         "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, project_manager_id, account_manager_id, project_manager_approved_at, approved_by, hr_approved_by, approved_at, created_at, bundy_in_punch_id, bundy_out_punch_id"
       )
-      .eq("employee_id", employeeId)
+      .eq("employee_id", employeeId);
+
+    if (otDateFrom) {
+      query = query.gte("ot_date", otDateFrom);
+    }
+    if (otDateTo) {
+      query = query.lte("ot_date", otDateTo);
+    }
+
+    const { data, error } = await query
       .order("ot_date", { ascending: false })
       .order("created_at", { ascending: false });
 

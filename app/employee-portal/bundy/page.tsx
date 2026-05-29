@@ -35,8 +35,12 @@ import {
   getDay,
 } from "date-fns";
 import { getBundyBusinessDayKeyForInPunch } from "@/lib/bundy-business-day";
-import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
-import { calculateLateHours } from "@/utils/business-hours";
+import {
+  calculateLateHours,
+  getBusinessDayPolicyByDay,
+  halfDayRequiredHoursByDay,
+  regularHoursFromBundyClockPair,
+} from "@/utils/business-hours";
 
 /**
  * Convert a UTC timestamp to Asia/Manila date string (YYYY-MM-DD)
@@ -240,6 +244,7 @@ interface LeaveRequest {
   end_date: string;
   status: string;
   selected_dates?: string[] | null;
+  half_day_dates?: string[] | null;
 }
 
 interface OvertimeRequest {
@@ -257,6 +262,7 @@ interface AttendanceDay {
   dayName: string;
   dayType: string;
   status: string;
+  isHalfDayLeave?: boolean;
   timeIn: string | null;
   timeOut: string | null;
   schedIn: string | null;
@@ -906,6 +912,7 @@ export default function BundyClockPage() {
           start_date: string;
           end_date: string;
           status: string;
+          half_day_dates?: string[] | null;
         }>;
         error?: string;
       };
@@ -1308,6 +1315,7 @@ export default function BundyClockPage() {
         // 8. No entry = ABSENT
         let status = "-";
         let bh = 0; // Basic Hours
+        let isHalfDayLeave = false;
         let eligibleForHolidayCredit = false;
 
         // Check for holidays FIRST (before everything else) to ensure they're always detected
@@ -1369,6 +1377,9 @@ export default function BundyClockPage() {
         } else if (dayLeaves.length > 0) {
           // Check leave requests (but holidays take priority)
           const leave = dayLeaves[0];
+          isHalfDayLeave =
+            Array.isArray(leave.half_day_dates) &&
+            leave.half_day_dates.includes(dateStr);
           if (leave.leave_type === "LWOP") {
             status = "LWOP";
             bh = 0;
@@ -1488,7 +1499,9 @@ export default function BundyClockPage() {
         const firstEntry = allDayEntries[0];
         let timeIn: string | null = null;
         let timeOut: string | null = null;
-        if (status !== "LWOP" && status !== "LEAVE" && allDayEntries.length > 0) {
+        const hideClockForFullDayLeave =
+          (status === "LWOP" || status === "LEAVE") && !isHalfDayLeave;
+        if (!hideClockForFullDayLeave && allDayEntries.length > 0) {
           const inParts = allDayEntries.map((e) =>
             formatDate(parseISO(e.clock_in_time), "hh:mm a")
           );
@@ -1541,15 +1554,35 @@ export default function BundyClockPage() {
           );
         }
 
-        // Calculate BH (Basic Hours)
-        // If status is already set from leave (CTO, LEAVE, OB), use that value
-        // Otherwise, sum regular hours from complete entries
-        // BH should always show regular hours (8), not OT hours
+        // Calculate BH (Basic Hours) from business-window overlap (matches Time Attendance).
         if (bh === 0) {
-          if (officialDayEntries.length > 0) {
-            bh = officialDayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+          if (dayEntries.length > 0) {
+            const bhFromBusinessWindows = dayEntries.reduce((sum, entry) => {
+              if (!entry.clock_in_time || !entry.clock_out_time) {
+                return sum + (entry.regular_hours || 0);
+              }
+              try {
+                return (
+                  sum +
+                  regularHoursFromBundyClockPair(
+                    entry.clock_in_time,
+                    entry.clock_out_time
+                  )
+                );
+              } catch {
+                return sum + (entry.regular_hours || 0);
+              }
+            }, 0);
+            const credited = creditWorkHoursHalfHour(
+              Math.round(bhFromBusinessWindows * 100) / 100
+            );
+            if (dayOfWeek === 6) {
+              bh = 0;
+              otHours = Math.round(Math.max(otHours, credited) * 100) / 100;
+            } else {
+              bh = credited;
+            }
           } else if (dayOTs.length > 0 && dayEntries.length === 0) {
-            // Approved OT but no clock entries: BH stays 0 (OT hours in OT column)
             bh = 0;
           }
         }
@@ -1634,6 +1667,14 @@ export default function BundyClockPage() {
 
         if (hasScheduleWindow && resolvedStartMinutes !== null && resolvedEndMinutes !== null) {
           requiredHours = Math.max(0, (resolvedEndMinutes - resolvedStartMinutes) / 60);
+        }
+
+        // Half-day approved leave: UT vs first business window only (7AM–12NN = 5h); BH = actual worked.
+        if (isHalfDayLeave) {
+          const halfRequired = halfDayRequiredHoursByDay(dayOfWeek);
+          if (halfRequired > 0) {
+            requiredHours = halfRequired;
+          }
         }
 
         const rawDeficit = Math.max(0, requiredHours - bh);
@@ -1724,6 +1765,7 @@ export default function BundyClockPage() {
           dayName: getDayName(dateStr),
           dayType,
           status,
+          isHalfDayLeave,
           timeIn,
           timeOut,
           schedIn,
@@ -2412,17 +2454,19 @@ export default function BundyClockPage() {
                           </span>
                         </td>
                         <td className="px-2 py-1.5 text-xs">
-                          {day.status === "LWOP" || day.status === "LEAVE"
+                          {(day.status === "LWOP" || day.status === "LEAVE") &&
+                          !day.isHalfDayLeave
                             ? "-"
                             : day.timeIn || "-"}
                         </td>
                         <td className="px-2 py-1.5 text-xs">
-                          {day.status === "LWOP" || day.status === "LEAVE"
+                          {(day.status === "LWOP" || day.status === "LEAVE") &&
+                          !day.isHalfDayLeave
                             ? "-"
                             : day.timeOut || "-"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
-                          {day.status === "LWOP"
+                          {day.status === "LWOP" && !day.isHalfDayLeave
                             ? "-"
                             : day.status === "LEAVE"
                             ? "8.0"
@@ -2453,7 +2497,13 @@ export default function BundyClockPage() {
 
                   const totalBH = attendanceDays.reduce((sum, d) => {
                     if (d.date < weekStartStr || d.date > weekEndStr) return sum;
-                    if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") return sum;
+                    if (
+                      (d.status === "LWOP" && !d.isHalfDayLeave) ||
+                      d.status === "CTO" ||
+                      d.status === "OB"
+                    ) {
+                      return sum;
+                    }
                     return sum + d.bh;
                   }, 0);
                   const daysWork = totalBH / 8;

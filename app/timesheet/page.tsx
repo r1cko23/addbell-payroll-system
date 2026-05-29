@@ -37,6 +37,7 @@ import {
   calculateLateHours,
   getBusinessDayPolicyByDay,
   getManilaHourMinute,
+  halfDayRequiredHoursByDay,
   regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 import {
@@ -192,6 +193,7 @@ interface LeaveRequest {
   end_date: string;
   status: string; // approved_by_hr, approved_by_manager, etc.
   selected_dates?: string[] | null;
+  half_day_dates?: string[] | null;
 }
 
 interface OvertimeRequest {
@@ -218,6 +220,7 @@ interface AttendanceDay {
   dayName: string;
   dayType: string;
   status: string; // LOG, CTO, LWOP, LEAVE, ABSENT, INC, OT, OB, -, etc.
+  isHalfDayLeave?: boolean;
   timeIn: string | null;
   timeOut: string | null;
   schedIn: string | null;
@@ -626,7 +629,7 @@ export default function TimesheetPage() {
       // Leave requests overlap if: start_date <= periodEnd AND end_date >= periodStart
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("id, leave_type, start_date, end_date, status")
+        .select("id, leave_type, start_date, end_date, status, half_day_dates")
         .eq("employee_id", selectedEmployee.id)
         .lte("start_date", periodEndStr)
         .gte("end_date", periodStartStr)
@@ -944,6 +947,7 @@ export default function TimesheetPage() {
       // 8. No entry = ABSENT
       let status = "-";
       let bh = 0; // Basic Hours
+      let isHalfDayLeave = false;
 
       // Check for holidays FIRST (before everything else) to ensure they're always detected
       // This is critical - holidays should be detected even if there are no clock entries
@@ -1001,6 +1005,9 @@ export default function TimesheetPage() {
       } else if (dayLeaves.length > 0) {
         // Check leave requests (but holidays take priority)
         const leave = dayLeaves[0];
+        isHalfDayLeave =
+          Array.isArray(leave.half_day_dates) &&
+          leave.half_day_dates.includes(dateStr);
         if (leave.leave_type === "LWOP") {
           status = "LWOP";
           bh = 0;
@@ -1131,14 +1138,16 @@ export default function TimesheetPage() {
       const firstEntry = dayEntries[0] || incompleteDayEntries[0];
       const hasActualClockEntry = firstEntry !== undefined && firstEntry !== null;
 
+      const hideClockForFullDayLeave =
+        (status === "LWOP" || status === "LEAVE") && !isHalfDayLeave;
       const timeIn =
-        status === "LWOP" || status === "LEAVE"
+        hideClockForFullDayLeave
           ? null
           : hasActualClockEntry && firstEntry?.clock_in_time
           ? format(parseISO(firstEntry.clock_in_time), "hh:mm a")
           : null;
       const timeOut =
-        status === "LWOP" || status === "LEAVE"
+        hideClockForFullDayLeave
           ? null
           : hasActualClockEntry && firstEntry?.clock_out_time
           ? format(parseISO(firstEntry.clock_out_time), "hh:mm a")
@@ -1421,6 +1430,14 @@ export default function TimesheetPage() {
         requiredHours = Math.max(0, (resolvedEndMinutes - resolvedStartMinutes) / 60);
       }
 
+      // Half-day approved leave: UT vs first business window only (7AM–12NN = 5h); BH = actual worked.
+      if (isHalfDayLeave) {
+        const halfRequired = halfDayRequiredHoursByDay(dayOfWeek);
+        if (halfRequired > 0) {
+          requiredHours = halfRequired;
+        }
+      }
+
       // Undertime is the missing required hours after credited BH (BH already uses business windows).
       // Policy: UT is rounded up to the next FULL hour.
       const rawDeficit = Math.max(0, requiredHours - bh);
@@ -1434,6 +1451,7 @@ export default function TimesheetPage() {
         dayName: getDayName(dateStr),
         dayType,
         status,
+        isHalfDayLeave,
         timeIn,
         timeOut,
         schedIn,
@@ -1598,8 +1616,12 @@ export default function TimesheetPage() {
         return sum;
       }
 
-      // Exclude non-working leave types
-      if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
+      // Exclude full-day non-working leave; half-day LWOP still credits worked BH.
+      if (
+        (d.status === "LWOP" && !d.isHalfDayLeave) ||
+        d.status === "CTO" ||
+        d.status === "OB"
+      ) {
         return sum;
       }
 
@@ -1663,8 +1685,12 @@ export default function TimesheetPage() {
         return sum;
       }
 
-      // Exclude non-working leave types
-      if (d.status === "LWOP" || d.status === "CTO" || d.status === "OB") {
+      // Exclude full-day non-working leave; half-day LWOP still credits worked BH.
+      if (
+        (d.status === "LWOP" && !d.isHalfDayLeave) ||
+        d.status === "CTO" ||
+        d.status === "OB"
+      ) {
         return sum;
       }
 
@@ -1983,7 +2009,7 @@ export default function TimesheetPage() {
                           </span>
                         </td>
                         <td className="px-4 py-2 text-sm text-right">
-                          {day.status === "LWOP"
+                          {day.status === "LWOP" && !day.isHalfDayLeave
                             ? "-"
                             : day.status === "LEAVE"
                             ? "8.0"

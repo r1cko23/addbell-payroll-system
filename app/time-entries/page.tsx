@@ -156,6 +156,8 @@ export default function TimeEntriesPage() {
   const [savingBulkEntries, setSavingBulkEntries] = useState(false);
   const [expandedDayKeys, setExpandedDayKeys] = useState<Set<string>>(new Set());
   const [reverseGeocodeMap, setReverseGeocodeMap] = useState<Record<string, string>>({});
+  /** `${employeeId}::yyyy-MM-dd` for approved half-day leave dates */
+  const [halfDayLeaveKeys, setHalfDayLeaveKeys] = useState<Set<string>>(new Set());
 
   // Weekly cutoff: Wednesday to Tuesday
   const periodStart = selectedWeekStart;
@@ -333,6 +335,7 @@ export default function TimeEntriesPage() {
       const emp = first.employees ?? { full_name: "Unknown", employee_id: first.employee_id ?? "", profile_picture_url: null };
       const dateKey = keyToDateStr(first.clock_in_time);
       const dateLabel = format(new Date(first.clock_in_time), "MMM d, yyyy");
+      const isHalfDayLeave = halfDayLeaveKeys.has(`${first.employee_id}::${dateKey}`);
       const metrics = computeDayAttendanceMetrics(
         dateKey,
         dayEntries.map((e) => ({
@@ -340,7 +343,8 @@ export default function TimeEntriesPage() {
           clock_out_time: e.clock_out_time,
           regular_hours: e.regular_hours,
           total_hours: e.total_hours,
-        }))
+        })),
+        { isHalfDayLeave }
       );
       result.push({
         key,
@@ -361,7 +365,7 @@ export default function TimeEntriesPage() {
       return (a.employee?.full_name ?? "").localeCompare(b.employee?.full_name ?? "");
     });
     return result;
-  }, [entries]);
+  }, [entries, halfDayLeaveKeys]);
 
   const parseCoordinates = (locationString?: string | null): string | null => {
     if (!locationString) return null;
@@ -755,7 +759,37 @@ export default function TimeEntriesPage() {
 
       console.log("Transformed entries:", transformedEntries.length);
 
+      const halfDayKeys = new Set<string>();
+      if (employeeIdsForFtl.length > 0) {
+        const { data: leaveRows, error: leaveError } = await supabase
+          .from("leave_requests")
+          .select("employee_id, start_date, end_date, half_day_dates, status")
+          .in("employee_id", employeeIdsForFtl)
+          .lte("start_date", periodEndStr)
+          .gte("end_date", periodStartStr)
+          .in("status", ["approved_by_manager", "approved_by_hr"]);
+
+        if (leaveError) {
+          console.warn("Error loading leave requests for half-day metrics:", leaveError);
+        } else {
+          (leaveRows || []).forEach((leave: {
+            employee_id: string;
+            half_day_dates?: string[] | null;
+          }) => {
+            const halfDays = Array.isArray(leave.half_day_dates)
+              ? leave.half_day_dates
+              : [];
+            halfDays.forEach((dateStr) => {
+              if (dateStr >= periodStartStr && dateStr <= periodEndStr) {
+                halfDayKeys.add(`${leave.employee_id}::${dateStr}`);
+              }
+            });
+          });
+        }
+      }
+
       setHolidays(formattedHolidays);
+      setHalfDayLeaveKeys(halfDayKeys);
       setEntries(transformedEntries);
 
       // Fetch employee info and schedules for rest day determination
@@ -809,6 +843,7 @@ export default function TimeEntriesPage() {
         error?.message ||
           "Failed to load time entries. Please refresh the page."
       );
+      setHalfDayLeaveKeys(new Set());
       setEntries([]); // Clear entries on error
     } finally {
       setLoading(false);

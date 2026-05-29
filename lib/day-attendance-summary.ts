@@ -2,6 +2,7 @@ import { getDay, parseISO } from "date-fns";
 import {
   calculateLateHours,
   getBusinessDayPolicyByDay,
+  halfDayRequiredHoursByDay,
   regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 import { creditWorkHoursHalfHour } from "@/utils/overtime";
@@ -54,10 +55,16 @@ function scheduledStartMinutes(dateStr: string): number | null {
   return policy.windows[0].startHour * 60;
 }
 
+export type ComputeDayAttendanceOptions = {
+  /** Approved half-day leave: UT vs morning window (5h); BH credits actual worked time. */
+  isHalfDayLeave?: boolean;
+};
+
 /** BH / OT / Late / Undertime for one calendar day (matches Timesheet rules). */
 export function computeDayAttendanceMetrics(
   dateStr: string,
-  punches: DayPunch[]
+  punches: DayPunch[],
+  options?: ComputeDayAttendanceOptions
 ): DayAttendanceMetrics {
   if (!dateStr || punches.length === 0) {
     return { bh: 0, ot: 0, lt: 0, ut: 0, totalWorked: 0 };
@@ -79,6 +86,12 @@ export function computeDayAttendanceMetrics(
   let bh = 0;
   let ot = 0;
 
+  const dow = manilaDayOfWeek(dateStr);
+  const fullRequired = requiredHoursForDate(dateStr);
+  const halfDayRequired = halfDayRequiredHoursByDay(dow);
+  const required =
+    options?.isHalfDayLeave && halfDayRequired > 0 ? halfDayRequired : fullRequired;
+
   if (isSaturday) {
     bh = 0;
     ot = worked;
@@ -98,7 +111,6 @@ export function computeDayAttendanceMetrics(
     lt = calculateLateHours(startMin, hour * 60 + minute);
   }
 
-  const required = requiredHoursForDate(dateStr);
   const rawDeficit = Math.max(0, required - bh);
   const ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
 

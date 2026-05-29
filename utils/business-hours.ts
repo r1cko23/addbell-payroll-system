@@ -94,6 +94,17 @@ export function getBusinessDayPolicy(date: Date): BusinessDayPolicy {
   return getBusinessDayPolicyByDay(date.getDay());
 }
 
+/**
+ * Half-day leave: work/credit the first business window only (7AM–12NN = 5h Mon–Fri).
+ * Not half of the full compressed day (e.g. Fri 8h → 4h).
+ */
+export function halfDayRequiredHoursByDay(dayOfWeek: number): number {
+  const policy = getBusinessDayPolicyByDay(dayOfWeek);
+  if (!policy.requiresOffice || policy.windows.length === 0) return 0;
+  const first = policy.windows[0];
+  return Math.max(0, first.endHour - first.startHour);
+}
+
 export function getBusinessStartHourByDay(dayOfWeek: number): number | null {
   const policy = getBusinessDayPolicyByDay(dayOfWeek);
   if (!policy.windows.length) return null;

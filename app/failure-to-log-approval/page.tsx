@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -44,7 +44,17 @@ import {
   isFinalHrApprover,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
-import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
+import {
+  approvalQueueUrlWithRequest,
+  isUserApproverForOvertimeGroup,
+} from "@/lib/manager-approval-queue";
+import {
+  canHrViewFtlRequest,
+  canOperationsManagerViewFtlRequest,
+  ftlRequestInHrQueue,
+  ftlRequestInOperationsManagerQueue,
+  shouldSkipServerStatusFilterForHrPending,
+} from "@/lib/approval-queue-visibility";
 import { normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 
 interface FailureToLog {
@@ -87,7 +97,32 @@ type EmployeeFilterOption = {
 export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const closeRequestModal = () => {
+    setSelectedRequest(null);
+    setRejectionReason("");
+    if (
+      !searchParams.get("requestId") &&
+      searchParams.get("focus") !== "1"
+    ) {
+      return;
+    }
+    router.replace(
+      approvalQueueUrlWithRequest(pathname, searchParams, null),
+      { scroll: false }
+    );
+  };
+
+  const openRequestModal = (request: FailureToLog) => {
+    setSelectedRequest(request);
+    if (searchParams.get("requestId") === request.id) return;
+    router.replace(
+      approvalQueueUrlWithRequest(pathname, searchParams, request.id),
+      { scroll: false }
+    );
+  };
   const { role, isHR, isAdmin, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageFailureToLog =
@@ -347,8 +382,8 @@ export default function FailureToLogApprovalPage() {
       setStatusFilter(status);
       return;
     }
-    if (isOperationsManager) setStatusFilter("pending");
-  }, [searchParams, isOperationsManager]);
+    if (isOperationsManager || isHR) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager, isHR]);
 
   useEffect(() => {
     if (canManageFailureToLog) {
@@ -367,20 +402,60 @@ export default function FailureToLogApprovalPage() {
   ]);
 
   useEffect(() => {
-    if (loading || !isFirstApproverDashboardView) return;
+    if (loading) return;
+    if (
+      !isFirstApproverDashboardView &&
+      !isHR &&
+      normalizedRole !== "operations_manager"
+    ) {
+      return;
+    }
 
     const requestId = searchParams.get("requestId");
     if (requestId) {
       const match = requests.find((r) => r.id === requestId);
-      if (match && canCurrentUserActOnRequest(match)) setSelectedRequest(match);
+      if (match) {
+        setSelectedRequest(match);
+        return;
+      }
+      void (async () => {
+        const { data, error } = await supabase
+          .from("failure_to_log")
+          .select("*")
+          .eq("id", requestId)
+          .maybeSingle();
+        if (!error && data) {
+          setSelectedRequest(data as FailureToLog);
+          if (data.missed_date) {
+            setSelectedWeek(new Date(data.missed_date));
+          }
+        }
+      })();
       return;
     }
 
     if (searchParams.get("focus") !== "1") return;
 
-    const firstActionable = requests.find(
-      (r) => getViewerStatus(r) === "pending" && canCurrentUserActOnRequest(r)
-    );
+    const firstActionable = requests.find((r) => {
+      const groupName = getRequestGroupName(r);
+      if (normalizedRole === "operations_manager") {
+        return (
+          ftlRequestInOperationsManagerQueue(
+            r,
+            currentUserId,
+            groupName,
+            groupApproverIdByGroupName
+          ) && canCurrentUserActOnRequest(r)
+        );
+      }
+      if (isHR) {
+        return (
+          ftlRequestInHrQueue(r, currentUserId, groupName, groupApproverIdByGroupName) &&
+          canCurrentUserActOnRequest(r)
+        );
+      }
+      return getViewerStatus(r) === "pending" && canCurrentUserActOnRequest(r);
+    });
     if (firstActionable) setSelectedRequest(firstActionable);
   }, [
     loading,
@@ -401,9 +476,17 @@ export default function FailureToLogApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
+    const skipWeekFilterForPendingQueue =
+      statusFilter === "pending" &&
+      (isOperationsManager || isHR || isFirstApproverDashboardView);
+
     const applyFilters = <T extends { eq: Function }>(query: T): T => {
       let filtered = query;
-      if (statusFilter !== "all" && !isFirstApproverDashboardView) {
+      if (
+        statusFilter !== "all" &&
+        !isFirstApproverDashboardView &&
+        !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter)
+      ) {
         filtered = filtered.eq("status", statusFilter);
       }
       if (selectedEmployee !== "all") {
@@ -412,14 +495,13 @@ export default function FailureToLogApprovalPage() {
       return filtered;
     };
 
-    const plainQuery = applyFilters(
-      supabase
-        .from("failure_to_log")
-        .select("*")
+    let ftlQuery = supabase.from("failure_to_log").select("*");
+    if (!skipWeekFilterForPendingQueue) {
+      ftlQuery = ftlQuery
         .gte("missed_date", weekStartStr)
-        .lte("missed_date", weekEndStr)
-        .order("created_at", { ascending: false })
-    );
+        .lte("missed_date", weekEndStr);
+    }
+    const plainQuery = applyFilters(ftlQuery.order("created_at", { ascending: false }));
 
     const { data, error } = await plainQuery;
 
@@ -477,23 +559,24 @@ export default function FailureToLogApprovalPage() {
     if (!isAdmin && normalizedRole !== "upper_management") {
       filteredData = dataWithEmployees.filter((request: any) => {
         if (!currentUserId) return false;
+        const groupName =
+          employeeGroupNameByEmployeeId[request.employee_id] || null;
         if (normalizedRole === "operations_manager") {
-          // Operations Manager can view all statuses for requests in their group.
-          return isUserApproverForGroup(
+          return canOperationsManagerViewFtlRequest(
+            request,
             currentUserId,
-            employeeGroupNameByEmployeeId[request.employee_id]
+            groupName,
+            groupApproverIdByGroupName,
+            statusFilter
           );
         }
         if (isHR) {
-          // HR visibility:
-          // - Final HR approver can view all statuses.
-          // - HR first-approver (skip-manager groups) can also view all statuses in their group.
-          return (
-            isFinalHrApprover(currentUserId) ||
-            isUserApproverForGroup(
-              currentUserId,
-              employeeGroupNameByEmployeeId[request.employee_id]
-            )
+          return canHrViewFtlRequest(
+            request,
+            currentUserId,
+            groupName,
+            groupApproverIdByGroupName,
+            statusFilter
           );
         }
         return false;
@@ -510,13 +593,7 @@ export default function FailureToLogApprovalPage() {
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    const viewerFiltered =
-      isFirstApproverDashboardView && statusFilter !== "all"
-        ? (cleaned as FailureToLog[]).filter(
-            (r) => getViewerStatus(r) === statusFilter
-          )
-        : (cleaned as FailureToLog[]);
-    setRequests(viewerFiltered as any);
+    setRequests(cleaned as FailureToLog[]);
 
     // Load approver names for approved items
     const approverIds = Array.from(
@@ -774,7 +851,7 @@ export default function FailureToLogApprovalPage() {
       });
     }
     fetchRequests();
-    setSelectedRequest(null);
+    closeRequestModal();
     setApproveLoading(false);
   }
 
@@ -846,8 +923,7 @@ export default function FailureToLogApprovalPage() {
       description: `${employeeName}'s request has been declined`,
     });
     fetchRequests();
-    setSelectedRequest(null);
-    setRejectionReason("");
+    closeRequestModal();
   }
 
   const stats = {
@@ -1033,11 +1109,11 @@ export default function FailureToLogApprovalPage() {
                 className="border-muted/60 transition-shadow hover:shadow-hover h-full min-h-[220px]"
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelectedRequest(request)}
+                onClick={() => openRequestModal(request)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelectedRequest(request);
+                    openRequestModal(request);
                   }
                 }}
               >
@@ -1142,7 +1218,7 @@ export default function FailureToLogApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedRequest(request);
+                          openRequestModal(request);
                         }}
                       >
                         View details
@@ -1153,7 +1229,7 @@ export default function FailureToLogApprovalPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setRejectionReason("");
-                          setSelectedRequest(request);
+                          openRequestModal(request);
                         }}
                       >
                         <Icon name="X" size={IconSizes.sm} />
@@ -1163,7 +1239,7 @@ export default function FailureToLogApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedRequest(request);
+                          openRequestModal(request);
                           handleApprove(request.id);
                         }}
                         disabled={approveLoading}
@@ -1182,10 +1258,7 @@ export default function FailureToLogApprovalPage() {
         <Dialog
           open={!!selectedRequest}
           onOpenChange={(open) => {
-            if (!open) {
-              setSelectedRequest(null);
-              setRejectionReason("");
-            }
+            if (!open) closeRequestModal();
           }}
         >
           <DialogContent className="max-w-2xl">
@@ -1361,13 +1434,7 @@ export default function FailureToLogApprovalPage() {
               </div>
             )}
             <DialogFooter className="flex flex-wrap justify-between gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setSelectedRequest(null);
-                  setRejectionReason("");
-                }}
-              >
+              <Button variant="secondary" onClick={closeRequestModal}>
                 Close
               </Button>
               {selectedRequest && canActOnFailureToLog && canCurrentUserActOnRequest(selectedRequest) && (

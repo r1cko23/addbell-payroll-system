@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,17 @@ import {
   LOCATION_FIRST_APPROVER_BY_GROUP,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
-import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
+import {
+  approvalQueueUrlWithRequest,
+  isUserApproverForOvertimeGroup,
+} from "@/lib/manager-approval-queue";
+import {
+  canHrViewOtRequest,
+  canOperationsManagerViewOtRequest,
+  overtimeRequestInHrQueue,
+  overtimeRequestInOperationsManagerQueue,
+  shouldSkipServerStatusFilterForHrPending,
+} from "@/lib/approval-queue-visibility";
 
 type OvertimeDocument = {
   id: string;
@@ -121,7 +131,31 @@ function getOvertimeDecisionActorId(request: OTRequest): string | null {
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const closeRequestModal = () => {
+    setSelected(null);
+    if (
+      !searchParams.get("requestId") &&
+      searchParams.get("focus") !== "1"
+    ) {
+      return;
+    }
+    router.replace(
+      approvalQueueUrlWithRequest(pathname, searchParams, null),
+      { scroll: false }
+    );
+  };
+
+  const openRequestModal = (req: OTRequest) => {
+    setSelected(req);
+    if (searchParams.get("requestId") === req.id) return;
+    router.replace(
+      approvalQueueUrlWithRequest(pathname, searchParams, req.id),
+      { scroll: false }
+    );
+  };
   const { isAdmin, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageOvertime =
@@ -401,10 +435,12 @@ export default function OvertimeApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
-    let query = supabase
-      .from("overtime_requests")
-      .select(
-        `
+    const skipWeekFilterForPendingQueue =
+      statusFilter === "pending" &&
+      (isOperationsManager || isHR || isFirstApproverDashboardView);
+
+    let query = supabase.from("overtime_requests").select(
+      `
         *,
         employees (
           id,
@@ -415,12 +451,19 @@ export default function OvertimeApprovalPage() {
           requires_ot_punch
         )
       `
-      )
-      .gte("ot_date", weekStartStr)
-      .lte("ot_date", weekEndStr)
-      .order("created_at", { ascending: false });
+    );
 
-    if (statusFilter !== "all" && !isFirstApproverDashboardView) {
+    if (!skipWeekFilterForPendingQueue) {
+      query = query.gte("ot_date", weekStartStr).lte("ot_date", weekEndStr);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    if (
+      statusFilter !== "all" &&
+      !isFirstApproverDashboardView &&
+      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter)
+    ) {
       query = query.eq("status", statusFilter);
     }
 
@@ -536,17 +579,28 @@ export default function OvertimeApprovalPage() {
     if (!isAdmin) {
       filteredData = dataWithDocs.filter((request) => {
         if (!currentUserId) return false;
+        const groupName = getRequestGroupName(request);
+        const otApproverMap: Record<string, string> = {};
+        Object.entries(overtimeGroupFirstApproverIdById).forEach(([groupId, approverId]) => {
+          const name = overtimeGroupNameById[groupId];
+          if (name && approverId) otApproverMap[name] = approverId;
+        });
         if (normalizedRole === "operations_manager") {
-          // Operations Manager can view all statuses for requests in their OT group.
-          return isUserFirstApproverForRequest(currentUserId, request);
+          return canOperationsManagerViewOtRequest(
+            request,
+            currentUserId,
+            groupName,
+            otApproverMap,
+            statusFilter
+          );
         }
         if (isHR) {
-          // HR visibility:
-          // - Final HR approver can view all statuses.
-          // - HR first-approver (skip-manager groups) can also view all statuses for their group.
-          return (
-            isFinalHrApprover(currentUserId) ||
-            isUserFirstApproverForRequest(currentUserId, request)
+          return canHrViewOtRequest(
+            request,
+            currentUserId,
+            groupName,
+            otApproverMap,
+            statusFilter
           );
         }
         return false;
@@ -562,13 +616,7 @@ export default function OvertimeApprovalPage() {
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    const viewerFiltered =
-      isFirstApproverDashboardView && statusFilter !== "all"
-        ? (cleaned as OTRequest[]).filter(
-            (r) => getViewerStatus(r) === statusFilter
-          )
-        : (cleaned as OTRequest[]);
-    setRequests(viewerFiltered);
+    setRequests(cleaned as OTRequest[]);
 
     // Load display names for anyone who may appear on approved/rejected rows.
     const approverIds = Array.from(
@@ -740,8 +788,8 @@ export default function OvertimeApprovalPage() {
       setStatusFilter(status);
       return;
     }
-    if (isOperationsManager) setStatusFilter("pending");
-  }, [searchParams, isOperationsManager]);
+    if (isOperationsManager || isHR) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager, isHR]);
 
   useEffect(() => {
     const canLoadOtRequests =
@@ -767,20 +815,77 @@ export default function OvertimeApprovalPage() {
   ]);
 
   useEffect(() => {
-    if (loading || !isFirstApproverDashboardView) return;
+    if (loading) return;
+    if (
+      !isFirstApproverDashboardView &&
+      !isHR &&
+      normalizedRole !== "operations_manager"
+    ) {
+      return;
+    }
 
     const requestId = searchParams.get("requestId");
     if (requestId) {
       const match = requests.find((r) => r.id === requestId);
-      if (match && canCurrentUserActOnRequest(match)) setSelected(match);
+      if (match) {
+        setSelected(match);
+        return;
+      }
+      void (async () => {
+        const { data, error } = await supabase
+          .from("overtime_requests")
+          .select(
+            `
+            *,
+            employees (
+              id,
+              full_name,
+              employee_id,
+              overtime_group_id,
+              profile_picture_url,
+              requires_ot_punch
+            )
+          `
+          )
+          .eq("id", requestId)
+          .maybeSingle();
+        if (!error && data) {
+          setSelected(data as OTRequest);
+          if (data.ot_date) {
+            setSelectedWeek(new Date(data.ot_date));
+          }
+        }
+      })();
       return;
     }
 
     if (searchParams.get("focus") !== "1") return;
 
-    const firstActionable = requests.find(
-      (r) => getViewerStatus(r) === "pending" && canCurrentUserActOnRequest(r)
-    );
+    const otApproverMap: Record<string, string> = {};
+    Object.entries(overtimeGroupFirstApproverIdById).forEach(([groupId, approverId]) => {
+      const name = overtimeGroupNameById[groupId];
+      if (name && approverId) otApproverMap[name] = approverId;
+    });
+    const firstActionable = requests.find((r) => {
+      const groupName = getRequestGroupName(r);
+      if (normalizedRole === "operations_manager") {
+        return (
+          overtimeRequestInOperationsManagerQueue(
+            r,
+            currentUserId,
+            groupName,
+            otApproverMap
+          ) && canCurrentUserActOnRequest(r)
+        );
+      }
+      if (isHR) {
+        return (
+          overtimeRequestInHrQueue(r, currentUserId, groupName, otApproverMap) &&
+          canCurrentUserActOnRequest(r)
+        );
+      }
+      return getViewerStatus(r) === "pending" && canCurrentUserActOnRequest(r);
+    });
     if (firstActionable) setSelected(firstActionable);
   }, [
     loading,
@@ -864,6 +969,7 @@ export default function OvertimeApprovalPage() {
         });
       }
       loadRequests();
+      closeRequestModal();
     }
     setActioningId(null);
   };
@@ -935,6 +1041,7 @@ export default function OvertimeApprovalPage() {
         description: `${employeeName}'s overtime request has been declined`,
       });
       loadRequests();
+      closeRequestModal();
     }
     setActioningId(null);
   };
@@ -1104,11 +1211,11 @@ export default function OvertimeApprovalPage() {
                   className="h-full min-h-[200px] cursor-pointer border-border/80 bg-card/95 shadow-sm transition-shadow hover:shadow-hover"
                   role="button"
                   tabIndex={0}
-                  onClick={() => setSelected(req)}
+                  onClick={() => openRequestModal(req)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setSelected(req);
+                      openRequestModal(req);
                     }
                   }}
                 >
@@ -1268,7 +1375,7 @@ export default function OvertimeApprovalPage() {
                             size="sm"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelected(req);
+                              openRequestModal(req);
                             }}
                           >
                             View details
@@ -1309,9 +1416,7 @@ export default function OvertimeApprovalPage() {
         <Dialog
           open={!!selected}
           onOpenChange={(open) => {
-            if (!open) {
-              setSelected(null);
-            }
+            if (!open) closeRequestModal();
           }}
         >
           <DialogContent className="max-w-2xl">
@@ -1562,12 +1667,7 @@ export default function OvertimeApprovalPage() {
               </div>
             )}
             <DialogFooter className="flex flex-wrap justify-between gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setSelected(null);
-                }}
-              >
+              <Button variant="secondary" onClick={closeRequestModal}>
                 Close
               </Button>
               {selected && canActOnPendingOvertime && canCurrentUserActOnRequest(selected) && (
@@ -1576,8 +1676,7 @@ export default function OvertimeApprovalPage() {
                       variant="destructive"
                       onClick={() => {
                         if (!selected) return;
-                        handleReject(selected.id);
-                        setSelected(null);
+                        void handleReject(selected.id);
                       }}
                       disabled={actioningId === selected.id}
                     >
@@ -1587,8 +1686,7 @@ export default function OvertimeApprovalPage() {
                     <Button
                       onClick={() => {
                         if (!selected) return;
-                        handleApprove(selected.id);
-                        setSelected(null);
+                        void handleApprove(selected.id);
                       }}
                       disabled={actioningId === selected.id}
                     >

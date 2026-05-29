@@ -20,8 +20,15 @@ import { H1, BodySmall } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
+  fetchApproverOvertimeGroupNames,
   fetchManagedEmployeeIdsForApprover,
+  formatApproverGroupHeading,
 } from "@/lib/manager-approval-queue";
+import {
+  fetchDashboardApprovalQueueItems,
+  type DashboardQueueItem,
+} from "@/lib/fetch-dashboard-approval-queue";
+import { DashboardApprovalQueueCards } from "@/components/DashboardApprovalQueueCards";
 
 const NO_SCOPE_MATCH_EMPLOYEE_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -89,18 +96,26 @@ export default function HRDashboard() {
   const [managerPendingLeaveCount, setManagerPendingLeaveCount] = useState(0);
   const [managerPendingOvertimeCount, setManagerPendingOvertimeCount] = useState(0);
   const [managerPendingFailureToLogCount, setManagerPendingFailureToLogCount] = useState(0);
+  const [companyPendingLeaveCount, setCompanyPendingLeaveCount] = useState(0);
+  const [companyPendingOvertimeCount, setCompanyPendingOvertimeCount] = useState(0);
+  const [companyPendingFtlCount, setCompanyPendingFtlCount] = useState(0);
   const [deptStats, setDeptStats] = useState<DepartmentStat[]>([]);
   const [unassignedActiveEmployees, setUnassignedActiveEmployees] = useState(0);
   const [currentlyClockedIn, setCurrentlyClockedIn] = useState<
     CurrentlyClockedInEmployee[]
   >([]);
   const [typeBreakdown, setTypeBreakdown] = useState<{ type: string; count: number }[]>([]);
+  const [queueItems, setQueueItems] = useState<DashboardQueueItem[]>([]);
+  const [approverGroupNames, setApproverGroupNames] = useState<string[]>([]);
 
-  const { isHR, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isHR, isOperationsManager, isAdmin, loading: roleLoading } = useUserRole();
+  const showAllCompanyPending = isAdmin && !isHR && !isOperationsManager;
+  const usesManagerApprovalQueue =
+    isOperationsManager || isHR || showAllCompanyPending;
 
   useEffect(() => {
     if (!roleLoading) loadData();
-  }, [roleLoading, isOperationsManager]);
+  }, [roleLoading, isOperationsManager, isHR, isAdmin]);
 
   async function loadData() {
     const initialLoad = !lastUpdatedAt;
@@ -110,79 +125,232 @@ export default function HRDashboard() {
       setRefreshing(true);
     }
     try {
-      const [{ count: total }, { count: active }, { data: allEmps }] = await Promise.all([
-        supabase.from("employees").select("*", { count: "exact", head: true }),
-        supabase.from("employees").select("*", { count: "exact", head: true }).eq("employment_status", "active"),
-        supabase
-          .from("employees")
-          .select(
-            "id, company_id_no, employee_code, first_name, last_name, employment_type, employment_status, departments:department_id ( name )"
-          )
-          .eq("employment_status", "active"),
-      ]);
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
 
       // Operations managers only see/act on requests for employees in their OT groups.
       let scopedEmployeeIds: string[] | null = null;
       if (isOperationsManager) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        scopedEmployeeIds = user?.id
-          ? await fetchManagedEmployeeIdsForApprover(supabase, user.id)
-          : [];
+        if (authUser?.id) {
+          const [managedIds, groupNames] = await Promise.all([
+            fetchManagedEmployeeIdsForApprover(supabase, authUser.id),
+            fetchApproverOvertimeGroupNames(supabase, authUser.id),
+          ]);
+          scopedEmployeeIds = managedIds;
+          setApproverGroupNames(groupNames);
+        } else {
+          scopedEmployeeIds = [];
+          setApproverGroupNames([]);
+        }
+      } else {
+        setApproverGroupNames([]);
       }
 
       const employeeScope = employeeScopeFilter(scopedEmployeeIds);
 
-      // HR-ready counts (items that should appear in the HR approval step)
-      const [{ count: pendingLeave }] = await Promise.all([
-        supabase
-          .from("leave_requests")
-          .select("id", { count: "exact", head: true })
-          .in("status", ["approved_by_pm", "approved_by_manager"]),
-      ]);
+      if (isOperationsManager) {
+        const teamCount = scopedEmployeeIds?.length ?? 0;
+        setTotalEmployees(teamCount);
+        setActiveEmployees(teamCount);
+        setCurrentlyClockedIn([]);
+        setDeptStats([]);
+        setUnassignedActiveEmployees(0);
+        setTypeBreakdown([]);
+        setPendingLeaveApprovals(0);
+        setPendingOvertimeApprovals(0);
+        setPendingFailureToLogApprovals(0);
+      } else {
+        const [{ count: total }, { count: active }, { data: allEmps }] =
+          await Promise.all([
+            supabase.from("employees").select("*", { count: "exact", head: true }),
+            supabase
+              .from("employees")
+              .select("*", { count: "exact", head: true })
+              .eq("employment_status", "active"),
+            supabase
+              .from("employees")
+              .select(
+                "id, company_id_no, employee_code, first_name, last_name, employment_type, employment_status, departments:department_id ( name )"
+              )
+              .eq("employment_status", "active"),
+          ]);
 
-      const [
-        { count: pendingOTProjectManagerId },
-        { count: pendingOTAccountManagerId },
-        { count: pendingOTBothIds },
-      ] = await Promise.all([
-        supabase
-          .from("overtime_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .not("project_manager_id", "is", null),
-        supabase
-          .from("overtime_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .not("account_manager_id", "is", null),
-        supabase
-          .from("overtime_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .not("project_manager_id", "is", null)
-          .not("account_manager_id", "is", null),
-      ]);
+        setTotalEmployees(total || 0);
+        setActiveEmployees(active || 0);
 
-      const pendingOT =
-        (pendingOTProjectManagerId ?? 0) +
-        (pendingOTAccountManagerId ?? 0) -
-        (pendingOTBothIds ?? 0);
+        const [{ count: pendingLeave }] = await Promise.all([
+          supabase
+            .from("leave_requests")
+            .select("id", { count: "exact", head: true })
+            .in("status", ["approved_by_pm", "approved_by_manager"]),
+        ]);
 
-      const [{ count: pendingFTL }] = await Promise.all([
-        supabase
-          .from("failure_to_log")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .not("account_manager_id", "is", null),
-      ]);
+        const [
+          { count: pendingOTProjectManagerId },
+          { count: pendingOTAccountManagerId },
+          { count: pendingOTBothIds },
+        ] = await Promise.all([
+          supabase
+            .from("overtime_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+            .not("project_manager_id", "is", null),
+          supabase
+            .from("overtime_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+            .not("account_manager_id", "is", null),
+          supabase
+            .from("overtime_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+            .not("project_manager_id", "is", null)
+            .not("account_manager_id", "is", null),
+        ]);
+
+        const pendingOT =
+          (pendingOTProjectManagerId ?? 0) +
+          (pendingOTAccountManagerId ?? 0) -
+          (pendingOTBothIds ?? 0);
+
+        const [{ count: pendingFTL }] = await Promise.all([
+          supabase
+            .from("failure_to_log")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending")
+            .not("account_manager_id", "is", null),
+        ]);
+
+        setPendingLeaveApprovals(pendingLeave || 0);
+        setPendingOvertimeApprovals(pendingOT || 0);
+        setPendingFailureToLogApprovals(pendingFTL || 0);
+
+        const [
+          { count: allPendingLeave },
+          { count: allPendingOt },
+          { count: allPendingFtl },
+        ] = await Promise.all([
+          supabase
+            .from("leave_requests")
+            .select("id", { count: "exact", head: true })
+            .in("status", ["pending", "approved_by_pm", "approved_by_manager"]),
+          supabase
+            .from("overtime_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+          supabase
+            .from("failure_to_log")
+            .select("id", { count: "exact", head: true })
+            .eq("status", "pending"),
+        ]);
+        setCompanyPendingLeaveCount(allPendingLeave || 0);
+        setCompanyPendingOvertimeCount(allPendingOt || 0);
+        setCompanyPendingFtlCount(allPendingFtl || 0);
+
+        const deptMap = new Map<string, number>();
+        const typeMap = new Map<string, number>();
+        let unassignedCount = 0;
+        const activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
+        activeEmployeesList.forEach((emp) => {
+          const dept = getDepartmentName(emp.departments);
+          if (dept) {
+            deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
+          } else {
+            unassignedCount += 1;
+          }
+          const type = normalizeEmploymentTypeLabel(emp.employment_type);
+          typeMap.set(type, (typeMap.get(type) || 0) + 1);
+        });
+
+        const activeEmployeeIds = activeEmployeesList.map((emp) => emp.id);
+        if (activeEmployeeIds.length > 0) {
+          const now = new Date();
+          const parts = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Manila",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).formatToParts(now);
+          const year = parts.find((p) => p.type === "year")?.value || "1970";
+          const month = parts.find((p) => p.type === "month")?.value || "01";
+          const day = parts.find((p) => p.type === "day")?.value || "01";
+          const dayStartIso = new Date(
+            `${year}-${month}-${day}T00:00:00+08:00`
+          ).toISOString();
+
+          const { data: todayPunches, error: punchesError } = await supabase
+            .from("time_entries")
+            .select("employee_id, punch_type, punched_at")
+            .in("employee_id", activeEmployeeIds)
+            .gte("punched_at", dayStartIso)
+            .order("punched_at", { ascending: true });
+
+          if (punchesError) {
+            console.error("Failed to load current clock-ins:", punchesError);
+            setCurrentlyClockedIn([]);
+          } else {
+            const latestPunchByEmployee = new Map<
+              string,
+              { punch_type: string; punched_at: string }
+            >();
+            (todayPunches || []).forEach((p) => {
+              latestPunchByEmployee.set(p.employee_id, {
+                punch_type: p.punch_type,
+                punched_at: p.punched_at,
+              });
+            });
+
+            const activeById = new Map(
+              activeEmployeesList.map((emp) => [emp.id, emp])
+            );
+            const clockedInRows: CurrentlyClockedInEmployee[] = [];
+
+            latestPunchByEmployee.forEach((latest, employeeId) => {
+              if (latest.punch_type !== "in") return;
+              const emp = activeById.get(employeeId);
+              if (!emp) return;
+              clockedInRows.push({
+                id: emp.id,
+                company_id_no: emp.company_id_no,
+                employee_code: emp.employee_code,
+                first_name: emp.first_name,
+                last_name: emp.last_name,
+                department_name: getDepartmentName(emp.departments),
+                clocked_in_at: latest.punched_at,
+              });
+            });
+
+            clockedInRows.sort(
+              (a, b) =>
+                new Date(a.clocked_in_at).getTime() -
+                new Date(b.clocked_in_at).getTime()
+            );
+            setCurrentlyClockedIn(clockedInRows);
+          }
+        } else {
+          setCurrentlyClockedIn([]);
+        }
+
+        setDeptStats(
+          Array.from(deptMap.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+        );
+        setUnassignedActiveEmployees(unassignedCount);
+        setTypeBreakdown(
+          Array.from(typeMap.entries())
+            .map(([type, count]) => ({ type, count }))
+            .sort((a, b) => b.count - a.count)
+        );
+      }
 
       // Manager-stage pending counts (first-step approval items).
       let leaveManagerCountQuery = supabase
         .from("leave_requests")
         .select("id", { count: "exact", head: true })
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .is("project_manager_id", null);
       let otManagerCountQuery = supabase
         .from("overtime_requests")
         .select("id", { count: "exact", head: true })
@@ -211,106 +379,25 @@ export default function HRDashboard() {
         ftlManagerCountQuery,
       ]);
 
-      setTotalEmployees(total || 0);
-      setActiveEmployees(active || 0);
-      setPendingLeaveApprovals(pendingLeave || 0);
-      setPendingOvertimeApprovals(pendingOT || 0);
-      setPendingFailureToLogApprovals(pendingFTL || 0);
       setManagerPendingLeaveCount(managerLeavePending || 0);
       setManagerPendingOvertimeCount(managerOTProjectManagerNullAccountManagerNull || 0);
       setManagerPendingFailureToLogCount(managerFTLPending || 0);
 
-      const deptMap = new Map<string, number>();
-      const typeMap = new Map<string, number>();
-      let unassignedCount = 0;
-      const scopedIdSet =
-        scopedEmployeeIds === null ? null : new Set(scopedEmployeeIds);
-      let activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
-      if (isOperationsManager && scopedIdSet) {
-        activeEmployeesList = activeEmployeesList.filter(
-          (emp) => scopedIdSet.has(emp.id) || scopedIdSet.has(emp.employee_code)
-        );
-        setTotalEmployees(activeEmployeesList.length);
-        setActiveEmployees(activeEmployeesList.length);
-      }
-      activeEmployeesList.forEach((emp) => {
-        const dept = getDepartmentName(emp.departments);
-        if (dept) {
-          deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
-        } else {
-          unassignedCount += 1;
-        }
-        const type = normalizeEmploymentTypeLabel(emp.employment_type);
-        typeMap.set(type, (typeMap.get(type) || 0) + 1);
-      });
-
-      const activeEmployeeIds = activeEmployeesList.map((emp) => emp.id);
-      if (activeEmployeeIds.length > 0) {
-        const now = new Date();
-        const parts = new Intl.DateTimeFormat("en-US", {
-          timeZone: "Asia/Manila",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).formatToParts(now);
-        const year = parts.find((p) => p.type === "year")?.value || "1970";
-        const month = parts.find((p) => p.type === "month")?.value || "01";
-        const day = parts.find((p) => p.type === "day")?.value || "01";
-        const dayStartIso = new Date(`${year}-${month}-${day}T00:00:00+08:00`).toISOString();
-
-        const { data: todayPunches, error: punchesError } = await supabase
-          .from("time_entries")
-          .select("employee_id, punch_type, punched_at")
-          .in("employee_id", activeEmployeeIds)
-          .gte("punched_at", dayStartIso)
-          .order("punched_at", { ascending: true });
-
-        if (punchesError) {
-          console.error("Failed to load current clock-ins:", punchesError);
-          setCurrentlyClockedIn([]);
-        } else {
-          const latestPunchByEmployee = new Map<
-            string,
-            { punch_type: string; punched_at: string }
-          >();
-          (todayPunches || []).forEach((p) => {
-            latestPunchByEmployee.set(p.employee_id, {
-              punch_type: p.punch_type,
-              punched_at: p.punched_at,
-            });
-          });
-
-          const activeById = new Map(activeEmployeesList.map((emp) => [emp.id, emp]));
-          const clockedInRows: CurrentlyClockedInEmployee[] = [];
-
-          latestPunchByEmployee.forEach((latest, employeeId) => {
-            if (latest.punch_type !== "in") return;
-            const emp = activeById.get(employeeId);
-            if (!emp) return;
-            clockedInRows.push({
-              id: emp.id,
-              company_id_no: emp.company_id_no,
-              employee_code: emp.employee_code,
-              first_name: emp.first_name,
-              last_name: emp.last_name,
-              department_name: getDepartmentName(emp.departments),
-              clocked_in_at: latest.punched_at,
-            });
-          });
-
-          clockedInRows.sort(
-            (a, b) =>
-              new Date(a.clocked_in_at).getTime() - new Date(b.clocked_in_at).getTime()
-          );
-          setCurrentlyClockedIn(clockedInRows);
-        }
+      const isManagerFocus = !isHR;
+      if (authUser?.id && (usesManagerApprovalQueue || isManagerFocus)) {
+        const items = await fetchDashboardApprovalQueueItems(supabase, {
+          userId: authUser.id,
+          isHR,
+          isOperationsManager,
+          showAllCompanyPending,
+          isManagerFocus,
+          scopedEmployeeIds,
+        });
+        setQueueItems(items);
       } else {
-        setCurrentlyClockedIn([]);
+        setQueueItems([]);
       }
 
-      setDeptStats(Array.from(deptMap.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count));
-      setUnassignedActiveEmployees(unassignedCount);
-      setTypeBreakdown(Array.from(typeMap.entries()).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count));
       setLastUpdatedAt(new Date());
     } catch (error: any) {
       console.error("HR Dashboard error:", error);
@@ -330,22 +417,45 @@ export default function HRDashboard() {
 
   const inactiveEmployees = totalEmployees - activeEmployees;
   const isManagerFocus = !isHR;
-  const displayedLeaveCount = isHR ? pendingLeaveApprovals : managerPendingLeaveCount;
-  const displayedOtCount = isHR ? pendingOvertimeApprovals : managerPendingOvertimeCount;
-  const displayedFtlCount = isHR
-    ? pendingFailureToLogApprovals
-    : managerPendingFailureToLogCount;
+  const displayedLeaveCount = isOperationsManager
+    ? managerPendingLeaveCount
+    : isHR
+      ? pendingLeaveApprovals
+      : showAllCompanyPending
+        ? companyPendingLeaveCount
+        : managerPendingLeaveCount;
+  const displayedOtCount = isOperationsManager
+    ? managerPendingOvertimeCount
+    : isHR
+      ? pendingOvertimeApprovals
+      : showAllCompanyPending
+        ? companyPendingOvertimeCount
+        : managerPendingOvertimeCount;
+  const displayedFtlCount = isOperationsManager
+    ? managerPendingFailureToLogCount
+    : isHR
+      ? pendingFailureToLogApprovals
+      : showAllCompanyPending
+        ? companyPendingFtlCount
+        : managerPendingFailureToLogCount;
   const totalPendingApprovals =
     displayedLeaveCount + displayedOtCount + displayedFtlCount;
   const leaveQueueHref = buildManagerQueueUrl("leave", {
-    status: isOperationsManager ? "pending" : undefined,
+    status: usesManagerApprovalQueue ? "pending" : undefined,
   });
   const otQueueHref = buildManagerQueueUrl("overtime", {
-    status: isOperationsManager ? "pending" : undefined,
+    status: usesManagerApprovalQueue ? "pending" : undefined,
   });
   const ftlQueueHref = buildManagerQueueUrl("ftl", {
-    status: isOperationsManager ? "pending" : undefined,
+    status: usesManagerApprovalQueue ? "pending" : undefined,
   });
+  const operationsManagerHeading = formatApproverGroupHeading(approverGroupNames);
+  const operationsManagerGroupLabel =
+    approverGroupNames.length === 1
+      ? approverGroupNames[0]
+      : approverGroupNames.length > 1
+        ? approverGroupNames.join(", ")
+        : "your group";
 
   return (
     <VStack gap="8" align="stretch" className="w-full pb-16">
@@ -353,24 +463,29 @@ export default function HRDashboard() {
         <CardContent className="p-5 sm:p-6">
           <HStack justify="between" align="start" className="flex-col gap-4 lg:flex-row">
             <div className="space-y-2">
-              <Badge variant="outline" className="font-normal">Workforce overview</Badge>
-              <H1>{isOperationsManager ? "Your team approvals" : "People snapshot"}</H1>
+              <Badge variant="outline" className="font-normal">
+                {isOperationsManager ? operationsManagerGroupLabel : "Workforce overview"}
+              </Badge>
+              <H1>{isOperationsManager ? operationsManagerHeading : "People snapshot"}</H1>
               <BodySmall>
                 {isOperationsManager
-                  ? "Pending leave, overtime, and failure-to-log for your approval groups."
+                  ? `Pending leave, overtime, and failure-to-log for ${operationsManagerGroupLabel}.`
                   : "Headcount, teams, and recent hires."}
               </BodySmall>
               <HStack gap="2" className="flex-wrap">
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {totalPendingApprovals} approvals waiting
                 </Badge>
-                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                  {activeEmployees}{" "}
-                  {isOperationsManager ? "team member(s)" : "active employees"}
-                </Badge>
-                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                  {currentlyClockedIn.length} currently clocked in
-                </Badge>
+                {!isOperationsManager ? (
+                  <>
+                    <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
+                      {activeEmployees} active employees
+                    </Badge>
+                    <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
+                      {currentlyClockedIn.length} currently clocked in
+                    </Badge>
+                  </>
+                ) : null}
                 {lastUpdatedAt ? (
                   <Badge variant="outline" className="text-xs">
                     Updated {format(lastUpdatedAt, "MMM d, h:mm a")}
@@ -405,76 +520,45 @@ export default function HRDashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
-        <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background xl:col-span-6">
-          <CardHeader className="pb-2">
-            <CardDescription>
-              {isOperationsManager
-                ? "Your approval groups — manager queue"
-                : isManagerFocus
-                  ? "Today's manager focus"
-                  : "Today's HR focus"}
-            </CardDescription>
-            <CardTitle className="text-xl">
-              {totalPendingApprovals === 0
-                ? "No pending approvals"
-                : `${totalPendingApprovals} request${totalPendingApprovals === 1 ? "" : "s"} waiting for review`}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Link href={leaveQueueHref}>
-                <Button size="sm" variant="outline" className="w-full justify-start">
-                  Leave ({displayedLeaveCount})
-                </Button>
-              </Link>
-              <Link href={otQueueHref}>
-                <Button size="sm" variant="outline" className="w-full justify-start">
-                  Overtime ({displayedOtCount})
-                </Button>
-              </Link>
-              <Link href={ftlQueueHref}>
-                <Button size="sm" variant="outline" className="w-full justify-start">
-                  Failure-to-log ({displayedFtlCount})
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-gradient-to-b from-primary/10 to-background xl:col-span-2">
-          <CardHeader className="pb-2">
-            <CardDescription>{isManagerFocus ? "Leave approvals (Manager)" : "Leave approvals"}</CardDescription>
-            <CardTitle className="text-2xl">{displayedLeaveCount}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Link href={leaveQueueHref}>
-              <Button size="sm" variant="outline" className="w-full">Open Leave Queue</Button>
-            </Link>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-gradient-to-b from-primary/10 to-background xl:col-span-2">
-          <CardHeader className="pb-2">
-            <CardDescription>Overtime approvals</CardDescription>
-            <CardTitle className="text-2xl">{displayedOtCount}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Link href={otQueueHref}>
-              <Button size="sm" variant="outline" className="w-full">Open OT Queue</Button>
-            </Link>
-          </CardContent>
-        </Card>
-        <Card className="border-primary/20 bg-gradient-to-b from-primary/10 to-background xl:col-span-2">
-          <CardHeader className="pb-2">
-            <CardDescription>Failure-to-log approvals</CardDescription>
-            <CardTitle className="text-2xl">{displayedFtlCount}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Link href={ftlQueueHref}>
-              <Button size="sm" variant="outline" className="w-full">Open FTL Queue</Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
+        <CardHeader className="pb-2">
+          <CardDescription>
+            {isOperationsManager
+              ? `${operationsManagerGroupLabel} — click a request to review`
+              : showAllCompanyPending
+                ? "All pending approvals — click a request to review"
+                : isHR
+                  ? "Pending HR approvals — click a request to review"
+                  : "Your approval groups — click a request to review"}
+          </CardDescription>
+          <CardTitle className="text-xl">
+            {queueItems.length === 0
+              ? "No pending approvals"
+              : `${queueItems.length} request${queueItems.length === 1 ? "" : "s"} waiting for you`}
+            {totalPendingApprovals > queueItems.length ? (
+              <span className="block text-sm font-normal text-muted-foreground mt-1">
+                Showing {queueItems.length} of {totalPendingApprovals} pending (all dates) ·
+                Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL {displayedFtlCount}
+              </span>
+            ) : totalPendingApprovals > 0 ? (
+              <span className="block text-sm font-normal text-muted-foreground mt-1">
+                All dates · Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL{" "}
+                {displayedFtlCount}
+              </span>
+            ) : null}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DashboardApprovalQueueCards
+            items={queueItems}
+            queueHrefByType={{
+              leave: leaveQueueHref,
+              overtime: otQueueHref,
+              ftl: ftlQueueHref,
+            }}
+          />
+        </CardContent>
+      </Card>
 
       {!isOperationsManager ? (
         <>
@@ -603,44 +687,7 @@ export default function HRDashboard() {
         </CardSection>
       </div>
         </>
-      ) : (
-        <CardSection
-          title="Your team — clocked in today"
-          description="Active clock-ins for employees in your approval groups."
-          className="w-full"
-        >
-          {currentlyClockedIn.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">
-              No team members currently clocked in.
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Clocked in at</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentlyClockedIn.map((emp) => (
-                    <TableRow key={emp.id}>
-                      <TableCell className="text-sm font-medium">
-                        {emp.first_name} {emp.last_name}
-                      </TableCell>
-                      <TableCell className="text-sm">{emp.department_name || "—"}</TableCell>
-                      <TableCell className="text-sm">
-                        {format(new Date(emp.clocked_in_at), "MMM d, h:mm a")}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardSection>
-      )}
+      ) : null}
     </VStack>
   );
 }

@@ -12,6 +12,26 @@ const QUEUE_PATHS: Record<ManagerQueueType, string> = {
   ftl: "/failure-to-log-approval",
 };
 
+type SearchParamsLike = { toString(): string };
+
+/** Update approval page URL when opening/closing a request detail modal. */
+export function approvalQueueUrlWithRequest(
+  pathname: string,
+  searchParams: SearchParamsLike,
+  requestId: string | null
+): string {
+  const params = new URLSearchParams(searchParams.toString());
+  if (requestId) {
+    params.set("requestId", requestId);
+    params.delete("focus");
+  } else {
+    params.delete("requestId");
+    params.delete("focus");
+  }
+  const qs = params.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}
+
 /** Deep-link into an approval queue (pending filter + optional request modal). */
 export function buildManagerQueueUrl(
   type: ManagerQueueType,
@@ -41,6 +61,34 @@ export async function fetchApproverOvertimeGroupIds(
     .eq("approver_id", approverUserId);
 
   return (managedGroups || []).map((g) => g.id).filter(Boolean);
+}
+
+/** Display names of OT groups this user approves (sorted). */
+export async function fetchApproverOvertimeGroupNames(
+  supabase: SupabaseClient,
+  approverUserId: string
+): Promise<string[]> {
+  const { data: managedGroups } = await supabase
+    .from("overtime_groups")
+    .select("name")
+    .eq("is_active", true)
+    .eq("approver_id", approverUserId);
+
+  return (managedGroups || [])
+    .map((g) => (g.name || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/** e.g. "Operations-Manila II approvals" or "Group A & Group B approvals". */
+export function formatApproverGroupHeading(groupNames: string[]): string {
+  if (groupNames.length === 0) return "Your approvals";
+  if (groupNames.length === 1) return `${groupNames[0]} approvals`;
+  if (groupNames.length === 2) {
+    return `${groupNames[0]} & ${groupNames[1]} approvals`;
+  }
+  const last = groupNames[groupNames.length - 1];
+  return `${groupNames.slice(0, -1).join(", ")} & ${last} approvals`;
 }
 
 /** Employee ids (UUID + company code) in OT groups this user approves. */

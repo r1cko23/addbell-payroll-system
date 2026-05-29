@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -50,7 +50,17 @@ import {
   isFinalHrApprover,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
-import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
+import {
+  approvalQueueUrlWithRequest,
+  isUserApproverForOvertimeGroup,
+} from "@/lib/manager-approval-queue";
+import {
+  canHrViewLeaveRequest,
+  canOperationsManagerViewLeaveRequest,
+  leaveRequestInHrQueue,
+  leaveRequestInOperationsManagerQueue,
+  shouldSkipServerStatusFilterForHrPending,
+} from "@/lib/approval-queue-visibility";
 
 interface LeaveDocument {
   id: string;
@@ -165,7 +175,33 @@ function leaveStatusClass(status: LeaveRequest["status"]): string {
 export default function LeaveApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const closeRequestModal = () => {
+    setSelectedRequest(null);
+    setRejectionReason("");
+    setNotes("");
+    if (
+      !searchParams.get("requestId") &&
+      searchParams.get("focus") !== "1"
+    ) {
+      return;
+    }
+    router.replace(
+      approvalQueueUrlWithRequest(pathname, searchParams, null),
+      { scroll: false }
+    );
+  };
+
+  const openRequestModal = (request: LeaveRequest) => {
+    setSelectedRequest(request);
+    if (searchParams.get("requestId") === request.id) return;
+    router.replace(
+      approvalQueueUrlWithRequest(pathname, searchParams, request.id),
+      { scroll: false }
+    );
+  };
   const { isAdmin, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.trim().toLowerCase() || "";
   const canManageLeave =
@@ -244,12 +280,19 @@ export default function LeaveApprovalPage() {
 
     if (request.status !== "pending") return null;
 
-    // HR skip: if HR is the first approver for the group, they can approve the manager-stage pending request directly.
     if (normalizedRole === "hr") {
-      if (!isFinalHrApprover(currentUserId)) return null;
-      return isUserApproverForGroup(currentUserId, getRequestGroupName(request))
-        ? "hr"
-        : null;
+      const groupName = getRequestGroupName(request);
+      if (
+        leaveRequestInHrQueue(
+          request,
+          currentUserId,
+          groupName,
+          groupApproverIdByGroupName
+        )
+      ) {
+        return "hr";
+      }
+      return null;
     }
 
     // Upper management skip: if upper management is the first approver for the group, approve directly (1-step).
@@ -261,9 +304,18 @@ export default function LeaveApprovalPage() {
 
     if (isAdmin) return "manager";
     if (normalizedRole === "operations_manager") {
-      return isUserApproverForGroup(currentUserId, getRequestGroupName(request))
-        ? "manager"
-        : null;
+      const groupName = getRequestGroupName(request);
+      if (
+        !leaveRequestInOperationsManagerQueue(
+          request,
+          currentUserId,
+          groupName,
+          groupApproverIdByGroupName
+        )
+      ) {
+        return null;
+      }
+      return "manager";
     }
     return null;
   };
@@ -427,18 +479,26 @@ export default function LeaveApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
-    let query = supabase
-      .from("leave_requests")
-      .select("*")
-      // Filter by week - leave request overlaps with week if:
-      // start_date <= weekEnd AND end_date >= weekStart
-      .lte("start_date", weekEndStr)
-      .gte("end_date", weekStartStr)
-      .order("created_at", { ascending: false });
+    const skipWeekFilterForPendingQueue =
+      statusFilter === "pending" &&
+      (isOperationsManager || isHR || isFirstApproverDashboardView);
+
+    let query = supabase.from("leave_requests").select("*");
+
+    if (!skipWeekFilterForPendingQueue) {
+      // Leave overlaps selected week when start_date <= weekEnd AND end_date >= weekStart
+      query = query.lte("start_date", weekEndStr).gte("end_date", weekStartStr);
+    }
+
+    query = query.order("created_at", { ascending: false });
 
     // HR can see all requests (pending, approved_by_manager, approved_by_hr, rejected)
     // Admin can see all requests (no filtering)
-    if (statusFilter !== "all" && !isFirstApproverDashboardView) {
+    if (
+      statusFilter !== "all" &&
+      !isFirstApproverDashboardView &&
+      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter)
+    ) {
       query = query.eq("status", statusFilter);
     }
     // Admin and HR see all requests regardless of status (no filtering)
@@ -512,23 +572,24 @@ export default function LeaveApprovalPage() {
     let filteredData = dataWithEmployees;
     if (!isAdmin && normalizedRole !== "upper_management") {
       filteredData = dataWithEmployees.filter((request: any) => {
+        const groupName =
+          employeeGroupNameByEmployeeId[request.employee_id] || null;
         if (normalizedRole === "operations_manager") {
-          // Operations Manager can view all statuses for requests in their group.
-          return isUserApproverForGroup(
+          return canOperationsManagerViewLeaveRequest(
+            request,
             currentUserId,
-            employeeGroupNameByEmployeeId[request.employee_id]
+            groupName,
+            groupApproverIdByGroupName,
+            statusFilter
           );
         }
         if (normalizedRole === "hr") {
-          // HR visibility:
-          // - Final HR approver can view all statuses.
-          // - HR first-approver (skip-manager groups) can also view all statuses in their group.
-          return (
-            isFinalHrApprover(currentUserId) ||
-            isUserApproverForGroup(
-              currentUserId,
-              employeeGroupNameByEmployeeId[request.employee_id]
-            )
+          return canHrViewLeaveRequest(
+            request,
+            currentUserId,
+            groupName,
+            groupApproverIdByGroupName,
+            statusFilter
           );
         }
         return false;
@@ -572,13 +633,7 @@ export default function LeaveApprovalPage() {
       leave_type: normalizeLeaveTypeLabel(r.leave_type || ""),
       leave_request_documents: docsByRequestId[r.id] || [],
     }));
-    const viewerFiltered =
-      isFirstApproverDashboardView && statusFilter !== "all"
-        ? (withDocs as LeaveRequest[]).filter(
-            (request) => getViewerStatus(request) === statusFilter
-          )
-        : (withDocs as LeaveRequest[]);
-    setRequests(viewerFiltered as any);
+    setRequests(withDocs as any);
 
     // Load manager names for approved items
     const managerIds = Array.from(
@@ -884,8 +939,7 @@ export default function LeaveApprovalPage() {
       }
     );
     fetchRequests();
-    setSelectedRequest(null);
-    setNotes("");
+    closeRequestModal();
   }
 
   async function handleReject(requestId: string) {
@@ -928,8 +982,7 @@ export default function LeaveApprovalPage() {
       description: `${employeeName}'s ${normalizeLeaveTypeLabel(request?.leave_type || "LWOP")} request has been declined`,
     });
     fetchRequests();
-    setSelectedRequest(null);
-    setRejectionReason("");
+    closeRequestModal();
   }
 
   useEffect(() => {
@@ -938,8 +991,8 @@ export default function LeaveApprovalPage() {
       setStatusFilter(status);
       return;
     }
-    if (isOperationsManager) setStatusFilter("pending");
-  }, [searchParams, isOperationsManager]);
+    if (isOperationsManager || isHR) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager, isHR]);
 
   // This useEffect must be called before any conditional returns (React hooks rule)
   useEffect(() => {
@@ -958,21 +1011,63 @@ export default function LeaveApprovalPage() {
   ]);
 
   useEffect(() => {
-    if (loading || !isFirstApproverDashboardView) return;
+    if (loading) return;
+    if (
+      !isFirstApproverDashboardView &&
+      !isHR &&
+      normalizedRole !== "operations_manager"
+    ) {
+      return;
+    }
 
     const canActOn = (request: LeaveRequest) => getApprovalLevel(request) !== null;
     const requestId = searchParams.get("requestId");
     if (requestId) {
       const match = requests.find((r) => r.id === requestId);
-      if (match && canActOn(match)) setSelectedRequest(match);
+      if (match) {
+        setSelectedRequest(match);
+        return;
+      }
+      void (async () => {
+        const { data, error } = await supabase
+          .from("leave_requests")
+          .select("*")
+          .eq("id", requestId)
+          .maybeSingle();
+        if (!error && data) {
+          setSelectedRequest(data as LeaveRequest);
+          if (data.start_date) {
+            setSelectedWeek(new Date(data.start_date));
+          }
+        }
+      })();
       return;
     }
 
     if (searchParams.get("focus") !== "1") return;
 
-    const firstActionable = requests.find(
-      (r) => getViewerStatus(r) === "pending" && canActOn(r)
-    );
+    const firstActionable = requests.find((r) => {
+      const groupName = getRequestGroupName(r);
+      if (normalizedRole === "operations_manager") {
+        return leaveRequestInOperationsManagerQueue(
+          r,
+          currentUserId,
+          groupName,
+          groupApproverIdByGroupName
+        );
+      }
+      if (isHR) {
+        return (
+          leaveRequestInHrQueue(
+            r,
+            currentUserId,
+            groupName,
+            groupApproverIdByGroupName
+          ) && canActOn(r)
+        );
+      }
+      return getViewerStatus(r) === "pending" && canActOn(r);
+    });
     if (firstActionable) setSelectedRequest(firstActionable);
   }, [
     loading,
@@ -1013,7 +1108,26 @@ export default function LeaveApprovalPage() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => getViewerStatus(r) === "pending").length,
+    pending: requests.filter((r) => {
+      const groupName = getRequestGroupName(r);
+      if (normalizedRole === "operations_manager") {
+        return leaveRequestInOperationsManagerQueue(
+          r,
+          currentUserId,
+          groupName,
+          groupApproverIdByGroupName
+        );
+      }
+      if (normalizedRole === "hr") {
+        return leaveRequestInHrQueue(
+          r,
+          currentUserId,
+          groupName,
+          groupApproverIdByGroupName
+        );
+      }
+      return getViewerStatus(r) === "pending";
+    }).length,
     approvedByManager: requests.filter((r) =>
       isManagerApprovedStatus(getViewerStatus(r))
     )
@@ -1197,11 +1311,11 @@ export default function LeaveApprovalPage() {
                 className="border-muted/60 transition-shadow hover:shadow-hover h-full min-h-[220px] cursor-pointer"
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelectedRequest(request)}
+                onClick={() => openRequestModal(request)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelectedRequest(request);
+                    openRequestModal(request);
                   }
                 }}
               >
@@ -1369,7 +1483,7 @@ export default function LeaveApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedRequest(request);
+                          openRequestModal(request);
                         }}
                       >
                         View details
@@ -1379,7 +1493,7 @@ export default function LeaveApprovalPage() {
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedRequest(request);
+                          openRequestModal(request);
                           setRejectionReason("");
                           setNotes("");
                         }}
@@ -1412,11 +1526,7 @@ export default function LeaveApprovalPage() {
         <Dialog
           open={!!selectedRequest}
           onOpenChange={(open) => {
-            if (!open) {
-              setSelectedRequest(null);
-              setRejectionReason("");
-              setNotes("");
-            }
+            if (!open) closeRequestModal();
           }}
         >
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1743,14 +1853,7 @@ export default function LeaveApprovalPage() {
                       </div>
 
                       <DialogFooter className="pt-4">
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            setSelectedRequest(null);
-                            setRejectionReason("");
-                            setNotes("");
-                          }}
-                        >
+                        <Button variant="secondary" onClick={closeRequestModal}>
                           Close
                         </Button>
                         <Button
@@ -1779,11 +1882,7 @@ export default function LeaveApprovalPage() {
                     <DialogFooter className="pt-2">
                       <Button
                         variant="secondary"
-                        onClick={() => {
-                          setSelectedRequest(null);
-                          setRejectionReason("");
-                          setNotes("");
-                        }}
+                        onClick={closeRequestModal}
                       >
                         Close
                       </Button>

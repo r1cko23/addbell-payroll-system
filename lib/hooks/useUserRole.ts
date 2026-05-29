@@ -13,6 +13,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
 import { useCurrentUser } from "./useCurrentUser";
+import { isOperationsManagerRole, normalizeUserRole } from "@/lib/user-roles";
 
 type DbUserRole = Database["public"]["Tables"]["users"]["Row"]["role"];
 
@@ -33,6 +34,7 @@ interface UserRoleData {
   isApprover: boolean;
   isViewer: boolean;
   isRestrictedAccess: boolean; // approver or viewer
+  isOperationsManager: boolean;
   canAccessSalaryInfo: boolean; // Admin or April Nina Gammad
   /** Only Admin or HR April Gammad can update (re-save) a saved payslip */
   canUpdatePayslip: boolean;
@@ -49,9 +51,7 @@ export function useUserRole(): UserRoleData {
   // Memoize return value to prevent unnecessary re-renders
   return useMemo(() => {
     const normalizedRole =
-      typeof user?.role === "string"
-        ? user.role.trim().toLowerCase().replace(/\s+/g, "_")
-        : null;
+      typeof user?.role === "string" ? normalizeUserRole(user.role) : null;
 
     const isAprilGammad =
       normalizedRole === "hr" &&
@@ -75,6 +75,7 @@ export function useUserRole(): UserRoleData {
       isApprover: normalizedRole === "approver" || normalizedRole === "hr",
       isViewer: normalizedRole === "viewer",
       isRestrictedAccess: normalizedRole === "approver" || normalizedRole === "viewer",
+      isOperationsManager: isOperationsManagerRole(normalizedRole),
       canAccessSalaryInfo:
         isAdmin ||
         normalizedRole === "hr" ||

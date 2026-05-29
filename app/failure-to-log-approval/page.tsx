@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -42,9 +42,9 @@ import { MetricCard } from "@/components/ui/metric-card";
 import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
-  isFirstApproverForGroup,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
+import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
 import { normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 
 interface FailureToLog {
@@ -87,7 +87,8 @@ type EmployeeFilterOption = {
 export default function FailureToLogApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { role, isHR, isAdmin, loading: roleLoading } = useUserRole();
+  const searchParams = useSearchParams();
+  const { role, isHR, isAdmin, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageFailureToLog =
     isAdmin ||
@@ -125,19 +126,8 @@ export default function FailureToLogApprovalPage() {
   const isUserApproverForGroup = (
     userId: string | null | undefined,
     groupName?: string | null
-  ): boolean => {
-    if (!userId || !groupName) return false;
-    const normalized = groupName.trim().toLowerCase();
-    const assignedApproverId =
-      groupApproverIdByGroupName[groupName] ||
-      groupApproverIdByGroupName[normalized] ||
-      null;
-    if (assignedApproverId) {
-      return assignedApproverId === userId;
-    }
-    // Fallback for legacy hardcoded routing.
-    return isFirstApproverForGroup(userId, groupName);
-  };
+  ): boolean =>
+    isUserApproverForOvertimeGroup(userId, groupName, groupApproverIdByGroupName);
 
   const isManagerStagePending = (request: FailureToLog): boolean =>
     request.status === "pending" && !request.account_manager_id;
@@ -352,6 +342,15 @@ export default function FailureToLogApprovalPage() {
   }
 
   useEffect(() => {
+    const status = searchParams.get("status");
+    if (status) {
+      setStatusFilter(status);
+      return;
+    }
+    if (isOperationsManager) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager]);
+
+  useEffect(() => {
     if (canManageFailureToLog) {
       fetchRequests();
     }
@@ -363,6 +362,31 @@ export default function FailureToLogApprovalPage() {
     isAdmin,
     isHR,
     normalizedRole,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+  ]);
+
+  useEffect(() => {
+    if (loading || !isFirstApproverDashboardView) return;
+
+    const requestId = searchParams.get("requestId");
+    if (requestId) {
+      const match = requests.find((r) => r.id === requestId);
+      if (match && canCurrentUserActOnRequest(match)) setSelectedRequest(match);
+      return;
+    }
+
+    if (searchParams.get("focus") !== "1") return;
+
+    const firstActionable = requests.find(
+      (r) => getViewerStatus(r) === "pending" && canCurrentUserActOnRequest(r)
+    );
+    if (firstActionable) setSelectedRequest(firstActionable);
+  }, [
+    loading,
+    requests,
+    searchParams,
+    isFirstApproverDashboardView,
     currentUserId,
     employeeGroupNameByEmployeeId,
   ]);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,10 +29,10 @@ import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
-  isFirstApproverForGroup,
   LOCATION_FIRST_APPROVER_BY_GROUP,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
+import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
 
 type OvertimeDocument = {
   id: string;
@@ -121,7 +121,8 @@ function getOvertimeDecisionActorId(request: OTRequest): string | null {
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
+  const searchParams = useSearchParams();
+  const { isAdmin, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageOvertime =
     isAdmin ||
@@ -196,7 +197,12 @@ export default function OvertimeApprovalPage() {
 
     // Fallback to group-name based routing (covers any missing join fields).
     const groupName = getRequestGroupName(request);
-    return isFirstApproverForGroup(userId, groupName);
+    const approverMap: Record<string, string> = {};
+    Object.entries(overtimeGroupFirstApproverIdById).forEach(([groupId, approverId]) => {
+      const name = overtimeGroupNameById[groupId];
+      if (name && approverId) approverMap[name] = approverId;
+    });
+    return isUserApproverForOvertimeGroup(userId, groupName, approverMap);
   };
 
   const isManagerStagePending = (request: OTRequest): boolean =>
@@ -669,10 +675,15 @@ export default function OvertimeApprovalPage() {
         if (gid && overtimeGroupFirstApproverIdById[gid]) {
           return overtimeGroupFirstApproverIdById[gid] === currentUserId;
         }
-        return isFirstApproverForGroup(
-          currentUserId,
-          employeeGroupNameByEmployeeId[employee.employee_id]
-        );
+        const groupName =
+          employeeGroupNameByEmployeeId[employee.employee_id] ||
+          employeeGroupNameByEmployeeId[employee.id];
+        const approverMap: Record<string, string> = {};
+        Object.entries(overtimeGroupFirstApproverIdById).forEach(([groupId, approverId]) => {
+          const name = overtimeGroupNameById[groupId];
+          if (name && approverId) approverMap[name] = approverId;
+        });
+        return isUserApproverForOvertimeGroup(currentUserId, groupName, approverMap);
       }
       if (isHR) {
         return isFinalHrApprover(currentUserId);
@@ -724,6 +735,15 @@ export default function OvertimeApprovalPage() {
   }
 
   useEffect(() => {
+    const status = searchParams.get("status");
+    if (status) {
+      setStatusFilter(status);
+      return;
+    }
+    if (isOperationsManager) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager]);
+
+  useEffect(() => {
     const canLoadOtRequests =
       role &&
       (role === "admin" ||
@@ -744,6 +764,32 @@ export default function OvertimeApprovalPage() {
     normalizedRole,
     currentUserId,
     employeeGroupNameByEmployeeId,
+  ]);
+
+  useEffect(() => {
+    if (loading || !isFirstApproverDashboardView) return;
+
+    const requestId = searchParams.get("requestId");
+    if (requestId) {
+      const match = requests.find((r) => r.id === requestId);
+      if (match && canCurrentUserActOnRequest(match)) setSelected(match);
+      return;
+    }
+
+    if (searchParams.get("focus") !== "1") return;
+
+    const firstActionable = requests.find(
+      (r) => getViewerStatus(r) === "pending" && canCurrentUserActOnRequest(r)
+    );
+    if (firstActionable) setSelected(firstActionable);
+  }, [
+    loading,
+    requests,
+    searchParams,
+    isFirstApproverDashboardView,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+    overtimeGroupFirstApproverIdById,
   ]);
 
   const handleApprove = async (id: string) => {

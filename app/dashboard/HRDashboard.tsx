@@ -18,6 +18,21 @@ import {
 import { MetricCard } from "@/components/ui/metric-card";
 import { H1, BodySmall } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import {
+  buildManagerQueueUrl,
+  fetchManagedEmployeeIdsForApprover,
+} from "@/lib/manager-approval-queue";
+
+const NO_SCOPE_MATCH_EMPLOYEE_ID = "00000000-0000-0000-0000-000000000000";
+
+/** Resolves employee_id filter for ops-manager scoped counts (avoids deep Supabase generics). */
+function employeeScopeFilter(
+  scopedEmployeeIds: string[] | null
+): string[] | null {
+  if (scopedEmployeeIds === null) return null;
+  if (scopedEmployeeIds.length === 0) return [NO_SCOPE_MATCH_EMPLOYEE_ID];
+  return scopedEmployeeIds;
+}
 
 interface DepartmentStat { name: string; count: number; }
 interface ActiveEmployeeLite {
@@ -81,11 +96,11 @@ export default function HRDashboard() {
   >([]);
   const [typeBreakdown, setTypeBreakdown] = useState<{ type: string; count: number }[]>([]);
 
-  const { isHR, loading: roleLoading } = useUserRole();
+  const { isHR, isOperationsManager, loading: roleLoading } = useUserRole();
 
   useEffect(() => {
     if (!roleLoading) loadData();
-  }, [roleLoading]);
+  }, [roleLoading, isOperationsManager]);
 
   async function loadData() {
     const initialLoad = !lastUpdatedAt;
@@ -105,6 +120,19 @@ export default function HRDashboard() {
           )
           .eq("employment_status", "active"),
       ]);
+
+      // Operations managers only see/act on requests for employees in their OT groups.
+      let scopedEmployeeIds: string[] | null = null;
+      if (isOperationsManager) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        scopedEmployeeIds = user?.id
+          ? await fetchManagedEmployeeIdsForApprover(supabase, user.id)
+          : [];
+      }
+
+      const employeeScope = employeeScopeFilter(scopedEmployeeIds);
 
       // HR-ready counts (items that should appear in the HR approval step)
       const [{ count: pendingLeave }] = await Promise.all([
@@ -151,26 +179,36 @@ export default function HRDashboard() {
       ]);
 
       // Manager-stage pending counts (first-step approval items).
+      let leaveManagerCountQuery = supabase
+        .from("leave_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      let otManagerCountQuery = supabase
+        .from("overtime_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .is("project_manager_id", null)
+        .is("account_manager_id", null);
+      let ftlManagerCountQuery = supabase
+        .from("failure_to_log")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .is("account_manager_id", null);
+
+      if (employeeScope) {
+        leaveManagerCountQuery = leaveManagerCountQuery.in("employee_id", employeeScope);
+        otManagerCountQuery = otManagerCountQuery.in("employee_id", employeeScope);
+        ftlManagerCountQuery = ftlManagerCountQuery.in("employee_id", employeeScope);
+      }
+
       const [
         { count: managerLeavePending },
         { count: managerOTProjectManagerNullAccountManagerNull },
         { count: managerFTLPending },
       ] = await Promise.all([
-        supabase
-          .from("leave_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending"),
-        supabase
-          .from("overtime_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .is("project_manager_id", null)
-          .is("account_manager_id", null),
-        supabase
-          .from("failure_to_log")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pending")
-          .is("account_manager_id", null),
+        leaveManagerCountQuery,
+        otManagerCountQuery,
+        ftlManagerCountQuery,
       ]);
 
       setTotalEmployees(total || 0);
@@ -185,7 +223,16 @@ export default function HRDashboard() {
       const deptMap = new Map<string, number>();
       const typeMap = new Map<string, number>();
       let unassignedCount = 0;
-      const activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
+      const scopedIdSet =
+        scopedEmployeeIds === null ? null : new Set(scopedEmployeeIds);
+      let activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
+      if (isOperationsManager && scopedIdSet) {
+        activeEmployeesList = activeEmployeesList.filter(
+          (emp) => scopedIdSet.has(emp.id) || scopedIdSet.has(emp.employee_code)
+        );
+        setTotalEmployees(activeEmployeesList.length);
+        setActiveEmployees(activeEmployeesList.length);
+      }
       activeEmployeesList.forEach((emp) => {
         const dept = getDepartmentName(emp.departments);
         if (dept) {
@@ -283,13 +330,22 @@ export default function HRDashboard() {
 
   const inactiveEmployees = totalEmployees - activeEmployees;
   const isManagerFocus = !isHR;
-  const displayedLeaveCount = isManagerFocus ? managerPendingLeaveCount : pendingLeaveApprovals;
-  const displayedOtCount = isManagerFocus ? managerPendingOvertimeCount : pendingOvertimeApprovals;
-  const displayedFtlCount = isManagerFocus
-    ? managerPendingFailureToLogCount
-    : pendingFailureToLogApprovals;
+  const displayedLeaveCount = isHR ? pendingLeaveApprovals : managerPendingLeaveCount;
+  const displayedOtCount = isHR ? pendingOvertimeApprovals : managerPendingOvertimeCount;
+  const displayedFtlCount = isHR
+    ? pendingFailureToLogApprovals
+    : managerPendingFailureToLogCount;
   const totalPendingApprovals =
     displayedLeaveCount + displayedOtCount + displayedFtlCount;
+  const leaveQueueHref = buildManagerQueueUrl("leave", {
+    status: isOperationsManager ? "pending" : undefined,
+  });
+  const otQueueHref = buildManagerQueueUrl("overtime", {
+    status: isOperationsManager ? "pending" : undefined,
+  });
+  const ftlQueueHref = buildManagerQueueUrl("ftl", {
+    status: isOperationsManager ? "pending" : undefined,
+  });
 
   return (
     <VStack gap="8" align="stretch" className="w-full pb-16">
@@ -298,14 +354,19 @@ export default function HRDashboard() {
           <HStack justify="between" align="start" className="flex-col gap-4 lg:flex-row">
             <div className="space-y-2">
               <Badge variant="outline" className="font-normal">Workforce overview</Badge>
-              <H1>People snapshot</H1>
-              <BodySmall>Headcount, teams, and recent hires.</BodySmall>
+              <H1>{isOperationsManager ? "Your team approvals" : "People snapshot"}</H1>
+              <BodySmall>
+                {isOperationsManager
+                  ? "Pending leave, overtime, and failure-to-log for your approval groups."
+                  : "Headcount, teams, and recent hires."}
+              </BodySmall>
               <HStack gap="2" className="flex-wrap">
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {totalPendingApprovals} approvals waiting
                 </Badge>
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                  {activeEmployees} active employees
+                  {activeEmployees}{" "}
+                  {isOperationsManager ? "team member(s)" : "active employees"}
                 </Badge>
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
                   {currentlyClockedIn.length} currently clocked in
@@ -318,10 +379,12 @@ export default function HRDashboard() {
               </HStack>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Link href="/employees">
-                <Button size="sm">Open employees</Button>
-              </Link>
-              <Link href="/leave-approval">
+              {!isOperationsManager ? (
+                <Link href="/employees">
+                  <Button size="sm">Open employees</Button>
+                </Link>
+              ) : null}
+              <Link href={leaveQueueHref}>
                 <Button variant="outline" size="sm">Review leave requests</Button>
               </Link>
               <Button
@@ -345,7 +408,13 @@ export default function HRDashboard() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background xl:col-span-6">
           <CardHeader className="pb-2">
-            <CardDescription>{isManagerFocus ? "Today's manager focus" : "Today's HR focus"}</CardDescription>
+            <CardDescription>
+              {isOperationsManager
+                ? "Your approval groups — manager queue"
+                : isManagerFocus
+                  ? "Today's manager focus"
+                  : "Today's HR focus"}
+            </CardDescription>
             <CardTitle className="text-xl">
               {totalPendingApprovals === 0
                 ? "No pending approvals"
@@ -354,17 +423,17 @@ export default function HRDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Link href="/leave-approval">
+              <Link href={leaveQueueHref}>
                 <Button size="sm" variant="outline" className="w-full justify-start">
                   Leave ({displayedLeaveCount})
                 </Button>
               </Link>
-              <Link href="/overtime-approval">
+              <Link href={otQueueHref}>
                 <Button size="sm" variant="outline" className="w-full justify-start">
                   Overtime ({displayedOtCount})
                 </Button>
               </Link>
-              <Link href="/failure-to-log-approval">
+              <Link href={ftlQueueHref}>
                 <Button size="sm" variant="outline" className="w-full justify-start">
                   Failure-to-log ({displayedFtlCount})
                 </Button>
@@ -378,7 +447,7 @@ export default function HRDashboard() {
             <CardTitle className="text-2xl">{displayedLeaveCount}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Link href="/leave-approval">
+            <Link href={leaveQueueHref}>
               <Button size="sm" variant="outline" className="w-full">Open Leave Queue</Button>
             </Link>
           </CardContent>
@@ -389,7 +458,7 @@ export default function HRDashboard() {
             <CardTitle className="text-2xl">{displayedOtCount}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Link href="/overtime-approval">
+            <Link href={otQueueHref}>
               <Button size="sm" variant="outline" className="w-full">Open OT Queue</Button>
             </Link>
           </CardContent>
@@ -400,13 +469,15 @@ export default function HRDashboard() {
             <CardTitle className="text-2xl">{displayedFtlCount}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Link href="/failure-to-log-approval">
+            <Link href={ftlQueueHref}>
               <Button size="sm" variant="outline" className="w-full">Open FTL Queue</Button>
             </Link>
           </CardContent>
         </Card>
       </div>
 
+      {!isOperationsManager ? (
+        <>
       <HStack justify="between" align="start" className="flex-col gap-2">
         <div className="space-y-1">
           <h2 className="font-display text-3xl font-normal leading-tight">Workforce health</h2>
@@ -531,6 +602,45 @@ export default function HRDashboard() {
           </div>
         </CardSection>
       </div>
+        </>
+      ) : (
+        <CardSection
+          title="Your team — clocked in today"
+          description="Active clock-ins for employees in your approval groups."
+          className="w-full"
+        >
+          {currentlyClockedIn.length === 0 ? (
+            <p className="text-muted-foreground text-center py-6">
+              No team members currently clocked in.
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Clocked in at</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentlyClockedIn.map((emp) => (
+                    <TableRow key={emp.id}>
+                      <TableCell className="text-sm font-medium">
+                        {emp.first_name} {emp.last_name}
+                      </TableCell>
+                      <TableCell className="text-sm">{emp.department_name || "—"}</TableCell>
+                      <TableCell className="text-sm">
+                        {format(new Date(emp.clocked_in_at), "MMM d, h:mm a")}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardSection>
+      )}
     </VStack>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -48,9 +48,9 @@ import { MetricCard } from "@/components/ui/metric-card";
 import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
-  isFirstApproverForGroup,
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
+import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
 
 interface LeaveDocument {
   id: string;
@@ -165,7 +165,8 @@ function leaveStatusClass(status: LeaveRequest["status"]): string {
 export default function LeaveApprovalPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { isAdmin, role, isHR, loading: roleLoading } = useUserRole();
+  const searchParams = useSearchParams();
+  const { isAdmin, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.trim().toLowerCase() || "";
   const canManageLeave =
     isAdmin ||
@@ -212,19 +213,8 @@ export default function LeaveApprovalPage() {
   const isUserApproverForGroup = (
     userId: string | null | undefined,
     groupName?: string | null
-  ): boolean => {
-    if (!userId || !groupName) return false;
-    const normalized = groupName.trim().toLowerCase();
-    const assignedApproverId =
-      groupApproverIdByGroupName[groupName] ||
-      groupApproverIdByGroupName[normalized] ||
-      null;
-    if (assignedApproverId) {
-      return assignedApproverId === userId;
-    }
-    // Fallback for legacy hardcoded routing.
-    return isFirstApproverForGroup(userId, groupName);
-  };
+  ): boolean =>
+    isUserApproverForOvertimeGroup(userId, groupName, groupApproverIdByGroupName);
 
   const getViewerStatus = (request: LeaveRequest): LeaveRequest["status"] => {
     if (!isFirstApproverDashboardView) return request.status;
@@ -942,6 +932,15 @@ export default function LeaveApprovalPage() {
     setRejectionReason("");
   }
 
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status) {
+      setStatusFilter(status);
+      return;
+    }
+    if (isOperationsManager) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager]);
+
   // This useEffect must be called before any conditional returns (React hooks rule)
   useEffect(() => {
     if (!normalizedRole || !canManageLeave) return;
@@ -956,6 +955,33 @@ export default function LeaveApprovalPage() {
     isHR,
     currentUserId,
     employeeGroupNameByEmployeeId,
+  ]);
+
+  useEffect(() => {
+    if (loading || !isFirstApproverDashboardView) return;
+
+    const canActOn = (request: LeaveRequest) => getApprovalLevel(request) !== null;
+    const requestId = searchParams.get("requestId");
+    if (requestId) {
+      const match = requests.find((r) => r.id === requestId);
+      if (match && canActOn(match)) setSelectedRequest(match);
+      return;
+    }
+
+    if (searchParams.get("focus") !== "1") return;
+
+    const firstActionable = requests.find(
+      (r) => getViewerStatus(r) === "pending" && canActOn(r)
+    );
+    if (firstActionable) setSelectedRequest(firstActionable);
+  }, [
+    loading,
+    requests,
+    searchParams,
+    isFirstApproverDashboardView,
+    currentUserId,
+    employeeGroupNameByEmployeeId,
+    normalizedRole,
   ]);
 
   // Show loading state while checking role

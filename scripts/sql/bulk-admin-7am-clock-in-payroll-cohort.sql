@@ -2,21 +2,16 @@
 -- Bulk 7:00 AM Manila clock-IN (admin_correction) — standard payroll cohort
 -- =============================================================================
 --
--- Use when staff are told NOT to time in; they only time OUT on Bundy.
--- Typical group: employees on the weekly payroll / payslips list, including
--- Josefina Echavia Conte (2023-001).
---
--- Before running: set :target_date (yyyy-mm-dd) for the Manila calendar day.
--- Skips anyone who already has this admin 7:00 AM in punch.
--- Does NOT add clock-out.
+-- Run STEP 1 (preview), then STEP 2 (insert) as separate queries in Supabase.
+-- Change the date in both steps: timestamptz 'YYYY-MM-DD 07:00:00+08'
 -- =============================================================================
 
--- Preview who would get a punch (change date below)
+-- STEP 1 — Preview
 WITH cohort AS (
   SELECT e.id, e.employee_id, e.full_name
   FROM employees e
   WHERE e.id IN (
-    '1089f0a0-ea93-4908-9670-c16eaf04bf85', -- Joseph Cabigas (70 / AX2026-013)
+    '1089f0a0-ea93-4908-9670-c16eaf04bf85', -- Joseph Cabigas
     '20ea5cf9-79dd-4803-bb05-6b828e66d797', -- Kandace Abregana
     '633845dd-5f2c-442d-86f5-43aaae357eef', -- Joel Mallari
     '6bdf9636-ca19-416c-b64d-1227111db2ba', -- Josefina Echavia Conte
@@ -31,7 +26,7 @@ WITH cohort AS (
   )
 ),
 target AS (
-  SELECT timestamptz '2026-05-29 07:00:00+08' AS punched_at -- <<< change date
+  SELECT timestamptz '2026-05-29 07:00:00+08' AS punched_at
 )
 SELECT c.employee_id, c.full_name,
   EXISTS (
@@ -44,8 +39,31 @@ SELECT c.employee_id, c.full_name,
 FROM cohort c
 ORDER BY c.full_name;
 
--- INSERT (uncomment after preview; update date in target CTE above)
+-- =============================================================================
+-- STEP 2 — Insert (copy this entire block; includes cohort + target CTEs)
+-- =============================================================================
 /*
+WITH cohort AS (
+  SELECT e.id, e.employee_id, e.full_name
+  FROM employees e
+  WHERE e.id IN (
+    '1089f0a0-ea93-4908-9670-c16eaf04bf85',
+    '20ea5cf9-79dd-4803-bb05-6b828e66d797',
+    '633845dd-5f2c-442d-86f5-43aaae357eef',
+    '6bdf9636-ca19-416c-b64d-1227111db2ba',
+    '907df9a7-c99a-4c78-8472-308e5cffbed9',
+    '9b1feda7-1095-4159-9a85-fc90cc026d0c',
+    'ae4a655b-6dcd-4d33-8e40-79f48af61f27',
+    'c74186df-5ee5-424e-aba1-aab9a2815d0f',
+    'c84e7a00-66ab-446f-99af-9d6b0207325c',
+    'e8b3aa76-725d-4625-a2e5-860277276cef',
+    'eb95ec6d-c8e7-4adb-8208-a4b1eb7f6abe',
+    'f0db2c9c-05ca-43ac-a5f6-0191e3fdb1d7'
+  )
+),
+target AS (
+  SELECT timestamptz '2026-05-29 07:00:00+08' AS punched_at
+)
 INSERT INTO time_entries (
   employee_id,
   punch_type,
@@ -73,5 +91,6 @@ WHERE NOT EXISTS (
     AND te.punch_type = 'in'
     AND te.punched_at = t.punched_at
     AND te.source = 'admin_correction'
-);
+)
+RETURNING employee_id;
 */

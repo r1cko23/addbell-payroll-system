@@ -22,6 +22,7 @@ import {
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { creditOvertimeHours } from "@/utils/overtime";
+import { formatTime12h, formatTimeRange12h } from "@/utils/format";
 import { toast } from "sonner";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -99,24 +100,6 @@ type OTRequest = {
 };
 
 type ViewerOtStatus = "pending" | "approved" | "rejected";
-
-function formatTime12h(value?: string | null): string {
-  if (!value) return "—";
-  const raw = value.includes("T")
-    ? value.split("T")[1]?.split(".")[0] || value
-    : value;
-  const [h, m] = raw.split(":");
-  const hh = Number(h);
-  const mm = Number(m);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return value;
-  const d = new Date();
-  d.setHours(hh, mm, 0, 0);
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
 
 /** User id to show as approver/rejector — prefer final `approved_by`, then HR, then endorsement ids. */
 function getOvertimeDecisionActorId(request: OTRequest): string | null {
@@ -1253,17 +1236,27 @@ export default function OvertimeApprovalPage() {
                           </HStack>
                           <HStack gap="1" align="center">
                             <Icon name="Timer" size={IconSizes.sm} />
-                            {formatTime12h(req.start_time)} - {formatTime12h(req.end_time)}
+                            {formatTimeRange12h(req.start_time, req.end_time)}
                           </HStack>
                           <span className="font-semibold text-primary">
                             {creditOvertimeHours(req.total_hours)}h
                           </span>
                         </HStack>
-                        {req.reason && (
-                          <BodySmall className="mt-2">
+                        {req.reason ? (
+                          <BodySmall className="mt-2 line-clamp-2">
                             <strong>Reason:</strong> {req.reason}
                           </BodySmall>
+                        ) : (
+                          <BodySmall className="mt-2 italic text-muted-foreground">
+                            No reason provided
+                          </BodySmall>
                         )}
+                        {req.created_at ? (
+                          <Caption className="mt-1 block text-muted-foreground">
+                            Filed{" "}
+                            {format(new Date(req.created_at), "MMM d, yyyy h:mm a")}
+                          </Caption>
+                        ) : null}
                         {req.employees?.requires_ot_punch === true && (
                           <div className="mt-2">
                             {otPunchStatusByRequestId[req.id]?.hasCompletedPair ? (
@@ -1491,7 +1484,7 @@ export default function OvertimeApprovalPage() {
                   <div className="space-y-1">
                     <p className="text-sm text-muted-foreground">Time Range</p>
                     <p className="text-base font-medium">
-                      {formatTime12h(selected.start_time)} - {formatTime12h(selected.end_time)}
+                      {formatTimeRange12h(selected.start_time, selected.end_time)}
                     </p>
                   </div>
                   <div className="space-y-1">

@@ -19,13 +19,23 @@ import {
   overtimeRequestInOperationsManagerQueue,
 } from "@/lib/approval-queue-visibility";
 import { normalizeGroupName } from "@/lib/requestApprovalRouting";
+import {
+  formatFiledAtLabel,
+  formatFtlRequestDateLabel,
+  formatLeaveRequestDateLabel,
+  formatOtRequestDateLabel,
+  truncateApprovalText,
+} from "@/lib/approval-queue-card-format";
 
 export type DashboardQueueItem = {
   id: string;
   queueType: ManagerQueueType;
   employeeName: string;
   employeeCode: string | null;
-  summary: string;
+  typeLabel: string;
+  requestDateLabel: string;
+  reason: string | null;
+  filedAtLabel: string | null;
   href: string;
   sortAt: string;
 };
@@ -238,7 +248,7 @@ export async function fetchDashboardApprovalQueueItems(
   const { data: leaveRows, error: leaveRowsError } = await supabase
     .from("leave_requests")
     .select(
-      "id, employee_id, status, leave_type, start_date, end_date, project_manager_id, created_at"
+      "id, employee_id, status, leave_type, start_date, end_date, reason, project_manager_id, created_at"
     )
     .in("status", ["pending", "approved_by_pm", "approved_by_manager"])
     .order("created_at", { ascending: false });
@@ -255,7 +265,13 @@ export async function fetchDashboardApprovalQueueItems(
       queueType: "leave",
       employeeName: emp?.full_name || "Unknown employee",
       employeeCode: emp?.employee_id || null,
-      summary: `${row.leave_type || "Leave"} · ${row.start_date} – ${row.end_date}`,
+      typeLabel: row.leave_type || "Leave",
+      requestDateLabel: formatLeaveRequestDateLabel(
+        row.start_date,
+        row.end_date
+      ),
+      reason: truncateApprovalText(row.reason),
+      filedAtLabel: formatFiledAtLabel(row.created_at),
       href: buildManagerQueueUrl("leave", {
         status: "pending",
         requestId: row.id,
@@ -267,7 +283,7 @@ export async function fetchDashboardApprovalQueueItems(
   const { data: otRows } = await supabase
     .from("overtime_requests")
     .select(
-      "id, employee_id, status, ot_date, start_time, end_time, project_manager_id, account_manager_id, created_at"
+      "id, employee_id, status, ot_date, start_time, end_time, reason, project_manager_id, account_manager_id, created_at"
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
@@ -280,7 +296,14 @@ export async function fetchDashboardApprovalQueueItems(
       queueType: "overtime",
       employeeName: emp?.full_name || "Unknown employee",
       employeeCode: emp?.employee_id || null,
-      summary: `${row.ot_date} · ${row.start_time} – ${row.end_time}`,
+      typeLabel: "Overtime",
+      requestDateLabel: formatOtRequestDateLabel(
+        row.ot_date,
+        row.start_time,
+        row.end_time
+      ),
+      reason: truncateApprovalText(row.reason),
+      filedAtLabel: formatFiledAtLabel(row.created_at),
       href: buildManagerQueueUrl("overtime", {
         status: "pending",
         requestId: row.id,
@@ -292,7 +315,7 @@ export async function fetchDashboardApprovalQueueItems(
   const { data: ftlRows } = await supabase
     .from("failure_to_log")
     .select(
-      "id, employee_id, status, missed_date, entry_type, account_manager_id, created_at"
+      "id, employee_id, status, missed_date, entry_type, reason, actual_clock_in_time, actual_clock_out_time, account_manager_id, created_at"
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
@@ -305,7 +328,15 @@ export async function fetchDashboardApprovalQueueItems(
       queueType: "ftl",
       employeeName: emp?.full_name || "Unknown employee",
       employeeCode: emp?.employee_id || null,
-      summary: `Missed ${row.missed_date || "—"} · ${row.entry_type || "log"}`,
+      typeLabel: "Failure to log",
+      requestDateLabel: formatFtlRequestDateLabel(
+        row.missed_date,
+        row.entry_type,
+        row.actual_clock_in_time,
+        row.actual_clock_out_time
+      ),
+      reason: truncateApprovalText(row.reason),
+      filedAtLabel: formatFiledAtLabel(row.created_at),
       href: buildManagerQueueUrl("ftl", {
         status: "pending",
         requestId: row.id,

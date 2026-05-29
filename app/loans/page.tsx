@@ -880,23 +880,25 @@ export default function LoansPage() {
   }
 
   function getLoanTypeBadgeColor(type: string): string {
+    const base =
+      "border-transparent !bg-none !from-current !to-current !text-white shadow-sm hover:brightness-110";
     switch (type) {
       case "company":
-        return "bg-blue-100 text-blue-800";
+        return `${base} !from-blue-600 !to-blue-600`;
       case "sss_calamity":
-        return "bg-green-100 text-green-800";
+        return `${base} !from-green-600 !to-green-600`;
       case "pagibig_calamity":
-        return "bg-purple-100 text-purple-800";
+        return `${base} !from-purple-600 !to-purple-600`;
       case "sss":
-        return "bg-emerald-100 text-emerald-800";
+        return `${base} !from-emerald-600 !to-emerald-600`;
       case "pagibig":
-        return "bg-indigo-100 text-indigo-800";
+        return `${base} !from-indigo-600 !to-indigo-600`;
       case "emergency":
-        return "bg-red-100 text-red-800";
+        return `${base} !from-red-600 !to-red-600`;
       case "other":
-        return "bg-gray-100 text-gray-800";
+        return `${base} !from-slate-600 !to-slate-600`;
       default:
-        return "bg-gray-100 text-gray-800";
+        return `${base} !from-primary !to-primary`;
     }
   }
 
@@ -1035,7 +1037,7 @@ export default function LoansPage() {
                             <Badge
                               className={`${getLoanTypeBadgeColor(
                                 loan.loan_type
-                              )} cursor-pointer hover:opacity-80`}
+                              )} cursor-pointer`}
                               onClick={() => openPaymentHistoryModal(loan)}
                             >
                               {getLoanTypeLabel(loan.loan_type)}

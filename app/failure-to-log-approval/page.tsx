@@ -34,7 +34,7 @@ import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
-import { formatPHTime } from "@/utils/format";
+import { formatPHTime, formatTime12h } from "@/utils/format";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -1165,9 +1165,21 @@ export default function FailureToLogApprovalPage() {
                           </HStack>
                         ) : null}
                       </HStack>
-                      <BodySmall className="mt-2">
-                        <strong>Reason:</strong> {request.reason}
-                      </BodySmall>
+                      {request.reason ? (
+                        <BodySmall className="mt-2 line-clamp-2">
+                          <strong>Reason:</strong> {request.reason}
+                        </BodySmall>
+                      ) : (
+                        <BodySmall className="mt-2 italic text-muted-foreground">
+                          No reason provided
+                        </BodySmall>
+                      )}
+                      {request.created_at ? (
+                        <Caption className="mt-1 block text-muted-foreground">
+                          Filed{" "}
+                          {format(new Date(request.created_at), "MMM d, yyyy h:mm a")}
+                        </Caption>
+                      ) : null}
                       {request.manual_notes && (
                         <BodySmall className="mt-2">
                           <strong>Employee notes:</strong>{" "}

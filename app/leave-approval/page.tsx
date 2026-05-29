@@ -1393,11 +1393,21 @@ export default function LeaveApprovalPage() {
                           </Caption>
                         )}
                       </HStack>
-                      {request.reason && (
-                        <BodySmall className="mt-2">
+                      {request.reason ? (
+                        <BodySmall className="mt-2 line-clamp-2">
                           <strong>Reason:</strong> {request.reason}
                         </BodySmall>
+                      ) : (
+                        <BodySmall className="mt-2 italic text-muted-foreground">
+                          No reason provided
+                        </BodySmall>
                       )}
+                      {request.created_at ? (
+                        <Caption className="mt-1 block text-muted-foreground">
+                          Filed{" "}
+                          {format(new Date(request.created_at), "MMM d, yyyy h:mm a")}
+                        </Caption>
+                      ) : null}
                       {(request.project_manager_id ||
                         request.account_manager_id ||
                         request.hr_approver_id ||

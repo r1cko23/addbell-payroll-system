@@ -80,6 +80,50 @@ export function generatePayslipNumber(
 }
 
 /**
+ * Display a DB time or timestamp in 12-hour format (e.g. "6:10 PM").
+ * Accepts `HH:mm`, `HH:mm:ss`, or full ISO timestamps.
+ */
+export function formatTime12h(value?: string | null): string {
+  if (!value) return "—";
+  const trimmed = value.trim();
+  if (!trimmed) return "—";
+
+  if (trimmed.includes("T") && trimmed.length > 11) {
+    try {
+      return formatPHTime(trimmed, "h:mm a");
+    } catch {
+      /* fall through to time-only parsing */
+    }
+  }
+
+  const raw = trimmed.includes("T")
+    ? trimmed.split("T")[1]?.split(/[.+Z]/)[0] || trimmed
+    : trimmed;
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (!match) return trimmed;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return trimmed;
+
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+/** OT / shift style range in 12-hour format. */
+export function formatTimeRange12h(
+  start?: string | null,
+  end?: string | null
+): string {
+  return `${formatTime12h(start)} – ${formatTime12h(end)}`;
+}
+
+/**
  * Format date to Philippine timezone (Asia/Manila, UTC+8)
  * Converts UTC timestamps to Philippine local time
  * Uses date-fns compatible format strings

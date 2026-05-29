@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format, parse } from "date-fns";
 import { toast } from "sonner";
-import { formatPHTime } from "@/utils/format";
+import { formatPHTime, formatTimeRange12h } from "@/utils/format";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,24 +62,6 @@ type OvertimeRequest = {
     clock_out_lng: number | null;
   } | null;
 };
-
-function formatTime12h(value?: string | null): string {
-  if (!value) return "—";
-  const raw = value.includes("T")
-    ? value.split("T")[1]?.split(".")[0] || value
-    : value;
-  const [h, m] = raw.split(":");
-  const hh = Number(h);
-  const mm = Number(m);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return value;
-  const d = new Date();
-  d.setHours(hh, mm, 0, 0);
-  return d.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
 
 export default function OvertimePage() {
   const { employee } = useEmployeeSession();
@@ -880,8 +862,8 @@ export default function OvertimePage() {
                         </div>
 
                         <div className="text-sm mb-2">
-                          <strong>Time:</strong> {formatTime12h(req.start_time)} -{" "}
-                          {formatTime12h(req.end_time)}
+                          <strong>Time:</strong>{" "}
+                          {formatTimeRange12h(req.start_time, req.end_time)}
                         </div>
 
                         {req.reason && (

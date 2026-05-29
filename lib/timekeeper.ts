@@ -8,9 +8,9 @@
 import { createClient } from "@/lib/supabase/client";
 import { startOfWeek, endOfWeek, format, parseISO, addDays } from "date-fns";
 import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
-import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import {
   fetchSessionsForEmployee,
+  getActiveBundyBusinessDayKey,
   getOpenEntryFromPunches,
   getDateInManilaDefault,
   type TimeEntryPunch,
@@ -177,7 +177,6 @@ export async function isEmployeeClockedIn(
   } catch (e) {
     console.error("Bundy auto clock-out:", e);
   }
-  const activeBusinessDay = getBundyBusinessDayKey(new Date());
   const { data: punches } = await supabase
     .from("time_entries")
     .select("id, employee_id, punch_type, punched_at")
@@ -185,6 +184,7 @@ export async function isEmployeeClockedIn(
     .order("punched_at", { ascending: false })
     .limit(100);
   const list = (punches || []) as TimeEntryPunch[];
+  const activeBusinessDay = getActiveBundyBusinessDayKey(list);
   const open = getOpenEntryFromPunches(
     list,
     getDateInManilaDefault,
@@ -205,7 +205,6 @@ export async function getCurrentClockEntry(
   } catch (e) {
     console.error("Bundy auto clock-out:", e);
   }
-  const activeBusinessDay = getBundyBusinessDayKey(new Date());
   const { data: punches } = await supabase
     .from("time_entries")
     .select("id, employee_id, punch_type, punched_at")
@@ -213,6 +212,7 @@ export async function getCurrentClockEntry(
     .order("punched_at", { ascending: false })
     .limit(100);
   const list = (punches || []) as TimeEntryPunch[];
+  const activeBusinessDay = getActiveBundyBusinessDayKey(list);
   const open = getOpenEntryFromPunches(
     list,
     getDateInManilaDefault,

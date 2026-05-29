@@ -41,7 +41,27 @@ export function getManilaWallClock(isoOrDate: string | Date): ManilaWallClock {
   };
 }
 
-/** Business day key (yyyy-MM-dd) for when the shift "belongs" (7 AM boundary). */
+/** Today's calendar date in Asia/Manila (yyyy-MM-dd). Use for date input max/min. */
+export function getManilaTodayYmd(now: Date = new Date()): string {
+  return getManilaWallClock(now).dateKey;
+}
+
+/** Add calendar days to a yyyy-MM-dd string. */
+export function addCalendarDaysYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+/**
+ * Wall-clock business day (7 AM boundary) without session context.
+ * Before 7 AM Manila always maps to the previous calendar day — used for overnight
+ * tail punches that continue an open session from the prior evening.
+ */
 export function getBundyBusinessDayKey(isoOrDate: string | Date): string {
   const { dateKey, hour } = getManilaWallClock(isoOrDate);
   if (hour < BUNDY_BUSINESS_DAY_START_HOUR) {
@@ -53,6 +73,76 @@ export function getBundyBusinessDayKey(isoOrDate: string | Date): string {
     return `${py}-${pm}-${pd}`;
   }
   return dateKey;
+}
+
+export type PunchForBundyBizDay = {
+  id: string;
+  punch_type: "in" | "out";
+  punched_at: string;
+};
+
+/**
+ * Business day for a clock-IN punch.
+ * - At/after 7 AM: calendar date.
+ * - Before 7 AM with an open session: same business day as that open session (overnight).
+ * - Before 7 AM with no open session: calendar date (early start for today's shift).
+ */
+export function getBundyBusinessDayKeyForClockIn(
+  punchedAtIso: string,
+  hasOpenSession: boolean,
+  openSessionClockInIso?: string | null
+): string {
+  const { dateKey, hour } = getManilaWallClock(punchedAtIso);
+  if (hour >= BUNDY_BUSINESS_DAY_START_HOUR) {
+    return dateKey;
+  }
+  if (hasOpenSession && openSessionClockInIso) {
+    return getBundyBusinessDayKey(openSessionClockInIso);
+  }
+  return dateKey;
+}
+
+/**
+ * Assigns a business-day key to each IN punch by walking punches in time order.
+ * Used for official-session filtering, auto clock-out deadlines, and open-session checks.
+ */
+export function assignBundyBusinessDayKeysFromPunches(
+  punches: PunchForBundyBizDay[]
+): Map<string, string> {
+  const sorted = [...punches].sort(
+    (a, b) => new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
+  );
+  const inPunchBizDay = new Map<string, string>();
+  let openIn: PunchForBundyBizDay | null = null;
+
+  for (const p of sorted) {
+    if (p.punch_type === "in") {
+      const biz = getBundyBusinessDayKeyForClockIn(
+        p.punched_at,
+        openIn !== null,
+        openIn?.punched_at ?? null
+      );
+      inPunchBizDay.set(p.id, biz);
+      openIn = p;
+    } else if (p.punch_type === "out" && openIn) {
+      const outMs = new Date(p.punched_at).getTime();
+      const inMs = new Date(openIn.punched_at).getTime();
+      if (outMs > inMs) {
+        openIn = null;
+      }
+    }
+  }
+  return inPunchBizDay;
+}
+
+/** Business day for a session's clock-in punch id, when punch list is available. */
+export function getBundyBusinessDayKeyForInPunch(
+  inPunchId: string,
+  clockInIso: string,
+  punches: PunchForBundyBizDay[]
+): string {
+  const map = assignBundyBusinessDayKeysFromPunches(punches);
+  return map.get(inPunchId) ?? getBundyBusinessDayKey(clockInIso);
 }
 
 /** ISO timestamp for auto clock-out: next calendar day after businessDayKey at 06:59 Manila. */
@@ -70,9 +160,10 @@ export function getBundyBusinessDayAutoOutIso(businessDayKey: string): string {
 /** True when server time is at or after 06:59 Manila on the day after the session's business day. */
 export function isPastBundyAutoClockOut(
   clockInIso: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  businessDayKey?: string
 ): boolean {
-  const businessDay = getBundyBusinessDayKey(clockInIso);
+  const businessDay = businessDayKey ?? getBundyBusinessDayKey(clockInIso);
   const deadlineMs = new Date(getBundyBusinessDayAutoOutIso(businessDay)).getTime();
   return now.getTime() >= deadlineMs;
 }

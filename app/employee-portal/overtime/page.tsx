@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
@@ -20,7 +20,12 @@ import {
   BundySessionPicker,
   type BundySessionSelection,
 } from "@/components/BundySessionPicker";
-import { getOtHistoryWindow } from "@/utils/weekly";
+import { formatWeeklyCutoffPeriod } from "@/utils/bimonthly";
+import {
+  cutoffKeyForOtDate,
+  getOtHistoryCutoffs,
+  type WeeklyCutoffPeriod,
+} from "@/utils/weekly";
 import {
   computeRawOtSpanHours,
   isClaimedOtWithinBundySession,
@@ -102,7 +107,9 @@ export default function OvertimePage() {
   const [bundyInAddress, setBundyInAddress] = useState<string>("");
   const [bundyOutAddress, setBundyOutAddress] = useState<string>("");
   const [bundyAddressLoading, setBundyAddressLoading] = useState(false);
-  const [historyWindowLabel, setHistoryWindowLabel] = useState<string | null>(null);
+  const [historySpanLabel, setHistorySpanLabel] = useState<string | null>(null);
+  const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
+  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -201,16 +208,39 @@ export default function OvertimePage() {
       endTime: formData.end_time,
     });
 
+  const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
+
+  const cutoffNavLabel = useMemo(() => {
+    if (!selectedCutoff) return "";
+    const start = parse(selectedCutoff.start_ymd, "yyyy-MM-dd", new Date());
+    const end = parse(selectedCutoff.end_ymd, "yyyy-MM-dd", new Date());
+    return formatWeeklyCutoffPeriod(start, end);
+  }, [selectedCutoff]);
+
+  const visibleRequests = useMemo(() => {
+    if (!selectedCutoff) return [];
+    return requests.filter(
+      (r) =>
+        cutoffKeyForOtDate(r.ot_date, [selectedCutoff]) === selectedCutoff.start_ymd
+    );
+  }, [requests, selectedCutoff]);
+
+  const canGoToOlderCutoff =
+    selectedCutoffIndex < historyCutoffs.length - 1;
+  const canGoToNewerCutoff = selectedCutoffIndex > 0;
+
   const loadRequests = async () => {
     setLoading(true);
     const todayYmd = format(new Date(), "yyyy-MM-dd");
-    const historyWindow = getOtHistoryWindow(todayYmd);
-    setHistoryWindowLabel(historyWindow?.label ?? null);
+    const history = getOtHistoryCutoffs(todayYmd);
+    setHistorySpanLabel(history?.span_label ?? null);
+    setHistoryCutoffs(history?.cutoffs ?? []);
+    setSelectedCutoffIndex(0);
 
     const params = new URLSearchParams({ employee_id: employee.id });
-    if (historyWindow) {
-      params.set("ot_date_from", historyWindow.start_ymd);
-      params.set("ot_date_to", historyWindow.end_ymd);
+    if (history) {
+      params.set("ot_date_from", history.fetch_from);
+      params.set("ot_date_to", history.fetch_to);
     }
 
     const response = await fetch(
@@ -750,20 +780,55 @@ export default function OvertimePage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle>My OT Requests</CardTitle>
-          {historyWindowLabel && (
+          {historySpanLabel && (
             <BodySmall className="text-muted-foreground">
-              Showing this week and previous week ({historyWindowLabel}).
+              Last 30 days · all statuses
             </BodySmall>
           )}
         </CardHeader>
         <CardContent className="w-full">
+          {historyCutoffs.length > 0 && (
+            <div className="mb-6 flex items-center justify-center gap-2 sm:gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="shrink-0 px-3 py-3"
+                disabled={!canGoToOlderCutoff || loading}
+                onClick={() =>
+                  setSelectedCutoffIndex((index) =>
+                    Math.min(index + 1, historyCutoffs.length - 1)
+                  )
+                }
+                aria-label="Previous cutoff"
+              >
+                <Icon name="CaretLeft" size={IconSizes.sm} />
+              </Button>
+              <p className="min-w-[180px] text-center text-sm font-medium text-foreground sm:min-w-[220px]">
+                {cutoffNavLabel}
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="shrink-0 px-3 py-3"
+                disabled={!canGoToNewerCutoff || loading}
+                onClick={() =>
+                  setSelectedCutoffIndex((index) => Math.max(index - 1, 0))
+                }
+                aria-label="Next cutoff"
+              >
+                <Icon name="CaretRight" size={IconSizes.sm} />
+              </Button>
+            </div>
+          )}
           {loading ? (
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
             </div>
-          ) : requests.length === 0 ? (
+          ) : visibleRequests.length === 0 ? (
             <div className="text-center py-12">
               <VStack gap="4" align="center">
                 <div className="rounded-full bg-muted p-6">
@@ -774,18 +839,16 @@ export default function OvertimePage() {
                   />
                 </div>
                 <VStack gap="2" align="center">
-                  <H3 className="text-lg font-semibold">No Recent OT Requests</H3>
+                  <H3 className="text-lg font-semibold">No OT Requests</H3>
                   <BodySmall className="text-muted-foreground max-w-md">
-                    {historyWindowLabel
-                      ? `No filings for ${historyWindowLabel}.`
-                      : "No OT requests for the last two cutoff weeks."}
+                    No filings for {cutoffNavLabel || "this cutoff"}.
                   </BodySmall>
                 </VStack>
               </VStack>
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((req) => (
+              {visibleRequests.map((req) => (
                 <Card
                   key={req.id}
                   className={`w-full ${

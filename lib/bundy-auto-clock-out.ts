@@ -1,7 +1,8 @@
 import {
+  assignBundyBusinessDayKeysFromPunches,
   BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO,
   getBundyBusinessDayAutoOutIso,
-  getBundyBusinessDayKey,
+  getBundyBusinessDayKeyForInPunch,
   isPastBundyAutoClockOut,
 } from "@/lib/bundy-business-day";
 import {
@@ -39,11 +40,15 @@ export async function applyBundyAutoClockOutIfNeeded(
     return { applied: false };
   }
 
-  if (!isPastBundyAutoClockOut(open.clock_in_time, now)) {
+  const businessDay = getBundyBusinessDayKeyForInPunch(
+    open.id,
+    open.clock_in_time,
+    punches
+  );
+
+  if (!isPastBundyAutoClockOut(open.clock_in_time, now, businessDay)) {
     return { applied: false };
   }
-
-  const businessDay = getBundyBusinessDayKey(open.clock_in_time);
   const punchedAt = getBundyBusinessDayAutoOutIso(businessDay);
 
   const { data: insertData, error: insertError } = await supabase

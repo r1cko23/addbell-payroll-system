@@ -34,7 +34,7 @@ import {
   parseISO,
   getDay,
 } from "date-fns";
-import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
+import { getBundyBusinessDayKeyForInPunch } from "@/lib/bundy-business-day";
 import { getBusinessDayPolicyByDay } from "@/utils/business-hours";
 import { calculateLateHours } from "@/utils/business-hours";
 
@@ -116,6 +116,7 @@ import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import {
   punchesToSessions,
+  getActiveBundyBusinessDayKey,
   getOpenEntryFromPunches,
   type TimeEntryPunch,
   type TimeEntrySession,
@@ -478,8 +479,6 @@ export default function BundyClockPage() {
   );
 
   const checkClockStatus = useCallback(async () => {
-    const activeBusinessDay = getBundyBusinessDayKey(new Date());
-
     const res = await fetch(
       `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(
         employee.id
@@ -493,6 +492,7 @@ export default function BundyClockPage() {
       console.error("checkClockStatus:", json.error || res.statusText);
     }
     const list = (json.punches || []) as TimeEntryPunch[];
+    const activeBusinessDay = getActiveBundyBusinessDayKey(list);
     const open = getOpenEntryFromPunches(
       list,
       (iso) => getDateInManilaTimezone(iso),
@@ -518,7 +518,8 @@ export default function BundyClockPage() {
     }
     const list = (json.punches || []) as TimeEntryPunch[];
     const sessions = filterOfficialBundySessions(
-      punchesToSessions(list, (iso) => getDateInManilaTimezone(iso))
+      punchesToSessions(list, (iso) => getDateInManilaTimezone(iso)),
+      (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, list)
     ).reverse();
     setEntries(sessions as any[]);
   }, [employee.id, periodEnd, periodStart, supabase]);
@@ -615,7 +616,8 @@ export default function BundyClockPage() {
       // Convert punch rows to sessions, then map to calendar days
       const punchesList = (timeData || []) as TimeEntryPunch[];
       const timeSessions = filterOfficialBundySessions(
-        punchesToSessions(punchesList, (iso) => getDateInManilaTimezone(iso))
+        punchesToSessions(punchesList, (iso) => getDateInManilaTimezone(iso)),
+        (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, punchesList)
       );
       timeSessions.forEach((entry) => {
         const dateIso =
@@ -937,7 +939,8 @@ export default function BundyClockPage() {
 
       const clockPunches = (clockJson.punches || []) as TimeEntryPunch[];
       const clockData = filterOfficialBundySessions(
-        punchesToSessions(clockPunches, (iso) => getDateInManilaTimezone(iso))
+        punchesToSessions(clockPunches, (iso) => getDateInManilaTimezone(iso)),
+        (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, clockPunches)
       );
       const leaveData = (leaveJson.requests || []).filter(
         (r) =>

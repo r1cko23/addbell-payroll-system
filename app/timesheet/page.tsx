@@ -1503,6 +1503,7 @@ export default function TimesheetPage() {
         "No attendance days generated! Check period calculation and data loading."
       );
     }
+
     setAttendanceDays(days);
   }
 

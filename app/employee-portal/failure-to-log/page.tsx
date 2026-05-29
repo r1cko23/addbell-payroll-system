@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -22,6 +21,17 @@ import { Skeleton, SkeletonCard, SkeletonForm } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
+import { getBundyBusinessDayKey, getManilaTodayYmd, addCalendarDaysYmd } from "@/lib/bundy-business-day";
+import type { TimeEntrySession } from "@/lib/timeEntries";
+
+const FTL_PAGE_CACHE_MS = 2 * 60 * 1000;
+
+type FtlPageCache = {
+  employeeId: string;
+  at: number;
+  requests: FailureToLog[];
+  openSessions: TimeEntrySession[];
+};
 
 interface EmployeeSession {
   id: string;
@@ -51,7 +61,6 @@ interface FailureToLog {
 
 export default function FailureToLogPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
   const [requests, setRequests] = useState<FailureToLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,14 +68,96 @@ export default function FailureToLogPage() {
   const [cancelLoading, setCancelLoading] = useState(false);
 
   // Form state
-  const [entryType, setEntryType] = useState<"in" | "out" | "both">("out");
+  const [entryType, setEntryType] = useState<"out" | "both">("out");
   const [missedDate, setMissedDate] = useState("");
   const [timeIn, setTimeIn] = useState("");
   const [timeOut, setTimeOut] = useState("");
+  const [timeOutDate, setTimeOutDate] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [timeEntries, setTimeEntries] = useState<any[]>([]);
+  const [timeEntries, setTimeEntries] = useState<TimeEntrySession[]>([]);
+  const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
+  const ftlCacheRef = useRef<FtlPageCache | null>(null);
   const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
+  const [manualTimeInEntry, setManualTimeInEntry] = useState(false);
+
+  const todayManila = useMemo(() => getManilaTodayYmd(), []);
+
+  const loadFtlPageData = useCallback(
+    async (employeeId: string, opts?: { force?: boolean; silent?: boolean }) => {
+      const now = Date.now();
+      const cached = ftlCacheRef.current;
+      if (
+        !opts?.force &&
+        cached?.employeeId === employeeId &&
+        now - cached.at < FTL_PAGE_CACHE_MS
+      ) {
+        setRequests(cached.requests);
+        setTimeEntries(cached.openSessions);
+        return;
+      }
+
+      if (!opts?.silent) {
+        setLoading(true);
+      }
+      setTimeEntriesLoading(true);
+
+      try {
+        const response = await fetch(
+          `/api/employee-portal/failure-to-log?employee_id=${encodeURIComponent(
+            employeeId
+          )}`
+        );
+        const payload = await response.json();
+
+        if (!response.ok) {
+          console.error("Error loading failure to log page:", payload);
+          if (!opts?.silent) {
+            toast.error("Failed to load requests");
+          }
+          return;
+        }
+
+        const nextRequests = (payload.requests || []) as FailureToLog[];
+        const openSessions = ((payload.open_sessions || []) as Array<{
+          id: string;
+          clock_in_time: string;
+          clock_out_time: string | null;
+          clock_in_date_ph: string;
+          status: string;
+        }>).map(
+          (s): TimeEntrySession => ({
+            id: s.id,
+            clock_in_time: s.clock_in_time,
+            clock_out_time: s.clock_out_time,
+            clock_in_date_ph: s.clock_in_date_ph,
+            status: s.status,
+            total_hours: null,
+          })
+        );
+
+        setRequests(nextRequests);
+        setTimeEntries(openSessions);
+        ftlCacheRef.current = {
+          employeeId,
+          at: now,
+          requests: nextRequests,
+          openSessions,
+        };
+      } catch (err) {
+        console.error("Error loading failure to log page:", err);
+        if (!opts?.silent) {
+          toast.error("Failed to load requests");
+        }
+      } finally {
+        if (!opts?.silent) {
+          setLoading(false);
+        }
+        setTimeEntriesLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const sessionData = localStorage.getItem("employee_session");
@@ -77,41 +168,89 @@ export default function FailureToLogPage() {
 
     const emp = JSON.parse(sessionData) as EmployeeSession;
     setEmployee(emp);
-    fetchFailureToLogRequests(emp.id);
-    fetchTimeEntries(emp.id);
-  }, [router]);
+    void loadFtlPageData(emp.id);
+  }, [router, loadFtlPageData]);
 
-  async function fetchTimeEntries(employeeId: string) {
-    const { fetchSessionsForEmployee } = await import("@/lib/timeEntries");
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 60);
-    const sessions = await fetchSessionsForEmployee(
-      supabase,
-      employeeId,
-      start.toISOString(),
-      end.toISOString()
-    );
-    setTimeEntries(sessions);
-  }
-
-  async function fetchFailureToLogRequests(employeeId: string) {
-    setLoading(true);
-    const response = await fetch(
-      `/api/employee-portal/failure-to-log?employee_id=${encodeURIComponent(
-        employeeId
-      )}`
-    );
-    const payload = await response.json();
-
-    if (!response.ok) {
-      console.error("Error fetching failure to log requests:", payload);
-      toast.error("Failed to load requests");
-    } else {
-      setRequests(payload.requests || []);
+  useEffect(() => {
+    if (!missedDate) {
+      setTimeOutDate("");
+      return;
     }
-    setLoading(false);
-  }
+    setTimeOutDate(missedDate);
+  }, [missedDate]);
+
+  const autoTimeOutNextDay = useMemo(() => {
+    if (entryType !== "both" || !timeIn || !timeOut) return false;
+    const start = new Date(`2000-01-01T${timeIn}:00`);
+    const end = new Date(`2000-01-01T${timeOut}:00`);
+    return end.getTime() <= start.getTime();
+  }, [entryType, timeIn, timeOut]);
+
+  useEffect(() => {
+    if (!missedDate || entryType !== "both" || !timeIn || !timeOut) return;
+    if (autoTimeOutNextDay) {
+      setTimeOutDate(addCalendarDaysYmd(missedDate, 1));
+      return;
+    }
+    setTimeOutDate(missedDate);
+  }, [autoTimeOutNextDay, entryType, missedDate, timeIn, timeOut]);
+
+  const incompleteSessions = useMemo(() => {
+    const pendingLinkedIds = new Set(
+      requests
+        .filter(
+          (r) =>
+            r.status === "pending" &&
+            r.entry_type === "out" &&
+            r.time_entry_id
+        )
+        .map((r) => r.time_entry_id as string)
+    );
+    return timeEntries
+      .filter((s) => !s.clock_out_time && !pendingLinkedIds.has(s.id))
+      .sort(
+        (a, b) =>
+          new Date(b.clock_in_time).getTime() -
+          new Date(a.clock_in_time).getTime()
+      );
+  }, [timeEntries, requests]);
+
+  const applyOpenSession = useCallback((session: TimeEntrySession) => {
+    setManualTimeInEntry(false);
+    setSelectedTimeEntryId(session.id);
+    setMissedDate(getBundyBusinessDayKey(session.clock_in_time));
+  }, []);
+
+  useEffect(() => {
+    if (entryType !== "out") {
+      setManualTimeInEntry(false);
+      setSelectedTimeEntryId("");
+      return;
+    }
+    if (manualTimeInEntry) return;
+    if (incompleteSessions.length === 0) {
+      setSelectedTimeEntryId("");
+      return;
+    }
+    const stillValid = incompleteSessions.some((s) => s.id === selectedTimeEntryId);
+    if (!selectedTimeEntryId || !stillValid) {
+      applyOpenSession(incompleteSessions[0]);
+    }
+  }, [
+    entryType,
+    incompleteSessions,
+    manualTimeInEntry,
+    selectedTimeEntryId,
+    applyOpenSession,
+  ]);
+
+  const linkedOpenSession = useMemo(
+    () =>
+      timeEntries.find(
+        (s) => s.id === selectedTimeEntryId && !s.clock_out_time
+      ) ?? null,
+    [selectedTimeEntryId, timeEntries]
+  );
 
   async function handleCancel(requestId: string) {
     setCancelLoading(true);
@@ -138,7 +277,7 @@ export default function FailureToLogPage() {
     });
     setCancelId(null);
     if (employee) {
-      fetchFailureToLogRequests(employee.id);
+      void loadFtlPageData(employee.id, { force: true, silent: true });
     }
   }
 
@@ -155,17 +294,49 @@ export default function FailureToLogPage() {
       return new Date(`${date}T${time}`).toISOString();
     };
 
+    const resolvedTimeOutDate = timeOutDate || missedDate;
+
     const actualClockInTime =
-      entryType === "in" || entryType === "both"
-        ? buildDateTime(missedDate, timeIn)
-        : null;
+      entryType === "both" ? buildDateTime(missedDate, timeIn) : null;
     const actualClockOutTime =
       entryType === "out" || entryType === "both"
-        ? buildDateTime(missedDate, timeOut)
+        ? buildDateTime(resolvedTimeOutDate, timeOut)
         : null;
 
     if (
-      (entryType === "in" && !actualClockInTime) ||
+      entryType === "out" &&
+      selectedTimeEntryId &&
+      !timeEntries.some(
+        (s) => s.id === selectedTimeEntryId && !s.clock_out_time
+      )
+    ) {
+      toast.error(
+        "Selected time in is no longer open. Pick another or enter manually."
+      );
+      return;
+    }
+
+    if (
+      (entryType === "out" || entryType === "both") &&
+      resolvedTimeOutDate &&
+      missedDate &&
+      resolvedTimeOutDate < missedDate
+    ) {
+      toast.error("Time out date cannot be before time in date.");
+      return;
+    }
+
+    if (
+      entryType === "both" &&
+      actualClockInTime &&
+      actualClockOutTime &&
+      new Date(actualClockOutTime).getTime() <= new Date(actualClockInTime).getTime()
+    ) {
+      toast.error("Time out must be after time in.");
+      return;
+    }
+
+    if (
       (entryType === "out" && !actualClockOutTime) ||
       (entryType === "both" && (!actualClockInTime || !actualClockOutTime))
     ) {
@@ -200,21 +371,18 @@ export default function FailureToLogPage() {
 
     toast.success("Failure to log request submitted successfully!", {
       description: `Status: Pending approval • ${
-        entryType === "both"
-          ? "Clock in & out"
-          : entryType === "in"
-          ? "Clock in"
-          : "Clock out"
+        entryType === "both" ? "Clock in & out" : "Clock out"
       }`,
     });
     setMissedDate("");
     setTimeIn("");
     setTimeOut("");
+    setTimeOutDate("");
     setEntryType("out");
     setReason("");
     setSelectedTimeEntryId("");
-    fetchFailureToLogRequests(employee.id);
-    fetchTimeEntries(employee.id);
+    setManualTimeInEntry(false);
+    void loadFtlPageData(employee.id, { force: true, silent: true });
   }
 
   if (loading || !employee) {
@@ -334,55 +502,188 @@ export default function FailureToLogPage() {
                 <select
                   id="entry-type"
                   value={entryType}
-                  onChange={(e) =>
-                    setEntryType(e.target.value as "in" | "out" | "both")
-                  }
+                  onChange={(e) => {
+                    const value = e.target.value as "out" | "both";
+                    setEntryType(value);
+                    if (value === "out") {
+                      setTimeIn("");
+                      setManualTimeInEntry(false);
+                    } else {
+                      setSelectedTimeEntryId("");
+                      setManualTimeInEntry(false);
+                    }
+                  }}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="out">Time Out</option>
-                  <option value="in">Time In</option>
                   <option value="both">Time In & Out</option>
                 </select>
+                <Caption className="text-muted-foreground">
+                  Time in only is not filed here—you must time in before time out
+                  appears on Bundy.
+                </Caption>
               </VStack>
 
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+              {entryType === "out" && (
                 <VStack gap="2" align="start" className="w-full">
-                  <Label htmlFor="missed-date">Date</Label>
-                  <Input
-                    id="missed-date"
-                    type="date"
-                    value={missedDate}
-                    onChange={(e) => setMissedDate(e.target.value)}
-                    max={new Date().toISOString().split("T")[0]}
-                    required
-                  />
+                  <Label>Open time in (missing time out)</Label>
+                  <Caption className="text-muted-foreground">
+                    Select the incomplete Bundy record you are closing out.
+                  </Caption>
+                  {timeEntriesLoading ? (
+                    <Caption className="text-muted-foreground py-2">
+                      Loading open time ins…
+                    </Caption>
+                  ) : incompleteSessions.length === 0 ? (
+                    <div className="w-full rounded-md border border-dashed border-muted px-3 py-3 text-sm text-muted-foreground">
+                      No open time in found in the last 60 days. Clock in on
+                      Bundy first, or enter dates manually below.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-full space-y-2 max-h-48 overflow-y-auto rounded-md border border-input p-2">
+                        {incompleteSessions.map((session) => {
+                          const checked = selectedTimeEntryId === session.id;
+                          return (
+                            <label
+                              key={session.id}
+                              className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm transition-colors ${
+                                checked
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:bg-muted/50"
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="open-time-in"
+                                className="mt-1"
+                                checked={checked}
+                                onChange={() => applyOpenSession(session)}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium">
+                                  {formatPHTime(
+                                    session.clock_in_time,
+                                    "MMM d, h:mm a"
+                                  )}
+                                </div>
+                                <Caption className="text-muted-foreground">
+                                  Incomplete · missing time out
+                                </Caption>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {selectedTimeEntryId && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto px-0 text-muted-foreground"
+                          onClick={() => {
+                            setSelectedTimeEntryId("");
+                            setManualTimeInEntry(true);
+                          }}
+                        >
+                          Enter dates manually instead
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </VStack>
+              )}
+
+              {entryType === "out" && linkedOpenSession && (
+                <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Linked: </span>
+                  Time in{" "}
+                  {formatPHTime(linkedOpenSession.clock_in_time, "MMM d, h:mm a")}{" "}
+                  — filing missing time out only.
+                </div>
+              )}
+
+              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                <VStack gap="4" align="start" className="w-full">
+                  <VStack gap="2" align="start" className="w-full">
+                    <Label htmlFor="missed-date">Time in date</Label>
+                    <Input
+                      id="missed-date"
+                      type="date"
+                      value={missedDate}
+                      onChange={(e) => {
+                        setMissedDate(e.target.value);
+                        if (selectedTimeEntryId) {
+                          setSelectedTimeEntryId("");
+                          setManualTimeInEntry(true);
+                        }
+                      }}
+                      max={todayManila}
+                      required
+                    />
+                    <Caption className="text-muted-foreground">
+                      {linkedOpenSession
+                        ? "From linked time in above."
+                        : entryType === "out"
+                          ? "Day you clocked in."
+                          : "Day you clocked in."}
+                    </Caption>
+                  </VStack>
+
+                  <VStack gap="2" align="start" className="w-full">
+                    <Label htmlFor="time-out-date">
+                      Time out date {autoTimeOutNextDay && "(auto-filled)"}
+                    </Label>
+                    <Input
+                      id="time-out-date"
+                      type="date"
+                      value={timeOutDate}
+                      min={missedDate || undefined}
+                      max={todayManila}
+                      onChange={(e) => setTimeOutDate(e.target.value)}
+                      required
+                    />
+                    <Caption className="text-muted-foreground">
+                      {autoTimeOutNextDay
+                        ? "Next day (time out past midnight)."
+                        : entryType === "out"
+                          ? "Day you clocked out (e.g. May 27 if after midnight)."
+                          : "Next calendar day if time out is after midnight."}
+                    </Caption>
+                  </VStack>
                 </VStack>
 
-                {(entryType === "in" || entryType === "both") && (
-                  <VStack gap="2" align="start" className="w-full">
-                    <Label htmlFor="time-in">Time In</Label>
-                    <Input
-                      id="time-in"
-                      type="time"
-                      value={timeIn}
-                      onChange={(e) => setTimeIn(e.target.value)}
-                      required={entryType === "in" || entryType === "both"}
-                    />
-                  </VStack>
-                )}
+                <VStack gap="4" align="start" className="w-full">
+                  {entryType === "both" && (
+                    <VStack gap="2" align="start" className="w-full">
+                      <Label htmlFor="time-in">Time in</Label>
+                      <Input
+                        id="time-in"
+                        type="time"
+                        value={timeIn}
+                        onChange={(e) => setTimeIn(e.target.value)}
+                        required
+                      />
+                    </VStack>
+                  )}
 
-                {(entryType === "out" || entryType === "both") && (
                   <VStack gap="2" align="start" className="w-full">
-                    <Label htmlFor="time-out">Time Out</Label>
+                    <Label htmlFor="time-out">Time out</Label>
                     <Input
                       id="time-out"
                       type="time"
                       value={timeOut}
                       onChange={(e) => setTimeOut(e.target.value)}
-                      required={entryType === "out" || entryType === "both"}
+                      required
                     />
+                    {entryType === "out" && !linkedOpenSession && (
+                      <Caption className="text-muted-foreground">
+                        Example: in May 26, out May 27 2:00 AM — set dates left,
+                        time here.
+                      </Caption>
+                    )}
                   </VStack>
-                )}
+                </VStack>
               </div>
 
               <VStack gap="2" align="start" className="w-full">

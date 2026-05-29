@@ -1,4 +1,4 @@
-import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
+import { getBundyBusinessDayKeyForInPunch } from "@/lib/bundy-business-day";
 import {
   getDateInManilaDefault,
   punchesToSessions,
@@ -45,7 +45,11 @@ export function listCompletedBundySessions(
 
   sessions.forEach((s: TimeEntrySession) => {
     if (!s.clock_out_time || !s.out_punch_id) return;
-    const businessDay = getBundyBusinessDayKey(s.clock_in_time);
+    const businessDay = getBundyBusinessDayKeyForInPunch(
+      s.id,
+      s.clock_in_time,
+      punches
+    );
     if (
       options?.allowedBusinessDayKeys &&
       !options.allowedBusinessDayKeys.has(businessDay)

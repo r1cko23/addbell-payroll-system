@@ -120,16 +120,79 @@ export function getWeeklyCutoffWindowForOtFiling(anchorYmd: string) {
   };
 }
 
-/** Previous + current Wed–Tue weeks for employee OT history. */
-export function getOtHistoryWindow(anchorYmd: string) {
+export type WeeklyCutoffPeriod = {
+  start_ymd: string;
+  end_ymd: string;
+  label: string;
+};
+
+const OT_HISTORY_LOOKBACK_DAYS = 30;
+
+/**
+ * Wed–Tue cutoffs overlapping the last ~30 days (newest first).
+ * Used for employee OT history grouped by payroll cutoff.
+ */
+export function getOtHistoryCutoffs(anchorYmd: string): {
+  fetch_from: string;
+  fetch_to: string;
+  span_label: string;
+  cutoffs: WeeklyCutoffPeriod[];
+} | null {
   const anchor = parseYmd(anchorYmd);
   if (!anchor) return null;
-  const currentWeekStart = getWeeklyPeriodStart(anchor);
-  const previousWeekStart = getPreviousWeeklyPeriod(currentWeekStart);
-  const currentWeekEnd = getWeeklyCutoffEndDate(currentWeekStart);
+
+  const rangeStart = subDays(anchor, OT_HISTORY_LOOKBACK_DAYS - 1);
+  let weekStart = getWeeklyPeriodStart(anchor);
+  const fetchTo = format(getWeeklyCutoffEndDate(weekStart), "yyyy-MM-dd");
+
+  const cutoffsNewestFirst: WeeklyCutoffPeriod[] = [];
+  for (let i = 0; i < 8; i++) {
+    const weekEnd = getWeeklyCutoffEndDate(weekStart);
+    if (weekEnd >= rangeStart) {
+      cutoffsNewestFirst.push({
+        start_ymd: format(weekStart, "yyyy-MM-dd"),
+        end_ymd: format(weekEnd, "yyyy-MM-dd"),
+        label: formatWeeklyPeriod(weekStart, weekEnd),
+      });
+    }
+    if (weekEnd < rangeStart) break;
+    weekStart = getPreviousWeeklyPeriod(weekStart);
+  }
+
+  const oldestStart =
+    cutoffsNewestFirst[cutoffsNewestFirst.length - 1]?.start_ymd ??
+    format(rangeStart, "yyyy-MM-dd");
+
   return {
-    start_ymd: format(previousWeekStart, "yyyy-MM-dd"),
-    end_ymd: format(currentWeekEnd, "yyyy-MM-dd"),
-    label: formatWeeklyPeriod(previousWeekStart, currentWeekEnd),
+    fetch_from: oldestStart,
+    fetch_to: fetchTo,
+    span_label: `${format(rangeStart, "MMM d")} – ${format(anchor, "MMM d, yyyy")}`,
+    cutoffs: cutoffsNewestFirst,
+  };
+}
+
+/** Map ot_date (yyyy-MM-dd) to cutoff start_ymd key, if it falls in a listed period. */
+export function cutoffKeyForOtDate(
+  otDateYmd: string,
+  cutoffs: WeeklyCutoffPeriod[]
+): string | null {
+  for (const c of cutoffs) {
+    if (otDateYmd >= c.start_ymd && otDateYmd <= c.end_ymd) {
+      return c.start_ymd;
+    }
+  }
+  return null;
+}
+
+/** @deprecated Use getOtHistoryCutoffs */
+export function getOtHistoryWindow(anchorYmd: string) {
+  const history = getOtHistoryCutoffs(anchorYmd);
+  if (!history || history.cutoffs.length === 0) return null;
+  const oldest = history.cutoffs[history.cutoffs.length - 1];
+  const newest = history.cutoffs[0];
+  return {
+    start_ymd: history.fetch_from,
+    end_ymd: history.fetch_to,
+    label: `${oldest.label} – ${newest.label}`,
   };
 }

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
-import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import { buildUsedOtPairKeys, validateBundyOtSessionPair } from "@/lib/validate-bundy-ot-session";
 import {
   listCompletedBundySessions,
   sessionPairKey,
 } from "@/lib/bundy-sessions";
 import {
+  getActiveBundyBusinessDayKey,
   getOpenEntryFromPunches,
   getDateInManilaDefault,
   type TimeEntryPunch,
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       excludeFirstSessionPerBusinessDay: false,
     });
 
-    const activeBusinessDay = getBundyBusinessDayKey(new Date());
+    const activeBusinessDay = getActiveBundyBusinessDayKey(punchList);
     const openSession = getOpenEntryFromPunches(
       punchList,
       getDateInManilaDefault,

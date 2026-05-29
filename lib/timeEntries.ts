@@ -4,8 +4,11 @@
  */
 
 import {
+  assignBundyBusinessDayKeysFromPunches,
   extendCutoffPeriodEndForPunchFetch,
   getBundyBusinessDayKey,
+  getBundyBusinessDayKeyForClockIn,
+  getBundyBusinessDayKeyForInPunch,
 } from "@/lib/bundy-business-day";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
@@ -369,6 +372,18 @@ export function mergeBundyAndFtlClockSessions(
  * If activeBusinessDayKey is provided, only treats as open when clock-in belongs to that Bundy business day
  * (7:00 AM–06:59 AM next calendar day), not calendar midnight.
  */
+/** Active Bundy business day for clock UI / open-session checks (punch-aware). */
+export function getActiveBundyBusinessDayKey(
+  punches: TimeEntryPunch[],
+  nowIso: string = new Date().toISOString()
+): string {
+  const openAny = getOpenEntryFromPunches(punches, getDateInManilaDefault);
+  if (openAny) {
+    return getBundyBusinessDayKeyForInPunch(openAny.id, openAny.clock_in_time, punches);
+  }
+  return getBundyBusinessDayKeyForClockIn(nowIso, false, null);
+}
+
 export function getOpenEntryFromPunches(
   punches: TimeEntryPunch[],
   getDateInManila: (iso: string) => string,
@@ -380,11 +395,13 @@ export function getOpenEntryFromPunches(
     ),
     getDateInManila
   );
+  const bizMap = assignBundyBusinessDayKeysFromPunches(punches);
   const openSessions = sessions.filter(
     (s) =>
       !s.clock_out_time &&
       (activeBusinessDayKey == null ||
-        getBundyBusinessDayKey(s.clock_in_time) === activeBusinessDayKey)
+        (bizMap.get(s.id) ?? getBundyBusinessDayKey(s.clock_in_time)) ===
+          activeBusinessDayKey)
   );
   return openSessions.length > 0 ? openSessions[openSessions.length - 1] : null;
 }
@@ -474,7 +491,8 @@ export async function fetchSessionsForEmployee(
       ...s,
       employee_id: employeeId,
       regular_hours: s.regular_hours ?? s.total_hours ?? null,
-    }))
+    })),
+    (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, list)
   );
 }
 
@@ -514,7 +532,8 @@ export async function fetchSessionsInRange(
     const sessions = filterOfficialBundySessions(
       punchesToSessions(empPunches, (iso) => getDateInManilaDefault(iso)).map(
         (s) => ({ ...s, employee_id: empId })
-      )
+      ),
+      (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, empPunches)
     );
     allSessions.push(...sessions);
   });

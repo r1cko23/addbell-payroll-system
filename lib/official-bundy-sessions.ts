@@ -11,13 +11,14 @@ type SessionLike = {
  * Extra pairs (without OT/FTL filing) are excluded from attendance and payroll.
  */
 export function filterOfficialBundySessions<T extends SessionLike>(
-  sessions: T[]
+  sessions: T[],
+  getBizKey: (session: T) => string = (s) => getBundyBusinessDayKey(s.clock_in_time)
 ): T[] {
   const earliestCompleteByBizDay = new Map<string, T>();
   const earliestIncompleteByBizDay = new Map<string, T>();
 
   for (const s of sessions) {
-    const bizKey = getBundyBusinessDayKey(s.clock_in_time);
+    const bizKey = getBizKey(s);
     if (s.clock_out_time) {
       const existing = earliestCompleteByBizDay.get(bizKey);
       if (
@@ -47,7 +48,7 @@ export function filterOfficialBundySessions<T extends SessionLike>(
     if (s.clock_out_time) {
       return officialCompleteIds.has(s.id);
     }
-    const bizKey = getBundyBusinessDayKey(s.clock_in_time);
+    const bizKey = getBizKey(s);
     if (earliestCompleteByBizDay.has(bizKey)) return false;
     return earliestIncompleteByBizDay.get(bizKey)?.id === s.id;
   });

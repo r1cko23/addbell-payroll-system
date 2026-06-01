@@ -7,15 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { PageTitle, H3, BodySmall } from "@/components/ui/typography";
 import {
   epCardInteractive,
-  epDialogContentWide,
   epFormActionButton,
   epFormActions,
   epInlineField,
   epPageHeaderRow,
   epPageStack,
   epTouchButton,
-  epRequestFiledPill,
 } from "@/lib/employee-portal-ui";
+import { epRequestFiledLine } from "@/lib/employee-portal-request-history";
 import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
@@ -31,13 +30,14 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency } from "@/utils/format";
 import { EmployeePayslipDetail } from "@/components/EmployeePayslipDetail";
+import { Dialog, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  PayslipPreviewDialogBody,
+  PayslipPreviewDialogContent,
+  PayslipPreviewDialogFooter,
+  PayslipPreviewDialogHeader,
+  PayslipPreviewDocument,
+} from "@/components/employee-portal/PayslipPreviewDialog";
 import { toast } from "sonner";
 import type { EmployeeProfileForPayslip } from "@/lib/payslip-display";
 
@@ -401,13 +401,12 @@ export default function EmployeePayslipsPage() {
                         <BodySmall className="truncate text-xs text-muted-foreground">
                           Payslip #{payslip.payslip_number}
                         </BodySmall>
-                        <p>
-                          <span className={epRequestFiledPill}>
-                            {format(
-                              new Date(payslip.created_at),
-                              "MMM d, yyyy h:mm a"
-                            )}
-                          </span>
+                        <p className={epRequestFiledLine}>
+                          Created:{" "}
+                          {format(
+                            new Date(payslip.created_at),
+                            "MMM d, yyyy h:mm a"
+                          )}
                         </p>
                       </VStack>
 
@@ -468,24 +467,33 @@ export default function EmployeePayslipsPage() {
           if (!open) setPrintPreviewReady(false);
         }}
       >
-        <DialogContent className={epDialogContentWide}>
+        <PayslipPreviewDialogContent>
           {selectedPayslip && payslipProfile ? (
             <>
-              <DialogHeader>
-                <DialogTitle>Payslip Preview</DialogTitle>
-              </DialogHeader>
-              <VStack gap="4">
-                <EmployeePayslipDetail
-                  key={`preview-${selectedPayslip.id}`}
-                  payslip={selectedPayslip}
-                  profile={payslipProfile}
-                  holidays={holidays}
-                  variant="print"
-                  onPrintPreviewReady={setPrintPreviewReady}
-                />
+              <PayslipPreviewDialogHeader>
+                <DialogHeader className="space-y-0.5 text-left">
+                  <DialogTitle className="text-base sm:text-lg">Payslip</DialogTitle>
+                  <BodySmall className="text-muted-foreground">
+                    Scroll if needed — actions are fixed below.
+                  </BodySmall>
+                </DialogHeader>
+              </PayslipPreviewDialogHeader>
+              <PayslipPreviewDialogBody>
+                <PayslipPreviewDocument>
+                  <EmployeePayslipDetail
+                    key={`preview-${selectedPayslip.id}`}
+                    payslip={selectedPayslip}
+                    profile={payslipProfile}
+                    holidays={holidays}
+                    variant="print"
+                    onPrintPreviewReady={setPrintPreviewReady}
+                  />
+                </PayslipPreviewDocument>
+              </PayslipPreviewDialogBody>
+              <PayslipPreviewDialogFooter>
                 <DialogFooter
                   className={cn(
-                    "print:hidden flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+                    "print:hidden m-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end",
                     epFormActions
                   )}
                 >
@@ -505,22 +513,26 @@ export default function EmployeePayslipsPage() {
                     )}
                   >
                     <Icon name="Printer" size={IconSizes.sm} />
-                    Print Payslip
+                    Print / Save PDF
                   </Button>
                 </DialogFooter>
-              </VStack>
+              </PayslipPreviewDialogFooter>
             </>
           ) : selectedPayslip ? (
             <>
-              <DialogHeader>
-                <DialogTitle>Payslip Preview</DialogTitle>
-              </DialogHeader>
-              <BodySmall className="text-muted-foreground py-4">
-                Loading pay rates… refresh the page if this message persists.
-              </BodySmall>
+              <PayslipPreviewDialogHeader>
+                <DialogHeader className="text-left">
+                  <DialogTitle>Payslip</DialogTitle>
+                </DialogHeader>
+              </PayslipPreviewDialogHeader>
+              <PayslipPreviewDialogBody>
+                <BodySmall className="text-muted-foreground py-4">
+                  Loading pay rates… refresh the page if this message persists.
+                </BodySmall>
+              </PayslipPreviewDialogBody>
             </>
           ) : null}
-        </DialogContent>
+        </PayslipPreviewDialogContent>
       </Dialog>
     </div>
   );

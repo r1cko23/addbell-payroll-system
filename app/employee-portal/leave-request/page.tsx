@@ -19,6 +19,7 @@ import { epSubmitRequestButton } from "@/lib/employee-portal-ui";
 import {
   epRequestApprovalBoxEmerald,
   epRequestApprovalBoxEmeraldHr,
+  epRequestHistoryDocLink,
   epRequestHistoryList,
   epRequestHistorySectionContent,
   epRequestStatusBadgeApproved,
@@ -1254,7 +1255,7 @@ export default function LeaveRequestPage() {
                             renderFileName={(doc) => (
                               <button
                                 type="button"
-                                className="text-left hover:underline disabled:opacity-50"
+                                className={epRequestHistoryDocLink}
                                 onClick={() => handleDownload(doc.id)}
                                 disabled={downloadingDocId === doc.id}
                               >

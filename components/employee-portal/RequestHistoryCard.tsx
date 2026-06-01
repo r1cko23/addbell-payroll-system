@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { epCardInteractive } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 import {
   epRequestFiledLine,
@@ -14,9 +15,11 @@ import {
   epRequestHistoryCardLayout,
   epRequestHistoryCardMain,
   epRequestHistoryCategoryBadge,
+  epRequestHistoryDocLink,
   epRequestHistoryHeaderRow,
   epRequestHistoryMetric,
   epRequestHistoryReasonText,
+  epRequestHistorySubtitle,
   epRequestHistorySupportingDocs,
   epRequestHistoryStatusColumn,
   epRequestHistoryTitle,
@@ -46,14 +49,18 @@ export function RequestHistoryCard({
   children,
 }: RequestHistoryCardProps) {
   return (
-    <Card className={`w-full ${requestHistoryCardBorderClass(status)}`}>
+    <Card
+      className={cn(
+        "w-full",
+        requestHistoryCardBorderClass(status),
+        epCardInteractive
+      )}
+    >
       <CardContent className={epRequestHistoryCardContent}>
         <div className={epRequestHistoryCardLayout}>
           <div className={epRequestHistoryCardMain}>
             <div className={epRequestHistoryHeaderRow}>
-              <span className={cn(epRequestHistoryTitle, "shrink-0")}>
-                {title}
-              </span>
+              <span className={epRequestHistoryTitle}>{title}</span>
               <Badge
                 variant="outline"
                 className={epRequestHistoryCategoryBadge}
@@ -61,19 +68,20 @@ export function RequestHistoryCard({
                 {categoryLabel}
               </Badge>
               {metric != null ? (
-                <span className={cn(epRequestHistoryMetric, "shrink-0")}>
-                  {metric}
-                </span>
+                <span className={epRequestHistoryMetric}>{metric}</span>
               ) : null}
             </div>
             {subtitle ? (
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                {subtitle}
-              </p>
+              <p className={epRequestHistorySubtitle}>{subtitle}</p>
             ) : null}
             {children}
           </div>
-          <div className={epRequestHistoryStatusColumn}>{statusColumn}</div>
+          <div
+            className={epRequestHistoryStatusColumn}
+            aria-label="Request status"
+          >
+            {statusColumn}
+          </div>
         </div>
         <div className={epRequestFiledLine}>Filed: {filedAt}</div>
       </CardContent>
@@ -122,8 +130,12 @@ export function RequestHistorySupportingDocuments({
         </BodySmall>
       </HStack>
       {documents.map((doc) => (
-        <Caption key={doc.id} className="text-muted-foreground">
-          {renderFileName ? renderFileName(doc) : doc.file_name}
+        <Caption key={doc.id} className="max-w-full text-muted-foreground">
+          {renderFileName ? (
+            renderFileName(doc)
+          ) : (
+            <span className="break-all">{doc.file_name}</span>
+          )}
         </Caption>
       ))}
     </VStack>

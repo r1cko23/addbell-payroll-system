@@ -253,7 +253,7 @@ export default function EmployeeInfoPage() {
   return (
     <VStack gap="6" className="w-full">
       <VStack gap="2" align="start">
-        <H1>My information</H1>
+        <H1>My Information</H1>
         <BodySmall className="text-muted-foreground">
           Profile details and password.
         </BodySmall>

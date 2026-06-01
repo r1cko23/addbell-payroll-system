@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { H1, BodySmall } from "@/components/ui/typography";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
 type RowWithRequester = FundRequestRow & {
@@ -341,12 +342,10 @@ export default function FundRequestApprovalPage() {
   if (!canManage) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Fund Request Approval
-        </h1>
-        <p className="text-muted-foreground">
+        <H1>Fund Request Approval</H1>
+        <BodySmall>
           You do not have permission to manage fund requests.
-        </p>
+        </BodySmall>
       </div>
     );
   }
@@ -428,10 +427,10 @@ export default function FundRequestApprovalPage() {
     <div className="space-y-6">
       <div className="space-y-2">
         <Badge variant="outline" className="font-normal">Approvals</Badge>
-        <h1 className="text-2xl font-semibold tracking-tight">Fund request approvals</h1>
-        <p className="text-sm text-muted-foreground">
+        <H1>Fund Request Approvals</H1>
+        <BodySmall>
           Move requests through Operations, Purchasing, and Upper Management stages, or reject with a reason.
-        </p>
+        </BodySmall>
       </div>
 
       {/* Summary KPI cards */}

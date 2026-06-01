@@ -128,3 +128,66 @@ export function Caption({
     </span>
   );
 }
+
+/** Section heading below page H1 (matches CardTitle weight/size). */
+export function SectionHeading({
+  children,
+  className,
+  style,
+  ...props
+}: TypographyProps) {
+  return (
+    <h2
+      className={cn(
+        "text-lg font-semibold leading-snug tracking-tight text-foreground",
+        className
+      )}
+      style={style}
+      {...props}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** Large KPI on summary cards (employee portal, dashboards). */
+export function StatValue({
+  children,
+  className,
+  style,
+  ...props
+}: TypographyProps) {
+  return (
+    <div
+      className={cn(
+        "text-3xl font-bold tabular-nums text-primary",
+        className
+      )}
+      style={style}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Numeric KPI inside dashboard stat cards. */
+export function KpiValue({
+  children,
+  className,
+  style,
+  ...props
+}: TypographyProps) {
+  return (
+    <div
+      className={cn(
+        "text-2xl font-bold tabular-nums leading-tight text-foreground",
+        className
+      )}
+      style={style}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}

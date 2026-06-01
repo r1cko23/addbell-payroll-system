@@ -963,7 +963,7 @@ export default function FailureToLogApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
-          <H1>Failure to log</H1>
+          <H1>Failure To Log</H1>
           <BodySmall>Review and act on pending missed-punch requests.</BodySmall>
         </VStack>
 

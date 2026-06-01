@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { H1, BodySmall, SectionHeading } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
@@ -464,9 +464,9 @@ export default function HRDashboard() {
           <HStack justify="between" align="start" className="flex-col gap-4 lg:flex-row">
             <div className="space-y-2">
               <Badge variant="outline" className="font-normal">
-                {isOperationsManager ? operationsManagerGroupLabel : "Workforce overview"}
+                {isOperationsManager ? operationsManagerGroupLabel : "Workforce Overview"}
               </Badge>
-              <H1>{isOperationsManager ? operationsManagerHeading : "People snapshot"}</H1>
+              <H1>{isOperationsManager ? operationsManagerHeading : "People Snapshot"}</H1>
               <BodySmall>
                 {isOperationsManager
                   ? `Pending leave, overtime, and failure-to-log for ${operationsManagerGroupLabel}.`
@@ -531,10 +531,10 @@ export default function HRDashboard() {
                   ? "Pending HR approvals — click a request to review"
                   : "Your approval groups — click a request to review"}
           </CardDescription>
-          <CardTitle className="text-xl">
+          <CardTitle>
             {queueItems.length === 0
-              ? "No pending approvals"
-              : `${queueItems.length} request${queueItems.length === 1 ? "" : "s"} waiting for you`}
+              ? "No Pending Approvals"
+              : `${queueItems.length} Request${queueItems.length === 1 ? "" : "s"} Waiting For You`}
             {totalPendingApprovals > queueItems.length ? (
               <span className="block text-sm font-normal text-muted-foreground mt-1">
                 Showing {queueItems.length} of {totalPendingApprovals} pending (all dates) ·
@@ -564,7 +564,7 @@ export default function HRDashboard() {
         <>
       <HStack justify="between" align="start" className="flex-col gap-2">
         <div className="space-y-1">
-          <h2 className="font-display text-3xl font-normal leading-tight">Workforce health</h2>
+          <SectionHeading>Workforce Health</SectionHeading>
           <BodySmall className="text-muted-foreground">
             Staffing metrics at a glance.
           </BodySmall>

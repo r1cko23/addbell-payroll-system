@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, H3, BodySmall, Caption, StatValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard, SkeletonForm } from "@/components/ui/skeleton";
@@ -436,9 +436,7 @@ export default function FailureToLogPage() {
                     Pending
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">
-                  {pendingCount}
-                </div>
+                <StatValue>{pendingCount}</StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -455,9 +453,7 @@ export default function FailureToLogPage() {
                     Approved
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">
-                  {approvedCount}
-                </div>
+                <StatValue>{approvedCount}</StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -474,9 +470,7 @@ export default function FailureToLogPage() {
                     Total Requests
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">
-                  {requests.length}
-                </div>
+                <StatValue>{requests.length}</StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -701,7 +695,7 @@ export default function FailureToLogPage() {
                   />
                 </div>
                 <VStack gap="2" align="center">
-                  <H3 className="text-lg font-semibold">No Requests Yet</H3>
+                  <H3>No Requests Yet</H3>
                 </VStack>
               </VStack>
             </div>
@@ -905,7 +899,7 @@ export default function FailureToLogPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
             <VStack gap="4">
-              <H3>Cancel failure-to-log request?</H3>
+              <H3>Cancel Failure To Log Request?</H3>
               <BodySmall>
                 This will permanently remove the request from your records.
               </BodySmall>

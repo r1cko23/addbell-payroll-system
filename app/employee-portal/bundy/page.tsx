@@ -2085,6 +2085,9 @@ export default function BundyClockPage() {
 
   return (
     <VStack gap="8" className="w-full pb-10">
+      <VStack gap="1" align="start">
+        <H1>Bundy Clock</H1>
+      </VStack>
       <Card className="w-full border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent-secondary/10 p-4 sm:p-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">

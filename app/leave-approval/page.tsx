@@ -1191,7 +1191,7 @@ export default function LeaveApprovalPage() {
     <DashboardLayout>
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
-          <H1>Leave approvals</H1>
+          <H1>Leave Approvals</H1>
           <BodySmall>Review and act on pending leave requests.</BodySmall>
         </VStack>
 

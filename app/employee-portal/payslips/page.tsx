@@ -295,7 +295,7 @@ export default function EmployeePayslipsPage() {
         <CardSection>
           <HStack align="center" justify="between" className="mb-6">
             <VStack gap="1" align="start">
-              <H1>My payslips</H1>
+              <H1>My Payslips</H1>
               <BodySmall className="text-muted-foreground">
                 View and print your payslips.
               </BodySmall>

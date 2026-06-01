@@ -63,7 +63,7 @@ export default function EmployeePortalProjectTimePage() {
   if (!employeeId) {
     return (
       <div className="space-y-6">
-        <H1>Project assignments</H1>
+        <H1>Project Assignments</H1>
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             Employee session not found. Please log in again.
@@ -76,7 +76,7 @@ export default function EmployeePortalProjectTimePage() {
   return (
     <div className="space-y-6">
       <div>
-        <H1>Project assignments</H1>
+        <H1>Project Assignments</H1>
         <BodySmall className="mt-1 text-muted-foreground">
           Log time on assigned projects.
         </BodySmall>
@@ -102,7 +102,7 @@ export default function EmployeePortalProjectTimePage() {
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <CardTitle className="text-lg">{project.name}</CardTitle>
+                      <CardTitle>{project.name}</CardTitle>
                       <p className="text-sm text-muted-foreground mt-0.5">{project.code}</p>
                     </div>
                     <Badge variant={isActive ? "default" : "secondary"} className="capitalize">

@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { H1, BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
 
@@ -172,8 +172,8 @@ export default function AdminDashboard() {
         <CardContent className="p-5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
-              <Badge variant="outline" className="font-normal">Executive dashboard</Badge>
-              <H1>Business overview</H1>
+              <Badge variant="outline" className="font-normal">Executive Dashboard</Badge>
+              <H1>Business Overview</H1>
               <BodySmall>Workforce, projects, and pending actions.</BodySmall>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
@@ -220,10 +220,10 @@ export default function AdminDashboard() {
         <Card className="border-primary/20 bg-primary/10 xl:col-span-6">
           <CardHeader className="pb-2">
             <CardDescription>Today&apos;s operating focus</CardDescription>
-            <CardTitle className="text-xl">
+            <CardTitle>
               {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0) === 0
-                ? "No finance approvals pending"
-                : `${(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} finance item(s) need action`}
+                ? "No Finance Approvals Pending"
+                : `${(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} Finance Item(s) Need Action`}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -248,8 +248,8 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Leave approvals</CardDescription>
-            <CardTitle className="text-2xl">{pendingLeaveApprovals}</CardTitle>
+            <CardDescription>Leave Approvals</CardDescription>
+            <KpiValue>{pendingLeaveApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
             <Link href="/leave-approval">
@@ -259,8 +259,8 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>OT approvals</CardDescription>
-            <CardTitle className="text-2xl">{pendingOvertimeApprovals}</CardTitle>
+            <CardDescription>OT Approvals</CardDescription>
+            <KpiValue>{pendingOvertimeApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
             <Link href="/overtime-approval">
@@ -270,8 +270,8 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Failure-to-log approvals</CardDescription>
-            <CardTitle className="text-2xl">{pendingFailureToLogApprovals}</CardTitle>
+            <CardDescription>Failure To Log</CardDescription>
+            <KpiValue>{pendingFailureToLogApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
             <Link href="/failure-to-log-approval">
@@ -283,7 +283,7 @@ export default function AdminDashboard() {
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
-          <h2 className="font-display text-3xl font-normal leading-tight">Performance snapshot</h2>
+          <SectionHeading>Performance Snapshot</SectionHeading>
           <BodySmall className="text-muted-foreground">
             Key metrics and pending actions.
           </BodySmall>

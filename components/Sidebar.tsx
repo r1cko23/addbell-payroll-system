@@ -82,7 +82,7 @@ const navGroups: NavGroup[] = [
       { name: "Time Attendance", href: "/timesheet", icon: CalendarBlank, permissionModule: "timesheet" },
       { name: "Time Entries", href: "/time-entries", icon: MapPin, permissionModule: "time_entries" },
       {
-        name: "Failure to Log",
+        name: "Failure To Log",
         href: "/failure-to-log-approval",
         icon: WarningCircle,
         permissionModule: "failure_to_log",

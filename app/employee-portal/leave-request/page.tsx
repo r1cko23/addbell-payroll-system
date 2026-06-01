@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import { H1, H3, H4, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, H3, H4, BodySmall, Caption, StatValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays, differenceInCalendarDays } from "date-fns";
@@ -764,9 +764,7 @@ export default function LeaveRequestPage() {
                     Pending
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">
-                  {pendingCount}
-                </div>
+                <StatValue>{pendingCount}</StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -783,9 +781,7 @@ export default function LeaveRequestPage() {
                     Approved
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">
-                  {approvedCount}
-                </div>
+                <StatValue>{approvedCount}</StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -802,7 +798,7 @@ export default function LeaveRequestPage() {
                     Allotted SIL Credits
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">5</div>
+                <StatValue>5</StatValue>
                 <div className="text-xs text-muted-foreground mt-1">
                   Available: {silCredits !== null ? silCredits.toFixed(2) : "—"}
                 </div>
@@ -822,9 +818,9 @@ export default function LeaveRequestPage() {
                     Available SIL Credits
                   </BodySmall>
                 </HStack>
-                <div className="text-3xl font-bold text-primary">
+                <StatValue>
                   {silCredits !== null ? silCredits.toFixed(2) : "—"}
-                </div>
+                </StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -1434,7 +1430,7 @@ export default function LeaveRequestPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel leave request?</AlertDialogTitle>
+            <AlertDialogTitle>Cancel Leave Request?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently remove the leave request from your records.
             </AlertDialogDescription>

@@ -53,7 +53,7 @@ const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
       },
       { name: "OT Filing", href: "/employee-portal/overtime", icon: Timer },
       {
-        name: "Failure to Log",
+        name: "Failure To Log",
         href: "/employee-portal/failure-to-log",
         icon: WarningCircle,
       },

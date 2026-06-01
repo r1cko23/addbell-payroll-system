@@ -3152,7 +3152,7 @@ export default function PayslipsPage() {
     <>
       <DashboardLayout>
         <VStack gap="3" className="w-full print:hidden pb-24">
-          <H1 className="text-xl">Payslip Generation</H1>
+          <H1>Payslip Generation</H1>
 
           <CardSection className="py-3">
             <HStack gap="4" align="start" className="flex-wrap">

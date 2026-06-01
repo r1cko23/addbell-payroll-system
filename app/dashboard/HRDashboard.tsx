@@ -466,7 +466,7 @@ export default function HRDashboard() {
         }
         description={
           isOperationsManager
-            ? `Pending leave, overtime, and failure-to-log for ${operationsManagerGroupLabel}.`
+            ? `Pending approvals of leave, overtime and failure to log by ${operationsManagerGroupLabel}.`
             : "Track employee registrations and the latest time in/out activity."
         }
         actions={
@@ -476,11 +476,6 @@ export default function HRDashboard() {
                 <Button size="sm">Open employees</Button>
               </Link>
             ) : null}
-            <Link href={leaveQueueHref}>
-              <Button variant="outline" size="sm">
-                Review leave requests
-              </Button>
-            </Link>
             <Button
               variant="outline"
               size="sm"
@@ -500,15 +495,15 @@ export default function HRDashboard() {
 
       <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
         <CardHeader className="pb-2">
-          <CardDescription>
-            {isOperationsManager
-              ? `${operationsManagerGroupLabel} — click a request to review`
-              : showAllCompanyPending
+          {!isOperationsManager ? (
+            <CardDescription>
+              {showAllCompanyPending
                 ? "All pending approvals — click a request to review"
                 : isHR
                   ? "Pending HR approvals — click a request to review"
                   : "Your approval groups — click a request to review"}
-          </CardDescription>
+            </CardDescription>
+          ) : null}
           <CardTitle>
             {queueItems.length === 0
               ? "No Pending Approvals"

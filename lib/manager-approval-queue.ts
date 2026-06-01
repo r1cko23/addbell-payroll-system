@@ -80,15 +80,15 @@ export async function fetchApproverOvertimeGroupNames(
     .sort((a, b) => a.localeCompare(b));
 }
 
-/** e.g. "Operations-Manila II approvals" or "Group A & Group B approvals". */
+/** e.g. "Operations - Manila II Approvals" or "Group A & Group B Approvals". */
 export function formatApproverGroupHeading(groupNames: string[]): string {
-  if (groupNames.length === 0) return "Your approvals";
-  if (groupNames.length === 1) return `${groupNames[0]} approvals`;
+  if (groupNames.length === 0) return "Your Approvals";
+  if (groupNames.length === 1) return `${groupNames[0]} Approvals`;
   if (groupNames.length === 2) {
-    return `${groupNames[0]} & ${groupNames[1]} approvals`;
+    return `${groupNames[0]} & ${groupNames[1]} Approvals`;
   }
   const last = groupNames[groupNames.length - 1];
-  return `${groupNames.slice(0, -1).join(", ")} & ${last} approvals`;
+  return `${groupNames.slice(0, -1).join(", ")} & ${last} Approvals`;
 }
 
 /** Employee ids (UUID + company code) in OT groups this user approves. */

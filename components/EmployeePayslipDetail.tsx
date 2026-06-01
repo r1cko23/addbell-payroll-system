@@ -27,6 +27,8 @@ type Props = {
   variant?: "screen" | "print" | "both";
   /** When true with variant both, classic payslip is visible on screen (for print preview). */
   inlinePrint?: boolean;
+  /** Fired when classic print layout is ready (print variant). */
+  onPrintPreviewReady?: (ready: boolean) => void;
   preparedBy?: string;
 };
 
@@ -36,6 +38,7 @@ export function EmployeePayslipDetail({
   holidays = [],
   variant = "both",
   inlinePrint = false,
+  onPrintPreviewReady,
   preparedBy = "HR Department",
 }: Props) {
   const employee = useMemo(
@@ -68,13 +71,24 @@ export function EmployeePayslipDetail({
   const adjustment = Number(payslip.adjustment_amount ?? 0);
   const [printEarningsSync, setPrintEarningsSync] =
     useState<PayslipPrintEarningsSync | null>(null);
+  const canRunDetailedBreakdown =
+    hasAttendance && employee.rate_per_hour > 0;
 
   useEffect(() => {
     setPrintEarningsSync(null);
-  }, [payslip.period_start, payslip.period_end, payslip.gross_pay]);
+    onPrintPreviewReady?.(false);
+  }, [payslip.period_start, payslip.period_end, payslip.gross_pay, onPrintPreviewReady]);
 
-  const canRunDetailedBreakdown =
-    hasAttendance && employee.rate_per_hour > 0;
+  useEffect(() => {
+    if (variant !== "print" && variant !== "both") return;
+    const ready = Boolean(printEarningsSync) || !canRunDetailedBreakdown;
+    onPrintPreviewReady?.(ready);
+  }, [
+    printEarningsSync,
+    canRunDetailedBreakdown,
+    onPrintPreviewReady,
+    variant,
+  ]);
 
   const showScreen = variant === "screen" || variant === "both";
   const showPrint = variant === "print" || variant === "both";

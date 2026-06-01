@@ -57,6 +57,7 @@ export default function EmployeePayslipsPage() {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [printPreviewReady, setPrintPreviewReady] = useState(false);
 
   const payslipProfile = useMemo((): EmployeeProfileForPayslip | null => {
     if (!profile) return null;
@@ -166,6 +167,7 @@ export default function EmployeePayslipsPage() {
 
   function handleViewPayslip(payslip: Payslip) {
     setSelectedPayslip(payslip);
+    setPrintPreviewReady(false);
     setShowPrintModal(true);
   }
 
@@ -256,22 +258,7 @@ export default function EmployeePayslipsPage() {
   }
 
   function handleDownload() {
-    if (!selectedPayslip) return;
-
-    // Create a new window for printing/downloading
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) {
-      toast.error("Please allow popups to download payslip");
-      return;
-    }
-
-    // Get the payslip print HTML
-    const printContent = document.getElementById("payslip-print-content");
-    if (printContent) {
-      printWindow.document.write(printContent.innerHTML);
-      printWindow.document.close();
-      printWindow.print();
-    }
+    handlePrint();
   }
 
   if (loading) {
@@ -423,30 +410,50 @@ export default function EmployeePayslipsPage() {
       </div>
 
       {/* Print Modal */}
-      <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
+      <Dialog
+        open={showPrintModal}
+        onOpenChange={(open) => {
+          setShowPrintModal(open);
+          if (!open) setPrintPreviewReady(false);
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Payslip</DialogTitle>
+            <DialogTitle>Payslip Preview</DialogTitle>
+            <BodySmall className="text-muted-foreground">
+              Official payslip layout for print and download. Use View Details for
+              the full hour-by-hour breakdown.
+            </BodySmall>
           </DialogHeader>
           {selectedPayslip && payslipProfile ? (
             <EmployeePayslipDetail
+              key={`print-${selectedPayslip.id}`}
               payslip={selectedPayslip}
               profile={payslipProfile}
               holidays={holidays}
-              variant="both"
-              inlinePrint
+              variant="print"
+              onPrintPreviewReady={setPrintPreviewReady}
             />
           ) : selectedPayslip ? (
             <BodySmall className="text-muted-foreground py-4">
               Loading pay rates… refresh the page if this message persists.
             </BodySmall>
           ) : null}
-          <div className="flex gap-2 justify-end mt-4">
+          <div className="flex gap-2 justify-end mt-4 print:hidden">
             <Button variant="outline" onClick={() => setShowPrintModal(false)}>
               Close
             </Button>
-            <Button onClick={handlePrint}>Print</Button>
-            <Button onClick={handleDownload} className="gradient-accent">
+            <Button
+              onClick={handlePrint}
+              disabled={!printPreviewReady}
+            >
+              Print
+            </Button>
+            <Button
+              onClick={handleDownload}
+              className="gradient-accent"
+              disabled={!printPreviewReady}
+            >
               Download PDF
             </Button>
           </div>
@@ -463,6 +470,7 @@ export default function EmployeePayslipsPage() {
           </DialogHeader>
           {selectedPayslip && payslipProfile ? (
             <EmployeePayslipDetail
+              key={`breakdown-${selectedPayslip.id}`}
               payslip={selectedPayslip}
               profile={payslipProfile}
               holidays={holidays}

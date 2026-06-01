@@ -63,8 +63,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className={cn('flex min-w-0 flex-1 flex-col overflow-hidden', 'lg:ml-0')}>
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-muted/20">
-          <div className="flex w-full min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8 xl:px-8 2xl:px-10">
-            <div className="w-full min-w-0">{children}</div>
+          <div className="dashboard-content container mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+            {children}
           </div>
         </main>
       </div>

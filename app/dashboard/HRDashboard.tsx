@@ -16,7 +16,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { H1, BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
@@ -458,67 +459,44 @@ export default function HRDashboard() {
         : "your group";
 
   return (
-    <VStack gap="8" align="stretch" className="w-full pb-16">
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-background to-accent-secondary/10">
-        <CardContent className="p-5 sm:p-6">
-          <HStack justify="between" align="start" className="flex-col gap-4 lg:flex-row">
-            <div className="space-y-2">
-              <Badge variant="outline" className="font-normal">
-                {isOperationsManager ? operationsManagerGroupLabel : "Workforce Overview"}
-              </Badge>
-              <H1>{isOperationsManager ? operationsManagerHeading : "People Snapshot"}</H1>
-              <BodySmall>
-                {isOperationsManager
-                  ? `Pending leave, overtime, and failure-to-log for ${operationsManagerGroupLabel}.`
-                  : "Headcount, teams, and recent hires."}
-              </BodySmall>
-              <HStack gap="2" className="flex-wrap">
-                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                  {totalPendingApprovals} approvals waiting
-                </Badge>
-                {!isOperationsManager ? (
-                  <>
-                    <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                      {activeEmployees} active employees
-                    </Badge>
-                    <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                      {currentlyClockedIn.length} currently clocked in
-                    </Badge>
-                  </>
-                ) : null}
-                {lastUpdatedAt ? (
-                  <Badge variant="outline" className="text-xs">
-                    Updated {format(lastUpdatedAt, "MMM d, h:mm a")}
-                  </Badge>
-                ) : null}
-              </HStack>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {!isOperationsManager ? (
-                <Link href="/employees">
-                  <Button size="sm">Open employees</Button>
-                </Link>
-              ) : null}
-              <Link href={leaveQueueHref}>
-                <Button variant="outline" size="sm">Review leave requests</Button>
+    <VStack gap="6" align="stretch" className="w-full pb-16">
+      <DashboardPageHeader
+        title={
+          isOperationsManager ? operationsManagerHeading : "Workforce overview"
+        }
+        description={
+          isOperationsManager
+            ? `Pending leave, overtime, and failure-to-log for ${operationsManagerGroupLabel}.`
+            : "Track employee registrations and the latest time in/out activity."
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {!isOperationsManager ? (
+              <Link href="/employees">
+                <Button size="sm">Open employees</Button>
               </Link>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => loadData()}
-                disabled={refreshing}
-              >
-                <Icon
-                  name="ArrowsClockwise"
-                  size={IconSizes.sm}
-                  className={refreshing ? "animate-spin" : ""}
-                />
-                {refreshing ? "Refreshing..." : "Refresh"}
+            ) : null}
+            <Link href={leaveQueueHref}>
+              <Button variant="outline" size="sm">
+                Review leave requests
               </Button>
-            </div>
-          </HStack>
-        </CardContent>
-      </Card>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => loadData()}
+              disabled={refreshing}
+            >
+              <Icon
+                name="ArrowsClockwise"
+                size={IconSizes.sm}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
+        }
+      />
 
       <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
         <CardHeader className="pb-2">

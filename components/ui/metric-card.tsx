@@ -35,7 +35,7 @@ export function MetricCard({
         ) : null}
       </CardHeader>
       <CardContent className="space-y-1">
-        <div className="text-3xl font-bold tabular-nums tracking-tight text-foreground">
+        <div className="stats-value tabular-nums text-foreground">
           {value}
         </div>
         {meta ? <div className="text-xs text-muted-foreground">{meta}</div> : null}

@@ -16,7 +16,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { H1, BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
 
@@ -167,54 +168,38 @@ export default function AdminDashboard() {
   }
 
   return (
-    <VStack gap="8" align="stretch" className="w-full pb-16">
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/10 via-background to-accent-secondary/10">
-        <CardContent className="p-5 sm:p-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-2">
-              <Badge variant="outline" className="font-normal">Executive Dashboard</Badge>
-              <H1>Business Overview</H1>
-              <BodySmall>Workforce, projects, and pending actions.</BodySmall>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                  {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)} finance actions
-                </Badge>
-                <Badge variant="secondary" className="border-primary/20 bg-primary/10 text-primary">
-                  {pendingLeaveApprovals + pendingOvertimeApprovals + pendingFailureToLogApprovals} people approvals
-                </Badge>
-                {lastUpdatedAt ? (
-                  <Badge variant="outline" className="text-xs">
-                    Updated {format(lastUpdatedAt, "MMM d, h:mm a")}
-                  </Badge>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {showFundRequestActions ? (
-                <Link href="/fund-request-approval">
-                  <Button variant="outline" size="sm">Fund Requests</Button>
-                </Link>
-              ) : null}
-              <Link href="/purchase-order">
-                <Button size="sm">Purchase Orders</Button>
+    <VStack gap="6" align="stretch" className="w-full pb-16">
+      <DashboardPageHeader
+        title="Executive dashboard"
+        description="Workforce, projects, and pending actions."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {showFundRequestActions ? (
+              <Link href="/fund-request-approval">
+                <Button variant="outline" size="sm">
+                  Fund Requests
+                </Button>
               </Link>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchDashboard()}
-                disabled={refreshing}
-              >
-                <Icon
-                  name="ArrowsClockwise"
-                  size={IconSizes.sm}
-                  className={refreshing ? "animate-spin" : ""}
-                />
-                {refreshing ? "Refreshing..." : "Refresh"}
-              </Button>
-            </div>
+            ) : null}
+            <Link href="/purchase-order">
+              <Button size="sm">Purchase Orders</Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchDashboard()}
+              disabled={refreshing}
+            >
+              <Icon
+                name="ArrowsClockwise"
+                size={IconSizes.sm}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Card className="border-primary/20 bg-primary/10 xl:col-span-6">

@@ -7,7 +7,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -419,10 +418,7 @@ export default function FailureToLogPage() {
     <>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
-          <H1>Failure to log</H1>
-          <BodySmall className="text-muted-foreground">
-            Report a missed clock-in or clock-out.
-          </BodySmall>
+          <H1>Failure To Log</H1>
         </VStack>
 
         {/* Stats */}
@@ -491,7 +487,7 @@ export default function FailureToLogPage() {
           title={
             <HStack gap="2" align="center">
               <Icon name="WarningCircle" size={IconSizes.md} />
-              File Failure to Log Request
+              File Failure To Log Request
             </HStack>
           }
         >
@@ -518,26 +514,18 @@ export default function FailureToLogPage() {
                   <option value="out">Time Out</option>
                   <option value="both">Time In & Out</option>
                 </select>
-                <Caption className="text-muted-foreground">
-                  Time in only is not filed here—you must time in before time out
-                  appears on Bundy.
-                </Caption>
               </VStack>
 
               {entryType === "out" && (
                 <VStack gap="2" align="start" className="w-full">
-                  <Label>Open time in (missing time out)</Label>
-                  <Caption className="text-muted-foreground">
-                    Select the incomplete Bundy record you are closing out.
-                  </Caption>
+                  <Label>Open Time In</Label>
                   {timeEntriesLoading ? (
-                    <Caption className="text-muted-foreground py-2">
-                      Loading open time ins…
-                    </Caption>
+                    <p className="text-sm text-muted-foreground py-2">
+                      Loading…
+                    </p>
                   ) : incompleteSessions.length === 0 ? (
                     <div className="w-full rounded-md border border-dashed border-muted px-3 py-3 text-sm text-muted-foreground">
-                      No open time in found in the last 60 days. Clock in on
-                      Bundy first, or enter dates manually below.
+                      No open time in found in the last 60 days.
                     </div>
                   ) : (
                     <>
@@ -567,9 +555,6 @@ export default function FailureToLogPage() {
                                     "MMM d, h:mm a"
                                   )}
                                 </div>
-                                <Caption className="text-muted-foreground">
-                                  Incomplete · missing time out
-                                </Caption>
                               </div>
                             </label>
                           );
@@ -595,18 +580,16 @@ export default function FailureToLogPage() {
               )}
 
               {entryType === "out" && linkedOpenSession && (
-                <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Linked: </span>
-                  Time in{" "}
-                  {formatPHTime(linkedOpenSession.clock_in_time, "MMM d, h:mm a")}{" "}
-                  — filing missing time out only.
+                <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Linked time in: </span>
+                  {formatPHTime(linkedOpenSession.clock_in_time, "MMM d, h:mm a")}
                 </div>
               )}
 
               <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <VStack gap="4" align="start" className="w-full">
                   <VStack gap="2" align="start" className="w-full">
-                    <Label htmlFor="missed-date">Time in date</Label>
+                    <Label htmlFor="missed-date">Time In Date</Label>
                     <Input
                       id="missed-date"
                       type="date"
@@ -621,19 +604,10 @@ export default function FailureToLogPage() {
                       max={todayManila}
                       required
                     />
-                    <Caption className="text-muted-foreground">
-                      {linkedOpenSession
-                        ? "From linked time in above."
-                        : entryType === "out"
-                          ? "Day you clocked in."
-                          : "Day you clocked in."}
-                    </Caption>
                   </VStack>
 
                   <VStack gap="2" align="start" className="w-full">
-                    <Label htmlFor="time-out-date">
-                      Time out date {autoTimeOutNextDay && "(auto-filled)"}
-                    </Label>
+                    <Label htmlFor="time-out-date">Time Out Date</Label>
                     <Input
                       id="time-out-date"
                       type="date"
@@ -643,20 +617,13 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeOutDate(e.target.value)}
                       required
                     />
-                    <Caption className="text-muted-foreground">
-                      {autoTimeOutNextDay
-                        ? "Next day (time out past midnight)."
-                        : entryType === "out"
-                          ? "Day you clocked out (e.g. May 27 if after midnight)."
-                          : "Next calendar day if time out is after midnight."}
-                    </Caption>
                   </VStack>
                 </VStack>
 
                 <VStack gap="4" align="start" className="w-full">
                   {entryType === "both" && (
                     <VStack gap="2" align="start" className="w-full">
-                      <Label htmlFor="time-in">Time in</Label>
+                      <Label htmlFor="time-in">Time In</Label>
                       <Input
                         id="time-in"
                         type="time"
@@ -668,7 +635,7 @@ export default function FailureToLogPage() {
                   )}
 
                   <VStack gap="2" align="start" className="w-full">
-                    <Label htmlFor="time-out">Time out</Label>
+                    <Label htmlFor="time-out">Time Out</Label>
                     <Input
                       id="time-out"
                       type="time"
@@ -676,12 +643,6 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeOut(e.target.value)}
                       required
                     />
-                    {entryType === "out" && !linkedOpenSession && (
-                      <Caption className="text-muted-foreground">
-                        Example: in May 26, out May 27 2:00 AM — set dates left,
-                        time here.
-                      </Caption>
-                    )}
                   </VStack>
                 </VStack>
               </div>
@@ -694,15 +655,11 @@ export default function FailureToLogPage() {
                   id="reason"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="What happened? (short and clear)"
+                  placeholder="Reason"
                   rows={4}
                   className="resize-none"
                   required
-                  aria-describedby="reason-help"
                 />
-                <Caption id="reason-help" className="text-muted-foreground">
-                  Keep it short—HR may follow up.
-                </Caption>
               </VStack>
 
               <Button
@@ -732,7 +689,7 @@ export default function FailureToLogPage() {
         </CardSection>
 
         {/* Requests List */}
-        <CardSection title="My Failure to Log Requests">
+        <CardSection title="My Failure To Log Requests">
           {visibleRequests.length === 0 ? (
             <div className="text-center py-12">
               <VStack gap="4" align="center">
@@ -745,9 +702,6 @@ export default function FailureToLogPage() {
                 </div>
                 <VStack gap="2" align="center">
                   <H3 className="text-lg font-semibold">No Requests Yet</H3>
-                  <BodySmall className="text-muted-foreground max-w-md">
-                    No requests yet.
-                  </BodySmall>
                 </VStack>
               </VStack>
             </div>

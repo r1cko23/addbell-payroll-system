@@ -450,10 +450,7 @@ export default function OvertimePage() {
   return (
     <VStack gap="6" className="w-full">
       <VStack gap="2" align="start">
-        <H1>OT filing</H1>
-        <BodySmall className="text-muted-foreground">
-          Submit overtime for approval.
-        </BodySmall>
+        <H1>OT Filing</H1>
       </VStack>
       {/* Request Form */}
       <Card className="w-full">
@@ -464,15 +461,12 @@ export default function OvertimePage() {
               OT Filing
             </HStack>
           </CardTitle>
-          <BodySmall className="text-muted-foreground">
-            Enter OT date and times. Optionally link clock in/out for location.
-          </BodySmall>
         </CardHeader>
         <CardContent className="w-full">
           <form onSubmit={handleSubmit} className="w-full">
             <VStack gap="6" className="w-full">
               <div className="w-full space-y-2">
-                <Label htmlFor="ot-date">Overtime date *</Label>
+                <Label htmlFor="ot-date">Overtime Date *</Label>
                 <Input
                   id="ot-date"
                   type="date"
@@ -484,7 +478,6 @@ export default function OvertimePage() {
                     setBundySelection(null);
                   }}
                 />
-                <Caption>Work day when OT started.</Caption>
               </div>
 
               <BundySessionPicker
@@ -497,21 +490,20 @@ export default function OvertimePage() {
 
               {bundySelection && (
                 <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Linked clock span</p>
+                  <p className="font-medium text-foreground">Linked Clock Span</p>
                   <p>
                     {format(new Date(bundySelection.session.clock_in_time), "MMM d, h:mm a")}{" "}
                     –{" "}
                     {format(new Date(bundySelection.session.clock_out_time), "MMM d, h:mm a")}
                   </p>
-                  <p>Enter OT times within this span.</p>
                 </div>
               )}
 
               <div className="w-full space-y-3 rounded-lg border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Overtime period</p>
+                <p className="text-sm font-medium text-foreground">Overtime Period</p>
                 <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="w-full space-y-2">
-                  <Label htmlFor="start-time">OT start time *</Label>
+                  <Label htmlFor="start-time">OT Start Time *</Label>
                   <Input
                     id="start-time"
                     type="time"
@@ -523,7 +515,7 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className="w-full space-y-2">
-                  <Label htmlFor="end-time">OT end time *</Label>
+                  <Label htmlFor="end-time">OT End Time *</Label>
                   <Input
                     id="end-time"
                     type="time"
@@ -535,7 +527,7 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className="w-full space-y-2">
-                  <Label htmlFor="claimed-hours">Total OT hours</Label>
+                  <Label htmlFor="claimed-hours">Total OT Hours</Label>
                   <Input
                     id="claimed-hours"
                     value={
@@ -544,7 +536,6 @@ export default function OvertimePage() {
                     readOnly
                     className="bg-muted/70"
                   />
-                  <Caption>Computed from start and end times.</Caption>
                   {spanTooShortForOt && (
                     <p className="text-xs font-medium text-destructive">
                       OT must be at least {OT_MIN_HOURS} hour.
@@ -573,9 +564,7 @@ export default function OvertimePage() {
 
                 return (
                   <div className="w-full space-y-2">
-                    <Label htmlFor="end-date">
-                      OT end date {autoSpansMidnight && "(auto-filled)"}
-                    </Label>
+                    <Label htmlFor="end-date">OT End Date</Label>
                     <Input
                       id="end-date"
                       type="date"
@@ -585,21 +574,16 @@ export default function OvertimePage() {
                         setFormData((prev) => ({ ...prev, end_date: e.target.value }))
                       }
                     />
-                    <Caption>
-                      {autoSpansMidnight
-                        ? "Set to next day (OT past midnight)."
-                        : "Required if OT ends on another date."}
-                    </Caption>
                   </div>
                 );
               })()}
 
               {bundySelection && (
                 <div className="w-full space-y-3 rounded-lg border border-dashed border-muted p-4">
-                  <p className="text-sm font-medium text-foreground">Clock locations</p>
+                  <p className="text-sm font-medium text-foreground">Clock Locations</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="w-full space-y-2">
-                      <Label>Clock-in location</Label>
+                      <Label>Clock-In Location</Label>
                       <Input
                         value={
                           bundyAddressLoading && !bundyInAddress
@@ -629,7 +613,7 @@ export default function OvertimePage() {
                         )}
                     </div>
                     <div className="w-full space-y-2">
-                      <Label>Clock-out location</Label>
+                      <Label>Clock-Out Location</Label>
                       <Input
                         value={
                           bundyAddressLoading && !bundyOutAddress
@@ -680,7 +664,7 @@ export default function OvertimePage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, reason: e.target.value }))
                   }
-                  placeholder="Work performed during OT"
+                  placeholder="Reason"
                 />
               </div>
 
@@ -712,7 +696,6 @@ export default function OvertimePage() {
                   }}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
                 />
-                <Caption>PDF, DOC, or DOCX · 5MB max.</Caption>
                 {supportingDoc && !docError && (
                   <HStack
                     gap="2"
@@ -773,11 +756,6 @@ export default function OvertimePage() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle>My OT Requests</CardTitle>
-          {historySpanLabel && (
-            <BodySmall className="text-muted-foreground">
-              Last 30 days · all statuses
-            </BodySmall>
-          )}
         </CardHeader>
         <CardContent className="w-full">
           {historyCutoffs.length > 0 && (

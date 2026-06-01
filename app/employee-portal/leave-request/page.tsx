@@ -746,10 +746,7 @@ export default function LeaveRequestPage() {
     <>
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
-          <H1>Leave request</H1>
-          <BodySmall className="text-muted-foreground">
-            File leave for approval.
-          </BodySmall>
+          <H1>Leave Request</H1>
         </VStack>
 
         {/* Stats */}
@@ -1044,9 +1041,6 @@ export default function LeaveRequestPage() {
                     }}
                     className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Optional for any leave type. Max 5MB.
-                  </p>
                   {supportingDoc && !docError && (
                     <HStack
                       gap="2"
@@ -1073,7 +1067,7 @@ export default function LeaveRequestPage() {
                     id="reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="Provide reason for leave request..."
+                    placeholder="Reason"
                     rows={4}
                     required
                   />

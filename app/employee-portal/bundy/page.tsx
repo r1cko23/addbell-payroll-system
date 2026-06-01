@@ -274,6 +274,57 @@ interface AttendanceDay {
   nd: number;
 }
 
+/** Calendar status badge — same rules as the Time Attendance table. */
+function calendarStatusEntryFromAttendanceDay(
+  day: AttendanceDay
+): CalendarEntry | null {
+  if (day.date > getManilaTodayString()) return null;
+
+  switch (day.status) {
+    case "ABSENT":
+    case "LWOP":
+      return { date: day.date, type: "absent", label: "Absent" };
+    case "INC":
+      return { date: day.date, type: "inc", label: "INC" };
+    case "LOG":
+    case "OB":
+      return { date: day.date, type: "present", label: "Present" };
+    case "RD":
+      return { date: day.date, type: "present", label: "RD" };
+    case "RH":
+    case "SH":
+    case "LEAVE":
+    case "CTO":
+    case "-":
+      return null;
+    default:
+      return null;
+  }
+}
+
+function mergeCalendarWithAttendanceTable(
+  base: CalendarEntry[],
+  attendance: AttendanceDay[]
+): CalendarEntry[] {
+  const dayMap = new Map<string, CalendarEntry[]>();
+  for (const e of base) {
+    if (!dayMap.has(e.date)) dayMap.set(e.date, []);
+    dayMap.get(e.date)!.push(e);
+  }
+  for (const day of attendance) {
+    const statusEntry = calendarStatusEntryFromAttendanceDay(day);
+    const existing = dayMap.get(day.date) || [];
+    const withoutStatus = existing.filter(
+      (e) => e.type !== "absent" && e.type !== "present" && e.type !== "inc"
+    );
+    dayMap.set(
+      day.date,
+      statusEntry ? [...withoutStatus, statusEntry] : withoutStatus
+    );
+  }
+  return Array.from(dayMap.values()).flat();
+}
+
 export default function BundyClockPage() {
   const { employee } = useEmployeeSession();
   const supabase = createClient();
@@ -300,7 +351,9 @@ export default function BundyClockPage() {
   const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>(
     []
   );
-  const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
+  const [calendarBaseEntries, setCalendarBaseEntries] = useState<CalendarEntry[]>(
+    []
+  );
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [pendingClockAction, setPendingClockAction] = useState<
     "in" | "out" | null
@@ -318,6 +371,10 @@ export default function BundyClockPage() {
 
   // Attendance data for timesheet table
   const [attendanceDays, setAttendanceDays] = useState<AttendanceDay[]>([]);
+  const calendarEntries = useMemo(
+    () => mergeCalendarWithAttendanceTable(calendarBaseEntries, attendanceDays),
+    [calendarBaseEntries, attendanceDays]
+  );
   const [clockEntriesForAttendance, setClockEntriesForAttendance] = useState<
     ClockEntry[]
   >([]);
@@ -564,12 +621,6 @@ export default function BundyClockPage() {
       const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
       const startRange = gridStart.toISOString();
       const endRange = gridEnd.toISOString();
-      const startDateStr = formatDate(gridStart, "yyyy-MM-dd");
-      const endDateStr = formatDate(gridEnd, "yyyy-MM-dd");
-      const holidaySet = new Set(calendarHolidays.map((h) => h.date));
-
-      const scheduleDays: Array<{ schedule_date: string; day_off: boolean }> = [];
-
       const timeParams = new URLSearchParams({
         employee_id: employee.id,
         start: startRange,
@@ -612,12 +663,6 @@ export default function BundyClockPage() {
       );
 
       const entries: CalendarEntry[] = [];
-
-      const dayOffSet = new Set(
-        (scheduleDays || [])
-          .filter((d: any) => d.day_off)
-          .map((d: any) => formatDate(new Date(d.schedule_date), "yyyy-MM-dd"))
-      );
 
       // Convert punch rows to sessions, then map to calendar days
       const punchesList = (timeData || []) as TimeEntryPunch[];
@@ -664,58 +709,10 @@ export default function BundyClockPage() {
         });
       });
 
-      // Determine absent/present/inc per day (exclude days with leave)
-      const dayMap = new Map<string, CalendarEntry[]>();
-      entries.forEach((e) => {
-        if (!dayMap.has(e.date)) dayMap.set(e.date, []);
-        dayMap.get(e.date)!.push(e);
-      });
-
-      // Build absent/inc/present markers for each day in grid (Manila dates)
-      const todayStr = getManilaTodayString();
-      eachDayOfInterval({ start: gridStart, end: gridEnd }).forEach((day) => {
-        const iso = getManilaDateStringFromLocalDate(day);
-        const existing = dayMap.get(iso) || [];
-        const hasLeave = existing.some((e) => e.type === "leave");
-        if (hasLeave) return;
-        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-        const isHoliday = holidaySet.has(iso);
-        const isDayOff = dayOffSet.has(iso);
-
-        const timeEntries = existing.filter(
-          (e) => e.type === "time" || e.type === "inc"
-        );
-
-        // Only mark absent/inc/present for dates up to today (Manila)
-        if (iso > todayStr) return;
-        // Skip holidays and marked day-offs (weekends can be working days)
-        if (isHoliday || isDayOff) return;
-
-        if (timeEntries.length === 0) {
-          if (iso === todayStr) {
-            // Same calendar day in PH — still in progress; do not show Absent
-            return;
-          }
-          existing.push({
-            date: iso,
-            type: "absent",
-            label: "Absent",
-          });
-        } else {
-          const hasIncomplete = timeEntries.some((e) => e.type === "inc");
-          existing.push({
-            date: iso,
-            type: hasIncomplete ? "inc" : "present",
-            label: hasIncomplete ? "INC" : "Present",
-          });
-        }
-
-        dayMap.set(iso, existing);
-      });
-
-      setCalendarEntries(Array.from(dayMap.values()).flat());
+      // Absent / present / inc badges come from attendanceDays (table rules), not punch-only logic.
+      setCalendarBaseEntries(entries);
     },
-    [employee.id, calendarHolidays]
+    [employee.id]
   );
 
   useEffect(() => {

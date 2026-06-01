@@ -107,7 +107,7 @@ const NavItem = memo(function NavItem({
         "flex min-h-10 items-center gap-2 rounded-r-md border-l-2 py-2 pl-2 pr-3 text-sm transition-colors",
         isActive
           ? "border-primary bg-primary/10 font-medium text-primary"
-          : "border-transparent text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground"
+          : "border-transparent text-muted-foreground hover:bg-primary/10 hover:text-primary"
       )}
     >
       <Icon
@@ -263,20 +263,13 @@ export function EmployeePortalSidebar({
         {navGroups.map((group) => {
           const GroupIcon = group.icon || FallbackIcon;
           const isOpen = openGroups.has(group.label);
-          const hasActiveItem = group.items.some(
-            (item) =>
-              pathname === item.href || pathname?.startsWith(item.href + "/")
-          );
 
           return (
             <div key={group.label} className="mb-4">
               <button
                 type="button"
                 onClick={() => toggleGroup(group.label)}
-                className={cn(
-                  "mb-2 flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent/70",
-                  hasActiveItem ? "text-foreground" : "text-muted-foreground"
-                )}
+                className="mb-2 flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm font-medium text-foreground transition hover:bg-primary/10"
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <GroupIcon

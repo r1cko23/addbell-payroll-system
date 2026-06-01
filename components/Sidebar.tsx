@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import React, { memo, useCallback, useMemo } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import React, { memo, Suspense, useCallback } from "react";
 import {
   ChartPieSlice,
-  ChatCircleDots,
   Users,
   ClockClockwise,
   CalendarCheck,
@@ -25,16 +24,17 @@ import {
   ClipboardText,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
+import { isNavItemActive } from "@/lib/nav-match";
 import { formatRoleName } from "@/lib/formatRoleName";
+import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions, type ModuleName } from "@/lib/hooks/usePermissions";
-import { Badge } from "@/components/ui/badge";
 
 type NavItem = {
   name: string;
   href: string;
   icon: React.ElementType;
-  permissionModule?: ModuleName; // Maps this nav item to a permission module
+  permissionModule?: ModuleName;
 };
 
 type NavGroup = {
@@ -44,15 +44,25 @@ type NavGroup = {
   defaultOpen?: boolean;
 };
 
-const HIDDEN_GROUPS = new Set(["Payroll", "Reports", "Admin"]);
+const HIDDEN_GROUPS = new Set(["Payroll", "Reports"]);
 
 const navGroups: NavGroup[] = [
   {
     label: "Overview",
     icon: ChartPieSlice,
     items: [
-      { name: "Executive Dashboard", href: "/dashboard?type=executive", icon: ChartLineUp, permissionModule: "dashboard" },
-      { name: "Workforce Overview", href: "/dashboard?type=workforce", icon: UsersThree, permissionModule: "dashboard" },
+      {
+        name: "Executive Dashboard",
+        href: "/dashboard?type=executive",
+        icon: ChartLineUp,
+        permissionModule: "dashboard",
+      },
+      {
+        name: "Workforce Overview",
+        href: "/dashboard?type=workforce",
+        icon: UsersThree,
+        permissionModule: "dashboard",
+      },
     ],
   },
   {
@@ -122,7 +132,12 @@ const navGroups: NavGroup[] = [
       { name: "Audit Dashboard", href: "/audit", icon: FileText, permissionModule: "audit" },
       { name: "BIR Reports", href: "/bir-reports", icon: FileText, permissionModule: "bir_reports" },
       { name: "Payroll Register", href: "/reports", icon: Receipt, permissionModule: "reports" },
-      { name: "Project Profitability", href: "/project-profitability", icon: ChartLineUp, permissionModule: "reports" },
+      {
+        name: "Project Profitability",
+        href: "/project-profitability",
+        icon: ChartLineUp,
+        permissionModule: "reports",
+      },
     ],
   },
   {
@@ -132,40 +147,33 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-function getRoleBadgeClass(role?: string | null) {
-  const r = (role || "").trim().toLowerCase();
-  if (r === "upper_management") return "bg-indigo-50 text-indigo-700 border-indigo-200";
-  if (r === "operations_manager") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (r === "purchasing_officer") return "bg-amber-50 text-amber-800 border-amber-200";
-  if (r === "hr") return "bg-emerald-50 text-emerald-800 border-emerald-200";
-  return "bg-secondary text-secondary-foreground border-transparent";
-}
-
 interface SidebarProps {
   className?: string;
   onClose?: () => void;
 }
 
-// Memoized NavItem component to prevent unnecessary re-renders
 const NavItem = memo(function NavItem({
   item,
   isActive,
   FallbackIcon,
+  testId,
 }: {
   item: NavItem;
   isActive: boolean;
   FallbackIcon: React.ElementType;
+  testId?: string;
 }) {
   const Icon = item.icon || FallbackIcon;
   return (
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+        "flex items-center gap-2 rounded-r-md border-l-2 py-2 pl-2 pr-3 text-sm transition-colors",
         isActive
-          ? "bg-gradient-to-r from-primary/15 to-accent-secondary/10 text-primary shadow-card"
-          : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+          ? "border-primary bg-primary/10 font-medium text-primary"
+          : "border-transparent text-muted-foreground hover:bg-primary/10 hover:text-primary"
       )}
+      data-testid={testId}
     >
       <Icon className="h-4 w-4" />
       {item.name}
@@ -173,47 +181,50 @@ const NavItem = memo(function NavItem({
   );
 });
 
-function SidebarComponent({ className, onClose }: SidebarProps) {
+function SidebarInner({ className, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchKey = searchParams.toString();
   const {
     role,
     isHR,
     isAdmin,
     isApprover,
     isViewer,
-    canAccessSalaryInfo,
     loading: roleLoading,
   } = useUserRole();
   const { canRead, loading: permissionsLoading } = usePermissions();
   const [openGroup, setOpenGroup] = React.useState<string | null>("People");
   const FallbackIcon = WarningCircle;
+  const navItemTestId = (name: string) =>
+    `nav-item-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
   const toggleGroup = useCallback((label: string) => {
     setOpenGroup((prev) => (prev === label ? null : label));
   }, []);
 
-  // Filter navigation items based on user permissions (ACL/RBAC)
   const filteredNavGroups = React.useMemo(() => {
-    // If still loading, return all groups to prevent empty sidebar
     if (roleLoading || permissionsLoading) {
       return navGroups;
     }
 
-    // Admin always sees everything
     if (isAdmin) {
       return navGroups;
     }
 
-    // Filter based on permissions
     return navGroups
       .map((group) => {
-        // HR should not see the Projects section at all.
         if (isHR && group.label === "Projects") return null;
 
-        // Filter items based on read permission
+        if (group.label === "Admin") {
+          const adminItems = group.items.filter((item) => {
+            if (!item.permissionModule) return false;
+            return canRead(item.permissionModule);
+          });
+          return adminItems.length > 0 ? { ...group, items: adminItems } : null;
+        }
+
         const filteredItems = group.items.filter((item) => {
-          // Account managers (approvers) and viewers must not see Employees in nav.
-          // HR (e.g. April Gammad) is both HR and approver for her department; she should still see Employees.
           if (item.permissionModule === "employees") {
             const hideForApproverOrViewer = (isApprover && !isHR) || isViewer;
             if (hideForApproverOrViewer) {
@@ -221,16 +232,13 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
             }
           }
 
-          // If no permission module specified, use legacy role-based logic
           if (!item.permissionModule) {
             return true;
           }
 
-          // Check if user has read permission for this module
           return canRead(item.permissionModule);
         });
 
-        // Hide the executive dashboard in the UI for now.
         if (group.label === "Overview") {
           const nonExecutiveItems = filteredItems.filter(
             (item) => !item.href.includes("?type=executive")
@@ -240,22 +248,17 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
             : null;
         }
 
-        // Return group with filtered items, or null if no items
-        return filteredItems.length > 0
-          ? { ...group, items: filteredItems }
-          : null;
+        return filteredItems.length > 0 ? { ...group, items: filteredItems } : null;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isAdmin, isApprover, isViewer, canRead, roleLoading, permissionsLoading]);
+  }, [isAdmin, isApprover, isViewer, isHR, canRead, roleLoading, permissionsLoading]);
 
-  // Auto-open the group that matches the current route
   React.useEffect(() => {
     let matchedGroup: string | null = null;
     let longest = 0;
     navGroups.forEach((group) => {
       group.items.forEach((item) => {
-        const isMatch =
-          pathname === item.href || pathname?.startsWith(item.href + "/");
+        const isMatch = isNavItemActive(pathname, searchKey, item.href);
         if (isMatch && item.href.length > longest) {
           matchedGroup = group.label;
           longest = item.href.length;
@@ -265,153 +268,147 @@ function SidebarComponent({ className, onClose }: SidebarProps) {
     if (matchedGroup) {
       setOpenGroup(matchedGroup);
     }
-  }, [pathname]);
+  }, [pathname, searchKey]);
 
-  // Prevent sidebar from disappearing - ensure it always renders
-  if (!filteredNavGroups || filteredNavGroups.length === 0) {
-    console.warn("Sidebar: filteredNavGroups is empty!", { roleLoading, role, filteredNavGroups });
-  }
-
-  // Always render sidebar, even if no groups
-  // Force render with explicit styles to prevent disappearing
   return (
     <div
       className={cn(
-        "flex h-full w-64 flex-shrink-0 flex-col border-r border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+        "flex h-full w-64 shrink-0 flex-col border-r border-border/80 bg-card/40 backdrop-blur-sm",
         className
       )}
       style={{
-        minWidth: '256px',
-        width: '256px',
-        position: 'relative',
+        minWidth: "256px",
+        width: "256px",
+        position: "relative",
         zIndex: 10,
-        display: 'flex',
-        flexDirection: 'column'
+        display: "flex",
+        flexDirection: "column",
       }}
       data-testid="sidebar-container"
     >
-      <div className="border-b border-border/80 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-3">
-            <img
-              src="/add-bell-logo-new.png"
-              alt="Add-bell Technical Services, Inc."
-              className="h-12 w-auto object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-              }}
-            />
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Admin workspace</p>
-              <p className="text-xs text-muted-foreground">
-                Payroll, approvals, projects, and workforce operations.
-              </p>
-            </div>
-            {role ? (
-              <Badge
-                variant="secondary"
-                className={`font-normal ${getRoleBadgeClass(role)} border`}
-              >
-                {formatRoleName(role)}
-              </Badge>
-            ) : null}
-          </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden"
-              aria-label="Close navigation"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background px-4">
+        <div className="flex flex-1 items-center justify-center">
+          <img
+            src="/add-bell-logo-new.png"
+            alt="Add-bell Technical Services, Inc."
+            className="h-10 w-auto max-w-full object-contain"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-4 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+            aria-label="Close navigation"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
-        {(roleLoading || permissionsLoading) ? (
-          <div className="flex items-center justify-center h-32">
+      <nav
+        className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
+        aria-label="Sidebar navigation"
+      >
+        {roleLoading || permissionsLoading ? (
+          <div className="flex h-32 items-center justify-center">
             <ArrowsClockwise className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : filteredNavGroups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-sm text-muted-foreground p-4">
-            <WarningCircle className="h-8 w-8 mb-2" />
-            <p>No navigation items available</p>
-            <p className="text-xs mt-1">
-              Role:{" "}
-              {role ? formatRoleName(role) : "loading..."}
+          <div className="flex flex-col items-center justify-center p-4 text-center text-sm text-muted-foreground">
+            <WarningCircle className="mb-2 h-8 w-8" />
+            <p className="font-medium text-foreground">No navigation items available</p>
+            <p className="mt-2 text-xs leading-relaxed">
+              Your account may have no module access in Settings → Access Control, or
+              permissions failed to load.
             </p>
+            <Badge variant="outline" className="mt-3 text-xs font-normal">
+              {role ? formatRoleName(role) : "Role: not loaded"}
+            </Badge>
           </div>
         ) : (
           filteredNavGroups
             .filter((group) => group !== null && !HIDDEN_GROUPS.has(group.label))
             .map((group) => {
-            if (!group) return null;
-            const GroupIcon = group.icon || FallbackIcon;
-            const isOpen = openGroup === group.label;
+              const GroupIcon = group.icon || FallbackIcon;
+              const isOpen = openGroup === group.label;
 
-            // Render all groups with collapsible structure
-            return (
-              <div key={group.label} className="space-y-1 rounded-2xl border border-transparent px-1 py-1">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.label)}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold text-foreground transition-all duration-200 hover:bg-primary/5"
-                  aria-expanded={isOpen}
-                >
-                  <span className="flex items-center gap-2">
-                    <GroupIcon className="h-4 w-4" />
-                    {group.label}
-                  </span>
-                  {isOpen ? (
-                    <CaretDown className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <CaretRight className="h-4 w-4 text-muted-foreground" />
+              return (
+                <div key={group.label} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm font-medium text-foreground transition hover:bg-primary/10"
+                    aria-expanded={isOpen}
+                    data-testid={`nav-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <GroupIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.label}
+                      </span>
+                    </span>
+                    {isOpen ? (
+                      <CaretDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <CaretRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                  {isOpen && (
+                    <div className="space-y-0.5 border-l border-border/60 pl-2">
+                      {group.items.map((item) => {
+                        const isActive = isNavItemActive(
+                          pathname,
+                          searchKey,
+                          item.href
+                        );
+
+                        return (
+                          <NavItem
+                            key={item.name}
+                            item={item}
+                            isActive={isActive}
+                            FallbackIcon={FallbackIcon}
+                            testId={navItemTestId(item.name)}
+                          />
+                        );
+                      })}
+                    </div>
                   )}
-                </button>
-                {isOpen && (
-                  <div className="space-y-1 pl-3 pt-1">
-                    {group.items.map((item) => {
-                      const isActive =
-                        pathname === item.href ||
-                        pathname?.startsWith(item.href + "/");
-
-                      return (
-                        <NavItem
-                          key={item.name}
-                          item={item}
-                          isActive={isActive}
-                          FallbackIcon={FallbackIcon}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })
+                </div>
+              );
+            })
         )}
       </nav>
-
-      {/* Footer */}
-      <div className="border-t border-border/80 p-4">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
-          <p className="text-xs text-muted-foreground mb-2">
-            © {new Date().getFullYear()} Add-bell Technical Services, Inc.
-          </p>
-          <a
-            href="/privacy"
-            className="text-xs text-primary hover:underline transition-colors"
-          >
-            Privacy Notice
-          </a>
-        </div>
-      </div>
     </div>
   );
 }
 
-// Export Sidebar (removed memo to prevent rendering issues)
-export const Sidebar = SidebarComponent;
+function SidebarFallback({ className }: SidebarProps) {
+  return (
+    <div
+      className={cn(
+        "flex h-full w-64 shrink-0 flex-col border-r border-border/80 bg-card/40",
+        className
+      )}
+      style={{
+        minWidth: "256px",
+        width: "256px",
+      }}
+      aria-hidden
+    >
+      <div className="h-16 shrink-0 border-b border-border/80 bg-background" />
+    </div>
+  );
+}
+
+export function Sidebar(props: SidebarProps) {
+  return (
+    <Suspense fallback={<SidebarFallback {...props} />}>
+      <SidebarInner {...props} />
+    </Suspense>
+  );
+}

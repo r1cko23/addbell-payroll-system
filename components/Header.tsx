@@ -184,39 +184,34 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-      <div className="flex h-16 w-full items-center justify-between gap-3 px-4 sm:px-6 xl:px-8">
-        <div className="flex items-center gap-3">
-        {onMenuClick ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden"
-            onClick={onMenuClick}
-            aria-label="Open navigation"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-        ) : (
-          <div className="lg:hidden" aria-hidden="true" />
-        )}
-          <div className="hidden min-w-0 lg:block">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Staff workspace</p>
-            <p className="text-xs text-muted-foreground">
-              Manage payroll, approvals, time, and employee records.
-            </p>
-          </div>
+    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center border-b border-border/80 bg-background px-4 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/95 sm:px-6 xl:px-8">
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {onMenuClick ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 lg:hidden"
+              onClick={onMenuClick}
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          ) : null}
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-auto rounded-xl border border-transparent px-2 py-1.5 sm:px-3 hover:border-primary/20 hover:bg-primary/5">
-                <Avatar className="h-8 w-8">
+              <Button
+                variant="ghost"
+                className="h-auto rounded-xl border border-transparent px-2 py-1.5 hover:border-primary/20 hover:bg-primary/5 sm:px-3"
+              >
+                <Avatar className="h-8 w-8 shrink-0">
                   <AvatarImage
                     src={profilePictureUrl || undefined}
                     alt={userFullName || user?.email || "User"}
                   />
-                  <AvatarFallback className="gradient-accent text-primary-foreground text-xs">
+                  <AvatarFallback className="gradient-accent text-xs text-primary-foreground">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
@@ -224,14 +219,16 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <span className="text-sm font-medium text-foreground">
                     {userFullName || user?.email}
                   </span>
-                  <Badge
-                    variant="secondary"
-                    className={`mt-1 h-5 rounded-md border px-2 text-[11px] font-normal ${getRoleBadgeClass(userRole)}`}
-                  >
-                    {formatRoleName(userRole)}
-                  </Badge>
+                  {userRole ? (
+                    <Badge
+                      variant="secondary"
+                      className={`mt-1 h-5 rounded-md border px-2 text-[11px] font-normal ${getRoleBadgeClass(userRole)}`}
+                    >
+                      {formatRoleName(userRole)}
+                    </Badge>
+                  ) : null}
                 </div>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

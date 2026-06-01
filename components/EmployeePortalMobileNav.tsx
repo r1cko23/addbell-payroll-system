@@ -7,11 +7,13 @@ import {
   CalendarBlank,
   Clock,
   FileArrowDown,
+  House,
   Receipt,
   Timer,
   User,
   WarningCircle,
 } from "phosphor-react";
+import { isEmployeePortalNavActive } from "@/lib/employee-portal-nav";
 
 type NavItem = {
   label: string;
@@ -20,6 +22,11 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
+  {
+    label: "Home",
+    href: "/employee-portal",
+    icon: House,
+  },
   {
     label: "Bundy",
     href: "/employee-portal/bundy",
@@ -72,8 +79,7 @@ export function EmployeePortalMobileNav() {
     >
       <div className="flex items-stretch gap-1 px-2 py-2 overflow-x-auto">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            pathname === href || pathname.startsWith(`${href}/`);
+          const isActive = isEmployeePortalNavActive(pathname, href);
 
           return (
             <Link
@@ -82,7 +88,7 @@ export function EmployeePortalMobileNav() {
               className={cn(
                 "flex min-w-[72px] flex-col items-center justify-center rounded-xl px-2 py-1.5 transition-all duration-200",
                 isActive
-                  ? "bg-gradient-to-r from-primary/15 to-accent-secondary/10 text-primary"
+                  ? "bg-primary/10 text-primary"
                   : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
               )}
               aria-current={isActive ? "page" : undefined}

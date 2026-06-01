@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { BodySmall, Caption, H1, H3 } from "@/components/ui/typography";
+import { BodySmall, Caption, H3 } from "@/components/ui/typography";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
@@ -21,6 +22,11 @@ import {
   type BundySessionSelection,
 } from "@/components/BundySessionPicker";
 import { formatWeeklyCutoffPeriod } from "@/utils/bimonthly";
+import {
+  requestFormCopy,
+  requestReasonLabel,
+  requestSupportingDocLabel,
+} from "@/lib/employee-portal-request-copy";
 import {
   cutoffKeyForOtDate,
   getOtHistoryCutoffs,
@@ -447,37 +453,63 @@ export default function OvertimePage() {
     setSubmitting(false);
   };
 
+  const startTimeOnly = new Date(`2000-01-01T${formData.start_time}:00`);
+  const endTimeOnly = new Date(`2000-01-01T${formData.end_time}:00`);
+  const autoSpansMidnight =
+    Boolean(formData.start_time && formData.end_time) &&
+    endTimeOnly.getTime() <= startTimeOnly.getTime();
+
   return (
     <VStack gap="6" className="w-full">
-      <VStack gap="2" align="start">
-        <H1>OT Filing</H1>
-      </VStack>
-      {/* Request Form */}
+      <PortalPageHeader
+        title="OT filing"
+        description="Submit overtime for approval and track your requests."
+      />
       <Card className="w-full">
         <CardHeader className="pb-4">
           <CardTitle>
             <HStack gap="2" align="center">
               <Icon name="ClockClockwise" size={IconSizes.md} />
-              OT Filing
+              File OT Request
             </HStack>
           </CardTitle>
+          <BodySmall className="text-muted-foreground">
+            Complete the form below. Supporting documents optional unless HR
+            requires them.
+          </BodySmall>
         </CardHeader>
         <CardContent className="w-full">
           <form onSubmit={handleSubmit} className="w-full">
             <VStack gap="6" className="w-full">
-              <div className="w-full space-y-2">
-                <Label htmlFor="ot-date">Overtime Date *</Label>
-                <Input
-                  id="ot-date"
-                  type="date"
-                  required
-                  value={formData.ot_date}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFormData((prev) => ({ ...prev, ot_date: value }));
-                    setBundySelection(null);
-                  }}
-                />
+              <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="w-full space-y-2">
+                  <Label htmlFor="ot-date">OT Date</Label>
+                  <Input
+                    id="ot-date"
+                    type="date"
+                    required
+                    value={formData.ot_date}
+                    onChange={(e) => {
+                      setFormData((prev) => ({ ...prev, ot_date: e.target.value }));
+                      setBundySelection(null);
+                    }}
+                  />
+                </div>
+                <div className="w-full space-y-2">
+                  <Label htmlFor="start-time">Start Time</Label>
+                  <Input
+                    id="start-time"
+                    type="time"
+                    required
+                    value={formData.start_time}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        start_time: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
               </div>
 
               <BundySessionPicker
@@ -488,34 +520,26 @@ export default function OvertimePage() {
                 required={false}
               />
 
-              {bundySelection && (
-                <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Linked Clock Span</p>
+              {bundySelection ? (
+                <div className="space-y-1 rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <p className="font-medium text-foreground">Linked clock span</p>
                   <p>
-                    {format(new Date(bundySelection.session.clock_in_time), "MMM d, h:mm a")}{" "}
+                    {format(
+                      new Date(bundySelection.session.clock_in_time),
+                      "MMM d, h:mm a"
+                    )}{" "}
                     –{" "}
-                    {format(new Date(bundySelection.session.clock_out_time), "MMM d, h:mm a")}
+                    {format(
+                      new Date(bundySelection.session.clock_out_time),
+                      "MMM d, h:mm a"
+                    )}
                   </p>
                 </div>
-              )}
+              ) : null}
 
-              <div className="w-full space-y-3 rounded-lg border border-border p-4">
-                <p className="text-sm font-medium text-foreground">Overtime Period</p>
-                <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="w-full space-y-2">
-                  <Label htmlFor="start-time">OT Start Time *</Label>
-                  <Input
-                    id="start-time"
-                    type="time"
-                    required
-                    value={formData.start_time}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, start_time: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="w-full space-y-2">
-                  <Label htmlFor="end-time">OT End Time *</Label>
+                  <Label htmlFor="end-time">End Time</Label>
                   <Input
                     id="end-time"
                     type="time"
@@ -527,136 +551,120 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className="w-full space-y-2">
-                  <Label htmlFor="claimed-hours">Total OT Hours</Label>
+                  <Label htmlFor="total-hours">Total Hours (auto)</Label>
                   <Input
-                    id="claimed-hours"
+                    id="total-hours"
                     value={
-                      hoursFromTimeRange > 0 ? hoursFromTimeRange.toFixed(2) : ""
+                      hoursFromTimeRange > 0 ? hoursFromTimeRange.toFixed(2) : "0.00"
                     }
                     readOnly
-                    className="bg-muted/70"
+                    className="bg-muted"
                   />
-                  {spanTooShortForOt && (
+                  {spanTooShortForOt ? (
                     <p className="text-xs font-medium text-destructive">
                       OT must be at least {OT_MIN_HOURS} hour.
                     </p>
-                  )}
-                  {claimedOutsideBundy && (
+                  ) : null}
+                  {claimedOutsideBundy ? (
                     <p className="text-xs font-medium text-destructive">
                       OT must fall within linked clock in/out.
                     </p>
-                  )}
-                </div>
+                  ) : null}
                 </div>
               </div>
 
-              {(() => {
-                const startTimeOnly = new Date(
-                  `2000-01-01T${formData.start_time}:00`
-                );
-                const endTimeOnly = new Date(
-                  `2000-01-01T${formData.end_time}:00`
-                );
-                const autoSpansMidnight =
-                  formData.start_time &&
-                  formData.end_time &&
-                  endTimeOnly.getTime() <= startTimeOnly.getTime();
+              <div className="w-full space-y-2">
+                <Label htmlFor="end-date">
+                  End Date {autoSpansMidnight ? "(auto-calculated)" : ""}
+                </Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={formData.end_date}
+                  min={formData.ot_date}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, end_date: e.target.value }))
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  {autoSpansMidnight
+                    ? "Automatically set to next day. Change only if OT spans multiple days."
+                    : "Optional: Only needed if overtime spans multiple days beyond the next day."}
+                </p>
+              </div>
 
-                return (
+              {bundySelection ? (
+                <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="w-full space-y-2">
-                    <Label htmlFor="end-date">OT End Date</Label>
+                    <Label>Clock-in location</Label>
                     <Input
-                      id="end-date"
-                      type="date"
-                      value={formData.end_date}
-                      min={formData.ot_date}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, end_date: e.target.value }))
+                      value={
+                        bundyAddressLoading && !bundyInAddress
+                          ? "Resolving address…"
+                          : bundyInAddress ||
+                            (bundySelection.session.clock_in_lat != null &&
+                            bundySelection.session.clock_in_lng != null
+                              ? `${bundySelection.session.clock_in_lat.toFixed(6)}, ${bundySelection.session.clock_in_lng.toFixed(6)}`
+                              : "No GPS recorded")
                       }
+                      readOnly
+                      className="bg-muted"
                     />
+                    {bundySelection.session.clock_in_lat != null &&
+                      bundySelection.session.clock_in_lng != null && (
+                        <a
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          href={`https://www.google.com/maps?q=${bundySelection.session.clock_in_lat},${bundySelection.session.clock_in_lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Icon name="MapPin" size={IconSizes.xs} />
+                          View in Google Maps
+                        </a>
+                      )}
                   </div>
-                );
-              })()}
-
-              {bundySelection && (
-                <div className="w-full space-y-3 rounded-lg border border-dashed border-muted p-4">
-                  <p className="text-sm font-medium text-foreground">Clock Locations</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="w-full space-y-2">
-                      <Label>Clock-In Location</Label>
-                      <Input
-                        value={
-                          bundyAddressLoading && !bundyInAddress
-                            ? "Resolving address…"
-                            : bundyInAddress ||
-                              (bundySelection.session.clock_in_lat != null &&
-                              bundySelection.session.clock_in_lng != null
-                                ? `${bundySelection.session.clock_in_lat.toFixed(
-                                    6
-                                  )}, ${bundySelection.session.clock_in_lng.toFixed(6)}`
-                                : "No GPS recorded")
-                        }
-                        readOnly
-                        className="bg-muted/70"
-                      />
-                      {bundySelection.session.clock_in_lat != null &&
-                        bundySelection.session.clock_in_lng != null && (
-                          <a
-                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                            href={`https://www.google.com/maps?q=${bundySelection.session.clock_in_lat},${bundySelection.session.clock_in_lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Icon name="MapPin" size={IconSizes.xs} />
-                            View in Google Maps
-                          </a>
-                        )}
-                    </div>
-                    <div className="w-full space-y-2">
-                      <Label>Clock-Out Location</Label>
-                      <Input
-                        value={
-                          bundyAddressLoading && !bundyOutAddress
-                            ? "Resolving address…"
-                            : bundyOutAddress ||
-                              (bundySelection.session.clock_out_lat != null &&
-                              bundySelection.session.clock_out_lng != null
-                                ? `${bundySelection.session.clock_out_lat.toFixed(
-                                    6
-                                  )}, ${bundySelection.session.clock_out_lng.toFixed(6)}`
-                                : "No GPS recorded")
-                        }
-                        readOnly
-                        className="bg-muted/70"
-                      />
-                      {bundySelection.session.clock_out_lat != null &&
-                        bundySelection.session.clock_out_lng != null && (
-                          <a
-                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                            href={`https://www.google.com/maps?q=${bundySelection.session.clock_out_lat},${bundySelection.session.clock_out_lng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Icon name="MapPin" size={IconSizes.xs} />
-                            View in Google Maps
-                          </a>
-                        )}
-                    </div>
+                  <div className="w-full space-y-2">
+                    <Label>Clock-out location</Label>
+                    <Input
+                      value={
+                        bundyAddressLoading && !bundyOutAddress
+                          ? "Resolving address…"
+                          : bundyOutAddress ||
+                            (bundySelection.session.clock_out_lat != null &&
+                            bundySelection.session.clock_out_lng != null
+                              ? `${bundySelection.session.clock_out_lat.toFixed(6)}, ${bundySelection.session.clock_out_lng.toFixed(6)}`
+                              : "No GPS recorded")
+                      }
+                      readOnly
+                      className="bg-muted"
+                    />
+                    {bundySelection.session.clock_out_lat != null &&
+                      bundySelection.session.clock_out_lng != null && (
+                        <a
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          href={`https://www.google.com/maps?q=${bundySelection.session.clock_out_lat},${bundySelection.session.clock_out_lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <Icon name="MapPin" size={IconSizes.xs} />
+                          View in Google Maps
+                        </a>
+                      )}
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {submittedHours > 0 && (
-                <div className="rounded-md border border-primary/20 bg-primary/5 p-3">
-                  <div className="text-sm font-semibold text-primary">
-                    Total OT:{" "}
-                    <span className="text-lg">{submittedHours.toFixed(2)} h</span>
-                  </div>
+              {hoursFromTimeRange > 0 ? (
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-sm font-semibold text-blue-900">
+                    Calculated Hours:{" "}
+                    <span className="text-lg">{hoursFromTimeRange.toFixed(2)}</span>
+                  </p>
                 </div>
-              )}
+              ) : null}
 
               <div className="w-full space-y-2">
-                <Label htmlFor="reason">Reason *</Label>
+                <Label htmlFor="reason">{requestReasonLabel}</Label>
                 <Textarea
                   id="reason"
                   rows={4}
@@ -664,12 +672,13 @@ export default function OvertimePage() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, reason: e.target.value }))
                   }
-                  placeholder="Reason"
+                  placeholder={requestFormCopy.overtime.reasonPlaceholder}
+                  className="resize-none"
                 />
               </div>
 
               <div className="w-full space-y-2">
-                <Label htmlFor="ot-doc">Attachment (optional)</Label>
+                <Label htmlFor="ot-doc">{requestSupportingDocLabel}</Label>
                 <input
                   id="ot-doc"
                   type="file"
@@ -696,11 +705,14 @@ export default function OvertimePage() {
                   }}
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
                 />
-                {supportingDoc && !docError && (
+                <p className="text-xs text-muted-foreground">
+                  {requestFormCopy.overtime.supportingDocHint}
+                </p>
+                {supportingDoc && !docError ? (
                   <HStack
                     gap="2"
                     align="center"
-                    className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary"
+                    className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-600"
                   >
                     <Icon name="Paperclip" size={IconSizes.sm} />
                     <span>{supportingDoc.name}</span>
@@ -708,12 +720,10 @@ export default function OvertimePage() {
                       {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
                     </Caption>
                   </HStack>
-                )}
-                {docError && (
-                  <p className="text-sm text-destructive font-medium">
-                    {docError}
-                  </p>
-                )}
+                ) : null}
+                {docError ? (
+                  <p className="text-sm font-medium text-destructive">{docError}</p>
+                ) : null}
               </div>
 
               <Button
@@ -728,8 +738,8 @@ export default function OvertimePage() {
                   claimedOutsideBundy ||
                   hoursFromTimeRange <= 0
                 }
-                className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
-                size="lg"
+                className="h-9 w-full gap-1.5 px-4 text-sm font-medium md:w-auto md:min-w-[200px]"
+                size="sm"
               >
                 {submitting ? (
                   <>

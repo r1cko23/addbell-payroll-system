@@ -11,12 +11,13 @@ import {
   Timer,
   FileArrowDown,
   Receipt,
+  House,
   X,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
+import { isEmployeePortalNavActive } from "@/lib/employee-portal-nav";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { createClient } from "@/lib/supabase/client";
-import { Badge } from "@/components/ui/badge";
 
 type NavItem = {
   name: string;
@@ -31,13 +32,13 @@ type NavGroup = {
   defaultOpen?: boolean;
 };
 
-// Schedule functionality removed - not relevant for Addbell
 const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
   {
     label: "Time & Attendance",
     icon: Clock,
     defaultOpen: true,
     items: [
+      { name: "Home", href: "/employee-portal", icon: House },
       { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
     ],
   },
@@ -69,7 +70,11 @@ const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
     icon: User,
     defaultOpen: true,
     items: [
-      { name: "Project Assignments", href: "/employee-portal/project-time", icon: Clock },
+      {
+        name: "Project Assignments",
+        href: "/employee-portal/project-time",
+        icon: Clock,
+      },
       { name: "My Information", href: "/employee-portal/info", icon: User },
       {
         name: "Payslips",
@@ -85,7 +90,6 @@ interface EmployeePortalSidebarProps {
   onClose?: () => void;
 }
 
-// Memoized NavItem component to prevent unnecessary re-renders
 const NavItem = memo(function NavItem({
   item,
   isActive,
@@ -100,14 +104,14 @@ const NavItem = memo(function NavItem({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+        "flex min-h-10 items-center gap-2 rounded-r-md border-l-2 py-2 pl-2 pr-3 text-sm transition-colors",
         isActive
-          ? "bg-gradient-to-r from-primary/15 to-accent-secondary/10 text-primary shadow-card"
-          : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+          ? "border-primary bg-primary/10 font-medium text-primary"
+          : "border-transparent text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground"
       )}
     >
       <Icon
-        className="h-5 w-5 flex-shrink-0"
+        className="h-5 w-5 shrink-0"
         weight={isActive ? "fill" : "regular"}
       />
       <span>{item.name}</span>
@@ -126,7 +130,6 @@ export function EmployeePortalSidebar({
   const [loadingEmployeeType, setLoadingEmployeeType] = useState(true);
   const FallbackIcon = WarningCircle;
 
-  // Fetch employee type and position to determine if they're an Account Supervisor
   useEffect(() => {
     const fetchEmployeeInfo = async () => {
       if (!employee?.id) {
@@ -158,17 +161,21 @@ export function EmployeePortalSidebar({
           return;
         }
 
-        // Normalize position for comparison (trim and uppercase)
-        const normalizedPosition = (employeeData.position || "").trim().toUpperCase();
-        const hasAccountSupervisor = normalizedPosition.includes("ACCOUNT SUPERVISOR");
+        const normalizedPosition = (employeeData.position || "")
+          .trim()
+          .toUpperCase();
+        const hasAccountSupervisor =
+          normalizedPosition.includes("ACCOUNT SUPERVISOR");
 
-        // Check if employee is client-based AND Account Supervisor (employment_type = DB column)
         const isClientBasedAccountSupervisor =
           employeeData.employment_type === "client-based" && hasAccountSupervisor;
 
         setIsAccountSupervisor(isClientBasedAccountSupervisor);
       } catch (err) {
-        console.error("EmployeePortalSidebar - Exception fetching employee info:", err);
+        console.error(
+          "EmployeePortalSidebar - Exception fetching employee info:",
+          err
+        );
       } finally {
         setLoadingEmployeeType(false);
       }
@@ -182,7 +189,6 @@ export function EmployeePortalSidebar({
   }, [isAccountSupervisor]);
 
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
-    // Initialize with default open groups - use a stable set of groups
     return new Set(["Time & Attendance", "Requests", "Information"]);
   });
 
@@ -198,9 +204,8 @@ export function EmployeePortalSidebar({
     });
   }, []);
 
-  // Auto-open the group that matches the current route
   useEffect(() => {
-    if (loadingEmployeeType) return; // Wait for employee type to load
+    if (loadingEmployeeType) return;
 
     let matchedGroup: string | null = null;
     let longest = 0;
@@ -222,13 +227,13 @@ export function EmployeePortalSidebar({
   return (
     <div
       className={cn(
-        "flex h-full w-72 flex-col border-r border-border/80 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80",
+        "flex h-full w-64 shrink-0 flex-col border-r border-border/80 bg-card/40 backdrop-blur-sm",
         className
       )}
     >
-      <div className="relative border-b border-border/80 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-3 w-full">
+      <div className="relative border-b">
+        <div className="flex h-20 items-center justify-center px-4 py-3">
+          <div className="flex w-full flex-col items-center justify-center gap-1.5">
             <img
               src="/add-bell-logo-new.png"
               alt="Add-bell Technical Services, Inc."
@@ -237,31 +242,24 @@ export function EmployeePortalSidebar({
                 e.currentTarget.style.display = "none";
               }}
             />
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">Employee Portal</p>
-              <p className="text-xs text-muted-foreground">
-                Time, requests, payslips, and your work information.
-              </p>
-            </div>
-            <Badge variant="secondary" className="w-fit font-normal">
-              {employee.employee_id}
-            </Badge>
+            <span className="whitespace-nowrap text-center text-xs font-semibold text-muted-foreground">
+              Employee Portal
+            </span>
           </div>
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-muted lg:hidden transition-colors z-10"
-              aria-label="Close navigation"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
         </div>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-2 top-2 z-10 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+            aria-label="Close navigation"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {navGroups.map((group) => {
           const GroupIcon = group.icon || FallbackIcon;
           const isOpen = openGroups.has(group.label);
@@ -271,32 +269,36 @@ export function EmployeePortalSidebar({
           );
 
           return (
-            <div key={group.label} className="mb-4 rounded-2xl border border-transparent px-1 py-1">
+            <div key={group.label} className="mb-4">
               <button
                 type="button"
                 onClick={() => toggleGroup(group.label)}
                 className={cn(
-                  "mb-2 flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
-                  hasActiveItem
-                    ? "bg-primary/10 text-foreground"
-                    : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                  "mb-2 flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent/70",
+                  hasActiveItem ? "text-foreground" : "text-muted-foreground"
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <GroupIcon className="h-4 w-4" weight="bold" />
-                  <span>{group.label}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <GroupIcon
+                    className="h-4 w-4 shrink-0 text-muted-foreground"
+                    weight="bold"
+                  />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </span>
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   {isOpen ? "−" : "+"}
                 </span>
               </button>
 
               {isOpen && (
-                <div className="space-y-1 pl-4">
+                <div className="space-y-0.5 border-l border-border/60 pl-2">
                   {group.items.map((item) => {
-                    const isActive =
-                      pathname === item.href ||
-                      pathname?.startsWith(item.href + "/");
+                    const isActive = isEmployeePortalNavActive(
+                      pathname,
+                      item.href
+                    );
                     return (
                       <NavItem
                         key={item.href}
@@ -313,20 +315,11 @@ export function EmployeePortalSidebar({
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-border/80 p-4">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
-          <p className="text-xs text-muted-foreground mb-2">
-            © {new Date().getFullYear()} Add-bell Technical Services, Inc.
-          </p>
-          <Link
-            href="/privacy"
-            className="text-xs text-primary hover:underline transition-colors"
-          >
-            Privacy Notice
-          </Link>
-        </div>
+      <div className="border-t p-4">
+        <p className="text-center text-xs leading-relaxed text-muted-foreground">
+          © {new Date().getFullYear()} Add-bell Technical Services, Inc.
+        </p>
       </div>
     </div>
   );
-}
+};

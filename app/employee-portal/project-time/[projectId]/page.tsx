@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, CheckCircle } from "lucide-react";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { PageTitle } from "@/components/ui/typography";
 
 interface Project {
   id: string;
@@ -138,8 +138,7 @@ export default function EmployeePortalProjectClockPage() {
           <span className="pulse-dot" />
           Project details
         </div>
-        <H1>Project Details</H1>
-        <BodySmall className="text-muted-foreground">{project.name} ({project.code})</BodySmall>
+        <PageTitle>Project Details</PageTitle>
       </div>
 
       <Card className="border-border/80 bg-card/95">

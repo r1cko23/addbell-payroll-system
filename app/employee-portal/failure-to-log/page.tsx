@@ -2,26 +2,24 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, H3, BodySmall, Caption, StatValue } from "@/components/ui/typography";
+import { PageTitle, H3, BodySmall, StatValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard, SkeletonForm } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { formatPHTime } from "@/utils/format";
-import { getBundyBusinessDayKey, getManilaTodayYmd, addCalendarDaysYmd } from "@/lib/bundy-business-day";
-import type { TimeEntrySession } from "@/lib/timeEntries";
+import {
+  requestFormCopy,
+  requestReasonLabel,
+} from "@/lib/employee-portal-request-copy";
+import { getManilaTodayYmd, addCalendarDaysYmd } from "@/lib/bundy-business-day";
 
 const FTL_PAGE_CACHE_MS = 2 * 60 * 1000;
 
@@ -29,7 +27,6 @@ type FtlPageCache = {
   employeeId: string;
   at: number;
   requests: FailureToLog[];
-  openSessions: TimeEntrySession[];
 };
 
 interface EmployeeSession {
@@ -66,19 +63,14 @@ export default function FailureToLogPage() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
-  // Form state
-  const [entryType, setEntryType] = useState<"out" | "both">("out");
+  // Form state (time-out-only FTL removed — open sessions auto-close at 6:59 AM)
   const [missedDate, setMissedDate] = useState("");
   const [timeIn, setTimeIn] = useState("");
   const [timeOut, setTimeOut] = useState("");
   const [timeOutDate, setTimeOutDate] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [timeEntries, setTimeEntries] = useState<TimeEntrySession[]>([]);
-  const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
   const ftlCacheRef = useRef<FtlPageCache | null>(null);
-  const [selectedTimeEntryId, setSelectedTimeEntryId] = useState("");
-  const [manualTimeInEntry, setManualTimeInEntry] = useState(false);
 
   const todayManila = useMemo(() => getManilaTodayYmd(), []);
 
@@ -92,14 +84,12 @@ export default function FailureToLogPage() {
         now - cached.at < FTL_PAGE_CACHE_MS
       ) {
         setRequests(cached.requests);
-        setTimeEntries(cached.openSessions);
         return;
       }
 
       if (!opts?.silent) {
         setLoading(true);
       }
-      setTimeEntriesLoading(true);
 
       try {
         const response = await fetch(
@@ -118,30 +108,12 @@ export default function FailureToLogPage() {
         }
 
         const nextRequests = (payload.requests || []) as FailureToLog[];
-        const openSessions = ((payload.open_sessions || []) as Array<{
-          id: string;
-          clock_in_time: string;
-          clock_out_time: string | null;
-          clock_in_date_ph: string;
-          status: string;
-        }>).map(
-          (s): TimeEntrySession => ({
-            id: s.id,
-            clock_in_time: s.clock_in_time,
-            clock_out_time: s.clock_out_time,
-            clock_in_date_ph: s.clock_in_date_ph,
-            status: s.status,
-            total_hours: null,
-          })
-        );
 
         setRequests(nextRequests);
-        setTimeEntries(openSessions);
         ftlCacheRef.current = {
           employeeId,
           at: now,
           requests: nextRequests,
-          openSessions,
         };
       } catch (err) {
         console.error("Error loading failure to log page:", err);
@@ -152,7 +124,6 @@ export default function FailureToLogPage() {
         if (!opts?.silent) {
           setLoading(false);
         }
-        setTimeEntriesLoading(false);
       }
     },
     []
@@ -179,77 +150,20 @@ export default function FailureToLogPage() {
   }, [missedDate]);
 
   const autoTimeOutNextDay = useMemo(() => {
-    if (entryType !== "both" || !timeIn || !timeOut) return false;
+    if (!timeIn || !timeOut) return false;
     const start = new Date(`2000-01-01T${timeIn}:00`);
     const end = new Date(`2000-01-01T${timeOut}:00`);
     return end.getTime() <= start.getTime();
-  }, [entryType, timeIn, timeOut]);
+  }, [timeIn, timeOut]);
 
   useEffect(() => {
-    if (!missedDate || entryType !== "both" || !timeIn || !timeOut) return;
+    if (!missedDate || !timeIn || !timeOut) return;
     if (autoTimeOutNextDay) {
       setTimeOutDate(addCalendarDaysYmd(missedDate, 1));
       return;
     }
     setTimeOutDate(missedDate);
-  }, [autoTimeOutNextDay, entryType, missedDate, timeIn, timeOut]);
-
-  const incompleteSessions = useMemo(() => {
-    const pendingLinkedIds = new Set(
-      requests
-        .filter(
-          (r) =>
-            r.status === "pending" &&
-            r.entry_type === "out" &&
-            r.time_entry_id
-        )
-        .map((r) => r.time_entry_id as string)
-    );
-    return timeEntries
-      .filter((s) => !s.clock_out_time && !pendingLinkedIds.has(s.id))
-      .sort(
-        (a, b) =>
-          new Date(b.clock_in_time).getTime() -
-          new Date(a.clock_in_time).getTime()
-      );
-  }, [timeEntries, requests]);
-
-  const applyOpenSession = useCallback((session: TimeEntrySession) => {
-    setManualTimeInEntry(false);
-    setSelectedTimeEntryId(session.id);
-    setMissedDate(getBundyBusinessDayKey(session.clock_in_time));
-  }, []);
-
-  useEffect(() => {
-    if (entryType !== "out") {
-      setManualTimeInEntry(false);
-      setSelectedTimeEntryId("");
-      return;
-    }
-    if (manualTimeInEntry) return;
-    if (incompleteSessions.length === 0) {
-      setSelectedTimeEntryId("");
-      return;
-    }
-    const stillValid = incompleteSessions.some((s) => s.id === selectedTimeEntryId);
-    if (!selectedTimeEntryId || !stillValid) {
-      applyOpenSession(incompleteSessions[0]);
-    }
-  }, [
-    entryType,
-    incompleteSessions,
-    manualTimeInEntry,
-    selectedTimeEntryId,
-    applyOpenSession,
-  ]);
-
-  const linkedOpenSession = useMemo(
-    () =>
-      timeEntries.find(
-        (s) => s.id === selectedTimeEntryId && !s.clock_out_time
-      ) ?? null,
-    [selectedTimeEntryId, timeEntries]
-  );
+  }, [autoTimeOutNextDay, missedDate, timeIn, timeOut]);
 
   async function handleCancel(requestId: string) {
     setCancelLoading(true);
@@ -295,28 +209,10 @@ export default function FailureToLogPage() {
 
     const resolvedTimeOutDate = timeOutDate || missedDate;
 
-    const actualClockInTime =
-      entryType === "both" ? buildDateTime(missedDate, timeIn) : null;
-    const actualClockOutTime =
-      entryType === "out" || entryType === "both"
-        ? buildDateTime(resolvedTimeOutDate, timeOut)
-        : null;
+    const actualClockInTime = buildDateTime(missedDate, timeIn);
+    const actualClockOutTime = buildDateTime(resolvedTimeOutDate, timeOut);
 
     if (
-      entryType === "out" &&
-      selectedTimeEntryId &&
-      !timeEntries.some(
-        (s) => s.id === selectedTimeEntryId && !s.clock_out_time
-      )
-    ) {
-      toast.error(
-        "Selected time in is no longer open. Pick another or enter manually."
-      );
-      return;
-    }
-
-    if (
-      (entryType === "out" || entryType === "both") &&
       resolvedTimeOutDate &&
       missedDate &&
       resolvedTimeOutDate < missedDate
@@ -326,20 +222,17 @@ export default function FailureToLogPage() {
     }
 
     if (
-      entryType === "both" &&
       actualClockInTime &&
       actualClockOutTime &&
-      new Date(actualClockOutTime).getTime() <= new Date(actualClockInTime).getTime()
+      new Date(actualClockOutTime).getTime() <=
+        new Date(actualClockInTime).getTime()
     ) {
       toast.error("Time out must be after time in.");
       return;
     }
 
-    if (
-      (entryType === "out" && !actualClockOutTime) ||
-      (entryType === "both" && (!actualClockInTime || !actualClockOutTime))
-    ) {
-      toast.error("Please provide the missing clock time(s).");
+    if (!actualClockInTime || !actualClockOutTime) {
+      toast.error("Please provide time in and time out.");
       return;
     }
 
@@ -350,11 +243,11 @@ export default function FailureToLogPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         employee_id: employee.id,
-        time_entry_id: selectedTimeEntryId || null,
+        time_entry_id: null,
         missed_date: missedDate || null,
         actual_clock_in_time: actualClockInTime,
         actual_clock_out_time: actualClockOutTime,
-        entry_type: entryType,
+        entry_type: "both",
         reason: reason.trim(),
       }),
     });
@@ -369,18 +262,13 @@ export default function FailureToLogPage() {
     }
 
     toast.success("Failure to log request submitted successfully!", {
-      description: `Status: Pending approval • ${
-        entryType === "both" ? "Clock in & out" : "Clock out"
-      }`,
+      description: "Status: Pending approval • Clock in & out",
     });
     setMissedDate("");
     setTimeIn("");
     setTimeOut("");
     setTimeOutDate("");
-    setEntryType("out");
     setReason("");
-    setSelectedTimeEntryId("");
-    setManualTimeInEntry(false);
     void loadFtlPageData(employee.id, { force: true, silent: true });
   }
 
@@ -417,9 +305,7 @@ export default function FailureToLogPage() {
   return (
     <>
       <VStack gap="8" className="w-full">
-        <VStack gap="2" align="start">
-          <H1>Failure To Log</H1>
-        </VStack>
+        <PageTitle>Failure To Log</PageTitle>
 
         {/* Stats */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
@@ -487,119 +373,39 @@ export default function FailureToLogPage() {
         >
           <form onSubmit={handleSubmit} className="w-full">
             <VStack gap="4" className="w-full">
-              <VStack gap="2" align="start" className="w-full">
-                <Label htmlFor="entry-type">Log Type</Label>
-                <select
-                  id="entry-type"
-                  value={entryType}
-                  onChange={(e) => {
-                    const value = e.target.value as "out" | "both";
-                    setEntryType(value);
-                    if (value === "out") {
-                      setTimeIn("");
-                      setManualTimeInEntry(false);
-                    } else {
-                      setSelectedTimeEntryId("");
-                      setManualTimeInEntry(false);
-                    }
-                  }}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="out">Time Out</option>
-                  <option value="both">Time In & Out</option>
-                </select>
-              </VStack>
+              <BodySmall className="text-muted-foreground">
+                File missed clock in and out for a shift. If you forgot to time
+                out, the system auto-closes your session at 6:59 AM before the
+                next business day (7:00 AM).
+              </BodySmall>
 
-              {entryType === "out" && (
-                <VStack gap="2" align="start" className="w-full">
-                  <Label>Open Time In</Label>
-                  {timeEntriesLoading ? (
-                    <p className="text-sm text-muted-foreground py-2">
-                      Loading…
-                    </p>
-                  ) : incompleteSessions.length === 0 ? (
-                    <div className="w-full rounded-md border border-dashed border-muted px-3 py-3 text-sm text-muted-foreground">
-                      No open time in found in the last 60 days.
-                    </div>
-                  ) : (
-                    <>
-                      <div className="w-full space-y-2 max-h-48 overflow-y-auto rounded-md border border-input p-2">
-                        {incompleteSessions.map((session) => {
-                          const checked = selectedTimeEntryId === session.id;
-                          return (
-                            <label
-                              key={session.id}
-                              className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm transition-colors ${
-                                checked
-                                  ? "border-primary bg-primary/5"
-                                  : "border-border hover:bg-muted/50"
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name="open-time-in"
-                                className="mt-1"
-                                checked={checked}
-                                onChange={() => applyOpenSession(session)}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <div className="font-medium">
-                                  {formatPHTime(
-                                    session.clock_in_time,
-                                    "MMM d, h:mm a"
-                                  )}
-                                </div>
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      {selectedTimeEntryId && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-auto px-0 text-muted-foreground"
-                          onClick={() => {
-                            setSelectedTimeEntryId("");
-                            setManualTimeInEntry(true);
-                          }}
-                        >
-                          Enter dates manually instead
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </VStack>
-              )}
-
-              {entryType === "out" && linkedOpenSession && (
-                <div className="rounded-md border border-muted bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Linked time in: </span>
-                  {formatPHTime(linkedOpenSession.clock_in_time, "MMM d, h:mm a")}
-                </div>
-              )}
-
-              <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <VStack gap="4" align="start" className="w-full">
+              <div className="w-full space-y-4 md:space-y-6">
+                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
                   <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor="missed-date">Time In Date</Label>
                     <Input
                       id="missed-date"
                       type="date"
                       value={missedDate}
-                      onChange={(e) => {
-                        setMissedDate(e.target.value);
-                        if (selectedTimeEntryId) {
-                          setSelectedTimeEntryId("");
-                          setManualTimeInEntry(true);
-                        }
-                      }}
+                      onChange={(e) => setMissedDate(e.target.value)}
                       max={todayManila}
                       required
                     />
                   </VStack>
 
+                  <VStack gap="2" align="start" className="w-full">
+                    <Label htmlFor="time-in">Time In</Label>
+                    <Input
+                      id="time-in"
+                      type="time"
+                      value={timeIn}
+                      onChange={(e) => setTimeIn(e.target.value)}
+                      required
+                    />
+                  </VStack>
+                </div>
+
+                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
                   <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor="time-out-date">Time Out Date</Label>
                     <Input
@@ -612,21 +418,6 @@ export default function FailureToLogPage() {
                       required
                     />
                   </VStack>
-                </VStack>
-
-                <VStack gap="4" align="start" className="w-full">
-                  {entryType === "both" && (
-                    <VStack gap="2" align="start" className="w-full">
-                      <Label htmlFor="time-in">Time In</Label>
-                      <Input
-                        id="time-in"
-                        type="time"
-                        value={timeIn}
-                        onChange={(e) => setTimeIn(e.target.value)}
-                        required
-                      />
-                    </VStack>
-                  )}
 
                   <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor="time-out">Time Out</Label>
@@ -638,18 +429,19 @@ export default function FailureToLogPage() {
                       required
                     />
                   </VStack>
-                </VStack>
+                </div>
               </div>
 
               <VStack gap="2" align="start" className="w-full">
                 <Label htmlFor="reason">
-                  Reason <span className="text-destructive">*</span>
+                  {requestReasonLabel}{" "}
+                  <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
                   id="reason"
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  placeholder="Reason"
+                  placeholder={requestFormCopy.failureToLog.reasonPlaceholder}
                   rows={4}
                   className="resize-none"
                   required
@@ -658,9 +450,15 @@ export default function FailureToLogPage() {
 
               <Button
                 type="submit"
-                disabled={submitting || !reason.trim()}
-                className="w-full md:w-auto md:min-w-[200px] text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
-                size="lg"
+                disabled={
+                  submitting ||
+                  !reason.trim() ||
+                  !missedDate ||
+                  !timeIn ||
+                  !timeOut
+                }
+                className="h-9 w-full gap-1.5 px-4 text-sm font-medium md:w-auto md:min-w-[160px]"
+                size="sm"
               >
                 {submitting ? (
                   <>
@@ -778,13 +576,13 @@ export default function FailureToLogPage() {
                             </div>
                           )}
 
-                        <Caption className="hidden md:block">
+                        <p className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
                           Filed:{" "}
                           {formatSafe(
                             request.created_at,
-                            "MMM dd, yyyy h:mm a"
+                            "MMM d, yyyy h:mm a"
                           )}
-                        </Caption>
+                        </p>
                       </VStack>
 
                       <VStack

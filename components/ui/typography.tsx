@@ -22,6 +22,22 @@ export function H1({ children, className, style, ...props }: TypographyProps) {
   );
 }
 
+/** Compact page heading (employee portal and similar views). Mobile-first sizing. */
+export function PageTitle({ children, className, style, ...props }: TypographyProps) {
+  return (
+    <h1
+      className={cn(
+        "text-lg font-semibold leading-tight tracking-tight text-foreground sm:text-xl md:text-2xl",
+        className
+      )}
+      style={style}
+      {...props}
+    >
+      {children}
+    </h1>
+  );
+}
+
 export function H2({ children, className, style, ...props }: TypographyProps) {
   return (
     <h2

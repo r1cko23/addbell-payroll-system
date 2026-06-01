@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Clock, MapPin } from "lucide-react";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { PageTitle } from "@/components/ui/typography";
 
 interface Assignment {
   id: string;
@@ -63,7 +63,7 @@ export default function EmployeePortalProjectTimePage() {
   if (!employeeId) {
     return (
       <div className="space-y-6">
-        <H1>Project Assignments</H1>
+        <PageTitle>Project Assignments</PageTitle>
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             Employee session not found. Please log in again.
@@ -75,12 +75,7 @@ export default function EmployeePortalProjectTimePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <H1>Project Assignments</H1>
-        <BodySmall className="mt-1 text-muted-foreground">
-          Log time on assigned projects.
-        </BodySmall>
-      </div>
+      <PageTitle>Project Assignments</PageTitle>
 
       {loading ? (
         <div className="animate-pulse h-32 bg-muted rounded-lg" />

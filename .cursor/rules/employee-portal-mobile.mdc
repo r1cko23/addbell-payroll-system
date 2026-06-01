@@ -1,0 +1,40 @@
+---
+description: Mobile-first patterns for employee portal UI (app/employee-portal, header, dialogs)
+globs: app/employee-portal/**/*,components/EmployeePortal*.tsx,components/ChangePasswordDialog.tsx,lib/employee-portal-ui.ts
+alwaysApply: false
+---
+
+# Employee portal — mobile-first
+
+Design and implement **mobile first**, then enhance at `sm` / `md` / `lg`.
+
+## Layout
+
+- Use full-width blocks by default; constrain width only from `sm:` or `md:` upward.
+- Prefer `flex-col` / `grid-cols-1` on base; switch to row/multi-column at breakpoints.
+- Avoid large fixed `min-h` on cards for mobile; use `min-h-0` or content-driven height.
+- Truncate long names/IDs (`min-w-0`, `truncate`) so headers do not overflow.
+
+## Touch & actions
+
+- Primary actions: **min ~44px height** on mobile (`min-h-11` / `h-11`), may shrink on `sm:` (`sm:min-h-9`).
+- Header actions: two-column grid on mobile (`epHeaderActions` from `@/lib/employee-portal-ui`).
+- Full-width buttons on mobile; `sm:w-auto` on desktop.
+
+## Dialogs
+
+- Use `epDialogContent` or `epDialogContentWide` — near full viewport width, `max-h` + `overflow-y-auto` on small screens.
+- Form footer buttons: stack full-width on mobile (`epFormActions`, `epFormActionButton`).
+
+## Typography
+
+- Page titles: `PageTitle` (`text-xl` → `md:text-2xl`), not `H1`.
+- Secondary labels: `BodySmall` + `text-muted-foreground`, not mono uppercase `Caption` for form labels.
+
+## Motion
+
+- Skip hover translate/lift on touch: `motion-safe:md:hover:…` or `epCardInteractive`.
+
+## Reuse
+
+Import shared classes from `@/lib/employee-portal-ui` instead of duplicating mobile/desktop class strings.

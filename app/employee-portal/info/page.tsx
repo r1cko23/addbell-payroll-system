@@ -3,18 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { CardSection } from "@/components/ui/card-section";
 import { Card, CardContent } from "@/components/ui/card";
-import { H1, H2, BodySmall, Caption } from "@/components/ui/typography";
+import { PageTitle, H2, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-
 interface EmployeeInfo {
   employee_id: string;
   full_name: string;
@@ -40,14 +35,6 @@ export default function EmployeeInfoPage() {
   const [info, setInfo] = useState<EmployeeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Password change state
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const fallbackInfo = useMemo<EmployeeInfo>(
     () => ({
@@ -185,83 +172,10 @@ export default function EmployeeInfoPage() {
     },
   ];
 
-  async function handlePasswordChange(e: React.FormEvent) {
-    e.preventDefault();
-    setPasswordError(null);
-
-    // Validation
-    if (!currentPassword.trim()) {
-      setPasswordError("Please enter your current password");
-      return;
-    }
-
-    if (!newPassword.trim()) {
-      setPasswordError("Please enter a new password");
-      return;
-    }
-
-    if (newPassword.trim().length < 4) {
-      setPasswordError("Password must be at least 4 characters long");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError("New passwords do not match");
-      return;
-    }
-
-    if (currentPassword === newPassword) {
-      setPasswordError("New password must be different from current password");
-      return;
-    }
-
-    setIsChangingPassword(true);
-
-    try {
-      const response = await fetch("/api/employee/change-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          employee_id: employee.id,
-          current_password: currentPassword.trim(),
-          new_password: newPassword.trim(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to update password");
-      }
-
-      toast.success("Password updated successfully!");
-      setShowPasswordForm(false);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordError(null);
-    } catch (error: any) {
-      console.error("Error changing password:", error);
-      setPasswordError(error.message || "Failed to update password. Please try again.");
-    } finally {
-      setIsChangingPassword(false);
-    }
-  }
-
   return (
-    <VStack gap="6" className="w-full">
-      <VStack gap="2" align="start">
-        <H1>My Information</H1>
-        <BodySmall className="text-muted-foreground">
-          Profile details and password.
-        </BodySmall>
-      </VStack>
-      <CardSection
-        title="Employee information"
-        description="Details registered by HR"
-      >
+    <VStack gap="4" className="w-full sm:gap-6">
+      <PageTitle>My Information</PageTitle>
+      <CardSection>
         {errorMessage && (
           <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
             <BodySmall className="text-yellow-800">{errorMessage}</BodySmall>
@@ -362,107 +276,6 @@ export default function EmployeeInfoPage() {
             </div>
           ))}
         </dl>
-      </CardSection>
-
-      <CardSection
-        title="Change password"
-        description="Update your portal password"
-      >
-        {!showPasswordForm ? (
-          <VStack gap="4">
-            <BodySmall className="text-muted-foreground hidden md:block">
-              Keep your account secure by regularly updating your password.
-            </BodySmall>
-            <Button
-              variant="outline"
-              className="w-full md:w-auto"
-              onClick={() => setShowPasswordForm(true)}
-            >
-              Change Password
-            </Button>
-          </VStack>
-        ) : (
-          <form
-            onSubmit={handlePasswordChange}
-            className="space-y-4"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => {
-                  setCurrentPassword(e.target.value);
-                  setPasswordError(null);
-                }}
-                required
-                disabled={isChangingPassword}
-                placeholder="Enter your current password"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => {
-                  setNewPassword(e.target.value);
-                  setPasswordError(null);
-                }}
-                required
-                disabled={isChangingPassword}
-                placeholder="Enter your new password"
-              />
-              <Caption className="text-muted-foreground">
-                Must be at least 4 characters long
-              </Caption>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => {
-                  setConfirmPassword(e.target.value);
-                  setPasswordError(null);
-                }}
-                required
-                disabled={isChangingPassword}
-                placeholder="Confirm your new password"
-              />
-            </div>
-            {passwordError && (
-              <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
-                <BodySmall className="text-destructive">{passwordError}</BodySmall>
-              </div>
-            )}
-            <HStack gap="3" justify="end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setShowPasswordForm(false);
-                  setCurrentPassword("");
-                  setNewPassword("");
-                  setConfirmPassword("");
-                  setPasswordError(null);
-                }}
-                disabled={isChangingPassword}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isChangingPassword}
-              >
-                {isChangingPassword ? "Updating..." : "Update Password"}
-              </Button>
-            </HStack>
-          </form>
-        )}
       </CardSection>
 
       <Card className="w-full border-primary/20 bg-primary/5 p-5 shadow-sm">

@@ -6,7 +6,7 @@ import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { PageTitle, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
@@ -2085,10 +2085,8 @@ export default function BundyClockPage() {
 
   return (
     <VStack gap="8" className="w-full pb-10">
-      <VStack gap="1" align="start">
-        <H1>Bundy Clock</H1>
-      </VStack>
-      <Card className="w-full border-primary/20 bg-gradient-to-br from-primary/10 via-background to-accent-secondary/10 p-4 sm:p-6">
+      <PageTitle>Bundy Clock</PageTitle>
+      <Card className="w-full border-primary/20 bg-card p-4 sm:p-6">
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
             <div className="font-mono text-4xl font-bold text-foreground sm:text-6xl min-h-[48px] sm:min-h-[56px] flex items-center justify-center">
@@ -2206,7 +2204,7 @@ export default function BundyClockPage() {
                   "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px]",
                   currentEntry || !locationStatus?.isAllowed
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                    : "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
+                    : "bg-emerald-600 text-white shadow-md hover:bg-emerald-700 active:scale-[0.98]"
                 )}
                 aria-label={currentEntry ? "Already clocked in" : "Clock in"}
               >
@@ -2221,7 +2219,7 @@ export default function BundyClockPage() {
                   "w-full py-4 md:py-6 text-base md:text-lg font-bold uppercase tracking-wider transition-all duration-200 min-h-[56px] md:min-h-[64px]",
                   !currentEntry || !locationStatus?.isAllowed
                     ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                    : "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 hover:shadow-xl active:scale-[0.98] shadow-lg"
+                    : "bg-orange-600 text-white shadow-md hover:bg-orange-700 active:scale-[0.98]"
                 )}
                 aria-label={!currentEntry ? "No active clock in" : "Clock out"}
               >

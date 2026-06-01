@@ -134,7 +134,7 @@ export function BundySessionPicker({
     <div className="space-y-2 w-full">
       <div className="flex items-center justify-between gap-2">
         <Label>
-          Clock in / out (optional){required ? " *" : ""}
+          Clock I/O (optional){required ? " *" : ""}
         </Label>
         {value && (
           <Button
@@ -147,20 +147,18 @@ export function BundySessionPicker({
           </Button>
         )}
       </div>
-      <BodySmall className="text-muted-foreground">
-        {otDate
-          ? "For location reference only. Does not set OT hours."
-          : "Select OT date first."}
-      </BodySmall>
-      {loading ? (
+      {otDate ? (
+        <BodySmall className="text-muted-foreground">
+          For location reference only. Does not set OT hours.
+        </BodySmall>
+      ) : null}
+      {!otDate ? null : loading ? (
         <Caption className="text-muted-foreground">Loading…</Caption>
       ) : error ? (
         <Caption className="text-destructive">{error}</Caption>
       ) : sessions.length === 0 ? (
         <Caption className="text-muted-foreground">
-          {otDate
-            ? `No clock record for ${otDate}. OT may be filed without a link.`
-            : "Select OT date first."}
+          {`No clock record for ${otDate}. OT may be filed without a link.`}
         </Caption>
       ) : (
         <div className="space-y-2 max-h-64 overflow-y-auto rounded-md border border-input p-2">

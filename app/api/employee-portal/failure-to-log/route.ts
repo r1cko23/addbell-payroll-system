@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { loadOpenBundySessionsForFtl } from "@/lib/ftl-open-sessions";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -51,19 +50,11 @@ export async function GET(req: NextRequest) {
 
     const admin = getAdminClient();
 
-    const [ftlResult, openSessions] = await Promise.all([
-      admin
-        .from("failure_to_log")
-        .select("*")
-        .eq("employee_id", employeeId)
-        .order("created_at", { ascending: false }),
-      loadOpenBundySessionsForFtl(admin, employeeId).catch((err) => {
-        console.error("failure-to-log open sessions:", err);
-        return [];
-      }),
-    ]);
-
-    const { data, error } = ftlResult;
+    const { data, error } = await admin
+      .from("failure_to_log")
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: false });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -84,13 +75,6 @@ export async function GET(req: NextRequest) {
         final_approval_name: r.approved_by
           ? approverNameMap[r.approved_by] || null
           : null,
-      })),
-      open_sessions: openSessions.map((s) => ({
-        id: s.id,
-        clock_in_time: s.clock_in_time,
-        clock_out_time: s.clock_out_time,
-        clock_in_date_ph: s.clock_in_date_ph,
-        status: s.status,
       })),
     });
   } catch (err: any) {
@@ -120,36 +104,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (
-      body.entry_type === "out" ||
-      body.entry_type === "both"
-    ) {
-      if (!body.actual_clock_out_time) {
+    if (body.entry_type === "out") {
+      return NextResponse.json(
+        {
+          error:
+            "Time-out-only failure to log is no longer accepted. Open sessions are auto-closed at 6:59 AM. File time in and out instead.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (body.entry_type === "both") {
+      if (!body.actual_clock_in_time || !body.actual_clock_out_time) {
         return NextResponse.json(
-          { error: "Time out is required" },
+          { error: "Time in and time out are required" },
+          { status: 400 }
+        );
+      }
+      if (
+        new Date(body.actual_clock_out_time).getTime() <=
+        new Date(body.actual_clock_in_time).getTime()
+      ) {
+        return NextResponse.json(
+          { error: "Time out must be after time in" },
           { status: 400 }
         );
       }
     }
 
-    if (
-      body.entry_type === "both" &&
-      body.actual_clock_in_time &&
-      body.actual_clock_out_time &&
-      new Date(body.actual_clock_out_time).getTime() <=
-        new Date(body.actual_clock_in_time).getTime()
-    ) {
-      return NextResponse.json(
-        { error: "Time out must be after time in" },
-        { status: 400 }
-      );
-    }
-
-    if (
-      body.missed_date &&
-      body.actual_clock_out_time &&
-      (body.entry_type === "out" || body.entry_type === "both")
-    ) {
+    if (body.missed_date && body.actual_clock_out_time) {
       const outDate = body.actual_clock_out_time.split("T")[0];
       if (outDate < body.missed_date) {
         return NextResponse.json(
@@ -160,32 +143,6 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getAdminClient();
-
-    if (body.time_entry_id) {
-      if (body.entry_type !== "out") {
-        return NextResponse.json(
-          { error: "Time entry link is only valid for time out requests" },
-          { status: 400 }
-        );
-      }
-      const { data: punch, error: punchError } = await admin
-        .from("time_entries")
-        .select("id, employee_id, punch_type, punched_at")
-        .eq("id", body.time_entry_id)
-        .maybeSingle();
-      if (punchError || !punch) {
-        return NextResponse.json(
-          { error: "Invalid time in reference" },
-          { status: 400 }
-        );
-      }
-      if (punch.employee_id !== body.employee_id || punch.punch_type !== "in") {
-        return NextResponse.json(
-          { error: "Invalid time in reference" },
-          { status: 400 }
-        );
-      }
-    }
 
     const { data, error } = await admin
       .from("failure_to_log")

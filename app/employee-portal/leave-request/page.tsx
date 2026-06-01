@@ -21,12 +21,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import { H1, H3, H4, BodySmall, Caption, StatValue } from "@/components/ui/typography";
+import { PageTitle, H3, H4, BodySmall, Caption, StatValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays, differenceInCalendarDays } from "date-fns";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
+import {
+  requestFormCopy,
+  requestReasonLabel,
+  requestSupportingDocLabel,
+} from "@/lib/employee-portal-request-copy";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
   BUSINESS_WINDOW_HOURS,
@@ -745,9 +750,7 @@ export default function LeaveRequestPage() {
   return (
     <>
       <VStack gap="8" className="w-full">
-        <VStack gap="2" align="start">
-          <H1>Leave Request</H1>
-        </VStack>
+        <PageTitle>Leave Request</PageTitle>
 
         {/* Stats */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
@@ -1005,66 +1008,72 @@ export default function LeaveRequestPage() {
                   </div>
                 )}
 
-                <div className="w-full space-y-2">
-                  <Label htmlFor="supporting-doc">
-                    Supporting document (optional, PDF/DOC/DOCX)
-                  </Label>
-                  <input
-                    id="supporting-doc"
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) {
-                        setSupportingDoc(null);
+                {leaveType === "SIL" && (
+                  <div className="w-full space-y-2">
+                    <Label htmlFor="supporting-doc">
+                      {requestSupportingDocLabel}
+                    </Label>
+                    <input
+                      id="supporting-doc"
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) {
+                          setSupportingDoc(null);
+                          setDocError(null);
+                          return;
+                        }
+                        if (!isAllowedFile(file)) {
+                          setDocError(
+                            "Only PDF, DOC, or DOCX files are allowed."
+                          );
+                          setSupportingDoc(null);
+                          return;
+                        }
+                        if (file.size > MAX_FILE_SIZE) {
+                          setDocError("File too large. Max size is 5MB.");
+                          setSupportingDoc(null);
+                          return;
+                        }
                         setDocError(null);
-                        return;
-                      }
-                      if (!isAllowedFile(file)) {
-                        setDocError(
-                          "Only PDF, DOC, or DOCX files are allowed."
-                        );
-                        setSupportingDoc(null);
-                        return;
-                      }
-                      if (file.size > MAX_FILE_SIZE) {
-                        setDocError("File too large. Max size is 5MB.");
-                        setSupportingDoc(null);
-                        return;
-                      }
-                      setDocError(null);
-                      setSupportingDoc(file);
-                    }}
-                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
-                  />
-                  {supportingDoc && !docError && (
-                    <HStack
-                      gap="2"
-                      align="center"
-                      className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary"
-                    >
-                      <Icon name="Paperclip" size={IconSizes.sm} />
-                      <span>{supportingDoc.name}</span>
-                      <Caption>
-                        {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
-                      </Caption>
-                    </HStack>
-                  )}
-                  {docError && (
-                    <p className="text-sm text-destructive font-medium">
-                      {docError}
+                        setSupportingDoc(file);
+                      }}
+                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {requestFormCopy.leave.supportingDocHint}
                     </p>
-                  )}
-                </div>
+                    {supportingDoc && !docError && (
+                      <HStack
+                        gap="2"
+                        align="center"
+                        className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary"
+                      >
+                        <Icon name="Paperclip" size={IconSizes.sm} />
+                        <span>{supportingDoc.name}</span>
+                        <Caption>
+                          {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
+                        </Caption>
+                      </HStack>
+                    )}
+                    {docError && (
+                      <p className="text-sm font-medium text-destructive">
+                        {docError}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 <div className="w-full space-y-2">
-                  <Label htmlFor="reason">Reason</Label>
+                  <Label htmlFor="reason">{requestReasonLabel}</Label>
                   <Textarea
                     id="reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="Reason"
+                    placeholder={requestFormCopy.leave.reasonPlaceholder}
                     rows={4}
+                    className="resize-none"
                     required
                   />
                 </div>

@@ -245,7 +245,7 @@ export function LoginPageClient() {
       );
 
       toast.success(`Welcome, ${employeeData.full_name}!`);
-      router.push("/employee-portal/bundy");
+      router.push("/employee-portal");
     } catch (error: any) {
       const msg = "Invalid credentials. Please try again.";
       setEmployeeError(msg);

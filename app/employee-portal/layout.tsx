@@ -11,10 +11,10 @@ import {
   EmployeeSession,
   EmployeeSessionProvider,
 } from "@/contexts/EmployeeSessionContext";
-import { SignOut, List } from "phosphor-react";
+import { SignOut } from "phosphor-react";
 import { EmployeePortalSidebar } from "@/components/EmployeePortalSidebar";
 import { EmployeePortalMobileNav } from "@/components/EmployeePortalMobileNav";
-import { Badge } from "@/components/ui/badge";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 
 export default function EmployeePortalLayout({
   children,
@@ -163,8 +163,8 @@ export default function EmployeePortalLayout({
 
   if (loading || !employee) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(to_bottom,hsl(var(--muted)/0.45),hsl(var(--background))_18%)]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600" />
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <div className="h-12 w-12 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
@@ -177,7 +177,7 @@ export default function EmployeePortalLayout({
         refreshSession,
       }}
     >
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.10),transparent_24%),linear-gradient(to_bottom,hsl(var(--muted)/0.45),hsl(var(--background))_18%)] flex">
+      <div className="flex min-h-screen bg-muted/25">
         {/* Sidebar - Desktop */}
         <aside className="hidden md:flex fixed left-0 top-0 bottom-0 z-40">
           <EmployeePortalSidebar />
@@ -190,46 +190,29 @@ export default function EmployeePortalLayout({
               className="fixed inset-0 bg-background/70 backdrop-blur-sm z-40 lg:hidden"
               onClick={() => setIsSidebarOpen(false)}
             />
-            <aside className="fixed left-0 top-0 bottom-0 z-50 lg:hidden w-72 shadow-xl">
+            <aside className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-background shadow-xl lg:hidden">
               <EmployeePortalSidebar onClose={() => setIsSidebarOpen(false)} />
             </aside>
           </>
         )}
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col md:pl-72 pb-20 md:pb-0">
+        <div className="flex flex-1 flex-col bg-muted/15 pb-20 lg:pl-64 md:pb-0">
           {/* Header */}
-          <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-            <div className="w-full px-4 py-4 md:px-6 lg:px-8">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                  {/* Mobile Menu Button */}
-                  <Button
-                    variant="ghost"
-                    size="lg"
-                    className="hidden"
-                    onClick={() => setIsSidebarOpen((prev) => !prev)}
-                    aria-expanded={isSidebarOpen}
-                    aria-label="Toggle navigation menu"
-                  >
-                    <List
-                      className="h-5 w-5"
-                      weight={isSidebarOpen ? "fill" : "regular"}
-                    />
-                    <span className="font-semibold">Menu</span>
-                  </Button>
-
-                  {/* Profile */}
+          <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+            <div className="w-full px-3 py-3 sm:px-4 sm:py-4 md:px-6 lg:px-8">
+              <div className="flex items-center justify-between gap-2 sm:gap-4">
+                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                   <Link
-                    href="/employee-portal/bundy"
-                    className="flex items-center gap-3 rounded-2xl transition-opacity"
+                    href="/employee-portal"
+                    className="flex min-w-0 items-center gap-2 transition-opacity hover:opacity-90 sm:gap-3"
                   >
-                    <Avatar className="h-11 w-11 border shadow-sm transition-shadow">
+                    <Avatar className="h-10 w-10 shrink-0 border-2 border-primary shadow-sm transition-shadow hover:shadow-md sm:h-12 sm:w-12">
                       <AvatarImage
                         src={profilePictureUrl || undefined}
                         alt={employee.full_name}
                       />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-lg font-bold">
+                      <AvatarFallback className="bg-primary text-base font-bold text-primary-foreground sm:text-xl">
                         {employee.full_name
                           .split(" ")
                           .map((part) => part[0])
@@ -238,42 +221,40 @@ export default function EmployeePortalLayout({
                           .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <div>
-                      <p className="text-base font-semibold text-foreground">
+                    <div className="min-w-0 text-left">
+                      <p className="truncate text-base font-semibold text-foreground sm:text-lg">
                         {employee.full_name}
                       </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Badge variant="secondary" className="font-normal">
-                          ID {employee.employee_id}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          Employee workspace
-                        </span>
-                      </div>
+                      <p className="truncate text-xs text-muted-foreground sm:text-sm">
+                        ID: {employee.employee_id}
+                      </p>
                     </div>
                   </Link>
                 </div>
 
-                {/* Logout Button */}
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  onClick={handleLogout}
-                  className="inline-flex items-center justify-center gap-2 min-h-[40px] rounded-xl px-4 w-full md:w-auto"
-                  aria-label="Logout"
-                >
-                  <SignOut className="h-4 w-4" weight="bold" />
-                  <span className="font-semibold">Logout</span>
-                </Button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <ChangePasswordDialog employeeId={employee.id} />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium"
+                    aria-label="Log out"
+                  >
+                    <SignOut className="h-4 w-4" weight="bold" />
+                    <span>Logout</span>
+                  </Button>
+                </div>
               </div>
             </div>
           </header>
 
-          {/* Main Content */}
-          <main className="flex-1">
-            <div className="mx-auto w-full max-w-[1440px] px-4 py-6 md:px-6 lg:px-8">
-              {children}
-            </div>
+          <main
+            id="employee-main-content"
+            className="mx-auto w-full max-w-7xl flex-1 px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:px-4 sm:py-6 md:px-6 lg:px-8 lg:pb-6"
+            tabIndex={-1}
+          >
+            {children}
           </main>
         </div>
 

@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, Plus } from 'lucide-react';
-import { H1, BodySmall } from '@/components/ui/typography';
+import { H1, PageTitle, BodySmall } from '@/components/ui/typography';
 import type { FundRequestRow } from '@/types/fund-request';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
 
@@ -136,10 +136,16 @@ export default function FundRequestListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <H1>Fund Requests</H1>
-          <BodySmall className="mt-1">
-            Materials, subcontractor, project funds, or liquidation.
-          </BodySmall>
+          {isPortal ? (
+            <PageTitle>Fund Requests</PageTitle>
+          ) : (
+            <>
+              <H1>Fund Requests</H1>
+              <BodySmall className="mt-1">
+                Materials, subcontractor, project funds, or liquidation.
+              </BodySmall>
+            </>
+          )}
         </div>
         {canCreate && (
           <Button asChild>

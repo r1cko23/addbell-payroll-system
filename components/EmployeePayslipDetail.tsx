@@ -6,7 +6,7 @@ import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HStack, VStack } from "@/components/ui/stack";
-import { BodySmall, Caption, H2 } from "@/components/ui/typography";
+import { BodySmall, Caption, H3, StatValue } from "@/components/ui/typography";
 import { formatCurrency } from "@/utils/format";
 import {
   attendanceForPayslipPrint,
@@ -111,7 +111,7 @@ export function EmployeePayslipDetail({
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Deductions</CardTitle>
+              <CardTitle>Deductions</CardTitle>
             </CardHeader>
             <CardContent>
               <VStack gap="2">
@@ -193,7 +193,7 @@ export function EmployeePayslipDetail({
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">How your pay was computed</CardTitle>
+              <CardTitle>How Your Pay Was Computed</CardTitle>
             </CardHeader>
             <CardContent>
               <VStack gap="2">
@@ -229,10 +229,10 @@ export function EmployeePayslipDetail({
                 </HStack>
                 <div className="border-t pt-2 mt-1">
                   <HStack justify="between" align="center">
-                    <H2 className="text-lg">Net pay</H2>
-                    <H2 className="text-xl font-bold text-primary">
+                    <H3>Net Pay</H3>
+                    <StatValue className="text-xl md:text-2xl">
                       {formatCurrency(netPay)}
-                    </H2>
+                    </StatValue>
                   </HStack>
                 </div>
                 <Caption className="text-muted-foreground">

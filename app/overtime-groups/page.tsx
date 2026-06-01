@@ -11,7 +11,7 @@ export default function OvertimeGroupsPage() {
     <DashboardLayout>
       <VStack gap="4" className="w-full max-w-2xl pb-24">
         <VStack gap="2" align="start">
-          <H1>Approval groups removed</H1>
+          <H1>Approval Groups Removed</H1>
           <BodySmall>
             Group-based approval routing is no longer used. Requests now route by
             employee position and the first approver is handled from the

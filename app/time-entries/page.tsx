@@ -12,7 +12,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, BodySmall, Caption, KpiValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -1280,7 +1280,7 @@ export default function TimeEntriesPage() {
       <VStack gap="8" className="w-full max-w-full min-w-0">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <VStack gap="2" align="start">
-            <H1>Time entries</H1>
+            <H1>Time Entries</H1>
             <BodySmall>View punches and export logs.</BodySmall>
           </VStack>
           <HStack gap="2" className="w-full sm:w-auto">
@@ -1383,9 +1383,7 @@ export default function TimeEntriesPage() {
             <CardContent className="p-6">
               <VStack gap="2" align="start" className="w-full">
                 <BodySmall>Total Entries</BodySmall>
-                <div className="text-2xl font-bold leading-tight text-foreground">
-                  {stats.total}
-                </div>
+                <KpiValue>{stats.total}</KpiValue>
               </VStack>
             </CardContent>
           </Card>
@@ -1393,9 +1391,7 @@ export default function TimeEntriesPage() {
             <CardContent className="p-6">
               <VStack gap="2" align="start" className="w-full">
                 <BodySmall>Total Hours</BodySmall>
-                <div className="text-2xl font-bold leading-tight text-foreground">
-                  {stats.totalHours.toFixed(1)}h
-                </div>
+                <KpiValue>{stats.totalHours.toFixed(1)}h</KpiValue>
               </VStack>
             </CardContent>
           </Card>

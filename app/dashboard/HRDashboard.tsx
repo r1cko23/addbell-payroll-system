@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { H1, BodySmall, SectionHeading } from "@/components/ui/typography";
+import { H1, BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
@@ -604,7 +604,7 @@ export default function HRDashboard() {
                   </p>
                   <HStack justify="between" align="end" className="mt-2">
                     <p className="text-base font-semibold">{t.type}</p>
-                    <p className="text-2xl font-semibold tabular-nums">{t.count}</p>
+                    <KpiValue>{t.count}</KpiValue>
                   </HStack>
                 </div>
               ))}

@@ -441,7 +441,7 @@ export default function AdminDashboard() {
 
       {/* Quick Links */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Quick Actions</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {canReadPayslips ? (

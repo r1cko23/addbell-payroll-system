@@ -666,7 +666,7 @@ export default function NewFundRequestPage() {
       </Link>
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-primary/20 bg-card/95">
         <CardHeader className="pb-4 shrink-0">
-          <CardTitle>New fund request</CardTitle>
+          <CardTitle>New Fund Request</CardTitle>
           <p className="text-sm text-muted-foreground">{workflow.workflowLabel}</p>
         </CardHeader>
         <CardContent className="overflow-y-auto min-h-0 flex-1">
@@ -752,7 +752,7 @@ export default function NewFundRequestPage() {
                   <div className="grid grid-cols-1 gap-3">
                     <Card>
                       <CardHeader className="pb-3">
-                        <CardTitle className="text-base">{purposeConfig.referenceCardTitle}</CardTitle>
+                        <CardTitle>{purposeConfig.referenceCardTitle}</CardTitle>
                         <p className="text-xs text-muted-foreground">
                           {showProjectReferenceFields
                             ? purposeConfig.referenceCardDescription
@@ -873,7 +873,7 @@ export default function NewFundRequestPage() {
                     {showVendorPaymentSection ? (
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle className="text-base">Vendor/Subcontractor P.O. Details</CardTitle>
+                          <CardTitle>Vendor/Subcontractor P.O. Details</CardTitle>
                           <p className="text-xs text-muted-foreground">
                             Capture the vendor reference and Addbell vendor P.O. details for this
                             subcontractor payment request.

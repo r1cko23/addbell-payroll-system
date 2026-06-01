@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { cn } from "@/lib/utils";
 import {
   epRequestFiledLine,
   epRequestHistoryBodyRow,
@@ -17,8 +18,8 @@ import {
   epRequestHistoryMetric,
   epRequestHistoryReasonText,
   epRequestHistorySupportingDocs,
+  epRequestHistoryStatusColumn,
   epRequestHistoryTitle,
-  epRequestStatusColumn,
   requestHistoryCardBorderClass,
 } from "@/lib/employee-portal-request-history";
 
@@ -26,7 +27,8 @@ type RequestHistoryCardProps = {
   status: string;
   title: string;
   categoryLabel: string;
-  secondaryCategoryLabel?: string | null;
+  /** Shown under the header row (e.g. leave subtype) — avoids crowding with a second badge */
+  subtitle?: string | null;
   metric?: ReactNode;
   filedAt: string;
   statusColumn: ReactNode;
@@ -37,7 +39,7 @@ export function RequestHistoryCard({
   status,
   title,
   categoryLabel,
-  secondaryCategoryLabel,
+  subtitle,
   metric,
   filedAt,
   statusColumn,
@@ -49,24 +51,29 @@ export function RequestHistoryCard({
         <div className={epRequestHistoryCardLayout}>
           <div className={epRequestHistoryCardMain}>
             <div className={epRequestHistoryHeaderRow}>
-              <span className={epRequestHistoryTitle}>{title}</span>
-              <Badge variant="outline" className={epRequestHistoryCategoryBadge}>
+              <span className={cn(epRequestHistoryTitle, "shrink-0")}>
+                {title}
+              </span>
+              <Badge
+                variant="outline"
+                className={epRequestHistoryCategoryBadge}
+              >
                 {categoryLabel}
               </Badge>
-              {secondaryCategoryLabel ? (
-                <Badge variant="outline" className={epRequestHistoryCategoryBadge}>
-                  {secondaryCategoryLabel}
-                </Badge>
-              ) : null}
               {metric != null ? (
-                <span className={epRequestHistoryMetric}>{metric}</span>
+                <span className={cn(epRequestHistoryMetric, "shrink-0")}>
+                  {metric}
+                </span>
               ) : null}
             </div>
+            {subtitle ? (
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {subtitle}
+              </p>
+            ) : null}
             {children}
           </div>
-          <VStack gap="2" align="end" className={epRequestStatusColumn}>
-            {statusColumn}
-          </VStack>
+          <div className={epRequestHistoryStatusColumn}>{statusColumn}</div>
         </div>
         <div className={epRequestFiledLine}>Filed: {filedAt}</div>
       </CardContent>

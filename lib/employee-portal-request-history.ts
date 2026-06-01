@@ -12,9 +12,14 @@ export const epRequestHistoryList = "space-y-4";
 export const epRequestHistoryCardContent = "w-full p-4 sm:p-6";
 
 export const epRequestHistoryCardLayout =
-  "mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between";
+  "mb-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between";
 
-export const epRequestHistoryCardMain = "min-w-0 flex-1";
+/** basis-0 + min-w-0 prevents the status column from crushing this to ~0 width */
+export const epRequestHistoryCardMain =
+  "min-w-0 flex-1 basis-0 sm:pr-4";
+
+export const epRequestHistoryStatusColumn =
+  "flex w-full shrink-0 flex-col items-stretch gap-2 sm:w-auto sm:max-w-[220px] sm:items-end";
 
 export const epRequestHistoryHeaderRow =
   "mb-2 flex flex-wrap items-center gap-3";
@@ -24,7 +29,7 @@ export const epRequestHistoryTitle = "text-lg font-bold";
 export const epRequestHistoryMetric = "text-lg font-bold text-primary";
 
 export const epRequestHistoryCategoryBadge =
-  "border-primary/30 bg-primary/5 text-primary";
+  "shrink-0 border-primary/30 bg-primary/5 font-sans normal-case tracking-normal text-primary";
 
 /** Time / reason rows */
 export const epRequestHistoryBodyRow = "mb-2 text-sm";
@@ -54,7 +59,8 @@ export const epRequestStatusBadgeCancelled = `${epRequestStatusBadgeClass} borde
 export const epRequestStatusBadgeOpsManager =
   "flex w-full items-center justify-center gap-2 text-center bg-emerald-600 text-white border-emerald-600 lg:w-auto";
 
-export const epRequestStatusColumn = "w-full lg:ml-4 lg:w-auto";
+/** @deprecated Use epRequestHistoryStatusColumn */
+export const epRequestStatusColumn = epRequestHistoryStatusColumn;
 
 export const epRequestApprovalBoxEmerald =
   "w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right";

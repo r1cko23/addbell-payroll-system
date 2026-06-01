@@ -1135,7 +1135,7 @@ export default function LeaveRequestPage() {
                       status={request.status}
                       title={title}
                       categoryLabel={getLeaveTypeLabel(request.leave_type)}
-                      secondaryCategoryLabel={
+                      subtitle={
                         request.leave_subtype
                           ? getLeaveSubtypeLabel(request.leave_subtype)
                           : null

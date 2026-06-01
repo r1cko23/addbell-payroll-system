@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
+import { resolveEmployeePosition } from "@/lib/payslip-display";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
@@ -734,7 +735,7 @@ export default function PayslipsPage() {
       const { data, error } = await supabase
         .from("employees")
         .select(
-          "id, company_id_no, employee_code, first_name, middle_name, last_name, employment_status, salary_basis, base_rate, position, hire_date, employment_type, job_level, transferred_from_employee_id"
+          "id, company_id_no, employee_code, first_name, middle_name, last_name, employment_status, salary_basis, base_rate, position, hire_date, employment_type, job_level, transferred_from_employee_id, positions:position_id ( name )"
         )
         .order("last_name", { ascending: true, nullsFirst: false })
         .order("first_name", { ascending: true, nullsFirst: false });
@@ -767,6 +768,7 @@ export default function PayslipsPage() {
             ...emp,
             employee_id,
             full_name,
+            position: resolveEmployeePosition(emp),
             employee_type: emp.employment_type ?? null,
             monthly_rate: monthly_rate || null,
             per_day: per_day || null,

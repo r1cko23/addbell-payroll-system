@@ -38,6 +38,7 @@ import {
   buildStoredEarningsBreakdown,
   regularHoursBasicGross,
 } from "@/lib/payroll-earnings-breakdown";
+import { resolveEmployeePosition } from "@/lib/payslip-display";
 
 type EmployeeRow = {
   id: string;
@@ -46,6 +47,7 @@ type EmployeeRow = {
   base_rate?: number | null;
   employment_type?: string | null;
   position?: string | null;
+  positions?: { name?: string | null } | null;
   transferred_from_employee_id?: string | null;
 };
 
@@ -157,7 +159,7 @@ export async function POST(req: NextRequest) {
     let empQuery = admin
       .from("employees")
       .select(
-        "id, employment_status, salary_basis, base_rate, employment_type, position, transferred_from_employee_id"
+        "id, employment_status, salary_basis, base_rate, employment_type, position, transferred_from_employee_id, positions:position_id ( name )"
       );
 
     if (employeeIdsScope) {
@@ -379,7 +381,9 @@ export async function POST(req: NextRequest) {
       const isClientBased = e.employment_type === "client-based" || false;
       const isClientBasedAccountSupervisor =
         isClientBased &&
-        (String(e.position || "").toUpperCase().includes("ACCOUNT SUPERVISOR") ||
+        (String(resolveEmployeePosition(e) || "")
+          .toUpperCase()
+          .includes("ACCOUNT SUPERVISOR") ||
           false);
 
       const timesheetData = generateTimesheetFromClockEntries(

@@ -1,7 +1,22 @@
 /**
- * Maps PayslipDetailedBreakdown totals into PayslipPrint's earnings table
- * so employee/admin print matches the on-screen breakdown.
+ * Maps earnings into PayslipPrint's earnings table
+ * (employee portal + HR print preview).
  */
+
+import {
+  buildStoredEarningsBreakdown,
+  normalizeEarningsBreakdownForExport,
+  regularHoursBasicGross,
+} from "@/lib/payroll-earnings-breakdown";
+import type { DayType } from "@/utils/payroll-calculator";
+import {
+  calculateNightDiff,
+  calculateNonWorkingHoliday,
+  calculateRegularHoliday,
+  calculateRegularOT,
+  calculateSundayRestDay,
+} from "@/utils/payroll-calculator";
+import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 
 export type PayslipPrintEarningsTable = {
   basic: { days: number; hours: number; amount: number };
@@ -37,6 +52,16 @@ export type PayslipPrintEarningsSync = {
   fixedAllowances: PayslipPrintFixedAllowances;
 };
 
+export type AttendanceDayForPrintSync = {
+  date: string;
+  dayType: string;
+  regularHours: number;
+  overtimeHours: number;
+  nightDiffHours: number;
+  clockInTime?: string;
+  clockOutTime?: string;
+};
+
 type DetailedBreakdownSnapshot = {
   hoursWorked: number;
   basicSalary: number;
@@ -68,11 +93,15 @@ type DetailedBreakdownSnapshot = {
   useFixedAllowances: boolean;
 };
 
+const HOLIDAY_UNWORKED_CREDIT_HOURS = 8;
+
+function hoursToDays(hours: number) {
+  return hours > 0 ? hours / 8 : 0;
+}
+
 export function buildPayslipPrintSyncFromDetailedBreakdown(
   data: DetailedBreakdownSnapshot
 ): PayslipPrintEarningsSync {
-  const hoursToDays = (hours: number) => (hours > 0 ? hours / 8 : 0);
-
   const fixedAllowances: PayslipPrintFixedAllowances = {
     legalHolidayAllowance: {
       amount: data.otherPay.legalHolidayAllowance.amount,
@@ -162,4 +191,197 @@ export function buildPayslipPrintSyncFromDetailedBreakdown(
       otherPay: { amount: allowanceTotal },
     },
   };
+}
+
+/** Build print rows from saved payslip attendance (employee portal; no hidden breakdown). */
+export function buildPayslipPrintSyncFromStoredPayslip(
+  attendanceData: AttendanceDayForPrintSync[],
+  ratePerHour: number,
+  savedGrossPay: number,
+  options?: {
+    useFixedAllowances?: boolean;
+    isClientBased?: boolean;
+    isAccountSupervisor?: boolean;
+  }
+): PayslipPrintEarningsSync | null {
+  if (ratePerHour <= 0 || attendanceData.length === 0) return null;
+
+  const isClientBased = options?.isClientBased ?? false;
+  const isAccountSupervisor = options?.isAccountSupervisor ?? false;
+
+  const breakdown = {
+    nightDifferential: { hours: 0, amount: 0 },
+    legalHoliday: { hours: 0, amount: 0 },
+    specialHoliday: { hours: 0, amount: 0 },
+    restDay: { hours: 0, amount: 0 },
+    restDayNightDiff: { hours: 0, amount: 0 },
+  };
+
+  const earningsOT = {
+    regularOvertime: { hours: 0, amount: 0 },
+    legalHolidayOT: { hours: 0, amount: 0 },
+    legalHolidayND: { hours: 0, amount: 0 },
+    shOT: { hours: 0, amount: 0 },
+    shNightDiff: { hours: 0, amount: 0 },
+    shOnRDOT: { hours: 0, amount: 0 },
+    lhOnRDOT: { hours: 0, amount: 0 },
+    restDayOT: { hours: 0, amount: 0 },
+  };
+
+  let hoursWorked = 0;
+
+  attendanceData.forEach((day) => {
+    const dayType = (day.dayType || "regular") as DayType;
+    const regularHours = creditWorkHoursHalfHour(
+      Math.round((Number(day.regularHours) || 0) * 100) / 100
+    );
+    const overtimeHours = Number(day.overtimeHours) || 0;
+    const nightDiffHours = creditNightDiffHours(
+      Math.round((Number(day.nightDiffHours) || 0) * 100) / 100
+    );
+    const dateObj = new Date(day.date);
+    const dayOfWeek = Number.isNaN(dateObj.getTime()) ? -1 : dateObj.getDay();
+    const isSundayRegularWorkday =
+      dayOfWeek === 0 && (isClientBased || isAccountSupervisor);
+
+    if (dayType === "regular") {
+      if ((dayOfWeek !== 0 || isSundayRegularWorkday) && regularHours > 0) {
+        hoursWorked += regularHours;
+      }
+      if (overtimeHours > 0) {
+        earningsOT.regularOvertime.hours += overtimeHours;
+        earningsOT.regularOvertime.amount += calculateRegularOT(
+          overtimeHours,
+          ratePerHour
+        );
+      }
+      if (nightDiffHours > 0) {
+        breakdown.nightDifferential.hours += nightDiffHours;
+        breakdown.nightDifferential.amount += calculateNightDiff(
+          nightDiffHours,
+          ratePerHour
+        );
+      }
+    }
+
+    if (dayType === "regular-holiday") {
+      const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+      const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+      if (paidH > 0) {
+        breakdown.legalHoliday.hours += paidH;
+        breakdown.legalHoliday.amount += calculateRegularHoliday(
+          paidH,
+          ratePerHour
+        );
+      }
+    }
+
+    if (dayType === "non-working-holiday") {
+      const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+      const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+      if (paidH > 0) {
+        breakdown.specialHoliday.hours += paidH;
+        breakdown.specialHoliday.amount += calculateNonWorkingHoliday(
+          paidH,
+          ratePerHour
+        );
+      }
+    }
+
+    if (
+      dayType === "sunday" ||
+      dayType === "sunday-special-holiday" ||
+      dayType === "sunday-regular-holiday"
+    ) {
+      if (regularHours > 0) {
+        breakdown.restDay.hours += regularHours;
+        breakdown.restDay.amount += calculateSundayRestDay(
+          regularHours,
+          ratePerHour
+        );
+      }
+    }
+  });
+
+  const basicSalary = regularHoursBasicGross(attendanceData, ratePerHour);
+  const payroll = buildStoredEarningsBreakdown(attendanceData, ratePerHour)
+    .payroll_result;
+  const computedGross = payroll?.grossPay ?? 0;
+  const totalGrossPay =
+    savedGrossPay > 0
+      ? savedGrossPay
+      : computedGross > 0
+        ? computedGross
+        : basicSalary +
+          earningsOT.regularOvertime.amount +
+          breakdown.nightDifferential.amount +
+          breakdown.legalHoliday.amount +
+          breakdown.specialHoliday.amount +
+          breakdown.restDay.amount;
+
+  if (!Number.isFinite(totalGrossPay) || totalGrossPay < 0) return null;
+
+  return buildPayslipPrintSyncFromDetailedBreakdown({
+    hoursWorked,
+    basicSalary,
+    totalGrossPay: Math.round(totalGrossPay * 100) / 100,
+    breakdown,
+    earningsOT,
+    otherPay: {
+      legalHolidayAllowance: { amount: 0 },
+      specialHolidayAllowance: { amount: 0 },
+      restDayAllowance: { amount: 0 },
+      specialHolidayOnRestDayAllowance: { amount: 0 },
+      legalHolidayOnRestDayAllowance: { amount: 0 },
+    },
+    useFixedAllowances: options?.useFixedAllowances ?? false,
+  });
+}
+
+/** Resolve sync from payslip row + mapped attendance days. */
+export function buildPayslipPrintSyncFromPayslipRow(
+  payslip: { gross_pay: number; earnings_breakdown?: unknown },
+  attendanceDays: AttendanceDayForPrintSync[],
+  ratePerHour: number,
+  profile?: {
+    employment_type?: string | null;
+    position?: string | null;
+    job_level?: string | null;
+  }
+): PayslipPrintEarningsSync | null {
+  const normalized = normalizeEarningsBreakdownForExport(
+    payslip.earnings_breakdown
+  );
+  const days =
+    attendanceDays.length > 0
+      ? attendanceDays
+      : (normalized?.attendance_data ?? []).map((day: any) => ({
+          date: day.date || "",
+          dayType: day.dayType || "regular",
+          regularHours: Number(day.regularHours ?? 0),
+          overtimeHours: Number(day.overtimeHours ?? 0),
+          nightDiffHours: Number(day.nightDiffHours ?? 0),
+          clockInTime: day.clockInTime ?? day.clock_in_time,
+          clockOutTime: day.clockOutTime ?? day.clock_out_time,
+        }));
+
+  const isClientBased = profile?.employment_type === "client-based";
+  const isAccountSupervisor =
+    profile?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") ?? false;
+  const isEligibleForAllowances =
+    isClientBased ||
+    (profile?.employment_type === "office-based" &&
+      (profile?.job_level?.toUpperCase() === "SUPERVISORY" ||
+        profile?.job_level?.toUpperCase() === "MANAGERIAL"));
+
+  return buildPayslipPrintSyncFromStoredPayslip(
+    days,
+    ratePerHour,
+    Number(payslip.gross_pay ?? 0),
+    {
+      useFixedAllowances: isEligibleForAllowances,
+      isClientBased,
+      isAccountSupervisor,
+    }
+  );
 }

@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { resolveEmployeePosition } from "@/lib/payslip-display";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from("employees")
       .select(
-        "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at, position, employment_type, job_level, shift_start_time, shift_end_time, requires_ot_punch, salary_basis, base_rate, hire_date"
+        "company_id_no, employee_code, full_name, first_name, last_name, middle_name, address, date_of_birth, tin, sss_number, philhealth_number, pagibig_number, is_active, created_at, position, employment_type, job_level, shift_start_time, shift_end_time, requires_ot_punch, salary_basis, base_rate, hire_date, positions:position_id ( name )"
       )
       .eq("id", employeeId)
       .maybeSingle();
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
       pagibig_number: data?.pagibig_number ?? null,
       is_active: data?.is_active ?? null,
       created_at: data?.created_at ?? null,
-      position: data?.position ?? null,
+      position: data ? resolveEmployeePosition(data as any) : null,
       employment_type: data?.employment_type ?? null,
       job_level: data?.job_level ?? null,
       shift_start_time: data?.shift_start_time ?? null,

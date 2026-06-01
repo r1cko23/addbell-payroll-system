@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CardSection } from "@/components/ui/card-section";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { H1, H2, H3, BodySmall, Caption } from "@/components/ui/typography";
@@ -10,7 +10,14 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatCurrency } from "@/utils/format";
 import { EmployeePayslipDetail } from "@/components/EmployeePayslipDetail";
 import {
@@ -47,6 +54,16 @@ interface Payslip {
   updated_at: string;
 }
 
+function payslipMonthKey(payslip: Payslip): string {
+  const dateStr = String(payslip.period_end || payslip.period_start).split("T")[0];
+  return format(parseISO(dateStr), "yyyy-MM");
+}
+
+function formatMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  return format(new Date(year, month - 1, 1), "MMMM yyyy");
+}
+
 export default function EmployeePayslipsPage() {
   const { employee } = useEmployeeSession();
   const [payslips, setPayslips] = useState<Payslip[]>([]);
@@ -58,6 +75,28 @@ export default function EmployeePayslipsPage() {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [printPreviewReady, setPrintPreviewReady] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState("");
+
+  const monthOptions = useMemo(() => {
+    const keys = new Set<string>();
+    payslips.forEach((p) => keys.add(payslipMonthKey(p)));
+    return Array.from(keys).sort((a, b) => b.localeCompare(a));
+  }, [payslips]);
+
+  const filteredPayslips = useMemo(() => {
+    if (!selectedMonth) return payslips;
+    return payslips.filter((p) => payslipMonthKey(p) === selectedMonth);
+  }, [payslips, selectedMonth]);
+
+  useEffect(() => {
+    if (monthOptions.length === 0) {
+      setSelectedMonth("");
+      return;
+    }
+    setSelectedMonth((prev) =>
+      prev && monthOptions.includes(prev) ? prev : monthOptions[0]
+    );
+  }, [monthOptions]);
 
   const payslipProfile = useMemo((): EmployeeProfileForPayslip | null => {
     if (!profile) return null;
@@ -268,21 +307,40 @@ export default function EmployeePayslipsPage() {
   }
 
   return (
-    <div className="py-2">
-      <div className="mx-auto max-w-6xl">
-        <CardSection>
-          <HStack align="center" justify="between" className="mb-6">
-            <VStack gap="1" align="start">
+    <div className="w-full py-2">
+      <div className="mx-auto w-full max-w-6xl">
+        <CardSection className="w-full">
+          <HStack
+            align="start"
+            justify="between"
+            className="mb-6 w-full flex-col gap-4 sm:flex-row sm:items-end"
+          >
+            <VStack gap="1" align="start" className="min-w-0">
               <H1>My Payslips</H1>
               <BodySmall className="text-muted-foreground">
                 View and print your payslips.
               </BodySmall>
             </VStack>
-            <Icon
-              name="CalendarBlank"
-              size={IconSizes.lg}
-              className="text-primary"
-            />
+            {payslips.length > 0 ? (
+              <VStack gap="1" align="start" className="w-full sm:w-auto sm:min-w-[14rem]">
+                <Caption className="text-muted-foreground">Month</Caption>
+                <Select
+                  value={selectedMonth}
+                  onValueChange={setSelectedMonth}
+                >
+                  <SelectTrigger className="w-full sm:w-[14rem]">
+                    <SelectValue placeholder="Select month" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {monthOptions.map((key) => (
+                      <SelectItem key={key} value={key}>
+                        {formatMonthLabel(key)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </VStack>
+            ) : null}
           </HStack>
 
           {payslips.length === 0 ? (
@@ -305,20 +363,35 @@ export default function EmployeePayslipsPage() {
                 </VStack>
               </CardContent>
             </Card>
+          ) : filteredPayslips.length === 0 ? (
+            <Card className="w-full">
+              <CardContent className="py-12 text-center">
+                <BodySmall className="text-muted-foreground">
+                  No payslips for{" "}
+                  {selectedMonth ? formatMonthLabel(selectedMonth) : "this month"}.
+                </BodySmall>
+              </CardContent>
+            </Card>
           ) : (
-            <VStack gap="4">
-              {payslips.map((payslip) => (
-                <Card key={payslip.id} className="border-border/80 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover">
-                  <CardContent className="p-6">
-                    <HStack
-                      align="center"
-                      justify="between"
-                      className="flex-wrap gap-4"
-                    >
-                      <VStack gap="2" align="start">
-                        <HStack gap="3" align="center">
-                          <H2 className="text-lg">
-                            {format(new Date(payslip.period_start), "MMM d")} -{" "}
+            <VStack gap="4" className="w-full items-stretch">
+              {selectedMonth ? (
+                <BodySmall className="text-muted-foreground">
+                  {filteredPayslips.length} payslip
+                  {filteredPayslips.length === 1 ? "" : "s"} in{" "}
+                  {formatMonthLabel(selectedMonth)}
+                </BodySmall>
+              ) : null}
+              {filteredPayslips.map((payslip) => (
+                <Card
+                  key={payslip.id}
+                  className="w-full min-h-[11.5rem] border-border/80 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover"
+                >
+                  <CardContent className="flex min-h-[11.5rem] w-full flex-col justify-center p-5 sm:p-6">
+                    <div className="grid w-full grid-cols-1 items-center gap-5 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-8">
+                      <VStack gap="2" align="start" className="min-w-0 justify-center">
+                        <HStack gap="3" align="center" className="flex-wrap">
+                          <H2 className="text-lg leading-tight">
+                            {format(new Date(payslip.period_start), "MMM d")} –{" "}
                             {format(
                               new Date(payslip.period_end),
                               "MMM d, yyyy"
@@ -326,72 +399,61 @@ export default function EmployeePayslipsPage() {
                           </H2>
                           <Badge
                             variant={getStatusBadgeVariant(payslip.status)}
+                            className="shrink-0"
                           >
                             {payslip.status.toUpperCase()}
                           </Badge>
                         </HStack>
-                        <BodySmall className="text-muted-foreground">
+                        <BodySmall className="text-muted-foreground truncate w-full">
                           Payslip #{payslip.payslip_number}
                         </BodySmall>
                         <Caption className="text-muted-foreground">
                           {format(
                             new Date(payslip.created_at),
                             "MMM d, yyyy 'at' h:mm a"
-                          )}
+                          ).toUpperCase()}
                         </Caption>
                       </VStack>
 
-                      <VStack gap="2" align="end">
-                        <HStack gap="4" align="center">
-                          <VStack gap="1" align="end" className="hidden md:flex">
-                            <Caption className="text-muted-foreground">
+                      <div className="flex w-full flex-col justify-between gap-4 lg:w-[20rem] lg:shrink-0 lg:justify-self-end">
+                        <div className="grid w-full grid-cols-3 gap-2 sm:gap-3">
+                          <VStack gap="1" align="end" className="min-w-0">
+                            <Caption className="text-muted-foreground whitespace-nowrap">
                               Gross Pay
                             </Caption>
-                            <BodySmall className="font-semibold">
+                            <BodySmall className="font-semibold tabular-nums">
                               {formatCurrency(payslip.gross_pay)}
                             </BodySmall>
                           </VStack>
-                          <VStack gap="1" align="end" className="hidden md:flex">
-                            <Caption className="text-muted-foreground">
-                              Total Deductions
+                          <VStack gap="1" align="end" className="min-w-0">
+                            <Caption className="text-muted-foreground whitespace-nowrap">
+                              Deductions
                             </Caption>
-                            <BodySmall className="font-semibold text-destructive">
-                              -{formatCurrency(payslip.total_deductions)}
+                            <BodySmall className="font-semibold tabular-nums text-destructive">
+                              −{formatCurrency(payslip.total_deductions)}
                             </BodySmall>
                           </VStack>
-                          <VStack gap="1" align="end">
-                            <Caption className="text-muted-foreground">Net Pay</Caption>
-                            <H2 className="text-xl text-primary">
+                          <VStack gap="1" align="end" className="min-w-0">
+                            <Caption className="text-muted-foreground whitespace-nowrap">
+                              Net Pay
+                            </Caption>
+                            <p className="text-lg font-bold tabular-nums text-primary sm:text-xl">
                               {formatCurrency(payslip.net_pay)}
-                            </H2>
+                            </p>
                           </VStack>
-                        </HStack>
+                        </div>
 
-                        <HStack
-                          gap="2"
-                          className="mt-2 flex-col sm:flex-row w-full"
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => openPayslipPreview(payslip)}
+                          className="gradient-accent h-9 w-full"
                         >
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openPayslipPreview(payslip)}
-                            className="w-full sm:w-auto"
-                          >
-                            <Icon name="Eye" size={IconSizes.sm} />
-                            View Details
-                          </Button>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => openPayslipPreview(payslip)}
-                            className="gradient-accent"
-                          >
-                            <Icon name="FileText" size={IconSizes.sm} />
-                            View & Download
-                          </Button>
-                        </HStack>
-                      </VStack>
-                    </HStack>
+                          <Icon name="FileText" size={IconSizes.sm} />
+                          View & Download
+                        </Button>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

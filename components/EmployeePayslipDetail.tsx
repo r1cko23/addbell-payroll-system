@@ -17,7 +17,10 @@ import {
   type EmployeeProfileForPayslip,
   type PayslipRowForDisplay,
 } from "@/lib/payslip-display";
-import type { PayslipPrintEarningsSync } from "@/lib/payslip-print-sync";
+import {
+  buildPayslipPrintSyncFromPayslipRow,
+  type PayslipPrintEarningsSync,
+} from "@/lib/payslip-print-sync";
 
 type Props = {
   payslip: PayslipRowForDisplay;
@@ -77,17 +80,47 @@ export function EmployeePayslipDetail({
   useEffect(() => {
     setPrintEarningsSync(null);
     onPrintPreviewReady?.(false);
-  }, [payslip.period_start, payslip.period_end, payslip.gross_pay, onPrintPreviewReady]);
+  }, [payslip.period_start, payslip.period_end, payslip.gross_pay]);
 
   useEffect(() => {
     if (variant !== "print" && variant !== "both") return;
-    const ready = Boolean(printEarningsSync) || !canRunDetailedBreakdown;
-    onPrintPreviewReady?.(ready);
+
+    if (!canRunDetailedBreakdown) {
+      onPrintPreviewReady?.(true);
+      return;
+    }
+
+    try {
+      const sync = buildPayslipPrintSyncFromPayslipRow(
+        payslip,
+        attendanceDays,
+        employee.rate_per_hour,
+        {
+          employment_type: profile.employment_type,
+          position: profile.position,
+          job_level: profile.job_level,
+        }
+      );
+      if (sync) {
+        setPrintEarningsSync(sync);
+        onPrintPreviewReady?.(true);
+        return;
+      }
+    } catch (err) {
+      console.error("[EmployeePayslipDetail] print sync failed:", err);
+    }
+
+    onPrintPreviewReady?.(true);
   }, [
-    printEarningsSync,
-    canRunDetailedBreakdown,
-    onPrintPreviewReady,
     variant,
+    canRunDetailedBreakdown,
+    payslip,
+    attendanceDays,
+    employee.rate_per_hour,
+    profile.employment_type,
+    profile.position,
+    profile.job_level,
+    onPrintPreviewReady,
   ]);
 
   const showScreen = variant === "screen" || variant === "both";
@@ -271,57 +304,39 @@ export function EmployeePayslipDetail({
                 : undefined
           }
         >
-          {!showScreen && !printEarningsSync && canRunDetailedBreakdown && (
-            <div className="sr-only" aria-hidden>
-              <PayslipDetailedBreakdown
-                employee={employee}
-                attendanceData={attendanceDays as any}
-                periodStart={periodStart}
-                periodEnd={periodEnd}
-                holidays={holidays}
-                onPrintSync={setPrintEarningsSync}
-              />
-            </div>
-          )}
-          {printEarningsSync || !canRunDetailedBreakdown ? (
-            <PayslipPrint
-              employee={{
-                ...employee,
-                position: profile.position ?? undefined,
-              }}
-              weekStart={periodStart}
-              weekEnd={periodEnd}
-              attendance={attendanceForPayslipPrint(payslip)}
-              earnings={{
-                regularPay: grossPay,
-                regularOT: 0,
-                regularOTHours: 0,
-                nightDiff: 0,
-                nightDiffHours: 0,
-                sundayRestDay: 0,
-                sundayRestDayHours: 0,
-                specialHoliday: 0,
-                specialHolidayHours: 0,
-                regularHoliday: 0,
-                regularHolidayHours: 0,
-                grossIncome: grossPay,
-              }}
-              deductions={deductions}
-              adjustment={adjustment}
-              adjustmentReason={payslip.adjustment_reason}
-              netPay={netPay}
-              summaryGrossPay={grossPay}
-              summaryNetPay={netPay}
-              printEarningsSync={printEarningsSync}
-              workingDays={0}
-              absentDays={0}
-              preparedBy={preparedBy}
-            />
-          ) : (
-            <BodySmall className="text-muted-foreground py-4">
-              Preparing payslip…
-            </BodySmall>
-          )}
+          <PayslipPrint
+            employee={{
+              ...employee,
+              position: profile.position ?? undefined,
+            }}
+            weekStart={periodStart}
+            weekEnd={periodEnd}
+            attendance={attendanceForPayslipPrint(payslip)}
+            earnings={{
+              regularPay: grossPay,
+              regularOT: 0,
+              regularOTHours: 0,
+              nightDiff: 0,
+              nightDiffHours: 0,
+              sundayRestDay: 0,
+              sundayRestDayHours: 0,
+              specialHoliday: 0,
+              specialHolidayHours: 0,
+              regularHoliday: 0,
+              regularHolidayHours: 0,
+              grossIncome: grossPay,
+            }}
+            deductions={deductions}
+            adjustment={adjustment}
+            adjustmentReason={payslip.adjustment_reason}
+            netPay={netPay}
+            summaryGrossPay={grossPay}
+            summaryNetPay={netPay}
+            printEarningsSync={printEarningsSync}
+            workingDays={0}
+            absentDays={0}
+            preparedBy={preparedBy}
+          />
         </div>
       )}
     </VStack>

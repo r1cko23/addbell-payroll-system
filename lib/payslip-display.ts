@@ -38,6 +38,17 @@ export type EmployeeProfileForPayslip = {
 const BR_SSS = "sss";
 const BR_SSS_WISP = "sss_wisp";
 
+/** Prefer positions.name (position_id FK); fall back to legacy employees.position text. */
+export function resolveEmployeePosition(emp: {
+  position?: string | null;
+  positions?: { name?: string | null } | null;
+}): string | null {
+  const fromCatalog = emp.positions?.name?.trim();
+  if (fromCatalog) return fromCatalog;
+  const legacy = emp.position?.trim();
+  return legacy || null;
+}
+
 export function ratePerDayAndHourFromProfile(profile: EmployeeProfileForPayslip): {
   perDay: number;
   perHour: number;
@@ -167,7 +178,7 @@ export function mapAttendanceDaysForBreakdown(
     regularHours: Number(day.regularHours ?? 0),
     overtimeHours: Number(day.overtimeHours ?? 0),
     nightDiffHours: Number(day.nightDiffHours ?? 0),
-    clockInTime: day.clockInTime,
-    clockOutTime: day.clockOutTime,
+    clockInTime: day.clockInTime ?? day.clock_in_time,
+    clockOutTime: day.clockOutTime ?? day.clock_out_time,
   }));
 }

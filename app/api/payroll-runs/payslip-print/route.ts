@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { enrichPayslipAttendanceFromClock } from "@/lib/enrich-payslip-attendance";
-import { mapPayslipDeductionsForPrint } from "@/lib/payslip-display";
+import {
+  mapPayslipDeductionsForPrint,
+  resolveEmployeePosition,
+} from "@/lib/payslip-display";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
     const { data: ps, error } = await admin
       .from("payslips")
       .select(
-        "id, employee_id, period_start, period_end, gross_pay, net_pay, total_deductions, adjustment_amount, adjustment_reason, earnings_breakdown, deductions_breakdown, employees:employee_id ( first_name, last_name, company_id_no, salary_basis, base_rate, position, employment_type, job_level )"
+        "id, employee_id, period_start, period_end, gross_pay, net_pay, total_deductions, adjustment_amount, adjustment_reason, earnings_breakdown, deductions_breakdown, employees:employee_id ( first_name, last_name, company_id_no, salary_basis, base_rate, position, employment_type, job_level, positions:position_id ( name ) )"
       )
       .eq("id", payslipId)
       .single();
@@ -70,7 +73,7 @@ export async function GET(req: NextRequest) {
             ? Number(emp.base_rate || 0)
             : Number(emp.base_rate || 0) / 26,
         rate_per_hour: enriched.rate_per_hour,
-        position: emp.position || null,
+        position: resolveEmployeePosition(emp),
         employee_type: emp.employment_type || null,
         job_level: emp.job_level || null,
       },

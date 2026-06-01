@@ -848,9 +848,10 @@ export default function BundyClockPage() {
       const periodEndStr = getManilaDateStringFromLocalDate(periodEnd);
 
       // Batch all queries in parallel for better performance
+      // Wider fetch: 7 days before cutoff so holiday eligibility can see prior regular workdays.
       const periodStartDate = new Date(periodStart);
       periodStartDate.setHours(0, 0, 0, 0);
-      periodStartDate.setDate(periodStartDate.getDate() - 1);
+      periodStartDate.setDate(periodStartDate.getDate() - 7);
       const periodEndDate = new Date(periodEnd);
       periodEndDate.setHours(23, 59, 59, 999);
       periodEndDate.setDate(periodEndDate.getDate() + 1);
@@ -1082,36 +1083,33 @@ export default function BundyClockPage() {
       // Filter to only include entries with valid status (exclude rejected and pending)
       // Include all statuses that indicate the entry is valid: auto_approved, approved, clocked_out, clocked_in
       // This matches the admin/HR page logic
-      const validEntries = filteredClockData.filter(
-        (e) =>
-          e.status !== "rejected" &&
-          e.status !== "pending" &&
-          (e.status === "auto_approved" ||
-            e.status === "approved" ||
-            e.status === "clocked_out" ||
-            e.status === "clocked_in")
+      const statusOk = (e: ClockEntry) =>
+        e.status !== "rejected" &&
+        e.status !== "pending" &&
+        (e.status === "auto_approved" ||
+          e.status === "approved" ||
+          e.status === "clocked_out" ||
+          e.status === "clocked_in");
+
+      const validEntriesInPeriod = filteredClockData.filter(statusOk);
+      // Keep sessions up to 7 days before the week for holiday pay eligibility (not shown in the grid).
+      const validEntriesLookback = ((clockData || []) as ClockEntry[]).filter(
+        statusOk
       );
 
-      setClockEntriesForAttendance(validEntries || []);
+      setClockEntriesForAttendance(validEntriesInPeriod || []);
 
       // Debug: Log filtered entries for employee 23376
-      if (employee?.id && filteredClockData.length !== validEntries.length) {
+      if (
+        employee?.id &&
+        filteredClockData.length !== validEntriesInPeriod.length
+      ) {
         console.log(
           `Employee ${employee.id} - Filtered out ${
-            filteredClockData.length - validEntries.length
+            filteredClockData.length - validEntriesInPeriod.length
           } entries:`,
           filteredClockData
-            .filter(
-              (e) =>
-                e.status === "rejected" ||
-                e.status === "pending" ||
-                !(
-                  e.status === "auto_approved" ||
-                  e.status === "approved" ||
-                  e.status === "clocked_out" ||
-                  e.status === "clocked_in"
-                )
-            )
+            .filter((e) => !statusOk(e))
             .map((e) => ({
               id: e.id,
               clock_in: e.clock_in_time,
@@ -1120,10 +1118,10 @@ export default function BundyClockPage() {
         );
       }
 
-      const completeEntries = validEntries.filter(
+      const completeEntries = validEntriesLookback.filter(
         (e) => e.clock_out_time !== null
       );
-      const incompleteEntries = validEntries.filter(
+      const incompleteEntries = validEntriesLookback.filter(
         (e) => e.clock_out_time === null
       );
 
@@ -1132,7 +1130,8 @@ export default function BundyClockPage() {
         console.log(`Employee ${employee.id} - Entry filtering summary:`, {
           totalLoaded: (clockData || []).length,
           afterDateFilter: filteredClockData.length,
-          afterStatusFilter: validEntries.length,
+          afterStatusFilter: validEntriesInPeriod.length,
+          lookbackSessions: validEntriesLookback.length,
           completeEntries: completeEntries.length,
           incompleteEntries: incompleteEntries.length,
           period: `${periodStartStr} to ${periodEndStr}`,
@@ -1353,8 +1352,22 @@ export default function BundyClockPage() {
 
             // Only check regular working days (skip holidays and rest days)
             if (checkDayType === "regular" && checkDayEntries.length > 0) {
-              // Check if employee worked 8+ hours on this regular working day
-              const workedHours = checkDayEntries.reduce((sum, e) => sum + (e.regular_hours || 0), 0);
+              const workedHours = checkDayEntries.reduce((sum, e) => {
+                if (e.clock_in_time && e.clock_out_time) {
+                  try {
+                    return (
+                      sum +
+                      regularHoursFromBundyClockPair(
+                        e.clock_in_time,
+                        e.clock_out_time
+                      )
+                    );
+                  } catch {
+                    /* fall through */
+                  }
+                }
+                return sum + (e.regular_hours ?? e.total_hours ?? 0);
+              }, 0);
               if (workedHours >= 8) {
                 eligibleForHoliday = true;
                 break;

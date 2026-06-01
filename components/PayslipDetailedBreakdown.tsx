@@ -32,6 +32,10 @@ import {
   HOLIDAY_UNWORKED_CREDIT_HOURS,
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
+import {
+  buildPayslipPrintSyncFromDetailedBreakdown,
+  type PayslipPrintEarningsSync,
+} from "@/lib/payslip-print-sync";
 
 interface PayslipDetailedBreakdownProps {
   employee: {
@@ -60,6 +64,8 @@ interface PayslipDetailedBreakdownProps {
   restDays?: Map<string, boolean>;
   holidays?: Array<{ holiday_date: string }>;
   onTotalGrossPayChange?: (totalGrossPay: number) => void;
+  /** Keeps classic print/preview rows aligned with this breakdown. */
+  onPrintSync?: (sync: PayslipPrintEarningsSync) => void;
 }
 
 function PayslipDetailedBreakdownComponent({
@@ -70,6 +76,7 @@ function PayslipDetailedBreakdownComponent({
   restDays,
   holidays = [],
   onTotalGrossPayChange,
+  onPrintSync,
 }: PayslipDetailedBreakdownProps) {
   const ratePerHour = employee.rate_per_hour;
   const ratePerDay = employee.rate_per_day;
@@ -913,44 +920,6 @@ function PayslipDetailedBreakdownComponent({
 
     const totalBHForHoursWork = actualTotalBH;
 
-    // #region agent log
-    const _jan1 = attendanceData.find((d: { date: string }) => d.date === "2026-01-01");
-    if (_jan1 || (periodStart && periodEnd && format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
-      fetch(
-        "http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            location: "PayslipDetailedBreakdown.tsx:DaysWork",
-            message: "Payslip Days Work",
-            data: {
-              periodStart: periodStart
-                ? format(periodStart, "yyyy-MM-dd")
-                : null,
-              periodEnd: periodEnd ? format(periodEnd, "yyyy-MM-dd") : null,
-              employeeName: employee?.full_name,
-              jan1: _jan1
-                ? {
-                    date: (_jan1 as any).date,
-                    dayType: (_jan1 as any).dayType,
-                    regularHours: (_jan1 as any).regularHours,
-                  }
-                : null,
-              basePayHours,
-              actualTotalBH,
-              totalBHForHoursWork,
-              hoursWorked,
-            },
-            hypothesisId: "H2",
-            timestamp: Date.now(),
-            sessionId: "debug-session",
-          }),
-        }
-      ).catch(() => {});
-    }
-    // #endregion
-
     // Ensure basicSalary = regular hours worked × hourly rate
     // IMPORTANT: Use rounded hourly rate to match displayed value
     const roundedRatePerHour = Math.round(ratePerHour * 100) / 100;
@@ -1146,6 +1115,31 @@ function PayslipDetailedBreakdownComponent({
     }
   }, [onTotalGrossPayChange, totalGrossPay]);
 
+  useEffect(() => {
+    if (!onPrintSync || totalGrossPay === undefined || totalGrossPay < 0) return;
+    onPrintSync(
+      buildPayslipPrintSyncFromDetailedBreakdown({
+        hoursWorked,
+        basicSalary,
+        totalGrossPay,
+        breakdown,
+        earningsOT,
+        otherPay,
+        useFixedAllowances: isClientBased || isEligibleForAllowances,
+      })
+    );
+  }, [
+    onPrintSync,
+    hoursWorked,
+    basicSalary,
+    totalGrossPay,
+    breakdown,
+    earningsOT,
+    otherPay,
+    isClientBased,
+    isEligibleForAllowances,
+  ]);
+
   return (
     <div className="w-full">
       {/* Employee Name - Compact */}
@@ -1206,9 +1200,6 @@ function PayslipDetailedBreakdownComponent({
           <h4 className="text-sm font-semibold text-gray-800">
             Overtimes/Holiday Earning(s)
           </h4>
-          <span className="text-xs text-gray-500 italic">
-            Regular work uses **actual regular hours** from this cutoff’s attendance (same as timesheet BH sum). Scheduled-day absence logic is separate (see calculateBasePay). Rest day, holiday, overtime, and night differential use statutory rates in the table below.
-          </span>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">

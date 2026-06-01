@@ -24,6 +24,7 @@ import {
 } from "@/utils/holidays";
 import { aggregateMetricsFromAttendanceDays } from "@/lib/day-attendance-summary";
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
+import type { PayslipPrintEarningsSync } from "@/lib/payslip-print-sync";
 
 interface PayslipPrintProps {
   employee: {
@@ -80,6 +81,8 @@ interface PayslipPrintProps {
   /** When set, print summary uses these instead of recalculated totals (matches payslip page). */
   summaryGrossPay?: number;
   summaryNetPay?: number;
+  /** When set, earnings rows match PayslipDetailedBreakdown (employee portal / saved payslip). */
+  printEarningsSync?: PayslipPrintEarningsSync | null;
   workingDays: number;
   absentDays: number;
   preparedBy: string;
@@ -97,6 +100,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     netPay: netPayProp,
     summaryGrossPay,
     summaryNetPay,
+    printEarningsSync,
     workingDays,
     preparedBy,
   } = props;
@@ -170,6 +174,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   const isRankAndFile = isOfficeBased && !isEligibleForAllowances;
 
   const useFixedAllowances = isClientBased || isEligibleForAllowances;
+  const useFixedAllowancesDisplay =
+    printEarningsSync?.useFixedAllowances ?? useFixedAllowances;
 
   // Initialize earnings breakdown
   const earningsBreakdown = {
@@ -237,8 +243,12 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
   const isEligibleForHolidayPay = isEligibleForHolidayPayRule;
 
-  // Process attendance data if available
-  if (
+  if (printEarningsSync) {
+    Object.assign(earningsBreakdown, printEarningsSync.earningsBreakdown);
+    Object.assign(fixedAllowances, printEarningsSync.fixedAllowances);
+    totalSalary = printEarningsSync.totalGrossPay;
+    totalGrossPay = printEarningsSync.totalGrossPay;
+  } else if (
     attendance?.attendance_data &&
     Array.isArray(attendance.attendance_data)
   ) {
@@ -554,7 +564,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         : 0);
 
     totalGrossPay = totalSalary;
-  } else {
+  } else if (!printEarningsSync) {
     // Fallback to provided earnings
     // For fallback, calculate totalSalary from provided earnings
     totalSalary =
@@ -1284,7 +1294,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }}
             >
               Other Pay
-              {useFixedAllowances && (
+              {useFixedAllowancesDisplay && (
                 <span
                   style={{
                     fontSize: "7pt",
@@ -1306,7 +1316,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               }}
             >
               <tbody>
-                {useFixedAllowances ? (
+                {useFixedAllowancesDisplay ? (
                   <>
                     {/* Holiday / rest day work allowances (policy); OT & ND are in main earnings */}
                     {fixedAllowances.legalHolidayAllowance.amount > 0 && (

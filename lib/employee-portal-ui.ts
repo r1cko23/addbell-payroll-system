@@ -43,3 +43,24 @@ export const epPageHeaderRow =
 /** Inline label + control (e.g. month filter) */
 export const epInlineField =
   "flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:w-auto";
+
+/** Two-column form grid from sm upward */
+export const epFormGrid = "grid w-full grid-cols-1 gap-4 sm:grid-cols-2";
+
+/** Single labeled field block */
+export const epFormField = "w-full min-w-0 space-y-2";
+
+/** Vertical rhythm inside forms */
+export const epFormStack = "flex w-full flex-col gap-4 sm:gap-6";
+
+/** File input — ~44px touch target on mobile */
+export const epFileInput =
+  "flex min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:mr-3 file:border-0 file:bg-transparent file:py-2.5 file:text-sm file:font-medium";
+
+/** Centered modal panel (confirm/cancel) */
+export const epModalPanel =
+  "mx-4 w-[calc(100vw-2rem)] max-w-sm rounded-lg bg-background p-4 shadow-lg sm:mx-auto sm:p-6";
+
+/** Icon-only nav control — square touch target on mobile */
+export const epTouchIconButton =
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center p-0 sm:h-9 sm:w-auto sm:px-3";

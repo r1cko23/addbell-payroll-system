@@ -19,6 +19,16 @@ import {
   requestFormCopy,
   requestReasonLabel,
 } from "@/lib/employee-portal-request-copy";
+import {
+  epFormActionButton,
+  epFormActions,
+  epFormGrid,
+  epFormStack,
+  epModalPanel,
+  epPageStack,
+  epTouchButton,
+} from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 import { getManilaTodayYmd, addCalendarDaysYmd } from "@/lib/bundy-business-day";
 
 const FTL_PAGE_CACHE_MS = 2 * 60 * 1000;
@@ -304,7 +314,7 @@ export default function FailureToLogPage() {
 
   return (
     <>
-      <VStack gap="8" className="w-full">
+      <div className={cn("w-full", epPageStack)}>
         <PageTitle>Failure To Log</PageTitle>
 
         {/* Stats */}
@@ -372,15 +382,15 @@ export default function FailureToLogPage() {
           }
         >
           <form onSubmit={handleSubmit} className="w-full">
-            <VStack gap="4" className="w-full">
+            <div className={epFormStack}>
               <BodySmall className="text-muted-foreground">
                 File missed clock in and out for a shift. If you forgot to time
                 out, the system auto-closes your session at 6:59 AM before the
                 next business day (7:00 AM).
               </BodySmall>
 
-              <div className="w-full space-y-4 md:space-y-6">
-                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
+              <div className={epFormStack}>
+                <div className={epFormGrid}>
                   <VStack gap="2" align="start" className="w-full">
                     <Label htmlFor="missed-date">Time In Date</Label>
                     <Input
@@ -405,8 +415,8 @@ export default function FailureToLogPage() {
                   </VStack>
                 </div>
 
-                <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6">
-                  <VStack gap="2" align="start" className="w-full">
+                <div className={epFormGrid}>
+                  <VStack gap="2" align="start" className="w-full min-w-0">
                     <Label htmlFor="time-out-date">Time Out Date</Label>
                     <Input
                       id="time-out-date"
@@ -457,7 +467,7 @@ export default function FailureToLogPage() {
                   !timeIn ||
                   !timeOut
                 }
-                className="h-9 w-full gap-1.5 px-4 text-sm font-medium md:w-auto md:min-w-[160px]"
+                className={cn(epTouchButton, "sm:min-w-[160px]")}
                 size="sm"
               >
                 {submitting ? (
@@ -476,7 +486,7 @@ export default function FailureToLogPage() {
                   </>
                 )}
               </Button>
-            </VStack>
+            </div>
           </form>
         </CardSection>
 
@@ -676,7 +686,7 @@ export default function FailureToLogPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full lg:w-auto"
+                          className="min-h-11 w-full sm:min-h-9 lg:w-auto"
                           onClick={(e) => {
                             e.stopPropagation();
                             setCancelId(request.id);
@@ -692,21 +702,21 @@ export default function FailureToLogPage() {
             </VStack>
           )}
         </CardSection>
-      </VStack>
+      </div>
       {cancelId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
-            <VStack gap="4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className={epModalPanel} role="dialog" aria-modal="true">
+            <VStack gap="4" className="w-full">
               <H3>Cancel Failure To Log Request?</H3>
               <BodySmall>
                 This will permanently remove the request from your records.
               </BodySmall>
-              <HStack gap="2" justify="end" align="center">
+              <div className={epFormActions}>
                 <Button
                   variant="outline"
                   onClick={() => setCancelId(null)}
                   disabled={cancelLoading}
-                  className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
+                  className={epFormActionButton}
                 >
                   Keep request
                 </Button>
@@ -714,11 +724,11 @@ export default function FailureToLogPage() {
                   variant="destructive"
                   onClick={() => cancelId && handleCancel(cancelId)}
                   disabled={cancelLoading}
-                  className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
+                  className={epFormActionButton}
                 >
                   Cancel request
                 </Button>
-              </HStack>
+              </div>
             </VStack>
           </div>
         </div>

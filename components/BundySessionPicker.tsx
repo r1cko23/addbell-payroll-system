@@ -141,6 +141,7 @@ export function BundySessionPicker({
             type="button"
             size="sm"
             variant="ghost"
+            className="min-h-11 shrink-0 px-3 sm:min-h-9"
             onClick={() => onChange(null)}
           >
             Clear
@@ -168,16 +169,16 @@ export function BundySessionPicker({
             return (
               <label
                 key={key}
-                className={`flex cursor-pointer gap-3 rounded-md border p-3 text-sm transition-colors ${
+                className={`flex min-h-11 cursor-pointer gap-3 rounded-md border p-3 text-sm transition-colors active:bg-muted/50 ${
                   checked
                     ? "border-primary bg-primary/5"
-                    : "border-border hover:bg-muted/50"
+                    : "border-border motion-safe:md:hover:bg-muted/50"
                 }`}
               >
                 <input
                   type="radio"
                   name="bundy-session"
-                  className="mt-1"
+                  className="mt-1 size-4 shrink-0"
                   checked={checked}
                   onChange={() =>
                     onChange({

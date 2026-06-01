@@ -25,7 +25,7 @@ export function PortalPageHeader({
       <PageTitle>{title}</PageTitle>
       {description != null && description !== "" ? (
         typeof description === "string" ? (
-          <BodySmall className="max-w-2xl text-muted-foreground">
+          <BodySmall className="max-w-2xl text-pretty text-muted-foreground">
             {description}
           </BodySmall>
         ) : (

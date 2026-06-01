@@ -5,9 +5,8 @@ import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import { VStack } from "@/components/ui/stack";
 import { BodySmall } from "@/components/ui/typography";
-import { epPageStack } from "@/lib/employee-portal-ui";
+import { epCardInteractive, epPageStack } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 
 type QuickLink = {
@@ -72,7 +71,7 @@ export default function EmployeePortalHomePage() {
   const { employee } = useEmployeeSession();
 
   return (
-    <VStack gap="6" className={cn("w-full pb-4", epPageStack)}>
+    <div className={cn("w-full pb-4", epPageStack)}>
       <PortalPageHeader
         title="Home"
         description={`Welcome back, ${employee.full_name}. Choose a task below or use the menu.`}
@@ -85,7 +84,13 @@ export default function EmployeePortalHomePage() {
             href={item.href}
             className="group block rounded-xl outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Card className="h-full border-border/80 bg-card transition-shadow group-hover:shadow-md group-focus-visible:shadow-md">
+            <Card
+              className={cn(
+                "h-full border-border/80 bg-card",
+                epCardInteractive,
+                "group-focus-visible:shadow-md motion-safe:md:group-hover:shadow-md"
+              )}
+            >
               <CardContent className="flex min-h-[72px] gap-3 p-4 sm:min-h-0 sm:p-5">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Icon name={item.icon} size={IconSizes.md} />
@@ -101,13 +106,13 @@ export default function EmployeePortalHomePage() {
                 <Icon
                   name="CaretRight"
                   size={IconSizes.sm}
-                  className="mt-1 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                  className="mt-1 shrink-0 text-muted-foreground motion-safe:md:transition-transform motion-safe:md:group-hover:translate-x-0.5"
                 />
               </CardContent>
             </Card>
           </Link>
         ))}
       </div>
-    </VStack>
+    </div>
   );
 }

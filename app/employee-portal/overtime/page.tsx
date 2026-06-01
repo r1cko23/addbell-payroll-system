@@ -37,6 +37,16 @@ import {
   isClaimedOtWithinBundySession,
 } from "@/lib/ot-claimed-range";
 import { getManilaDateKeyFromIso } from "@/utils/business-hours";
+import {
+  epFileInput,
+  epFormField,
+  epFormGrid,
+  epFormStack,
+  epPageStack,
+  epTouchButton,
+  epTouchIconButton,
+} from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 
 type OvertimeDocSummary = { id: string; file_name: string };
 
@@ -460,13 +470,13 @@ export default function OvertimePage() {
     endTimeOnly.getTime() <= startTimeOnly.getTime();
 
   return (
-    <VStack gap="6" className="w-full">
+    <div className={cn("w-full", epPageStack)}>
       <PortalPageHeader
         title="OT filing"
         description="Submit overtime for approval and track your requests."
       />
       <Card className="w-full">
-        <CardHeader className="pb-4">
+        <CardHeader className="px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
           <CardTitle>
             <HStack gap="2" align="center">
               <Icon name="ClockClockwise" size={IconSizes.md} />
@@ -478,11 +488,11 @@ export default function OvertimePage() {
             requires them.
           </BodySmall>
         </CardHeader>
-        <CardContent className="w-full">
+        <CardContent className="w-full p-4 sm:p-6">
           <form onSubmit={handleSubmit} className="w-full">
-            <VStack gap="6" className="w-full">
-              <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="w-full space-y-2">
+            <div className={epFormStack}>
+              <div className={epFormGrid}>
+                <div className={epFormField}>
                   <Label htmlFor="ot-date">OT Date</Label>
                   <Input
                     id="ot-date"
@@ -495,7 +505,7 @@ export default function OvertimePage() {
                     }}
                   />
                 </div>
-                <div className="w-full space-y-2">
+                <div className={epFormField}>
                   <Label htmlFor="start-time">Start Time</Label>
                   <Input
                     id="start-time"
@@ -537,8 +547,8 @@ export default function OvertimePage() {
                 </div>
               ) : null}
 
-              <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="w-full space-y-2">
+              <div className={epFormGrid}>
+                <div className={epFormField}>
                   <Label htmlFor="end-time">End Time</Label>
                   <Input
                     id="end-time"
@@ -550,7 +560,7 @@ export default function OvertimePage() {
                     }
                   />
                 </div>
-                <div className="w-full space-y-2">
+                <div className={epFormField}>
                   <Label htmlFor="total-hours">Total Hours (auto)</Label>
                   <Input
                     id="total-hours"
@@ -573,7 +583,7 @@ export default function OvertimePage() {
                 </div>
               </div>
 
-              <div className="w-full space-y-2">
+              <div className={epFormField}>
                 <Label htmlFor="end-date">
                   End Date {autoSpansMidnight ? "(auto-calculated)" : ""}
                 </Label>
@@ -594,8 +604,8 @@ export default function OvertimePage() {
               </div>
 
               {bundySelection ? (
-                <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="w-full space-y-2">
+                <div className={epFormGrid}>
+                  <div className={epFormField}>
                     <Label>Clock-in location</Label>
                     <Input
                       value={
@@ -613,7 +623,7 @@ export default function OvertimePage() {
                     {bundySelection.session.clock_in_lat != null &&
                       bundySelection.session.clock_in_lng != null && (
                         <a
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          className="inline-flex min-h-11 items-center gap-1 text-xs text-primary hover:underline sm:min-h-0"
                           href={`https://www.google.com/maps?q=${bundySelection.session.clock_in_lat},${bundySelection.session.clock_in_lng}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -623,7 +633,7 @@ export default function OvertimePage() {
                         </a>
                       )}
                   </div>
-                  <div className="w-full space-y-2">
+                  <div className={epFormField}>
                     <Label>Clock-out location</Label>
                     <Input
                       value={
@@ -641,7 +651,7 @@ export default function OvertimePage() {
                     {bundySelection.session.clock_out_lat != null &&
                       bundySelection.session.clock_out_lng != null && (
                         <a
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          className="inline-flex min-h-11 items-center gap-1 text-xs text-primary hover:underline sm:min-h-0"
                           href={`https://www.google.com/maps?q=${bundySelection.session.clock_out_lat},${bundySelection.session.clock_out_lng}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -663,7 +673,7 @@ export default function OvertimePage() {
                 </div>
               ) : null}
 
-              <div className="w-full space-y-2">
+              <div className={epFormField}>
                 <Label htmlFor="reason">{requestReasonLabel}</Label>
                 <Textarea
                   id="reason"
@@ -677,7 +687,7 @@ export default function OvertimePage() {
                 />
               </div>
 
-              <div className="w-full space-y-2">
+              <div className={epFormField}>
                 <Label htmlFor="ot-doc">{requestSupportingDocLabel}</Label>
                 <input
                   id="ot-doc"
@@ -703,7 +713,7 @@ export default function OvertimePage() {
                     setDocError(null);
                     setSupportingDoc(file);
                   }}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
+                  className={epFileInput}
                 />
                 <p className="text-xs text-muted-foreground">
                   {requestFormCopy.overtime.supportingDocHint}
@@ -715,7 +725,7 @@ export default function OvertimePage() {
                     className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-600"
                   >
                     <Icon name="Paperclip" size={IconSizes.sm} />
-                    <span>{supportingDoc.name}</span>
+                    <span className="min-w-0 truncate">{supportingDoc.name}</span>
                     <Caption>
                       {(supportingDoc.size / 1024 / 1024).toFixed(2)} MB
                     </Caption>
@@ -738,7 +748,7 @@ export default function OvertimePage() {
                   claimedOutsideBundy ||
                   hoursFromTimeRange <= 0
                 }
-                className="h-9 w-full gap-1.5 px-4 text-sm font-medium md:w-auto md:min-w-[200px]"
+                className={cn(epTouchButton, "sm:min-w-[200px]")}
                 size="sm"
               >
                 {submitting ? (
@@ -757,24 +767,24 @@ export default function OvertimePage() {
                   </>
                 )}
               </Button>
-            </VStack>
+            </div>
           </form>
         </CardContent>
       </Card>
 
       {/* Requests List */}
       <Card className="w-full">
-        <CardHeader>
+        <CardHeader className="px-4 sm:px-6">
           <CardTitle>My OT Requests</CardTitle>
         </CardHeader>
-        <CardContent className="w-full">
+        <CardContent className="w-full p-4 sm:p-6">
           {historyCutoffs.length > 0 && (
-            <div className="mb-6 flex items-center justify-center gap-2 sm:gap-3">
+            <div className="mb-6 flex w-full items-center justify-center gap-2 sm:gap-3">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-3 py-3"
+                className={epTouchIconButton}
                 disabled={!canGoToOlderCutoff || loading}
                 onClick={() =>
                   setSelectedCutoffIndex((index) =>
@@ -785,14 +795,14 @@ export default function OvertimePage() {
               >
                 <Icon name="CaretLeft" size={IconSizes.sm} />
               </Button>
-              <p className="min-w-[180px] text-center text-sm font-medium text-foreground sm:min-w-[220px]">
+              <p className="min-w-0 flex-1 text-center text-sm font-medium text-foreground sm:min-w-[220px] sm:flex-none">
                 {cutoffNavLabel}
               </p>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-3 py-3"
+                className={epTouchIconButton}
                 disabled={!canGoToNewerCutoff || loading}
                 onClick={() =>
                   setSelectedCutoffIndex((index) => Math.max(index - 1, 0))
@@ -1166,6 +1176,6 @@ export default function OvertimePage() {
           )}
         </CardContent>
       </Card>
-    </VStack>
+    </div>
   );
 }

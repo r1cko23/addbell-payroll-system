@@ -13,6 +13,7 @@ import {
   epInlineField,
   epPageHeaderRow,
   epPageStack,
+  epTouchButton,
 } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
@@ -408,29 +409,29 @@ export default function EmployeePayslipsPage() {
                         </BodySmall>
                       </VStack>
 
-                      <div className="flex w-full flex-col gap-2.5 lg:w-[17rem] lg:shrink-0 lg:justify-self-end">
-                        <div className="grid w-full grid-cols-3 gap-1 sm:gap-2">
-                          <VStack gap="0.5" align="start" className="min-w-0 sm:items-end">
-                            <BodySmall className="text-xs text-muted-foreground">
+                      <div className="flex w-full min-w-0 flex-col gap-2.5 lg:w-[17rem] lg:shrink-0 lg:justify-self-end">
+                        <div className="grid w-full grid-cols-3 gap-1.5 sm:gap-2">
+                          <VStack gap="1" align="start" className="min-w-0">
+                            <BodySmall className="text-[10px] leading-tight text-muted-foreground sm:text-xs">
                               Gross Pay
                             </BodySmall>
-                            <BodySmall className="text-xs font-semibold tabular-nums text-muted-foreground sm:text-sm">
+                            <BodySmall className="truncate text-[11px] font-semibold tabular-nums text-muted-foreground sm:text-sm">
                               {formatCurrency(payslip.gross_pay)}
                             </BodySmall>
                           </VStack>
-                          <VStack gap="0.5" align="start" className="min-w-0 sm:items-end">
-                            <BodySmall className="text-xs text-muted-foreground">
+                          <VStack gap="1" align="start" className="min-w-0">
+                            <BodySmall className="text-[10px] leading-tight text-muted-foreground sm:text-xs">
                               Deductions
                             </BodySmall>
-                            <BodySmall className="text-xs font-semibold tabular-nums text-muted-foreground sm:text-sm">
+                            <BodySmall className="truncate text-[11px] font-semibold tabular-nums text-muted-foreground sm:text-sm">
                               −{formatCurrency(payslip.total_deductions)}
                             </BodySmall>
                           </VStack>
-                          <VStack gap="0.5" align="start" className="min-w-0 sm:items-end">
-                            <BodySmall className="text-xs text-muted-foreground">
+                          <VStack gap="1" align="start" className="min-w-0">
+                            <BodySmall className="text-[10px] leading-tight text-muted-foreground sm:text-xs">
                               Net Pay
                             </BodySmall>
-                            <BodySmall className="text-xs font-semibold tabular-nums text-foreground sm:text-sm">
+                            <BodySmall className="truncate text-[11px] font-semibold tabular-nums text-foreground sm:text-sm">
                               {formatCurrency(payslip.net_pay)}
                             </BodySmall>
                           </VStack>
@@ -440,7 +441,10 @@ export default function EmployeePayslipsPage() {
                           variant="default"
                           size="sm"
                           onClick={() => openPayslipPreview(payslip)}
-                          className="h-9 w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                          className={cn(
+                            epTouchButton,
+                            "bg-primary text-primary-foreground hover:bg-primary/90"
+                          )}
                         >
                           <Icon name="FileText" size={IconSizes.sm} />
                           View & Download

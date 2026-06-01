@@ -30,6 +30,7 @@ import {
   computeRawOtSpanHours,
   isClaimedOtWithinBundySession,
 } from "@/lib/ot-claimed-range";
+import { getManilaDateKeyFromIso } from "@/utils/business-hours";
 
 type OvertimeDocSummary = { id: string; file_name: string };
 
@@ -297,6 +298,16 @@ export default function OvertimePage() {
 
   const applyBundySelection = (sel: BundySessionSelection | null) => {
     setBundySelection(sel);
+    if (sel) {
+      const workDate = getManilaDateKeyFromIso(sel.session.clock_in_time);
+      if (workDate) {
+        setFormData((prev) => ({
+          ...prev,
+          ot_date: workDate,
+          end_date: prev.end_date || workDate,
+        }));
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

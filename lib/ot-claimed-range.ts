@@ -1,3 +1,34 @@
+const MANILA_OFFSET = "+08:00";
+
+/** Wall-clock yyyy-MM-dd + HH:mm as an instant in Asia/Manila (matches Bundy punches). */
+function manilaYmdHmToEpochMs(
+  y: number,
+  m: number,
+  d: number,
+  h: number,
+  min: number
+): number {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return new Date(
+    `${y}-${pad(m)}-${pad(d)}T${pad(h)}:${pad(min)}:00${MANILA_OFFSET}`
+  ).getTime();
+}
+
+function nextManilaCalendarDay(y: number, m: number, d: number) {
+  const ms = manilaYmdHmToEpochMs(y, m, d, 12, 0) + 86_400_000;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(ms));
+  return {
+    y: Number(parts.find((p) => p.type === "year")?.value),
+    m: Number(parts.find((p) => p.type === "month")?.value),
+    d: Number(parts.find((p) => p.type === "day")?.value),
+  };
+}
+
 /** Raw (uncredited) hours between claimed OT start/end — used for max-hours validation. */
 export function computeRawOtSpanHours(params: {
   otDate: string;
@@ -10,7 +41,7 @@ export function computeRawOtSpanHours(params: {
   const et = parseHm(params.endTime);
   if (!sd || !st || !et) return null;
 
-  const startMs = Date.UTC(sd.y, sd.m - 1, sd.d, st.h, st.m, 0, 0);
+  const startMs = manilaYmdHmToEpochMs(sd.y, sd.m, sd.d, st.h, st.m);
 
   let endY = sd.y;
   let endM = sd.m;
@@ -23,14 +54,13 @@ export function computeRawOtSpanHours(params: {
     endM = ed.m;
     endD = ed.d;
   } else if (et.h < st.h || (et.h === st.h && et.m <= st.m)) {
-    const tmp = new Date(Date.UTC(sd.y, sd.m - 1, sd.d, 12, 0, 0, 0));
-    tmp.setUTCDate(tmp.getUTCDate() + 1);
-    endY = tmp.getUTCFullYear();
-    endM = tmp.getUTCMonth() + 1;
-    endD = tmp.getUTCDate();
+    const next = nextManilaCalendarDay(sd.y, sd.m, sd.d);
+    endY = next.y;
+    endM = next.m;
+    endD = next.d;
   }
 
-  const endMs = Date.UTC(endY, endM - 1, endD, et.h, et.m, 0, 0);
+  const endMs = manilaYmdHmToEpochMs(endY, endM, endD, et.h, et.m);
   const diffMs = endMs - startMs;
   if (diffMs <= 0) return 0;
 
@@ -48,7 +78,7 @@ export function getClaimedOtRangeEpochMs(params: {
   const et = parseHm(params.endTime);
   if (!sd || !st || !et) return null;
 
-  const startMs = Date.UTC(sd.y, sd.m - 1, sd.d, st.h, st.m, 0, 0);
+  const startMs = manilaYmdHmToEpochMs(sd.y, sd.m, sd.d, st.h, st.m);
 
   let endY = sd.y;
   let endM = sd.m;
@@ -61,14 +91,13 @@ export function getClaimedOtRangeEpochMs(params: {
     endM = ed.m;
     endD = ed.d;
   } else if (et.h < st.h || (et.h === st.h && et.m <= st.m)) {
-    const tmp = new Date(Date.UTC(sd.y, sd.m - 1, sd.d, 12, 0, 0, 0));
-    tmp.setUTCDate(tmp.getUTCDate() + 1);
-    endY = tmp.getUTCFullYear();
-    endM = tmp.getUTCMonth() + 1;
-    endD = tmp.getUTCDate();
+    const next = nextManilaCalendarDay(sd.y, sd.m, sd.d);
+    endY = next.y;
+    endM = next.m;
+    endD = next.d;
   }
 
-  const endMs = Date.UTC(endY, endM - 1, endD, et.h, et.m, 0, 0);
+  const endMs = manilaYmdHmToEpochMs(endY, endM, endD, et.h, et.m);
   if (endMs <= startMs) return null;
   return { startMs, endMs };
 }

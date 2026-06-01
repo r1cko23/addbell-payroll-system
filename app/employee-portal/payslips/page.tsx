@@ -16,6 +16,7 @@ import { EmployeePayslipDetail } from "@/components/EmployeePayslipDetail";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -55,8 +56,7 @@ export default function EmployeePayslipsPage() {
   );
   const [holidays, setHolidays] = useState<Array<{ holiday_date: string }>>([]);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
-  const [showPrintModal, setShowPrintModal] = useState(false);
-  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [printPreviewReady, setPrintPreviewReady] = useState(false);
 
   const payslipProfile = useMemo((): EmployeeProfileForPayslip | null => {
@@ -165,15 +165,10 @@ export default function EmployeePayslipsPage() {
     }
   }
 
-  function handleViewPayslip(payslip: Payslip) {
+  function openPayslipPreview(payslip: Payslip) {
     setSelectedPayslip(payslip);
     setPrintPreviewReady(false);
-    setShowPrintModal(true);
-  }
-
-  function handleViewBreakdown(payslip: Payslip) {
-    setSelectedPayslip(payslip);
-    setShowBreakdownModal(true);
+    setShowPayslipModal(true);
   }
 
   function handlePrint() {
@@ -255,10 +250,6 @@ export default function EmployeePayslipsPage() {
       </html>
     `);
     printWindow.document.close();
-  }
-
-  function handleDownload() {
-    handlePrint();
   }
 
   if (loading) {
@@ -383,7 +374,7 @@ export default function EmployeePayslipsPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleViewBreakdown(payslip)}
+                            onClick={() => openPayslipPreview(payslip)}
                             className="w-full sm:w-auto"
                           >
                             <Icon name="Eye" size={IconSizes.sm} />
@@ -392,7 +383,7 @@ export default function EmployeePayslipsPage() {
                           <Button
                             variant="default"
                             size="sm"
-                            onClick={() => handleViewPayslip(payslip)}
+                            onClick={() => openPayslipPreview(payslip)}
                             className="gradient-accent"
                           >
                             <Icon name="FileText" size={IconSizes.sm} />
@@ -409,77 +400,56 @@ export default function EmployeePayslipsPage() {
         </CardSection>
       </div>
 
-      {/* Print Modal */}
+      {/* Payslip preview — same layout as HR /payslips Print Payslip */}
       <Dialog
-        open={showPrintModal}
+        open={showPayslipModal}
         onOpenChange={(open) => {
-          setShowPrintModal(open);
+          setShowPayslipModal(open);
           if (!open) setPrintPreviewReady(false);
         }}
       >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Payslip Preview</DialogTitle>
-            <BodySmall className="text-muted-foreground">
-              Official payslip layout for print and download. Use View Details for
-              the full hour-by-hour breakdown.
-            </BodySmall>
-          </DialogHeader>
           {selectedPayslip && payslipProfile ? (
-            <EmployeePayslipDetail
-              key={`print-${selectedPayslip.id}`}
-              payslip={selectedPayslip}
-              profile={payslipProfile}
-              holidays={holidays}
-              variant="print"
-              onPrintPreviewReady={setPrintPreviewReady}
-            />
+            <>
+              <DialogHeader>
+                <DialogTitle>Payslip Preview</DialogTitle>
+              </DialogHeader>
+              <VStack gap="4">
+                <EmployeePayslipDetail
+                  key={`preview-${selectedPayslip.id}`}
+                  payslip={selectedPayslip}
+                  profile={payslipProfile}
+                  holidays={holidays}
+                  variant="print"
+                  onPrintPreviewReady={setPrintPreviewReady}
+                />
+                <DialogFooter className="print:hidden sm:justify-end">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowPayslipModal(false)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    onClick={handlePrint}
+                    disabled={!printPreviewReady}
+                    className="gradient-accent"
+                  >
+                    <Icon name="Printer" size={IconSizes.sm} />
+                    Print Payslip
+                  </Button>
+                </DialogFooter>
+              </VStack>
+            </>
           ) : selectedPayslip ? (
-            <BodySmall className="text-muted-foreground py-4">
-              Loading pay rates… refresh the page if this message persists.
-            </BodySmall>
-          ) : null}
-          <div className="flex gap-2 justify-end mt-4 print:hidden">
-            <Button variant="outline" onClick={() => setShowPrintModal(false)}>
-              Close
-            </Button>
-            <Button
-              onClick={handlePrint}
-              disabled={!printPreviewReady}
-            >
-              Print
-            </Button>
-            <Button
-              onClick={handleDownload}
-              className="gradient-accent"
-              disabled={!printPreviewReady}
-            >
-              Download PDF
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Breakdown Modal */}
-      <Dialog open={showBreakdownModal} onOpenChange={setShowBreakdownModal}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              Payslip breakdown — {selectedPayslip?.payslip_number}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedPayslip && payslipProfile ? (
-            <EmployeePayslipDetail
-              key={`breakdown-${selectedPayslip.id}`}
-              payslip={selectedPayslip}
-              profile={payslipProfile}
-              holidays={holidays}
-              variant="screen"
-            />
-          ) : selectedPayslip ? (
-            <BodySmall className="text-muted-foreground py-4">
-              Loading pay details…
-            </BodySmall>
+            <>
+              <DialogHeader>
+                <DialogTitle>Payslip Preview</DialogTitle>
+              </DialogHeader>
+              <BodySmall className="text-muted-foreground py-4">
+                Loading pay rates… refresh the page if this message persists.
+              </BodySmall>
+            </>
           ) : null}
         </DialogContent>
       </Dialog>

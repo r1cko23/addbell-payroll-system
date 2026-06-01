@@ -14,6 +14,7 @@ import {
   epPageHeaderRow,
   epPageStack,
   epTouchButton,
+  epRequestFiledPill,
 } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
@@ -400,13 +401,14 @@ export default function EmployeePayslipsPage() {
                         <BodySmall className="truncate text-xs text-muted-foreground">
                           Payslip #{payslip.payslip_number}
                         </BodySmall>
-                        <BodySmall className="text-xs text-muted-foreground">
-                          Created:{" "}
-                          {format(
-                            new Date(payslip.created_at),
-                            "MMM d, yyyy h:mm a"
-                          )}
-                        </BodySmall>
+                        <p>
+                          <span className={epRequestFiledPill}>
+                            {format(
+                              new Date(payslip.created_at),
+                              "MMM d, yyyy h:mm a"
+                            )}
+                          </span>
+                        </p>
                       </VStack>
 
                       <div className="flex w-full min-w-0 flex-col gap-2.5 lg:w-[17rem] lg:shrink-0 lg:justify-self-end">

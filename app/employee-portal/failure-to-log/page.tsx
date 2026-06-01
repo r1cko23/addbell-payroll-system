@@ -26,8 +26,23 @@ import {
   epFormStack,
   epModalPanel,
   epPageStack,
-  epTouchButton,
+  epSubmitRequestButton,
 } from "@/lib/employee-portal-ui";
+import {
+  epRequestApprovalBoxEmerald,
+  epRequestApprovalBoxEmeraldHr,
+  epRequestHistoryList,
+  epRequestStatusBadgeApproved,
+  epRequestStatusBadgeCancelled,
+  epRequestStatusBadgeOpsManager,
+  epRequestStatusBadgePending,
+  epRequestStatusBadgeRejected,
+} from "@/lib/employee-portal-request-history";
+import {
+  RequestHistoryCard,
+  RequestHistoryReasonRow,
+  RequestHistoryTimeRow,
+} from "@/components/employee-portal/RequestHistoryCard";
 import { cn } from "@/lib/utils";
 import { getManilaTodayYmd, addCalendarDaysYmd } from "@/lib/bundy-business-day";
 
@@ -380,15 +395,11 @@ export default function FailureToLogPage() {
               File Failure To Log Request
             </HStack>
           }
+          description="File missed clock in and out for a shift. If you forgot to time out, the system auto-closes your session at 6:59 AM before the next business day (7:00 AM)."
+          headerClassName="space-y-1"
         >
           <form onSubmit={handleSubmit} className="w-full">
             <div className={epFormStack}>
-              <BodySmall className="text-muted-foreground">
-                File missed clock in and out for a shift. If you forgot to time
-                out, the system auto-closes your session at 6:59 AM before the
-                next business day (7:00 AM).
-              </BodySmall>
-
               <div className={epFormStack}>
                 <div className={epFormGrid}>
                   <VStack gap="2" align="start" className="w-full">
@@ -467,7 +478,7 @@ export default function FailureToLogPage() {
                   !timeIn ||
                   !timeOut
                 }
-                className={cn(epTouchButton, "sm:min-w-[160px]")}
+                className={epSubmitRequestButton}
                 size="sm"
               >
                 {submitting ? (
@@ -508,117 +519,51 @@ export default function FailureToLogPage() {
               </VStack>
             </div>
           ) : (
-            <VStack gap="4">
-              {visibleRequests.map((request) => (
-                <Card
-                  key={request.id}
-                  className={`w-full ${
-                    request.status === "pending"
-                      ? "border-yellow-300"
-                      : request.status === "approved"
-                      ? "border-green-300"
-                      : request.status === "rejected"
-                      ? "border-red-300"
-                      : "border-slate-300"
-                  }`}
-                >
-                  <CardContent className="w-full p-4 sm:p-5">
-                    <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <VStack gap="2" align="start" className="min-w-0 flex-1">
-                        <HStack gap="3" align="center" className="flex-wrap">
-                          <H3>
-                            {formatSafe(request.missed_date, "MMM dd, yyyy")}
-                          </H3>
-                          <BodySmall className="hidden md:block">
-                            {request.entry_type === "in" && (
-                              <>
-                                Actual In:{" "}
-                                {formatSafe(
-                                  request.actual_clock_in_time,
-                                  "MMM dd, h:mm a"
-                                )}
-                              </>
-                            )}
-                            {request.entry_type === "out" && (
-                              <>
-                                Actual Out:{" "}
-                                {formatSafe(
-                                  request.actual_clock_out_time,
-                                  "MMM dd, h:mm a"
-                                )}
-                              </>
-                            )}
-                            {request.entry_type === "both" && (
-                              <>
-                                Actual In:{" "}
-                                {formatSafe(
-                                  request.actual_clock_in_time,
-                                  "MMM dd, h:mm a"
-                                )}{" "}
-                                | Actual Out:{" "}
-                                {formatSafe(
-                                  request.actual_clock_out_time,
-                                  "MMM dd, h:mm a"
-                                )}
-                              </>
-                            )}
-                          </BodySmall>
-                        </HStack>
+            <div className={epRequestHistoryList}>
+              {visibleRequests.map((request) => {
+                const ftlTimeLabel =
+                  request.entry_type === "in"
+                    ? formatSafe(
+                        request.actual_clock_in_time,
+                        "MMM d, h:mm a"
+                      )
+                    : request.entry_type === "out"
+                    ? formatSafe(
+                        request.actual_clock_out_time,
+                        "MMM d, h:mm a"
+                      )
+                    : request.entry_type === "both" &&
+                      request.actual_clock_in_time &&
+                      request.actual_clock_out_time
+                    ? `${formatSafe(request.actual_clock_in_time, "MMM d, h:mm a")} – ${formatSafe(request.actual_clock_out_time, "h:mm a")}`
+                    : null;
 
-                        <VStack gap="1" align="start">
-                          <BodySmall>
-                            <strong>Reason:</strong>
-                          </BodySmall>
-                          <BodySmall className="text-muted-foreground">
-                            {request.reason}
-                          </BodySmall>
-                        </VStack>
-
-                        {request.status === "rejected" &&
-                          request.rejection_reason && (
-                            <div className="p-2 bg-red-50 border border-red-200 rounded-md">
-                              <BodySmall className="text-red-900 font-semibold">
-                                Rejection Reason:
-                              </BodySmall>
-                              <BodySmall className="text-red-800 mt-1">
-                                {request.rejection_reason}
-                              </BodySmall>
-                            </div>
+                return (
+                  <RequestHistoryCard
+                    key={request.id}
+                    status={request.status}
+                    title={formatSafe(request.missed_date, "MMM dd, yyyy")}
+                    categoryLabel="FTL"
+                    filedAt={formatSafe(
+                      request.created_at,
+                      "MMM dd, yyyy h:mm a"
+                    )}
+                    statusColumn={
+                      <>
+                        {request.status === "pending" &&
+                          !isManagerApproved(request) && (
+                            <Badge variant="outline" className={epRequestStatusBadgePending}>
+                              <Icon name="Hourglass" size={IconSizes.sm} />
+                              PENDING
+                            </Badge>
                           )}
-
-                        <p className="text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
-                          Filed:{" "}
-                          {formatSafe(
-                            request.created_at,
-                            "MMM d, yyyy h:mm a"
-                          )}
-                        </p>
-                      </VStack>
-
-                      <VStack
-                        gap="2"
-                        align="end"
-                        className="w-full lg:ml-4 lg:w-auto"
-                      >
-                        {request.status === "pending" && !isManagerApproved(request) && (
-                          <Badge
-                            variant="secondary"
-                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
-                          >
-                            <Icon name="Hourglass" size={IconSizes.sm} />
-                            PENDING
-                          </Badge>
-                        )}
                         {isManagerApproved(request) && (
                           <>
-                            <Badge
-                              variant="outline"
-                              className="flex w-full items-center justify-center gap-2 text-center bg-emerald-600 text-white border-emerald-600 lg:w-auto"
-                            >
+                            <Badge variant="outline" className={epRequestStatusBadgeOpsManager}>
                               <Icon name="CheckCircle" size={IconSizes.sm} />
                               APPROVED BY OPERATIONS MANAGER
                             </Badge>
-                            <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
+                            <div className={epRequestApprovalBoxEmerald}>
                               {request.manager_approval_name && (
                                 <div className="font-semibold">
                                   {request.manager_approval_name}
@@ -636,17 +581,14 @@ export default function FailureToLogPage() {
                           </>
                         )}
                         {request.status === "approved" && (
-                          <Badge
-                            variant="default"
-                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
-                          >
+                          <Badge variant="outline" className={epRequestStatusBadgeApproved}>
                             <Icon name="CheckCircle" size={IconSizes.sm} />
                             APPROVED
                           </Badge>
                         )}
                         {request.status === "approved" &&
                           (request.final_approval_name || request.approved_at) && (
-                            <div className="w-full rounded-md border bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
+                            <div className={epRequestApprovalBoxEmeraldHr}>
                               <div className="font-semibold">Approved by HR</div>
                               {request.final_approval_name && (
                                 <div>{request.final_approval_name}</div>
@@ -662,44 +604,36 @@ export default function FailureToLogPage() {
                             </div>
                           )}
                         {request.status === "rejected" && (
-                          <Badge
-                            variant="destructive"
-                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
-                          >
+                          <Badge variant="outline" className={epRequestStatusBadgeRejected}>
                             <Icon name="XCircle" size={IconSizes.sm} />
                             REJECTED
                           </Badge>
                         )}
                         {request.status === "cancelled" && (
-                          <Badge
-                            variant="secondary"
-                            className="flex w-full items-center justify-center gap-2 text-center lg:w-auto"
-                          >
+                          <Badge variant="outline" className={epRequestStatusBadgeCancelled}>
                             <Icon name="XCircle" size={IconSizes.sm} />
                             CANCELLED
                           </Badge>
                         )}
-                      </VStack>
-                    </div>
-                    {request.status === "pending" && !isManagerApproved(request) && (
-                      <HStack justify="end" align="center" className="pt-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="min-h-11 w-full sm:min-h-9 lg:w-auto"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setCancelId(request.id);
-                          }}
-                        >
-                          Cancel Request
-                        </Button>
-                      </HStack>
+                      </>
+                    }
+                  >
+                    {ftlTimeLabel ? (
+                      <RequestHistoryTimeRow>{ftlTimeLabel}</RequestHistoryTimeRow>
+                    ) : null}
+                    <RequestHistoryReasonRow reason={request.reason} />
+                    {request.status === "rejected" && request.rejection_reason && (
+                      <div className="mb-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm">
+                        <strong className="text-red-900">Rejection Reason:</strong>
+                        <div className="mt-1 text-red-800">
+                          {request.rejection_reason}
+                        </div>
+                      </div>
                     )}
-                  </CardContent>
-                </Card>
-              ))}
-            </VStack>
+                  </RequestHistoryCard>
+                );
+              })}
+            </div>
           )}
         </CardSection>
       </div>

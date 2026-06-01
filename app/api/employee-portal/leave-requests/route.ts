@@ -338,7 +338,7 @@ export async function PATCH(req: NextRequest) {
       .delete()
       .eq("id", body.request_id)
       .eq("employee_id", body.employee_id)
-      .in("status", ["pending", "approved_by_manager", "approved_by_pm", "approved_by_hr"])
+      .in("status", ["pending", "approved_by_manager", "approved_by_pm"])
       .select("id")
       .maybeSingle();
 

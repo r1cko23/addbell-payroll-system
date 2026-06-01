@@ -7,6 +7,10 @@
 export const epTouchButton =
   "min-h-11 h-11 w-full gap-1.5 px-3 text-sm font-medium sm:min-h-9 sm:h-9 sm:w-auto";
 
+/** Full-width primary submit on OT / leave / failure-to-log forms */
+export const epSubmitRequestButton =
+  "min-h-11 h-11 w-full gap-1.5 px-3 text-sm font-medium";
+
 /** Header action row: equal two-column grid on mobile, inline on md+ */
 export const epHeaderActions =
   "grid w-full grid-cols-2 gap-2 md:flex md:w-auto md:shrink-0 md:gap-2";
@@ -64,3 +68,11 @@ export const epModalPanel =
 /** Icon-only nav control — square touch target on mobile */
 export const epTouchIconButton =
   "inline-flex h-11 w-11 shrink-0 items-center justify-center p-0 sm:h-9 sm:w-auto sm:px-3";
+
+/** Category labels on request cards (leave type, subtype, OT) — plain muted text */
+export const epRequestCategoryText =
+  "text-xs font-normal text-muted-foreground";
+
+/** Filed / created — pill container, same typography as category labels (SIL, Others) */
+export const epRequestFiledPill =
+  "inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-normal text-muted-foreground";

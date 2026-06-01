@@ -9,22 +9,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { PageTitle, H3, H4, BodySmall, Caption, StatValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays, differenceInCalendarDays } from "date-fns";
+import { epSubmitRequestButton } from "@/lib/employee-portal-ui";
+import {
+  epRequestApprovalBoxEmerald,
+  epRequestApprovalBoxEmeraldHr,
+  epRequestHistoryList,
+  epRequestHistorySectionContent,
+  epRequestStatusBadgeApproved,
+  epRequestStatusBadgeCancelled,
+  epRequestStatusBadgePending,
+  epRequestStatusBadgeRejected,
+} from "@/lib/employee-portal-request-history";
+import {
+  RequestHistoryCard,
+  RequestHistoryReasonRow,
+  RequestHistorySupportingDocuments,
+} from "@/components/employee-portal/RequestHistoryCard";
+import { cn } from "@/lib/utils";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
 import {
@@ -190,9 +197,6 @@ export default function LeaveRequestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [calculatedDays, setCalculatedDays] = useState(0);
   const [calculatedHours, setCalculatedHours] = useState(0);
-  const [cancelId, setCancelId] = useState<string | null>(null);
-  const [cancelLoading, setCancelLoading] = useState(false);
-
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB cap to keep DB light
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -626,39 +630,6 @@ export default function LeaveRequestPage() {
     fetchEmployeeInfo(employee.id);
   }
 
-  async function handleCancel(requestId: string) {
-    setCancelLoading(true);
-
-    const response = await fetch("/api/employee-portal/leave-requests", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        request_id: requestId,
-        employee_id: employee?.id || "",
-      }),
-    });
-    const payload = await response.json();
-
-    setCancelLoading(false);
-
-    if (!response.ok) {
-      console.error("Error cancelling leave request:", payload);
-      toast.error(
-        `Failed to cancel leave request: ${payload?.error || "Unknown error"}`
-      );
-      return;
-    }
-
-    toast.success("Leave request cancelled", {
-      description: "Your request has been removed successfully",
-    });
-    setCancelId(null);
-    if (employee) {
-      fetchLeaveRequests(employee.id);
-      fetchEmployeeInfo(employee.id);
-    }
-  }
-
   async function handleDownload(docId: string) {
     setDownloadingDocId(docId);
     const { data, error } = await supabase
@@ -736,14 +707,6 @@ export default function LeaveRequestPage() {
   const approvedCount = visibleRequests.filter(
     (r) => r.status === "approved_by_hr"
   ).length;
-  const statusClasses: Record<LeaveRequest["status"], string> = {
-    pending: "bg-amber-100 text-amber-800 border-amber-200",
-    approved_by_manager: "bg-emerald-600 text-white border-emerald-600",
-    approved_by_hr: "bg-emerald-600 text-white border-emerald-600",
-    rejected: "bg-rose-100 text-rose-900 border-rose-200",
-    cancelled: "bg-slate-100 text-slate-800 border-slate-200",
-  };
-
   const formatApprovalTime = (value?: string | null) =>
     value ? format(new Date(value), "MMM dd, yyyy h:mm a") : null;
 
@@ -1081,9 +1044,24 @@ export default function LeaveRequestPage() {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="w-full text-sm md:text-base px-3 md:px-4 py-3 md:py-4 min-h-[48px] md:min-h-[56px]"
+                  className={epSubmitRequestButton}
+                  size="sm"
                 >
-                  {submitting ? "Submitting..." : "Submit Leave Request"}
+                  {submitting ? (
+                    <>
+                      <Icon
+                        name="ArrowsClockwise"
+                        size={IconSizes.sm}
+                        className="animate-spin"
+                      />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="ArrowRight" size={IconSizes.sm} />
+                      Submit Request
+                    </>
+                  )}
                 </Button>
               </VStack>
             </form>
@@ -1092,10 +1070,10 @@ export default function LeaveRequestPage() {
 
         {/* Requests List */}
         <Card className="w-full">
-          <CardHeader>
+          <CardHeader className="px-4 sm:px-6">
             <CardTitle>My Leave Requests</CardTitle>
           </CardHeader>
-          <CardContent className="w-full">
+          <CardContent className={epRequestHistorySectionContent}>
             {requestsFetchError ? (
               <div className="text-center py-8">
                 <VStack gap="4" align="center">
@@ -1131,203 +1109,68 @@ export default function LeaveRequestPage() {
                 </VStack>
               </div>
             ) : (
-              <div className="space-y-4">
-                {visibleRequests.map((request) => (
-                  <Card
-                    key={request.id}
-                    className={`w-full ${
-                      request.status === "pending"
-                        ? "border-yellow-300"
-                        : request.status === "approved_by_hr"
-                        ? "border-emerald-300"
-                        : request.status === "rejected"
-                        ? "border-destructive"
-                        : "border-border"
-                    }`}
-                  >
-                    <CardContent className="w-full p-4 sm:p-6">
-                      <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-3 mb-2 flex-wrap">
-                            <span className="font-bold text-lg">
-                              {request.selected_dates &&
-                              request.selected_dates.length > 0 ? (
-                                // Show individual dates if available
-                                request.selected_dates.length === 1 ? (
-                                  format(
-                                    new Date(request.selected_dates[0]),
-                                    "MMM dd, yyyy"
-                                  )
-                                ) : (
-                                  `${
-                                    request.selected_dates.length
-                                  } dates: ${request.selected_dates
-                                    .slice(0, 3)
-                                    .map((d) => format(new Date(d), "MMM dd"))
-                                    .join(", ")}${
-                                    request.selected_dates.length > 3
-                                      ? "..."
-                                      : ""
-                                  }`
-                                )
-                              ) : (
-                                // Fallback to date range
-                                <>
-                                  {format(
-                                    new Date(request.start_date),
-                                    "MMM dd"
-                                  )}{" "}
-                                  -{" "}
-                                  {format(
-                                    new Date(request.end_date),
-                                    "MMM dd, yyyy"
-                                  )}
-                                </>
-                              )}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={
-                                getLeaveTypeLabel(request.leave_type) === "SIL"
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                  : "bg-amber-50 text-amber-800 border-amber-200"
-                              }
-                            >
-                              {getLeaveTypeLabel(request.leave_type)}
-                            </Badge>
-                            <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
-                              {getLeaveSubtypeLabel(request.leave_subtype)}
-                            </Badge>
-                            <span className="text-lg font-bold text-emerald-600">
-                              {request.total_days}{" "}
-                              {request.total_days === 1 ? "day" : "days"}
-                            </span>
-                          </div>
+              <div className={epRequestHistoryList}>
+                {visibleRequests.map((request) => {
+                  const title =
+                    request.selected_dates && request.selected_dates.length > 0
+                      ? request.selected_dates.length === 1
+                        ? format(
+                            new Date(request.selected_dates[0]),
+                            "MMM dd, yyyy"
+                          )
+                        : `${request.selected_dates.length} dates: ${request.selected_dates
+                            .slice(0, 3)
+                            .map((d) => format(new Date(d), "MMM dd"))
+                            .join(", ")}${
+                            request.selected_dates.length > 3 ? "..." : ""
+                          }`
+                      : `${format(new Date(request.start_date), "MMM dd")} - ${format(
+                          new Date(request.end_date),
+                          "MMM dd, yyyy"
+                        )}`;
 
-                          {request.reason && (
-                            <div className="text-sm mb-2">
-                              <strong>Reason:</strong>
-                              <div className="mt-1 text-muted-foreground">
-                                {request.reason}
-                              </div>
-                            </div>
-                          )}
-
-                          {getLeaveTypeLabel(request.leave_type) === "SIL" && (
-                            <VStack
-                              gap="2"
-                              align="start"
-                              className="mt-2 hidden md:flex"
-                            >
-                              <HStack gap="2" align="center">
-                                <Icon name="FileText" size={IconSizes.sm} />
-                                <BodySmall className="font-semibold">
-                                  Supporting Document
-                                </BodySmall>
-                              </HStack>
-                              {request.leave_request_documents &&
-                              request.leave_request_documents.length > 0 ? (
-                                <VStack gap="2">
-                                  {request.leave_request_documents.map(
-                                    (doc) => (
-                                      <HStack
-                                        key={doc.id}
-                                        gap="2"
-                                        align="center"
-                                        className="w-full flex-wrap"
-                                      >
-                                        <Icon
-                                          name="Paperclip"
-                                          size={IconSizes.sm}
-                                          className="text-muted-foreground"
-                                        />
-                                        <span className="truncate max-w-[160px] text-sm">
-                                          {doc.file_name}
-                                        </span>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => handleDownload(doc.id)}
-                                          disabled={downloadingDocId === doc.id}
-                                        >
-                                          {downloadingDocId === doc.id
-                                            ? "Loading..."
-                                            : "View"}
-                                        </Button>
-                                      </HStack>
-                                    )
-                                  )}
-                                </VStack>
-                              ) : (
-                                <BodySmall>
-                                  No supporting document attached.
-                                </BodySmall>
-                              )}
-                            </VStack>
-                          )}
-
-                          {request.status === "rejected" &&
-                            request.rejection_reason && (
-                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md text-sm">
-                                <strong className="text-red-900">
-                                  Rejection Reason:
-                                </strong>
-                                <div className="text-red-800 mt-1">
-                                  {request.rejection_reason}
-                                </div>
-                              </div>
-                            )}
-                        </div>
-
-                        <VStack
-                          gap="2"
-                          align="end"
-                          className="w-full lg:ml-4 lg:w-auto"
-                        >
+                  return (
+                    <RequestHistoryCard
+                      key={request.id}
+                      status={request.status}
+                      title={title}
+                      categoryLabel={getLeaveTypeLabel(request.leave_type)}
+                      secondaryCategoryLabel={
+                        request.leave_subtype
+                          ? getLeaveSubtypeLabel(request.leave_subtype)
+                          : null
+                      }
+                      metric={`${request.total_days} ${
+                        request.total_days === 1 ? "day" : "days"
+                      }`}
+                      filedAt={format(
+                        new Date(request.created_at),
+                        "MMM dd, yyyy h:mm a"
+                      )}
+                      statusColumn={
+                        <>
                           {request.status === "pending" && (
-                            <>
-                              <Badge
-                                variant="outline"
-                                className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.pending}`}
-                              >
-                                <Icon name="Hourglass" size={IconSizes.sm} />
-                                PENDING
-                              </Badge>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                className="w-full lg:w-auto"
-                                onClick={() => setCancelId(request.id)}
-                              >
-                                Cancel
-                              </Button>
-                            </>
+                            <Badge variant="outline" className={epRequestStatusBadgePending}>
+                              <Icon name="Hourglass" size={IconSizes.sm} />
+                              PENDING
+                            </Badge>
                           )}
                           {request.status === "approved_by_manager" && (
                             <>
                               <Badge
                                 variant="outline"
-                                className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.approved_by_manager}`}
+                                className={epRequestStatusBadgeApproved}
                               >
                                 <Icon name="CheckCircle" size={IconSizes.sm} />
-                                APPROVED BY MANAGER
+                                APPROVED BY OPERATIONS MANAGER
                               </Badge>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                className="w-full lg:w-auto"
-                                onClick={() => setCancelId(request.id)}
-                              >
-                                Cancel
-                              </Button>
                               {(request.manager_approval_name ||
                                 request.project_manager_approved_at) && (
-                                <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
-                                  <div className="font-semibold">
-                                    Approved by Operations Manager
-                                  </div>
+                                <div className={epRequestApprovalBoxEmerald}>
                                   {request.manager_approval_name && (
-                                    <div>{request.manager_approval_name}</div>
+                                    <div className="font-semibold">
+                                      {request.manager_approval_name}
+                                    </div>
                                   )}
                                   {formatApprovalTime(
                                     request.project_manager_approved_at
@@ -1346,22 +1189,14 @@ export default function LeaveRequestPage() {
                             <>
                               <Badge
                                 variant="outline"
-                                className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.approved_by_hr}`}
+                                className={epRequestStatusBadgeApproved}
                               >
                                 <Icon name="CheckCircle" size={IconSizes.sm} />
                                 APPROVED
                               </Badge>
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                className="w-full lg:w-auto"
-                                onClick={() => setCancelId(request.id)}
-                              >
-                                Cancel
-                              </Button>
                               {(request.manager_approval_name ||
                                 request.project_manager_approved_at) && (
-                                <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
+                                <div className={epRequestApprovalBoxEmerald}>
                                   <div className="font-semibold">
                                     Approved by Operations Manager
                                   </div>
@@ -1381,7 +1216,7 @@ export default function LeaveRequestPage() {
                               )}
                               {(request.hr_approval_name ||
                                 request.hr_approved_at) && (
-                                <div className="w-full rounded-md border bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
+                                <div className={epRequestApprovalBoxEmeraldHr}>
                                   <div className="font-semibold">Approved by HR</div>
                                   {request.hr_approval_name && (
                                     <div>{request.hr_approval_name}</div>
@@ -1396,71 +1231,56 @@ export default function LeaveRequestPage() {
                             </>
                           )}
                           {request.status === "rejected" && (
-                            <Badge
-                              variant="outline"
-                              className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.rejected}`}
-                            >
+                            <Badge variant="outline" className={epRequestStatusBadgeRejected}>
                               <Icon name="XCircle" size={IconSizes.sm} />
                               REJECTED
                             </Badge>
                           )}
                           {request.status === "cancelled" && (
-                            <Badge
-                              variant="outline"
-                              className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusClasses.cancelled}`}
-                            >
+                            <Badge variant="outline" className={epRequestStatusBadgeCancelled}>
                               <Icon name="XCircle" size={IconSizes.sm} />
                               CANCELLED
                             </Badge>
                           )}
-                        </VStack>
-                      </div>
-
-                      <div className="text-xs text-muted-foreground mt-2">
-                        Filed:{" "}
-                        {format(
-                          new Date(request.created_at),
-                          "MMM dd, yyyy h:mm a"
+                        </>
+                      }
+                    >
+                      <RequestHistoryReasonRow reason={request.reason ?? ""} />
+                      {getLeaveTypeLabel(request.leave_type) === "SIL" &&
+                        request.leave_request_documents &&
+                        request.leave_request_documents.length > 0 && (
+                          <RequestHistorySupportingDocuments
+                            documents={request.leave_request_documents}
+                            renderFileName={(doc) => (
+                              <button
+                                type="button"
+                                className="text-left hover:underline disabled:opacity-50"
+                                onClick={() => handleDownload(doc.id)}
+                                disabled={downloadingDocId === doc.id}
+                              >
+                                {downloadingDocId === doc.id
+                                  ? "Loading…"
+                                  : doc.file_name}
+                              </button>
+                            )}
+                          />
                         )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      {request.status === "rejected" && request.rejection_reason && (
+                        <div className="mb-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm">
+                          <strong className="text-red-900">Rejection Reason:</strong>
+                          <div className="mt-1 text-red-800">
+                            {request.rejection_reason}
+                          </div>
+                        </div>
+                      )}
+                    </RequestHistoryCard>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </VStack>
-      <AlertDialog
-        open={!!cancelId}
-        onOpenChange={(open) => {
-          if (!open) setCancelId(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Leave Request?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove the leave request from your records.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              disabled={cancelLoading}
-              className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
-            >
-              Keep request
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => cancelId && handleCancel(cancelId)}
-              disabled={cancelLoading}
-              className="w-full md:w-auto text-sm md:text-base px-3 py-2 min-h-[40px] md:min-h-[44px]"
-            >
-              {cancelLoading ? "Cancelling..." : "Cancel request"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }

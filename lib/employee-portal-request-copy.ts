@@ -9,12 +9,12 @@ export const requestFormCopy = {
   overtime: {
     reasonPlaceholder: "Provide reason for overtime request...",
     supportingDocHint:
-      "Optional: attach supporting document for overtime. Max 5MB.",
+      "Optional: Attach supporting document for overtime. Max 5MB.",
   },
   leave: {
     reasonPlaceholder: "Provide reason for leave request...",
     supportingDocHint:
-      "Optional: attach clinic slip or documentation for SIL. Max 5MB.",
+      "Optional: Attach clinic slip or documentation for SIL. Max 5MB.",
   },
   failureToLog: {
     reasonPlaceholder:

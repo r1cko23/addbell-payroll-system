@@ -43,10 +43,26 @@ import {
   epFormGrid,
   epFormStack,
   epPageStack,
-  epTouchButton,
+  epSubmitRequestButton,
   epTouchIconButton,
 } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
+import {
+  epRequestApprovalBoxEmerald,
+  epRequestApprovalBoxEmeraldHr,
+  epRequestHistoryList,
+  epRequestHistorySectionContent,
+  epRequestStatusBadgeApproved,
+  epRequestStatusBadgeOpsManager,
+  epRequestStatusBadgePending,
+  epRequestStatusBadgeRejected,
+} from "@/lib/employee-portal-request-history";
+import {
+  RequestHistoryCard,
+  RequestHistoryReasonRow,
+  RequestHistorySupportingDocuments,
+  RequestHistoryTimeRow,
+} from "@/components/employee-portal/RequestHistoryCard";
 
 type OvertimeDocSummary = { id: string; file_name: string };
 
@@ -85,7 +101,6 @@ export default function OvertimePage() {
   const [requests, setRequests] = useState<OvertimeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [cancelLoading, setCancelLoading] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     ot_date: "",
     end_date: "",
@@ -115,11 +130,6 @@ export default function OvertimePage() {
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
-  const statusStyles: Record<OvertimeRequest["status"], string> = {
-    pending: "bg-amber-100 text-amber-800 border-amber-200",
-    approved: "bg-emerald-600 text-white border-emerald-600",
-    rejected: "bg-rose-100 text-rose-900 border-rose-200",
-  };
   const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx"];
   const isManagerApproved = (request: OvertimeRequest) =>
     request.status === "pending" &&
@@ -471,10 +481,7 @@ export default function OvertimePage() {
 
   return (
     <div className={cn("w-full", epPageStack)}>
-      <PortalPageHeader
-        title="OT filing"
-        description="Submit overtime for approval and track your requests."
-      />
+      <PortalPageHeader title="OT Filing" />
       <Card className="w-full">
         <CardHeader className="px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
           <CardTitle>
@@ -491,20 +498,47 @@ export default function OvertimePage() {
         <CardContent className="w-full p-4 sm:p-6">
           <form onSubmit={handleSubmit} className="w-full">
             <div className={epFormStack}>
+              <div className={epFormField}>
+                <Label htmlFor="ot-date">OT Date</Label>
+                <Input
+                  id="ot-date"
+                  type="date"
+                  required
+                  value={formData.ot_date}
+                  onChange={(e) => {
+                    setFormData((prev) => ({ ...prev, ot_date: e.target.value }));
+                    setBundySelection(null);
+                  }}
+                />
+              </div>
+
+              <div className={epFormField}>
+                <BundySessionPicker
+                  employeeId={employee.id}
+                  otDate={formData.ot_date || undefined}
+                  value={bundySelection}
+                  onChange={applyBundySelection}
+                  required={false}
+                />
+                {bundySelection ? (
+                  <div className="space-y-1 rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    <p className="font-medium text-foreground">Linked clock span</p>
+                    <p>
+                      {format(
+                        new Date(bundySelection.session.clock_in_time),
+                        "MMM d, h:mm a"
+                      )}{" "}
+                      –{" "}
+                      {format(
+                        new Date(bundySelection.session.clock_out_time),
+                        "MMM d, h:mm a"
+                      )}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
               <div className={epFormGrid}>
-                <div className={epFormField}>
-                  <Label htmlFor="ot-date">OT Date</Label>
-                  <Input
-                    id="ot-date"
-                    type="date"
-                    required
-                    value={formData.ot_date}
-                    onChange={(e) => {
-                      setFormData((prev) => ({ ...prev, ot_date: e.target.value }));
-                      setBundySelection(null);
-                    }}
-                  />
-                </div>
                 <div className={epFormField}>
                   <Label htmlFor="start-time">Start Time</Label>
                   <Input
@@ -520,34 +554,6 @@ export default function OvertimePage() {
                     }
                   />
                 </div>
-              </div>
-
-              <BundySessionPicker
-                employeeId={employee.id}
-                otDate={formData.ot_date || undefined}
-                value={bundySelection}
-                onChange={applyBundySelection}
-                required={false}
-              />
-
-              {bundySelection ? (
-                <div className="space-y-1 rounded-md border border-muted bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground">Linked clock span</p>
-                  <p>
-                    {format(
-                      new Date(bundySelection.session.clock_in_time),
-                      "MMM d, h:mm a"
-                    )}{" "}
-                    –{" "}
-                    {format(
-                      new Date(bundySelection.session.clock_out_time),
-                      "MMM d, h:mm a"
-                    )}
-                  </p>
-                </div>
-              ) : null}
-
-              <div className={epFormGrid}>
                 <div className={epFormField}>
                   <Label htmlFor="end-time">End Time</Label>
                   <Input
@@ -559,6 +565,28 @@ export default function OvertimePage() {
                       setFormData((prev) => ({ ...prev, end_time: e.target.value }))
                     }
                   />
+                </div>
+              </div>
+
+              <div className={epFormGrid}>
+                <div className={epFormField}>
+                  <Label htmlFor="end-date">
+                    End Date {autoSpansMidnight ? "(auto-calculated)" : ""}
+                  </Label>
+                  <Input
+                    id="end-date"
+                    type="date"
+                    value={formData.end_date}
+                    min={formData.ot_date}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, end_date: e.target.value }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {autoSpansMidnight
+                      ? "Automatically set to next day. Change only if OT spans multiple days."
+                      : "Optional: Only needed if overtime spans multiple days beyond the next day."}
+                  </p>
                 </div>
                 <div className={epFormField}>
                   <Label htmlFor="total-hours">Total Hours (auto)</Label>
@@ -581,26 +609,6 @@ export default function OvertimePage() {
                     </p>
                   ) : null}
                 </div>
-              </div>
-
-              <div className={epFormField}>
-                <Label htmlFor="end-date">
-                  End Date {autoSpansMidnight ? "(auto-calculated)" : ""}
-                </Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={formData.end_date}
-                  min={formData.ot_date}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, end_date: e.target.value }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  {autoSpansMidnight
-                    ? "Automatically set to next day. Change only if OT spans multiple days."
-                    : "Optional: Only needed if overtime spans multiple days beyond the next day."}
-                </p>
               </div>
 
               {bundySelection ? (
@@ -748,7 +756,7 @@ export default function OvertimePage() {
                   claimedOutsideBundy ||
                   hoursFromTimeRange <= 0
                 }
-                className={cn(epTouchButton, "sm:min-w-[200px]")}
+                className={epSubmitRequestButton}
                 size="sm"
               >
                 {submitting ? (
@@ -763,7 +771,7 @@ export default function OvertimePage() {
                 ) : (
                   <>
                     <Icon name="ArrowRight" size={IconSizes.sm} />
-                    Submit OT Request
+                    Submit Request
                   </>
                 )}
               </Button>
@@ -777,7 +785,7 @@ export default function OvertimePage() {
         <CardHeader className="px-4 sm:px-6">
           <CardTitle>My OT Requests</CardTitle>
         </CardHeader>
-        <CardContent className="w-full p-4 sm:p-6">
+        <CardContent className={epRequestHistorySectionContent}>
           {historyCutoffs.length > 0 && (
             <div className="mb-6 flex w-full items-center justify-center gap-2 sm:gap-3">
               <Button
@@ -838,51 +846,85 @@ export default function OvertimePage() {
               </VStack>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className={epRequestHistoryList}>
               {visibleRequests.map((req) => (
-                <Card
+                <RequestHistoryCard
                   key={req.id}
-                  className={`w-full ${
-                    req.status === "pending"
-                      ? "border-yellow-300"
-                      : req.status === "approved"
-                      ? "border-emerald-300"
-                      : req.status === "rejected"
-                      ? "border-destructive"
-                      : "border-border"
-                  }`}
-                >
-                  <CardContent className="w-full p-4 sm:p-6">
-                    <div className="mb-2 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <span className="font-bold text-lg">
-                            {format(new Date(req.ot_date), "MMM dd, yyyy")}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className="border-primary/30 bg-primary/5 text-primary"
-                          >
-                            OT
+                  status={req.status}
+                  title={format(new Date(req.ot_date), "MMM dd, yyyy")}
+                  categoryLabel="OT"
+                  metric={`${creditOvertimeHours(req.total_hours)}h`}
+                  filedAt={format(
+                    new Date(req.created_at),
+                    "MMM dd, yyyy h:mm a"
+                  )}
+                  statusColumn={
+                    <>
+                      {req.status === "pending" && !isManagerApproved(req) && (
+                        <Badge variant="outline" className={epRequestStatusBadgePending}>
+                          <Icon name="Hourglass" size={IconSizes.sm} />
+                          PENDING
+                        </Badge>
+                      )}
+                      {isManagerApproved(req) && (
+                        <>
+                          <Badge variant="outline" className={epRequestStatusBadgeOpsManager}>
+                            <Icon name="CheckCircle" size={IconSizes.sm} />
+                            APPROVED BY OPERATIONS MANAGER
                           </Badge>
-                          <span className="text-lg font-bold text-primary">
-                            {creditOvertimeHours(req.total_hours)}h
-                          </span>
-                        </div>
-
-                        <div className="text-sm mb-2">
-                          <strong>Time:</strong>{" "}
-                          {formatTimeRange12h(req.start_time, req.end_time)}
-                        </div>
-
-                        {req.reason && (
-                          <div className="text-sm mb-2">
-                            <strong>Reason:</strong>
-                            <div className="mt-1 text-muted-foreground">
-                              {req.reason}
-                            </div>
+                          <div className={epRequestApprovalBoxEmerald}>
+                            {req.manager_approval_name && (
+                              <div className="font-semibold">
+                                {req.manager_approval_name}
+                              </div>
+                            )}
+                            {req.project_manager_approved_at && (
+                              <div className="text-emerald-700">
+                                {formatPHTime(
+                                  req.project_manager_approved_at,
+                                  "MMM dd, yyyy h:mm a"
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                      {req.status === "approved" && (
+                        <Badge variant="outline" className={epRequestStatusBadgeApproved}>
+                          <Icon name="CheckCircle" size={IconSizes.sm} />
+                          APPROVED
+                        </Badge>
+                      )}
+                      {req.status === "approved" &&
+                        (req.final_approval_name || req.approved_at) && (
+                          <div className={epRequestApprovalBoxEmeraldHr}>
+                            <div className="font-semibold">Approved by HR</div>
+                            {req.final_approval_name && (
+                              <div>{req.final_approval_name}</div>
+                            )}
+                            {req.approved_at && (
+                              <div className="text-emerald-700">
+                                {formatPHTime(
+                                  req.approved_at,
+                                  "MMM dd, yyyy h:mm a"
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
+                      {req.status === "rejected" && (
+                        <Badge variant="outline" className={epRequestStatusBadgeRejected}>
+                          <Icon name="XCircle" size={IconSizes.sm} />
+                          REJECTED
+                        </Badge>
+                      )}
+                    </>
+                  }
+                >
+                  <RequestHistoryTimeRow>
+                    {formatTimeRange12h(req.start_time, req.end_time)}
+                  </RequestHistoryTimeRow>
+                  <RequestHistoryReasonRow reason={req.reason ?? ""} />
 
                         {req.bundy_session && (
                           <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
@@ -922,31 +964,14 @@ export default function OvertimePage() {
                           </div>
                         )}
 
-                        {req.overtime_documents &&
-                          req.overtime_documents.length > 0 && (
-                          <div className="hidden md:block">
-                            <VStack gap="1" align="start" className="mt-2">
-                                <HStack gap="2" align="center">
-                                  <Icon name="FileText" size={IconSizes.sm} />
-                                  <BodySmall className="font-semibold">
-                                    Supporting document
-                                    {req.overtime_documents.length > 1 ? "s" : ""}
-                                  </BodySmall>
-                                </HStack>
-                                {req.overtime_documents.map((d) => (
-                                  <Caption
-                                    key={d.id}
-                                    className="text-muted-foreground"
-                                  >
-                                    {d.file_name}
-                                  </Caption>
-                                ))}
-                              </VStack>
-                          </div>
-                          )}
+                  {req.overtime_documents && req.overtime_documents.length > 0 && (
+                    <RequestHistorySupportingDocuments
+                      documents={req.overtime_documents}
+                    />
+                  )}
 
                         {req.status === "pending" && !isManagerApproved(req) && (
-                          <div className="hidden md:block mt-3 w-full space-y-2 rounded-md border border-dashed border-muted-foreground/30 p-3">
+                          <div className="mt-3 w-full space-y-2 rounded-md border border-dashed border-muted-foreground/30 p-3">
                             <Label
                               htmlFor={`replace-doc-${req.id}`}
                               className="text-xs font-medium"
@@ -1047,130 +1072,7 @@ export default function OvertimePage() {
                             </Button>
                           </div>
                         )}
-                      </div>
-
-                      <VStack
-                        gap="2"
-                        align="end"
-                        className="w-full lg:ml-4 lg:w-auto"
-                      >
-                        {req.status === "pending" && !isManagerApproved(req) && (
-                          <>
-                            <Badge
-                              variant="outline"
-                              className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusStyles.pending}`}
-                            >
-                              <Icon name="Hourglass" size={IconSizes.sm} />
-                              PENDING
-                            </Badge>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="w-full lg:w-auto"
-                              disabled={cancelLoading === req.id}
-                              onClick={async () => {
-                                setCancelLoading(req.id);
-                                const response = await fetch(
-                                  "/api/employee-portal/overtime-requests",
-                                  {
-                                    method: "PATCH",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({
-                                      request_id: req.id,
-                                      employee_id: employee.id,
-                                    }),
-                                  }
-                                );
-                                const payload = await response.json();
-                                if (!response.ok) {
-                                  toast.error(
-                                    payload?.error ||
-                                      "Failed to cancel OT request"
-                                  );
-                                } else {
-                                  toast.success("OT request removed");
-                                  await loadRequests();
-                                }
-                                setCancelLoading(null);
-                              }}
-                            >
-                              {cancelLoading === req.id
-                                ? "Cancelling..."
-                                : "Cancel"}
-                            </Button>
-                          </>
-                        )}
-                        {isManagerApproved(req) && (
-                          <>
-                            <Badge
-                              variant="outline"
-                              className="flex w-full items-center justify-center gap-2 text-center bg-emerald-600 text-white border-emerald-600 lg:w-auto"
-                            >
-                              <Icon name="CheckCircle" size={IconSizes.sm} />
-                              APPROVED BY OPERATIONS MANAGER
-                            </Badge>
-                            <div className="w-full rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
-                              {req.manager_approval_name && (
-                                <div className="font-semibold">
-                                  {req.manager_approval_name}
-                                </div>
-                              )}
-                              {req.project_manager_approved_at && (
-                                <div className="text-emerald-700">
-                                  {formatPHTime(
-                                    req.project_manager_approved_at,
-                                    "MMM dd, yyyy h:mm a"
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        )}
-                        {req.status === "approved" && (
-                          <Badge
-                            variant="outline"
-                            className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusStyles.approved}`}
-                          >
-                            <Icon name="CheckCircle" size={IconSizes.sm} />
-                            APPROVED
-                          </Badge>
-                        )}
-                        {req.status === "approved" &&
-                          (req.final_approval_name || req.approved_at) && (
-                            <div className="w-full rounded-md border bg-emerald-50 px-3 py-2 text-left text-xs text-emerald-900 lg:max-w-[220px] lg:text-right">
-                              <div className="font-semibold">Approved by HR</div>
-                              {req.final_approval_name && (
-                                <div>{req.final_approval_name}</div>
-                              )}
-                              {req.approved_at && (
-                                <div className="text-emerald-700">
-                                  {formatPHTime(
-                                    req.approved_at,
-                                    "MMM dd, yyyy h:mm a"
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        {req.status === "rejected" && (
-                          <Badge
-                            variant="outline"
-                            className={`flex w-full items-center justify-center gap-2 text-center lg:w-auto ${statusStyles.rejected}`}
-                          >
-                            <Icon name="XCircle" size={IconSizes.sm} />
-                            REJECTED
-                          </Badge>
-                        )}
-                        {/* "Cancelled" state is represented as REJECTED in the new schema */}
-                      </VStack>
-                    </div>
-
-                    <div className="text-xs text-muted-foreground mt-2">
-                      Filed:{" "}
-                      {format(new Date(req.created_at), "MMM dd, yyyy h:mm a")}
-                    </div>
-                  </CardContent>
-                </Card>
+                </RequestHistoryCard>
               ))}
             </div>
           )}

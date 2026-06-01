@@ -23,21 +23,6 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function ymdMinusDays(ymd: string, days: number): string | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
-  const dt = new Date(Date.UTC(y, mo - 1, d));
-  dt.setUTCDate(dt.getUTCDate() - days);
-  const yy = dt.getUTCFullYear();
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getUTCDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
-
 export async function GET(req: NextRequest) {
   try {
     const employeeId = req.nextUrl.searchParams.get("employee_id");
@@ -82,27 +67,23 @@ export async function GET(req: NextRequest) {
 
     const usedPairKeys = buildUsedOtPairKeys(otRows || []);
 
-    // OT filing: anchor date's business day + 1 calendar day before.
     const anchorYmd =
       otDateParam || getDateInManilaDefault(new Date().toISOString());
-    const prevYmd = ymdMinusDays(anchorYmd, 1);
-    const currentBizKey = getBundyBusinessDayKey(`${anchorYmd}T12:00:00+08:00`);
-    const prevBizKey = prevYmd
-      ? getBundyBusinessDayKey(`${prevYmd}T12:00:00+08:00`)
-      : null;
-    const allowedBusinessDayKeys = new Set<string>(
-      [currentBizKey, prevBizKey].filter((k): k is string => Boolean(k))
-    );
+    const otDateBizKey = getBundyBusinessDayKey(`${anchorYmd}T12:00:00+08:00`);
 
-    const businessDayKey = businessDayParam || undefined;
+    const businessDayKey = otDateParam
+      ? otDateBizKey
+      : businessDayParam || undefined;
 
     const sessions = listCompletedBundySessions(punchList, {
       businessDayKey,
-      allowedBusinessDayKeys,
       excludePairsUsedByOt: usedPairKeys,
       // OT filing may reference the main day pair (e.g. 7 AM → next-day time out).
       excludeFirstSessionPerBusinessDay: false,
-    });
+    }).sort(
+      (a, b) =>
+        new Date(b.clock_in_time).getTime() - new Date(a.clock_in_time).getTime()
+    );
 
     const activeBusinessDay = getActiveBundyBusinessDayKey(punchList);
     const openSession = getOpenEntryFromPunches(

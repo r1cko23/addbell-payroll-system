@@ -431,12 +431,10 @@ export default function TimesheetPage() {
       const periodStartStr = format(periodStart, "yyyy-MM-dd");
       const periodEndStr = format(periodEnd, "yyyy-MM-dd");
 
-      // Create date range - use a wider range to account for timezone differences
-      // Query from 1 day before period start to 1 day after period end to ensure we catch all records
-      // Then filter by date in application layer using Asia/Manila timezone
+      // Wider fetch: 7 days before cutoff so holiday eligibility can see prior regular workdays.
       const periodStartDate = new Date(periodStart);
       periodStartDate.setHours(0, 0, 0, 0);
-      periodStartDate.setDate(periodStartDate.getDate() - 1); // Start 1 day earlier
+      periodStartDate.setDate(periodStartDate.getDate() - 7);
 
       const periodEndDate = new Date(periodEnd);
       periodEndDate.setHours(23, 59, 59, 999);
@@ -553,7 +551,18 @@ export default function TimesheetPage() {
       // Filter to only include entries with valid status (exclude rejected and pending)
       // Include all statuses that indicate the entry is valid: auto_approved, approved, clocked_out, clocked_in
       // This matches the employee portal logic to ensure consistent data
-      const validEntries = filteredClockData.filter(
+      const validEntriesInPeriod = filteredClockData.filter(
+        (e: any) =>
+          e.status !== "rejected" &&
+          e.status !== "pending" &&
+          (e.status === "auto_approved" ||
+            e.status === "approved" ||
+            e.status === "clocked_out" ||
+            e.status === "clocked_in")
+      );
+
+      // Keep sessions up to 7 days before the week for holiday pay eligibility (not shown in the grid).
+      const validEntries = (clockData || []).filter(
         (e: any) =>
           e.status !== "rejected" &&
           e.status !== "pending" &&
@@ -982,7 +991,22 @@ export default function TimesheetPage() {
           // Only check regular working days (skip holidays and rest days)
           if (checkDayType === "regular" && checkDayEntries.length > 0) {
             // Check if employee worked 8+ hours on this regular working day (main + project time)
-            const workedHours = checkDayEntries.reduce((sum, e) => sum + (e.regular_hours ?? e.total_hours ?? 0), 0);
+            const workedHours = checkDayEntries.reduce((sum, e) => {
+              if (e.clock_in_time && e.clock_out_time) {
+                try {
+                  return (
+                    sum +
+                    regularHoursFromBundyClockPair(
+                      e.clock_in_time,
+                      e.clock_out_time
+                    )
+                  );
+                } catch {
+                  /* fall through */
+                }
+              }
+              return sum + (e.regular_hours ?? e.total_hours ?? 0);
+            }, 0);
             if (workedHours >= 8) {
               eligibleForHoliday = true;
               break;

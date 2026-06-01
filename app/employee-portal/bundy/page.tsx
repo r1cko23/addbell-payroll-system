@@ -1418,15 +1418,12 @@ export default function BundyClockPage() {
           }
         } else if (dayOfWeek === 6) {
         // Saturday handling:
-        // For this company, Saturday is NOT automatically treated as a worked/logged day.
-        // Employees must have logs, otherwise it's ABSENT (or "-" for future dates).
+        // Match Staff Workspace Timesheet: Saturday is not treated as an absence day.
+        // If no logs, still show LOG (BH/OT remain derived from actual punches, if any).
         if (dayEntries.length > 0 || incompleteDayEntries.length > 0) {
           status = "LOG"; // Worked on Saturday
         } else {
-          const todayStr = getManilaTodayString();
-          if (dateStr > todayStr) status = "-";
-          else if (dateStr === todayStr) status = "-";
-          else status = "ABSENT";
+          status = "LOG";
         }
         } else if (dayOfWeek === 0) {
           // Sunday handling:

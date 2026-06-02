@@ -18,7 +18,6 @@ import {
   CaretDown,
   CaretRight,
   X,
-  ShieldCheck,
   FileText,
   ArrowsClockwise,
   ClipboardText,
@@ -82,6 +81,12 @@ const navGroups: NavGroup[] = [
       { name: "Payroll", href: "/payroll", icon: Receipt, permissionModule: "payslips" },
       { name: "Loans", href: "/loans", icon: Receipt, permissionModule: "loans" },
       { name: "Payslips", href: "/payslips", icon: Receipt, permissionModule: "payslips" },
+      {
+        name: "Payroll Register",
+        href: "/reports",
+        icon: FileText,
+        permissionModule: "reports",
+      },
     ],
   },
   {
@@ -122,21 +127,6 @@ const navGroups: NavGroup[] = [
         href: "/purchase-order",
         icon: FileText,
         permissionModule: "purchase_orders",
-      },
-    ],
-  },
-  {
-    label: "Admin",
-    icon: ShieldCheck,
-    items: [
-      { name: "Audit Dashboard", href: "/audit", icon: FileText, permissionModule: "audit" },
-      { name: "BIR Reports", href: "/bir-reports", icon: FileText, permissionModule: "bir_reports" },
-      { name: "Payroll Register", href: "/reports", icon: Receipt, permissionModule: "reports" },
-      {
-        name: "Project Profitability",
-        href: "/project-profitability",
-        icon: ChartLineUp,
-        permissionModule: "reports",
       },
     ],
   },
@@ -215,14 +205,6 @@ function SidebarInner({ className, onClose }: SidebarProps) {
     return navGroups
       .map((group) => {
         if (isHR && group.label === "Projects") return null;
-
-        if (group.label === "Admin") {
-          const adminItems = group.items.filter((item) => {
-            if (!item.permissionModule) return false;
-            return canRead(item.permissionModule);
-          });
-          return adminItems.length > 0 ? { ...group, items: adminItems } : null;
-        }
 
         const filteredItems = group.items.filter((item) => {
           if (item.permissionModule === "employees") {

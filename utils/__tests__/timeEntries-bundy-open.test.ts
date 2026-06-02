@@ -76,6 +76,37 @@ describe("bundy open session / superseded IN", () => {
     expect(open).toBeNull();
   });
 
+  test("early-bird IN before 7 AM is not superseded by admin pre-open at 7 AM", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "early",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-06-02T06:25:00+08:00",
+        source: "web",
+      },
+      {
+        id: "admin7",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-06-02T07:00:00+08:00",
+        source: "admin_correction",
+        device_info: "admin:Jun 2 2026 7:00 AM — pre-open; staff instructed to time out only",
+      },
+      {
+        id: "out1",
+        employee_id: "x",
+        punch_type: "out",
+        punched_at: "2026-06-02T18:00:00+08:00",
+      },
+    ];
+    expect(isSupersededInPunch("early", punches)).toBe(false);
+    const sessions = punchesToSessions(punches, getDateInManilaDefault);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].id).toBe("early");
+    expect(sessions[0].clock_out_time).not.toBeNull();
+  });
+
   test("overnight open before 7 AM still counts as open", () => {
     const punches: TimeEntryPunch[] = [
       {

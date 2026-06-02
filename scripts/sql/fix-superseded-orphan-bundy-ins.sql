@@ -1,9 +1,9 @@
 -- =============================================================================
 -- Fix superseded orphan Time In punches (double clock-in before Time Out)
 -- =============================================================================
--- Problem: Employee taps Time In before 7 AM, then again at/after 7 AM. The first
--- IN has no OUT before the second IN, so pairing leaves a phantom "open" session
--- and the bundy UI shows Time Out on later days.
+-- Problem: Employee taps Time In twice before Time Out (e.g. early-bird ~6:30 then
+-- another tap ~7:19). The first IN has no OUT before the second employee IN, so
+-- pairing left a phantom "open" session. Early-bird + admin 7 AM pre-open alone is OK.
 --
 -- Affected pattern (preview in STEP 1): IN → later IN with no OUT between.
 --

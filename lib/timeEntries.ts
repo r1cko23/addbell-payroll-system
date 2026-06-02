@@ -128,6 +128,37 @@ function isBundyAutoClockOutPunch(punch: TimeEntryPunch): boolean {
   );
 }
 
+/** Bulk 7 AM placeholder IN — not a second employee session; early-bird IN stays official. */
+export function isAdminPreOpenClockIn(punch: TimeEntryPunch): boolean {
+  return (
+    punch.punch_type === "in" &&
+    punch.source === "admin_correction" &&
+    (punch.device_info?.toLowerCase().includes("pre-open") ?? false)
+  );
+}
+
+function shouldSkipAdminPreOpenIn(
+  punch: TimeEntryPunch,
+  punchIndex: number,
+  sorted: TimeEntryPunch[]
+): boolean {
+  if (!isAdminPreOpenClockIn(punch)) return false;
+  const adminMs = new Date(punch.punched_at).getTime();
+  for (let k = 0; k < punchIndex; k++) {
+    const earlier = sorted[k];
+    if (earlier.punch_type !== "in" || isAdminPreOpenClockIn(earlier)) continue;
+    const earlierMs = new Date(earlier.punched_at).getTime();
+    const hasOutBetween = sorted.some(
+      (o) =>
+        o.punch_type === "out" &&
+        new Date(o.punched_at).getTime() > earlierMs &&
+        new Date(o.punched_at).getTime() < adminMs
+    );
+    if (!hasOutBetween) return true;
+  }
+  return false;
+}
+
 function canPairOutToIn(
   inMs: number,
   outMs: number,
@@ -143,7 +174,9 @@ function canPairOutToIn(
 }
 
 /**
- * True when a later IN was punched before any OUT for this IN (e.g. tap before 7 AM, then at 7 AM).
+ * True when a later employee IN was punched before any OUT for this IN.
+ * Early-bird IN before 7 AM is valid; a later admin 7 AM pre-open placeholder does not supersede it.
+ * Two employee taps (e.g. 6:29 then 7:19) without OUT between still supersede the first.
  */
 export function isSupersededInPunch(
   inPunchId: string,
@@ -158,6 +191,7 @@ export function isSupersededInPunch(
 
   for (const p of sorted) {
     if (p.punch_type !== "in" || p.id === inPunchId) continue;
+    if (isAdminPreOpenClockIn(p)) continue;
     const laterMs = new Date(p.punched_at).getTime();
     if (laterMs <= inMs) continue;
     const hasOutBetween = sorted.some(
@@ -176,7 +210,8 @@ export function isSupersededInPunch(
  * Pairs each IN with the first OUT that is strictly after the IN (skips orphan OUTs and
  * mistaken OUT-before-IN on the same wall-clock narrative). Caps pair duration at MAX_PAIR_GAP_MS
  * (except business-day auto clock-out punches, which may land just after 24h).
- * A second IN before any OUT supersedes the earlier IN (no open session).
+ * A second employee IN before any OUT supersedes the earlier IN (no open session).
+ * Admin 7 AM pre-open rows are skipped when an early-bird IN already started the day.
  * Trailing IN without a valid OUT becomes one session with clock_out_time null.
  */
 export function punchesToSessions(
@@ -210,6 +245,10 @@ export function punchesToSessions(
       i++;
       continue;
     }
+    if (shouldSkipAdminPreOpenIn(p, i, sorted)) {
+      i++;
+      continue;
+    }
     const clockIn = p.punched_at;
     const clockInMs = new Date(clockIn).getTime();
     const clockInDatePh = getDateInManila(clockIn);
@@ -220,6 +259,10 @@ export function punchesToSessions(
     while (j < sorted.length) {
       const q = sorted[j];
       if (q.punch_type === "in") {
+        if (isAdminPreOpenClockIn(q)) {
+          j++;
+          continue;
+        }
         supersededByLaterIn = true;
         break;
       }

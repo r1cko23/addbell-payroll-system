@@ -85,7 +85,7 @@ export type PunchForBundyBizDay = {
  * Business day for a clock-IN punch.
  * - At/after 7 AM: calendar date.
  * - Before 7 AM with an open session: same business day as that open session (overnight).
- * - Before 7 AM with no open session: calendar date (early start for today's shift).
+ * - Before 7 AM with no open session: calendar date (early-bird start for today's shift).
  */
 export function getBundyBusinessDayKeyForClockIn(
   punchedAtIso: string,

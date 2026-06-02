@@ -4,26 +4,20 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import type { ManagerQueueType } from "@/lib/manager-approval-queue";
-import { QUEUE_TYPE_LABELS } from "@/lib/fetch-dashboard-approval-queue";
+import { QUEUE_TYPE_BADGE_LABELS } from "@/lib/fetch-dashboard-approval-queue";
 
-const TYPE_STYLES: Record<
-  ManagerQueueType,
-  { badge: string; border: string; accent: string }
-> = {
+const TYPE_STYLES: Record<ManagerQueueType, { badge: string; border: string }> = {
   leave: {
     badge: "bg-violet-100 text-violet-800 border-violet-200",
     border: "border-violet-200/80 hover:border-violet-400",
-    accent: "text-violet-700",
   },
   overtime: {
     badge: "bg-sky-100 text-sky-800 border-sky-200",
     border: "border-sky-200/80 hover:border-sky-400",
-    accent: "text-sky-700",
   },
   ftl: {
     badge: "bg-amber-100 text-amber-900 border-amber-200",
     border: "border-amber-200/80 hover:border-amber-400",
-    accent: "text-amber-800",
   },
 };
 
@@ -31,7 +25,6 @@ export type ApprovalQueueRequestCardProps = {
   queueType: ManagerQueueType;
   employeeName: string;
   employeeCode?: string | null;
-  typeLabel: string;
   requestDateLabel: string;
   reason?: string | null;
   filedAtLabel?: string | null;
@@ -44,7 +37,6 @@ export function ApprovalQueueRequestCard({
   queueType,
   employeeName,
   employeeCode,
-  typeLabel,
   requestDateLabel,
   reason,
   filedAtLabel,
@@ -75,19 +67,13 @@ export function ApprovalQueueRequestCard({
       }
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <Badge
             variant="outline"
-            className={`shrink-0 text-[10px] font-semibold uppercase tracking-wide ${styles.badge}`}
+            className={`shrink-0 text-[10px] font-semibold uppercase leading-tight tracking-wide ${styles.badge}`}
           >
-            {QUEUE_TYPE_LABELS[queueType]}
+            {QUEUE_TYPE_BADGE_LABELS[queueType]}
           </Badge>
-          <span
-            className={`truncate text-xs font-semibold ${styles.accent}`}
-            title={typeLabel}
-          >
-            {typeLabel}
-          </span>
         </div>
         {filedAtLabel ? (
           <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">

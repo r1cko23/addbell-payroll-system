@@ -8,6 +8,7 @@ import {
 import {
   getOpenEntryFromPunches,
   getDateInManilaDefault,
+  isSupersededInPunch,
   type TimeEntryPunch,
 } from "@/lib/timeEntries";
 
@@ -36,7 +37,7 @@ export async function applyBundyAutoClockOutIfNeeded(
 
   const punches = (data || []) as TimeEntryPunch[];
   const open = getOpenEntryFromPunches(punches, getDateInManilaDefault);
-  if (!open?.clock_in_time) {
+  if (!open?.clock_in_time || isSupersededInPunch(open.id, punches)) {
     return { applied: false };
   }
 
@@ -50,6 +51,16 @@ export async function applyBundyAutoClockOutIfNeeded(
     return { applied: false };
   }
   const punchedAt = getBundyBusinessDayAutoOutIso(businessDay);
+
+  const alreadyHasAutoOut = punches.some(
+    (p) =>
+      p.punch_type === "out" &&
+      p.device_info?.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO) === true &&
+      p.punched_at === punchedAt
+  );
+  if (alreadyHasAutoOut) {
+    return { applied: false };
+  }
 
   const { data: insertData, error: insertError } = await supabase
     .from("time_entries")

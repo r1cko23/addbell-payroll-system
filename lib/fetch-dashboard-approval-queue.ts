@@ -32,7 +32,6 @@ export type DashboardQueueItem = {
   queueType: ManagerQueueType;
   employeeName: string;
   employeeCode: string | null;
-  typeLabel: string;
   requestDateLabel: string;
   reason: string | null;
   filedAtLabel: string | null;
@@ -265,7 +264,6 @@ export async function fetchDashboardApprovalQueueItems(
       queueType: "leave",
       employeeName: emp?.full_name || "Unknown employee",
       employeeCode: emp?.employee_id || null,
-      typeLabel: row.leave_type || "Leave",
       requestDateLabel: formatLeaveRequestDateLabel(
         row.start_date,
         row.end_date
@@ -296,7 +294,6 @@ export async function fetchDashboardApprovalQueueItems(
       queueType: "overtime",
       employeeName: emp?.full_name || "Unknown employee",
       employeeCode: emp?.employee_id || null,
-      typeLabel: "Overtime",
       requestDateLabel: formatOtRequestDateLabel(
         row.ot_date,
         row.start_time,
@@ -328,7 +325,6 @@ export async function fetchDashboardApprovalQueueItems(
       queueType: "ftl",
       employeeName: emp?.full_name || "Unknown employee",
       employeeCode: emp?.employee_id || null,
-      typeLabel: "Failure to log",
       requestDateLabel: formatFtlRequestDateLabel(
         row.missed_date,
         row.entry_type,
@@ -363,7 +359,15 @@ export async function fetchDashboardApprovalQueueItems(
   return [...byType.leave, ...byType.overtime, ...byType.ftl];
 }
 
+/** Section headings in the dashboard approval queue. */
 export const QUEUE_TYPE_LABELS: Record<ManagerQueueType, string> = {
+  leave: "Leave",
+  overtime: "Overtime",
+  ftl: "Failure To Log",
+};
+
+/** Short labels on request card pills. */
+export const QUEUE_TYPE_BADGE_LABELS: Record<ManagerQueueType, string> = {
   leave: "Leave",
   overtime: "OT",
   ftl: "FTL",

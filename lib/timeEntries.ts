@@ -5,10 +5,12 @@
 
 import {
   assignBundyBusinessDayKeysFromPunches,
+  BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO,
   extendCutoffPeriodEndForPunchFetch,
   getBundyBusinessDayKey,
   getBundyBusinessDayKeyForClockIn,
   getBundyBusinessDayKeyForInPunch,
+  isPastBundyAutoClockOut,
 } from "@/lib/bundy-business-day";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
@@ -116,10 +118,65 @@ function calculateNightDiffHours(
 /** Do not pair an OUT to an IN if the gap exceeds this (avoids binding to a distant OUT). */
 const MAX_PAIR_GAP_MS = 20 * 60 * 60 * 1000;
 
+/** Bundy business day can span up to ~24h; auto-outs at 06:59 may exceed MAX_PAIR_GAP_MS. */
+const MAX_BUNDY_BUSINESS_DAY_MS = 25 * 60 * 60 * 1000;
+
+function isBundyAutoClockOutPunch(punch: TimeEntryPunch): boolean {
+  return (
+    punch.device_info?.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO) === true ||
+    punch.device_info?.startsWith("auto:business-day-close") === true
+  );
+}
+
+function canPairOutToIn(
+  inMs: number,
+  outMs: number,
+  outPunch: TimeEntryPunch
+): boolean {
+  if (outMs <= inMs) return false;
+  const gap = outMs - inMs;
+  if (gap <= MAX_PAIR_GAP_MS) return true;
+  if (gap <= MAX_BUNDY_BUSINESS_DAY_MS && isBundyAutoClockOutPunch(outPunch)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * True when a later IN was punched before any OUT for this IN (e.g. tap before 7 AM, then at 7 AM).
+ */
+export function isSupersededInPunch(
+  inPunchId: string,
+  punches: TimeEntryPunch[]
+): boolean {
+  const sorted = [...punches].sort(
+    (a, b) => new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
+  );
+  const inPunch = sorted.find((p) => p.id === inPunchId && p.punch_type === "in");
+  if (!inPunch) return false;
+  const inMs = new Date(inPunch.punched_at).getTime();
+
+  for (const p of sorted) {
+    if (p.punch_type !== "in" || p.id === inPunchId) continue;
+    const laterMs = new Date(p.punched_at).getTime();
+    if (laterMs <= inMs) continue;
+    const hasOutBetween = sorted.some(
+      (o) =>
+        o.punch_type === "out" &&
+        new Date(o.punched_at).getTime() > inMs &&
+        new Date(o.punched_at).getTime() < laterMs
+    );
+    if (!hasOutBetween) return true;
+  }
+  return false;
+}
+
 /**
  * Converts punch rows (ordered by punched_at asc) into sessions.
  * Pairs each IN with the first OUT that is strictly after the IN (skips orphan OUTs and
- * mistaken OUT-before-IN on the same wall-clock narrative). Caps pair duration at MAX_PAIR_GAP_MS.
+ * mistaken OUT-before-IN on the same wall-clock narrative). Caps pair duration at MAX_PAIR_GAP_MS
+ * (except business-day auto clock-out punches, which may land just after 24h).
+ * A second IN before any OUT supersedes the earlier IN (no open session).
  * Trailing IN without a valid OUT becomes one session with clock_out_time null.
  */
 export function punchesToSessions(
@@ -159,19 +216,24 @@ export function punchesToSessions(
 
     let j = i + 1;
     let pairedOut: TimeEntryPunch | null = null;
+    let supersededByLaterIn = false;
     while (j < sorted.length) {
       const q = sorted[j];
-      if (q.punch_type !== "out") break;
+      if (q.punch_type === "in") {
+        supersededByLaterIn = true;
+        break;
+      }
       const outMs = new Date(q.punched_at).getTime();
-      if (outMs > clockInMs) {
-        if (outMs - clockInMs <= MAX_PAIR_GAP_MS) {
-          pairedOut = q;
-          break;
-        }
-        j++;
-        continue;
+      if (canPairOutToIn(clockInMs, outMs, q)) {
+        pairedOut = q;
+        break;
       }
       j++;
+    }
+
+    if (supersededByLaterIn) {
+      i += 1;
+      continue;
     }
 
     if (pairedOut) {
@@ -378,8 +440,17 @@ export function getActiveBundyBusinessDayKey(
   nowIso: string = new Date().toISOString()
 ): string {
   const openAny = getOpenEntryFromPunches(punches, getDateInManilaDefault);
+  const now = new Date(nowIso);
   if (openAny) {
-    return getBundyBusinessDayKeyForInPunch(openAny.id, openAny.clock_in_time, punches);
+    const openBiz = getBundyBusinessDayKeyForInPunch(
+      openAny.id,
+      openAny.clock_in_time,
+      punches
+    );
+    if (isPastBundyAutoClockOut(openAny.clock_in_time, now, openBiz)) {
+      return getBundyBusinessDayKeyForClockIn(nowIso, false, null);
+    }
+    return openBiz;
   }
   return getBundyBusinessDayKeyForClockIn(nowIso, false, null);
 }
@@ -389,16 +460,15 @@ export function getOpenEntryFromPunches(
   getDateInManila: (iso: string) => string,
   activeBusinessDayKey?: string
 ): TimeEntrySession | null {
-  const sessions = punchesToSessions(
-    [...punches].sort(
-      (a, b) => new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
-    ),
-    getDateInManila
+  const sorted = [...punches].sort(
+    (a, b) => new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
   );
-  const bizMap = assignBundyBusinessDayKeysFromPunches(punches);
+  const sessions = punchesToSessions(sorted, getDateInManila);
+  const bizMap = assignBundyBusinessDayKeysFromPunches(sorted);
   const openSessions = sessions.filter(
     (s) =>
       !s.clock_out_time &&
+      !isSupersededInPunch(s.id, sorted) &&
       (activeBusinessDayKey == null ||
         (bizMap.get(s.id) ?? getBundyBusinessDayKey(s.clock_in_time)) ===
           activeBusinessDayKey)

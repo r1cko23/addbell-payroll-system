@@ -11,6 +11,8 @@ import {
 } from "@/lib/api-utils";
 import { clearUserRoleCache } from "@/lib/api-helpers";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

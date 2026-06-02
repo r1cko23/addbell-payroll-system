@@ -35,7 +35,7 @@ export function DashboardApprovalQueueCards({ items, queueHrefByType }: Props) {
         return (
           <div key={type} className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground">
                 {QUEUE_TYPE_LABELS[type]} ({typeItems.length})
               </p>
               <Link
@@ -52,7 +52,6 @@ export function DashboardApprovalQueueCards({ items, queueHrefByType }: Props) {
                   queueType={item.queueType}
                   employeeName={item.employeeName}
                   employeeCode={item.employeeCode}
-                  typeLabel={item.typeLabel}
                   requestDateLabel={item.requestDateLabel}
                   reason={item.reason}
                   filedAtLabel={item.filedAtLabel}

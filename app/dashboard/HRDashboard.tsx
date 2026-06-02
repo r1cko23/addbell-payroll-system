@@ -21,10 +21,12 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
+  fetchApproverOvertimeGroupIds,
   fetchApproverOvertimeGroupNames,
   fetchManagedEmployeeIdsForApprover,
   formatApproverGroupHeading,
 } from "@/lib/manager-approval-queue";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchDashboardApprovalQueueItems,
   type DashboardQueueItem,
@@ -83,6 +85,149 @@ function normalizeEmploymentTypeLabel(value: string | null | undefined) {
     .join(" ");
 }
 
+function getManilaDayStartIso(): string {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const year = parts.find((p) => p.type === "year")?.value || "1970";
+  const month = parts.find((p) => p.type === "month")?.value || "01";
+  const day = parts.find((p) => p.type === "day")?.value || "01";
+  return new Date(`${year}-${month}-${day}T00:00:00+08:00`).toISOString();
+}
+
+async function fetchCurrentlyClockedInForEmployees(
+  supabase: SupabaseClient,
+  activeEmployeesList: ActiveEmployeeLite[]
+): Promise<CurrentlyClockedInEmployee[]> {
+  const activeEmployeeIds = activeEmployeesList.map((emp) => emp.id);
+  if (activeEmployeeIds.length === 0) return [];
+
+  const { data: todayPunches, error: punchesError } = await supabase
+    .from("time_entries")
+    .select("employee_id, punch_type, punched_at")
+    .in("employee_id", activeEmployeeIds)
+    .gte("punched_at", getManilaDayStartIso())
+    .order("punched_at", { ascending: true });
+
+  if (punchesError) {
+    console.error("Failed to load current clock-ins:", punchesError);
+    return [];
+  }
+
+  const latestPunchByEmployee = new Map<
+    string,
+    { punch_type: string; punched_at: string }
+  >();
+  (todayPunches || []).forEach((p) => {
+    latestPunchByEmployee.set(p.employee_id, {
+      punch_type: p.punch_type,
+      punched_at: p.punched_at,
+    });
+  });
+
+  const activeById = new Map(activeEmployeesList.map((emp) => [emp.id, emp]));
+  const clockedInRows: CurrentlyClockedInEmployee[] = [];
+
+  latestPunchByEmployee.forEach((latest, employeeId) => {
+    if (latest.punch_type !== "in") return;
+    const emp = activeById.get(employeeId);
+    if (!emp) return;
+    clockedInRows.push({
+      id: emp.id,
+      company_id_no: emp.company_id_no,
+      employee_code: emp.employee_code,
+      first_name: emp.first_name,
+      last_name: emp.last_name,
+      department_name: getDepartmentName(emp.departments),
+      clocked_in_at: latest.punched_at,
+    });
+  });
+
+  clockedInRows.sort(
+    (a, b) =>
+      new Date(a.clocked_in_at).getTime() - new Date(b.clocked_in_at).getTime()
+  );
+  return clockedInRows;
+}
+
+function CurrentlyClockedInSection({
+  employees,
+  description,
+  className,
+  showViewAllLink = true,
+}: {
+  employees: CurrentlyClockedInEmployee[];
+  description: string;
+  className?: string;
+  showViewAllLink?: boolean;
+}) {
+  return (
+    <CardSection
+      title="Currently Clocked In"
+      description={description}
+      className={className}
+    >
+      {employees.length === 0 ? (
+        <p className="text-muted-foreground text-center py-6">
+          No employees currently clocked in.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Clocked in at</TableHead>
+                <TableHead>Time clock ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {employees.map((emp) => (
+                <TableRow key={emp.id}>
+                  <TableCell>
+                    <Link
+                      href={`/employees/${emp.id}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      {emp.first_name} {emp.last_name}
+                    </Link>
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {emp.company_id_no}
+                    </p>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {emp.department_name || "—"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {format(new Date(emp.clocked_in_at), "MMM d, h:mm a")}
+                  </TableCell>
+                  <TableCell className="text-sm font-mono">
+                    {emp.employee_code}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+      {showViewAllLink ? (
+        <div className="mt-2 flex justify-end">
+          <Link href="/employees">
+            <Button variant="ghost" size="sm">
+              View all employees
+            </Button>
+          </Link>
+        </div>
+      ) : null}
+    </CardSection>
+  );
+}
+
 export default function HRDashboard() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -132,17 +277,21 @@ export default function HRDashboard() {
 
       // Operations managers only see/act on requests for employees in their OT groups.
       let scopedEmployeeIds: string[] | null = null;
+      let approverGroupIds: string[] = [];
       if (isOperationsManager) {
         if (authUser?.id) {
-          const [managedIds, groupNames] = await Promise.all([
+          const [managedIds, groupNames, groupIds] = await Promise.all([
             fetchManagedEmployeeIdsForApprover(supabase, authUser.id),
             fetchApproverOvertimeGroupNames(supabase, authUser.id),
+            fetchApproverOvertimeGroupIds(supabase, authUser.id),
           ]);
           scopedEmployeeIds = managedIds;
           setApproverGroupNames(groupNames);
+          approverGroupIds = groupIds;
         } else {
           scopedEmployeeIds = [];
           setApproverGroupNames([]);
+          approverGroupIds = [];
         }
       } else {
         setApproverGroupNames([]);
@@ -154,13 +303,36 @@ export default function HRDashboard() {
         const teamCount = scopedEmployeeIds?.length ?? 0;
         setTotalEmployees(teamCount);
         setActiveEmployees(teamCount);
-        setCurrentlyClockedIn([]);
         setDeptStats([]);
         setUnassignedActiveEmployees(0);
         setTypeBreakdown([]);
         setPendingLeaveApprovals(0);
         setPendingOvertimeApprovals(0);
         setPendingFailureToLogApprovals(0);
+
+        if (approverGroupIds.length > 0) {
+          const { data: teamEmps, error: teamEmpsError } = await supabase
+            .from("employees")
+            .select(
+              "id, company_id_no, employee_code, first_name, last_name, employment_type, employment_status, departments:department_id ( name )"
+            )
+            .eq("employment_status", "active")
+            .in("overtime_group_id", approverGroupIds);
+
+          if (teamEmpsError) {
+            console.error("Failed to load team employees:", teamEmpsError);
+            setCurrentlyClockedIn([]);
+          } else {
+            setCurrentlyClockedIn(
+              await fetchCurrentlyClockedInForEmployees(
+                supabase,
+                (teamEmps || []) as ActiveEmployeeLite[]
+              )
+            );
+          }
+        } else {
+          setCurrentlyClockedIn([]);
+        }
       } else {
         const [{ count: total }, { count: active }, { data: allEmps }] =
           await Promise.all([
@@ -264,74 +436,12 @@ export default function HRDashboard() {
           typeMap.set(type, (typeMap.get(type) || 0) + 1);
         });
 
-        const activeEmployeeIds = activeEmployeesList.map((emp) => emp.id);
-        if (activeEmployeeIds.length > 0) {
-          const now = new Date();
-          const parts = new Intl.DateTimeFormat("en-US", {
-            timeZone: "Asia/Manila",
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          }).formatToParts(now);
-          const year = parts.find((p) => p.type === "year")?.value || "1970";
-          const month = parts.find((p) => p.type === "month")?.value || "01";
-          const day = parts.find((p) => p.type === "day")?.value || "01";
-          const dayStartIso = new Date(
-            `${year}-${month}-${day}T00:00:00+08:00`
-          ).toISOString();
-
-          const { data: todayPunches, error: punchesError } = await supabase
-            .from("time_entries")
-            .select("employee_id, punch_type, punched_at")
-            .in("employee_id", activeEmployeeIds)
-            .gte("punched_at", dayStartIso)
-            .order("punched_at", { ascending: true });
-
-          if (punchesError) {
-            console.error("Failed to load current clock-ins:", punchesError);
-            setCurrentlyClockedIn([]);
-          } else {
-            const latestPunchByEmployee = new Map<
-              string,
-              { punch_type: string; punched_at: string }
-            >();
-            (todayPunches || []).forEach((p) => {
-              latestPunchByEmployee.set(p.employee_id, {
-                punch_type: p.punch_type,
-                punched_at: p.punched_at,
-              });
-            });
-
-            const activeById = new Map(
-              activeEmployeesList.map((emp) => [emp.id, emp])
-            );
-            const clockedInRows: CurrentlyClockedInEmployee[] = [];
-
-            latestPunchByEmployee.forEach((latest, employeeId) => {
-              if (latest.punch_type !== "in") return;
-              const emp = activeById.get(employeeId);
-              if (!emp) return;
-              clockedInRows.push({
-                id: emp.id,
-                company_id_no: emp.company_id_no,
-                employee_code: emp.employee_code,
-                first_name: emp.first_name,
-                last_name: emp.last_name,
-                department_name: getDepartmentName(emp.departments),
-                clocked_in_at: latest.punched_at,
-              });
-            });
-
-            clockedInRows.sort(
-              (a, b) =>
-                new Date(a.clocked_in_at).getTime() -
-                new Date(b.clocked_in_at).getTime()
-            );
-            setCurrentlyClockedIn(clockedInRows);
-          }
-        } else {
-          setCurrentlyClockedIn([]);
-        }
+        setCurrentlyClockedIn(
+          await fetchCurrentlyClockedInForEmployees(
+            supabase,
+            activeEmployeesList
+          )
+        );
 
         setDeptStats(
           Array.from(deptMap.entries())
@@ -466,7 +576,7 @@ export default function HRDashboard() {
         }
         description={
           isOperationsManager
-            ? `Pending approvals of leave, overtime and failure to log by ${operationsManagerGroupLabel}.`
+            ? `Pending approvals of leave, overtime, and failure to log by ${operationsManagerGroupLabel}.`
             : "Track employee registrations and the latest time in/out activity."
         }
         actions={
@@ -493,9 +603,48 @@ export default function HRDashboard() {
         }
       />
 
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
-        <CardHeader className="pb-2">
-          {!isOperationsManager ? (
+      {isOperationsManager ? (
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <Card className="h-full border-primary/20 bg-gradient-to-r from-primary/10 to-background">
+            <CardHeader className="pb-2">
+              <CardTitle>
+                {queueItems.length === 0
+                  ? "No Pending Approvals"
+                  : `${queueItems.length} Request${queueItems.length === 1 ? "" : "s"} Waiting For You`}
+                {totalPendingApprovals > queueItems.length ? (
+                  <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                    Showing {queueItems.length} of {totalPendingApprovals} pending (all dates) ·
+                    Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL {displayedFtlCount}
+                  </span>
+                ) : totalPendingApprovals > 0 ? (
+                  <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                    All dates · Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL{" "}
+                    {displayedFtlCount}
+                  </span>
+                ) : null}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DashboardApprovalQueueCards
+                items={queueItems}
+                queueHrefByType={{
+                  leave: leaveQueueHref,
+                  overtime: otQueueHref,
+                  ftl: ftlQueueHref,
+                }}
+              />
+            </CardContent>
+          </Card>
+          <CurrentlyClockedInSection
+            employees={currentlyClockedIn}
+            description={`Team members under you clocked in today.`}
+            className="h-full"
+            showViewAllLink={false}
+          />
+        </div>
+      ) : (
+        <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
+          <CardHeader className="pb-2">
             <CardDescription>
               {showAllCompanyPending
                 ? "All pending approvals — click a request to review"
@@ -503,35 +652,35 @@ export default function HRDashboard() {
                   ? "Pending HR approvals — click a request to review"
                   : "Your approval groups — click a request to review"}
             </CardDescription>
-          ) : null}
-          <CardTitle>
-            {queueItems.length === 0
-              ? "No Pending Approvals"
-              : `${queueItems.length} Request${queueItems.length === 1 ? "" : "s"} Waiting For You`}
-            {totalPendingApprovals > queueItems.length ? (
-              <span className="block text-sm font-normal text-muted-foreground mt-1">
-                Showing {queueItems.length} of {totalPendingApprovals} pending (all dates) ·
-                Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL {displayedFtlCount}
-              </span>
-            ) : totalPendingApprovals > 0 ? (
-              <span className="block text-sm font-normal text-muted-foreground mt-1">
-                All dates · Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL{" "}
-                {displayedFtlCount}
-              </span>
-            ) : null}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DashboardApprovalQueueCards
-            items={queueItems}
-            queueHrefByType={{
-              leave: leaveQueueHref,
-              overtime: otQueueHref,
-              ftl: ftlQueueHref,
-            }}
-          />
-        </CardContent>
-      </Card>
+            <CardTitle>
+              {queueItems.length === 0
+                ? "No Pending Approvals"
+                : `${queueItems.length} Request${queueItems.length === 1 ? "" : "s"} Waiting For You`}
+              {totalPendingApprovals > queueItems.length ? (
+                <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                  Showing {queueItems.length} of {totalPendingApprovals} pending (all dates) ·
+                  Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL {displayedFtlCount}
+                </span>
+              ) : totalPendingApprovals > 0 ? (
+                <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                  All dates · Leave {displayedLeaveCount} · OT {displayedOtCount} · FTL{" "}
+                  {displayedFtlCount}
+                </span>
+              ) : null}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DashboardApprovalQueueCards
+              items={queueItems}
+              queueHrefByType={{
+                leave: leaveQueueHref,
+                overtime: otQueueHref,
+                ftl: ftlQueueHref,
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {!isOperationsManager ? (
         <>
@@ -614,50 +763,11 @@ export default function HRDashboard() {
           ) : null}
         </CardSection>
 
-        <CardSection
-          title="Currently clocked in"
+        <CurrentlyClockedInSection
+          employees={currentlyClockedIn}
           description="Employees clocked in today."
           className="xl:col-span-8"
-        >
-          {currentlyClockedIn.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">
-              No employees currently clocked in.
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Employee</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Clocked in at</TableHead>
-                    <TableHead>Time clock ID</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentlyClockedIn.map((emp) => (
-                    <TableRow key={emp.id}>
-                      <TableCell>
-                        <Link href={`/employees/${emp.id}`} className="text-primary hover:underline text-sm font-medium">
-                          {emp.first_name} {emp.last_name}
-                        </Link>
-                        <p className="text-xs text-muted-foreground font-mono">{emp.company_id_no}</p>
-                      </TableCell>
-                      <TableCell className="text-sm">{emp.department_name || "—"}</TableCell>
-                      <TableCell className="text-sm">
-                        {format(new Date(emp.clocked_in_at), "MMM d, h:mm a")}
-                      </TableCell>
-                      <TableCell className="text-sm font-mono">{emp.employee_code}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          <div className="flex justify-end mt-2">
-            <Link href="/employees"><Button variant="ghost" size="sm">View all employees</Button></Link>
-          </div>
-        </CardSection>
+        />
       </div>
         </>
       ) : null}

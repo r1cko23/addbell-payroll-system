@@ -3,6 +3,8 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 
+export const dynamic = "force-dynamic";
+
 export async function POST() {
   const supabase = createServerComponentClient<Database>({ cookies });
 

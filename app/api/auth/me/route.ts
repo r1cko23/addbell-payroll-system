@@ -9,6 +9,8 @@ import {
 } from "@/lib/api-utils";
 import { getCurrentUserRole } from "@/lib/api-helpers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerComponentClient<Database>({ cookies });

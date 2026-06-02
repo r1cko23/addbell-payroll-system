@@ -130,3 +130,33 @@ WHERE i.punch_type = 'in'
 SELECT COUNT(*) AS remaining_auto_outs
 FROM time_entries
 WHERE device_info LIKE 'auto:business-day-close%';
+
+-- STEP 5 — Dedupe admin correction OUTs (script re-runs / manual fixes can duplicate)
+-- Keep lowest id per employee_id + punched_at. Safe to re-run.
+/*
+WITH admin_rows AS (
+  SELECT te.id,
+    ROW_NUMBER() OVER (
+      PARTITION BY te.employee_id, te.punched_at
+      ORDER BY te.id
+    ) AS rn
+  FROM time_entries te
+  WHERE te.device_info LIKE 'admin:replace bogus 6:59%'
+     OR te.device_info LIKE 'admin:close orphan IN after 6:59%'
+)
+DELETE FROM time_entries
+WHERE id IN (SELECT id FROM admin_rows WHERE rn > 1);
+*/
+
+-- STEP 6 — Inventory remaining admin corrections (expect ~1 OUT per fixed day)
+SELECT
+  e.employee_id AS emp_code,
+  e.full_name,
+  (te.punched_at AT TIME ZONE 'Asia/Manila')::date AS work_date,
+  te.punched_at AT TIME ZONE 'Asia/Manila' AS out_manila,
+  LEFT(te.device_info, 60) AS info
+FROM time_entries te
+JOIN employees e ON e.id = te.employee_id
+WHERE te.device_info LIKE 'admin:replace bogus 6:59%'
+   OR te.device_info LIKE 'admin:close orphan IN after 6:59%'
+ORDER BY work_date DESC, e.full_name;

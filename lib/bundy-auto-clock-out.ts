@@ -1,8 +1,6 @@
 import {
-  assignBundyBusinessDayKeysFromPunches,
   BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO,
-  getBundyBusinessDayAutoOutIso,
-  getBundyBusinessDayKeyForInPunch,
+  getBundy23HourAutoOutIso,
   isPastBundyAutoClockOut,
 } from "@/lib/bundy-business-day";
 import {
@@ -16,8 +14,7 @@ import {
 type SupabaseAdmin = any;
 
 /**
- * Inserts an OUT punch at 06:59 Manila when a session crossed the business-day boundary
- * and the employee did not clock out manually (e.g. overnight past midnight).
+ * Inserts an OUT punch when an open session is past 23 hours since clock-in (Deputy-style).
  */
 export async function applyBundyAutoClockOutIfNeeded(
   supabase: SupabaseAdmin,
@@ -41,22 +38,21 @@ export async function applyBundyAutoClockOutIfNeeded(
     return { applied: false };
   }
 
-  const businessDay = getBundyBusinessDayKeyForInPunch(
-    open.id,
-    open.clock_in_time,
-    punches
-  );
-
-  if (!isPastBundyAutoClockOut(open.clock_in_time, now, businessDay)) {
+  if (!isPastBundyAutoClockOut(open.clock_in_time, now)) {
     return { applied: false };
   }
-  const punchedAt = getBundyBusinessDayAutoOutIso(businessDay);
+  const punchedAt = getBundy23HourAutoOutIso(open.clock_in_time);
+  const punchedAtMs = new Date(punchedAt).getTime();
+  const clockInMs = new Date(open.clock_in_time).getTime();
 
   const alreadyHasAutoOut = punches.some(
     (p) =>
       p.punch_type === "out" &&
-      p.device_info?.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO) === true &&
-      p.punched_at === punchedAt
+      (p.device_info?.startsWith("auto:business-day-close") ||
+        p.device_info?.startsWith("auto:23h-open-shift-close") ||
+        p.device_info?.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO)) &&
+      new Date(p.punched_at).getTime() > clockInMs &&
+      new Date(p.punched_at).getTime() <= punchedAtMs + 60_000
   );
   if (alreadyHasAutoOut) {
     return { applied: false };

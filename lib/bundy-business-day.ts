@@ -1,12 +1,13 @@
 /**
- * Bundy business day: starts 07:00 Asia/Manila, ends 06:59 the next calendar day.
- * Open sessions from the prior business day stay active until 06:59 (auto clock-out)
- * or a manual clock-out — including between midnight and 06:59.
+ * Bundy business day: starts 07:00 Asia/Manila (used for official sessions / open-state).
+ * Forgotten clock-outs auto-close 23 hours after time-in (Deputy-style).
  */
 
 export const BUNDY_BUSINESS_DAY_START_HOUR = 7;
-export const BUNDY_AUTO_CLOCK_OUT_HOUR = 6;
-export const BUNDY_AUTO_CLOCK_OUT_MINUTE = 59;
+/** Max hours an IN can stay open before system auto clock-out (matches Deputy default). */
+export const BUNDY_MAX_OPEN_SESSION_HOURS = 23;
+export const BUNDY_MAX_OPEN_SESSION_MS =
+  BUNDY_MAX_OPEN_SESSION_HOURS * 60 * 60 * 1000;
 
 const MANILA_TZ = "Asia/Manila";
 
@@ -104,7 +105,7 @@ export function getBundyBusinessDayKeyForClockIn(
 
 /**
  * Assigns a business-day key to each IN punch by walking punches in time order.
- * Used for official-session filtering, auto clock-out deadlines, and open-session checks.
+ * Used for official-session filtering and open-session checks.
  */
 export function assignBundyBusinessDayKeysFromPunches(
   punches: PunchForBundyBizDay[]
@@ -145,31 +146,33 @@ export function getBundyBusinessDayKeyForInPunch(
   return map.get(inPunchId) ?? getBundyBusinessDayKey(clockInIso);
 }
 
-/** ISO timestamp for auto clock-out: next calendar day after businessDayKey at 06:59 Manila. */
-export function getBundyBusinessDayAutoOutIso(businessDayKey: string): string {
-  const [y, m, d] = businessDayKey.split("-").map(Number);
-  const next = new Date(Date.UTC(y, m - 1, d + 1));
-  const ny = next.getUTCFullYear();
-  const nm = String(next.getUTCMonth() + 1).padStart(2, "0");
-  const nd = String(next.getUTCDate()).padStart(2, "0");
-  const hh = String(BUNDY_AUTO_CLOCK_OUT_HOUR).padStart(2, "0");
-  const mm = String(BUNDY_AUTO_CLOCK_OUT_MINUTE).padStart(2, "0");
-  return `${ny}-${nm}-${nd}T${hh}:${mm}:00+08:00`;
+/** ISO timestamp for auto clock-out: clock-in + 23 hours (stored as timestamptz). */
+export function getBundy23HourAutoOutIso(clockInIso: string): string {
+  return new Date(
+    new Date(clockInIso).getTime() + BUNDY_MAX_OPEN_SESSION_MS
+  ).toISOString();
 }
 
-/** True when server time is at or after 06:59 Manila on the day after the session's business day. */
+/** @deprecated Use getBundy23HourAutoOutIso — kept for callers; businessDayKey is ignored. */
+export function getBundyAutoClockOutDeadlineIso(
+  clockInIso: string,
+  _businessDayKey?: string
+): string {
+  return getBundy23HourAutoOutIso(clockInIso);
+}
+
+/** True when server time is at or past 23 hours after clock-in. */
 export function isPastBundyAutoClockOut(
   clockInIso: string,
   now: Date = new Date(),
-  businessDayKey?: string
+  _businessDayKey?: string
 ): boolean {
-  const businessDay = businessDayKey ?? getBundyBusinessDayKey(clockInIso);
-  const deadlineMs = new Date(getBundyBusinessDayAutoOutIso(businessDay)).getTime();
+  const deadlineMs = new Date(getBundy23HourAutoOutIso(clockInIso)).getTime();
   return now.getTime() >= deadlineMs;
 }
 
 export const BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO =
-  "auto:business-day-close@06:59 Manila";
+  "auto:23h-open-shift-close Manila";
 
 /**
  * Extend cutoff period end when querying time_entries so clock-outs on the

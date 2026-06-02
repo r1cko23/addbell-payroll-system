@@ -2231,7 +2231,8 @@ export default function BundyClockPage() {
 
           {!isRestDayToday && (
             <Caption className="text-center text-muted-foreground block mt-2">
-              Business day: 7:00 AM–6:59 AM. Close each Time In before the next.
+              Business day starts 7:00 AM. Forgot to time out? Auto-closes 23
+              hours after time in.
             </Caption>
           )}
 

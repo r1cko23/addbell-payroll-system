@@ -118,13 +118,15 @@ function calculateNightDiffHours(
 /** Do not pair an OUT to an IN if the gap exceeds this (avoids binding to a distant OUT). */
 const MAX_PAIR_GAP_MS = 20 * 60 * 60 * 1000;
 
-/** Bundy business day can span up to ~24h; auto-outs at 06:59 may exceed MAX_PAIR_GAP_MS. */
-const MAX_BUNDY_BUSINESS_DAY_MS = 25 * 60 * 60 * 1000;
+/** Pair auto-outs up to 23h + buffer (matches BUNDY_MAX_OPEN_SESSION_HOURS). */
+const MAX_BUNDY_AUTO_PAIR_MS = 24 * 60 * 60 * 1000;
 
 function isBundyAutoClockOutPunch(punch: TimeEntryPunch): boolean {
+  const info = punch.device_info ?? "";
   return (
-    punch.device_info?.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO) === true ||
-    punch.device_info?.startsWith("auto:business-day-close") === true
+    info.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO) ||
+    info.startsWith("auto:business-day-close") ||
+    info.startsWith("auto:23h-open-shift-close")
   );
 }
 
@@ -167,7 +169,7 @@ function canPairOutToIn(
   if (outMs <= inMs) return false;
   const gap = outMs - inMs;
   if (gap <= MAX_PAIR_GAP_MS) return true;
-  if (gap <= MAX_BUNDY_BUSINESS_DAY_MS && isBundyAutoClockOutPunch(outPunch)) {
+  if (gap <= MAX_BUNDY_AUTO_PAIR_MS && isBundyAutoClockOutPunch(outPunch)) {
     return true;
   }
   return false;
@@ -475,7 +477,7 @@ export function mergeBundyAndFtlClockSessions(
 /**
  * Finds the current open entry: an 'in' that has no matching 'out' (using same pairing as punchesToSessions).
  * If activeBusinessDayKey is provided, only treats as open when clock-in belongs to that Bundy business day
- * (7:00 AM–06:59 AM next calendar day), not calendar midnight.
+ * (7:00 AM Manila boundary), not calendar midnight.
  */
 /** Active Bundy business day for clock UI / open-session checks (punch-aware). */
 export function getActiveBundyBusinessDayKey(

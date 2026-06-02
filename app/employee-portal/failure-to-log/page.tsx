@@ -88,7 +88,7 @@ export default function FailureToLogPage() {
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
-  // Form state (time-out-only FTL removed — open sessions auto-close at 6:59 AM)
+  // Form state (time-out-only FTL removed — open sessions auto-close after 23h)
   const [missedDate, setMissedDate] = useState("");
   const [timeIn, setTimeIn] = useState("");
   const [timeOut, setTimeOut] = useState("");
@@ -395,7 +395,7 @@ export default function FailureToLogPage() {
               File Failure To Log Request
             </HStack>
           }
-          description="File missed clock in and out for a shift. If you forgot to time out, the system auto-closes your session at 6:59 AM before the next business day (7:00 AM)."
+          description="File missed clock in and out for a shift. If you forgot to time out, the system auto-closes your session 23 hours after time in."
           headerClassName="space-y-1"
         >
           <form onSubmit={handleSubmit} className="w-full">

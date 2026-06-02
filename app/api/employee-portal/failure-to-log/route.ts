@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Time-out-only failure to log is no longer accepted. Open sessions are auto-closed at 6:59 AM. File time in and out instead.",
+            "Time-out-only failure to log is no longer accepted. Open sessions auto-close 23 hours after time in. File time in and out instead.",
         },
         { status: 400 }
       );

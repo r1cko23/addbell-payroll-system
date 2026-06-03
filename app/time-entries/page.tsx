@@ -58,6 +58,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { computeDayAttendanceMetrics } from "@/lib/day-attendance-summary";
 import { fetchSessionsInRange, getDateInManilaDefault } from "@/lib/timeEntries";
 import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
+import { ManualPunchDialog } from "@/components/time-entries/ManualPunchDialog";
 
 interface TimeEntry {
   id: string;
@@ -142,6 +143,7 @@ export default function TimeEntriesPage() {
   const [savingTimeEdit, setSavingTimeEdit] = useState(false);
   const [driversGroupId, setDriversGroupId] = useState<string | null>(null);
   const [showAddEntryDialog, setShowAddEntryDialog] = useState(false);
+  const [showManualPunchDialog, setShowManualPunchDialog] = useState(false);
   const [newEntryEmployee, setNewEntryEmployee] = useState<string>("");
   const [newEntryClockIn, setNewEntryClockIn] = useState("");
   const [newEntryClockOut, setNewEntryClockOut] = useState("");
@@ -1324,6 +1326,14 @@ export default function TimeEntriesPage() {
                   <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
                   Bulk Add Entries
                 </Button>
+                <Button
+                  onClick={() => setShowManualPunchDialog(true)}
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                >
+                  <Icon name="ClockClockwise" size={IconSizes.sm} className="mr-2" />
+                  Manual Punch
+                </Button>
               </>
             )}
             {/* HR: Add Time Entry for drivers only (legacy functionality) */}
@@ -2069,6 +2079,13 @@ export default function TimeEntriesPage() {
             )}
           </DialogContent>
         </Dialog>
+
+        <ManualPunchDialog
+          open={showManualPunchDialog}
+          onOpenChange={setShowManualPunchDialog}
+          employees={employees}
+          onSuccess={fetchTimeEntries}
+        />
 
         {/* Add Time Entry Dialog */}
         <Dialog

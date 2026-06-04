@@ -913,10 +913,29 @@ function PayslipDetailedBreakdownComponent({
       return sum;
     }, 0);
 
-    // Hours Worked / "Hours Work (Regular)" = actual credited regular hours from attendance (sum of dayType regular).
-    // Scheduled slot×8 from calculateBasePay is kept as basePayHours for absence messaging only.
+    // Row 1 "Hours Work (Regular)" = credited regular-day hours only.
+    // Basic Earning(s) header "Hours Worked" = sum of all component hours in the table below.
     const hoursWorked =
       periodStart && periodEnd ? regularHoursWorked : basePayHours;
+
+    const totalHoursWorked =
+      Math.round(
+        (hoursWorked +
+          breakdown.nightDifferential.hours +
+          breakdown.legalHoliday.hours +
+          breakdown.specialHoliday.hours +
+          breakdown.restDay.hours +
+          breakdown.restDayNightDiff.hours +
+          earningsOT.regularOvertime.hours +
+          earningsOT.legalHolidayOT.hours +
+          earningsOT.legalHolidayND.hours +
+          earningsOT.shOT.hours +
+          earningsOT.shNightDiff.hours +
+          earningsOT.shOnRDOT.hours +
+          earningsOT.lhOnRDOT.hours +
+          earningsOT.restDayOT.hours) *
+          100
+      ) / 100;
 
     const totalBHForHoursWork = actualTotalBH;
 
@@ -1048,6 +1067,7 @@ function PayslipDetailedBreakdownComponent({
     return {
       totalHours,
       hoursWorked,
+      totalHoursWorked,
       basicSalary,
       totalRegularHours,
       breakdown,
@@ -1079,6 +1099,7 @@ function PayslipDetailedBreakdownComponent({
   const {
     totalHours,
     hoursWorked,
+    totalHoursWorked,
     basicSalary,
     totalRegularHours,
     breakdown,
@@ -1176,7 +1197,7 @@ function PayslipDetailedBreakdownComponent({
               <tbody>
                 <tr className="bg-white hover:bg-gray-50 transition-colors">
                   <td className="px-2 py-1.5 text-xs font-medium text-gray-900">
-                    {hoursWorked.toFixed(2)}
+                    {totalHoursWorked.toFixed(2)}
                   </td>
                   <td className="px-2 py-1.5 text-xs text-right font-mono text-gray-700">
                     {(Math.round(ratePerHour * 100) / 100).toFixed(2)}

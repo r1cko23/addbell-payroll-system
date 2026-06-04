@@ -179,7 +179,7 @@ export const MODULE_INFO: ModuleInfo[] = [
   },
 ];
 
-// Full admin permissions (admin + upper_management per Addbell roles)
+// Full system admin permissions (Jericko / role `admin` only)
 const ADMIN_PERMISSIONS = Object.fromEntries(
   Object.values(MODULES).map((module) => [
     module,
@@ -187,10 +187,16 @@ const ADMIN_PERMISSIONS = Object.fromEntries(
   ])
 ) as UserPermissions;
 
+// Upper management: same as admin except user_management (system owner only)
+const UPPER_MANAGEMENT_PERMISSIONS: UserPermissions = {
+  ...ADMIN_PERMISSIONS,
+  user_management: { create: false, read: false, update: false, delete: false },
+};
+
 // Default permissions by role
 export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
   admin: ADMIN_PERMISSIONS,
-  upper_management: ADMIN_PERMISSIONS, // Addbell: Upper Management = Admin
+  upper_management: UPPER_MANAGEMENT_PERMISSIONS,
   hr: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: true, read: true, update: true, delete: false },
@@ -503,5 +509,16 @@ export function mergePermissions(
       };
     }
   }
+
+  // System owner only — never grant user_management via custom overrides
+  if (role !== "admin") {
+    merged.user_management = {
+      create: false,
+      read: false,
+      update: false,
+      delete: false,
+    };
+  }
+
   return merged;
 }

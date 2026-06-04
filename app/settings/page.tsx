@@ -190,8 +190,8 @@ export default function SettingsPage() {
   }
 
   const isAdmin = currentUser?.role === "admin";
-  const isUpperManagement = currentUser?.role === "upper_management";
-  const canManageAccessControl = isAdmin || isUpperManagement;
+  const canManageUsers = isAdmin;
+  const canManageAccessControl = isAdmin;
 
   async function handleCreateUser() {
     console.log("handleCreateUser called", {
@@ -467,7 +467,7 @@ export default function SettingsPage() {
                   </HStack>
                   <HStack gap="3" align="center">
                     <BodySmall className="w-16 text-left">Role:</BodySmall>
-                    <Badge variant={canManageAccessControl ? "default" : "secondary"}>
+                    <Badge variant={canManageUsers || canManageAccessControl ? "default" : "secondary"}>
                       {formatRoleName(currentUser?.role || "")}
                     </Badge>
                   </HStack>
@@ -477,8 +477,8 @@ export default function SettingsPage() {
           </VStack>
         </CardSection>
 
-        {/* User Management (Admin & Upper Management — same level as admin) */}
-        {canManageAccessControl && (
+        {/* User Management (system admin only) */}
+        {canManageUsers && (
           <CardSection
             title="User Management"
             description="Manage system users"
@@ -731,7 +731,7 @@ export default function SettingsPage() {
           </CardSection>
         )}
 
-        {/* Permissions / CRUD Matrix (Admin & Upper Management) */}
+        {/* Permissions / CRUD Matrix (system admin only) */}
         {canManageAccessControl && (
           <CardSection
             title="Access Control (CRUD Matrix)"

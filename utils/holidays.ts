@@ -361,7 +361,7 @@ export const PH_HOLIDAYS_FALLBACK: Holiday[] = normalizeHolidays([
   { date: "2026-04-03", name: "Good Friday", type: "regular" },
   { date: "2026-04-09", name: "Araw ng Kagitingan", type: "regular" },
   { date: "2026-05-01", name: "Labor Day", type: "regular" },
-  { date: "2026-05-27", name: "Eid al-Adha (Feast of Sacrifice)", type: "non-working" },
+  { date: "2026-05-27", name: "Eid al-Adha (Feast of Sacrifice)", type: "regular" },
   { date: "2026-06-12", name: "Independence Day", type: "regular" },
   { date: "2026-08-31", name: "National Heroes Day", type: "regular" },
   { date: "2026-11-30", name: "Bonifacio Day", type: "regular" },

@@ -254,14 +254,14 @@ export default function HRDashboard() {
   const [queueItems, setQueueItems] = useState<DashboardQueueItem[]>([]);
   const [approverGroupNames, setApproverGroupNames] = useState<string[]>([]);
 
-  const { isHR, isOperationsManager, isAdmin, loading: roleLoading } = useUserRole();
-  const showAllCompanyPending = isAdmin && !isHR && !isOperationsManager;
+  const { isHR, isOperationsManager, isManagement, loading: roleLoading } = useUserRole();
+  const showAllCompanyPending = isManagement && !isHR && !isOperationsManager;
   const usesManagerApprovalQueue =
     isOperationsManager || isHR || showAllCompanyPending;
 
   useEffect(() => {
     if (!roleLoading) loadData();
-  }, [roleLoading, isOperationsManager, isHR, isAdmin]);
+  }, [roleLoading, isOperationsManager, isHR, isManagement]);
 
   async function loadData() {
     const initialLoad = !lastUpdatedAt;

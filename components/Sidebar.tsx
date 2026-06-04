@@ -178,7 +178,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
   const {
     role,
     isHR,
-    isAdmin,
+    isManagement,
     isApprover,
     isViewer,
     loading: roleLoading,
@@ -198,7 +198,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
       return navGroups;
     }
 
-    if (isAdmin) {
+    if (isManagement) {
       return navGroups;
     }
 
@@ -233,7 +233,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
         return filteredItems.length > 0 ? { ...group, items: filteredItems } : null;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isAdmin, isApprover, isViewer, isHR, canRead, roleLoading, permissionsLoading]);
+  }, [isManagement, isApprover, isViewer, isHR, canRead, roleLoading, permissionsLoading]);
 
   React.useEffect(() => {
     let matchedGroup: string | null = null;

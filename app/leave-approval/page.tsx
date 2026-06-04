@@ -202,11 +202,10 @@ export default function LeaveApprovalPage() {
       { scroll: false }
     );
   };
-  const { isAdmin, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.trim().toLowerCase() || "";
   const canManageLeave =
-    isAdmin ||
-    normalizedRole === "upper_management" ||
+    isManagement ||
     isHR ||
     normalizedRole === "operations_manager";
   const isFirstApproverDashboardView =
@@ -272,8 +271,7 @@ export default function LeaveApprovalPage() {
   ): "manager" | "hr" | null => {
     if (isManagerApprovedStatus(request.status)) {
       return (normalizedRole === "hr" && isFinalHrApprover(currentUserId)) ||
-        isAdmin ||
-        normalizedRole === "upper_management"
+        isManagement
         ? "hr"
         : null;
     }
@@ -302,7 +300,7 @@ export default function LeaveApprovalPage() {
         : null;
     }
 
-    if (isAdmin) return "manager";
+    if (isManagement) return "manager";
     if (normalizedRole === "operations_manager") {
       const groupName = getRequestGroupName(request);
       if (
@@ -420,7 +418,7 @@ export default function LeaveApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      if (isAdmin || normalizedRole === "upper_management") {
+      if (isManagement) {
         return true;
       }
       if (normalizedRole === "operations_manager") {
@@ -570,7 +568,7 @@ export default function LeaveApprovalPage() {
     }));
 
     let filteredData = dataWithEmployees;
-    if (!isAdmin && normalizedRole !== "upper_management") {
+    if (!isManagement) {
       filteredData = dataWithEmployees.filter((request: any) => {
         const groupName =
           employeeGroupNameByEmployeeId[request.employee_id] || null;

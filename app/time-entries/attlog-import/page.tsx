@@ -108,8 +108,8 @@ function detectFallbackMatrix(text: string): string[][] {
 
 export default function AttlogImportPage() {
   const supabase = createClient();
-  const { isAdmin, isHR, loading: roleLoading } = useUserRole();
-  const canImport = isAdmin || isHR;
+  const { isAdmin, isManagement, isHR, loading: roleLoading } = useUserRole();
+  const canImport = isManagement || isHR;
 
   const [officeLocations, setOfficeLocations] = useState<OfficeLocationOption[]>([]);
   const [fileName, setFileName] = useState("");

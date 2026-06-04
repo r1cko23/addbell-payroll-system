@@ -114,7 +114,7 @@ const statusStyles: Record<string, string> = {
 
 export default function PayrollPage() {
   const supabase = createClient();
-  const { isAdmin, isHR, canAccessSalaryInfo } = useUserRole();
+  const { isManagement, isHR, canAccessSalaryInfo } = useUserRole();
   const searchParams = useSearchParams();
   const runIdFromQuery = searchParams.get("run_id");
 
@@ -920,7 +920,7 @@ export default function PayrollPage() {
             <H1>Payroll</H1>
             <BodySmall>Runs, payslips, and totals.</BodySmall>
           </VStack>
-          {(isAdmin || isHR) && (
+          {(isManagement || isHR) && (
             <Button onClick={openNewRunDialog}>
               <Icon name="Plus" size={IconSizes.sm} />
               New Payroll Run

@@ -65,7 +65,7 @@ interface BIRSummary {
 
 export default function BIRReportsPage() {
   const router = useRouter();
-  const { isAdmin, isHR, loading: roleLoading } = useUserRole();
+  const { isManagement, isHR, loading: roleLoading } = useUserRole();
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -75,16 +75,16 @@ export default function BIRReportsPage() {
 
   useEffect(() => {
     // Only allow admin and HR access
-    if (!roleLoading && !isAdmin && !isHR) {
+    if (!roleLoading && !isManagement && !isHR) {
       router.push("/dashboard");
     }
-  }, [roleLoading, isAdmin, isHR, router]);
+  }, [roleLoading, isManagement, isHR, router]);
 
   useEffect(() => {
-    if (isAdmin || isHR) {
+    if (isManagement || isHR) {
       fetchBIRData();
     }
-  }, [year, isAdmin, isHR]);
+  }, [year, isManagement, isHR]);
 
   async function fetchBIRData() {
     setLoading(true);
@@ -546,7 +546,7 @@ export default function BIRReportsPage() {
     );
   }
 
-  if (!isAdmin && !isHR) {
+  if (!isManagement && !isHR) {
     return null;
   }
 

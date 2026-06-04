@@ -218,7 +218,7 @@ interface EmployeeFirstLogin {
 export default function AuditDashboardPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { role, isAdmin, isHR, loading: roleLoading } = useUserRole();
+  const { isManagement, isHR, loading: roleLoading } = useUserRole();
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [firstLogins, setFirstLogins] = useState<EmployeeFirstLogin[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,17 +229,17 @@ export default function AuditDashboardPage() {
 
   // Redirect if not admin or HR
   useEffect(() => {
-    if (!roleLoading && !isAdmin && !isHR) {
+    if (!roleLoading && !isManagement && !isHR) {
       router.replace("/dashboard");
     }
-  }, [isAdmin, isHR, roleLoading, router]);
+  }, [isManagement, isHR, roleLoading, router]);
 
   useEffect(() => {
-    if (isAdmin || isHR) {
+    if (isManagement || isHR) {
       loadAuditLogs();
       loadFirstLogins();
     }
-  }, [isAdmin, isHR, tableFilter, actionFilter]);
+  }, [isManagement, isHR, tableFilter, actionFilter]);
 
   async function loadAuditLogs() {
     try {
@@ -439,7 +439,7 @@ export default function AuditDashboardPage() {
     );
   }
 
-  if (!isAdmin && !isHR) {
+  if (!isManagement && !isHR) {
     return null; // Will redirect
   }
 

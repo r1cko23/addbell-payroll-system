@@ -29,7 +29,12 @@ interface UserRoleData {
   email: string | null;
   loading: boolean;
   error: string | null;
+  /** Literal `admin` role only (system owner — user mgmt, manual punch, CRUD matrix). */
   isAdmin: boolean;
+  /** `upper_management` — broad operational access, not system admin. */
+  isUpperManagement: boolean;
+  /** Admin or upper management (legacy combined “management” access). */
+  isManagement: boolean;
   isHR: boolean;
   isApprover: boolean;
   isViewer: boolean;
@@ -62,8 +67,9 @@ export function useUserRole(): UserRoleData {
     // Cast role to the expected type since profiles table may have different role values
     const role = normalizedRole as UserRoleData["role"] | null;
 
-    // upper_management = admin per Addbell roles
-    const isAdmin = normalizedRole === "admin" || normalizedRole === "upper_management";
+    const isAdmin = normalizedRole === "admin";
+    const isUpperManagement = normalizedRole === "upper_management";
+    const isManagement = isAdmin || isUpperManagement;
 
     return {
       role,
@@ -71,16 +77,18 @@ export function useUserRole(): UserRoleData {
       loading: userLoading,
       error: userError,
       isAdmin,
+      isUpperManagement,
+      isManagement,
       isHR: normalizedRole === "hr",
       isApprover: normalizedRole === "approver" || normalizedRole === "hr",
       isViewer: normalizedRole === "viewer",
       isRestrictedAccess: normalizedRole === "approver" || normalizedRole === "viewer",
       isOperationsManager: isOperationsManagerRole(normalizedRole),
       canAccessSalaryInfo:
-        isAdmin ||
+        isManagement ||
         normalizedRole === "hr" ||
         (user?.can_access_salary ?? false),
-      canUpdatePayslip: isAdmin || isAprilGammad,
+      canUpdatePayslip: isManagement || isAprilGammad,
       refetch,
     };
   }, [user, userLoading, userError, refetch]);

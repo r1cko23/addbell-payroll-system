@@ -113,7 +113,7 @@ type Holiday = HolidayEntry;
 
 export default function TimeEntriesPage() {
   const supabase = createClient();
-  const { isAdmin, isHR, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, isHR, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [employees, setEmployees] = useState<
@@ -182,7 +182,7 @@ export default function TimeEntriesPage() {
     if (!groupsLoading) {
       fetchTimeEntries();
     }
-  }, [selectedWeekStart, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [selectedWeekStart, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isManagement, isHR]);
 
   useEffect(() => {
     async function loadEmployees() {
@@ -196,7 +196,7 @@ export default function TimeEntriesPage() {
 
       // Filter by assigned groups if user is approver/viewer (not admin or HR)
       // Admin and HR should see all employees
-      if (!isAdmin && !isHR && assignedGroupIds.length > 0) {
+      if (!isManagement && !isHR && assignedGroupIds.length > 0) {
         query = query.in("overtime_group_id", assignedGroupIds);
       }
 
@@ -211,7 +211,7 @@ export default function TimeEntriesPage() {
     }
 
     loadEmployees();
-  }, [supabase, assignedGroupIds, groupsLoading, isAdmin, isHR]);
+  }, [supabase, assignedGroupIds, groupsLoading, isManagement, isHR]);
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -509,7 +509,7 @@ export default function TimeEntriesPage() {
 
       // Filter by assigned groups if user is approver/viewer (not admin)
       let filteredData = data;
-      if (!isAdmin && assignedGroupIds.length > 0 && data) {
+      if (!isManagement && assignedGroupIds.length > 0 && data) {
         filteredData = data.filter((entry: any) => {
           const employeeGroupId = entry.employees?.overtime_group_id;
           return employeeGroupId && assignedGroupIds.includes(employeeGroupId);
@@ -1287,7 +1287,7 @@ export default function TimeEntriesPage() {
           </VStack>
           <HStack gap="2" className="w-full sm:w-auto">
             {/* Admin-only: Add Time Entry for any employee */}
-            {isAdmin && (
+            {isManagement && (
               <>
                 <Button
                   onClick={() => {
@@ -1326,18 +1326,20 @@ export default function TimeEntriesPage() {
                   <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
                   Bulk Add Entries
                 </Button>
-                <Button
-                  onClick={() => setShowManualPunchDialog(true)}
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                >
-                  <Icon name="ClockClockwise" size={IconSizes.sm} className="mr-2" />
-                  Manual Punch
-                </Button>
               </>
             )}
+            {isAdmin && (
+              <Button
+                onClick={() => setShowManualPunchDialog(true)}
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
+                <Icon name="ClockClockwise" size={IconSizes.sm} className="mr-2" />
+                Manual Punch
+              </Button>
+            )}
             {/* HR: Add Time Entry for drivers only (legacy functionality) */}
-            {isHR && !isAdmin && driversGroupId && (
+            {isHR && !isManagement && driversGroupId && (
               <Button
                   onClick={() => {
                     // Set default times to today, 8 AM to 5 PM
@@ -2080,12 +2082,14 @@ export default function TimeEntriesPage() {
           </DialogContent>
         </Dialog>
 
-        <ManualPunchDialog
-          open={showManualPunchDialog}
-          onOpenChange={setShowManualPunchDialog}
-          employees={employees}
-          onSuccess={fetchTimeEntries}
-        />
+        {isAdmin && (
+          <ManualPunchDialog
+            open={showManualPunchDialog}
+            onOpenChange={setShowManualPunchDialog}
+            employees={employees}
+            onSuccess={fetchTimeEntries}
+          />
+        )}
 
         {/* Add Time Entry Dialog */}
         <Dialog
@@ -2104,7 +2108,7 @@ export default function TimeEntriesPage() {
             <DialogHeader>
               <DialogTitle>Add New Time Entry</DialogTitle>
               <DialogDescription>
-                {isAdmin
+                {isManagement
                   ? "Manually create a time entry for any employee. This entry will be marked as manually created."
                   : "Manually create a time entry for a driver. This entry will be marked as manually created."
                 }
@@ -2120,18 +2124,18 @@ export default function TimeEntriesPage() {
                   onValueChange={setNewEntryEmployee}
                 >
                   <SelectTrigger id="new-entry-employee" className="w-full mt-1">
-                    <SelectValue placeholder={isAdmin ? "Select an employee" : "Select a driver"} />
+                    <SelectValue placeholder={isManagement ? "Select an employee" : "Select a driver"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {(isAdmin ? employees : driversEmployees).length === 0 ? (
+                    {(isManagement ? employees : driversEmployees).length === 0 ? (
                       <div className="p-4 text-center text-sm text-muted-foreground">
-                        {isAdmin
+                        {isManagement
                           ? "No employees found."
                           : "No drivers found. Please ensure drivers are assigned to the DRIVERS group."
                         }
                       </div>
                     ) : (
-                      (isAdmin ? employees : driversEmployees).map((employee) => {
+                      (isManagement ? employees : driversEmployees).map((employee) => {
                         const nameParts = employee.full_name?.trim().split(/\s+/) || [];
                         const lastName = employee.last_name || (nameParts.length > 0 ? nameParts[nameParts.length - 1] : "");
                         const firstName = employee.first_name || (nameParts.length > 0 ? nameParts[0] : "");
@@ -2149,7 +2153,7 @@ export default function TimeEntriesPage() {
                   </SelectContent>
                 </Select>
                 <Caption className="text-muted-foreground mt-1">
-                  {isAdmin
+                  {isManagement
                     ? "All employees are shown in this list"
                     : "Only drivers are shown in this list"
                   }

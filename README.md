@@ -127,13 +127,16 @@ Operational SQL (bundy cleanup, cohort fixes) lives in **`scripts/sql/`** — ru
 
 ## Roles (summary)
 
-Access is enforced in the app (`lib/hooks/usePermissions.ts`, `middleware.ts`) and in Supabase **RLS**.
+Access is enforced in the app (`lib/hooks/useUserRole.ts`, `lib/hooks/usePermissions.ts`, `middleware.ts`) and in Supabase **RLS**.
 
-- **admin / upper_management** — full modules  
-- **hr** — employees, payroll, time, most approvals; no user delete  
-- **operations_manager** — projects, fund requests, limited reporting  
-- **approver** — assigned leave/OT/failure-to-log only  
-- **Employees** — separate auth via employee portal (bundy, payslips, leave, OT, fund requests)  
+| Role | Access |
+|------|--------|
+| **admin** | System owner (currently Jericko Razal only): user management, access-control CRUD matrix, manual bundy punch, delete time entries on timesheet |
+| **upper_management** | Full operational access (approvals, payroll, time entries, dashboards) — **not** user management or manual punch |
+| **hr** | Employees, payroll, time, most approvals |
+| **operations_manager** | Projects, fund requests, limited reporting |
+| **approver** | Assigned leave/OT/failure-to-log only |
+| **Employees** | Employee portal (bundy, payslips, leave, OT, fund requests) |
 
 Details: **`docs/ROLE_ACCESS_QUICK_REFERENCE.md`**, **`docs/RBAC_ACL_MATRIX.md`**.
 

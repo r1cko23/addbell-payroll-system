@@ -139,11 +139,10 @@ export default function OvertimeApprovalPage() {
       { scroll: false }
     );
   };
-  const { isAdmin, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageOvertime =
-    isAdmin ||
-    normalizedRole === "upper_management" ||
+    isManagement ||
     isHR ||
     normalizedRole === "operations_manager";
 
@@ -233,8 +232,8 @@ export default function OvertimeApprovalPage() {
 
   const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
     if (request.status !== "pending") return false;
-    // Admin and Upper Management (isAdmin) may act on any pending OT — same as original product behavior.
-    if (isAdmin) return true;
+    // Admin and upper management may act on any pending OT
+    if (isManagement) return true;
     if (!currentUserId) return false;
 
     const upperManagementFirstApproverId =
@@ -559,7 +558,7 @@ export default function OvertimeApprovalPage() {
     // Role-based visibility: show requests the user is allowed to view.
     // Stage checks (manager vs HR pending) are kept for Approve/Reject permissions only.
     let filteredData: OTRequest[] | null = dataWithDocs;
-    if (!isAdmin) {
+    if (!isManagement) {
       filteredData = dataWithDocs.filter((request) => {
         if (!currentUserId) return false;
         const groupName = getRequestGroupName(request);
@@ -700,7 +699,7 @@ export default function OvertimeApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      if (isAdmin) return true;
+      if (isManagement) return true;
       if (normalizedRole === "operations_manager") {
         const gid = employee.overtime_group_id as string | null | undefined;
         if (gid && overtimeGroupFirstApproverIdById[gid]) {

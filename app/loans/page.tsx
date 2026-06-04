@@ -81,7 +81,7 @@ interface EmployeeLoan {
 }
 
 export default function LoansPage() {
-  const { isHR, isAdmin, loading: roleLoading } = useUserRole();
+  const { isHR, isManagement, loading: roleLoading } = useUserRole();
   const supabase = createClient();
   const [loans, setLoans] = useState<EmployeeLoan[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -928,7 +928,7 @@ export default function LoansPage() {
     );
   }
 
-  if (!isHR && !isAdmin) {
+  if (!isHR && !isManagement) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">

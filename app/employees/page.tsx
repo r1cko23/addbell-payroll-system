@@ -178,7 +178,7 @@ function formatTypeDisplay(value: string | null | undefined): string {
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { role, isAdmin, isHR, canAccessSalaryInfo, loading: roleLoading } = useUserRole();
+  const { role, isAdmin, isManagement, isHR, canAccessSalaryInfo, loading: roleLoading } = useUserRole();
   const { canRead, loading: permissionsLoading } = usePermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -682,7 +682,7 @@ export default function EmployeesPage() {
                     <SelectItem value="terminated">Terminated</SelectItem>
                   </SelectContent>
                 </Select>
-                {(isAdmin || role === "hr") && (
+                {(isManagement || role === "hr") && (
                   <Button variant="secondary" size="sm" onClick={exportEmployeeMasterlistToPDF} disabled={generatingPDF || employees.length === 0}>
                     <Icon name={generatingPDF ? "ArrowsClockwise" : "FilePdf"} size={IconSizes.sm} className={generatingPDF ? "animate-spin" : ""} />
                     {generatingPDF ? "Generating..." : "Export"}

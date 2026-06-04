@@ -123,11 +123,10 @@ export default function FailureToLogApprovalPage() {
       { scroll: false }
     );
   };
-  const { role, isHR, isAdmin, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageFailureToLog =
-    isAdmin ||
-    normalizedRole === "upper_management" ||
+    isManagement ||
     isHR ||
     normalizedRole === "operations_manager";
 
@@ -174,7 +173,7 @@ export default function FailureToLogApprovalPage() {
     if (request.status !== "pending") return false;
     if (!currentUserId) return false;
 
-    if (isAdmin) return true;
+    if (isManagement) return true;
 
     const managerStage = isManagerStagePending(request);
     const skipManagerStageForHr =
@@ -360,7 +359,7 @@ export default function FailureToLogApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
-      if (isAdmin || normalizedRole === "upper_management") return true;
+      if (isManagement) return true;
       if (normalizedRole === "operations_manager") {
         return isUserApproverForGroup(
           currentUserId,
@@ -556,7 +555,7 @@ export default function FailureToLogApprovalPage() {
     }));
 
     let filteredData = dataWithEmployees;
-    if (!isAdmin && normalizedRole !== "upper_management") {
+    if (!isManagement) {
       filteredData = dataWithEmployees.filter((request: any) => {
         if (!currentUserId) return false;
         const groupName =

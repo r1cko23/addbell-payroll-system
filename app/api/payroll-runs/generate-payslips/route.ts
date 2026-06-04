@@ -25,6 +25,7 @@ import {
   isLastWeeklyPayOfSemiMonth,
   semiMonthlyPeriodIndex,
 } from "@/lib/weekly-statutory-deductions";
+import { HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS } from "@/utils/holidays";
 import {
   applyStatutoryProration,
   fetchDistinctWorkDaysMonthToDate,
@@ -312,9 +313,15 @@ export async function POST(req: NextRequest) {
       // Build fetch bounds in explicit Asia/Manila offset to avoid
       // environment-dependent parsing differences (local vs production timezone).
       const startWide = new Date(`${cutoffStart}T00:00:00+08:00`);
-      startWide.setDate(startWide.getDate() - 1);
+      startWide.setDate(startWide.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS);
       const endWide = new Date(`${cutoffEnd}T23:59:59+08:00`);
       endWide.setDate(endWide.getDate() + 1);
+
+      const lookbackStart = new Date(`${cutoffStart}T12:00:00+08:00`);
+      lookbackStart.setDate(
+        lookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+      );
+      const lookbackStartStr = format(lookbackStart, "yyyy-MM-dd");
 
       const [mainSessions, projectSessions] = await Promise.all([
         fetchSessionsForEmployee(
@@ -333,15 +340,22 @@ export async function POST(req: NextRequest) {
         ),
       ]);
 
-      const bundyInCutoff = [...(mainSessions || []), ...(projectSessions || [])].filter(
-        (s: any) => {
-          const clockIn = s?.clock_in_time || s?.clockInTime || s?.clock_in || s?.time_in;
-          const iso = String(clockIn || "");
-          if (!iso) return false;
-          const dateStr = getDateInManila(iso);
-          return dateStr >= cutoffStart && dateStr <= cutoffEnd;
-        }
-      );
+      const allBundySessions = [...(mainSessions || []), ...(projectSessions || [])];
+      const sessionsForGeneration = allBundySessions.filter((s: any) => {
+        const clockIn = s?.clock_in_time || s?.clockInTime || s?.clock_in || s?.time_in;
+        const iso = String(clockIn || "");
+        if (!iso) return false;
+        const dateStr = getDateInManila(iso);
+        return dateStr >= lookbackStartStr && dateStr <= cutoffEnd;
+      });
+
+      const bundyInCutoff = allBundySessions.filter((s: any) => {
+        const clockIn = s?.clock_in_time || s?.clockInTime || s?.clock_in || s?.time_in;
+        const iso = String(clockIn || "");
+        if (!iso) return false;
+        const dateStr = getDateInManila(iso);
+        return dateStr >= cutoffStart && dateStr <= cutoffEnd;
+      });
 
       const ftlSessionsBuilt: any[] = [];
       approvedFtlByEmployeeDate.forEach((pair, key) => {
@@ -363,12 +377,12 @@ export async function POST(req: NextRequest) {
       });
 
       const employeeSessions = mergeBundyAndFtlClockSessions(
-        bundyInCutoff,
+        sessionsForGeneration,
         ftlSessionsBuilt,
         getDateInManila,
         null
       );
-      if (employeeSessions.length === 0) {
+      if (bundyInCutoff.length === 0 && ftlSessionsBuilt.length === 0) {
         skipped.push({ employee_id: e.id, reason: "No time entries in cutoff" });
         continue;
       }

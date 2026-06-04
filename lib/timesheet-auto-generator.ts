@@ -9,6 +9,7 @@ import { format, parseISO, startOfDay, isWithinInterval, startOfWeek } from "dat
 import {
   determineDayType,
   HOLIDAY_DE_MINIMIS_HOURS,
+  HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
   HOLIDAY_UNWORKED_CREDIT_HOURS,
   isEligibleForHolidayPayRule,
   normalizeHolidays,
@@ -330,10 +331,11 @@ export function generateTimesheetFromClockEntries(
 
   // Holiday eligibility checks the prior regular working day (up to 7 days back).
   // Build lookback context so pay periods that start on a holiday still see pre-period work.
-  const HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS = 7;
   const holidayEligibilityLookback: DailyAttendance[] = [];
   const lookbackStart = new Date(periodStart);
-  lookbackStart.setDate(lookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS);
+  lookbackStart.setDate(
+    lookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+  );
   let lookbackDate = new Date(lookbackStart);
   while (lookbackDate < periodStart) {
     const lookbackDateStr = format(lookbackDate, "yyyy-MM-dd");

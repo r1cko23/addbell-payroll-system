@@ -267,6 +267,9 @@ export function isDateInWeek(
 /** Paid BH/regular hours when eligible for a holiday but absent (or de minimis clock only). */
 export const HOLIDAY_UNWORKED_CREDIT_HOURS = 4;
 
+/** Days before period start to load clock entries for holiday pay eligibility. */
+export const HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS = 7;
+
 /** Below this many hours on a holiday counts as "did not work" for eligibility + credit (stray bundy punches). */
 export const HOLIDAY_DE_MINIMIS_HOURS = 1;
 

@@ -92,6 +92,7 @@ import {
   getWeekOfMonth,
   isEligibleForHolidayPayRule,
   isSubstantiveHolidayWork,
+  HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
   HOLIDAY_UNWORKED_CREDIT_HOURS,
 } from "@/utils/holidays";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
@@ -953,7 +954,10 @@ export default function PayslipsPage() {
       try {
           const periodStartDate = new Date(periodStart);
           periodStartDate.setHours(0, 0, 0, 0);
-          periodStartDate.setDate(periodStartDate.getDate() - 1);
+          // Match Time Attendance: load sessions before cutoff for holiday eligibility.
+          periodStartDate.setDate(
+            periodStartDate.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+          );
 
           const periodEndDate = new Date(periodEnd);
           periodEndDate.setHours(23, 59, 59, 999);
@@ -1083,29 +1087,45 @@ export default function PayslipsPage() {
           }
 
           // Filter entries by date in Asia/Manila timezone like timesheet page does
-          const filteredClockEntries = (clockEntries || []).filter(
+          const getEntryDateManila = (entry: any) => {
+            const entryDate = new Date(entry.clock_in_time);
+            const entryDatePH = new Date(
+              entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
+            );
+            return format(entryDatePH, "yyyy-MM-dd");
+          };
+          const isValidClockStatus = (entry: any) =>
+            entry.status !== "rejected" &&
+            entry.status !== "pending" &&
+            (entry.status === "auto_approved" ||
+              entry.status === "approved" ||
+              entry.status === "clocked_out" ||
+              entry.status === "clocked_in");
+
+          const lookbackStartDate = new Date(periodStart);
+          lookbackStartDate.setDate(
+            lookbackStartDate.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+          );
+          const lookbackStartStr = format(lookbackStartDate, "yyyy-MM-dd");
+
+          const validStatusEntriesForGeneration = (clockEntries || []).filter(
             (entry: any) => {
-              const entryDate = new Date(entry.clock_in_time);
-              // Convert to Asia/Manila timezone for date comparison
-              const entryDatePH = new Date(
-                entryDate.toLocaleString("en-US", { timeZone: "Asia/Manila" })
-              );
-              const entryDateStr = format(entryDatePH, "yyyy-MM-dd");
-              // Check if entry date falls within the period
+              if (!isValidClockStatus(entry)) return false;
+              const entryDateStr = getEntryDateManila(entry);
               return (
-                entryDateStr >= periodStartStr && entryDateStr <= periodEndStr
+                entryDateStr >= lookbackStartStr &&
+                entryDateStr <= periodEndStr
               );
             }
           );
 
-          const validStatusClockEntries = filteredClockEntries.filter(
-            (e: any) =>
-              e.status !== "rejected" &&
-              e.status !== "pending" &&
-              (e.status === "auto_approved" ||
-                e.status === "approved" ||
-                e.status === "clocked_out" ||
-                e.status === "clocked_in")
+          const validStatusClockEntries = validStatusEntriesForGeneration.filter(
+            (entry: any) => {
+              const entryDateStr = getEntryDateManila(entry);
+              return (
+                entryDateStr >= periodStartStr && entryDateStr <= periodEndStr
+              );
+            }
           );
 
           if (validStatusClockEntries.length === 0) {
@@ -1117,7 +1137,7 @@ export default function PayslipsPage() {
           }
 
           console.log(
-            `Found ${clockEntries.length} time entries, ${validStatusClockEntries.length} within period (valid status)`
+            `Found ${clockEntries.length} time entries, ${validStatusClockEntries.length} within period (${validStatusEntriesForGeneration.length} incl. lookback, valid status)`
           );
 
           const holidaysNormalized = await fetchHolidaysRange(supabase as any, {
@@ -1285,7 +1305,7 @@ export default function PayslipsPage() {
           // Map clock entries to match the generator function's expected format.
           // Keep regular/session-derived ND so night regular shifts are counted.
           // OT hours still come from approved OT requests map below.
-          const mappedClockEntries = validStatusClockEntries.map((entry: any) => {
+          const mappedClockEntries = validStatusEntriesForGeneration.map((entry: any) => {
             return {
               ...entry,
               // OT should come from approved OT requests (avoid double-counting from raw entries).

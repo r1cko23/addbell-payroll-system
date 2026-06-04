@@ -111,24 +111,31 @@ export function generateTimesheetFromClockEntries(
   const periodStartStr = format(periodStart, "yyyy-MM-dd");
   const periodEndStr = format(periodEnd, "yyyy-MM-dd");
 
-  let currentDate = new Date(periodStart);
-  const endDate = new Date(periodEnd);
+  const round2 = (value: number) =>
+    Math.round((value + Number.EPSILON) * 100) / 100;
 
-  while (currentDate <= endDate) {
-    const dateStr = format(currentDate, "yyyy-MM-dd");
+  const normalizedHolidays = normalizeHolidays(
+    holidays.map((h) => ({
+      date: h.holiday_date,
+      name: "",
+      type: h.holiday_type as "regular" | "non-working",
+    }))
+  );
+
+  const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
+    if (!entry.clock_in_time || !entry.clock_out_time) return 0;
+    return regularHoursFromBundyClockPair(entry.clock_in_time, entry.clock_out_time);
+  };
+
+  const buildDayAttendance = (
+    dateStr: string,
+    refDate: Date,
+    eligibilityContext: DailyAttendance[]
+  ): DailyAttendance => {
     const dayEntries = entriesByDate.get(dateStr) || [];
 
     // Check if this date is a rest day from employee schedule
     const isRestDay = restDays?.get(dateStr);
-
-    // Normalize holidays before determining day type
-    const normalizedHolidays = normalizeHolidays(
-      holidays.map((h) => ({
-        date: h.holiday_date,
-        name: "",
-        type: h.holiday_type as "regular" | "non-working",
-      }))
-    );
 
     // For client-based Account Supervisors:
     // Rest days can only be Monday, Tuesday, or Wednesday (enforced in schedule validation)
@@ -137,7 +144,7 @@ export function generateTimesheetFromClockEntries(
     let actualIsRestDay = isRestDay;
     if (isClientBasedAccountSupervisor && isRestDay && restDays && restDays.size > 0) {
       // Get the week start (Monday) for this date
-      const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 }); // Monday = 1
+      const weekStart = startOfWeek(refDate, { weekStartsOn: 1 }); // Monday = 1
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6); // Sunday
 
@@ -163,12 +170,6 @@ export function generateTimesheetFromClockEntries(
     const dayType = determineDayType(dateStr, normalizedHolidays, actualIsRestDay, isClientBasedAccountSupervisor);
     const dayOfWeek = calendarDowFromManilaKey(dateStr);
     const isSaturday = dayOfWeek === 6;
-
-    // Helper: regular BH from Manila business windows (Mon–Thu up to ~10h; lunch excluded).
-    const calculateBusinessRegularHours = (entry: TimeClockEntry): number => {
-      if (!entry.clock_in_time || !entry.clock_out_time) return 0;
-      return regularHoursFromBundyClockPair(entry.clock_in_time, entry.clock_out_time);
-    };
 
     // Aggregate hours from all entries for this day
     let regularHours = 0;
@@ -286,7 +287,7 @@ export function generateTimesheetFromClockEntries(
       } else if (dayEntries.length === 0) {
         if (
           regularHours < HOLIDAY_DE_MINIMIS_HOURS &&
-          isEligibleForHolidayPayRule(dateStr, regularHours, attendance_data)
+          isEligibleForHolidayPayRule(dateStr, regularHours, eligibilityContext)
         ) {
           regularHours = HOLIDAY_UNWORKED_CREDIT_HOURS;
         }
@@ -318,16 +319,41 @@ export function generateTimesheetFromClockEntries(
 
     // Floor down hours (round down to full hours only, matching database trigger)
     // Preserve fractional hours (e.g. 0.2) by rounding to 2 decimals
-    const round2 = (value: number) =>
-      Math.round((value + Number.EPSILON) * 100) / 100;
-
-    attendance_data.push({
+    return {
       date: dateStr,
-      dayType: dayType as any,
+      dayType: dayType as DailyAttendance["dayType"],
       regularHours: round2(regularHours),
       overtimeHours: round2(overtimeHours),
       nightDiffHours: round2(nightDiffHours),
-    });
+    };
+  };
+
+  // Holiday eligibility checks the prior regular working day (up to 7 days back).
+  // Build lookback context so pay periods that start on a holiday still see pre-period work.
+  const HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS = 7;
+  const holidayEligibilityLookback: DailyAttendance[] = [];
+  const lookbackStart = new Date(periodStart);
+  lookbackStart.setDate(lookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS);
+  let lookbackDate = new Date(lookbackStart);
+  while (lookbackDate < periodStart) {
+    const lookbackDateStr = format(lookbackDate, "yyyy-MM-dd");
+    holidayEligibilityLookback.push(
+      buildDayAttendance(lookbackDateStr, lookbackDate, holidayEligibilityLookback)
+    );
+    lookbackDate.setDate(lookbackDate.getDate() + 1);
+  }
+
+  let currentDate = new Date(periodStart);
+  const endDate = new Date(periodEnd);
+
+  while (currentDate <= endDate) {
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    attendance_data.push(
+      buildDayAttendance(dateStr, currentDate, [
+        ...holidayEligibilityLookback,
+        ...attendance_data,
+      ])
+    );
 
     // Move to next day
     currentDate = new Date(currentDate);

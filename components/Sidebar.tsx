@@ -179,12 +179,15 @@ function SidebarInner({ className, onClose }: SidebarProps) {
     role,
     isHR,
     isManagement,
+    isOperationsManager,
     isApprover,
     isViewer,
     loading: roleLoading,
   } = useUserRole();
   const { canRead, loading: permissionsLoading } = usePermissions();
-  const [openGroup, setOpenGroup] = React.useState<string | null>("People");
+  const [openGroup, setOpenGroup] = React.useState<string | null>(
+    "Requests & Approvals"
+  );
   const FallbackIcon = WarningCircle;
   const navItemTestId = (name: string) =>
     `nav-item-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -205,6 +208,8 @@ function SidebarInner({ className, onClose }: SidebarProps) {
     return navGroups
       .map((group) => {
         if (isHR && group.label === "Projects") return null;
+        // Ops managers: approvals + projects only (no payroll / employee directory).
+        if (isOperationsManager && group.label === "People") return null;
 
         const filteredItems = group.items.filter((item) => {
           if (item.permissionModule === "employees") {
@@ -233,7 +238,16 @@ function SidebarInner({ className, onClose }: SidebarProps) {
         return filteredItems.length > 0 ? { ...group, items: filteredItems } : null;
       })
       .filter((group): group is NavGroup => group !== null);
-  }, [isManagement, isApprover, isViewer, isHR, canRead, roleLoading, permissionsLoading]);
+  }, [
+    isManagement,
+    isOperationsManager,
+    isApprover,
+    isViewer,
+    isHR,
+    canRead,
+    roleLoading,
+    permissionsLoading,
+  ]);
 
   React.useEffect(() => {
     let matchedGroup: string | null = null;

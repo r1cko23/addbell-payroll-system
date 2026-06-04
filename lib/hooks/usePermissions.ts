@@ -233,7 +233,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     failure_to_log: { create: false, read: true, update: true, delete: false },
     audit: { create: false, read: false, update: false, delete: false },
     bir_reports: { create: false, read: false, update: false, delete: false },
-    reports: { create: false, read: true, update: false, delete: false },
+    reports: { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
     clients: { create: false, read: true, update: false, delete: false },

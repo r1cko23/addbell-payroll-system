@@ -44,6 +44,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { generatePayrollRunTemplatePDF } from "@/utils/payroll-run-pdf";
+import { PayrollReadinessPanel } from "@/components/payroll/PayrollReadinessPanel";
+import type { PayrollEntrySummary } from "@/lib/ph-payroll/payroll-entry-validation";
 
 interface PayrollRun {
   id: string;
@@ -114,7 +116,7 @@ const statusStyles: Record<string, string> = {
 
 export default function PayrollPage() {
   const supabase = createClient();
-  const { isManagement, isHR, canAccessSalaryInfo } = useUserRole();
+  const { isManagement, isHR, isAdmin, canAccessSalaryInfo } = useUserRole();
   const searchParams = useSearchParams();
   const runIdFromQuery = searchParams.get("run_id");
 
@@ -138,6 +140,9 @@ export default function PayrollPage() {
   const [payslips, setPayslips] = useState<Payslip[]>([]);
   const [loadingPayslips, setLoadingPayslips] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [payrollValidation, setPayrollValidation] =
+    useState<PayrollEntrySummary | null>(null);
+  const [loadingValidation, setLoadingValidation] = useState(false);
   const [printPayslip, setPrintPayslip] = useState<Payslip | null>(null);
   const [printPayload, setPrintPayload] = useState<{
     employee: any;
@@ -472,9 +477,26 @@ export default function PayrollPage() {
     }
   }
 
+  async function loadPayrollValidation(run: PayrollRun) {
+    setLoadingValidation(true);
+    try {
+      const res = await fetch(
+        `/api/payroll-runs/validate?payroll_run_id=${run.id}`
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to load validation");
+      setPayrollValidation(json as PayrollEntrySummary);
+    } catch {
+      setPayrollValidation(null);
+    } finally {
+      setLoadingValidation(false);
+    }
+  }
+
   async function openRunDetail(run: PayrollRun) {
     setSelectedRun(run);
     setLoadingPayslips(true);
+    void loadPayrollValidation(run);
     try {
       const { data, error } = await supabase
         .from("payslips")
@@ -491,15 +513,47 @@ export default function PayrollPage() {
     }
   }
 
-  async function generatePayslips() {
+  async function generatePayslips(options?: {
+    forceOverride?: boolean;
+    overrideReason?: string;
+    skipWarningsConfirm?: boolean;
+  }) {
     if (!selectedRun) return;
+
+    if (
+      payrollValidation &&
+      payrollValidation.blocked > 0 &&
+      !options?.forceOverride
+    ) {
+      toast.error(
+        `${payrollValidation.blocked} employee(s) blocked. Fix on Timesheet Review or export blocked list.`
+      );
+      return;
+    }
+
+    if (
+      payrollValidation &&
+      payrollValidation.warning > 0 &&
+      !options?.forceOverride &&
+      !options?.skipWarningsConfirm
+    ) {
+      const ok = window.confirm(
+        `${payrollValidation.warning} employee(s) have warnings (pending approvals, absences, etc.). Continue generating?`
+      );
+      if (!ok) return;
+    }
+
     setProcessing(true);
     setPayslips([]);
     try {
       const res = await fetch("/api/payroll-runs/generate-payslips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ payroll_run_id: selectedRun.id }),
+        body: JSON.stringify({
+          payroll_run_id: selectedRun.id,
+          force_override: options?.forceOverride === true,
+          override_reason: options?.overrideReason || undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -512,16 +566,49 @@ export default function PayrollPage() {
         .update({ status: "processing" } as never)
         .eq("id", selectedRun.id);
 
-      toast.success(
-        `Generated ${json?.generated ?? 0} draft payslip(s) for this run. ${json?.generator_version ? `[${json.generator_version}]` : ""}`
+      const skipped = Array.isArray(json?.skipped) ? json.skipped : [];
+      const notFinalized = skipped.filter((s: any) =>
+        String(s?.reason || "").toLowerCase().includes("not finalized")
       );
+
+      toast.success(
+        `Generated ${json?.generated ?? 0} draft payslip(s). Skipped ${skipped.length}.${json?.generator_version ? ` [${json.generator_version}]` : ""}`
+      );
+
+      if (notFinalized.length > 0) {
+        toast.message(
+          `${notFinalized.length} employee(s) skipped — finalize timesheets on Timesheet Review first.`,
+          {
+            action: {
+              label: "Open review",
+              onClick: () => {
+                window.location.href = `/timesheet-review?period_start=${selectedRun.cutoff_start}`;
+              },
+            },
+          }
+        );
+      }
+
       openRunDetail({ ...selectedRun, status: "processing" });
+      void loadPayrollValidation({ ...selectedRun, status: "processing" });
       fetchPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to generate payslips");
     } finally {
       setProcessing(false);
     }
+  }
+
+  async function generatePayslipsWithAdminOverride() {
+    if (!isAdmin) return;
+    const reason = window.prompt(
+      "Admin override: enter reason for generating without finalized timesheets"
+    );
+    if (!reason?.trim()) {
+      toast.error("Override reason is required");
+      return;
+    }
+    await generatePayslips({ forceOverride: true, overrideReason: reason.trim() });
   }
 
   async function finalizeRun() {
@@ -705,14 +792,25 @@ export default function PayrollPage() {
             </VStack>
             <HStack gap="2">
               {selectedRun.status === "draft" && (
-                <Button onClick={generatePayslips} disabled={processing}>
+                <>
+                  <Button onClick={() => generatePayslips()} disabled={processing}>
                   <Icon name="ArrowsClockwise" size={IconSizes.sm} className={processing ? "animate-spin mr-2" : "mr-2"} />
                   {processing ? "Generating..." : "Generate Payslips"}
                 </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      onClick={generatePayslipsWithAdminOverride}
+                      disabled={processing}
+                    >
+                      Admin Override
+                    </Button>
+                  )}
+                </>
               )}
               {selectedRun.status === "processing" && (
                 <>
-                  <Button onClick={generatePayslips} variant="outline" disabled={processing}>
+                  <Button onClick={() => generatePayslips()} variant="outline" disabled={processing}>
                     <Icon name="ArrowsClockwise" size={IconSizes.sm} className="mr-2" />
                     Regenerate
                   </Button>
@@ -747,6 +845,15 @@ export default function PayrollPage() {
               )}
             </HStack>
           </HStack>
+
+          {payrollValidation && (
+            <PayrollReadinessPanel
+              validation={payrollValidation}
+              cutoffStart={selectedRun.cutoff_start}
+              loading={loadingValidation}
+              onRefresh={() => loadPayrollValidation(selectedRun)}
+            />
+          )}
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

@@ -97,7 +97,12 @@ import {
 } from "@/utils/holidays";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 // Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
-import { generateTimesheetFromClockEntries } from "@/lib/timesheet-auto-generator";
+import {
+  buildCutoffAttendance,
+  buildLeaveDatesMap,
+  getRatePerHour,
+  resolveCutoffGrossPay,
+} from "@/lib/ph-payroll";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
@@ -895,7 +900,7 @@ export default function PayslipsPage() {
       // Load leave requests for the period (needed for both existing and new attendance)
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("id, leave_type, start_date, end_date, status")
+        .select("id, leave_type, start_date, end_date, status, half_day_dates")
         .eq("employee_id", selectedEmployeeId)
         .lte("start_date", periodEndStr)
         .gte("end_date", periodStartStr)
@@ -905,45 +910,11 @@ export default function PayslipsPage() {
         console.warn("Error loading leave requests:", leaveError);
       }
 
-      // Create a map of leave dates with their leave types and half-day status
-      // Prioritize SIL over other leave types when multiple leaves exist on the same date
-      const leaveDatesMap = new Map<
-        string,
-        { leaveType: string; status: string; isHalfDay?: boolean }
-      >();
-      if (leaveData) {
-        leaveData.forEach((leave: any) => {
-          // Get half-day dates from the leave request
-          const halfDayDatesSet = new Set<string>();
-          if (leave.half_day_dates && Array.isArray(leave.half_day_dates)) {
-            leave.half_day_dates.forEach((dateStr: string) => {
-              halfDayDatesSet.add(dateStr);
-            });
-          }
-
-          // Use date range (start_date to end_date) — selected_dates not in schema
-          {
-            const startDate = new Date(leave.start_date);
-            const endDate = new Date(leave.end_date);
-            let currentDate = new Date(startDate);
-            while (currentDate <= endDate) {
-              const dateStr = format(currentDate, "yyyy-MM-dd");
-              if (dateStr >= periodStartStr && dateStr <= periodEndStr) {
-                const existing = leaveDatesMap.get(dateStr);
-                // Prioritize SIL over other leave types
-                if (!existing || leave.leave_type === "SIL") {
-                  leaveDatesMap.set(dateStr, {
-                    leaveType: leave.leave_type,
-                    status: leave.status,
-                    isHalfDay: halfDayDatesSet.has(dateStr),
-                  });
-                }
-              }
-              currentDate.setDate(currentDate.getDate() + 1);
-            }
-          }
-        });
-      }
+      const leaveDatesMap = buildLeaveDatesMap(
+        leaveData || [],
+        periodStartStr,
+        periodEndStr
+      );
 
       console.log("Leave dates map:", Array.from(leaveDatesMap.entries()));
 
@@ -1302,25 +1273,6 @@ export default function PayslipsPage() {
           });
           console.log("Approved ND by date (credited once per day):", approvedNDByDate);
 
-          // Map clock entries to match the generator function's expected format.
-          // Keep regular/session-derived ND so night regular shifts are counted.
-          // OT hours still come from approved OT requests map below.
-          const mappedClockEntries = validStatusEntriesForGeneration.map((entry: any) => {
-            return {
-              ...entry,
-              // OT should come from approved OT requests (avoid double-counting from raw entries).
-              overtime_hours: 0, // Reset to 0 - generator will use approvedOTByDate
-              // Keep night hours from punch sessions to support night regular shifts
-              // (e.g. 5PM–2AM regular shift with no OT filing).
-              total_night_diff_hours:
-                typeof entry.total_night_diff_hours === "number"
-                  ? entry.total_night_diff_hours
-                  : 0,
-            };
-          });
-
-          // Generate attendance data from mapped clock entries with rest days
-          // Note: leaveDatesMap is already created above for existing attendance records
           const isClientBasedAccountSupervisor =
             selectedEmployee?.employee_type === "client-based" &&
             (selectedEmployee?.position?.toUpperCase().includes("ACCOUNT SUPERVISOR") || false);
@@ -1330,78 +1282,30 @@ export default function PayslipsPage() {
             holiday_date: h.holiday_date,
             holiday_type: h.holiday_type ?? "regular",
           }));
-          const timesheetData = generateTimesheetFromClockEntries(
-            mappedClockEntries as any,
-            periodStart,
-            periodEnd,
-            holidaysForTimesheet,
-            restDaysMap,
-            true, // Always include approved OT on payslip (eligible_for_ot only gates filing new OT)
-            isEligibleForNightDiff,
-            isClientBasedAccountSupervisor,
-            approvedOTByDate, // Pass approved OT hours map
-            approvedNDByDate, // Pass approved ND hours map
-            isClientBased // Pass general client-based flag for Saturday/Sunday logic
-          );
-
-          // Update attendance_data to include leave days
-          // Only SIL (Sick Leave) counts as a working day (8 hours for full-day, 4 hours for half-day)
-          // All other leaves are not paid and not recorded as a working day
-          timesheetData.attendance_data = timesheetData.attendance_data.map(
-            (day: any) => {
-              const leaveInfo = leaveDatesMap.get(day.date);
-              if (leaveInfo) {
-                // If this day has an approved leave request
-                if (leaveInfo.leaveType === "SIL") {
-                  // SIL (Sick Leave) counts as working day
-                  // Full-day: 8 hours, Half-day: 4 hours
-                  const silHours = leaveInfo.isHalfDay ? 4 : 8;
-                  // Set regularHours and dayType to "regular" for SIL leaves
-                  // This ensures they count as working days even if there are no clock entries
-                  return {
-                    ...day,
-                    regularHours: silHours, // 8 hours for full-day, 4 hours for half-day
-                    dayType: "regular", // Set dayType to "regular" so it counts in basic earnings
-                  };
-                }
-                // All other leave types (LWOP, CTO, OB, etc.) - do not count as working day
-                // Return day as-is (no hours added)
-              }
-              return day;
-            }
-          );
-
-          // Recalculate totals after updating leave days
-          timesheetData.total_regular_hours =
-            Math.round(
-              timesheetData.attendance_data.reduce(
-                (sum: number, day: any) => sum + day.regularHours,
-                0
-              ) * 100
-            ) / 100;
 
           const selectedEmp = employees.find(
             (e) => e.id === selectedEmployeeId
           );
-          let ratePerHour = 0;
-          if (selectedEmp?.monthly_rate) {
-            ratePerHour = selectedEmp.monthly_rate / (26 * 8);
-          } else if (selectedEmp?.per_day) {
-            ratePerHour = selectedEmp.per_day / 8;
-          }
+          const ratePerHour = getRatePerHour(selectedEmp ?? {});
 
-          const mergedAttendanceDays = mapPayslipAttendanceDays(
-            timesheetData.attendance_data,
-            validStatusClockEntries
-          );
-          const payrollResult =
-            ratePerHour > 0
-              ? calculateWeeklyPayroll(mergedAttendanceDays, ratePerHour)
-              : null;
-          const basicGross = regularHoursBasicGross(mergedAttendanceDays, ratePerHour);
-          const grossPay = Math.round(
-            Math.max(basicGross, payrollResult?.grossPay ?? 0) * 100
-          ) / 100;
+          const cutoffAttendance = buildCutoffAttendance({
+            clockEntries: validStatusEntriesForGeneration as any,
+            periodStart,
+            periodEnd,
+            holidays: holidaysForTimesheet,
+            restDays: restDaysMap,
+            leaveDatesMap,
+            approvedOTByDate,
+            approvedNDByDate,
+            isClientBased,
+            isClientBasedAccountSupervisor,
+            eligibleForOT: true,
+            eligibleForNightDiff: isEligibleForNightDiff,
+            clockEntriesForMap: validStatusClockEntries as any,
+          });
+
+          const mergedAttendanceDays = cutoffAttendance.attendance_data;
+          const grossPay = resolveCutoffGrossPay(mergedAttendanceDays, ratePerHour);
 
           // Create attendance object from clock entries data
           attData = {
@@ -1411,9 +1315,9 @@ export default function PayslipsPage() {
             period_end: periodEndStr,
             period_type: "weekly",
             attendance_data: mergedAttendanceDays,
-            total_regular_hours: timesheetData.total_regular_hours,
-            total_overtime_hours: timesheetData.total_overtime_hours,
-            total_night_diff_hours: timesheetData.total_night_diff_hours,
+            total_regular_hours: cutoffAttendance.total_regular_hours,
+            total_overtime_hours: cutoffAttendance.total_overtime_hours,
+            total_night_diff_hours: cutoffAttendance.total_night_diff_hours,
             gross_pay: grossPay,
             status: "draft",
             created_at: new Date().toISOString(),

@@ -221,6 +221,30 @@ export default function EmployeePayslipsPage() {
     setShowPayslipModal(true);
   }
 
+  async function handleDownloadPdf() {
+    if (!selectedPayslip) return;
+    try {
+      const url = `/api/employee-portal/payslips/pdf?payslip_id=${encodeURIComponent(
+        selectedPayslip.id
+      )}&employee_id=${encodeURIComponent(employee.id)}`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json?.error || "Download failed");
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `payslip-${selectedPayslip.period_end.split("T")[0]}.pdf`;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+      toast.success("Payslip PDF downloaded");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to download PDF");
+    }
+  }
+
   function handlePrint() {
     // Find the payslip container
     const payslipContainer = document.getElementById("payslip-print-content");
@@ -505,6 +529,15 @@ export default function EmployeePayslipsPage() {
                     Close
                   </Button>
                   <Button
+                    variant="outline"
+                    onClick={handleDownloadPdf}
+                    disabled={!printPreviewReady}
+                    className={epFormActionButton}
+                  >
+                    <Icon name="Download" size={IconSizes.sm} />
+                    Download PDF
+                  </Button>
+                  <Button
                     onClick={handlePrint}
                     disabled={!printPreviewReady}
                     className={cn(
@@ -513,7 +546,7 @@ export default function EmployeePayslipsPage() {
                     )}
                   >
                     <Icon name="Printer" size={IconSizes.sm} />
-                    Print / Save PDF
+                    Print
                   </Button>
                 </DialogFooter>
               </PayslipPreviewDialogFooter>

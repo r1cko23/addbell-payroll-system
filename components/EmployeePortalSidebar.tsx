@@ -40,6 +40,11 @@ const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
     items: [
       { name: "Home", href: "/employee-portal", icon: House },
       { name: "Bundy Clock", href: "/employee-portal/bundy", icon: Clock },
+      {
+        name: "My Timesheet",
+        href: "/employee-portal/my-timesheet",
+        icon: CalendarBlank,
+      },
     ],
   },
   {

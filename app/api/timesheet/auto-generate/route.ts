@@ -22,6 +22,7 @@ import { calculateMonthlySalary } from "@/utils/ph-deductions";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { fetchSessionsInRange, mergeBundyAndFtlClockSessions, getDateInManilaDefault, type TimeEntrySession } from "@/lib/timeEntries";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
+import { HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS } from "@/utils/holidays";
 import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import {
   fillMissingFtlClockOutsFromApprovedOtByEmployeeDate,
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
     const holidaysNormalized = await fetchHolidaysRange(supabase as any, {
       start: period_start,
       end: period_end,
-      lookbackDays: 0,
+      lookbackDays: HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
     });
 
     const holidays = holidaysNormalized.map((h) => ({
@@ -145,7 +146,8 @@ export async function POST(request: NextRequest) {
       .from("weekly_attendance")
       .select("id, status, employee_id")
       .in("employee_id", employeeIds)
-      .eq("period_start", period_start);
+      .eq("period_start", period_start)
+      .eq("period_end", period_end);
 
     const existingTimesheetMap = new Map(
       (existingTimesheets || []).map((t) => [t.employee_id, t])
@@ -363,6 +365,16 @@ export async function POST(request: NextRequest) {
       try {
         const existing = existingTimesheetMap.get(employee.id);
 
+        if (existing?.status === "finalized" && !overwrite_existing) {
+          results.push({
+            employee_id: employee.id,
+            employee_name: employee.full_name,
+            status: "skipped",
+            reason: "Timesheet finalized — reopen before regenerating",
+          });
+          continue;
+        }
+
         if (existing && !overwrite_existing) {
           results.push({
             employee_id: employee.id,
@@ -452,7 +464,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Save or update timesheet - auto-finalize since timesheets are generated from approved time entries
+        // Save or update timesheet as draft — HR finalizes on Timesheet Review
         const now = new Date().toISOString();
         if (existing) {
           const { error: updateError } = await (
@@ -464,9 +476,10 @@ export async function POST(request: NextRequest) {
               total_overtime_hours: timesheetData.total_overtime_hours,
               total_night_diff_hours: timesheetData.total_night_diff_hours,
               gross_pay: grossPay,
-              status: "finalized", // Auto-finalize since generated from approved time entries
-              finalized_at: now,
-              finalized_by: authUser.userId,
+              period_type: "weekly",
+              status: "draft",
+              finalized_at: null,
+              finalized_by: null,
               updated_at: now,
             })
             .eq("id", existing.id);
@@ -487,15 +500,13 @@ export async function POST(request: NextRequest) {
             employee_id: employee.id,
             period_start: period_start,
             period_end: period_end,
-            period_type: "bimonthly",
+            period_type: "weekly",
             attendance_data: timesheetData.attendance_data,
             total_regular_hours: timesheetData.total_regular_hours,
             total_overtime_hours: timesheetData.total_overtime_hours,
             total_night_diff_hours: timesheetData.total_night_diff_hours,
             gross_pay: grossPay,
-            status: "finalized", // Auto-finalize since generated from approved time entries
-            finalized_at: now,
-            finalized_by: authUser.userId,
+            status: "draft",
             created_by: authUser.userId,
           };
 

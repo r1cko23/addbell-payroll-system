@@ -42,3 +42,20 @@ export type { WithholdingTaxBreakdown } from "@/utils/ph-deductions";
 
 // Utilities
 export { formatCurrency, generatePayslipNumber } from "@/utils/format";
+
+// Unified PH payroll engine (Sprint A)
+export {
+  buildCutoffAttendance,
+  buildLeaveDatesMap,
+  computeDaysWork,
+  getRatePerHour,
+  getRatePerDay,
+  getMonthlySalary,
+  resolveCutoffGrossPay,
+  regularHoursBasicGross,
+  WEEKLY_MAX_CUTOFF_HOURS,
+  resolveRegisterPeriod,
+  buildRegisterRow,
+  validatePayrollEntry,
+  payrollEntryRowsToCsv,
+} from "@/lib/ph-payroll";

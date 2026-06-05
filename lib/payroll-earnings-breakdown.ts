@@ -1,6 +1,8 @@
 import { aggregateMetricsFromAttendanceDays } from "@/lib/day-attendance-summary";
 import { calculateWeeklyPayroll } from "@/utils/payroll-calculator";
-import { creditWorkHoursHalfHour } from "@/utils/overtime";
+import { regularHoursBasicGross } from "@/lib/ph-payroll/cutoff-gross";
+
+export { regularHoursBasicGross } from "@/lib/ph-payroll/cutoff-gross";
 
 export type StoredEarningsBreakdown = {
   attendance_data: any[];
@@ -30,22 +32,6 @@ export function buildStoredEarningsBreakdown(
       undertime_hours: undertimeHours,
     },
   };
-}
-
-/** Sum of Mon–Sat `regular` day hours × rate (matches PayslipDetailedBreakdown basic row). */
-export function regularHoursBasicGross(
-  attendanceData: any[],
-  ratePerHour: number
-): number {
-  if (ratePerHour <= 0 || !Array.isArray(attendanceData)) return 0;
-  const regularHours = attendanceData.reduce((sum, day) => {
-    if ((day.dayType || "regular") !== "regular") return sum;
-    return (
-      sum +
-      creditWorkHoursHalfHour(Math.round(Number(day.regularHours || 0) * 100) / 100)
-    );
-  }, 0);
-  return Math.round(regularHours * ratePerHour * 100) / 100;
 }
 
 /** Unified gross for UI, save, print, and bulk generate. */

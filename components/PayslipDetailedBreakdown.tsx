@@ -36,6 +36,7 @@ import {
   buildPayslipPrintSyncFromDetailedBreakdown,
   type PayslipPrintEarningsSync,
 } from "@/lib/payslip-print-sync";
+import { resolveDaysWorkTotals } from "@/lib/ph-payroll/days-work-rollup";
 
 interface PayslipDetailedBreakdownProps {
   employee: {
@@ -299,6 +300,24 @@ function PayslipDetailedBreakdownComponent({
       basePayAmount = basePayHours * ratePerHour;
       absences = basePayResult.absences;
     }
+
+    const daysWorkResolved =
+      periodStart && periodEnd
+        ? resolveDaysWorkTotals({
+            days: attendanceData.map((d) => ({
+              date: d.date,
+              dayType: d.dayType,
+              regularHours: d.regularHours,
+            })),
+            basePayHours,
+            employee: {
+              employeeType: employee.employee_type,
+              position: employee.position,
+              jobLevel: employee.job_level,
+            },
+            restDays: restDays || undefined,
+          })
+        : null;
 
     // Sum of generator regularHours on calendar "regular" days (matches timesheet BH column for Mon–Sat).
     const regularHoursWorked = attendanceData.reduce((sum, d) => {
@@ -850,73 +869,13 @@ function PayslipDetailedBreakdownComponent({
       // ND is already fully represented under the single "Night Differential" line above.
     });
 
-    // "Days Work" / BH display: weekly cutoff base from calculateBasePay, plus eligible holiday/rest-day BH from attendance when applicable.
+    const actualTotalBH =
+      daysWorkResolved?.actualTotalBH ?? regularHoursWorked;
 
-    // Calculate actual total BH from attendance data (includes eligible holidays with BH > 0)
-    // IMPORTANT: Only count days that are today or earlier (exclude future dates)
-    // This matches the time attendance calculation which only shows days up to today
-    const todayForDaysWork = new Date();
-    todayForDaysWork.setHours(0, 0, 0, 0);
-
-    const actualTotalBH = attendanceData.reduce((sum, day) => {
-      const dayDate = new Date(day.date);
-      dayDate.setHours(0, 0, 0, 0);
-
-      // Only count days that are today or earlier (not future dates)
-      if (dayDate > todayForDaysWork) {
-        return sum;
-      }
-
-      const { dayType, regularHours } = day;
-
-      // Rest days: Only exclude if NOT worked
-      // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
-      // Days Work can exceed scheduled window if employee works on rest days.
-      // Office-based: Sunday is rest day (dayType === "sunday")
-      // Account Supervisors: Rest days are Mon/Tue/Wed (from restDays map)
-      const isRestDay = dayType === "sunday" ||
-        (restDays && restDays.get(day.date) === true);
-      if (isRestDay) {
-        // If rest day was worked (has regularHours > 0), count it toward Days Work
-        // If rest day was NOT worked (regularHours === 0), exclude it (paid separately as rest day pay for rank/file)
-        if (regularHours > 0) {
-          // Rest day was worked — count toward Days Work (no fixed cap vs. scheduled window).
-          return sum + regularHours;
-        } else {
-          // Rest day was NOT worked - exclude from Days Work (paid separately)
-          return sum;
-        }
-      }
-
-      // Regular work days with hours (per attendance BH).
-      if (dayType === "regular" && regularHours > 0) {
-        return sum + regularHours;
-      }
-
-      // Count eligible holidays (legal and special) in Days Work
-      // Days Work includes all days: regular, legal holidays, and special non-working holidays
-      // When worked substantively: use actual regularHours; when eligible but absent/de minimis: credit hours
-      if (
-        dayType === "regular-holiday" || dayType === "non-working-holiday"
-      ) {
-        const eligibleForHolidayPay = isEligibleForHolidayPay(
-          day.date,
-          regularHours,
-          attendanceData
-        );
-        if (eligibleForHolidayPay) {
-          const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
-          return sum + (hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS);
-        }
-      }
-
-      return sum;
-    }, 0);
-
-    // Row 1 "Hours Work (Regular)" = credited regular-day hours only.
-    // Basic Earning(s) header "Hours Worked" = sum of all component hours in the table below.
+    // Row 1 "Hours Work (Regular)" — lib/ph-payroll Days Work engine (matches Time Attendance footer).
     const hoursWorked =
-      periodStart && periodEnd ? regularHoursWorked : basePayHours;
+      daysWorkResolved?.totalBHForDaysWork ??
+      (periodStart && periodEnd ? regularHoursWorked : basePayHours);
 
     const totalHoursWorked =
       Math.round(

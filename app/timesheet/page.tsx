@@ -50,6 +50,14 @@ import {
   syntheticClockOutFromApprovedOt,
   normalizeApprovedFtlClockPair,
 } from "@/lib/ftl-ot-synthesis";
+import {
+  buildCutoffAttendance,
+  buildLeaveDatesMap,
+  buildApprovedOvertimeMaps,
+  manilaDateKeyFromIso,
+  resolveDaysWorkTotals,
+} from "@/lib/ph-payroll";
+import type { TimeClockEntry } from "@/lib/timesheet-auto-generator";
 
 interface Employee {
   id: string;
@@ -59,6 +67,7 @@ interface Employee {
   first_name?: string | null;
   eligible_for_ot?: boolean | null;
   position?: string | null;
+  job_level?: string | null;
   /** Legacy DB values: `client-based` = site rest-day map; otherwise default Sunday rest + compressed-week rules */
   employee_type?: "office-based" | "client-based" | null;
   hire_date?: string | null;
@@ -780,20 +789,6 @@ export default function TimesheetPage() {
         : null,
     };
     console.log("Timesheet ND debug (generateAttendanceDays):", ndDebug);
-    try {
-      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "timesheet/page.tsx:ND-debug-start",
-          message: "Timesheet ND calculation context",
-          data: ndDebug,
-          hypothesisId: "ND-timesheet",
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-        }),
-      }).catch(() => {});
-    } catch (_) {}
 
     console.log("Generating attendance days:", {
       workingDaysCount: workingDays.length,
@@ -903,20 +898,70 @@ export default function TimesheetPage() {
     const workingDayDateStrs = workingDays.map((d) => format(d, "yyyy-MM-dd"));
     console.log("Timesheet ND otByDate keys:", otByDateKeys);
     console.log("Timesheet ND workingDay dateStrs (sample):", workingDayDateStrs.slice(0, 5), "...", workingDayDateStrs.slice(-3));
-    try {
-      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "timesheet/page.tsx:ND-otByDate-keys",
-          message: "OT by date keys vs working days",
-          data: { otByDateKeys, workingDayDateStrsSample: workingDayDateStrs.slice(0, 5), workingDayDateStrsEnd: workingDayDateStrs.slice(-3) },
-          hypothesisId: "ND-timesheet",
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-        }),
-      }).catch(() => {});
-    } catch (_) {}
+
+    const periodStartStr = format(periodStart, "yyyy-MM-dd");
+    const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+    const holidayListForEngine = holidaysForCalc ?? holidays;
+
+    const restDaysMap = new Map<string, boolean>();
+    scheduleMap.forEach((schedule, dateStr) => {
+      if (schedule.day_off) restDaysMap.set(dateStr, true);
+    });
+
+    const leaveDatesMap = buildLeaveDatesMap(
+      leaveRequests,
+      periodStartStr,
+      periodEndStr
+    );
+    const { approvedOTByDate, approvedNDByDate } =
+      buildApprovedOvertimeMaps(otRequests);
+
+    const isClientBasedEmployee = employeeType === "client-based";
+    const isClientBasedAccountSupervisor =
+      isAccountSupervisor && isClientBasedEmployee;
+
+    const holidaysForEngine = holidayListForEngine.map((h) => ({
+      holiday_date: h.date.split("T")[0],
+      holiday_type: h.type,
+    }));
+
+    const toGeneratorEntry = (entry: ClockEntry): TimeClockEntry => ({
+      id: entry.id,
+      employee_id: selectedEmployee?.id ?? "",
+      clock_in_time: entry.clock_in_time,
+      clock_out_time: entry.clock_out_time,
+      regular_hours: entry.regular_hours,
+      overtime_hours: null,
+      total_night_diff_hours: entry.total_night_diff_hours,
+      status: entry.status,
+    });
+
+    const generatorEntries = entries.map(toGeneratorEntry);
+    const periodClockEntries = generatorEntries.filter((entry) => {
+      if (!entry.clock_in_time) return false;
+      const key = manilaDateKeyFromIso(entry.clock_in_time);
+      return key >= periodStartStr && key <= periodEndStr;
+    });
+
+    const cutoffAttendance = buildCutoffAttendance({
+      clockEntries: generatorEntries,
+      periodStart,
+      periodEnd,
+      holidays: holidaysForEngine,
+      restDays: restDaysMap,
+      leaveDatesMap,
+      approvedOTByDate,
+      approvedNDByDate,
+      isClientBased: isClientBasedEmployee,
+      isClientBasedAccountSupervisor,
+      eligibleForOT: true,
+      eligibleForNightDiff: true,
+      clockEntriesForMap: periodClockEntries,
+    });
+
+    const engineByDate = new Map(
+      cutoffAttendance.attendance_data.map((day) => [day.date, day])
+    );
 
     workingDays.forEach((date) => {
       const dateStr = format(date, "yyyy-MM-dd");
@@ -1462,18 +1507,23 @@ export default function TimesheetPage() {
         }
       }
 
+      // Payroll engine (same path as payslip + bulk generate) is source of truth for BH/OT/ND.
+      const engineDay = engineByDate.get(dateStr);
+      if (engineDay) {
+        bh = engineDay.regularHours;
+        otHours = engineDay.overtimeHours;
+        ndHours = engineDay.nightDiffHours;
+      }
+
       // Undertime is the missing required hours after credited BH (BH already uses business windows).
       // Policy: UT is rounded up to the next FULL hour.
       const rawDeficit = Math.max(0, requiredHours - bh);
-      let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
-
-      // ND now includes night-shift work from actual punches, with OT-derived ND used as source-of-truth
-      // when it is greater than punch-derived ND.
+      const ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
 
       days.push({
         date: dateStr,
         dayName: getDayName(dateStr),
-        dayType,
+        dayType: engineDay?.dayType ?? dayType,
         status,
         isHalfDayLeave,
         timeIn,
@@ -1498,20 +1548,6 @@ export default function TimesheetPage() {
       daysWithND: daysWithND.map((d) => ({ date: d.date, nd: d.nd })),
     };
     console.log("Timesheet ND result:", ndResultDebug);
-    try {
-      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          location: "timesheet/page.tsx:ND-debug-result",
-          message: "Timesheet ND result",
-          data: ndResultDebug,
-          hypothesisId: "ND-timesheet",
-          timestamp: Date.now(),
-          sessionId: "debug-session",
-        }),
-      }).catch(() => {});
-    } catch (_) {}
 
     console.log("Generated attendance days:", days.length);
     if (days.length > 0) {
@@ -1615,147 +1651,53 @@ export default function TimesheetPage() {
     useBasePayMethod = true;
   }
 
-  // Calculate "Days Work" - count regular working days AND eligible holidays
-  // Days Work = days where:
-  // 1. Date is today or earlier (not future dates)
-  // 2. For regular days: Employee has completed logging (has both clock_in_time AND clock_out_time) AND BH > 0
-  // 3. For holidays: BH > 0 (eligible holidays get 8 BH even without clock entries)
-  // 4. Exclude non-working leave types (LWOP, CTO, OB)
-  const todayForDaysWork = new Date();
-  todayForDaysWork.setHours(0, 0, 0, 0);
+  const restDaysForDaysWork = useMemo(() => {
+    const map = new Map<string, boolean>();
+    schedules.forEach((schedule, dateStr) => {
+      if (schedule.day_off) map.set(dateStr, true);
+    });
+    return map;
+  }, [schedules]);
 
-  // When base pay is available: footer still shows summed daily BH/OT columns; basePayHours is slot-based reference.
-  // actualTotalBH below matches payslip regular-hour rollup (holidays, RD worked).
-  let totalBH = 0;
-  let daysWorked = 0;
-
-  if (useBasePayMethod) {
-    // Base pay hours from weekly window; attendance BH rollup still reflects holidays / RD worked.
-    const actualTotalBH = attendanceDays.reduce((sum, d) => {
-      const dayDate = new Date(d.date);
-      dayDate.setHours(0, 0, 0, 0);
-
-      // Only count days that are today or earlier
-      if (dayDate > todayForDaysWork) {
-        return sum;
-      }
-
-      // Exclude full-day non-working leave; half-day LWOP still credits worked BH.
-      if (
-        (d.status === "LWOP" && !d.isHalfDayLeave) ||
-        d.status === "CTO" ||
-        d.status === "OB"
-      ) {
-        return sum;
-      }
-
-      // Rest days: Only exclude if NOT worked
-      // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
-      // Days Work can exceed scheduled window if employee works on rest days.
-      // Default schedule: Sunday is rest day (dayType === "sunday" or status === "RD")
-      // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
-      const isRestDay = d.dayType === "sunday" || d.status === "RD";
-      if (isRestDay) {
-        // If rest day was worked (has BH > 0), count it toward Days Work
-        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay for rank/file)
-        if (d.bh > 0) {
-          // Rest day was worked — count toward actual BH rollup.
-          return sum + d.bh;
-        } else {
-          // Rest day was NOT worked - exclude from Days Work (paid separately)
-          return sum;
-        }
-      }
-
-      // Check if this is a holiday (RH, SH, or non-working holiday)
-      const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
-
-      if (isHoliday) {
-        // Eligible holidays with BH > 0 count in attendance rollup.
-        if (d.bh > 0) {
-          return sum + d.bh;
-        }
-      } else {
-        // For regular days: count if BH > 0 (Saturday work is OT, not BH — see generateAttendanceDays)
-        if (d.bh > 0) {
-          // Regular day with BH > 0 counts in attendance rollup.
-          return sum + d.bh;
-        }
-      }
-
-      return sum;
-    }, 0);
-
-    // Footer Total BH = sum of daily BH (matches payslip "Hours Work (Regular)" from attendance).
-    // basePayHours stays available via calculateBasePay for scheduled-slot diagnostics only.
-    totalBH = actualTotalBH;
-    daysWorked = totalBH > 0 ? totalBH / 8 : 0;
-    // #region agent log
-    if (attendanceDays.some((d) => d.date === "2026-01-01") || (format(periodStart, "yyyy-MM-dd") <= "2026-01-15" && format(periodEnd, "yyyy-MM-dd") >= "2026-01-01")) {
-      const jan1 = attendanceDays.find((d) => d.date === "2026-01-01");
-      fetch("http://127.0.0.1:7243/ingest/baf212a9-0048-4497-b30f-a8a72fba0d2d", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ location: "timesheet/page.tsx:DaysWork", message: "Timesheet Days Work", data: { periodStart: format(periodStart, "yyyy-MM-dd"), periodEnd: format(periodEnd, "yyyy-MM-dd"), employeeName: selectedEmployee?.full_name, jan1: jan1 ? { date: jan1.date, status: jan1.status, bh: jan1.bh, dayType: jan1.dayType } : null, basePayHours, actualTotalBH, totalBH, daysWorked }, hypothesisId: "H1", timestamp: Date.now(), sessionId: "debug-session" }) }).catch(() => {});
+  const daysWorkTotals = useMemo(() => {
+    if (!selectedEmployee || !useBasePayMethod) {
+      const columnBh = attendanceDays.reduce((sum, d) => sum + d.bh, 0);
+      return {
+        daysWorked: columnBh > 0 ? columnBh / 8 : 0,
+        totalBHForDaysWork: columnBh,
+      };
     }
-    // #endregion
-    // Footer totals use summed daily BH (actualTotalBH); basePayHours remains for diagnostics.
-  } else {
-    // Fallback: sum BH from attendance days (for display purposes)
-    // But Days Work should still match base pay method if possible
-    totalBH = attendanceDays.reduce((sum, d) => {
-      const dayDate = new Date(d.date);
-      dayDate.setHours(0, 0, 0, 0);
+    const resolved = resolveDaysWorkTotals({
+      days: attendanceDays.map((d) => ({
+        date: d.date,
+        dayType: d.dayType,
+        status: d.status,
+        bh: d.bh,
+        isHalfDayLeave: d.isHalfDayLeave,
+      })),
+      basePayHours,
+      employee: {
+        employeeType: selectedEmployee.employee_type,
+        position: selectedEmployee.position,
+        jobLevel: selectedEmployee.job_level,
+      },
+      restDays: restDaysForDaysWork,
+    });
+    return {
+      daysWorked: resolved.daysWorked,
+      totalBHForDaysWork: resolved.totalBHForDaysWork,
+    };
+  }, [
+    attendanceDays,
+    basePayHours,
+    selectedEmployee,
+    useBasePayMethod,
+    restDaysForDaysWork,
+  ]);
 
-      // Only count days that are today or earlier
-      if (dayDate > todayForDaysWork) {
-        return sum;
-      }
-
-      // Exclude full-day non-working leave; half-day LWOP still credits worked BH.
-      if (
-        (d.status === "LWOP" && !d.isHalfDayLeave) ||
-        d.status === "CTO" ||
-        d.status === "OB"
-      ) {
-        return sum;
-      }
-
-      // Rest days: Only exclude if NOT worked
-      // If employee works on rest day, it counts toward Days Work AND they get rest day premium pay
-      // Days Work can exceed scheduled window if employee works on rest days.
-      // Default schedule: Sunday is rest day (dayType === "sunday" or status === "RD")
-      // Account Supervisors: Rest days are Mon/Tue/Wed (from schedule day_off flag)
-      const isRestDay = d.dayType === "sunday" || d.status === "RD";
-      if (isRestDay) {
-        // If rest day was worked (has BH > 0), count it toward Days Work
-        // If rest day was NOT worked (BH === 0), exclude it (paid separately as rest day pay for rank/file)
-        if (d.bh > 0) {
-          // Rest day was worked — count toward actual BH rollup.
-          return sum + d.bh;
-        } else {
-          // Rest day was NOT worked - exclude from Days Work (paid separately)
-          return sum;
-        }
-      }
-
-      // Check if this is a holiday (RH, SH, or non-working holiday)
-      const isHoliday = d.status === "RH" || d.status === "SH" || d.dayType === "regular-holiday" || d.dayType === "non-working-holiday";
-
-      if (isHoliday) {
-        // Eligible holidays with BH > 0 count in attendance rollup.
-        if (d.bh > 0) {
-          return sum + d.bh;
-        }
-      } else {
-        // For regular days: count if BH > 0 (Saturday work is OT, not BH — see generateAttendanceDays)
-        if (d.bh > 0) {
-          // Regular day with BH > 0 counts in attendance rollup.
-          return sum + d.bh;
-        }
-      }
-
-      return sum;
-    }, 0);
-    daysWorked = totalBH / 8;
-  }
+  const daysWorked = daysWorkTotals.daysWorked;
+  /** BH column footer = sum of daily BH rows (Saturday hours appear under OT). */
+  const totalBH = attendanceDays.reduce((sum, d) => sum + d.bh, 0);
   const totalOT = attendanceDays.reduce((sum, d) => sum + d.ot, 0);
   const totalLTHours = attendanceDays.reduce((sum, d) => sum + (d.lt || 0), 0);
   const totalUTHours = attendanceDays.reduce((sum, d) => sum + (d.ut || 0), 0);
@@ -2082,7 +2024,9 @@ export default function TimesheetPage() {
                   {/* Summary Row */}
                   <tr className="border-t-2 border-primary/30 bg-primary/5 font-semibold">
                     <td colSpan={3} className="px-4 py-2 text-sm">
-                      <span title="Sum of daily BH for this week (same basis as payslip regular hours); OT is separate">
+                      <span
+                        title={`Payroll Days Work (${daysWorkTotals.totalBHForDaysWork.toFixed(1)}h from scheduled slots + attendance); BH column sums daily rows`}
+                      >
                         Days Work: {(daysWorked || 0).toFixed(2)}
                       </span>
                     </td>

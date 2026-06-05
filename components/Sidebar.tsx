@@ -81,12 +81,6 @@ const navGroups: NavGroup[] = [
       { name: "Payroll", href: "/payroll", icon: Receipt, permissionModule: "payslips" },
       { name: "Loans", href: "/loans", icon: Receipt, permissionModule: "loans" },
       { name: "Payslips", href: "/payslips", icon: Receipt, permissionModule: "payslips" },
-      {
-        name: "Payroll Register",
-        href: "/reports",
-        icon: FileText,
-        permissionModule: "reports",
-      },
     ],
   },
   {
@@ -95,6 +89,12 @@ const navGroups: NavGroup[] = [
     defaultOpen: true,
     items: [
       { name: "Time Attendance", href: "/timesheet", icon: CalendarBlank, permissionModule: "timesheet" },
+      {
+        name: "Timesheet Review",
+        href: "/timesheet-review",
+        icon: ClipboardText,
+        permissionModule: "timesheet",
+      },
       { name: "Time Entries", href: "/time-entries", icon: MapPin, permissionModule: "time_entries" },
       {
         name: "Failure To Log",

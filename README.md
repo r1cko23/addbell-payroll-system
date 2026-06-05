@@ -38,7 +38,7 @@ This repository began as a fork of the **GP-HRIS** (Green Pasture) payroll stack
 | Bundy / business day | 7 AM day boundary, 23h auto-out, superseded-IN handling | Old 6:59 auto-close removed in code |
 | Roles & approvals | Addbell approver matrix, OT groups, timelog approvers | See `docs/ROLE_ACCESS_QUICK_REFERENCE.md` |
 | Database | Addbell Supabase project + migrations in `supabase/migrations/` | Do not assume GP-HRIS tables (e.g. `audit_logs`) exist in prod |
-| Legacy GP-HRIS pages | `/audit`, `/bir-reports`, `/project-profitability` | Removed from sidebar (not operational on Addbell prod). **Payroll Register** (`/reports`) lives under **People** for finance export. |
+| Legacy GP-HRIS pages | `/audit`, `/bir-reports`, `/project-profitability`, `/reports` (Payroll Register) | Removed from sidebar (not operational on Addbell prod). Use **Payroll** run exports instead. |
 
 Historical GP-HRIS docs remain under `docs/` for reference; prefer this README and Addbell-titled guides (`docs/setup/SETUP.md`, `docs/deployment/DEPLOYMENT_GUIDE.md`) for setup.
 

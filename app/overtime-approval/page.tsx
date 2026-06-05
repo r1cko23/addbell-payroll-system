@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { formatTime12h, formatTimeRange12h } from "@/utils/format";
 import { toast } from "sonner";
 import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { MetricCard } from "@/components/ui/metric-card";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
   FINAL_HR_APPROVER_ID,
@@ -44,6 +45,15 @@ import {
   overtimeRequestInOperationsManagerQueue,
   shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
+import { otToApprovalFields } from "@/lib/dual-approval-display";
+import { RequestApprovalLabels } from "@/components/approval/RequestApprovalLabels";
+import { fetchApproverNameMap } from "@/lib/load-approver-names";
+import {
+  approvalQueueCardHeaderMeta,
+  approvalQueueCardHeaderRow,
+  approvalQueueStatusBadge,
+} from "@/lib/approval-queue-card-ui";
+import { cn } from "@/lib/utils";
 
 type OvertimeDocument = {
   id: string;
@@ -100,16 +110,6 @@ type OTRequest = {
 };
 
 type ViewerOtStatus = "pending" | "approved" | "rejected";
-
-/** User id to show as approver/rejector — prefer final `approved_by`, then HR, then endorsement ids. */
-function getOvertimeDecisionActorId(request: OTRequest): string | null {
-  const id =
-    request.approved_by ||
-    request.hr_approved_by ||
-    request.project_manager_id ||
-    request.account_manager_id;
-  return id || null;
-}
 
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
@@ -725,42 +725,8 @@ export default function OvertimeApprovalPage() {
   }
 
   async function loadApproverNames(ids: string[]) {
-    const uniq = Array.from(new Set(ids.filter(Boolean)));
-    if (uniq.length === 0) return;
-
-    const next: Record<string, string> = {};
-
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", uniq);
-
-    if (!userError && userData) {
-      (userData as Array<{ id: string; full_name: string | null; email: string | null }>).forEach(
-        (row) => {
-          next[row.id] = row.full_name || row.email || row.id;
-        }
-      );
-    }
-
-    const missing = uniq.filter((id) => !next[id]);
-    if (missing.length > 0) {
-      const { data: empData, error: empError } = await supabase
-        .from("employees")
-        .select("id, full_name, email")
-        .in("id", missing);
-
-      if (!empError && empData) {
-        (empData as Array<{ id: string; full_name: string | null; email: string | null }>).forEach(
-          (row) => {
-            next[row.id] = row.full_name || row.email || row.id;
-          }
-        );
-      }
-    }
-
+    const next = await fetchApproverNameMap(ids);
     if (Object.keys(next).length === 0) return;
-
     setApproverNames((prev) => ({ ...prev, ...next }));
   }
 
@@ -1057,9 +1023,10 @@ export default function OvertimeApprovalPage() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => getViewerStatus(r) === "pending").length,
-    approved: requests.filter((r) => getViewerStatus(r) === "approved").length,
-    rejected: requests.filter((r) => getViewerStatus(r) === "rejected").length,
+    pending: requests.filter((r) => isManagerStagePending(r)).length,
+    approvedByManager: requests.filter((r) => isHrStagePending(r)).length,
+    approvedByHR: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
   };
 
   return (
@@ -1067,30 +1034,17 @@ export default function OvertimeApprovalPage() {
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
           <H1>OT Approvals</H1>
-          <BodySmall>Review and act on pending OT requests.</BodySmall>
+          <PageSubtitle>Review and act on pending OT requests.</PageSubtitle>
         </VStack>
 
-        <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <CardContent className="p-4">
-            <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
-              <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="border-blue-200 bg-blue-600 text-white">
-                  {stats.pending} pending
-                </Badge>
-                <Badge variant="outline">{stats.approved} approved</Badge>
-                <Badge variant="outline">{stats.rejected} rejected</Badge>
-              </HStack>
-              <HStack gap="2" align="center" className="flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => router.push("/leave-approval")}>
-                  Leave queue
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => router.push("/failure-to-log-approval")}>
-                  FTL queue
-                </Button>
-              </HStack>
-            </HStack>
-          </CardContent>
-        </Card>
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
+          <MetricCard label="Total" value={stats.total} />
+          <MetricCard label="Pending" value={stats.pending} />
+          <MetricCard label="Manager approved" value={stats.approvedByManager} />
+          <MetricCard label="HR approved" value={stats.approvedByHR} />
+          <MetricCard label="Rejected" value={stats.rejected} />
+        </div>
 
         {/* Filters */}
         <Card className="w-full">
@@ -1202,28 +1156,44 @@ export default function OvertimeApprovalPage() {
                   }}
                 >
                   <CardContent className="p-4 flex flex-col gap-3 h-full">
-                    <HStack justify="between" align="start">
-                      <div className="flex-1">
-                        <HStack
-                          gap="3"
-                          align="center"
-                          className="mb-2 flex-wrap"
-                        >
-                          <EmployeeAvatar
-                            profilePictureUrl={
-                              req.employees?.profile_picture_url
-                            }
-                            fullName={req.employees?.full_name || "Unknown"}
-                            size="sm"
-                          />
-                          <span className="font-bold text-lg">
-                            {req.employees?.full_name || "Unknown"}
-                          </span>
-                          <Caption>
-                            ({req.employees?.employee_id || "—"})
-                          </Caption>
-                          <Badge variant="secondary">OT</Badge>
-                        </HStack>
+                    <div className={approvalQueueCardHeaderRow}>
+                      <HStack
+                        gap="3"
+                        align="center"
+                        className={approvalQueueCardHeaderMeta}
+                      >
+                        <EmployeeAvatar
+                          profilePictureUrl={
+                            req.employees?.profile_picture_url
+                          }
+                          fullName={req.employees?.full_name || "Unknown"}
+                          size="sm"
+                        />
+                        <span className="font-bold text-lg">
+                          {req.employees?.full_name || "Unknown"}
+                        </span>
+                        <Caption>
+                          ({req.employees?.employee_id || "—"})
+                        </Caption>
+                        <Badge variant="secondary">OT</Badge>
+                      </HStack>
+                      <Badge
+                        variant={
+                          getViewerStatus(req) === "approved"
+                            ? "default"
+                            : getViewerStatus(req) === "rejected"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                        className={cn(
+                          statusBadgeClass(getViewerStatus(req)),
+                          approvalQueueStatusBadge
+                        )}
+                      >
+                        {getViewerStatus(req).toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex-1">
                         <HStack
                           gap="4"
                           align="center"
@@ -1324,38 +1294,11 @@ export default function OvertimeApprovalPage() {
                             </a>
                           </BodySmall>
                         ) : null}
-                        {getViewerStatus(req) === "approved" &&
-                          getOvertimeDecisionActorId(req) && (
-                            <Caption className="mt-2 text-xs text-muted-foreground">
-                              Approved by:{" "}
-                              {approverNames[getOvertimeDecisionActorId(req)!] || "Unknown approver"}
-                              {req.approved_at &&
-                                ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
-                            </Caption>
-                          )}
-                        {getViewerStatus(req) === "rejected" &&
-                          getOvertimeDecisionActorId(req) && (
-                            <Caption className="mt-2 text-xs text-muted-foreground">
-                              Rejected by:{" "}
-                              {approverNames[getOvertimeDecisionActorId(req)!] || "Unknown approver"}
-                              {req.approved_at &&
-                                ` on ${format(new Date(req.approved_at), "MMM dd, yyyy h:mm a")}`}
-                            </Caption>
-                          )}
-                      </div>
-                      <Badge
-                        variant={
-                          getViewerStatus(req) === "approved"
-                            ? "default"
-                            : getViewerStatus(req) === "rejected"
-                            ? "destructive"
-                            : "secondary"
-                        }
-                      className={statusBadgeClass(getViewerStatus(req))}
-                      >
-                        {getViewerStatus(req).toUpperCase()}
-                      </Badge>
-                    </HStack>
+                        <RequestApprovalLabels
+                          fields={otToApprovalFields(req)}
+                          names={approverNames}
+                        />
+                    </div>
                     {canActOnPendingOvertime && canCurrentUserActOnRequest(req) && (
                         <HStack
                           gap="2"
@@ -1630,32 +1573,11 @@ export default function OvertimeApprovalPage() {
                   </div>
                 ) : null}
 
-                {getViewerStatus(selected) === "approved" &&
-                  getOvertimeDecisionActorId(selected) && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Approved by:{" "}
-                        <span className="font-medium text-foreground">
-                          {approverNames[getOvertimeDecisionActorId(selected)!] || "Unknown approver"}
-                        </span>
-                        {selected.approved_at &&
-                          ` on ${format(new Date(selected.approved_at), "MMM dd, yyyy h:mm a")}`}
-                      </p>
-                    </div>
-                  )}
-                {getViewerStatus(selected) === "rejected" &&
-                  getOvertimeDecisionActorId(selected) && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Rejected by:{" "}
-                        <span className="font-medium text-foreground">
-                          {approverNames[getOvertimeDecisionActorId(selected)!] || "Unknown approver"}
-                        </span>
-                        {selected.approved_at &&
-                          ` on ${format(new Date(selected.approved_at), "MMM dd, yyyy h:mm a")}`}
-                      </p>
-                    </div>
-                  )}
+                <RequestApprovalLabels
+                  fields={otToApprovalFields(selected)}
+                  names={approverNames}
+                  className="text-sm text-muted-foreground"
+                />
               </div>
             )}
             <DialogFooter className="flex flex-wrap justify-between gap-2">

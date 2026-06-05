@@ -23,7 +23,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div className="flex min-h-screen overflow-x-clip bg-muted/25">
+    <div className="flex min-h-screen overflow-x-clip bg-background">
       <SonnerToaster
         position="top-right"
         richColors
@@ -53,17 +53,17 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </aside>
       {isSidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" aria-hidden="true" onClick={closeSidebar} />
+          <div className="absolute inset-0 bg-foreground/40" aria-hidden="true" onClick={closeSidebar} />
           <Sidebar
-            className="relative z-50 w-80 max-w-full bg-background shadow-hover"
+            className="relative z-50 w-80 max-w-full shadow-lg"
             onClose={closeSidebar}
           />
         </div>
       )}
       <div className={cn('flex min-w-0 flex-1 flex-col overflow-hidden', 'lg:ml-0')}>
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-muted/20">
-          <div className="dashboard-content container mx-auto w-full min-w-0 max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-background">
+          <div className="dashboard-content container mx-auto w-full min-w-0 max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
             {children}
           </div>
         </main>

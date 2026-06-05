@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, H3, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -56,6 +56,15 @@ import {
   shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
 import { normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
+import { ftlToApprovalFields } from "@/lib/dual-approval-display";
+import { RequestApprovalLabels } from "@/components/approval/RequestApprovalLabels";
+import { fetchApproverNameMap } from "@/lib/load-approver-names";
+import {
+  approvalQueueCardHeaderMeta,
+  approvalQueueCardHeaderRow,
+  approvalQueueStatusBadge,
+} from "@/lib/approval-queue-card-ui";
+import { cn } from "@/lib/utils";
 
 interface FailureToLog {
   id: string;
@@ -70,6 +79,7 @@ interface FailureToLog {
   status: "pending" | "approved" | "rejected" | "cancelled";
   rejection_reason: string | null;
   account_manager_id: string | null;
+  approved_by: string | null;
   approved_at: string | null;
   updated_at: string | null;
   created_at: string;
@@ -594,12 +604,13 @@ export default function FailureToLogApprovalPage() {
     );
     setRequests(cleaned as FailureToLog[]);
 
-    // Load approver names for approved items
     const approverIds = Array.from(
       new Set(
-        cleaned
-          .map((r) => r.account_manager_id)
-          .filter((id): id is string => Boolean(id))
+        cleaned.flatMap((r) =>
+          [r.account_manager_id, r.approved_by].filter((id): id is string =>
+            Boolean(id)
+          )
+        )
       )
     );
     if (approverIds.length > 0) {
@@ -608,50 +619,9 @@ export default function FailureToLogApprovalPage() {
   }
 
   async function loadApproverNames(ids: string[]) {
-    if (ids.length === 0) return;
-
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (userData && !userError) {
-      const usersArray = userData as Array<{
-        id: string;
-        full_name: string | null;
-        email: string | null;
-      }>;
-
-      setApproverNames((prev) => {
-        const next = { ...prev };
-        usersArray.forEach((row) => {
-          next[row.id] = row.full_name || row.email || row.id;
-        });
-        return next;
-      });
-      return;
-    }
-
-    const { data: empData, error: empError } = await supabase
-      .from("employees")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (empError || !empData) return;
-
-    const employeesArray = empData as Array<{
-      id: string;
-      full_name: string | null;
-      email: string | null;
-    }>;
-
-    setApproverNames((prev) => {
-      const next = { ...prev };
-      employeesArray.forEach((row) => {
-        next[row.id] = row.full_name || row.email || row.id;
-      });
-      return next;
-    });
+    const next = await fetchApproverNameMap(ids);
+    if (Object.keys(next).length === 0) return;
+    setApproverNames((prev) => ({ ...prev, ...next }));
   }
 
   async function handleApprove(requestId: string) {
@@ -927,9 +897,10 @@ export default function FailureToLogApprovalPage() {
 
   const stats = {
     total: requests.length,
-    pending: requests.filter((r) => getViewerStatus(r) === "pending").length,
-    approved: requests.filter((r) => getViewerStatus(r) === "approved").length,
-    rejected: requests.filter((r) => getViewerStatus(r) === "rejected").length,
+    pending: requests.filter((r) => isManagerStagePending(r)).length,
+    approvedByManager: requests.filter((r) => isHrStagePending(r)).length,
+    approvedByHR: requests.filter((r) => r.status === "approved").length,
+    rejected: requests.filter((r) => r.status === "rejected").length,
   };
 
   if (roleLoading) {
@@ -963,36 +934,15 @@ export default function FailureToLogApprovalPage() {
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
           <H1>Failure To Log</H1>
-          <BodySmall>Review and act on pending missed-punch requests.</BodySmall>
+          <PageSubtitle>Review and act on pending missed-punch requests.</PageSubtitle>
         </VStack>
 
-        <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <CardContent className="p-4">
-            <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
-              <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="border-primary/30 bg-primary text-primary-foreground">
-                  {stats.pending} pending
-                </Badge>
-                <Badge variant="outline">{stats.approved} approved</Badge>
-                <Badge variant="outline">{stats.rejected} rejected</Badge>
-              </HStack>
-              <HStack gap="2" align="center" className="flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => router.push("/leave-approval")}>
-                  Leave queue
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => router.push("/overtime-approval")}>
-                  OT queue
-                </Button>
-              </HStack>
-            </HStack>
-          </CardContent>
-        </Card>
-
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full items-stretch">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
           <MetricCard label="Total" value={stats.total} />
           <MetricCard label="Pending" value={stats.pending} />
-          <MetricCard label="Approved" value={stats.approved} />
+          <MetricCard label="Manager approved" value={stats.approvedByManager} />
+          <MetricCard label="HR approved" value={stats.approvedByHR} />
           <MetricCard label="Rejected" value={stats.rejected} />
         </div>
 
@@ -1117,26 +1067,44 @@ export default function FailureToLogApprovalPage() {
                 }}
               >
                 <CardContent className="p-4 flex flex-col gap-3 h-full">
-                  <HStack justify="between" align="start">
-                    <div className="flex-1">
-                      <HStack gap="3" align="center" className="mb-2 flex-wrap">
-                        <EmployeeAvatar
-                          profilePictureUrl={
-                            request.employees?.profile_picture_url
-                          }
-                          fullName={
-                            request.employees?.full_name || "Unknown employee"
-                          }
-                          size="sm"
-                        />
-                        <span className="font-bold text-lg">
-                          {request.employees?.full_name || "Unknown employee"}
-                        </span>
-                        <Caption>
-                          ({request.employees?.employee_id || "Unknown ID"})
-                        </Caption>
-                        <Badge variant="secondary">FTL</Badge>
-                      </HStack>
+                  <div className={approvalQueueCardHeaderRow}>
+                    <HStack gap="3" align="center" className={approvalQueueCardHeaderMeta}>
+                      <EmployeeAvatar
+                        profilePictureUrl={
+                          request.employees?.profile_picture_url
+                        }
+                        fullName={
+                          request.employees?.full_name || "Unknown employee"
+                        }
+                        size="sm"
+                      />
+                      <span className="font-bold text-lg">
+                        {request.employees?.full_name || "Unknown employee"}
+                      </span>
+                      <Caption>
+                        ({request.employees?.employee_id || "Unknown ID"})
+                      </Caption>
+                      <Badge variant="secondary">FTL</Badge>
+                    </HStack>
+                    <Badge
+                      variant={
+                        getViewerStatus(request) === "pending"
+                          ? "secondary"
+                          : getViewerStatus(request) === "approved"
+                          ? "default"
+                          : getViewerStatus(request) === "rejected"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                      className={cn(
+                        statusStyles[getViewerStatus(request)],
+                        approvalQueueStatusBadge
+                      )}
+                    >
+                      {getViewerStatus(request).toUpperCase()}
+                    </Badge>
+                  </div>
+                  <div className="flex-1">
                       <HStack
                         gap="4"
                         align="center"
@@ -1185,39 +1153,11 @@ export default function FailureToLogApprovalPage() {
                           {request.manual_notes}
                         </BodySmall>
                       )}
-                      {getViewerStatus(request) === "approved" &&
-                        (request.account_manager_id || request.approved_at) && (
-                          <Caption className="mt-2 text-xs text-muted-foreground">
-                            Approved by Manager:{" "}
-                            {(request.account_manager_id
-                              ? approverNames[request.account_manager_id]
-                              : undefined) || "Manager"}
-                            {request.approved_at &&
-                              ` on ${format(new Date(request.approved_at), "MMM dd, yyyy h:mm a")}`}
-                          </Caption>
-                        )}
-                      {getViewerStatus(request) === "rejected" && request.updated_at && (
-                        <Caption className="mt-2 text-xs text-muted-foreground">
-                          Rejected on{" "}
-                          {format(new Date(request.updated_at), "MMM dd, yyyy h:mm a")}
-                        </Caption>
-                      )}
-                    </div>
-                    <Badge
-                      variant={
-                        getViewerStatus(request) === "pending"
-                          ? "secondary"
-                          : getViewerStatus(request) === "approved"
-                          ? "default"
-                          : getViewerStatus(request) === "rejected"
-                          ? "destructive"
-                          : "secondary"
-                      }
-                      className={statusStyles[getViewerStatus(request)]}
-                    >
-                      {getViewerStatus(request).toUpperCase()}
-                    </Badge>
-                  </HStack>
+                      <RequestApprovalLabels
+                        fields={ftlToApprovalFields(request)}
+                        names={approverNames}
+                      />
+                  </div>
                   {canActOnFailureToLog && canCurrentUserActOnRequest(request) && (
                     <HStack
                       gap="2"
@@ -1398,37 +1338,11 @@ export default function FailureToLogApprovalPage() {
                   </div>
                 )}
 
-                {getViewerStatus(selectedRequest) === "approved" &&
-                  (selectedRequest.account_manager_id ||
-                    selectedRequest.approved_at) && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Approved by Manager:{" "}
-                        <span className="font-medium text-foreground">
-                          {(selectedRequest.account_manager_id
-                            ? approverNames[selectedRequest.account_manager_id]
-                            : undefined) || "Manager"}
-                        </span>
-                        {selectedRequest.approved_at &&
-                          ` on ${format(new Date(selectedRequest.approved_at), "MMM dd, yyyy h:mm a")}`}
-                      </p>
-                    </div>
-                  )}
-
-                {getViewerStatus(selectedRequest) === "rejected" &&
-                  selectedRequest.updated_at && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        Rejected on{" "}
-                        <span className="font-medium text-foreground">
-                          {format(
-                            new Date(selectedRequest.updated_at),
-                            "MMM dd, yyyy h:mm a"
-                          )}
-                        </span>
-                      </p>
-                    </div>
-                  )}
+                <RequestApprovalLabels
+                  fields={ftlToApprovalFields(selectedRequest)}
+                  names={approverNames}
+                  className="text-sm text-muted-foreground"
+                />
 
                 {selectedRequest && canCurrentUserActOnRequest(selectedRequest) && (
                   <div className="space-y-2">

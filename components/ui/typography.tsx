@@ -1,5 +1,6 @@
 import { ReactNode, CSSProperties, HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
+import { toTitleCase } from "@/lib/to-title-case";
 
 interface TypographyProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
@@ -10,7 +11,7 @@ interface TypographyProps extends HTMLAttributes<HTMLElement> {
 export function H1({ children, className, style, ...props }: TypographyProps) {
   return (
     <h1
-      className={cn("text-3xl font-bold tracking-tight", className)}
+      className={cn("text-2xl font-semibold tracking-tight text-foreground sm:text-3xl", className)}
       style={style}
       {...props}
     >
@@ -30,7 +31,7 @@ export function PageTitle({ children, className, style, ...props }: TypographyPr
       style={style}
       {...props}
     >
-      {children}
+      {typeof children === "string" ? toTitleCase(children) : children}
     </h1>
   );
 }
@@ -105,6 +106,24 @@ export function BodySmall({
   );
 }
 
+/** One-line subtitle below a page H1. */
+export function PageSubtitle({
+  children,
+  className,
+  style,
+  ...props
+}: TypographyProps) {
+  return (
+    <p
+      className={cn("text-sm text-muted-foreground", className)}
+      style={style}
+      {...props}
+    >
+      {typeof children === "string" ? toTitleCase(children) : children}
+    </p>
+  );
+}
+
 export function Label({
   children,
   className,
@@ -130,7 +149,7 @@ export function Caption({
 }: TypographyProps) {
   return (
     <span
-      className={cn("font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground", className)}
+      className={cn("text-xs font-medium text-muted-foreground", className)}
       style={style}
       {...props}
     >
@@ -155,7 +174,7 @@ export function SectionHeading({
       style={style}
       {...props}
     >
-      {children}
+      {typeof children === "string" ? toTitleCase(children) : children}
     </h2>
   );
 }
@@ -170,7 +189,7 @@ export function StatValue({
   return (
     <div
       className={cn(
-        "text-3xl font-bold tabular-nums text-primary",
+        "text-2xl font-semibold tabular-nums text-foreground",
         className
       )}
       style={style}

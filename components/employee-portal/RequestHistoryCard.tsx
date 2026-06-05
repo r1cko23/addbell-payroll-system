@@ -9,6 +9,8 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { epCardInteractive } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 import {
+  epRequestClockReferenceBox,
+  epRequestClockReferenceLine,
   epRequestFiledLine,
   epRequestHistoryBodyRow,
   epRequestHistoryCardContent,
@@ -16,6 +18,7 @@ import {
   epRequestHistoryCardMain,
   epRequestHistoryCategoryBadge,
   epRequestHistoryDocLink,
+  epRequestHistoryHeaderBadgeGroup,
   epRequestHistoryHeaderRow,
   epRequestHistoryMetric,
   epRequestHistoryReasonText,
@@ -25,18 +28,57 @@ import {
   epRequestHistoryTitle,
   requestHistoryCardBorderClass,
 } from "@/lib/employee-portal-request-history";
+import {
+  EpDesktopBlock,
+  EpMobileBlock,
+} from "@/components/employee-portal/EmployeePortalViewport";
+import { RequestHistoryCardMobile } from "./RequestHistoryCardMobile";
 
 type RequestHistoryCardProps = {
   status: string;
   title: string;
   categoryLabel: string;
-  /** Shown under the header row (e.g. leave subtype) — avoids crowding with a second badge */
   subtitle?: string | null;
   metric?: ReactNode;
   filedAt: string;
   statusColumn: ReactNode;
   children?: ReactNode;
 };
+
+/** Original laptop/desktop card body — single responsive layout from md+. */
+function RequestHistoryCardDesktopBody({
+  title,
+  categoryLabel,
+  subtitle,
+  metric,
+  statusColumn,
+  children,
+}: Omit<RequestHistoryCardProps, "status" | "filedAt">) {
+  return (
+    <div className={epRequestHistoryCardLayout}>
+      <div className={epRequestHistoryCardMain}>
+        <div className={epRequestHistoryHeaderRow}>
+          <span className={epRequestHistoryTitle}>{title}</span>
+          <div className={epRequestHistoryHeaderBadgeGroup}>
+            <Badge variant="outline" className={epRequestHistoryCategoryBadge}>
+              {categoryLabel}
+            </Badge>
+            {metric != null ? (
+              <span className={epRequestHistoryMetric}>{metric}</span>
+            ) : null}
+          </div>
+        </div>
+        {subtitle ? (
+          <p className={epRequestHistorySubtitle}>{subtitle}</p>
+        ) : null}
+        {children}
+      </div>
+      <div className={epRequestHistoryStatusColumn} aria-label="Request status">
+        {statusColumn}
+      </div>
+    </div>
+  );
+}
 
 export function RequestHistoryCard({
   status,
@@ -48,6 +90,15 @@ export function RequestHistoryCard({
   statusColumn,
   children,
 }: RequestHistoryCardProps) {
+  const bodyProps = {
+    title,
+    categoryLabel,
+    subtitle,
+    metric,
+    statusColumn,
+    children,
+  };
+
   return (
     <Card
       className={cn(
@@ -57,32 +108,12 @@ export function RequestHistoryCard({
       )}
     >
       <CardContent className={epRequestHistoryCardContent}>
-        <div className={epRequestHistoryCardLayout}>
-          <div className={epRequestHistoryCardMain}>
-            <div className={epRequestHistoryHeaderRow}>
-              <span className={epRequestHistoryTitle}>{title}</span>
-              <Badge
-                variant="outline"
-                className={epRequestHistoryCategoryBadge}
-              >
-                {categoryLabel}
-              </Badge>
-              {metric != null ? (
-                <span className={epRequestHistoryMetric}>{metric}</span>
-              ) : null}
-            </div>
-            {subtitle ? (
-              <p className={epRequestHistorySubtitle}>{subtitle}</p>
-            ) : null}
-            {children}
-          </div>
-          <div
-            className={epRequestHistoryStatusColumn}
-            aria-label="Request status"
-          >
-            {statusColumn}
-          </div>
-        </div>
+        <EpMobileBlock>
+          <RequestHistoryCardMobile {...bodyProps} />
+        </EpMobileBlock>
+        <EpDesktopBlock>
+          <RequestHistoryCardDesktopBody {...bodyProps} />
+        </EpDesktopBlock>
         <div className={epRequestFiledLine}>Filed: {filedAt}</div>
       </CardContent>
     </Card>
@@ -112,6 +143,50 @@ export function RequestHistoryReasonRow({
 }
 
 type SupportingDoc = { id: string; file_name: string };
+
+export function RequestHistoryClockReference({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={epRequestClockReferenceBox}>
+      <BodySmall className="text-xs font-semibold text-primary">
+        {title}
+      </BodySmall>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+export function RequestHistoryClockReferenceLine({
+  label,
+  time,
+  coordinates,
+}: {
+  label: string;
+  time: string;
+  coordinates?: string | null;
+}) {
+  return (
+    <div className={epRequestClockReferenceLine}>
+      <strong>{label}:</strong> {time}
+      {coordinates ? (
+        <>
+          <span className="text-muted-foreground max-md:hidden">
+            {" "}
+            · {coordinates}
+          </span>
+          <span className="mt-0.5 block break-all text-[11px] text-muted-foreground/90 md:hidden">
+            {coordinates}
+          </span>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 export function RequestHistorySupportingDocuments({
   documents,

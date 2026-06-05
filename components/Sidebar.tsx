@@ -68,9 +68,9 @@ const navGroups: NavGroup[] = [
     label: "Projects",
     icon: MapPin,
     items: [
-      { name: "Clients", href: "/clients", icon: Users, permissionModule: "employees" },
-      { name: "Projects", href: "/projects", icon: ChartLineUp, permissionModule: "dashboard" },
-      { name: "Vendors", href: "/vendors", icon: Receipt, permissionModule: "dashboard" },
+      { name: "Clients", href: "/clients", icon: Users, permissionModule: "clients" },
+      { name: "Projects", href: "/projects", icon: ChartLineUp, permissionModule: "projects" },
+      { name: "Vendors", href: "/vendors", icon: Receipt, permissionModule: "vendors" },
     ],
   },
   {
@@ -89,12 +89,6 @@ const navGroups: NavGroup[] = [
     defaultOpen: true,
     items: [
       { name: "Time Attendance", href: "/timesheet", icon: CalendarBlank, permissionModule: "timesheet" },
-      {
-        name: "Timesheet Review",
-        href: "/timesheet-review",
-        icon: ClipboardText,
-        permissionModule: "timesheet",
-      },
       { name: "Time Entries", href: "/time-entries", icon: MapPin, permissionModule: "time_entries" },
       {
         name: "Failure To Log",
@@ -158,10 +152,10 @@ const NavItem = memo(function NavItem({
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-2 rounded-r-md border-l-2 py-2 pl-2 pr-3 text-sm transition-colors",
+        "flex items-center gap-2.5 rounded-r-sm border-l-2 py-2 pl-3 pr-3 text-sm transition-colors",
         isActive
-          ? "border-primary bg-primary/10 font-medium text-primary"
-          : "border-transparent text-muted-foreground hover:bg-primary/10 hover:text-primary"
+          ? "app-sidebar-nav-active border-l-[hsl(var(--sidebar-accent))] font-medium"
+          : "app-sidebar-nav-idle border-transparent"
       )}
       data-testid={testId}
     >
@@ -269,7 +263,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex h-full w-64 shrink-0 flex-col border-r border-border/80 bg-card/40 backdrop-blur-sm",
+        "app-sidebar flex h-full w-64 shrink-0 flex-col",
         className
       )}
       style={{
@@ -282,12 +276,11 @@ function SidebarInner({ className, onClose }: SidebarProps) {
       }}
       data-testid="sidebar-container"
     >
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/80 bg-background px-4">
-        <div className="flex flex-1 items-center justify-center">
+      <div className="app-shell-header sidebar-brand-header flex items-center justify-between border-b px-3">
+        <div className="sidebar-logo-plate flex-1">
           <img
-            src="/add-bell-logo-new.png"
+            src="/add-bell-logo-sidebar.png?v=2"
             alt="Add-bell Technical Services, Inc."
-            className="h-10 w-auto max-w-full object-contain"
             onError={(e) => {
               e.currentTarget.style.display = "none";
             }}
@@ -297,7 +290,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            className="ml-4 rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+            className="ml-2 rounded-md p-2 text-sidebar-muted hover:bg-sidebar-active hover:text-sidebar-foreground lg:hidden"
             aria-label="Close navigation"
           >
             <X className="h-4 w-4" />
@@ -306,17 +299,17 @@ function SidebarInner({ className, onClose }: SidebarProps) {
       </div>
 
       <nav
-        className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
+        className="app-sidebar-body flex-1 space-y-1 overflow-y-auto px-3 py-4"
         aria-label="Sidebar navigation"
       >
         {roleLoading || permissionsLoading ? (
           <div className="flex h-32 items-center justify-center">
-            <ArrowsClockwise className="h-4 w-4 animate-spin text-muted-foreground" />
+            <ArrowsClockwise className="h-4 w-4 animate-spin text-sidebar-muted" />
           </div>
         ) : filteredNavGroups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-4 text-center text-sm text-muted-foreground">
+          <div className="flex flex-col items-center justify-center p-4 text-center text-sm text-sidebar-muted">
             <WarningCircle className="mb-2 h-8 w-8" />
-            <p className="font-medium text-foreground">No navigation items available</p>
+            <p className="font-medium text-sidebar-foreground">No navigation items available</p>
             <p className="mt-2 text-xs leading-relaxed">
               Your account may have no module access in Settings → Access Control, or
               permissions failed to load.
@@ -337,13 +330,13 @@ function SidebarInner({ className, onClose }: SidebarProps) {
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.label)}
-                    className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm font-medium text-foreground transition hover:bg-primary/10"
+                    className="flex w-full items-center justify-between rounded-sm px-2 py-2 text-left text-sm font-medium text-sidebar-muted transition-colors hover:bg-sidebar-active hover:text-sidebar-foreground"
                     aria-expanded={isOpen}
                     data-testid={`nav-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
                   >
                     <span className="flex items-center gap-2">
-                      <GroupIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <GroupIcon className="h-4 w-4 shrink-0 text-sidebar-muted" />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-sidebar-muted">
                         {group.label}
                       </span>
                     </span>
@@ -354,7 +347,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
                     )}
                   </button>
                   {isOpen && (
-                    <div className="space-y-0.5 border-l border-border/60 pl-2">
+                    <div className="app-sidebar-divider-l space-y-0.5 border-l pl-2">
                       {group.items.map((item) => {
                         const isActive = isNavItemActive(
                           pathname,
@@ -387,7 +380,7 @@ function SidebarFallback({ className }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex h-full w-64 shrink-0 flex-col border-r border-border/80 bg-card/40",
+        "app-sidebar flex h-full w-64 shrink-0 flex-col",
         className
       )}
       style={{
@@ -396,7 +389,7 @@ function SidebarFallback({ className }: SidebarProps) {
       }}
       aria-hidden
     >
-      <div className="h-16 shrink-0 border-b border-border/80 bg-background" />
+      <div className="app-shell-header sidebar-brand-header shrink-0 border-b" />
     </div>
   );
 }

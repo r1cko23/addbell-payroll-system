@@ -21,6 +21,7 @@ interface CurrentUser {
   role: UserRole;
   profile_picture_url: string | null;
   can_access_salary: boolean;
+  can_manage_clock_access: boolean;
 }
 
 interface UseCurrentUserData {

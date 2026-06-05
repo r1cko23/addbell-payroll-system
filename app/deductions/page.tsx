@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { H1, H4, BodySmall, Label, Caption } from "@/components/ui/typography";
+import { H1, H4, BodySmall, Label, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -355,7 +355,7 @@ export default function DeductionsPage() {
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
           <H1>Deductions</H1>
-          <BodySmall>Bi-monthly deductions and government contributions.</BodySmall>
+          <PageSubtitle>Bi-monthly deductions and government contributions.</PageSubtitle>
         </VStack>
 
         <CardSection>

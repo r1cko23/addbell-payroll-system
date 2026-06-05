@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { H1, H3, H4, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, H3, H4, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -55,6 +55,7 @@ interface User {
   role: string;
   is_active: boolean;
   can_access_salary?: boolean | null;
+  can_manage_clock_access?: boolean | null;
   profile_picture_url: string | null;
   permissions: any | null;
   created_at: string;
@@ -143,7 +144,9 @@ export default function SettingsPage() {
 
       const { data: usersData, error: usersError } = await supabase
         .from("profiles")
-        .select("*")
+        .select(
+          "id, email, full_name, role, is_active, avatar_url, permissions, can_access_salary, can_manage_clock_access, created_at, updated_at"
+        )
         .order("full_name", { ascending: true });
 
       if (usersError) {
@@ -425,7 +428,7 @@ export default function SettingsPage() {
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
           <H1>Settings</H1>
-          <BodySmall>System configuration and user management</BodySmall>
+          <PageSubtitle>System configuration and user management</PageSubtitle>
         </VStack>
 
         {/* User Info */}
@@ -467,7 +470,7 @@ export default function SettingsPage() {
                   </HStack>
                   <HStack gap="3" align="center">
                     <BodySmall className="w-16 text-left">Role:</BodySmall>
-                    <Badge variant={canManageUsers || canManageAccessControl ? "default" : "secondary"}>
+                    <Badge variant="secondary">
                       {formatRoleName(currentUser?.role || "")}
                     </Badge>
                   </HStack>
@@ -545,13 +548,7 @@ export default function SettingsPage() {
                         {user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <Badge
-                          variant={
-                            user.role === "admin" || user.role === "upper_management"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
+                        <Badge variant="secondary">
                           {formatRoleName(user.role)}
                         </Badge>
                       </td>
@@ -657,54 +654,125 @@ export default function SettingsPage() {
                               </DropdownMenuItem>
                             )}
                             {(user.role !== "admin" && user.role !== "upper_management") && (
-                              <DropdownMenuItem
-                                onClick={async () => {
-                                  try {
-                                    const { error } = await (
-                                      supabase.from("profiles") as any
-                                    )
-                                      .update({
-                                        can_access_salary:
-                                          !user.can_access_salary,
-                                      })
-                                      .eq("id", user.id);
+                              <>
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch(
+                                        "/api/users/update-profile",
+                                        {
+                                          method: "PATCH",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                            userId: user.id,
+                                            can_access_salary: !user.can_access_salary,
+                                          }),
+                                        }
+                                      );
+                                      const data = await response.json();
+                                      if (!response.ok) {
+                                        throw new Error(
+                                          data.details ||
+                                            data.error ||
+                                            "Failed to update salary access"
+                                        );
+                                      }
 
-                                    if (error) throw error;
+                                      toast.success(
+                                        `Salary access ${
+                                          !user.can_access_salary
+                                            ? "granted"
+                                            : "revoked"
+                                        } for ${user.full_name}`
+                                      );
+                                      loadData();
+                                      const { clearUserRoleCache } = await import(
+                                        "@/lib/hooks/useUserRole"
+                                      );
+                                      clearUserRoleCache();
+                                    } catch (error: any) {
+                                      console.error(
+                                        "Error updating salary access:",
+                                        error
+                                      );
+                                      toast.error(
+                                        error.message ||
+                                          "Failed to update salary access"
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Icon
+                                    name={user.can_access_salary ? "Lock" : "Key"}
+                                    size={IconSizes.sm}
+                                    className="mr-2"
+                                  />
+                                  {user.can_access_salary
+                                    ? "Revoke Salary Access"
+                                    : "Grant Salary Access"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch(
+                                        "/api/users/update-profile",
+                                        {
+                                          method: "PATCH",
+                                          headers: {
+                                            "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                            userId: user.id,
+                                            can_manage_clock_access:
+                                              !user.can_manage_clock_access,
+                                          }),
+                                        }
+                                      );
+                                      const data = await response.json();
+                                      if (!response.ok) {
+                                        throw new Error(
+                                          data.details ||
+                                            data.error ||
+                                            "Failed to update clock access"
+                                        );
+                                      }
 
-                                    toast.success(
-                                      `Salary access ${
-                                        !user.can_access_salary
-                                          ? "granted"
-                                          : "revoked"
-                                      } for ${user.full_name}`
-                                    );
-                                    loadData();
-                                    // Clear cache for the updated user
-                                    const { clearUserRoleCache } = await import(
-                                      "@/lib/hooks/useUserRole"
-                                    );
-                                    clearUserRoleCache();
-                                  } catch (error: any) {
-                                    console.error(
-                                      "Error updating salary access:",
-                                      error
-                                    );
-                                    toast.error(
-                                      error.message ||
-                                        "Failed to update salary access"
-                                    );
-                                  }
-                                }}
-                              >
-                                <Icon
-                                  name={user.can_access_salary ? "Lock" : "Key"}
-                                  size={IconSizes.sm}
-                                  className="mr-2"
-                                />
-                                {user.can_access_salary
-                                  ? "Revoke Salary Access"
-                                  : "Grant Salary Access"}
-                              </DropdownMenuItem>
+                                      toast.success(
+                                        `Clock access management ${
+                                          !user.can_manage_clock_access
+                                            ? "granted"
+                                            : "revoked"
+                                        } for ${user.full_name}`
+                                      );
+                                      loadData();
+                                      const { clearUserRoleCache } = await import(
+                                        "@/lib/hooks/useUserRole"
+                                      );
+                                      clearUserRoleCache();
+                                    } catch (error: any) {
+                                      console.error(
+                                        "Error updating clock access:",
+                                        error
+                                      );
+                                      toast.error(
+                                        error.message ||
+                                          "Failed to update clock access"
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <Icon
+                                    name={user.can_manage_clock_access ? "Lock" : "MapPin"}
+                                    size={IconSizes.sm}
+                                    className="mr-2"
+                                  />
+                                  {user.can_manage_clock_access
+                                    ? "Revoke Clock Access Management"
+                                    : "Grant Clock Access Management"}
+                                </DropdownMenuItem>
+                              </>
                             )}
                             <DropdownMenuItem
                               onClick={() => setUserToDelete(user)}
@@ -839,12 +907,19 @@ export default function SettingsPage() {
               if (editingUser) {
                 setCreatingUser(true);
                 try {
-                  // Update user role if changed
-                  const { error: updateError } = await (supabase.from("profiles") as any)
-                    .update({ role: newUser.role })
-                    .eq("id", editingUser.id);
-
-                  if (updateError) throw updateError;
+                  const response = await fetch("/api/users/update-profile", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      userId: editingUser.id,
+                      role: newUser.role,
+                      full_name: newUser.full_name,
+                    }),
+                  });
+                  const data = await response.json();
+                  if (!response.ok) {
+                    throw new Error(data.details || data.error || "Failed to update user");
+                  }
 
                   toast.success("User updated successfully!");
                   setShowUserModal(false);

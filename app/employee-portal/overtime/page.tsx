@@ -59,6 +59,8 @@ import {
 } from "@/lib/employee-portal-request-history";
 import {
   RequestHistoryCard,
+  RequestHistoryClockReference,
+  RequestHistoryClockReferenceLine,
   RequestHistoryReasonRow,
   RequestHistorySupportingDocuments,
   RequestHistoryTimeRow,
@@ -483,7 +485,7 @@ export default function OvertimePage() {
     <div className={cn("w-full", epPageStack)}>
       <PortalPageHeader title="OT Filing" />
       <Card className="w-full">
-        <CardHeader className="px-4 pb-4 pt-4 sm:px-6 sm:pt-6">
+        <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
           <CardTitle>
             <HStack gap="2" align="center">
               <Icon name="ClockClockwise" size={IconSizes.md} />
@@ -495,7 +497,7 @@ export default function OvertimePage() {
             requires them.
           </BodySmall>
         </CardHeader>
-        <CardContent className="w-full p-4 sm:p-6">
+        <CardContent className="w-full p-3 md:p-6">
           <form onSubmit={handleSubmit} className="w-full">
             <div className={epFormStack}>
               <div className={epFormField}>
@@ -782,8 +784,8 @@ export default function OvertimePage() {
 
       {/* Requests List */}
       <Card className="w-full">
-        <CardHeader className="px-4 sm:px-6">
-          <CardTitle>My OT Requests</CardTitle>
+        <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4">
+          <CardTitle className="text-base md:text-lg">My OT Requests</CardTitle>
         </CardHeader>
         <CardContent className={epRequestHistorySectionContent}>
           {historyCutoffs.length > 0 && (
@@ -927,41 +929,36 @@ export default function OvertimePage() {
                   <RequestHistoryReasonRow reason={req.reason ?? ""} />
 
                         {req.bundy_session && (
-                          <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
-                            <BodySmall className="font-semibold text-primary">
-                              Clock reference · {creditOvertimeHours(req.total_hours)}h OT
-                            </BodySmall>
-                            <div>
-                              Time In:{" "}
-                              {format(
+                          <RequestHistoryClockReference
+                            title={`Clock reference · ${creditOvertimeHours(req.total_hours)}h OT`}
+                          >
+                            <RequestHistoryClockReferenceLine
+                              label="Time In"
+                              time={format(
                                 new Date(req.bundy_session.clock_in_time),
                                 "MMM d, h:mm a"
                               )}
-                              {req.bundy_session.clock_in_lat != null &&
-                                req.bundy_session.clock_in_lng != null && (
-                                  <>
-                                    {" "}
-                                    · {req.bundy_session.clock_in_lat.toFixed(6)},{" "}
-                                    {req.bundy_session.clock_in_lng.toFixed(6)}
-                                  </>
-                                )}
-                            </div>
-                            <div>
-                              Time Out:{" "}
-                              {format(
+                              coordinates={
+                                req.bundy_session.clock_in_lat != null &&
+                                req.bundy_session.clock_in_lng != null
+                                  ? `${req.bundy_session.clock_in_lat.toFixed(6)}, ${req.bundy_session.clock_in_lng.toFixed(6)}`
+                                  : null
+                              }
+                            />
+                            <RequestHistoryClockReferenceLine
+                              label="Time Out"
+                              time={format(
                                 new Date(req.bundy_session.clock_out_time),
                                 "MMM d, h:mm a"
                               )}
-                              {req.bundy_session.clock_out_lat != null &&
-                                req.bundy_session.clock_out_lng != null && (
-                                  <>
-                                    {" "}
-                                    · {req.bundy_session.clock_out_lat.toFixed(6)},{" "}
-                                    {req.bundy_session.clock_out_lng.toFixed(6)}
-                                  </>
-                                )}
-                            </div>
-                          </div>
+                              coordinates={
+                                req.bundy_session.clock_out_lat != null &&
+                                req.bundy_session.clock_out_lng != null
+                                  ? `${req.bundy_session.clock_out_lat.toFixed(6)}, ${req.bundy_session.clock_out_lng.toFixed(6)}`
+                                  : null
+                              }
+                            />
+                          </RequestHistoryClockReference>
                         )}
 
                   {req.overtime_documents && req.overtime_documents.length > 0 && (

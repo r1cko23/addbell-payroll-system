@@ -167,7 +167,7 @@ export function MultiDatePicker({
         "bg-muted text-muted-foreground cursor-not-allowed": !isSelectable,
         "bg-red-50 text-red-600": isHoliday && !isSelected,
         "bg-blue-50 text-blue-600": isToday(date) && !isSelected,
-        "hover:bg-accent hover:text-accent-foreground":
+        "hover:bg-primary hover:text-primary-foreground":
           isSelectable && !isSelected && isCurrentMonth,
         "cursor-pointer": isSelectable,
         "cursor-not-allowed": !isSelectable,

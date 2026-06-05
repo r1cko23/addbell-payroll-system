@@ -1,6 +1,12 @@
 /**
- * Mobile-first Tailwind class bundles for the employee portal.
- * Default (unprefixed) styles target small screens; sm/md+ refine for larger viewports.
+ * Responsive Tailwind bundles for the employee portal.
+ *
+ * Viewport tiers (see lib/employee-portal-viewport.ts):
+ * - Mobile < 768px: single-column forms, bottom nav, compact header
+ * - Tablet 768–1023px: sidebar, single-column forms (narrow content area)
+ * - Laptop ≥ 1024px: sidebar, two-column forms, full padding
+ *
+ * Separate mobile vs desktop markup: EpMobileView / EpDesktopView (split at md).
  */
 
 /** ~44px touch target on mobile; compact width/height from sm upward */
@@ -21,18 +27,32 @@ export const epHeaderButton =
 
 /** Standard dialog: near full-width on mobile, scrollable */
 export const epDialogContent =
-  "max-h-[min(90dvh,90vh)] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain rounded-lg p-4 sm:max-w-md sm:w-full sm:p-6";
+  "max-h-[min(90dvh,90vh)] w-[calc(100vw-2rem)] max-w-none gap-3 overflow-y-auto overscroll-contain rounded-xl p-4 sm:max-w-md sm:w-full sm:gap-4 sm:p-6";
+
+/** Password / compact forms — room for the dialog close control on narrow screens */
+export const epDialogContentForm =
+  "max-h-[min(90dvh,90vh)] w-[calc(100vw-2rem)] max-w-none gap-3 overflow-y-auto overscroll-contain rounded-xl p-4 sm:max-w-sm sm:w-full sm:gap-4 sm:p-6";
 
 /** Wide dialog (e.g. payslip preview) */
 export const epDialogContentWide =
   "max-h-[min(90dvh,90vh)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg p-4 sm:max-w-4xl sm:w-full sm:p-6";
 
 /** Vertical rhythm between page sections */
-export const epPageStack = "w-full space-y-3 sm:space-y-4";
+export const epPageStack = "w-full space-y-3 md:space-y-4 lg:space-y-6";
+
+/** Home / quick-link cards — dense rows on mobile, roomier from sm */
+export const epQuickLinkCard =
+  "border-border/80 bg-card";
+
+export const epQuickLinkCardContent =
+  "flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4";
+
+export const epQuickLinkIcon =
+  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary sm:h-10 sm:w-10";
 
 /** Card list item — avoid hover motion on touch; enable from md */
 export const epCardInteractive =
-  "transition-shadow duration-200 motion-safe:md:hover:-translate-y-0.5 motion-safe:md:hover:shadow-hover";
+  "transition-colors duration-150 motion-safe:md:hover:border-primary/25 motion-safe:md:hover:bg-muted/30";
 
 /** Stacked full-width form actions on mobile */
 export const epFormActions =
@@ -48,8 +68,8 @@ export const epPageHeaderRow =
 export const epInlineField =
   "flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:w-auto";
 
-/** Two-column form grid from sm upward */
-export const epFormGrid = "grid w-full grid-cols-1 gap-4 sm:grid-cols-2";
+/** Single column on phone/tablet; two columns on laptop+ (room beside sidebar) */
+export const epFormGrid = "grid w-full grid-cols-1 gap-4 lg:grid-cols-2";
 
 /** Single labeled field block */
 export const epFormField = "w-full min-w-0 space-y-2";
@@ -75,4 +95,4 @@ export const epRequestCategoryText =
 
 /** Filed / created — pill container, same typography as category labels (SIL, Others) */
 export const epRequestFiledPill =
-  "inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-normal text-muted-foreground";
+  "inline-flex w-fit items-center rounded-md border border-border bg-muted px-3 py-1 text-xs font-normal text-muted-foreground";

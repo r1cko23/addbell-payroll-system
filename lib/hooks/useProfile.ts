@@ -13,6 +13,7 @@ interface Profile {
   role: string;
   profile_picture_url: string | null;
   can_access_salary: boolean;
+  can_manage_clock_access: boolean;
 }
 
 interface UseProfileData {
@@ -34,6 +35,7 @@ export function useProfile(): UseProfileData {
           role: user.role,
           profile_picture_url: user.profile_picture_url,
           can_access_salary: user.can_access_salary,
+          can_manage_clock_access: user.can_manage_clock_access,
         }
       : null,
     loading,

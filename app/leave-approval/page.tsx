@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, H3, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
@@ -45,6 +45,7 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { MetricCard } from "@/components/ui/metric-card";
+import { cn } from "@/lib/utils";
 import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
@@ -61,6 +62,14 @@ import {
   leaveRequestInOperationsManagerQueue,
   shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
+import { leaveToApprovalFields } from "@/lib/dual-approval-display";
+import { RequestApprovalLabels } from "@/components/approval/RequestApprovalLabels";
+import { fetchApproverNameMap } from "@/lib/load-approver-names";
+import {
+  approvalQueueCardHeaderMeta,
+  approvalQueueCardHeaderRow,
+  approvalQueueStatusBadge,
+} from "@/lib/approval-queue-card-ui";
 
 interface LeaveDocument {
   id: string;
@@ -235,12 +244,6 @@ export default function LeaveApprovalPage() {
   const [approverNames, setApproverNames] = useState<Record<string, string>>(
     {}
   );
-  const [hrApproverNames, setHrApproverNames] = useState<
-    Record<string, string>
-  >({});
-  const [rejectedByNames, setRejectedByNames] = useState<
-    Record<string, string>
-  >({});
 
   const getRequestGroupName = (request: LeaveRequest): string | null =>
     employeeGroupNameByEmployeeId[request.employee_id] || null;
@@ -633,176 +636,28 @@ export default function LeaveApprovalPage() {
     }));
     setRequests(withDocs as any);
 
-    // Load manager names for approved items
-    const managerIds = Array.from(
+    const allApproverIds = Array.from(
       new Set(
-        cleaned
-          .map((r) => r.project_manager_id || r.account_manager_id)
-          .filter((id): id is string => Boolean(id))
+        cleaned.flatMap((r) =>
+          [
+            r.project_manager_id,
+            r.account_manager_id,
+            r.hr_approver_id,
+            r.hr_approved_by,
+            r.rejected_by,
+          ].filter((id): id is string => Boolean(id))
+        )
       )
     );
-    if (managerIds.length > 0) {
-      loadApproverNames(managerIds);
-    }
-
-    // Load HR approver names when available
-    const hrIds = Array.from(
-      new Set(
-        cleaned
-          .map((r) => r.hr_approver_id || r.hr_approved_by)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-    if (hrIds.length > 0) {
-      loadHrApproverNames(hrIds);
-    }
-
-    // Load rejected_by names when available
-    const rejectedIds = Array.from(
-      new Set(
-        cleaned
-          .map((r) => r.rejected_by)
-          .filter((id): id is string => Boolean(id))
-      )
-    );
-    if (rejectedIds.length > 0) {
-      loadRejectedByNames(rejectedIds);
+    if (allApproverIds.length > 0) {
+      void loadApproverNames(allApproverIds);
     }
   }
 
   async function loadApproverNames(ids: string[]) {
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (userData && !userError) {
-      const usersArray = userData as Array<{
-        id: string;
-        full_name: string | null;
-        email: string | null;
-      }>;
-
-      setApproverNames((prev) => {
-        const next = { ...prev };
-        usersArray.forEach((row) => {
-          next[row.id] = row.full_name || row.email || row.id;
-        });
-        return next;
-      });
-      return;
-    }
-
-    const { data: empData, error: empError } = await supabase
-      .from("employees")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (empError || !empData) return;
-
-    const employeesArray = empData as Array<{
-      id: string;
-      full_name: string | null;
-      email: string | null;
-    }>;
-
-    setApproverNames((prev) => {
-      const next = { ...prev };
-      employeesArray.forEach((row) => {
-        next[row.id] = row.full_name || row.email || row.id;
-      });
-      return next;
-    });
-  }
-
-  async function loadHrApproverNames(ids: string[]) {
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (userData && !userError) {
-      const usersArray = userData as Array<{
-        id: string;
-        full_name: string | null;
-        email: string | null;
-      }>;
-
-      setHrApproverNames((prev) => {
-        const next = { ...prev };
-        usersArray.forEach((row) => {
-          next[row.id] = row.full_name || row.email || row.id;
-        });
-        return next;
-      });
-      return;
-    }
-
-    const { data: empData, error: empError } = await supabase
-      .from("employees")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (empError || !empData) return;
-
-    const employeesArray = empData as Array<{
-      id: string;
-      full_name: string | null;
-      email: string | null;
-    }>;
-
-    setHrApproverNames((prev) => {
-      const next = { ...prev };
-      employeesArray.forEach((row) => {
-        next[row.id] = row.full_name || row.email || row.id;
-      });
-      return next;
-    });
-  }
-
-  async function loadRejectedByNames(ids: string[]) {
-    const { data: userData, error: userError } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (userData && !userError) {
-      const usersArray = userData as Array<{
-        id: string;
-        full_name: string | null;
-        email: string | null;
-      }>;
-
-      setRejectedByNames((prev) => {
-        const next = { ...prev };
-        usersArray.forEach((row) => {
-          next[row.id] = row.full_name || row.email || row.id;
-        });
-        return next;
-      });
-      return;
-    }
-
-    const { data: empData, error: empError } = await supabase
-      .from("employees")
-      .select("id, full_name, email")
-      .in("id", ids);
-
-    if (empError || !empData) return;
-
-    const employeesArray = empData as Array<{
-      id: string;
-      full_name: string | null;
-      email: string | null;
-    }>;
-
-    setRejectedByNames((prev) => {
-      const next = { ...prev };
-      employeesArray.forEach((row) => {
-        next[row.id] = row.full_name || row.email || row.id;
-      });
-      return next;
-    });
+    const next = await fetchApproverNameMap(ids);
+    if (Object.keys(next).length === 0) return;
+    setApproverNames((prev) => ({ ...prev, ...next }));
   }
 
   async function downloadDocument(docId: string) {
@@ -1158,8 +1013,7 @@ export default function LeaveApprovalPage() {
     }).length,
     approvedByManager: requests.filter((r) =>
       isManagerApprovedStatus(getViewerStatus(r))
-    )
-      .length,
+    ).length,
     approvedByHR: requests.filter((r) => getViewerStatus(r) === "approved_by_hr")
       .length,
     rejected: requests.filter((r) => getViewerStatus(r) === "rejected").length,
@@ -1190,30 +1044,8 @@ export default function LeaveApprovalPage() {
       <VStack gap="8" className="w-full pb-24">
         <VStack gap="2" align="start">
           <H1>Leave Approvals</H1>
-          <BodySmall>Review and act on pending leave requests.</BodySmall>
+          <PageSubtitle>Review and act on pending leave requests.</PageSubtitle>
         </VStack>
-
-        <Card className="sticky top-4 z-20 border-primary/20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <CardContent className="p-4">
-            <HStack justify="between" align="center" className="flex-col gap-3 sm:flex-row">
-              <HStack gap="2" align="center" className="flex-wrap">
-                <Badge className="border-primary/30 bg-primary text-primary-foreground">
-                  {stats.pending} pending
-                </Badge>
-                <Badge variant="outline">{stats.approvedByManager} manager-approved</Badge>
-                <Badge variant="outline">{stats.approvedByHR} HR-approved</Badge>
-              </HStack>
-              <HStack gap="2" align="center" className="flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => router.push("/overtime-approval")}>
-                  OT queue
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => router.push("/failure-to-log-approval")}>
-                  FTL queue
-                </Button>
-              </HStack>
-            </HStack>
-          </CardContent>
-        </Card>
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
@@ -1348,33 +1180,51 @@ export default function LeaveApprovalPage() {
                 }}
               >
                 <CardContent className="p-4 flex flex-col gap-3 h-full">
-                  <HStack justify="between" align="start">
-                    <div className="flex-1">
-                      <HStack gap="3" align="center" className="mb-2 flex-wrap">
-                        <EmployeeAvatar
-                          profilePictureUrl={
-                            request.employees?.profile_picture_url
-                          }
-                          fullName={request.employees?.full_name || "Unknown"}
-                          size="sm"
-                        />
-                        <span className="font-bold text-lg">
-                          {request.employees?.full_name || "Unknown"}
-                        </span>
-                        <Caption>({request.employees?.employee_id})</Caption>
-                        <Badge
-                          variant={
-                            normalizeLeaveTypeLabel(request.leave_type) === "SIL"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {normalizeLeaveTypeLabel(request.leave_type)}
-                        </Badge>
-                        <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
-                          {leaveSubtypeLabel(request.leave_subtype)}
-                        </Badge>
-                      </HStack>
+                  <div className={approvalQueueCardHeaderRow}>
+                    <HStack gap="3" align="center" className={approvalQueueCardHeaderMeta}>
+                      <EmployeeAvatar
+                        profilePictureUrl={
+                          request.employees?.profile_picture_url
+                        }
+                        fullName={request.employees?.full_name || "Unknown"}
+                        size="sm"
+                      />
+                      <span className="font-bold text-lg">
+                        {request.employees?.full_name || "Unknown"}
+                      </span>
+                      <Caption>({request.employees?.employee_id})</Caption>
+                      <Badge
+                        variant={
+                          normalizeLeaveTypeLabel(request.leave_type) === "SIL"
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {normalizeLeaveTypeLabel(request.leave_type)}
+                      </Badge>
+                      <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
+                        {leaveSubtypeLabel(request.leave_subtype)}
+                      </Badge>
+                    </HStack>
+                    <Badge
+                      variant={
+                        getViewerStatus(request) === "pending"
+                          ? "secondary"
+                          : getViewerStatus(request) === "approved_by_hr"
+                          ? "default"
+                          : getViewerStatus(request) === "rejected"
+                          ? "destructive"
+                          : "default"
+                      }
+                      className={cn(
+                        leaveStatusClass(getViewerStatus(request)),
+                        approvalQueueStatusBadge
+                      )}
+                    >
+                      {leaveStatusLabel(getViewerStatus(request))}
+                    </Badge>
+                  </div>
+                  <div className="flex-1">
                       <HStack
                         gap="4"
                         align="center"
@@ -1436,80 +1286,11 @@ export default function LeaveApprovalPage() {
                           {format(new Date(request.created_at), "MMM d, yyyy h:mm a")}
                         </Caption>
                       ) : null}
-                      {(request.project_manager_id ||
-                        request.account_manager_id ||
-                        request.hr_approver_id ||
-                        request.rejected_by) && (
-                        <VStack
-                          gap="1"
-                          align="start"
-                          className="mt-2 text-xs text-muted-foreground"
-                        >
-                          {/* Account Manager Stage */}
-                          {(request.project_manager_id || request.account_manager_id) && (
-                            <Caption>
-                              Approved by Manager:{" "}
-                              {approverNames[request.project_manager_id || request.account_manager_id || ""] ||
-                                "Manager"}
-                              {(request.project_manager_approved_at || request.account_manager_approved_at) &&
-                                ` on ${format(new Date(request.project_manager_approved_at || request.account_manager_approved_at || ""), "MMM dd, yyyy h:mm a")}`}
-                            </Caption>
-                          )}
-                          {request.status === "rejected" &&
-                            request.rejected_by &&
-                            !(request.project_manager_id || request.account_manager_id) && (
-                              <Caption className="text-destructive">
-                                Rejected by Manager:{" "}
-                                {rejectedByNames[request.rejected_by] ||
-                                  "Manager"}
-                                {request.rejected_at &&
-                                  ` on ${format(new Date(request.rejected_at), "MMM dd, yyyy h:mm a")}`}
-                                {request.rejection_reason &&
-                                  ` - ${request.rejection_reason}`}
-                              </Caption>
-                            )}
-
-                          {/* HR Stage */}
-                          {request.status === "rejected" &&
-                            request.rejected_by &&
-                            (request.project_manager_id || request.account_manager_id) && (
-                              <Caption className="text-destructive">
-                                Rejected by HR:{" "}
-                                {rejectedByNames[request.rejected_by] || "HR"}
-                                {request.rejected_at &&
-                                  ` on ${format(new Date(request.rejected_at), "MMM dd, yyyy h:mm a")}`}
-                                {request.rejection_reason &&
-                                  ` - ${request.rejection_reason}`}
-                              </Caption>
-                            )}
-                          {request.status !== "rejected" &&
-                            (request.hr_approver_id || request.hr_approved_by) && (
-                              <Caption>
-                                Approved by HR:{" "}
-                                {hrApproverNames[request.hr_approver_id || request.hr_approved_by!] ||
-                                  "HR"}
-                                {request.hr_approved_at &&
-                                  ` on ${format(new Date(request.hr_approved_at), "MMM dd, yyyy h:mm a")}`}
-                              </Caption>
-                            )}
-                        </VStack>
-                      )}
-                    </div>
-                    <Badge
-                      variant={
-                        getViewerStatus(request) === "pending"
-                          ? "secondary"
-                          : getViewerStatus(request) === "approved_by_hr"
-                          ? "default"
-                          : getViewerStatus(request) === "rejected"
-                          ? "destructive"
-                          : "default"
-                      }
-                      className={leaveStatusClass(getViewerStatus(request))}
-                    >
-                      {leaveStatusLabel(getViewerStatus(request))}
-                    </Badge>
-                  </HStack>
+                      <RequestApprovalLabels
+                        fields={leaveToApprovalFields(request)}
+                        names={approverNames}
+                      />
+                  </div>
                   {canApprove(request) && (
                     <HStack
                       gap="2"
@@ -1802,48 +1583,20 @@ export default function LeaveApprovalPage() {
                     </div>
                   </div>
 
-                  {(selectedRequest.project_manager_approved_at ||
-                    selectedRequest.account_manager_approved_at ||
-                    selectedRequest.hr_approved_at ||
-                    selectedRequest.rejected_at) && (
+                  {(selectedRequest.project_manager_id ||
+                    selectedRequest.account_manager_id ||
+                    selectedRequest.hr_approver_id ||
+                    selectedRequest.hr_approved_by ||
+                    selectedRequest.rejected_by) && (
                     <div className="space-y-2">
                       <div className="text-sm text-muted-foreground">
                         Approval / Rejection
                       </div>
-                      <div className="space-y-1 text-sm">
-                        {(selectedRequest.project_manager_approved_at ||
-                          selectedRequest.account_manager_approved_at) && (
-                          <div>
-                            Approved by Manager on{" "}
-                            {format(
-                              new Date(
-                                selectedRequest.project_manager_approved_at ||
-                                  selectedRequest.account_manager_approved_at ||
-                                  ""
-                              ),
-                              "MMM dd, yyyy h:mm a"
-                            )}
-                          </div>
-                        )}
-                        {selectedRequest.hr_approved_at && (
-                          <div>
-                            Approved by HR on{" "}
-                            {format(
-                              new Date(selectedRequest.hr_approved_at),
-                              "MMM dd, yyyy h:mm a"
-                            )}
-                          </div>
-                        )}
-                        {selectedRequest.rejected_at && (
-                          <div className="text-red-600">
-                            Rejected on{" "}
-                            {format(
-                              new Date(selectedRequest.rejected_at),
-                              "MMM dd, yyyy h:mm a"
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <RequestApprovalLabels
+                        fields={leaveToApprovalFields(selectedRequest)}
+                        names={approverNames}
+                        className="text-sm text-muted-foreground"
+                      />
                     </div>
                   )}
 

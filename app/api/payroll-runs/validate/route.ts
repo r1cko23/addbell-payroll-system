@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     let empQuery = admin
       .from("employees")
       .select(
-        "id, employee_id, full_name, position, job_level, employment_type, salary_basis, base_rate, monthly_rate, per_day, hire_date, employment_status"
+        "id, employee_id, full_name, position, job_level, employment_type, salary_basis, base_rate, hire_date, employment_status"
       )
       .eq("is_active", true);
 

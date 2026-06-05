@@ -21,6 +21,7 @@ import {
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Plus, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageSubtitle } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface Project {
@@ -164,7 +165,7 @@ export default function ProjectsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-            <p className="text-muted-foreground text-sm mt-1">Manage construction projects, track progress and costs.</p>
+            <PageSubtitle className="mt-1">Manage construction projects, track progress and costs.</PageSubtitle>
           </div>
           {canManage && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

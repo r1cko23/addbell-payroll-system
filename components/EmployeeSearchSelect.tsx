@@ -162,8 +162,8 @@ export function EmployeeSearchSelect({
           <li
             role="option"
             className={cn(
-              "cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground",
-              highlightAll && "bg-accent/50"
+              "cursor-pointer px-3 py-2 dropdown-item-highlight",
+              highlightAll && "dropdown-item-selected"
             )}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => handleSelect("all")}
@@ -179,8 +179,8 @@ export function EmployeeSearchSelect({
               key={emp.id}
               role="option"
               className={cn(
-                "cursor-pointer px-3 py-2 hover:bg-accent hover:text-accent-foreground",
-                value === emp.id && "bg-accent/50"
+                "cursor-pointer px-3 py-2 dropdown-item-highlight",
+                value === emp.id && "dropdown-item-selected"
               )}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(emp.id)}

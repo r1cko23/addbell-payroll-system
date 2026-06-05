@@ -14,6 +14,7 @@ import {
   type PurchaseOrderLineItem,
 } from "@/types/purchase-order";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageSubtitle } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -308,9 +309,9 @@ export default function PurchaseOrderPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Purchase Orders</h1>
-          <p className="text-muted-foreground text-sm mt-1">
+          <PageSubtitle className="mt-1">
             {canCreatePurchaseOrders ? "Create, view, and manage purchase orders." : "View purchase orders."}
-          </p>
+          </PageSubtitle>
         </div>
         {canCreatePurchaseOrders ? (
           <Button onClick={() => setView("create")}><Plus className="h-4 w-4 mr-2" />New PO</Button>
@@ -387,7 +388,7 @@ export default function PurchaseOrderPage() {
           <Button variant="ghost" size="icon" onClick={() => setView("list")}><ArrowLeft className="h-5 w-5" /></Button>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">New Purchase Order</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Create a PO with Addbell branding</p>
+            <PageSubtitle className="mt-0.5">Create a PO with Addbell branding</PageSubtitle>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">

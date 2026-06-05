@@ -123,7 +123,7 @@ export function buildPayrollEntryRow(
   const pendingFtl = params.pendingFtlCount ?? 0;
 
   if (!hasRate) {
-    issues.push("Missing pay rate (base_rate / monthly_rate / per_day)");
+    issues.push("Missing pay rate (base_rate + salary_basis)");
   }
 
   if (!params.payslip && timesheetStatus !== "finalized") {

@@ -44,7 +44,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { generatePayrollRunTemplatePDF } from "@/utils/payroll-run-pdf";
-import { PayrollReadinessPanel } from "@/components/payroll/PayrollReadinessPanel";
 import type { PayrollEntrySummary } from "@/lib/ph-payroll/payroll-entry-validation";
 
 interface PayrollRun {
@@ -526,7 +525,7 @@ export default function PayrollPage() {
       !options?.forceOverride
     ) {
       toast.error(
-        `${payrollValidation.blocked} employee(s) blocked. Fix on Timesheet Review or export blocked list.`
+        `${payrollValidation.blocked} employee(s) blocked. Fix on Time Attendance or export blocked list.`
       );
       return;
     }
@@ -577,12 +576,12 @@ export default function PayrollPage() {
 
       if (notFinalized.length > 0) {
         toast.message(
-          `${notFinalized.length} employee(s) skipped — finalize timesheets on Timesheet Review first.`,
+          `${notFinalized.length} employee(s) skipped — finalize timesheets on Time Attendance first.`,
           {
             action: {
-              label: "Open review",
+              label: "Open Time Attendance",
               onClick: () => {
-                window.location.href = `/timesheet-review?period_start=${selectedRun.cutoff_start}`;
+                window.location.href = `/timesheet?period_start=${selectedRun.cutoff_start}`;
               },
             },
           }
@@ -769,8 +768,8 @@ export default function PayrollPage() {
   if (selectedRun) {
     return (
       <DashboardLayout>
-        <VStack gap="6" className="w-full pb-16 max-w-6xl">
-          <HStack justify="between" align="center">
+        <VStack gap="6" className="mx-auto w-full max-w-6xl pb-16">
+          <HStack justify="between" align="start" className="w-full flex-col gap-4 sm:flex-row">
             <VStack gap="1" align="start">
               <Button variant="ghost" size="sm" onClick={() => setSelectedRun(null)} className="mb-1">
                 <Icon name="ArrowLeft" size={IconSizes.sm} className="mr-2" />
@@ -779,8 +778,10 @@ export default function PayrollPage() {
               <H1>
                 Payroll: {format(new Date(selectedRun.cutoff_start), "MMM d")} – {format(new Date(selectedRun.cutoff_end), "MMM d, yyyy")}
               </H1>
-              <HStack gap="2" align="center">
-                <Badge variant="outline" className={statusStyles[selectedRun.status] || ""}>{selectedRun.status}</Badge>
+              <HStack gap="2" align="center" className="flex-wrap">
+                <Badge variant="outline" className={`capitalize ${statusStyles[selectedRun.status] || ""}`}>
+                  {selectedRun.status}
+                </Badge>
                 {selectedRun.pay_date && <Caption>Pay Date: {format(new Date(selectedRun.pay_date), "MMM d, yyyy")}</Caption>}
                 <Caption>
                   Scope:{" "}
@@ -790,7 +791,7 @@ export default function PayrollPage() {
                 </Caption>
               </HStack>
             </VStack>
-            <HStack gap="2">
+            <HStack gap="2" className="w-full flex-wrap sm:ml-auto sm:w-auto sm:justify-end">
               {selectedRun.status === "draft" && (
                 <>
                   <Button onClick={() => generatePayslips()} disabled={processing}>
@@ -845,15 +846,6 @@ export default function PayrollPage() {
               )}
             </HStack>
           </HStack>
-
-          {payrollValidation && (
-            <PayrollReadinessPanel
-              validation={payrollValidation}
-              cutoffStart={selectedRun.cutoff_start}
-              loading={loadingValidation}
-              onRefresh={() => loadPayrollValidation(selectedRun)}
-            />
-          )}
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1021,14 +1013,11 @@ export default function PayrollPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full pb-24">
-        <HStack justify="between" align="center" className="flex-col gap-4 sm:flex-row">
-          <VStack gap="2" align="start">
-            <H1>Payroll</H1>
-            <BodySmall>Runs, payslips, and totals.</BodySmall>
-          </VStack>
+      <VStack gap="8" className="mx-auto w-full max-w-6xl pb-24">
+        <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row">
+          <H1>Payroll</H1>
           {(isManagement || isHR) && (
-            <Button onClick={openNewRunDialog}>
+            <Button onClick={openNewRunDialog} className="w-full sm:ml-auto sm:w-auto">
               <Icon name="Plus" size={IconSizes.sm} />
               New Payroll Run
             </Button>

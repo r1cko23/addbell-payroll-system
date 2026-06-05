@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { ChevronDown, Menu } from "lucide-react";
+import { List, CaretDown } from "phosphor-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { formatRoleName } from "@/lib/formatRoleName";
+import { formatProfileDisplayName } from "@/lib/format-profile-display-name";
 import { Badge } from "@/components/ui/badge";
 
 interface HeaderProps {
@@ -32,15 +33,6 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [profilePictureUrl, setProfilePictureUrl] = useState<string | null>(
     null
   );
-
-  function getRoleBadgeClass(role?: string | null) {
-    const r = (role || "").trim().toLowerCase();
-    if (r === "upper_management") return "bg-indigo-50 text-indigo-700 border-indigo-200";
-    if (r === "operations_manager") return "bg-blue-50 text-blue-700 border-blue-200";
-    if (r === "purchasing_officer") return "bg-amber-50 text-amber-800 border-amber-200";
-    if (r === "hr") return "bg-emerald-50 text-emerald-800 border-emerald-200";
-    return "bg-secondary text-secondary-foreground border-transparent";
-  }
 
   useEffect(() => {
     let userSubscription: ReturnType<typeof supabase.channel> | null = null;
@@ -169,13 +161,15 @@ export function Header({ onMenuClick }: HeaderProps) {
     router.refresh();
   };
 
+  const displayName = formatProfileDisplayName(userFullName);
+
   const getInitials = () => {
-    if (userFullName) {
-      const parts = userFullName.trim().split(" ");
+    if (displayName) {
+      const parts = displayName.trim().split(" ");
       if (parts.length >= 2) {
         return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
       }
-      return userFullName.substring(0, 2).toUpperCase();
+      return displayName.substring(0, 2).toUpperCase();
     }
     if (user?.email) {
       return user.email.substring(0, 2).toUpperCase();
@@ -184,7 +178,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center border-b border-border/80 bg-background px-4 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/95 sm:px-6 xl:px-8">
+    <header className="app-shell-header sticky top-0 z-30 flex items-center border-b border-border bg-card px-4 sm:px-6 xl:px-8">
       <div className="flex w-full items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {onMenuClick ? (
@@ -195,7 +189,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               onClick={onMenuClick}
               aria-label="Open navigation"
             >
-              <Menu className="h-5 w-5" />
+              <List className="h-5 w-5" weight="bold" />
             </Button>
           ) : null}
         </div>
@@ -204,31 +198,31 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-auto rounded-xl border border-transparent px-2 py-1.5 hover:border-primary/20 hover:bg-primary/5 sm:px-3"
+                className="h-auto rounded-md border border-transparent px-2 py-1.5 hover:bg-muted sm:px-3"
               >
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarImage
                     src={profilePictureUrl || undefined}
-                    alt={userFullName || user?.email || "User"}
+                    alt={displayName || user?.email || "User"}
                   />
-                  <AvatarFallback className="gradient-accent text-xs text-primary-foreground">
+                  <AvatarFallback className="bg-primary text-xs font-medium text-primary-foreground">
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden flex-col items-start sm:flex">
                   <span className="text-sm font-medium text-foreground">
-                    {userFullName || user?.email}
+                    {displayName || user?.email}
                   </span>
                   {userRole ? (
                     <Badge
                       variant="secondary"
-                      className={`mt-1 h-5 rounded-md border px-2 text-[11px] font-normal ${getRoleBadgeClass(userRole)}`}
+                      className="mt-1 h-5 rounded-md px-2 text-[11px] font-normal"
                     >
                       {formatRoleName(userRole)}
                     </Badge>
                   ) : null}
                 </div>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <CaretDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

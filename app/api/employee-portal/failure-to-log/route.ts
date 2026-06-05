@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { loadApproverNameMap } from "@/lib/load-approver-names";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,34 +9,6 @@ function getAdminClient() {
     throw new Error("Missing Supabase service-role configuration");
   }
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-async function loadApproverNameMap(
-  admin: any,
-  approverIds: Array<string | null | undefined>
-) {
-  const uniqueIds = Array.from(
-    new Set(approverIds.filter((id): id is string => Boolean(id)))
-  );
-  if (uniqueIds.length === 0) return {} as Record<string, string>;
-
-  const { data, error } = await admin
-    .from("profiles")
-    .select("id, full_name, email")
-    .in("id", uniqueIds);
-
-  if (error || !data) {
-    console.error("failure-to-log approver profile load:", error);
-    return {} as Record<string, string>;
-  }
-
-  return (data as Array<{ id: string; full_name: string | null; email: string | null }>).reduce(
-    (acc, row) => {
-      acc[row.id] = row.full_name || row.email || row.id;
-      return acc;
-    },
-    {} as Record<string, string>
-  );
 }
 
 export async function GET(req: NextRequest) {

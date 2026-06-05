@@ -117,8 +117,22 @@ export function LoginPageClient() {
           toast.success("Login successful!");
           // Use window.location for full page reload to ensure cookies are read
           // This is more reliable than router.push() for auth state persistence
-          setTimeout(() => {
-            window.location.href = "/dashboard";
+          setTimeout(async () => {
+            let landingRoute = "/dashboard";
+            try {
+              const res = await fetch("/api/auth/landing-route", {
+                cache: "no-store",
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (typeof data.route === "string" && data.route.startsWith("/")) {
+                  landingRoute = data.route;
+                }
+              }
+            } catch {
+              // Fall back to dashboard if landing route lookup fails
+            }
+            window.location.href = landingRoute;
           }, 500);
         } else {
           throw new Error("Session not found after login. Please try again.");
@@ -255,8 +269,14 @@ export function LoginPageClient() {
     }
   };
 
+  const inputClass =
+    "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1";
+  const labelClass = "mb-1.5 block text-sm font-medium text-foreground";
+  const submitClass =
+    "w-full rounded-md bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -267,34 +287,77 @@ export function LoginPageClient() {
           },
         }}
       />
-      <div className="w-full max-w-[380px]">
-        <div className="rounded-xl border border-border/80 bg-card/95 px-6 py-6 shadow-card backdrop-blur-sm">
-          {/* Header: compact logo + title */}
-          <div className="flex flex-col items-center gap-3 mb-5">
-            <img
-              src="/add-bell-logo-new.png"
-              alt="Add-bell"
-              className="h-12 w-auto object-contain"
-              onError={(e) => {
-                e.currentTarget.style.display = "none";
-              }}
-            />
-            <div className="text-center">
-              <h1 className="font-display text-base font-semibold tracking-tight text-foreground">
-                Add-bell Technical Services, Inc.
-              </h1>
-              <p className="mt-0.5 text-xs text-muted-foreground">Sign in to your account</p>
+      <aside className="relative hidden min-h-screen w-[42%] max-w-xl flex-col overflow-hidden border-r lg:flex">
+        <div className="login-brand-panel-bg" aria-hidden="true">
+          <img
+            src="/login-company-profile-panel.jpg"
+            alt=""
+            className="pointer-events-none select-none"
+          />
+        </div>
+        <div className="login-brand-panel-overlay absolute inset-0" aria-hidden="true" />
+        <div className="relative z-10 flex min-h-screen w-full flex-col items-center p-8 sm:p-10">
+          <div className="flex w-full shrink-0 justify-center">
+            <div className="brand-logo brand-logo-hero">
+              <img
+                src="/add-bell-logo-on-dark.png?v=9"
+                alt="Add-bell"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
             </div>
           </div>
+          <div className="flex w-full flex-1 flex-col items-center justify-center px-2 text-center">
+            <div className="max-w-sm space-y-3">
+              <h1 className="text-2xl font-semibold leading-tight text-sidebar-foreground">
+                Add-bell Technical Services, Inc.
+              </h1>
+              <p className="text-sm leading-relaxed text-sidebar-muted">
+                Payroll, time attendance, and project operations — one system for
+                your workforce.
+              </p>
+            </div>
+          </div>
+          <p className="w-full shrink-0 text-center text-xs text-sidebar-muted">
+            © {new Date().getFullYear()} Add-bell Technical Services, Inc.
+          </p>
+        </div>
+      </aside>
 
-          {/* Role toggle */}
-          <div className="mb-4 flex overflow-hidden rounded-lg border border-border/80 bg-background/70 p-1">
+      <div className="flex flex-1 items-center justify-center bg-background p-6 sm:p-10">
+        <div className="w-full max-w-[400px]">
+          <div className="mb-8 text-center lg:hidden">
+            <div className="brand-logo brand-logo-mobile mx-auto mb-4">
+              <img
+                src="/add-bell-logo-new.png"
+                alt="Add-bell Technical Services, Inc."
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
+            <h1 className="text-xl font-semibold text-foreground">
+              Add-bell Technical Services, Inc.
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">Sign in to continue</p>
+          </div>
+
+          <div className="rounded-md border border-border bg-card p-6 shadow-sm sm:p-8">
+            <div className="mb-6 hidden lg:block">
+              <h2 className="text-lg font-semibold text-foreground">Sign in</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Choose your access type below
+              </p>
+            </div>
+
+          <div className="mb-5 grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/40 p-1">
             <button
               type="button"
-              className={`flex-1 cursor-pointer rounded-md py-2.5 text-xs font-medium transition-all duration-200 ${
+              className={`rounded-sm py-2 text-sm font-medium transition-colors ${
                 mode === "admin"
-                  ? "bg-gradient-to-r from-primary to-accent-secondary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-background hover:text-foreground"
               }`}
               onClick={() => setMode("admin")}
             >
@@ -302,10 +365,10 @@ export function LoginPageClient() {
             </button>
             <button
               type="button"
-              className={`flex-1 cursor-pointer rounded-md py-2.5 text-xs font-medium transition-all duration-200 ${
+              className={`rounded-sm py-2 text-sm font-medium transition-colors ${
                 mode === "employee"
-                  ? "bg-gradient-to-r from-primary to-accent-secondary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-background hover:text-foreground"
               }`}
               onClick={() => setMode("employee")}
             >
@@ -316,8 +379,8 @@ export function LoginPageClient() {
           {mode === "admin" ? (
             <form onSubmit={handleAdminLogin} className="space-y-4">
               <div>
-                <label htmlFor="email" className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                  Email Address
+                <label htmlFor="email" className={labelClass}>
+                  Email address
                 </label>
                 <input
                   id="email"
@@ -325,13 +388,13 @@ export function LoginPageClient() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className={inputClass}
                   placeholder="you@company.com"
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                <label htmlFor="password" className={labelClass}>
                   Password
                 </label>
                 <input
@@ -340,17 +403,13 @@ export function LoginPageClient() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className={inputClass}
                   placeholder="••••••••"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-gradient-to-r from-primary to-accent-secondary py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-accent disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "Signing in..." : "Sign In"}
+              <button type="submit" disabled={loading} className={submitClass}>
+                {loading ? "Signing in..." : "Sign in"}
               </button>
               <button
                 type="button"
@@ -367,39 +426,31 @@ export function LoginPageClient() {
           ) : (
             <form onSubmit={handleEmployeeLogin} className="space-y-4">
               <div>
-                <label className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                  Employee ID
-                </label>
+                <label className={labelClass}>Employee ID</label>
                 <input
                   type="text"
                   required
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className={inputClass}
                   placeholder="2025-001"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block font-mono text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                  Password
-                </label>
+                <label className={labelClass}>Password</label>
                 <input
                   type="password"
                   required
                   value={employeePassword}
                   onChange={(e) => setEmployeePassword(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-input bg-background/70 px-4 text-sm text-foreground shadow-sm placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className={inputClass}
                   placeholder="Default is your Employee ID"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-xl bg-gradient-to-r from-primary to-accent-secondary py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-accent disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "Signing in..." : "Sign In"}
+              <button type="submit" disabled={loading} className={submitClass}>
+                {loading ? "Signing in..." : "Sign in"}
               </button>
               {employeeError && (
                 <p className="text-xs text-destructive">{employeeError}</p>
@@ -407,16 +458,16 @@ export function LoginPageClient() {
             </form>
           )}
 
-          <p className="mt-4 text-center text-[11px] text-muted-foreground">
+          <p className="mt-4 text-center text-xs text-muted-foreground">
             {mode === "admin" ? "Authorized personnel only" : "Use the credentials provided by HR"}
           </p>
-        </div>
+          </div>
 
-        <div className="mt-4 space-y-1 text-center text-[11px] text-muted-foreground">
-          <p>© 2025 Add-bell Technical Services, Inc.</p>
-          <a href="/privacy" className="transition-colors hover:text-primary">
-            Privacy Notice
-          </a>
+          <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
+            <a href="/privacy" className="hover:text-primary hover:underline">
+              Privacy notice
+            </a>
+          </p>
         </div>
       </div>
     </div>

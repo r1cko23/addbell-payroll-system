@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { VStack, HStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -449,9 +449,9 @@ export default function AuditDashboardPage() {
         {/* Header */}
         <VStack gap="2" align="start">
           <H1>Audit Dashboard</H1>
-          <BodySmall>
+          <PageSubtitle>
             Comprehensive audit trail and employee first login tracking
-          </BodySmall>
+          </PageSubtitle>
         </VStack>
 
         {/* Tabs */}

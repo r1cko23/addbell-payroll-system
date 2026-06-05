@@ -82,8 +82,8 @@ export function PayrollReadinessPanel({
               Export Blocked
             </Button>
             <Button variant="link" size="sm" className="h-8 px-2" asChild>
-              <Link href={`/timesheet-review?period_start=${cutoffStart}`}>
-                Timesheet Review
+              <Link href={`/timesheet?period_start=${cutoffStart}`}>
+                Time Attendance
               </Link>
             </Button>
           </HStack>

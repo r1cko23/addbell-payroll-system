@@ -40,7 +40,9 @@ interface UserRoleData {
   isViewer: boolean;
   isRestrictedAccess: boolean; // approver or viewer
   isOperationsManager: boolean;
-  canAccessSalaryInfo: boolean; // Admin or April Nina Gammad
+  canAccessSalaryInfo: boolean;
+  /** Admin/upper management, or HR with explicit profile flag */
+  canManageClockAccess: boolean;
   /** Only Admin or HR April Gammad can update (re-save) a saved payslip */
   canUpdatePayslip: boolean;
   refetch: () => void;
@@ -85,9 +87,9 @@ export function useUserRole(): UserRoleData {
       isRestrictedAccess: normalizedRole === "approver" || normalizedRole === "viewer",
       isOperationsManager: isOperationsManagerRole(normalizedRole),
       canAccessSalaryInfo:
-        isManagement ||
-        normalizedRole === "hr" ||
-        (user?.can_access_salary ?? false),
+        isManagement || (user?.can_access_salary ?? false),
+      canManageClockAccess:
+        isManagement || (user?.can_manage_clock_access ?? false),
       canUpdatePayslip: isManagement || isAprilGammad,
       refetch,
     };

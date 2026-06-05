@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { verifyEmployeeRecordEditAccess } from "@/lib/api-helpers";
+import { verifyClockSiteManagementAccess } from "@/lib/api-helpers";
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,7 +19,7 @@ function adminClient() {
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await verifyEmployeeRecordEditAccess();
+    const auth = await verifyClockSiteManagementAccess();
     if (!auth) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
  */
 export async function PUT(req: NextRequest) {
   try {
-    const auth = await verifyEmployeeRecordEditAccess();
+    const auth = await verifyClockSiteManagementAccess();
     if (!auth) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

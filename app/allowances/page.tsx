@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { H1, H4, BodySmall, Label, Caption } from "@/components/ui/typography";
+import { H1, H4, BodySmall, Label, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -214,7 +214,7 @@ export default function AllowancesPage() {
     <DashboardLayout>
       <VStack gap="8">
         <H1>Cutoff Allowances</H1>
-        <BodySmall>Manual allowances per cutoff period.</BodySmall>
+        <PageSubtitle>Manual allowances per cutoff period.</PageSubtitle>
 
         <CardSection>
           <VStack gap="4">

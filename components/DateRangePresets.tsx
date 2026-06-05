@@ -747,7 +747,7 @@ export function DateRangePresets({
                               "bg-primary text-primary-foreground font-semibold",
                             isEnd &&
                               "bg-primary text-primary-foreground font-semibold",
-                            "hover:bg-accent"
+                            "hover:bg-primary hover:text-primary-foreground"
                           )}
                         >
                           <div className="text-right font-medium mb-1">

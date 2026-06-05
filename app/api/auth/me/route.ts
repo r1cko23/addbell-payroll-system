@@ -33,7 +33,9 @@ export async function GET(request: NextRequest) {
     // Get full user data from profiles table (role is already cached, but we need other fields)
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, avatar_url, is_active")
+      .select(
+        "id, email, full_name, role, avatar_url, is_active, can_access_salary, can_manage_clock_access"
+      )
       .eq("id", authUser.id)
       .eq("is_active", true)
       .single();
@@ -51,7 +53,8 @@ export async function GET(request: NextRequest) {
           full_name: profileData.full_name,
           role: profileData.role,
           profile_picture_url: profileData.avatar_url,
-          can_access_salary: false, // profiles table doesn't have can_access_salary, default to false
+          can_access_salary: profileData.can_access_salary ?? false,
+          can_manage_clock_access: profileData.can_manage_clock_access ?? false,
         },
       },
       { cache: 30, staleWhileRevalidate: 60 }

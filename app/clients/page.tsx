@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageSubtitle } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -204,9 +205,9 @@ export default function ClientsPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground text-sm">
+          <PageSubtitle>
             Manage your construction clients and their information
-          </p>
+          </PageSubtitle>
         </div>
         {canManage && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

@@ -20,7 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -556,7 +556,7 @@ export default function BIRReportsPage() {
         {/* Header */}
         <VStack gap="2" align="start">
           <H1>BIR Reports</H1>
-          <BodySmall>BIR tax filing reports.</BodySmall>
+          <PageSubtitle>BIR tax filing reports.</PageSubtitle>
         </VStack>
 
         {/* Year Selection */}

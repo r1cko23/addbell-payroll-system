@@ -7,7 +7,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -1518,7 +1518,13 @@ export default function TimesheetPage() {
       // Undertime is the missing required hours after credited BH (BH already uses business windows).
       // Policy: UT is rounded up to the next FULL hour.
       const rawDeficit = Math.max(0, requiredHours - bh);
-      const ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
+      let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
+
+      // Future / not-yet-worked days (status "-") should not accrue late or undertime.
+      if (status === "-") {
+        lt = 0;
+        ut = 0;
+      }
 
       days.push({
         date: dateStr,
@@ -1723,7 +1729,7 @@ export default function TimesheetPage() {
         <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
           <VStack gap="2" align="start">
             <H1>Timesheet</H1>
-            <BodySmall>Attendance by cutoff week.</BodySmall>
+            <PageSubtitle>Attendance by cutoff week.</PageSubtitle>
           </VStack>
           <HStack gap="3" align="center" className="flex-wrap justify-end">
             {/* Year Selector */}

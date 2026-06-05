@@ -12,7 +12,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall, Caption, KpiValue } from "@/components/ui/typography";
+import { H1, BodySmall, Caption, KpiValue, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -1280,12 +1280,12 @@ export default function TimeEntriesPage() {
   return (
     <DashboardLayout>
       <VStack gap="8" className="w-full max-w-full min-w-0">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <VStack gap="2" align="start">
             <H1>Time Entries</H1>
-            <BodySmall>View punches and export logs.</BodySmall>
+            <PageSubtitle>View punches and export logs.</PageSubtitle>
           </VStack>
-          <HStack gap="2" className="w-full sm:w-auto">
+          <HStack gap="2" className="w-full flex-wrap sm:ml-auto sm:w-auto sm:justify-end">
             {/* Admin-only: Add Time Entry for any employee */}
             {isManagement && (
               <>
@@ -1311,6 +1311,7 @@ export default function TimeEntriesPage() {
                     setNewEntryClockOut(formatForInput(clockOut));
                     setShowAddEntryDialog(true);
                   }}
+                  variant="outline"
                   className="w-full sm:w-auto"
                 >
                   <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
@@ -1320,7 +1321,7 @@ export default function TimeEntriesPage() {
                   onClick={() => {
                     setShowBulkEntryDialog(true);
                   }}
-                  variant="secondary"
+                  variant="outline"
                   className="w-full sm:w-auto"
                 >
                   <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
@@ -1362,6 +1363,7 @@ export default function TimeEntriesPage() {
                     setNewEntryClockOut(formatForInput(clockOut));
                     setShowAddEntryDialog(true);
                   }}
+                  variant="outline"
                   className="w-full sm:w-auto"
                 >
                   <Icon name="Plus" size={IconSizes.sm} className="mr-2" />
@@ -1370,7 +1372,7 @@ export default function TimeEntriesPage() {
               )}
             <Button
               asChild
-              variant="secondary"
+              variant="outline"
               className="w-full sm:w-auto"
             >
               <Link href="/time-entries/attlog-import">
@@ -1380,7 +1382,7 @@ export default function TimeEntriesPage() {
             </Button>
             <Button
               onClick={exportToCSV}
-              variant="secondary"
+              variant="outline"
               className="w-full sm:w-auto"
             >
               <Icon name="ArrowsClockwise" size={IconSizes.sm} />

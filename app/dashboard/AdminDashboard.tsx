@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
@@ -173,7 +173,7 @@ export default function AdminDashboard() {
         title="Executive dashboard"
         description="Workforce, projects, and pending actions."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {showFundRequestActions ? (
               <Link href="/fund-request-approval">
                 <Button variant="outline" size="sm">
@@ -182,7 +182,9 @@ export default function AdminDashboard() {
               </Link>
             ) : null}
             <Link href="/purchase-order">
-              <Button size="sm">Purchase Orders</Button>
+              <Button size="sm" variant="outline">
+                Purchase Orders
+              </Button>
             </Link>
             <Button
               variant="outline"
@@ -269,9 +271,9 @@ export default function AdminDashboard() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-1">
           <SectionHeading>Performance Snapshot</SectionHeading>
-          <BodySmall className="text-muted-foreground">
+          <PageSubtitle>
             Key metrics and pending actions.
-          </BodySmall>
+          </PageSubtitle>
         </div>
         <HStack gap="2" className="flex-wrap">
           <Link href="/employees">
@@ -347,7 +349,7 @@ export default function AdminDashboard() {
                       {p.progress_percentage != null ? (
                         <div className="flex items-center gap-2 justify-center">
                           <div className="h-2 w-16 rounded-full bg-muted">
-                            <div className="gradient-accent h-2 rounded-full" style={{ width: `${Math.min(100, Number(p.progress_percentage))}%` }} />
+                            <div className="h-2 rounded-sm bg-primary" style={{ width: `${Math.min(100, Number(p.progress_percentage))}%` }} />
                           </div>
                           <span className="text-xs text-muted-foreground">{Number(p.progress_percentage)}%</span>
                         </div>

@@ -150,6 +150,47 @@ export async function verifyEmployeeRecordEditAccess(): Promise<{
   return { userId: user.id, role };
 }
 
+const CLOCK_SITE_MANAGEMENT_ROLES = new Set(["admin", "upper_management"]);
+
+/**
+ * Admin/upper management always; HR and others need profiles.can_manage_clock_access.
+ */
+export async function verifyClockSiteManagementAccess(): Promise<{
+  userId: string;
+  role: string;
+} | null> {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, can_manage_clock_access")
+    .eq("id", user.id)
+    .eq("is_active", true)
+    .single();
+
+  if (profileError || !profileData) {
+    return null;
+  }
+
+  const role = profileData.role;
+  if (CLOCK_SITE_MANAGEMENT_ROLES.has(role)) {
+    return { userId: user.id, role };
+  }
+
+  if (profileData.can_manage_clock_access === true) {
+    return { userId: user.id, role };
+  }
+
+  return null;
+}
+
 /**
  * Get authenticated user with role check
  */

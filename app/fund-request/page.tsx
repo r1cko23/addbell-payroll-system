@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Search, Plus } from 'lucide-react';
-import { H1, PageTitle, BodySmall } from '@/components/ui/typography';
+import { H1, PageTitle, PageSubtitle } from '@/components/ui/typography';
 import type { FundRequestRow } from '@/types/fund-request';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
 
@@ -141,9 +141,9 @@ export default function FundRequestListPage() {
           ) : (
             <>
               <H1>Fund Requests</H1>
-              <BodySmall className="mt-1">
+              <PageSubtitle className="mt-1">
                 Materials, subcontractor, project funds, or liquidation.
-              </BodySmall>
+              </PageSubtitle>
             </>
           )}
         </div>

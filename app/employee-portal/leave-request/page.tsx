@@ -1071,8 +1071,8 @@ export default function LeaveRequestPage() {
 
         {/* Requests List */}
         <Card className="w-full">
-          <CardHeader className="px-4 sm:px-6">
-            <CardTitle>My Leave Requests</CardTitle>
+          <CardHeader className="px-3 pb-3 pt-4 sm:px-6 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">My Leave Requests</CardTitle>
           </CardHeader>
           <CardContent className={epRequestHistorySectionContent}>
             {requestsFetchError ? (

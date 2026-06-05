@@ -1,20 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { Toaster } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { createClient } from "@/lib/supabase/client";
 import {
   EmployeeSession,
   EmployeeSessionProvider,
 } from "@/contexts/EmployeeSessionContext";
-import { SignOut } from "phosphor-react";
 import { EmployeePortalSidebar } from "@/components/EmployeePortalSidebar";
 import { EmployeePortalMobileNav } from "@/components/EmployeePortalMobileNav";
-import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import { EmployeePortalHeader } from "@/components/employee-portal/EmployeePortalHeader";
+import { formatProfileDisplayName } from "@/lib/format-profile-display-name";
 
 export default function EmployeePortalLayout({
   children,
@@ -161,6 +158,9 @@ export default function EmployeePortalLayout({
     router.replace("/login?mode=employee");
   };
 
+  const displayName =
+    formatProfileDisplayName(employee?.full_name) || employee?.full_name || "";
+
   if (loading || !employee) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30">
@@ -177,7 +177,7 @@ export default function EmployeePortalLayout({
         refreshSession,
       }}
     >
-      <div className="flex min-h-screen bg-muted/25">
+      <div className="flex min-h-screen bg-background">
         {/* Sidebar - Desktop */}
         <aside className="hidden md:flex fixed left-0 top-0 bottom-0 z-40">
           <EmployeePortalSidebar />
@@ -187,78 +187,35 @@ export default function EmployeePortalLayout({
         {isSidebarOpen && (
           <>
             <div
-              className="fixed inset-0 bg-background/70 backdrop-blur-sm z-40 lg:hidden"
+              className="fixed inset-0 z-40 bg-foreground/40 md:hidden"
               onClick={() => setIsSidebarOpen(false)}
             />
-            <aside className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-background shadow-xl lg:hidden">
+            <aside className="fixed left-0 top-0 bottom-0 z-50 w-64 bg-background shadow-xl md:hidden">
               <EmployeePortalSidebar onClose={() => setIsSidebarOpen(false)} />
             </aside>
           </>
         )}
 
         {/* Main Content Area */}
-        <div className="flex flex-1 flex-col bg-muted/15 pb-20 lg:pl-64 md:pb-0">
-          {/* Header */}
-          <header className="sticky top-0 z-30 border-b border-border/80 bg-background/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
-            <div className="w-full px-3 py-3 sm:px-4 sm:py-4 md:px-6 lg:px-8">
-              <div className="flex items-center justify-between gap-2 sm:gap-4">
-                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                  <Link
-                    href="/employee-portal"
-                    className="flex min-w-0 items-center gap-2 transition-opacity hover:opacity-90 sm:gap-3"
-                  >
-                    <Avatar className="h-10 w-10 shrink-0 border-2 border-primary shadow-sm transition-shadow hover:shadow-md sm:h-12 sm:w-12">
-                      <AvatarImage
-                        src={profilePictureUrl || undefined}
-                        alt={employee.full_name}
-                      />
-                      <AvatarFallback className="bg-primary text-base font-bold text-primary-foreground sm:text-xl">
-                        {employee.full_name
-                          .split(" ")
-                          .map((part) => part[0])
-                          .join("")
-                          .slice(0, 2)
-                          .toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 text-left">
-                      <p className="truncate text-base font-semibold text-foreground sm:text-lg">
-                        {employee.full_name}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground sm:text-sm">
-                        ID: {employee.employee_id}
-                      </p>
-                    </div>
-                  </Link>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  <ChangePasswordDialog employeeId={employee.id} />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium"
-                    aria-label="Log out"
-                  >
-                    <SignOut className="h-4 w-4" weight="bold" />
-                    <span>Logout</span>
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </header>
+        <div className="flex flex-1 flex-col bg-background md:pl-64">
+          <EmployeePortalHeader
+            displayName={displayName}
+            employeeId={employee.employee_id}
+            profilePictureUrl={profilePictureUrl}
+            onLogout={handleLogout}
+            onOpenMenu={() => setIsSidebarOpen(true)}
+          />
 
           <main
             id="employee-main-content"
-            className="mx-auto w-full max-w-7xl flex-1 px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] sm:px-4 sm:py-6 md:px-6 lg:px-8 lg:pb-6"
+            className="mx-auto w-full max-w-7xl flex-1 px-3 py-3 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] sm:px-4 sm:pt-6 md:px-6 md:py-6 lg:px-8"
             tabIndex={-1}
           >
             {children}
           </main>
         </div>
 
-        <EmployeePortalMobileNav />
+        <EmployeePortalMobileNav onOpenMenu={() => setIsSidebarOpen(true)} />
         <Toaster
           position="top-center"
           richColors

@@ -3,6 +3,8 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUserRole } from '@/lib/hooks/useUserRole';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { resolveDefaultLandingRoute } from '@/lib/default-landing-route';
 import HRDashboard from './HRDashboard';
 import AdminDashboard from './AdminDashboard';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -11,27 +13,46 @@ import { Icon, IconSizes } from '@/components/ui/phosphor-icon';
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isRestrictedAccess, loading } = useUserRole();
+  const { role, isRestrictedAccess, loading } = useUserRole();
+  const { permissions, canRead, loading: permissionsLoading } = usePermissions();
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (loading || permissionsLoading) return;
+
     // Redirect restricted access users (approver/viewer) to OT approval page
-    if (!loading && isRestrictedAccess) {
-      router.push('/overtime-approval');
+    if (isRestrictedAccess) {
+      router.replace('/overtime-approval');
+      return;
     }
-  }, [loading, isRestrictedAccess, router]);
+
+    if (!canRead('dashboard') && permissions && role) {
+      router.replace(resolveDefaultLandingRoute(role, permissions));
+      return;
+    }
+  }, [loading, permissionsLoading, isRestrictedAccess, canRead, permissions, role, router]);
 
   useEffect(() => {
-    if (loading || initialized) return;
+    if (loading || permissionsLoading || initialized) return;
+    if (!canRead('dashboard')) return;
 
     const type = searchParams.get('type');
-    if (type !== 'workforce' && type !== 'executive') {
+    const isExecutive =
+      role === 'admin' || role === 'upper_management';
+
+    if (type === 'executive' && !isExecutive) {
       router.replace('/dashboard?type=workforce');
+      setInitialized(true);
+      return;
+    }
+
+    if (type !== 'workforce' && type !== 'executive') {
+      router.replace(isExecutive ? '/dashboard?type=executive' : '/dashboard?type=workforce');
     }
     setInitialized(true);
-  }, [searchParams, loading, initialized, router]);
+  }, [searchParams, loading, permissionsLoading, initialized, router, canRead, role]);
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
@@ -45,7 +66,7 @@ function DashboardContent() {
     );
   }
 
-  if (isRestrictedAccess) {
+  if (isRestrictedAccess || !canRead('dashboard')) {
     return null;
   }
 

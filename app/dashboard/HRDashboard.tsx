@@ -16,7 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
-import { BodySmall, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
@@ -580,10 +580,12 @@ export default function HRDashboard() {
             : "Track employee registrations and the latest time in/out activity."
         }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {!isOperationsManager ? (
               <Link href="/employees">
-                <Button size="sm">Open employees</Button>
+                <Button size="sm" variant="outline">
+                  Open employees
+                </Button>
               </Link>
             ) : null}
             <Button
@@ -687,9 +689,9 @@ export default function HRDashboard() {
       <HStack justify="between" align="start" className="flex-col gap-2">
         <div className="space-y-1">
           <SectionHeading>Workforce Health</SectionHeading>
-          <BodySmall className="text-muted-foreground">
+          <PageSubtitle>
             Staffing metrics at a glance.
-          </BodySmall>
+          </PageSubtitle>
         </div>
       </HStack>
 
@@ -748,7 +750,7 @@ export default function HRDashboard() {
                   <span className="text-sm font-medium">{d.name}</span>
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-24 rounded-full bg-muted">
-                      <div className="gradient-accent h-2 rounded-full" style={{ width: `${Math.min(100, (d.count / Math.max(activeEmployees, 1)) * 100)}%` }} />
+                      <div className="h-2 rounded-sm bg-primary" style={{ width: `${Math.min(100, (d.count / Math.max(activeEmployees, 1)) * 100)}%` }} />
                     </div>
                     <span className="text-sm font-mono w-6 text-right">{d.count}</span>
                   </div>

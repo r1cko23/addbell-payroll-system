@@ -1688,6 +1688,12 @@ export default function BundyClockPage() {
         // Policy: UT is rounded up to the next FULL hour.
         let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
 
+        // Future / not-yet-worked days (status "-") should not show late or undertime.
+        if (status === "-") {
+          lt = 0;
+          ut = 0;
+        }
+
         // Calculate ND (Night Differential) from approved OT requests
         // ND should come from overtime_requests, not from clock entries
         // Note: isAccountSupervisor is already defined at function level (above the loop)
@@ -2487,10 +2493,10 @@ export default function BundyClockPage() {
                           {day.ot > 0 ? day.ot.toFixed(2) : "-"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
-                          {day.lt > 0 ? (day.lt / 60).toFixed(2) : "0"}
+                          {day.lt > 0 ? day.lt.toFixed(0) : "0"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
-                          {day.ut > 0 ? (day.ut / 60).toFixed(2) : "0"}
+                          {day.ut > 0 ? day.ut.toFixed(1) : "0"}
                         </td>
                         <td className="px-2 py-1.5 text-xs text-right">
                           {day.nd > 0 ? day.nd.toFixed(2) : "0"}
@@ -2541,10 +2547,10 @@ export default function BundyClockPage() {
                         {totalOT.toFixed(2)}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-right">
-                        {(totalLT / 60).toFixed(2)}
+                        {totalLT > 0 ? totalLT.toFixed(0) : "0"}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-right">
-                        {(totalUT / 60).toFixed(2)}
+                        {totalUT > 0 ? totalUT.toFixed(1) : "0"}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-right">
                         {totalND.toFixed(2)}

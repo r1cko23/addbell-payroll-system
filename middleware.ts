@@ -2,6 +2,14 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { Database } from "@/types/database";
+import {
+  getDefaultLandingRoute,
+  resolveDefaultLandingRoute,
+} from "@/lib/default-landing-route";
+import {
+  mergePermissions,
+  type UserPermissions,
+} from "@/lib/permissions";
 
 export async function middleware(req: NextRequest) {
   // Skip middleware for static files (images, fonts, etc.)
@@ -97,16 +105,23 @@ export async function middleware(req: NextRequest) {
       if (user) {
         const { data: userData } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, permissions")
           .eq("id", user.id)
           .eq("is_active", true)
           .single();
 
         if (userData) {
-          const userRecord = userData as { role: string };
+          const userRecord = userData as {
+            role: string;
+            permissions?: Partial<UserPermissions> | null;
+          };
+
+          const mergedPermissions = mergePermissions(
+            userRecord.role,
+            userRecord.permissions ?? null
+          );
 
           // Redirect approvers/viewers to allowed pages only
-          // They can access: All Time & Attendance pages (OT Approvals, Leave Approvals, Time Attendance, Time Entries, Failure to Log)
           if (userRecord.role === "approver" || userRecord.role === "viewer") {
             const allowedPaths = [
               "/overtime-approval",
@@ -126,7 +141,20 @@ export async function middleware(req: NextRequest) {
             }
           }
 
-
+          if (
+            pathname.startsWith("/dashboard") &&
+            !mergedPermissions.dashboard?.read
+          ) {
+            const landingPath = resolveDefaultLandingRoute(
+              userRecord.role,
+              mergedPermissions
+            );
+            const redirectUrl = req.nextUrl.clone();
+            const [landingPathname, landingSearch] = landingPath.split("?");
+            redirectUrl.pathname = landingPathname;
+            redirectUrl.search = landingSearch ? `?${landingSearch}` : "";
+            return NextResponse.redirect(redirectUrl);
+          }
         }
       }
     } catch (error: any) {
@@ -136,10 +164,35 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Redirect to dashboard if accessing login with active session
+  // Redirect to permission-aware home if accessing login with active session
   if (isLoginPath && session) {
+    let landingPath = "/dashboard";
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("role, permissions")
+          .eq("id", user.id)
+          .eq("is_active", true)
+          .single();
+        if (profileData) {
+          landingPath = getDefaultLandingRoute(
+            profileData.role,
+            profileData.permissions as Partial<UserPermissions> | null
+          );
+        }
+      }
+    } catch {
+      // Keep /dashboard fallback
+    }
+
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
+    const [pathname, search] = landingPath.split("?");
+    redirectUrl.pathname = pathname;
+    redirectUrl.search = search ? `?${search}` : "";
     return NextResponse.redirect(redirectUrl);
   }
 

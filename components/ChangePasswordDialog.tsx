@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
-  epDialogContent,
+  epDialogContentForm,
   epFormActionButton,
   epFormActions,
 } from "@/lib/employee-portal-ui";
@@ -24,12 +24,21 @@ import {
 type ChangePasswordDialogProps = {
   employeeId: string;
   className?: string;
+  /** Hide button label below this Tailwind breakpoint (md = employee portal mobile). */
+  compactBelow?: "sm" | "md";
 };
 
 export function ChangePasswordDialog({
   employeeId,
   className,
+  compactBelow = "sm",
 }: ChangePasswordDialogProps) {
+  const compactClass =
+    compactBelow === "md"
+      ? "h-9 w-9 px-0 md:h-9 md:w-auto md:px-3"
+      : "h-9 w-9 px-0 sm:h-9 sm:w-auto sm:px-3";
+  const labelHiddenClass =
+    compactBelow === "md" ? "hidden md:inline" : "hidden sm:inline";
   const [open, setOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -117,22 +126,27 @@ export function ChangePasswordDialog({
           variant="outline"
           size="sm"
           className={cn(
-            "inline-flex h-9 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-medium",
+            "inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-medium",
+            compactClass,
             className
           )}
           aria-label="Change password"
         >
-          <Key className="h-4 w-4" weight="bold" />
-          <span>Change password</span>
+          <Key className="h-4 w-4 shrink-0" weight="bold" />
+          <span className={labelHiddenClass}>Change password</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className={epDialogContent}>
-        <DialogHeader>
-          <DialogTitle>Change password</DialogTitle>
+      <DialogContent className={epDialogContentForm}>
+        <DialogHeader className="space-y-1 pr-10 text-left">
+          <DialogTitle className="text-base leading-snug sm:text-lg">
+            Change password
+          </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handlePasswordChange} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="current-password">Current password</Label>
+        <form onSubmit={handlePasswordChange} className="space-y-3 sm:space-y-4">
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="current-password" className="text-sm">
+              Current password
+            </Label>
             <Input
               id="current-password"
               type="password"
@@ -146,8 +160,10 @@ export function ChangePasswordDialog({
               autoComplete="current-password"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New password</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="new-password" className="text-sm">
+              New password
+            </Label>
             <Input
               id="new-password"
               type="password"
@@ -164,8 +180,10 @@ export function ChangePasswordDialog({
               At least 4 characters
             </Caption>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm new password</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label htmlFor="confirm-password" className="text-sm">
+              Confirm new password
+            </Label>
             <Input
               id="confirm-password"
               type="password"
@@ -180,8 +198,10 @@ export function ChangePasswordDialog({
             />
           </div>
           {passwordError ? (
-            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
-              <BodySmall className="text-destructive">{passwordError}</BodySmall>
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 sm:px-4 sm:py-3">
+              <BodySmall className="text-sm leading-snug text-destructive">
+                {passwordError}
+              </BodySmall>
             </div>
           ) : null}
           <div className={epFormActions}>

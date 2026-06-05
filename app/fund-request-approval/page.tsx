@@ -28,7 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
 type RowWithRequester = FundRequestRow & {
@@ -343,9 +343,9 @@ export default function FundRequestApprovalPage() {
     return (
       <div className="space-y-6">
         <H1>Fund Request Approval</H1>
-        <BodySmall>
+        <PageSubtitle>
           You do not have permission to manage fund requests.
-        </BodySmall>
+        </PageSubtitle>
       </div>
     );
   }
@@ -428,9 +428,9 @@ export default function FundRequestApprovalPage() {
       <div className="space-y-2">
         <Badge variant="outline" className="font-normal">Approvals</Badge>
         <H1>Fund Request Approvals</H1>
-        <BodySmall>
+        <PageSubtitle>
           Move requests through Operations, Purchasing, and Upper Management stages, or reject with a reason.
-        </BodySmall>
+        </PageSubtitle>
       </div>
 
       {/* Summary KPI cards */}

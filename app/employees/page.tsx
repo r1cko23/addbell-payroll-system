@@ -29,11 +29,12 @@ import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { H1, BodySmall, Caption } from "@/components/ui/typography";
+import { H1, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
+import { EmployeeFormSection } from "@/components/employees/EmployeeFormSection";
 
 interface Employee {
   id: string;
@@ -178,8 +179,16 @@ function formatTypeDisplay(value: string | null | undefined): string {
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { role, isAdmin, isManagement, isHR, canAccessSalaryInfo, loading: roleLoading } = useUserRole();
-  const { canRead, loading: permissionsLoading } = usePermissions();
+  const {
+    role,
+    isAdmin,
+    isManagement,
+    isHR,
+    canAccessSalaryInfo,
+    canManageClockAccess,
+    loading: roleLoading,
+  } = useUserRole();
+  const { canRead, canCreate, loading: permissionsLoading } = usePermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -191,13 +200,11 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({ ...emptyForm });
   const [submitting, setSubmitting] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
 
-  const canAssignClockSites =
-    role === "admin" ||
-    role === "upper_management" ||
-    role === "hr" ||
-    role === "operations_manager";
+  const canAssignClockSites = canManageClockAccess;
+  const modalFormKey = editingEmployee?.id ?? "new";
 
   const [modalClockOffices, setModalClockOffices] = useState<ModalClockOffice[]>([]);
   const [modalClockSelectedIds, setModalClockSelectedIds] = useState<string[]>([]);
@@ -345,9 +352,7 @@ export default function EmployeesPage() {
     }
   }
 
-  function openEditModal(employee: Employee) {
-    setEditingEmployee(employee);
-    setModalAllowClockAnywhere(false);
+  function populateFormFromEmployee(employee: Employee) {
     setFormData({
       company_id_no: employee.company_id_no,
       employee_code: employee.employee_code,
@@ -355,7 +360,9 @@ export default function EmployeesPage() {
       middle_name: employee.middle_name || "",
       last_name: employee.last_name,
       suffix: employee.suffix || "",
-      date_of_birth: employee.date_of_birth ? new Date(employee.date_of_birth).toISOString().slice(0, 10) : "",
+      date_of_birth: employee.date_of_birth
+        ? new Date(employee.date_of_birth).toISOString().slice(0, 10)
+        : "",
       sex: employee.sex || "",
       civil_status: employee.civil_status || "",
       mobile: employee.mobile || "",
@@ -370,7 +377,9 @@ export default function EmployeesPage() {
         ? new Date(employee.nbi_clearance_expiration_date).toISOString().slice(0, 10)
         : "",
       employment_type: employee.employment_type,
-      hire_date: employee.hire_date ? new Date(employee.hire_date).toISOString().slice(0, 10) : "",
+      hire_date: employee.hire_date
+        ? new Date(employee.hire_date).toISOString().slice(0, 10)
+        : "",
       shift_start_time: employee.shift_start_time
         ? String(employee.shift_start_time).slice(0, 5)
         : "",
@@ -378,8 +387,12 @@ export default function EmployeesPage() {
         ? String(employee.shift_end_time).slice(0, 5)
         : "",
       requires_ot_punch: employee.requires_ot_punch === true,
-      regularization_date: employee.regularization_date ? new Date(employee.regularization_date).toISOString().slice(0, 10) : "",
-      end_of_contract: employee.end_of_contract ? new Date(employee.end_of_contract).toISOString().slice(0, 10) : "",
+      regularization_date: employee.regularization_date
+        ? new Date(employee.regularization_date).toISOString().slice(0, 10)
+        : "",
+      end_of_contract: employee.end_of_contract
+        ? new Date(employee.end_of_contract).toISOString().slice(0, 10)
+        : "",
       employment_status: employee.employment_status,
       department_id: employee.department_id || "",
       position_id: employee.position_id || "",
@@ -390,7 +403,35 @@ export default function EmployeesPage() {
       bank_account_number: employee.bank_account_number || "",
       overtime_group_id: employee.overtime_group_id || "",
     });
+  }
+
+  async function openEditModal(employee: Employee) {
+    setEditingEmployee(employee);
+    setModalAllowClockAnywhere(false);
     setShowModal(true);
+    setModalLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("id", employee.id)
+        .single();
+
+      if (error || !data) {
+        throw error ?? new Error("Employee not found");
+      }
+
+      populateFormFromEmployee(data as Employee);
+      setEditingEmployee(data as Employee);
+    } catch (error) {
+      console.error("Error loading employee for edit:", error);
+      populateFormFromEmployee(employee);
+      toast.error("Could not refresh employee details. Showing cached row data.");
+    } finally {
+      setModalLoading(false);
+    }
+
     void loadModalClockSites(employee.id);
   }
 
@@ -450,13 +491,18 @@ export default function EmployeesPage() {
         employment_status: formData.employment_status,
         department_id: formData.department_id || null,
         position_id: formData.position_id || null,
-        salary_basis: formData.salary_basis,
-        base_rate: formData.base_rate ? parseFloat(formData.base_rate) : 0,
         bank_name: bankName,
         bank_account_name: bankAccountName,
         bank_account_number: bankAccountNumber,
         overtime_group_id: formData.overtime_group_id ? formData.overtime_group_id : null,
       };
+
+      if (canAccessSalaryInfo) {
+        employeeData.salary_basis = formData.salary_basis;
+        employeeData.base_rate = formData.base_rate
+          ? parseFloat(formData.base_rate)
+          : 0;
+      }
 
       let savedEmployeeId: string | null = null;
 
@@ -651,27 +697,37 @@ export default function EmployeesPage() {
         <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row sm:gap-4">
           <VStack gap="2" align="start">
             <H1>Employees</H1>
-            <BodySmall>Add and update employee records.</BodySmall>
+            <PageSubtitle>Add and update employee records.</PageSubtitle>
           </VStack>
-          <Button onClick={openAddModal}>
-            <Icon name="Plus" size={IconSizes.sm} />
-            New Employee
-          </Button>
+          {canCreate("employees") && (
+            <Button onClick={openAddModal}>
+              <Icon name="Plus" size={IconSizes.sm} />
+              New Employee
+            </Button>
+          )}
         </HStack>
 
         <div className="min-w-0 space-y-4">
           <CardSection title="Directory" description="Search and manage employees.">
             <HStack justify="between" align="end" gap="4" className="w-full flex-col sm:flex-row sm:items-end">
-              <div className="relative w-full flex-1 sm:max-w-md">
-                <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search name, company ID, biometric ID, or email"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+              <HStack gap="3" align="center" className="w-full min-w-0 flex-1 flex-col sm:flex-row sm:items-center">
+                <div className="relative w-full min-w-0 flex-1 sm:max-w-md">
+                  <Icon name="MagnifyingGlass" size={IconSizes.sm} className="absolute left-3 top-2.5 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Search name, company ID, biometric ID, or email"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <HStack gap="2" align="center" className="shrink-0">
+                  <Icon name="User" size={IconSizes.sm} className="text-muted-foreground" />
+                  <Badge variant="secondary" className="font-normal">
+                    {filteredEmployees.length} employees
+                  </Badge>
+                </HStack>
+              </HStack>
               <HStack gap="2" align="center" className="w-full flex-wrap justify-start sm:w-auto sm:justify-end">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[130px] sm:w-[140px]"><SelectValue /></SelectTrigger>
@@ -688,12 +744,6 @@ export default function EmployeesPage() {
                     {generatingPDF ? "Generating..." : "Export"}
                   </Button>
                 )}
-                <HStack gap="2" align="center">
-                  <Icon name="User" size={IconSizes.sm} className="text-muted-foreground" />
-                  <Badge variant="secondary" className="font-normal">
-                    {filteredEmployees.length} employees
-                  </Badge>
-                </HStack>
               </HStack>
             </HStack>
 
@@ -857,12 +907,20 @@ export default function EmployeesPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="space-y-6 overflow-y-auto flex-1 px-6 pr-4">
-              {/* Basic Info */}
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Work details</h3>
-                <div className="h-px bg-border" />
-              </div>
+            <div className="space-y-3 overflow-y-auto flex-1 px-6 pr-4 pb-2">
+              {modalLoading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                  <Icon name="ArrowsClockwise" size={IconSizes.sm} className="animate-spin" />
+                  Loading employee details...
+                </div>
+              ) : (
+              <>
+              <EmployeeFormSection
+                title="Work details"
+                description="Company ID, biometric ID, hire date, and shift schedule."
+                defaultOpen={!editingEmployee}
+                sectionKey={`${modalFormKey}-work`}
+              >
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="company-id-no">Company ID no. *</Label>
@@ -927,30 +985,14 @@ export default function EmployeesPage() {
                     Used to compute late and undertime in attendance UI.
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Require Bundy pair for OT filing</Label>
-                  <label className="flex items-start gap-3 rounded-lg border bg-background p-3 cursor-pointer">
-                    <Checkbox
-                      checked={formData.requires_ot_punch}
-                      onCheckedChange={(checked) =>
-                        setFormData({
-                          ...formData,
-                          requires_ot_punch: Boolean(checked),
-                        })
-                      }
-                      className="mt-0.5"
-                    />
-                    <div className="space-y-0.5 min-w-0">
-                      <p className="font-medium text-sm">Link OT to Bundy clock pairs</p>
-                      <p className="text-xs text-muted-foreground">
-                        Requires a completed Bundy pair when filing OT.
-                      </p>
-                    </div>
-                  </label>
-                </div>
               </div>
+              </EmployeeFormSection>
 
-              {/* Name */}
+              <EmployeeFormSection
+                title="Personal information"
+                description="Legal name, demographics, and contact details."
+                sectionKey={`${modalFormKey}-personal`}
+              >
               <div className="grid gap-4 sm:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor="first-name">First Name *</Label>
@@ -974,7 +1016,6 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              {/* Personal */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="date-of-birth">Date of Birth</Label>
@@ -1005,7 +1046,6 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              {/* Contact */}
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="mobile">Mobile</Label>
@@ -1029,12 +1069,13 @@ export default function EmployeesPage() {
                 <Textarea id="address" value={formData.address} rows={2}
                   onChange={(e) => setUpperField("address", e.target.value)} />
               </div>
+              </EmployeeFormSection>
 
-              {/* Department & Position */}
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Team & role</h3>
-                <div className="h-px bg-border" />
-              </div>
+              <EmployeeFormSection
+                title="Team & role"
+                description="Department, position, approval group, and employment status."
+                sectionKey={`${modalFormKey}-team`}
+              >
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Department</Label>
@@ -1085,7 +1126,6 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              {/* Employment Dates */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Employment Status</Label>
@@ -1109,12 +1149,13 @@ export default function EmployeesPage() {
                     onChange={(e) => setFormData({ ...formData, end_of_contract: e.target.value })} />
                 </div>
               </div>
+              </EmployeeFormSection>
 
-              {/* Government IDs */}
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Government IDs</h3>
-                <div className="h-px bg-border" />
-              </div>
+              <EmployeeFormSection
+                title="Government IDs"
+                description="SSS, PhilHealth, Pag-IBIG, TIN, and NBI clearance."
+                sectionKey={`${modalFormKey}-government`}
+              >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="sss">SSS #</Label>
@@ -1138,14 +1179,14 @@ export default function EmployeesPage() {
                     onChange={(e) => setFormData({ ...formData, nbi_clearance_expiration_date: e.target.value })} />
                 </div>
               </div>
+              </EmployeeFormSection>
 
-              {/* Salary */}
               {canAccessSalaryInfo && (
-                <>
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-foreground">Pay</h3>
-                    <div className="h-px bg-border" />
-                  </div>
+                <EmployeeFormSection
+                  title="Pay"
+                  description="Salary basis and base rate."
+                  sectionKey={`${modalFormKey}-pay`}
+                >
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Salary Basis</Label>
@@ -1163,14 +1204,14 @@ export default function EmployeesPage() {
                         onChange={(e) => setFormData({ ...formData, base_rate: e.target.value })} placeholder="0.00" />
                     </div>
                   </div>
-                </>
+                </EmployeeFormSection>
               )}
 
-              {/* Bank */}
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Banking</h3>
-                <div className="h-px bg-border" />
-              </div>
+              <EmployeeFormSection
+                title="Banking"
+                description="Payroll disbursement account details."
+                sectionKey={`${modalFormKey}-banking`}
+              >
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="bank-name">Bank Name</Label>
@@ -1185,14 +1226,34 @@ export default function EmployeesPage() {
                   <Input id="bank-acct-no" value={formData.bank_account_number} onChange={(e) => setUpperField("bank_account_number", e.target.value)} />
                 </div>
               </div>
+              </EmployeeFormSection>
 
               {canAssignClockSites && (
-                <>
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-foreground">Clock access</h3>
-                    <div className="h-px bg-border" />
-                  </div>
-                  <div className="flex items-center justify-between gap-3 -mt-2">
+                <EmployeeFormSection
+                  title="OT & clock access"
+                  description="OT punch tracking and allowed clock-in locations."
+                  sectionKey={`${modalFormKey}-clock`}
+                >
+                  <label className="flex items-start gap-3 rounded-lg border bg-background p-3 cursor-pointer">
+                    <Checkbox
+                      checked={formData.requires_ot_punch}
+                      onCheckedChange={(checked) =>
+                        setFormData({
+                          ...formData,
+                          requires_ot_punch: Boolean(checked),
+                        })
+                      }
+                      className="mt-0.5"
+                    />
+                    <div className="space-y-0.5 min-w-0">
+                      <p className="font-medium text-sm">Require OT punch in/out</p>
+                      <p className="text-xs text-muted-foreground">
+                        For field or on-site staff who must GPS clock OT separately before
+                        approval. Most office employees leave this off.
+                      </p>
+                    </div>
+                  </label>
+                  <div className="flex items-center justify-between gap-3">
                     <p className="text-xs text-muted-foreground">
                       Select where this employee can clock in or out. Enable clock anywhere for
                       on-the-go employees.
@@ -1268,13 +1329,15 @@ export default function EmployeesPage() {
                       </div>
                     )}
                   </div>
-                </>
+                </EmployeeFormSection>
+              )}
+              </>
               )}
             </div>
 
             <DialogFooter className="flex items-center justify-end gap-2 flex-shrink-0 pt-4 pb-6 px-6 border-t bg-background">
               <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || modalLoading}>
                 {submitting ? "Saving..." : editingEmployee ? "Save Changes" : "Create Employee"}
               </Button>
             </DialogFooter>

@@ -1,8 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { H1, PageSubtitle } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
+import { toTitleCase } from "@/lib/to-title-case";
 
 export type DashboardPageHeaderProps = {
   title: string;
@@ -37,13 +38,11 @@ export function DashboardPageHeader({
             titleClassName
           )}
         >
-          {title}
+          {toTitleCase(title)}
         </H1>
         {description != null && description !== "" ? (
           typeof description === "string" ? (
-            <BodySmall className="max-w-2xl text-muted-foreground">
-              {description}
-            </BodySmall>
+            <PageSubtitle className="max-w-2xl">{description}</PageSubtitle>
           ) : (
             <div className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {description}

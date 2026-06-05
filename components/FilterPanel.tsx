@@ -518,7 +518,7 @@ export function FilterPanel({
                   {availableStatuses.map((status) => (
                     <label
                       key={status}
-                      className="flex items-center gap-2 rounded-md border p-2 hover:bg-accent cursor-pointer"
+                      className="flex items-center gap-2 rounded-md border p-2 dropdown-item-highlight cursor-pointer"
                     >
                       <Checkbox
                         checked={filters.status.includes(status)}
@@ -541,7 +541,7 @@ export function FilterPanel({
                   {availableLeaveTypes.map((type) => (
                     <label
                       key={type}
-                      className="flex items-center gap-2 rounded-md border p-2 hover:bg-accent cursor-pointer"
+                      className="flex items-center gap-2 rounded-md border p-2 dropdown-item-highlight cursor-pointer"
                     >
                       <Checkbox
                         checked={filters.leaveType.includes(type)}
@@ -566,7 +566,7 @@ export function FilterPanel({
                 ].map((stage) => (
                   <label
                     key={stage.value}
-                    className="flex items-center gap-2 rounded-md border p-2 hover:bg-accent cursor-pointer"
+                    className="flex items-center gap-2 rounded-md border p-2 dropdown-item-highlight cursor-pointer"
                   >
                     <Checkbox
                       checked={filters.approvalStage.includes(
@@ -601,7 +601,7 @@ export function FilterPanel({
                     filteredEmployees.map((emp) => (
                       <label
                         key={emp.id}
-                        className="flex items-center gap-2 rounded-md p-2 hover:bg-accent cursor-pointer"
+                        className="flex items-center gap-2 rounded-md p-2 dropdown-item-highlight cursor-pointer"
                       >
                         <Checkbox
                           checked={filters.employeeIds.includes(emp.id)}
@@ -630,7 +630,7 @@ export function FilterPanel({
                   {availableDepartments.map((dept) => (
                     <label
                       key={dept}
-                      className="flex items-center gap-2 rounded-md border p-2 hover:bg-accent cursor-pointer"
+                      className="flex items-center gap-2 rounded-md border p-2 dropdown-item-highlight cursor-pointer"
                     >
                       <Checkbox
                         checked={filters.departments.includes(dept)}

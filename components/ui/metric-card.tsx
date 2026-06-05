@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { toTitleCase } from "@/lib/to-title-case";
 
 interface MetricCardProps {
   label: ReactNode;
@@ -27,7 +28,9 @@ export function MetricCard({
       )}
     >
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-        <div className="text-sm font-medium text-muted-foreground">{label}</div>
+        <div className="text-sm font-medium text-muted-foreground">
+          {typeof label === "string" ? toTitleCase(label) : label}
+        </div>
         {icon ? (
           <div className="rounded-xl border bg-muted/60 p-2 text-muted-foreground">
             {icon}

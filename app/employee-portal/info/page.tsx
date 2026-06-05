@@ -264,12 +264,12 @@ export default function EmployeeInfoPage() {
               <HStack
                 justify="between"
                 align="start"
-                className="flex-col sm:flex-row gap-2"
+                className="w-full flex-col items-start gap-1 sm:flex-row sm:gap-2"
               >
                 <dt className="text-sm font-semibold text-muted-foreground min-w-0 break-words">
                   {row.label}
                 </dt>
-                <dd className="text-sm font-medium text-foreground text-right sm:text-left flex-1 min-w-0 break-words whitespace-normal">
+                <dd className="w-full min-w-0 break-words text-left text-sm font-medium text-foreground whitespace-normal sm:flex-1">
                   {row.value}
                 </dd>
               </HStack>

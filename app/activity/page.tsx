@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall } from "@/components/ui/typography";
+import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { VStack } from "@/components/ui/stack";
 
 export default function ActivityPage() {
@@ -11,9 +11,9 @@ export default function ActivityPage() {
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
           <H1>Activity</H1>
-          <BodySmall>
+          <PageSubtitle>
             Coming soon: consolidated time and location activity feed.
-          </BodySmall>
+          </PageSubtitle>
         </VStack>
         <CardSection>
           <BodySmall>

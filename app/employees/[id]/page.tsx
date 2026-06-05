@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { useUserRole } from "@/lib/hooks/useUserRole";
 import { ArrowLeft, Edit, Save, AlertTriangle, MapPin } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { differenceInDays } from "date-fns";
@@ -128,6 +129,7 @@ export default function EmployeeDetailPage() {
   const employeeId = params.id as string;
   const supabase = createClient();
   const { profile } = useProfile();
+  const { canAccessSalaryInfo, canManageClockAccess } = useUserRole();
 
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
@@ -213,36 +215,42 @@ export default function EmployeeDetailPage() {
     const bankAccountName = toUpperOrNull(editForm.bank_account_name);
     const bankAccountNumber = toUpperOrNull(editForm.bank_account_number);
 
+    const updatePayload: Record<string, unknown> = {
+      first_name: firstName,
+      middle_name: middleName,
+      last_name: lastName,
+      suffix,
+      date_of_birth: editForm.date_of_birth || null,
+      sex: editForm.sex || null,
+      civil_status: editForm.civil_status || null,
+      mobile,
+      email,
+      address,
+      contact_person: contactPerson,
+      contact_person_relationship: contactPersonRelationship,
+      sss_number: sssNumber,
+      philhealth_number: philhealthNumber,
+      pagibig_number: pagibigNumber,
+      tin,
+      nbi_clearance_expiration_date: editForm.nbi_clearance_expiration_date || null,
+      employment_type: editForm.employment_type,
+      employment_status: editForm.employment_status,
+      hire_date: editForm.hire_date || employee.hire_date,
+      bank_name: bankName,
+      bank_account_name: bankAccountName,
+      bank_account_number: bankAccountNumber,
+      regularization_date: editForm.regularization_date || null,
+      end_of_contract: editForm.end_of_contract || null,
+    };
+
+    if (canAccessSalaryInfo) {
+      updatePayload.salary_basis = editForm.salary_basis;
+      updatePayload.base_rate = editForm.base_rate;
+    }
+
     const { error } = await supabase
       .from("employees")
-      .update({
-        first_name: firstName,
-        middle_name: middleName,
-        last_name: lastName,
-        suffix,
-        date_of_birth: editForm.date_of_birth || null,
-        sex: editForm.sex || null,
-        civil_status: editForm.civil_status || null,
-        mobile,
-        email,
-        address,
-        contact_person: contactPerson,
-        contact_person_relationship: contactPersonRelationship,
-        sss_number: sssNumber,
-        philhealth_number: philhealthNumber,
-        pagibig_number: pagibigNumber,
-        tin,
-        nbi_clearance_expiration_date: editForm.nbi_clearance_expiration_date || null,
-        employment_type: editForm.employment_type,
-        employment_status: editForm.employment_status,
-        salary_basis: editForm.salary_basis,
-        base_rate: editForm.base_rate,
-        bank_name: bankName,
-        bank_account_name: bankAccountName,
-        bank_account_number: bankAccountNumber,
-        regularization_date: editForm.regularization_date || null,
-        end_of_contract: editForm.end_of_contract || null,
-      } as never)
+      .update(updatePayload as never)
       .eq("id", employee.id);
     if (error) {
       toast.error(error.message);
@@ -261,7 +269,7 @@ export default function EmployeeDetailPage() {
     profile?.role === "operations_manager";
 
   const loadClockSites = useCallback(async () => {
-    if (!employeeId || !canEdit) return;
+    if (!employeeId || !canManageClockAccess) return;
     setClockLoading(true);
     try {
       const res = await fetch(
@@ -284,7 +292,7 @@ export default function EmployeeDetailPage() {
     } finally {
       setClockLoading(false);
     }
-  }, [employeeId, canEdit]);
+  }, [employeeId, canManageClockAccess]);
 
   useEffect(() => {
     loadClockSites();
@@ -428,7 +436,10 @@ export default function EmployeeDetailPage() {
                 {employee.company_id_no}
                 <span className="text-muted-foreground/80"> · time clock {employee.employee_code}</span>
                 {" · "}
-                {formatTypeDisplay(employee.employment_type)} · {toUpperDisplay(employee.salary_basis)}
+                {formatTypeDisplay(employee.employment_type)}
+                {canAccessSalaryInfo && (
+                  <> · {toUpperDisplay(employee.salary_basis)}</>
+                )}
               </p>
             </div>
           </div>
@@ -444,6 +455,17 @@ export default function EmployeeDetailPage() {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
+            )}
+            {canEdit && editing && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSave} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? "Saving..." : "Save"}
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -485,7 +507,7 @@ export default function EmployeeDetailPage() {
             <TabsTrigger value="bank">Bank Details</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
-            {canEdit && (
+            {canManageClockAccess && (
               <TabsTrigger value="clock-sites" className="gap-1">
                 <MapPin className="h-3.5 w-3.5" />
                 Clock access
@@ -611,15 +633,6 @@ export default function EmployeeDetailPage() {
                         rows={2}
                       />
                     </div>
-                    <div className="md:col-span-2 flex gap-2 justify-end">
-                      <Button variant="outline" onClick={() => setEditing(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleSave} disabled={saving}>
-                        <Save className="h-4 w-4 mr-2" />
-                        {saving ? "Saving..." : "Save"}
-                      </Button>
-                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -676,69 +689,142 @@ export default function EmployeeDetailPage() {
                 <CardTitle>Employment Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Company ID no.</span>
-                    <p className="font-medium mt-1 font-mono">{employee.company_id_no}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Time clock / biometric ID</span>
-                    <p className="font-medium mt-1 font-mono">{employee.employee_code}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Employment Type</span>
-                    <p className="mt-1 uppercase">{formatTypeDisplay(employee.employment_type)}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Hire Date</span>
-                    <p className="mt-1">{format(new Date(employee.hire_date), "MMM d, yyyy")}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Regularization Date</span>
-                    <p className="mt-1">
-                      {employee.regularization_date
-                        ? format(new Date(employee.regularization_date), "MMM d, yyyy")
-                        : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">End of Contract</span>
-                    <p className="mt-1">
-                      {employee.end_of_contract
-                        ? format(new Date(employee.end_of_contract), "MMM d, yyyy")
-                        : "—"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Status</span>
-                    <p className="mt-1">
-                      <Badge
-                        variant={employee.employment_status === "active" ? "default" : "secondary"}
-                        className="capitalize"
+                {editing ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Employment Type</Label>
+                      <Select
+                        value={editForm.employment_type ?? employee.employment_type}
+                        onValueChange={(v) => setEditForm({ ...editForm, employment_type: v })}
                       >
-                        {employee.employment_status}
-                      </Badge>
-                    </p>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="regular">Regular</SelectItem>
+                          <SelectItem value="probationary">Probationary</SelectItem>
+                          <SelectItem value="contractual">Contractual</SelectItem>
+                          <SelectItem value="project_based">Project Based</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select
+                        value={editForm.employment_status ?? employee.employment_status}
+                        onValueChange={(v) => setEditForm({ ...editForm, employment_status: v })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="on_leave">On Leave</SelectItem>
+                          <SelectItem value="terminated">Terminated</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Hire Date</Label>
+                      <Input
+                        type="date"
+                        value={
+                          editForm.hire_date
+                            ? String(editForm.hire_date).slice(0, 10)
+                            : employee.hire_date
+                              ? new Date(employee.hire_date).toISOString().slice(0, 10)
+                              : ""
+                        }
+                        onChange={(e) => setEditForm({ ...editForm, hire_date: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Regularization Date</Label>
+                      <Input
+                        type="date"
+                        value={editForm.regularization_date ?? ""}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, regularization_date: e.target.value || null })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>End of Contract</Label>
+                      <Input
+                        type="date"
+                        value={editForm.end_of_contract ?? ""}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, end_of_contract: e.target.value || null })
+                        }
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Department</span>
-                    <p className="mt-1">{employee.departments?.name ? toUpperDisplay(employee.departments.name) : "—"}</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Company ID no.</span>
+                      <p className="font-medium mt-1 font-mono">{employee.company_id_no}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Time clock / biometric ID</span>
+                      <p className="font-medium mt-1 font-mono">{employee.employee_code}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Employment Type</span>
+                      <p className="mt-1 uppercase">{formatTypeDisplay(employee.employment_type)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Hire Date</span>
+                      <p className="mt-1">{format(new Date(employee.hire_date), "MMM d, yyyy")}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Regularization Date</span>
+                      <p className="mt-1">
+                        {employee.regularization_date
+                          ? format(new Date(employee.regularization_date), "MMM d, yyyy")
+                          : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">End of Contract</span>
+                      <p className="mt-1">
+                        {employee.end_of_contract
+                          ? format(new Date(employee.end_of_contract), "MMM d, yyyy")
+                          : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Status</span>
+                      <p className="mt-1">
+                        <Badge
+                          variant={employee.employment_status === "active" ? "default" : "secondary"}
+                          className="capitalize"
+                        >
+                          {employee.employment_status}
+                        </Badge>
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Department</span>
+                      <p className="mt-1">{employee.departments?.name ? toUpperDisplay(employee.departments.name) : "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground text-xs uppercase">Position</span>
+                      <p className="mt-1">{employee.positions?.name ? toUpperDisplay(employee.positions.name) : "—"}</p>
+                    </div>
+                    {canAccessSalaryInfo && (
+                      <>
+                        <div>
+                          <span className="text-muted-foreground text-xs uppercase">Salary Basis</span>
+                          <p className="mt-1 uppercase">{toUpperDisplay(employee.salary_basis)}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-xs uppercase">Base Rate</span>
+                          <p className="mt-1 font-medium">
+                            ₱{Number(employee.base_rate).toLocaleString()}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Position</span>
-                    <p className="mt-1">{employee.positions?.name ? toUpperDisplay(employee.positions.name) : "—"}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Salary Basis</span>
-                    <p className="mt-1 uppercase">{toUpperDisplay(employee.salary_basis)}</p>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground text-xs uppercase">Base Rate</span>
-                    <p className="mt-1 font-medium">
-                      ₱{Number(employee.base_rate).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -753,19 +839,51 @@ export default function EmployeeDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">SSS Number</span>
-                    <p className="mt-1">{employee.sss_number || "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.sss_number ?? ""}
+                        onChange={(e) => setEditUpperField("sss_number", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.sss_number || "—"}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">PhilHealth Number</span>
-                    <p className="mt-1">{employee.philhealth_number || "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.philhealth_number ?? ""}
+                        onChange={(e) => setEditUpperField("philhealth_number", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.philhealth_number || "—"}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Pag-IBIG Number</span>
-                    <p className="mt-1">{employee.pagibig_number || "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.pagibig_number ?? ""}
+                        onChange={(e) => setEditUpperField("pagibig_number", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.pagibig_number || "—"}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">TIN</span>
-                    <p className="mt-1">{employee.tin || "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.tin ?? ""}
+                        onChange={(e) => setEditUpperField("tin", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.tin || "—"}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">NBI Clearance (expiration date)</span>
@@ -801,15 +919,39 @@ export default function EmployeeDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Bank Name</span>
-                    <p className="mt-1">{employee.bank_name ? toUpperDisplay(employee.bank_name) : "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.bank_name ?? ""}
+                        onChange={(e) => setEditUpperField("bank_name", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.bank_name ? toUpperDisplay(employee.bank_name) : "—"}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Account Name</span>
-                    <p className="mt-1">{employee.bank_account_name ? toUpperDisplay(employee.bank_account_name) : "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.bank_account_name ?? ""}
+                        onChange={(e) => setEditUpperField("bank_account_name", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.bank_account_name ? toUpperDisplay(employee.bank_account_name) : "—"}</p>
+                    )}
                   </div>
                   <div>
                     <span className="text-muted-foreground text-xs uppercase">Account Number</span>
-                    <p className="mt-1">{employee.bank_account_number ? toUpperDisplay(employee.bank_account_number) : "—"}</p>
+                    {editing ? (
+                      <Input
+                        className="mt-1"
+                        value={editForm.bank_account_number ?? ""}
+                        onChange={(e) => setEditUpperField("bank_account_number", e.target.value)}
+                      />
+                    ) : (
+                      <p className="mt-1">{employee.bank_account_number ? toUpperDisplay(employee.bank_account_number) : "—"}</p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -873,7 +1015,7 @@ export default function EmployeeDetailPage() {
           </TabsContent>
 
           {/* Bundy GPS: allowed office_locations */}
-          {canEdit && (
+          {canManageClockAccess && (
             <TabsContent value="clock-sites">
               <Card>
                 <CardHeader>
@@ -1024,7 +1166,8 @@ export default function EmployeeDetailPage() {
                       disabled={portalSaving}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Use at least 4 characters. Share this temporary password with the employee.
+                      Enter at least 4 characters, then click Set Custom Password. Share the
+                      temporary password with the employee.
                     </p>
                   </div>
 
@@ -1040,7 +1183,7 @@ export default function EmployeeDetailPage() {
                       type="button"
                       variant="outline"
                       onClick={() => resetPortalPassword(false)}
-                      disabled={portalSaving || portalPasswordInput.trim().length < 4}
+                      disabled={portalSaving}
                     >
                       {portalSaving ? "Saving..." : "Set Custom Password"}
                     </Button>

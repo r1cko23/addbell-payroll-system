@@ -15,7 +15,12 @@ import { PageTitle, H3, H4, BodySmall, Caption, StatValue } from "@/components/u
 import { HStack, VStack } from "@/components/ui/stack";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays, differenceInCalendarDays } from "date-fns";
-import { epSubmitRequestButton } from "@/lib/employee-portal-ui";
+import {
+  epFileInput,
+  epPageStack,
+  epSubmitRequestButton,
+} from "@/lib/employee-portal-ui";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import {
   epRequestApprovalBoxEmerald,
   epRequestApprovalBoxEmeraldHr,
@@ -713,8 +718,11 @@ export default function LeaveRequestPage() {
 
   return (
     <>
-      <VStack gap="8" className="w-full">
-        <PageTitle>Leave Request</PageTitle>
+      <div className={cn("w-full", epPageStack)}>
+        <PortalPageHeader
+          title="Leave Request"
+          description="Submit and track your leave requests."
+        />
 
         {/* Stats */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
@@ -1003,7 +1011,7 @@ export default function LeaveRequestPage() {
                         setDocError(null);
                         setSupportingDoc(file);
                       }}
-                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium"
+                      className={epFileInput}
                     />
                     <p className="text-xs text-muted-foreground">
                       {requestFormCopy.leave.supportingDocHint}
@@ -1281,7 +1289,7 @@ export default function LeaveRequestPage() {
             )}
           </CardContent>
         </Card>
-      </VStack>
+      </div>
     </>
   );
 }

@@ -9,6 +9,8 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
+import { epPageStack } from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 interface EmployeeInfo {
   employee_id: string;
@@ -173,7 +175,7 @@ export default function EmployeeInfoPage() {
   ];
 
   return (
-    <VStack gap="4" className="w-full sm:gap-6">
+    <VStack gap="4" className={cn("w-full sm:gap-6", epPageStack)}>
       <PageTitle>My Information</PageTitle>
       <CardSection>
         {errorMessage && (

@@ -26,6 +26,12 @@ import {
   type EmployeeOption,
 } from "@/components/EmployeeSearchSelect";
 import { resolveLinkedEmployee } from "@/lib/resolveLinkedEmployee";
+import {
+  epFormActionButton,
+  epFormActions,
+  epSubmitRequestButton,
+} from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 
 const PURPOSE_OPTIONS = [
   "Material Purchase",
@@ -660,7 +666,14 @@ export default function NewFundRequestPage() {
   if (loading) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;
 
   const formContent = (
-    <div className="flex flex-col min-h-0 max-h-[calc(100vh-6rem)] w-full max-w-6xl gap-4 overflow-hidden">
+    <div
+      className={cn(
+        "flex w-full max-w-6xl flex-col gap-4",
+        isPortal
+          ? "min-h-0"
+          : "min-h-0 max-h-[calc(100vh-6rem)] overflow-hidden"
+      )}
+    >
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm shrink-0">
         ← Back to Fund Requests
       </Link>
@@ -674,7 +687,7 @@ export default function NewFundRequestPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
               {/* Left column */}
               <div className="flex flex-col gap-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <Label>Requested by</Label>
                     {employeeId ? (
@@ -952,12 +965,12 @@ export default function NewFundRequestPage() {
                     {purposeConfig.detailsSectionDescription}
                   </p>
                   <div className="space-y-1.5">
-                    <div className="grid grid-cols-[1fr_100px] gap-2 text-xs font-medium text-muted-foreground">
+                    <div className="grid grid-cols-1 gap-2 text-xs font-medium text-muted-foreground sm:grid-cols-[1fr_100px]">
                       <span>Details</span>
-                      <span className="text-right">Amount (PHP)</span>
+                      <span className="sm:text-right">Amount (PHP)</span>
                     </div>
                     {details.map((row, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_100px] gap-2">
+                      <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px]">
                         <Input
                           placeholder={`${purposeConfig.detailPlaceholderPrefix} ${i + 1}`}
                           value={row.description}
@@ -990,11 +1003,20 @@ export default function NewFundRequestPage() {
                 <p className="text-xs text-muted-foreground italic">
                   *NOTE: Provide attachments (Quotation, Invoice, Purchase Order, etc.) to your supervisor or HR as needed.
                 </p>
-                <div className="flex gap-3 pt-1">
-                  <Button type="submit" disabled={submitting}>
+                <div className={isPortal ? epFormActions : "flex gap-3 pt-1"}>
+                  <Button
+                    type="submit"
+                    disabled={submitting}
+                    className={isPortal ? epSubmitRequestButton : undefined}
+                  >
                     {submitting ? "Submitting..." : "Submit fund request"}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => router.push(base)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push(base)}
+                    className={isPortal ? epFormActionButton : undefined}
+                  >
                     Cancel
                   </Button>
                 </div>

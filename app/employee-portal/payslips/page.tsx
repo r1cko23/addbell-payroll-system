@@ -435,7 +435,7 @@ export default function EmployeePayslipsPage() {
                       </VStack>
 
                       <div className="flex w-full min-w-0 flex-col gap-2.5 lg:w-[17rem] lg:shrink-0 lg:justify-self-end">
-                        <div className="grid w-full grid-cols-3 gap-1.5 sm:gap-2">
+                        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-2">
                           <VStack gap="1" align="start" className="min-w-0">
                             <BodySmall className="text-[10px] leading-tight text-muted-foreground sm:text-xs">
                               Gross Pay

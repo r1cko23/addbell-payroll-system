@@ -2190,6 +2190,14 @@ export default function BundyClockPage() {
                 <Icon name="CaretRight" size={IconSizes.sm} />
               </Button>
             </div>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-center text-xs text-muted-foreground">
+              Available SIL Credits:{" "}
+              <span className="font-semibold text-foreground">
+                {silCredits !== null
+                  ? `${silCredits.toFixed(1)} days`
+                  : "Loading..."}
+              </span>
+            </div>
           </div>
 
           {isRestDayToday ? (
@@ -2337,6 +2345,51 @@ export default function BundyClockPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </CardSection>
+
+      {/* Mobile weekly attendance — simplified day cards */}
+      <CardSection title="Weekly Attendance" className="md:hidden">
+        {attendanceDays.length === 0 ? (
+          <BodySmall className="text-muted-foreground">
+            Loading attendance data...
+          </BodySmall>
+        ) : (
+          <div className="space-y-2">
+            {attendanceDays.map((day) => (
+              <div
+                key={day.date}
+                className="rounded-lg border border-border/80 bg-card p-3"
+              >
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    {formatDate(parseISO(day.date), "MMM dd")} · {day.dayName}
+                  </span>
+                  <span className="shrink-0 rounded border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold">
+                    {day.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    <strong className="text-foreground">In:</strong>{" "}
+                    {day.timeIn || "—"}
+                  </span>
+                  <span>
+                    <strong className="text-foreground">Out:</strong>{" "}
+                    {day.timeOut || "—"}
+                  </span>
+                  <span>
+                    <strong className="text-foreground">BH:</strong>{" "}
+                    {day.bh > 0 ? day.bh.toFixed(1) : "—"}
+                  </span>
+                  <span>
+                    <strong className="text-foreground">OT:</strong>{" "}
+                    {day.ot > 0 ? day.ot.toFixed(1) : "—"}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </CardSection>

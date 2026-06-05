@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/select';
 import { Search, Plus } from 'lucide-react';
 import { H1, PageTitle, PageSubtitle } from '@/components/ui/typography';
+import { epPageHeaderRow, epPageStack } from '@/lib/employee-portal-ui';
+import { cn } from '@/lib/utils';
 import type { FundRequestRow } from '@/types/fund-request';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
 
@@ -133,9 +135,9 @@ export default function FundRequestListPage() {
   });
 
   const content = (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className={cn(isPortal ? epPageStack : 'space-y-6')}>
+      <div className={isPortal ? epPageHeaderRow : 'flex items-center justify-between'}>
+        <div className="min-w-0">
           {isPortal ? (
             <PageTitle>Fund Requests</PageTitle>
           ) : (
@@ -148,7 +150,7 @@ export default function FundRequestListPage() {
           )}
         </div>
         {canCreate && (
-          <Button asChild>
+          <Button asChild className={isPortal ? 'min-h-11 w-full sm:min-h-9 sm:w-auto' : undefined}>
             <Link href={`${base}/new`}>
               <Plus className="h-4 w-4 mr-2" />
               New Request
@@ -157,8 +159,11 @@ export default function FundRequestListPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
+      <div className={cn(
+        'flex gap-3',
+        isPortal ? 'w-full flex-col sm:flex-row sm:flex-wrap sm:items-center' : 'flex-wrap items-center'
+      )}>
+        <div className={cn('relative flex-1', isPortal ? 'w-full min-w-0' : 'min-w-[200px] max-w-sm')}>
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search by purpose or project..."
@@ -168,7 +173,7 @@ export default function FundRequestListPage() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className={isPortal ? 'w-full sm:w-[180px]' : 'w-[180px]'}>
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -279,7 +284,7 @@ export default function FundRequestListPage() {
                                 ? "destructive"
                                 : "secondary"
                           }
-                          className="text-xs whitespace-nowrap"
+                          className="max-w-[45%] shrink-0 whitespace-normal text-right text-xs leading-snug sm:max-w-none"
                         >
                           {STATUS_LABELS[r.status] ?? r.status}
                         </Badge>

@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Clock, MapPin } from "lucide-react";
 import { PageTitle } from "@/components/ui/typography";
+import { epCardInteractive, epPageStack } from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 
 interface Assignment {
   id: string;
@@ -74,7 +76,7 @@ export default function EmployeePortalProjectTimePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className={epPageStack}>
       <PageTitle>Project Assignments</PageTitle>
 
       {loading ? (
@@ -93,7 +95,13 @@ export default function EmployeePortalProjectTimePage() {
             if (!project) return null;
             const isActive = project.status === "active";
             return (
-              <Card key={a.id} className="border-border/80 bg-card/95 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-hover">
+              <Card
+                key={a.id}
+                className={cn(
+                  "border-border/80 bg-card/95",
+                  epCardInteractive
+                )}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
@@ -106,20 +114,20 @@ export default function EmployeePortalProjectTimePage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-center justify-between gap-4">
-                  {a.role && (
-                    <p className="hidden md:block text-sm text-muted-foreground">
+                  {a.role ? (
+                    <p className="text-sm text-muted-foreground">
                       Role: {a.role}
                     </p>
-                  )}
-                  <div className="flex flex-col w-full items-start sm:items-end gap-1 text-left sm:text-right">
-                    <p className="hidden md:block text-xs text-muted-foreground">
+                  ) : null}
+                  <div className="flex w-full flex-col items-stretch gap-2 sm:items-end">
+                    <p className="text-xs text-muted-foreground">
                       Time in and out is based on your location, not per project.
                     </p>
                     <Link href="/employee-portal/bundy" className="w-full md:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full md:w-auto justify-center text-xs md:text-sm"
+                        className="min-h-11 w-full justify-center text-xs md:min-h-9 md:w-auto md:text-sm"
                       >
                         <Clock className="h-4 w-4 mr-2" />
                         Open Time Clock

@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, CheckCircle } from "lucide-react";
 import { PageTitle } from "@/components/ui/typography";
+import { epPageStack } from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 
 interface Project {
   id: string;
@@ -129,10 +131,13 @@ export default function EmployeePortalProjectClockPage() {
   const isClockedIn = !!activeEntry;
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto">
+    <div className={cn("mx-auto w-full max-w-2xl", epPageStack)}>
       <div>
         <Link href="/employee-portal/project-time">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
+          <Button variant="ghost" size="sm" className="min-h-11 px-2 sm:min-h-9">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Project Assignments
+          </Button>
         </Link>
         <div className="section-label mt-2 mb-2">
           <span className="pulse-dot" />
@@ -147,14 +152,14 @@ export default function EmployeePortalProjectClockPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <div className="hidden md:flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-primary" />
+            <div className="flex items-start gap-2">
+              <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               <p className="text-sm text-muted-foreground">
                 Time in and time out is now based on your location only. Per-project clocking has been disabled.
               </p>
             </div>
             {elapsed && activeEntry && (
-              <div className="hidden md:block text-center space-y-2">
+              <div className="space-y-2 rounded-lg border border-border/80 bg-muted/30 p-3 text-left sm:text-center">
                 <Badge variant="outline" className="px-4 py-1 text-sm">Most recent project work</Badge>
                 <div className="text-sm text-muted-foreground">
                   You last worked on this project starting at{" "}

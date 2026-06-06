@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +27,6 @@ import { useUserRole } from "@/lib/hooks/useUserRole";
 import { ArrowLeft, Edit, Save, AlertTriangle, MapPin } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { differenceInDays } from "date-fns";
-import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -420,7 +421,7 @@ export default function EmployeeDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-5xl min-w-0 space-y-6">
+      <div className={cn("max-w-5xl min-w-0 w-full", dbPageWrapper)}>
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Clock, MapPin } from "lucide-react";
 import { PageTitle } from "@/components/ui/typography";
-import { epCardInteractive, epPageStack } from "@/lib/employee-portal-ui";
+import { epCardInteractive, epPageWrapper } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 
 interface Assignment {
@@ -64,7 +64,7 @@ export default function EmployeePortalProjectTimePage() {
 
   if (!employeeId) {
     return (
-      <div className="space-y-6">
+      <div className={cn("w-full", epPageWrapper)}>
         <PageTitle>Project Assignments</PageTitle>
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
@@ -76,7 +76,7 @@ export default function EmployeePortalProjectTimePage() {
   }
 
   return (
-    <div className={epPageStack}>
+    <div className={cn("w-full", epPageWrapper)}>
       <PageTitle>Project Assignments</PageTitle>
 
       {loading ? (

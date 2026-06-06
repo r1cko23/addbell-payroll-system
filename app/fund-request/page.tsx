@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/select';
 import { Search, Plus } from 'lucide-react';
 import { H1, PageTitle, PageSubtitle } from '@/components/ui/typography';
-import { epPageHeaderRow, epPageStack } from '@/lib/employee-portal-ui';
+import { epPageHeaderRow, epPageWrapper } from '@/lib/employee-portal-ui';
+import { dbPageWrapper } from '@/lib/dashboard-ui';
 import { cn } from '@/lib/utils';
 import type { FundRequestRow } from '@/types/fund-request';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
@@ -135,7 +136,7 @@ export default function FundRequestListPage() {
   });
 
   const content = (
-    <div className={cn(isPortal ? epPageStack : 'space-y-6')}>
+    <div className={cn('w-full', isPortal ? epPageWrapper : dbPageWrapper)}>
       <div className={isPortal ? epPageHeaderRow : 'flex items-center justify-between'}>
         <div className="min-w-0">
           {isPortal ? (

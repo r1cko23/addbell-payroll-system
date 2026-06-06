@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import {
   buildAttlogPreview,
   normalizeAttlogRows,
@@ -331,7 +333,7 @@ export default function AttlogImportPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 md:p-6 space-y-6">
+      <div className={cn("w-full", dbPageWrapper)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">AttLog Import</h1>

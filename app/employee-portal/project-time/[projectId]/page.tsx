@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, CheckCircle } from "lucide-react";
 import { PageTitle } from "@/components/ui/typography";
-import { epPageStack } from "@/lib/employee-portal-ui";
+import { epPageWrapper } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 
 interface Project {
@@ -98,7 +98,7 @@ export default function EmployeePortalProjectClockPage() {
 
   if (!employeeId) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
         <Link href="/employee-portal/project-time">
           <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
         </Link>
@@ -109,7 +109,7 @@ export default function EmployeePortalProjectClockPage() {
 
   if (loading && !project) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
         <div className="animate-pulse h-8 w-48 bg-muted rounded" />
         <div className="animate-pulse h-48 bg-muted rounded" />
       </div>
@@ -118,7 +118,7 @@ export default function EmployeePortalProjectClockPage() {
 
   if (!project) {
     return (
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
         <Link href="/employee-portal/project-time">
           <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
         </Link>
@@ -131,7 +131,7 @@ export default function EmployeePortalProjectClockPage() {
   const isClockedIn = !!activeEntry;
 
   return (
-    <div className={cn("mx-auto w-full max-w-2xl", epPageStack)}>
+    <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
       <div>
         <Link href="/employee-portal/project-time">
           <Button variant="ghost" size="sm" className="min-h-11 px-2 sm:min-h-9">

@@ -21,6 +21,8 @@ import {
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Plus, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { PageSubtitle } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 
@@ -161,7 +163,7 @@ export default function ProjectsPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-6">
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Projects</h1>

@@ -32,7 +32,7 @@ import {
 import { CardSection } from "@/components/ui/card-section";
 import { H3, BodySmall, Caption } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbPageStack, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
+import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -933,14 +933,14 @@ export default function FailureToLogApprovalPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className={cn("w-full pb-16 sm:pb-24", dbPageStack)}>
+      <div className={cn("w-full", dbPageWrapper)}>
         <DashboardPageHeader
           title="Failure to log"
           description="Review and act on pending missed-punch requests."
         />
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4 w-full items-stretch">
           <MetricCard label="Total" value={stats.total} />
           <MetricCard label="Pending" value={stats.pending} />
           <MetricCard label="Manager approved" value={stats.approvedByManager} />
@@ -1392,7 +1392,7 @@ export default function FailureToLogApprovalPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </VStack>
+      </div>
     </DashboardLayout>
   );
 }

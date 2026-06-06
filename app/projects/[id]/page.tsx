@@ -27,6 +27,8 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface Project {
@@ -219,7 +221,7 @@ export default function ProjectDetailPage() {
   if (loading || profileLoading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
   if (!project) return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className={cn("w-full", dbPageWrapper)}>
         <Link href="/projects"><Button variant="ghost"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button></Link>
         <Card><CardContent className="p-8 text-center text-muted-foreground">Project not found</CardContent></Card>
       </div>
@@ -228,7 +230,7 @@ export default function ProjectDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-6">
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <Link href="/projects"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button></Link>

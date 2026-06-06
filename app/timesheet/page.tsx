@@ -10,7 +10,7 @@ import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
-import { dbPageStack } from "@/lib/dashboard-ui";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
@@ -1729,7 +1729,7 @@ export default function TimesheetPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className={cn("w-full pb-16 sm:pb-24", dbPageStack)}>
+      <div className={cn("w-full", dbPageWrapper)}>
         <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
           <VStack gap="2" align="start">
             <H1>Timesheet</H1>
@@ -2164,7 +2164,7 @@ export default function TimesheetPage() {
             </DbDesktopBlock>
           </CardSection>
         )}
-      </VStack>
+      </div>
     </DashboardLayout>
   );
 }

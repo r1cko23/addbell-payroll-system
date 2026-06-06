@@ -17,7 +17,7 @@ import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays, differenceInCalendarDays } from "date-fns";
 import {
   epFileInput,
-  epPageStack,
+  epPageWrapper,
   epSubmitRequestButton,
 } from "@/lib/employee-portal-ui";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
@@ -682,7 +682,7 @@ export default function LeaveRequestPage() {
 
   if (loading || !employee) {
     return (
-      <VStack gap="8" className="w-full">
+      <div className={cn("w-full", epPageWrapper)}>
         <div className="space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-32" />
@@ -694,7 +694,7 @@ export default function LeaveRequestPage() {
         </div>
         <SkeletonCard />
         <SkeletonCard />
-      </VStack>
+      </div>
     );
   }
 
@@ -718,14 +718,14 @@ export default function LeaveRequestPage() {
 
   return (
     <>
-      <div className={cn("w-full", epPageStack)}>
+      <div className={cn("w-full", epPageWrapper)}>
         <PortalPageHeader
           title="Leave Request"
           description="Submit and track your leave requests."
         />
 
         {/* Stats */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 items-stretch">
           <Card className="w-full h-full border-primary/20 bg-primary/5">
             <CardContent className="w-full p-5">
               <VStack gap="2" align="start" className="w-full">

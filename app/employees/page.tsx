@@ -36,7 +36,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
-import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { EmployeeFormSection } from "@/components/employees/EmployeeFormSection";
 
 interface Employee {
@@ -696,7 +696,7 @@ export default function EmployeesPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className={cn("w-full min-w-0 pb-16 sm:pb-24", dbPageStack)}>
+      <div className={cn("w-full min-w-0", dbPageWrapper)}>
         <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row sm:gap-4">
           <VStack gap="2" align="start">
             <H1>Employees</H1>
@@ -989,7 +989,7 @@ export default function EmployeesPage() {
             )}
           </CardSection>
         </div>
-      </VStack>
+      </div>
 
       {/* Add / Edit Employee Dialog */}
       <Dialog

@@ -39,3 +39,6 @@ Design and implement **mobile first**, then enhance at `sm` / `md` / `lg`.
 ## Reuse
 
 Import shared classes from `@/lib/employee-portal-ui` instead of duplicating mobile/desktop class strings.
+
+- Page root: `epPageWrapper` only — never `VStack gap` + `epPageStack` together (doubles vertical spacing on phones).
+- Layout uses `env(safe-area-inset-*)` for iOS home indicator and notches; test on tall phones (e.g. iPhone 16 Pro Max, Pixel 8 Pro).

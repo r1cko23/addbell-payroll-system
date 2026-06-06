@@ -19,7 +19,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
-import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
@@ -171,7 +171,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <VStack gap="6" align="stretch" className={cn("w-full pb-12 sm:pb-16", dbPageStack)}>
+    <div className={cn("w-full", dbPageWrapper)}>
       <DashboardPageHeader
         title="Executive dashboard"
         description="Workforce, projects, and pending actions."
@@ -499,6 +499,6 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
-    </VStack>
+    </div>
   );
 }

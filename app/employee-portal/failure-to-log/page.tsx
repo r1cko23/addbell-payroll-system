@@ -25,7 +25,7 @@ import {
   epFormGrid,
   epFormStack,
   epModalPanel,
-  epPageStack,
+  epPageWrapper,
   epSubmitRequestButton,
 } from "@/lib/employee-portal-ui";
 import {
@@ -299,7 +299,7 @@ export default function FailureToLogPage() {
 
   if (loading || !employee) {
     return (
-      <VStack gap="8" className="w-full">
+      <div className={cn("w-full", epPageWrapper)}>
         <div className="space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-32" />
@@ -311,7 +311,7 @@ export default function FailureToLogPage() {
         </div>
         <SkeletonCard />
         <SkeletonCard />
-      </VStack>
+      </div>
     );
   }
 
@@ -329,7 +329,7 @@ export default function FailureToLogPage() {
 
   return (
     <>
-      <div className={cn("w-full", epPageStack)}>
+      <div className={cn("w-full", epPageWrapper)}>
         <PageTitle>Failure To Log</PageTitle>
 
         {/* Stats */}

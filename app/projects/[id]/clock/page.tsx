@@ -15,6 +15,8 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, LogIn, LogOut, CheckCircle } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 
 interface Project {
@@ -212,7 +214,7 @@ export default function ProjectClockPage() {
   if (!project) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
+        <div className={cn("w-full", dbPageWrapper)}>
           <Link href="/projects">
             <Button variant="ghost">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -232,7 +234,7 @@ export default function ProjectClockPage() {
   if (!employeeId) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
+        <div className={cn("w-full", dbPageWrapper)}>
           <Link href={`/projects/${projectId}`}>
             <Button variant="ghost">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -254,7 +256,7 @@ export default function ProjectClockPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-2xl mx-auto">
+      <div className={cn("mx-auto w-full max-w-2xl", dbPageWrapper)}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

@@ -31,6 +31,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 type RowWithRequester = FundRequestRow & {
   employees: {
     employee_id: string;
@@ -341,7 +343,7 @@ export default function FundRequestApprovalPage() {
     profile?.role === "operations_manager";
   if (!canManage) {
     return (
-      <div className="space-y-6">
+      <div className={cn("w-full", dbPageWrapper)}>
         <H1>Fund Request Approval</H1>
         <PageSubtitle>
           You do not have permission to manage fund requests.
@@ -424,7 +426,7 @@ export default function FundRequestApprovalPage() {
     : weekFilteredRows;
 
   return (
-    <div className="space-y-6">
+    <div className={cn("w-full", dbPageWrapper)}>
       <div className="space-y-2">
         <Badge variant="outline" className="font-normal">Approvals</Badge>
         <H1>Fund Request Approvals</H1>

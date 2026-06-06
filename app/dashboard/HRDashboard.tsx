@@ -19,7 +19,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
-import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
@@ -599,7 +599,7 @@ export default function HRDashboard() {
         : "your group";
 
   return (
-    <VStack gap="6" align="stretch" className={cn("w-full pb-12 sm:pb-16", dbPageStack)}>
+    <div className={cn("w-full", dbPageWrapper)}>
       <DashboardPageHeader
         title={
           isOperationsManager ? operationsManagerHeading : "Workforce overview"
@@ -803,6 +803,6 @@ export default function HRDashboard() {
       </div>
         </>
       ) : null}
-    </VStack>
+    </div>
   );
 }

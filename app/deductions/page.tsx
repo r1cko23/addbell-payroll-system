@@ -27,6 +27,9 @@ import {
   formatBiMonthlyPeriod,
 } from "@/utils/bimonthly";
 import { calculateSSS, calculateMonthlySalary } from "@/utils/ph-deductions";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -352,12 +355,11 @@ export default function DeductionsPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full">
-        <VStack gap="2" align="start">
-          <H1>Deductions</H1>
-          <PageSubtitle>Bi-monthly deductions and government contributions.</PageSubtitle>
-        </VStack>
-
+      <div className={cn("w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title="Deductions"
+          description="Bi-monthly deductions and government contributions."
+        />
         <CardSection>
           <VStack gap="4">
             {/* Period Navigation */}
@@ -682,7 +684,7 @@ export default function DeductionsPage() {
             </HStack>
           </>
         )}
-      </VStack>
+      </div>
     </DashboardLayout>
   );
 }

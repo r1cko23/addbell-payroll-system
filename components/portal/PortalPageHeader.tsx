@@ -19,7 +19,7 @@ export function PortalPageHeader({
   return (
     <header
       className={cn(
-        "space-y-1 border-b border-border/70 pb-3 md:space-y-2 md:pb-4 lg:pb-6",
+        "space-y-0.5 border-b border-border/70 pb-2 sm:space-y-1 sm:pb-3 md:pb-4 lg:pb-6",
         className
       )}
     >

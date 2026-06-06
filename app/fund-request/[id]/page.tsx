@@ -11,6 +11,9 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { FundRequestRow } from '@/types/fund-request';
+import { epPageWrapper } from '@/lib/employee-portal-ui';
+import { dbPageWrapper } from '@/lib/dashboard-ui';
+import { cn } from '@/lib/utils';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending (Operations Manager)',
@@ -116,7 +119,7 @@ export default function FundRequestDetailPage() {
       : "Client-linked request";
 
   const content = (
-    <div className="space-y-6 max-w-3xl">
+    <div className={cn('w-full max-w-3xl', isPortal ? epPageWrapper : dbPageWrapper)}>
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">← Back to Fund Requests</Link>
       <Card className="border-border/80 bg-card/95">
         <CardHeader>

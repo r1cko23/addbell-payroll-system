@@ -31,6 +31,9 @@ import { format, startOfYear, endOfYear } from "date-fns";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx-js-style";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface EmployeeBIRData {
   employee_id: string;
@@ -552,13 +555,11 @@ export default function BIRReportsPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full">
-        {/* Header */}
-        <VStack gap="2" align="start">
-          <H1>BIR Reports</H1>
-          <PageSubtitle>BIR tax filing reports.</PageSubtitle>
-        </VStack>
-
+      <div className={cn("w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title="BIR reports"
+          description="BIR tax filing reports."
+        />
         {/* Year Selection */}
         <Card>
           <CardHeader>
@@ -713,7 +714,7 @@ export default function BIRReportsPage() {
             </CardContent>
           </Card>
         )}
-      </VStack>
+      </div>
     </DashboardLayout>
   );
 }

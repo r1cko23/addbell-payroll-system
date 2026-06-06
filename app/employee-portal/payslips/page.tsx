@@ -11,7 +11,7 @@ import {
   epFormActions,
   epInlineField,
   epPageHeaderRow,
-  epPageStack,
+  epPageWrapper,
   epTouchButton,
 } from "@/lib/employee-portal-ui";
 import { epRequestFiledLine } from "@/lib/employee-portal-request-history";
@@ -328,7 +328,7 @@ export default function EmployeePayslipsPage() {
 
   if (loading) {
     return (
-      <VStack gap="6" className="w-full">
+      <div className={cn("w-full", epPageWrapper)}>
         <div className="space-y-4">
           <Skeleton className="h-8 w-48" />
         </div>
@@ -337,13 +337,13 @@ export default function EmployeePayslipsPage() {
             <SkeletonCard key={i} />
           ))}
         </div>
-      </VStack>
+      </div>
     );
   }
 
   return (
-    <div className="w-full py-1 sm:py-2">
-      <div className={cn("mx-auto w-full max-w-6xl", epPageStack)}>
+    <div className="w-full">
+      <div className={cn("mx-auto w-full max-w-6xl", epPageWrapper)}>
         <div className={epPageHeaderRow}>
           <PageTitle className="min-w-0 shrink-0">My Payslips</PageTitle>
           {payslips.length > 0 ? (

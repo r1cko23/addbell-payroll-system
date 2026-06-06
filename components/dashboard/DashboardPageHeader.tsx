@@ -28,7 +28,7 @@ export function DashboardPageHeader({
     <header
       className={cn(
         dbPageHeaderRow,
-        "border-b border-border/70 pb-4 sm:pb-6",
+        "border-b border-border/70 pb-2.5 sm:pb-4 lg:pb-6",
         className
       )}
     >

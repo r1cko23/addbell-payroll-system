@@ -21,6 +21,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import {
   getActiveBundyBusinessDayKey,
   getOpenEntryFromPunches,
@@ -449,7 +451,7 @@ export default function ClockPage() {
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 -m-6 p-6">
-        <div className="max-w-5xl mx-auto space-y-6">
+        <div className={cn("mx-auto w-full max-w-5xl", dbPageWrapper)}>
           <Card>
             <CardContent className="text-center py-6">
               <VStack gap="2" align="center">

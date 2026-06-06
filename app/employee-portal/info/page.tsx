@@ -9,7 +9,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { format } from "date-fns";
-import { epPageStack } from "@/lib/employee-portal-ui";
+import { epPageWrapper } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 interface EmployeeInfo {
@@ -129,7 +129,7 @@ export default function EmployeeInfoPage() {
 
   if (loading || !info) {
     return (
-      <VStack gap="6" className="w-full">
+      <div className={cn("w-full", epPageWrapper)}>
         <SkeletonCard />
         <div className="w-full grid gap-4 md:grid-cols-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -139,7 +139,7 @@ export default function EmployeeInfoPage() {
             </div>
           ))}
         </div>
-      </VStack>
+      </div>
     );
   }
 
@@ -175,7 +175,7 @@ export default function EmployeeInfoPage() {
   ];
 
   return (
-    <VStack gap="4" className={cn("w-full sm:gap-6", epPageStack)}>
+    <div className={cn("w-full", epPageWrapper)}>
       <PageTitle>My Information</PageTitle>
       <CardSection>
         {errorMessage && (
@@ -297,6 +297,6 @@ export default function EmployeeInfoPage() {
           </BodySmall>
         </VStack>
       </Card>
-    </VStack>
+    </div>
   );
 }

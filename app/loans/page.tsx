@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -942,7 +944,7 @@ export default function LoansPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-6">
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <H1>Loans</H1>
           <Button onClick={openAddModal}>

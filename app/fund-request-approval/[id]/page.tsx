@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProfile } from "@/lib/hooks/useProfile";
 import type { FundRequestRow } from "@/types/fund-request";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pending (Operations Manager)",
@@ -218,7 +220,7 @@ export default function FundRequestApprovalDetailPage() {
       : "Client-linked request";
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className={cn("w-full max-w-3xl", dbPageWrapper)}>
       <Link
         href="/fund-request-approval"
         className="text-muted-foreground hover:text-foreground text-sm"

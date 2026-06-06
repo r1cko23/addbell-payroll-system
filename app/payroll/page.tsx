@@ -39,7 +39,7 @@ import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
-import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -772,7 +772,7 @@ export default function PayrollPage() {
   if (selectedRun) {
     return (
       <DashboardLayout>
-        <VStack gap="6" className="mx-auto w-full max-w-6xl pb-16">
+        <div className={cn("mx-auto w-full max-w-6xl", dbPageWrapper)}>
           <HStack justify="between" align="start" className="w-full flex-col gap-4 sm:flex-row">
             <VStack gap="1" align="start">
               <Button variant="ghost" size="sm" onClick={() => setSelectedRun(null)} className="mb-1">
@@ -1080,14 +1080,14 @@ export default function PayrollPage() {
               />
             </div>
           )}
-        </VStack>
+        </div>
       </DashboardLayout>
     );
   }
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className={cn("mx-auto w-full max-w-6xl pb-16 sm:pb-24", dbPageStack)}>
+      <div className={cn("mx-auto w-full max-w-6xl", dbPageWrapper)}>
         <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row">
           <H1>Payroll</H1>
           {(isManagement || isHR) && (
@@ -1211,7 +1211,7 @@ export default function PayrollPage() {
             </>
           )}
         </CardSection>
-      </VStack>
+      </div>
 
       {/* New Payroll Run Dialog */}
       <Dialog

@@ -7,12 +7,19 @@
  * - Laptop ≥ 1024px: fixed sidebar, multi-column grids
  */
 
-/** Vertical rhythm between dashboard sections */
-export const dbPageStack = "w-full space-y-4 sm:space-y-5 lg:space-y-6";
+/**
+ * Page wrapper — use instead of VStack gap + space-y (they double up on mobile).
+ * Tuned for phones (incl. iPhone 16 Pro Max, Pixel, Galaxy) through desktop.
+ */
+export const dbPageWrapper =
+  "flex w-full min-w-0 flex-col gap-2.5 sm:gap-4 md:gap-5 lg:gap-6";
+
+/** @deprecated Prefer dbPageWrapper on the page root */
+export const dbPageStack = dbPageWrapper;
 
 /** Page title + toolbar row */
 export const dbPageHeaderRow =
-  "flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6";
+  "flex w-full flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4 md:gap-6";
 
 /** Header action row: full-width grid on mobile, inline on sm+ */
 export const dbHeaderActions =

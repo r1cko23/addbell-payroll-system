@@ -298,9 +298,12 @@
     opacity: 1;
   }
 
-  .dashboard-content,
-  .portal-content {
-    min-height: min(70vh, calc(100dvh - 4rem));
+  /* Avoid forced min-height on phones — it leaves large empty gaps on tall iOS/Android screens */
+  @media (min-width: 768px) {
+    .dashboard-content,
+    .portal-content {
+      min-height: min(70vh, calc(100dvh - 4rem));
+    }
   }
 
   .dashboard-table-shell {

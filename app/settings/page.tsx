@@ -47,6 +47,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { PermissionsManager } from "@/components/PermissionsManager";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface User {
   id: string;
@@ -425,12 +428,11 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full">
-        <VStack gap="2" align="start">
-          <H1>Settings</H1>
-          <PageSubtitle>System configuration and user management.</PageSubtitle>
-        </VStack>
-
+      <div className={cn("w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title="Settings"
+          description="System configuration and user management."
+        />
         {/* User Info */}
         <CardSection title="Your Account">
           <VStack gap="6" align="center" className="w-full">
@@ -861,7 +863,7 @@ export default function SettingsPage() {
             </VStack>
           </div>
         </CardSection>
-      </VStack>
+      </div>
 
       {/* Add User Modal */}
       <Dialog

@@ -12,7 +12,7 @@ import {
 } from "@/components/employee-portal/EmployeePortalViewport";
 import {
   epCardInteractive,
-  epPageStack,
+  epPageWrapper,
   epQuickLinkCard,
   epQuickLinkCardContent,
   epQuickLinkIcon,
@@ -144,7 +144,7 @@ export default function EmployeePortalHomePage() {
   const firstName = displayName.split(" ")[0] || displayName;
 
   return (
-    <div className={cn("w-full pb-2 md:pb-4", epPageStack)}>
+    <div className={cn("w-full", epPageWrapper)}>
       <EpMobileView className="gap-2">
         <PortalPageHeader
           title="Home"

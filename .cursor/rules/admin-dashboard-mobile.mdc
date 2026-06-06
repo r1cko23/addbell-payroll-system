@@ -15,7 +15,8 @@ globs: app/dashboard/**,app/*-approval/**,components/dashboard/**,components/Das
 
 ## Utilities (`lib/dashboard-ui.ts`)
 
-- `dbPageStack` — vertical section rhythm
+- `dbPageWrapper` — page root flex gap (do not combine with VStack gap or space-y)
+- `dbPageStack` — alias for `dbPageWrapper`
 - `dbPageHeaderRow` — title + actions header
 - `dbHeaderActions` — 2-col button grid on mobile, inline on `sm+`
 - `dbTableShell` — horizontal scroll fallback for tables

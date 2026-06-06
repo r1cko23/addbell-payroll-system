@@ -53,7 +53,7 @@ import { Label } from "@/components/ui/label";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbPageStack, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
+import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, addDays, getWeek, parseISO, startOfYear, endOfYear, startOfMonth, endOfMonth } from "date-fns";
@@ -3079,7 +3079,7 @@ export default function PayslipsPage() {
   return (
     <>
       <DashboardLayout>
-        <VStack gap="3" className={cn("w-full print:hidden pb-16 sm:pb-24", dbPageStack)}>
+        <div className={cn("w-full print:hidden", dbPageWrapper)}>
           <DashboardPageHeader
             title="Payslip generation"
             description="Select a cutoff period and employee to view or edit payslips."
@@ -4215,7 +4215,7 @@ export default function PayslipsPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </VStack>
+        </div>
       </DashboardLayout>
     </>
   );

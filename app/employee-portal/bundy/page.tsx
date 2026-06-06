@@ -10,6 +10,7 @@ import { PageTitle, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
+import { epPageWrapper } from "@/lib/employee-portal-ui";
 import { toast } from "sonner";
 import { creditNightDiffHours, creditOvertimeHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
@@ -2090,7 +2091,7 @@ export default function BundyClockPage() {
   }
 
   return (
-    <VStack gap="8" className="w-full pb-10">
+    <div className={cn("w-full", epPageWrapper)}>
       <PageTitle>Bundy Clock</PageTitle>
       <Card className="w-full border-primary/20 bg-card p-4 sm:p-6">
         <div className="flex flex-col gap-6">
@@ -2641,7 +2642,7 @@ export default function BundyClockPage() {
           validateLocation={validateLocationForModal}
         />
       )}
-    </VStack>
+    </div>
   );
 }
 

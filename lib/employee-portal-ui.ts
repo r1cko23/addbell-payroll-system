@@ -37,8 +37,14 @@ export const epDialogContentForm =
 export const epDialogContentWide =
   "max-h-[min(90dvh,90vh)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg p-4 sm:max-w-4xl sm:w-full sm:p-6";
 
-/** Vertical rhythm between page sections */
-export const epPageStack = "w-full space-y-3 md:space-y-4 lg:space-y-6";
+/**
+ * Page wrapper — flex gap only (do not combine with VStack gap or space-y).
+ */
+export const epPageWrapper =
+  "flex w-full min-w-0 flex-col gap-2 sm:gap-3 md:gap-4 lg:gap-6";
+
+/** @deprecated Prefer epPageWrapper on the page root */
+export const epPageStack = epPageWrapper;
 
 /** Home / quick-link cards — dense rows on mobile, roomier from sm */
 export const epQuickLinkCard =

@@ -27,7 +27,7 @@ export function CardSection({
   return (
     <Card className={cn("w-full", className)}>
       {(title || description) && (
-        <CardHeader className={cn("px-4 pb-4 pt-4 sm:px-6 sm:pt-6", headerClassName)}>
+        <CardHeader className={cn("px-3 pb-2 pt-3 sm:px-6 sm:pb-4 sm:pt-6", headerClassName)}>
           {title && (
             <CardTitle>
               {typeof title === "string" ? toTitleCase(title) : title}
@@ -38,7 +38,7 @@ export function CardSection({
           )}
         </CardHeader>
       )}
-      <CardContent className="w-full space-y-4 p-4 sm:p-6">{children}</CardContent>
+      <CardContent className="w-full space-y-3 p-3 sm:space-y-4 sm:p-6">{children}</CardContent>
     </Card>
   );
 }

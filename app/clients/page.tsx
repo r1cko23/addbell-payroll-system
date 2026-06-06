@@ -31,6 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface Client {
   id: string;
@@ -201,7 +203,7 @@ export default function ClientsPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-6">
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>

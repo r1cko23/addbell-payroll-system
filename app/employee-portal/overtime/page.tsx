@@ -42,7 +42,7 @@ import {
   epFormField,
   epFormGrid,
   epFormStack,
-  epPageStack,
+  epPageWrapper,
   epSubmitRequestButton,
   epPeriodNavButton,
   epPeriodNavRow,
@@ -483,7 +483,7 @@ export default function OvertimePage() {
     endTimeOnly.getTime() <= startTimeOnly.getTime();
 
   return (
-    <div className={cn("w-full", epPageStack)}>
+    <div className={cn("w-full", epPageWrapper)}>
       <PortalPageHeader title="OT Filing" />
       <Card className="w-full">
         <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">

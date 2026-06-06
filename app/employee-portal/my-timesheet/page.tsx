@@ -21,7 +21,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
-  epPageStack,
+  epPageWrapper,
   epPageHeaderRow,
   epTouchButton,
   epCardInteractive,
@@ -107,7 +107,7 @@ export default function EmployeeMyTimesheetPage() {
 
   return (
     <div className="w-full py-1 sm:py-2">
-      <div className={cn("mx-auto w-full max-w-6xl", epPageStack)}>
+      <div className={cn("mx-auto w-full max-w-6xl", epPageWrapper)}>
         <div className={epPageHeaderRow}>
           <PageTitle className="min-w-0 shrink-0">My Timesheet</PageTitle>
           <HStack gap="2" className="w-full sm:w-auto">

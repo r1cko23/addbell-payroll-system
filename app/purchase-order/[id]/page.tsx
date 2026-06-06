@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface PODetail {
   id: string;
@@ -115,7 +117,7 @@ export default function PurchaseOrderDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-4xl">
+      <div className={cn("w-full max-w-4xl", dbPageWrapper)}>
         <Link href="/purchase-order" className="text-muted-foreground hover:text-foreground text-sm">← Back to Purchase Orders</Link>
 
         <div className="flex items-start justify-between gap-4">

@@ -26,6 +26,9 @@ import {
 } from "@/utils/bimonthly";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useRouter } from "next/navigation";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
@@ -212,10 +215,11 @@ export default function AllowancesPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8">
-        <H1>Cutoff Allowances</H1>
-        <PageSubtitle>Manual allowances per cutoff period.</PageSubtitle>
-
+      <div className={cn("w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title="Cutoff allowances"
+          description="Manual allowances per cutoff period."
+        />
         <CardSection>
           <VStack gap="4">
             <div className="grid grid-cols-2 gap-4">
@@ -360,7 +364,7 @@ export default function AllowancesPage() {
             )}
           </VStack>
         </CardSection>
-      </VStack>
+      </div>
     </DashboardLayout>
   );
 }

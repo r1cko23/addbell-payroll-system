@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface Vendor {
   id: string;
@@ -177,7 +179,7 @@ export default function VendorsPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-6">
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Vendors</h1>

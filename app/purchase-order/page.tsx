@@ -5,6 +5,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { PurchaseOrderPrint } from "@/components/PurchaseOrderPrint";
 import {
   DEFAULT_COMPANY,
@@ -305,7 +307,7 @@ export default function PurchaseOrderPage() {
 
   // ========== LIST VIEW ==========
   const listView = (
-    <div className="min-w-0 space-y-6">
+    <div className={cn("min-w-0 w-full", dbPageWrapper)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Purchase Orders</h1>
@@ -382,7 +384,7 @@ export default function PurchaseOrderPage() {
 
   // ========== CREATE VIEW (existing form) ==========
   const createView = (
-    <div className="min-w-0 space-y-8">
+    <div className={cn("min-w-0 w-full", dbPageWrapper)}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => setView("list")}><ArrowLeft className="h-5 w-5" /></Button>

@@ -28,6 +28,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import {
   formatAuditValue,
   getFieldLabel,
@@ -445,15 +448,11 @@ export default function AuditDashboardPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="6" className="w-full">
-        {/* Header */}
-        <VStack gap="2" align="start">
-          <H1>Audit Dashboard</H1>
-          <PageSubtitle>
-            Comprehensive audit trail and employee first login tracking.
-          </PageSubtitle>
-        </VStack>
-
+      <div className={cn("w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title="Audit dashboard"
+          description="Comprehensive audit trail and employee first login tracking."
+        />
         {/* Tabs */}
         <HStack gap="2">
           <Button
@@ -739,7 +738,7 @@ export default function AuditDashboardPage() {
             </CardContent>
           </Card>
         )}
-      </VStack>
+      </div>
     </DashboardLayout>
   );
 }

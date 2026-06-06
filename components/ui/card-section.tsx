@@ -25,7 +25,7 @@ export function CardSection({
   headerClassName = "",
 }: CardSectionProps) {
   return (
-    <Card className={cn("w-full", className)}>
+    <Card className={cn("w-full min-w-0 max-w-full overflow-hidden", className)}>
       {(title || description) && (
         <CardHeader className={cn("px-3 pb-2 pt-3 sm:px-6 sm:pb-4 sm:pt-6", headerClassName)}>
           {title && (
@@ -38,7 +38,7 @@ export function CardSection({
           )}
         </CardHeader>
       )}
-      <CardContent className="w-full space-y-3 p-3 sm:space-y-4 sm:p-6">{children}</CardContent>
+      <CardContent className="w-full min-w-0 max-w-full space-y-3 overflow-hidden p-3 sm:space-y-4 sm:p-6">{children}</CardContent>
     </Card>
   );
 }

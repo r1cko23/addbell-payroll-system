@@ -41,4 +41,7 @@ Design and implement **mobile first**, then enhance at `sm` / `md` / `lg`.
 Import shared classes from `@/lib/employee-portal-ui` instead of duplicating mobile/desktop class strings.
 
 - Page root: `epPageWrapper` only — never `VStack gap` + `epPageStack` together (doubles vertical spacing on phones).
+- Form cards: `epFormCard` on request/form `Card` roots (clips iOS date/time overflow).
+- Native `<select>`: `epNativeSelect` (44px touch height, `min-w-0`).
+- Split layouts: `EpMobileBlock` / `EpDesktopBlock` when mobile and desktop need different markup (see header in `EmployeePortalHeader.tsx`).
 - Layout uses `env(safe-area-inset-*)` for iOS home indicator and notches; test on tall phones (e.g. iPhone 16 Pro Max, Pixel 8 Pro).

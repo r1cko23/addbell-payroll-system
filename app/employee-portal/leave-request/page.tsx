@@ -17,6 +17,10 @@ import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { format, addDays, differenceInCalendarDays } from "date-fns";
 import {
   epFileInput,
+  epFormCard,
+  epFormField,
+  epFormStack,
+  epNativeSelect,
   epPageWrapper,
   epSubmitRequestButton,
 } from "@/lib/employee-portal-ui";
@@ -802,7 +806,7 @@ export default function LeaveRequestPage() {
         </div>
 
         {/* Request Form */}
-        <Card className="w-full">
+        <Card className={epFormCard}>
           <CardHeader className="pb-4">
             <CardTitle>
               <HStack gap="2" align="center">
@@ -811,10 +815,10 @@ export default function LeaveRequestPage() {
               </HStack>
             </CardTitle>
           </CardHeader>
-          <CardContent className="w-full">
-            <form onSubmit={handleSubmit} className="w-full">
-              <VStack gap="6" className="w-full">
-                <div className="w-full space-y-2">
+          <CardContent className="w-full min-w-0">
+            <form onSubmit={handleSubmit} className="w-full min-w-0">
+              <div className={epFormStack}>
+                <div className={epFormField}>
                   <Label>Leave Type</Label>
                   <div className="w-full flex flex-wrap gap-4">
                     <label
@@ -874,13 +878,13 @@ export default function LeaveRequestPage() {
                   </div>
                 </div>
 
-                <div className="w-full space-y-2">
+                <div className={epFormField}>
                   <Label htmlFor="leave_subtype">Leave Sub-Type</Label>
                   <select
                     id="leave_subtype"
                     value={leaveSubtype}
                     onChange={(e) => setLeaveSubtype(e.target.value as LeaveSubtype)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className={epNativeSelect}
                   >
                     {LEAVE_SUBTYPE_OPTIONS.filter((option) =>
                       leaveType === "LWOP"
@@ -898,7 +902,7 @@ export default function LeaveRequestPage() {
                   </p>
                 </div>
 
-                <div className="w-full min-w-0 space-y-2">
+                <div className={epFormField}>
                   <Label>Select Dates</Label>
                   <MultiDatePicker
                     selectedDates={selectedDates}
@@ -1072,13 +1076,13 @@ export default function LeaveRequestPage() {
                     </>
                   )}
                 </Button>
-              </VStack>
+              </div>
             </form>
           </CardContent>
         </Card>
 
         {/* Requests List */}
-        <Card className="w-full">
+        <Card className={epFormCard}>
           <CardHeader className="px-3 pb-3 pt-4 sm:px-6 sm:pb-4">
             <CardTitle className="text-base sm:text-lg">My Leave Requests</CardTitle>
           </CardHeader>

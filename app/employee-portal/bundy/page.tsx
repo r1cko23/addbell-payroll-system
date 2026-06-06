@@ -10,7 +10,7 @@ import { PageTitle, H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
-import { epPageWrapper } from "@/lib/employee-portal-ui";
+import { epFormCard, epPageWrapper, epPeriodNavButton, epPeriodNavRow } from "@/lib/employee-portal-ui";
 import { toast } from "sonner";
 import { creditNightDiffHours, creditOvertimeHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import { LocationConfirmationModal } from "@/components/LocationConfirmationModal";
@@ -2093,7 +2093,7 @@ export default function BundyClockPage() {
   return (
     <div className={cn("w-full", epPageWrapper)}>
       <PageTitle>Bundy Clock</PageTitle>
-      <Card className="w-full border-primary/20 bg-card p-4 sm:p-6">
+      <Card className={cn(epFormCard, "border-primary/20 bg-card p-4 sm:p-6")}>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
             <div className="font-mono text-4xl font-bold text-foreground sm:text-6xl min-h-[48px] sm:min-h-[56px] flex items-center justify-center">
@@ -2118,11 +2118,11 @@ export default function BundyClockPage() {
           </div>
 
           <div className="hidden md:flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center justify-between gap-2 sm:justify-start sm:gap-3">
+            <div className={cn(epPeriodNavRow, "mb-0 sm:justify-start")}>
               <Button
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-3 py-3"
+                className={epPeriodNavButton}
                 onClick={() =>
                   setPeriodStart(getPreviousWeeklyCutoff(periodStart))
                 }
@@ -2140,7 +2140,7 @@ export default function BundyClockPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-3 py-3"
+                className={epPeriodNavButton}
                 onClick={() =>
                   setPeriodStart(getNextWeeklyCutoff(periodStart))
                 }
@@ -2165,11 +2165,11 @@ export default function BundyClockPage() {
 
           {/* Mobile week navigation (so employees can view previous weeks) */}
           <div className="flex flex-col gap-2 md:hidden">
-            <div className="flex items-center justify-between gap-2">
+            <div className={cn(epPeriodNavRow, "mb-0")}>
               <Button
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-3 py-3"
+                className={epPeriodNavButton}
                 onClick={() => setPeriodStart(getPreviousWeeklyCutoff(periodStart))}
                 aria-label="Previous week"
               >
@@ -2184,7 +2184,7 @@ export default function BundyClockPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                className="shrink-0 px-3 py-3"
+                className={epPeriodNavButton}
                 onClick={() => setPeriodStart(getNextWeeklyCutoff(periodStart))}
                 aria-label="Next week"
               >

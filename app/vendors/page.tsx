@@ -27,7 +27,9 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { cn } from "@/lib/utils";
 
 interface Vendor {
@@ -180,17 +182,19 @@ export default function VendorsPage() {
   return (
     <DashboardLayout>
       <div className={cn("min-w-0 w-full", dbPageWrapper)}>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
+        <div className={dbPageHeaderRow}>
+          <div className="min-w-0">
             <h1 className="text-2xl font-semibold">Vendors</h1>
             <PageSubtitle>
               Manage suppliers for purchase orders.
             </PageSubtitle>
           </div>
-          <Button onClick={() => handleOpenDialog()}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Vendor
-          </Button>
+          <div className={dbHeaderActions}>
+            <Button onClick={() => handleOpenDialog()} className={dbHeaderButton}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Vendor
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -217,65 +221,104 @@ export default function VendorsPage() {
                 No vendors found. Add one to use in Purchase Orders.
               </div>
             ) : (
-              <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
-                <Table className="w-full min-w-[760px]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Contact Person</TableHead>
-                      <TableHead>TIN</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-24">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+              <>
+                <DbMobileBlock>
+                  <div className="space-y-2">
                     {filteredVendors.map((vendor) => (
-                      <TableRow key={vendor.id}>
-                        <TableCell className="font-medium">{vendor.name}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {vendor.contact_person || "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {vendor.tin || "—"}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {vendor.phone || vendor.email || "—"}
-                        </TableCell>
-                        <TableCell>
+                      <div key={vendor.id} className={dbMobileListCard}>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="min-w-0 truncate text-sm font-medium">{vendor.name}</p>
                           <span
-                            className={
-                              vendor.is_active
-                                ? "text-primary"
-                                : "text-muted-foreground"
-                            }
+                            className={cn(
+                              "shrink-0 text-xs font-medium",
+                              vendor.is_active ? "text-primary" : "text-muted-foreground"
+                            )}
                           >
                             {vendor.is_active ? "Active" : "Inactive"}
                           </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(vendor)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(vendor)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          <DashboardMobileField label="Contact" value={vendor.contact_person || "—"} />
+                          <DashboardMobileField label="TIN" value={vendor.tin || "—"} />
+                          <DashboardMobileField
+                            label="Phone / email"
+                            value={vendor.phone || vendor.email || "—"}
+                          />
+                        </div>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleOpenDialog(vendor)}>
+                            <Pencil className="mr-1 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDelete(vendor)}>
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  </div>
+                </DbMobileBlock>
+                <DbDesktopBlock className={dbTableShell}>
+                  <Table className="w-full min-w-[760px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Contact Person</TableHead>
+                        <TableHead>TIN</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-24">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredVendors.map((vendor) => (
+                        <TableRow key={vendor.id}>
+                          <TableCell className="font-medium">{vendor.name}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {vendor.contact_person || "—"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {vendor.tin || "—"}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {vendor.phone || vendor.email || "—"}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={
+                                vendor.is_active
+                                  ? "text-primary"
+                                  : "text-muted-foreground"
+                              }
+                            >
+                              {vendor.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenDialog(vendor)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(vendor)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </DbDesktopBlock>
+              </>
             )}
           </CardContent>
         </Card>

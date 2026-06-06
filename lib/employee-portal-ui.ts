@@ -74,14 +74,21 @@ export const epPageHeaderRow =
 export const epInlineField =
   "flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 sm:w-auto";
 
-/** Single column on phone/tablet; two columns on laptop+ (room beside sidebar) */
-export const epFormGrid = "grid w-full grid-cols-1 gap-4 lg:grid-cols-2";
+/** Form / request card — prevents iOS date/time overflow on narrow screens */
+export const epFormCard = "w-full min-w-0 max-w-full overflow-hidden";
+
+/** Native <select> — matches Input touch height and width constraints */
+export const epNativeSelect =
+  "box-border flex h-11 min-h-11 min-w-0 w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-10 sm:min-h-10";
 
 /** Single labeled field block */
-export const epFormField = "w-full min-w-0 space-y-2";
+export const epFormField = "w-full min-w-0 max-w-full overflow-hidden space-y-2";
 
 /** Vertical rhythm inside forms */
-export const epFormStack = "flex w-full flex-col gap-4 sm:gap-6";
+export const epFormStack = "flex w-full min-w-0 max-w-full flex-col gap-4 sm:gap-6";
+
+/** Single column on phone/tablet; two columns on laptop+ */
+export const epFormGrid = "grid w-full min-w-0 max-w-full grid-cols-1 gap-4 lg:grid-cols-2";
 
 /** File input — ~44px touch target on mobile */
 export const epFileInput =

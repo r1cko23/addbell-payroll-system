@@ -435,15 +435,26 @@
     line-height: var(--line-height-normal);
   }
 
-  /* iOS Safari: native date/time pickers ignore w-full without min-width: 0 */
+  /*
+   * iOS Safari: date/time inputs ignore width:100% when padding is set (WebKit #301648).
+   * Shell + min-logical-width + datetime-edit padding reset keeps fields inside cards.
+   */
+  .ios-temporal-input-shell {
+    contain: inline-size;
+  }
+
+  .ios-temporal-input,
   input[type="date"],
   input[type="time"],
   input[type="datetime-local"],
   input[type="month"],
   input[type="week"] {
+    display: block;
+    width: 100%;
     min-width: 0;
     max-width: 100%;
     box-sizing: border-box;
+    -webkit-min-logical-width: 0;
   }
 
   input[type="date"]::-webkit-date-and-time-value,
@@ -451,6 +462,24 @@
   input[type="datetime-local"]::-webkit-date-and-time-value {
     min-width: 0;
     text-align: left;
+  }
+
+  .ios-temporal-input::-webkit-datetime-edit,
+  .ios-temporal-input::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="time"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="datetime-local"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+
+  .ios-temporal-input::-webkit-calendar-picker-indicator,
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    margin-left: auto;
   }
 }
 

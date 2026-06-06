@@ -40,6 +40,16 @@ export const dbSectionGrid = "grid w-full grid-cols-1 gap-4 lg:grid-cols-2 lg:ga
 export const dbTableShell =
   "w-full min-w-0 overflow-x-auto rounded-lg border";
 
+/** Form / detail card — clip horizontal overflow on phones */
+export const dbFormCard = "w-full min-w-0 overflow-x-clip";
+
+/** Filter/toolbar select — full width on mobile, fixed from sm */
+export const dbFilterSelect = "w-full min-w-0 sm:w-[180px]";
+
+/** Dialog footer — stacked full-width actions on mobile */
+export const dbDialogFooter =
+  "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2";
+
 /** Mobile list card inside dashboard sections */
 export const dbMobileListCard =
   "rounded-lg border border-border/80 bg-card p-3 space-y-1";

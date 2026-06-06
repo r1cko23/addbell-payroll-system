@@ -21,6 +21,9 @@ globs: app/dashboard/**,app/*-approval/**,components/dashboard/**,components/Das
 - `dbHeaderActions` — 2-col button grid on mobile, inline on `sm+`
 - `dbTableShell` — horizontal scroll fallback for tables
 - `dbKpiGrid`, `dbSectionGrid` — responsive stat/section grids
+- `dbFormCard` — form/detail cards with `overflow-x-clip` on phones
+- `dbFilterSelect` — full-width filter selects on mobile
+- `dbDialogFooter` — stacked dialog actions on mobile
 
 ## Split layouts (`components/dashboard/DashboardViewport.tsx`)
 

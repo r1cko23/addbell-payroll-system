@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { dbFilterSelect, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -945,12 +947,14 @@ export default function LoansPage() {
   return (
     <DashboardLayout>
       <div className={cn("min-w-0 w-full", dbPageWrapper)}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className={dbPageHeaderRow}>
           <H1>Loans</H1>
-          <Button onClick={openAddModal}>
-            <Icon name="Plus" className="mr-2 h-4 w-4" />
-            Add Loan
-          </Button>
+          <div className={dbHeaderActions}>
+            <Button onClick={openAddModal} className={dbHeaderButton}>
+              <Icon name="Plus" className="mr-2 h-4 w-4" />
+              Add Loan
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -959,7 +963,7 @@ export default function LoansPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-3">
+              <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                 <Input
                   placeholder="Search by employee name or ID..."
                   value={searchTerm}
@@ -967,7 +971,7 @@ export default function LoansPage() {
                   className="w-full sm:max-w-sm"
                 />
                 <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-[160px] sm:w-[180px]">
+                  <SelectTrigger className={dbFilterSelect}>
                     <SelectValue placeholder="Filter by type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -986,7 +990,7 @@ export default function LoansPage() {
                   </SelectContent>
                 </Select>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-[160px] sm:w-[180px]">
+                  <SelectTrigger className={dbFilterSelect}>
                     <SelectValue placeholder="Filter by status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1006,7 +1010,58 @@ export default function LoansPage() {
                   No loans found
                 </div>
               ) : (
-                <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+                <>
+                <DbMobileBlock>
+                  <div className="space-y-2">
+                    {filteredLoans.map((loan) => (
+                      <div key={loan.id} className={dbMobileListCard}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{loan.employee?.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{loan.employee?.employee_id}</p>
+                          </div>
+                          <Badge variant={loan.is_active ? "default" : "secondary"} className="shrink-0">
+                            {loan.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          <DashboardMobileField
+                            label="Type"
+                            value={
+                              <Badge
+                                className={cn("cursor-pointer text-xs", getLoanTypeBadgeColor(loan.loan_type))}
+                                onClick={() => openPaymentHistoryModal(loan)}
+                              >
+                                {getLoanTypeLabel(loan.loan_type)}
+                              </Badge>
+                            }
+                          />
+                          <DashboardMobileField label="Balance" value={formatCurrency(loan.current_balance)} />
+                          <DashboardMobileField label="Monthly" value={formatCurrency(loan.weekly_deduction_amount ?? 0)} />
+                          <DashboardMobileField
+                            label="Terms"
+                            value={`${(loan.total_terms ?? 0) - (loan.remaining_terms ?? 0)} / ${loan.total_terms ?? 0}`}
+                          />
+                          <DashboardMobileField
+                            label="Effectivity"
+                            value={format(new Date(loan.effectivity_date), "MMM d, yyyy")}
+                          />
+                        </div>
+                        <div className="mt-3 flex flex-wrap justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => openEditModal(loan)}>
+                            <Icon name="PencilSimple" className="mr-1 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => openAuditModal(loan)}>
+                            <Icon name="Clock" className="mr-1 h-4 w-4" />
+                            History
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DbMobileBlock>
+                <DbDesktopBlock className={dbTableShell}>
                   <Table className="w-full min-w-[980px]">
                     <TableHeader>
                       <TableRow>
@@ -1128,7 +1183,8 @@ export default function LoansPage() {
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </DbDesktopBlock>
+                </>
               )}
             </div>
           </CardContent>

@@ -29,6 +29,7 @@ import { resolveLinkedEmployee } from "@/lib/resolveLinkedEmployee";
 import {
   epFormActionButton,
   epFormActions,
+  epFormCard,
   epSubmitRequestButton,
 } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
@@ -677,7 +678,7 @@ export default function NewFundRequestPage() {
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm shrink-0">
         ← Back to Fund Requests
       </Link>
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-primary/20 bg-card/95">
+      <Card className={cn(epFormCard, "flex min-h-0 flex-1 flex-col border-primary/20 bg-card/95")}>
         <CardHeader className="pb-4 shrink-0">
           <CardTitle>New Fund Request</CardTitle>
           <p className="text-sm text-muted-foreground">{workflow.workflowLabel}</p>

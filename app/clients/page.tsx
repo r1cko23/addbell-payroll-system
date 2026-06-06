@@ -31,7 +31,9 @@ import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -204,8 +206,8 @@ export default function ClientsPage() {
   return (
     <DashboardLayout>
       <div className={cn("min-w-0 w-full", dbPageWrapper)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className={dbPageHeaderRow}>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
           <PageSubtitle>
             Manage your construction clients and their information.
@@ -214,10 +216,12 @@ export default function ClientsPage() {
         {canManage && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Client
-              </Button>
+              <div className={dbHeaderActions}>
+                <Button onClick={() => handleOpenDialog()} className={dbHeaderButton}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Client
+                </Button>
+              </div>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
@@ -332,61 +336,101 @@ export default function ClientsPage() {
               {searchTerm ? "No clients match your search." : "No clients yet."}
             </div>
           ) : (
-            <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
-              <Table className="w-full min-w-[860px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Client Name</TableHead>
-                    <TableHead>Contact Person</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    {canManage && <TableHead className="text-right">Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <>
+              <DbMobileBlock>
+                <div className="space-y-2 p-3">
                   {filteredClients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
-                      <TableCell>{client.name}</TableCell>
-                      <TableCell>{client.contact_person || "—"}</TableCell>
-                      <TableCell>{client.contact_email || "—"}</TableCell>
-                      <TableCell>{client.contact_phone || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant={client.is_active ? "default" : "secondary"}>
+                    <div key={client.id} className={dbMobileListCard}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{client.name}</p>
+                          <p className="text-xs text-muted-foreground">{client.client_code || "—"}</p>
+                        </div>
+                        <Badge variant={client.is_active ? "default" : "secondary"} className="shrink-0">
                           {client.is_active ? "Active" : "Inactive"}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(client.created_at), "MMM d, yyyy")}
-                      </TableCell>
-                      {canManage && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleOpenDialog(client)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(client)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        <DashboardMobileField label="Contact" value={client.contact_person || "—"} />
+                        <DashboardMobileField label="Email" value={client.contact_email || "—"} />
+                        <DashboardMobileField label="Phone" value={client.contact_phone || "—"} />
+                        <DashboardMobileField
+                          label="Created"
+                          value={format(new Date(client.created_at), "MMM d, yyyy")}
+                        />
+                      </div>
+                      {canManage ? (
+                        <div className="mt-3 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" onClick={() => handleOpenDialog(client)}>
+                            <Pencil className="mr-1 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDelete(client)}>
+                            <Trash2 className="mr-1 h-4 w-4" />
+                            Delete
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
+                </div>
+              </DbMobileBlock>
+              <DbDesktopBlock className={dbTableShell}>
+                <Table className="w-full min-w-[860px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Client Name</TableHead>
+                      <TableHead>Contact Person</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                      {canManage && <TableHead className="text-right">Actions</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredClients.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
+                        <TableCell>{client.name}</TableCell>
+                        <TableCell>{client.contact_person || "—"}</TableCell>
+                        <TableCell>{client.contact_email || "—"}</TableCell>
+                        <TableCell>{client.contact_phone || "—"}</TableCell>
+                        <TableCell>
+                          <Badge variant={client.is_active ? "default" : "secondary"}>
+                            {client.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(client.created_at), "MMM d, yyyy")}
+                        </TableCell>
+                        {canManage && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleOpenDialog(client)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(client)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </DbDesktopBlock>
+            </>
           )}
         </CardContent>
       </Card>

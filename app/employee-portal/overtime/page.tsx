@@ -42,6 +42,7 @@ import {
   epFormField,
   epFormGrid,
   epFormStack,
+  epFormCard,
   epPageWrapper,
   epSubmitRequestButton,
   epPeriodNavButton,
@@ -485,7 +486,7 @@ export default function OvertimePage() {
   return (
     <div className={cn("w-full", epPageWrapper)}>
       <PortalPageHeader title="OT Filing" />
-      <Card className="w-full min-w-0 overflow-x-clip">
+      <Card className={epFormCard}>
         <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
           <CardTitle>
             <HStack gap="2" align="center">
@@ -499,7 +500,7 @@ export default function OvertimePage() {
           </BodySmall>
         </CardHeader>
         <CardContent className="w-full min-w-0 p-3 md:p-6">
-          <form onSubmit={handleSubmit} className="w-full min-w-0">
+          <form onSubmit={handleSubmit} className="w-full min-w-0 max-w-full overflow-hidden">
             <div className={epFormStack}>
               <div className={epFormField}>
                 <Label htmlFor="ot-date">OT Date</Label>
@@ -784,7 +785,7 @@ export default function OvertimePage() {
       </Card>
 
       {/* Requests List */}
-      <Card className="w-full">
+      <Card className={epFormCard}>
         <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4">
           <CardTitle className="text-base md:text-lg">My OT Requests</CardTitle>
         </CardHeader>

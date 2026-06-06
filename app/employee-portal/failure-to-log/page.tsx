@@ -25,6 +25,7 @@ import {
   epFormGrid,
   epFormStack,
   epModalPanel,
+  epFormField,
   epPageWrapper,
   epSubmitRequestButton,
 } from "@/lib/employee-portal-ui";
@@ -398,11 +399,11 @@ export default function FailureToLogPage() {
           description="File missed clock in and out for a shift. If you forgot to time out, the system auto-closes your session 23 hours after time in."
           headerClassName="space-y-1"
         >
-          <form onSubmit={handleSubmit} className="w-full">
+          <form onSubmit={handleSubmit} className="w-full min-w-0 max-w-full">
             <div className={epFormStack}>
               <div className={epFormStack}>
                 <div className={epFormGrid}>
-                  <VStack gap="2" align="start" className="w-full">
+                  <div className={epFormField}>
                     <Label htmlFor="missed-date">Time In Date</Label>
                     <Input
                       id="missed-date"
@@ -412,9 +413,9 @@ export default function FailureToLogPage() {
                       max={todayManila}
                       required
                     />
-                  </VStack>
+                  </div>
 
-                  <VStack gap="2" align="start" className="w-full">
+                  <div className={epFormField}>
                     <Label htmlFor="time-in">Time In</Label>
                     <Input
                       id="time-in"
@@ -423,11 +424,11 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeIn(e.target.value)}
                       required
                     />
-                  </VStack>
+                  </div>
                 </div>
 
                 <div className={epFormGrid}>
-                  <VStack gap="2" align="start" className="w-full min-w-0">
+                  <div className={epFormField}>
                     <Label htmlFor="time-out-date">Time Out Date</Label>
                     <Input
                       id="time-out-date"
@@ -438,9 +439,9 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeOutDate(e.target.value)}
                       required
                     />
-                  </VStack>
+                  </div>
 
-                  <VStack gap="2" align="start" className="w-full">
+                  <div className={epFormField}>
                     <Label htmlFor="time-out">Time Out</Label>
                     <Input
                       id="time-out"
@@ -449,11 +450,11 @@ export default function FailureToLogPage() {
                       onChange={(e) => setTimeOut(e.target.value)}
                       required
                     />
-                  </VStack>
+                  </div>
                 </div>
               </div>
 
-              <VStack gap="2" align="start" className="w-full">
+              <div className={epFormField}>
                 <Label htmlFor="reason">
                   {requestReasonLabel}{" "}
                   <span className="text-destructive">*</span>
@@ -467,7 +468,7 @@ export default function FailureToLogPage() {
                   className="resize-none"
                   required
                 />
-              </VStack>
+              </div>
 
               <Button
                 type="submit"

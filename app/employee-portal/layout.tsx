@@ -208,7 +208,7 @@ export default function EmployeePortalLayout({
 
           <main
             id="employee-main-content"
-            className="mx-auto w-full max-w-7xl flex-1 px-3 py-2 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:px-4 sm:py-3 sm:pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:px-6 md:py-6 md:pb-6 lg:px-8"
+            className="mx-auto w-full min-w-0 max-w-7xl flex-1 px-3 py-2 pb-[calc(3.75rem+env(safe-area-inset-bottom,0px))] sm:px-4 sm:py-3 sm:pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:px-6 md:py-6 md:pb-6 lg:px-8"
             tabIndex={-1}
           >
             {children}

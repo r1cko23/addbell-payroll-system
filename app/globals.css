@@ -434,6 +434,24 @@
     font-size: var(--font-size-sm);
     line-height: var(--line-height-normal);
   }
+
+  /* iOS Safari: native date/time pickers ignore w-full without min-width: 0 */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
 }
 
 /* Scrollbar */

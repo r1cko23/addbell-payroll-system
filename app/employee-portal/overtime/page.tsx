@@ -485,7 +485,7 @@ export default function OvertimePage() {
   return (
     <div className={cn("w-full", epPageWrapper)}>
       <PortalPageHeader title="OT Filing" />
-      <Card className="w-full">
+      <Card className="w-full min-w-0 overflow-x-clip">
         <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
           <CardTitle>
             <HStack gap="2" align="center">
@@ -498,8 +498,8 @@ export default function OvertimePage() {
             requires them.
           </BodySmall>
         </CardHeader>
-        <CardContent className="w-full p-3 md:p-6">
-          <form onSubmit={handleSubmit} className="w-full">
+        <CardContent className="w-full min-w-0 p-3 md:p-6">
+          <form onSubmit={handleSubmit} className="w-full min-w-0">
             <div className={epFormStack}>
               <div className={epFormField}>
                 <Label htmlFor="ot-date">OT Date</Label>

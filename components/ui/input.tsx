@@ -50,13 +50,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
     const isTemporal = TEMPORAL_INPUT_TYPES.has(type)
 
-    const inputEl = (
+    return (
       <input
         type={type}
         className={cn(
           inputBaseClass,
           isTemporal
-            ? "ios-temporal-input block h-11 min-h-11 px-3 py-2 sm:h-10 sm:min-h-10"
+            ? "ios-temporal-input min-h-11 px-3 py-2.5 sm:min-h-10 sm:py-2"
             : "flex h-10 px-3 py-2",
           className
         )}
@@ -64,14 +64,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {...props}
         onChange={handleChange}
       />
-    )
-
-    if (!isTemporal) return inputEl
-
-    return (
-      <div className="ios-temporal-input-shell w-full min-w-0 max-w-full">
-        {inputEl}
-      </div>
     )
   }
 )

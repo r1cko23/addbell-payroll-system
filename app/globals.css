@@ -436,16 +436,11 @@
   }
 
   /*
-   * iOS Safari: date/time inputs ignore width:100% when padding is set (WebKit #301648).
-   * Shell + min-logical-width + datetime-edit padding reset keeps fields inside cards.
+   * iOS Safari temporal inputs (WebKit #301648):
+   * - appearance:none restores full border box + correct width:100%
+   * - auto height (not fixed h-11) prevents bottom border looking "sliced"
+   * Native picker still opens on tap.
    */
-  /* Clip width only — overflow:hidden was slicing off bottom borders on iOS */
-  .ios-temporal-input-shell {
-    contain: inline-size;
-    overflow-x: clip;
-    overflow-y: visible;
-  }
-
   .ios-temporal-input,
   input[type="date"],
   input[type="time"],
@@ -456,9 +451,12 @@
     width: 100%;
     min-width: 0;
     max-width: 100%;
+    height: auto;
     box-sizing: border-box;
     -webkit-min-logical-width: 0;
-    line-height: 1.5;
+    -webkit-appearance: none;
+    appearance: none;
+    line-height: 1.25rem;
   }
 
   input[type="date"]::-webkit-date-and-time-value,
@@ -466,14 +464,6 @@
   input[type="datetime-local"]::-webkit-date-and-time-value {
     min-width: 0;
     text-align: left;
-    line-height: 1.5;
-  }
-
-  .ios-temporal-input::-webkit-datetime-edit-fields-wrapper,
-  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
-  input[type="time"]::-webkit-datetime-edit-fields-wrapper,
-  input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
-    padding: 0;
   }
 
   .ios-temporal-input::-webkit-calendar-picker-indicator,
@@ -481,6 +471,7 @@
   input[type="time"]::-webkit-calendar-picker-indicator,
   input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     margin-left: auto;
+    opacity: 0.6;
   }
 }
 

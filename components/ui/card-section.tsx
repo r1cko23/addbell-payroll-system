@@ -25,7 +25,7 @@ export function CardSection({
   headerClassName = "",
 }: CardSectionProps) {
   return (
-    <Card className={cn("w-full min-w-0 max-w-full overflow-x-clip", className)}>
+    <Card className={cn("w-full min-w-0 max-w-full", className)}>
       {(title || description) && (
         <CardHeader className={cn("px-3 pb-2 pt-3 sm:px-6 sm:pb-4 sm:pt-6", headerClassName)}>
           {title && (

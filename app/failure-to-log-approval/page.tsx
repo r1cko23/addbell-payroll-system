@@ -33,7 +33,6 @@ import { CardSection } from "@/components/ui/card-section";
 import { H3, BodySmall, Caption } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { dbPageStack, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
-import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";

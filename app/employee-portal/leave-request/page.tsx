@@ -42,6 +42,8 @@ import {
   RequestHistorySupportingDocuments,
 } from "@/components/employee-portal/RequestHistoryCard";
 import { cn } from "@/lib/utils";
+import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
+import { formatSilCreditsAvailable } from "@/lib/employee-sil-display";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
 import {
@@ -107,11 +109,6 @@ interface LeaveRequest {
   leave_request_documents?: LeaveDocument[];
 }
 
-interface EmployeeInfo {
-  sil_credits: number;
-}
-
-const DEFAULT_EMPLOYEE_SIL_CREDITS = 5;
 const DEFAULT_BUSINESS_START_HOUR = 7;
 const BUSINESS_START_LABEL = formatHourLabel24(DEFAULT_BUSINESS_START_HOUR);
 const BUSINESS_WINDOW_END_LABEL = formatHourLabel24(
@@ -185,8 +182,15 @@ export default function LeaveRequestPage() {
   const router = useRouter();
   const supabase = createClient();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
-  const [employeeInfo, setEmployeeInfo] = useState<EmployeeInfo | null>(null);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const {
+    silCredits,
+    silAnnualAllotment,
+    refetch: refetchSilCredits,
+  } = useEmployeeLeaveCredits({
+    employeeId: employee?.id ?? null,
+    enabled: Boolean(employee?.id),
+  });
   const [requestsFetchError, setRequestsFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
@@ -276,31 +280,20 @@ export default function LeaveRequestPage() {
 
     setRequestsFetchError(null);
     // Batch initial data fetching in parallel
-    Promise.all([
-      fetchLeaveRequests(emp.id),
-      fetchEmployeeInfo(emp.id),
-      fetchHolidayDates(),
-    ]).catch((err) => {
+    Promise.all([fetchLeaveRequests(emp.id), fetchHolidayDates()]).catch((err) => {
       console.error("Error loading initial data:", err);
     });
   }, [router]);
 
   // Auto-switch to LWOP if SIL credits are zero
   useEffect(() => {
-    if (
-      employeeInfo &&
-      employeeInfo.sil_credits !== null &&
-      employeeInfo.sil_credits !== undefined
-    ) {
-      const credits = employeeInfo.sil_credits;
-      if (credits <= 0 && leaveType === "SIL") {
-        setLeaveType("LWOP");
-        toast.info(
-          "SIL credits are zero. Switched to LWOP (Leave Without Pay)."
-        );
-      }
+    if (silCredits !== null && silCredits <= 0 && leaveType === "SIL") {
+      setLeaveType("LWOP");
+      toast.info(
+        "SIL credits are zero. Switched to LWOP (Leave Without Pay)."
+      );
     }
-  }, [employeeInfo, leaveType]);
+  }, [silCredits, leaveType]);
 
   useEffect(() => {
     if (leaveSubtype === "regular_sil" && leaveType === "LWOP") {
@@ -353,42 +346,6 @@ export default function LeaveRequestPage() {
     }
     setCalculatedHours(0);
   }, [selectedDates, halfDayDates, holidayDates]);
-
-  async function fetchEmployeeInfo(employeeId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("sil_credits")
-        .eq("id", employeeId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error fetching employee leave credits:", error);
-        setEmployeeInfo({
-          sil_credits: DEFAULT_EMPLOYEE_SIL_CREDITS,
-        });
-        return;
-      }
-
-      if (data) {
-        const rawCredits = Number(data.sil_credits ?? 0);
-        setEmployeeInfo({
-          sil_credits:
-            rawCredits > 0 ? rawCredits : DEFAULT_EMPLOYEE_SIL_CREDITS,
-        });
-      } else {
-        setEmployeeInfo({
-          sil_credits: DEFAULT_EMPLOYEE_SIL_CREDITS,
-        });
-      }
-    } catch (err) {
-      console.error("Error fetching employee info:", err);
-      // Set default values instead of null to prevent infinite loading state
-      setEmployeeInfo({
-        sil_credits: DEFAULT_EMPLOYEE_SIL_CREDITS,
-      });
-    }
-  }
 
   async function fetchHolidayDates() {
     try {
@@ -637,7 +594,7 @@ export default function LeaveRequestPage() {
     setSupportingDoc(null);
     setDocError(null);
     fetchLeaveRequests(employee.id);
-    fetchEmployeeInfo(employee.id);
+    refetchSilCredits();
   }
 
   async function handleDownload(docId: string) {
@@ -701,13 +658,6 @@ export default function LeaveRequestPage() {
       </div>
     );
   }
-
-  // Use actual values from database
-  const silCredits =
-    employeeInfo?.sil_credits !== undefined &&
-    employeeInfo?.sil_credits !== null
-      ? Number(employeeInfo.sil_credits)
-      : null;
 
   // Include cancelled in history so employees can see all past requests
   const visibleRequests = requests;
@@ -777,9 +727,9 @@ export default function LeaveRequestPage() {
                     Allotted SIL Credits
                   </BodySmall>
                 </HStack>
-                <StatValue>5</StatValue>
+                <StatValue>{silAnnualAllotment}</StatValue>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Available: {silCredits !== null ? silCredits.toFixed(2) : "—"}
+                  Available: {formatSilCreditsAvailable(silCredits)}
                 </div>
               </VStack>
             </CardContent>
@@ -797,9 +747,7 @@ export default function LeaveRequestPage() {
                     Available SIL Credits
                   </BodySmall>
                 </HStack>
-                <StatValue>
-                  {silCredits !== null ? silCredits.toFixed(2) : "—"}
-                </StatValue>
+                <StatValue>{formatSilCreditsAvailable(silCredits)}</StatValue>
               </VStack>
             </CardContent>
           </Card>
@@ -857,13 +805,14 @@ export default function LeaveRequestPage() {
                     {leaveType === "SIL" && (
                       <>
                         <p>
-                          Allotted SIL Credits: <strong>5</strong>
+                          Allotted SIL Credits:{" "}
+                          <strong>{silAnnualAllotment}</strong>
                         </p>
                         <p>
                           Available SIL Credits:{" "}
                           <strong>
                             {silCredits !== null
-                              ? silCredits.toFixed(2)
+                              ? formatSilCreditsAvailable(silCredits)
                               : "Loading..."}
                           </strong>
                         </p>

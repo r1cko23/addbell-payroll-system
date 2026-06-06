@@ -118,6 +118,7 @@ import {
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
+import { formatSilCreditsAvailable } from "@/lib/employee-sil-display";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import {
   punchesToSessions,
@@ -2021,7 +2022,7 @@ export default function BundyClockPage() {
   );
 
   // Fetch SIL credits using optimized hook with caching
-  const { silCredits } = useEmployeeLeaveCredits({
+  const { silCredits, silAnnualAllotment } = useEmployeeLeaveCredits({
     employeeId: employee?.id || null,
     enabled: initialFetchComplete,
   });
@@ -2150,13 +2151,16 @@ export default function BundyClockPage() {
             </div>
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-muted-foreground space-y-1 md:min-w-[220px]">
               <div>
-                Allotted SIL Credits: <span className="font-semibold text-foreground">5</span>
+                Allotted SIL Credits:{" "}
+                <span className="font-semibold text-foreground">
+                  {silAnnualAllotment}
+                </span>
               </div>
               <div>
                 Available SIL Credits:{" "}
                 <span className="font-semibold text-foreground">
                   {silCredits !== null
-                    ? `${silCredits.toFixed(1)} days`
+                    ? formatSilCreditsAvailable(silCredits)
                     : "Loading..."}
                 </span>
               </div>
@@ -2191,13 +2195,21 @@ export default function BundyClockPage() {
                 <Icon name="CaretRight" size={IconSizes.sm} />
               </Button>
             </div>
-            <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-center text-xs text-muted-foreground">
-              Available SIL Credits:{" "}
-              <span className="font-semibold text-foreground">
-                {silCredits !== null
-                  ? `${silCredits.toFixed(1)} days`
-                  : "Loading..."}
-              </span>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-center text-xs text-muted-foreground space-y-0.5">
+              <div>
+                Allotted SIL Credits:{" "}
+                <span className="font-semibold text-foreground">
+                  {silAnnualAllotment}
+                </span>
+              </div>
+              <div>
+                Available SIL Credits:{" "}
+                <span className="font-semibold text-foreground">
+                  {silCredits !== null
+                    ? formatSilCreditsAvailable(silCredits)
+                    : "Loading..."}
+                </span>
+              </div>
             </div>
           </div>
 

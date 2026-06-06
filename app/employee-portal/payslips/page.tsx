@@ -40,6 +40,7 @@ import {
 } from "@/components/employee-portal/PayslipPreviewDialog";
 import { toast } from "sonner";
 import type { EmployeeProfileForPayslip } from "@/lib/payslip-display";
+import { downloadPayslipPdfFromDom } from "@/utils/payslip-download-from-dom";
 
 interface Payslip {
   id: string;
@@ -86,6 +87,7 @@ export default function EmployeePayslipsPage() {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [printPreviewReady, setPrintPreviewReady] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState("");
 
   const monthOptions = useMemo(() => {
@@ -223,25 +225,28 @@ export default function EmployeePayslipsPage() {
 
   async function handleDownloadPdf() {
     if (!selectedPayslip) return;
+    if (!printPreviewReady) {
+      toast.error("Payslip is still loading. Try again in a moment.");
+      return;
+    }
+
+    const payslipContainer = document.getElementById("payslip-print-content");
+    if (!payslipContainer) {
+      toast.error("Payslip content not found");
+      return;
+    }
+
+    setDownloadingPdf(true);
     try {
-      const url = `/api/employee-portal/payslips/pdf?payslip_id=${encodeURIComponent(
-        selectedPayslip.id
-      )}&employee_id=${encodeURIComponent(employee.id)}`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json?.error || "Download failed");
-      }
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = `payslip-${selectedPayslip.period_end.split("T")[0]}.pdf`;
-      a.click();
-      URL.revokeObjectURL(objectUrl);
+      const filename = `payslip-${selectedPayslip.period_end.split("T")[0]}.pdf`;
+      await downloadPayslipPdfFromDom(payslipContainer, filename);
       toast.success("Payslip PDF downloaded");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to download PDF");
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Failed to download PDF";
+      toast.error(message);
+    } finally {
+      setDownloadingPdf(false);
     }
   }
 
@@ -531,11 +536,11 @@ export default function EmployeePayslipsPage() {
                   <Button
                     variant="outline"
                     onClick={handleDownloadPdf}
-                    disabled={!printPreviewReady}
+                    disabled={!printPreviewReady || downloadingPdf}
                     className={epFormActionButton}
                   >
                     <Icon name="Download" size={IconSizes.sm} />
-                    Download PDF
+                    {downloadingPdf ? "Preparing PDF…" : "Download PDF"}
                   </Button>
                   <Button
                     onClick={handlePrint}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
+import { SIL_ANNUAL_ALLOTMENT } from "@/lib/employee-sil-display";
 
 interface UseEmployeeDataOptions {
   employeeId: string | null;
@@ -11,17 +12,22 @@ interface UseEmployeeDataOptions {
  * Shared hook for fetching employee leave credits with caching
  * Prevents duplicate API calls across multiple components
  */
+type SilCreditsCacheEntry = {
+  silCredits: number;
+  silAnnualAllotment: number;
+  timestamp: number;
+};
+
 export function useEmployeeLeaveCredits({
   employeeId,
   enabled = true,
 }: UseEmployeeDataOptions) {
-  const supabase = createClient();
   const [silCredits, setSilCredits] = useState<number | null>(null);
+  const [silAnnualAllotment, setSilAnnualAllotment] =
+    useState<number>(SIL_ANNUAL_ALLOTMENT);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const cacheRef = useRef<{
-    [key: string]: { data: number; timestamp: number };
-  }>({});
+  const cacheRef = useRef<Record<string, SilCreditsCacheEntry>>({});
   const CACHE_DURATION = 60000; // 1 minute cache
 
   const fetchCredits = useCallback(async () => {
@@ -33,32 +39,35 @@ export function useEmployeeLeaveCredits({
     // Check cache first
     const cached = cacheRef.current[employeeId];
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      setSilCredits(cached.data);
+      setSilCredits(cached.silCredits);
+      setSilAnnualAllotment(cached.silAnnualAllotment);
       setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
-      const { data, error: fetchError } = await supabase
-        .from("employees")
-        .select("sil_credits")
-        .eq("id", employeeId)
-        .maybeSingle();
-
-      if (fetchError) {
-        throw fetchError;
+      const res = await fetch(
+        `/api/employee-portal/sil-credits?employee_id=${encodeURIComponent(employeeId)}`
+      );
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to load SIL credits");
       }
 
-      const credits = data?.sil_credits != null ? Number(data.sil_credits) : 0;
+      const credits = Number(payload.sil_credits ?? 0);
+      const allotment = Number(payload.sil_annual_allotment ?? SIL_ANNUAL_ALLOTMENT);
 
-      // Update cache
       cacheRef.current[employeeId] = {
-        data: credits,
+        silCredits: Number.isFinite(credits) ? credits : 0,
+        silAnnualAllotment: Number.isFinite(allotment)
+          ? allotment
+          : SIL_ANNUAL_ALLOTMENT,
         timestamp: Date.now(),
       };
 
-      setSilCredits(credits);
+      setSilCredits(cacheRef.current[employeeId].silCredits);
+      setSilAnnualAllotment(cacheRef.current[employeeId].silAnnualAllotment);
       setError(null);
     } catch (err) {
       console.error("Error fetching SIL credits:", err);
@@ -67,13 +76,19 @@ export function useEmployeeLeaveCredits({
     } finally {
       setLoading(false);
     }
-  }, [employeeId, enabled, supabase]);
+  }, [employeeId, enabled]);
 
   useEffect(() => {
     fetchCredits();
   }, [fetchCredits]);
 
-  return { silCredits, loading, error, refetch: fetchCredits };
+  return {
+    silCredits,
+    silAnnualAllotment,
+    loading,
+    error,
+    refetch: fetchCredits,
+  };
 }
 
 /**

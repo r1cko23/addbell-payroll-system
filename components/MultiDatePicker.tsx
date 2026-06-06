@@ -159,7 +159,7 @@ export function MultiDatePicker({
     const isSelectable = isDateSelectable(date);
 
     return cn(
-      "w-10 h-10 rounded-md flex items-center justify-center text-sm font-medium transition-colors",
+      "aspect-square w-full max-h-10 rounded-md flex items-center justify-center text-xs font-medium transition-colors sm:text-sm",
       {
         "text-muted-foreground": !isCurrentMonth,
         "bg-emerald-100 text-emerald-900 border-2 border-emerald-500":
@@ -187,15 +187,16 @@ export function MultiDatePicker({
   };
 
   return (
-    <Card className={cn("w-full", className)}>
-      <CardContent className="p-4">
-        <VStack gap="4" className="w-full">
+    <Card className={cn("w-full min-w-0 max-w-full overflow-hidden", className)}>
+      <CardContent className="p-3 sm:p-4">
+        <VStack gap="4" className="w-full min-w-0">
           {/* Header */}
-          <div className="flex items-center justify-between w-full">
-            <HStack gap="2" align="center">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <HStack gap="2" align="center" className="min-w-0 shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
+                className="h-9 shrink-0 px-2 sm:px-3"
                 onClick={() =>
                   setViewMode(viewMode === "calendar" ? "list" : "calendar")
                 }
@@ -204,10 +205,12 @@ export function MultiDatePicker({
                   name={viewMode === "calendar" ? "List" : "CalendarBlank"}
                   size={IconSizes.sm}
                 />
-                {viewMode === "calendar" ? "List View" : "Calendar View"}
+                <span className="hidden sm:inline">
+                  {viewMode === "calendar" ? "List View" : "Calendar View"}
+                </span>
               </Button>
             </HStack>
-            <BodySmall className="font-semibold">
+            <BodySmall className="shrink-0 text-xs font-semibold sm:text-sm">
               {selectedDates.length} date{selectedDates.length !== 1 ? "s" : ""}{" "}
               selected
             </BodySmall>
@@ -216,27 +219,33 @@ export function MultiDatePicker({
           {viewMode === "calendar" ? (
             <>
               {/* Month Navigation */}
-              <div className="flex items-center justify-between w-full">
+              <div className="flex w-full min-w-0 items-center justify-between gap-1">
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="h-9 w-9 shrink-0 p-0 sm:w-auto sm:px-3"
                   onClick={previousMonth}
                   disabled={isBefore(startOfMonth(currentMonth), new Date())}
                 >
                   <Icon name="CaretLeft" size={IconSizes.sm} />
                 </Button>
-                <BodySmall className="font-semibold">
+                <BodySmall className="min-w-0 flex-1 truncate text-center text-xs font-semibold sm:text-sm">
                   {format(currentMonth, "MMMM yyyy")}
                 </BodySmall>
-                <Button variant="ghost" size="sm" onClick={nextMonth}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 w-9 shrink-0 p-0 sm:w-auto sm:px-3"
+                  onClick={nextMonth}
+                >
                   <Icon name="CaretRight" size={IconSizes.sm} />
                 </Button>
               </div>
 
               {/* Calendar Grid */}
-              <div className="w-full">
+              <div className="w-full min-w-0 overflow-hidden">
                 {/* Weekday Headers */}
-                <div className="grid grid-cols-7 gap-1 mb-2">
+                <div className="mb-2 grid grid-cols-7 gap-0.5 sm:gap-1">
                   {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
                     (day) => (
                       <div
@@ -250,7 +259,7 @@ export function MultiDatePicker({
                 </div>
 
                 {/* Calendar Days */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
                   {calendarDays.map((date) => {
                     const dateStr = format(date, "yyyy-MM-dd");
                     const isSelected = selectedDatesSet.has(dateStr);

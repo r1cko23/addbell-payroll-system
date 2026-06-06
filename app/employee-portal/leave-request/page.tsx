@@ -898,7 +898,7 @@ export default function LeaveRequestPage() {
                   </p>
                 </div>
 
-                <div className="w-full space-y-2">
+                <div className="w-full min-w-0 space-y-2">
                   <Label>Select Dates</Label>
                   <MultiDatePicker
                     selectedDates={selectedDates}

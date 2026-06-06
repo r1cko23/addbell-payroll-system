@@ -1,0 +1,42 @@
+---
+description: Admin/HR dashboard responsive layout and subtext conventions
+globs: app/dashboard/**,app/*-approval/**,components/dashboard/**,components/Dashboard*.tsx,lib/dashboard-*.ts
+---
+
+# Admin dashboard — responsive UI
+
+## Viewport tiers (`lib/dashboard-viewport.ts`)
+
+| Tier | Width | Chrome |
+|------|-------|--------|
+| Mobile | < 768px | Hamburger nav, compact padding, card lists |
+| Tablet | 768–1023px | Single-column sections, sidebar via overlay |
+| Laptop+ | ≥ 1024px | Fixed sidebar (`lg`), multi-column grids |
+
+## Utilities (`lib/dashboard-ui.ts`)
+
+- `dbPageStack` — vertical section rhythm
+- `dbPageHeaderRow` — title + actions header
+- `dbHeaderActions` — 2-col button grid on mobile, inline on `sm+`
+- `dbTableShell` — horizontal scroll fallback for tables
+- `dbKpiGrid`, `dbSectionGrid` — responsive stat/section grids
+
+## Split layouts (`components/dashboard/DashboardViewport.tsx`)
+
+Use `DbMobileBlock` / `DbDesktopBlock` when mobile needs card stacks and desktop keeps tables:
+
+```tsx
+<DbMobileBlock>{/* card list */}</DbMobileBlock>
+<DbDesktopBlock className={dbTableShell}>{/* table */}</DbDesktopBlock>
+```
+
+## Subtext (descriptions)
+
+- **Sentence case** — capitalize only the first word (and proper nouns/acronyms).
+- **End with a period.**
+- Use `PageSubtitle` or `CardDescription` — do **not** rely on `toTitleCase` for descriptions.
+- Titles/headings may still use `toTitleCase` via `PageTitle`, `CardTitle`, `SectionHeading`.
+
+## Page headers
+
+Prefer `DashboardPageHeader` with `dbHeaderActions` for action rows on dashboard and list pages.

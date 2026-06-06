@@ -428,7 +428,7 @@ export default function SettingsPage() {
       <VStack gap="8" className="w-full">
         <VStack gap="2" align="start">
           <H1>Settings</H1>
-          <PageSubtitle>System configuration and user management</PageSubtitle>
+          <PageSubtitle>System configuration and user management.</PageSubtitle>
         </VStack>
 
         {/* User Info */}
@@ -484,7 +484,7 @@ export default function SettingsPage() {
         {canManageUsers && (
           <CardSection
             title="User Management"
-            description="Manage system users"
+            description="Manage system users."
           >
             <HStack justify="end" align="center" className="mb-4">
               <Button size="sm" onClick={() => setShowUserModal(true)}>
@@ -803,7 +803,7 @@ export default function SettingsPage() {
         {canManageAccessControl && (
           <CardSection
             title="Access Control (CRUD Matrix)"
-            description="Configure Create, Read, Update, Delete per page for each user with dashboard access"
+            description="Configure create, read, update, and delete per page for each user with dashboard access."
           >
             <PermissionsManager
               users={users}
@@ -815,7 +815,7 @@ export default function SettingsPage() {
         {/* Holidays */}
         <CardSection
           title="Philippine Holidays 2025"
-          description="System automatically detects these holidays"
+          description="The system automatically detects these holidays."
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <VStack gap="3" align="start">

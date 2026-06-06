@@ -44,7 +44,8 @@ import {
   epFormStack,
   epPageStack,
   epSubmitRequestButton,
-  epTouchIconButton,
+  epPeriodNavButton,
+  epPeriodNavRow,
 } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 import {
@@ -493,7 +494,7 @@ export default function OvertimePage() {
             </HStack>
           </CardTitle>
           <BodySmall className="text-muted-foreground">
-            Complete the form below. Supporting documents optional unless HR
+            Complete the form below. Supporting documents are optional unless HR
             requires them.
           </BodySmall>
         </CardHeader>
@@ -789,12 +790,12 @@ export default function OvertimePage() {
         </CardHeader>
         <CardContent className={epRequestHistorySectionContent}>
           {historyCutoffs.length > 0 && (
-            <div className="mb-6 flex w-full items-center justify-center gap-2 sm:gap-3">
+            <div className={epPeriodNavRow}>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                className={epTouchIconButton}
+                className={epPeriodNavButton}
                 disabled={!canGoToOlderCutoff || loading}
                 onClick={() =>
                   setSelectedCutoffIndex((index) =>
@@ -805,14 +806,14 @@ export default function OvertimePage() {
               >
                 <Icon name="CaretLeft" size={IconSizes.sm} />
               </Button>
-              <p className="min-w-0 flex-1 text-center text-sm font-medium text-foreground sm:min-w-[220px] sm:flex-none">
+              <p className="min-w-0 flex-1 px-1 text-center text-xs font-medium leading-tight text-foreground sm:px-2 sm:text-sm">
                 {cutoffNavLabel}
               </p>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
-                className={epTouchIconButton}
+                className={epPeriodNavButton}
                 disabled={!canGoToNewerCutoff || loading}
                 onClick={() =>
                   setSelectedCutoffIndex((index) => Math.max(index - 1, 0))

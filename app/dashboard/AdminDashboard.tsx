@@ -18,6 +18,9 @@ import {
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
 
@@ -168,12 +171,12 @@ export default function AdminDashboard() {
   }
 
   return (
-    <VStack gap="6" align="stretch" className="w-full pb-16">
+    <VStack gap="6" align="stretch" className={cn("w-full pb-12 sm:pb-16", dbPageStack)}>
       <DashboardPageHeader
         title="Executive dashboard"
         description="Workforce, projects, and pending actions."
         actions={
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          <div className={dbHeaderActions}>
             {showFundRequestActions ? (
               <Link href="/fund-request-approval">
                 <Button variant="outline" size="sm">
@@ -206,7 +209,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Card className="border-primary/20 bg-primary/10 xl:col-span-6">
           <CardHeader className="pb-2">
-            <CardDescription>Today&apos;s operating focus</CardDescription>
+            <CardDescription>Today&apos;s operating focus.</CardDescription>
             <CardTitle>
               {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0) === 0
                 ? "No Finance Approvals Pending"
@@ -235,7 +238,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Leave Approvals</CardDescription>
+            <CardDescription>Pending leave approvals.</CardDescription>
             <KpiValue>{pendingLeaveApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
@@ -246,7 +249,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>OT Approvals</CardDescription>
+            <CardDescription>Pending OT approvals.</CardDescription>
             <KpiValue>{pendingOvertimeApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
@@ -257,7 +260,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Failure To Log</CardDescription>
+            <CardDescription>Pending failure to log requests.</CardDescription>
             <KpiValue>{pendingFailureToLogApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
@@ -324,45 +327,89 @@ export default function AdminDashboard() {
         {projects.length === 0 ? (
           <p className="text-muted-foreground text-center py-6">No projects yet.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Project Name</TableHead>
-                  <TableHead className="text-right">Contract Value</TableHead>
-                  <TableHead className="text-center">Progress</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <>
+            <DbMobileBlock>
+              <div className="space-y-2">
                 {projects.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-mono text-sm">{p.code}</TableCell>
-                    <TableCell>
-                      <Link href={`/projects/${p.id}`} className="text-primary hover:underline font-medium">{p.name}</Link>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {p.contract_value ? `₱${Number(p.contract_value).toLocaleString()}` : "—"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {p.progress_percentage != null ? (
-                        <div className="flex items-center gap-2 justify-center">
-                          <div className="h-2 w-16 rounded-full bg-muted">
-                            <div className="h-2 rounded-sm bg-primary" style={{ width: `${Math.min(100, Number(p.progress_percentage))}%` }} />
-                          </div>
-                          <span className="text-xs text-muted-foreground">{Number(p.progress_percentage)}%</span>
-                        </div>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`capitalize text-xs ${statusStyles[p.status] || ""}`}>{p.status}</Badge>
-                    </TableCell>
-                  </TableRow>
+                  <div
+                    key={p.id}
+                    className="rounded-lg border border-border/80 bg-card p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-mono text-xs text-muted-foreground">{p.code}</p>
+                        <Link
+                          href={`/projects/${p.id}`}
+                          className="text-sm font-medium text-primary hover:underline"
+                        >
+                          {p.name}
+                        </Link>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 capitalize text-xs ${statusStyles[p.status] || ""}`}
+                      >
+                        {p.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <span className="text-muted-foreground">Contract value</span>
+                      <span className="text-right font-medium">
+                        {p.contract_value
+                          ? `₱${Number(p.contract_value).toLocaleString()}`
+                          : "—"}
+                      </span>
+                      <span className="text-muted-foreground">Progress</span>
+                      <span className="text-right font-medium">
+                        {p.progress_percentage != null
+                          ? `${Number(p.progress_percentage)}%`
+                          : "—"}
+                      </span>
+                    </div>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+            </DbMobileBlock>
+            <DbDesktopBlock className={dbTableShell}>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Code</TableHead>
+                    <TableHead>Project Name</TableHead>
+                    <TableHead className="text-right">Contract Value</TableHead>
+                    <TableHead className="text-center">Progress</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {projects.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-sm">{p.code}</TableCell>
+                      <TableCell>
+                        <Link href={`/projects/${p.id}`} className="text-primary hover:underline font-medium">{p.name}</Link>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {p.contract_value ? `₱${Number(p.contract_value).toLocaleString()}` : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {p.progress_percentage != null ? (
+                          <div className="flex items-center gap-2 justify-center">
+                            <div className="h-2 w-16 rounded-full bg-muted">
+                              <div className="h-2 rounded-sm bg-primary" style={{ width: `${Math.min(100, Number(p.progress_percentage))}%` }} />
+                            </div>
+                            <span className="text-xs text-muted-foreground">{Number(p.progress_percentage)}%</span>
+                          </div>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`capitalize text-xs ${statusStyles[p.status] || ""}`}>{p.status}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DbDesktopBlock>
+          </>
         )}
         <div className="flex justify-end mt-2">
           <Link href="/projects"><Button variant="ghost" size="sm">View all projects</Button></Link>

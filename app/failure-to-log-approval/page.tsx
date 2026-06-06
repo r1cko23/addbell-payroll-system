@@ -30,7 +30,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, H3, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
+import { H3, BodySmall, Caption } from "@/components/ui/typography";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageStack, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -931,11 +934,11 @@ export default function FailureToLogApprovalPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full pb-24">
-        <VStack gap="2" align="start">
-          <H1>Failure To Log</H1>
-          <PageSubtitle>Review and act on pending missed-punch requests.</PageSubtitle>
-        </VStack>
+      <VStack gap="8" className={cn("w-full pb-16 sm:pb-24", dbPageStack)}>
+        <DashboardPageHeader
+          title="Failure to log"
+          description="Review and act on pending missed-punch requests."
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 w-full items-stretch">
@@ -951,25 +954,26 @@ export default function FailureToLogApprovalPage() {
           <CardContent className="p-4 sm:p-6 w-full">
             <div className="flex flex-col gap-4 md:flex-row md:items-center w-full">
               {/* Week Navigation */}
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 items-center sm:items-center flex-shrink-0 w-full sm:w-auto">
-                <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+              <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <div className={dbPeriodNavRow}>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
-                    className="flex-shrink-0"
+                    className={dbPeriodNavButton}
+                    aria-label="Previous week"
                   >
                     <Icon name="CaretLeft" size={IconSizes.sm} />
                   </Button>
-                  <Caption className="min-w-[180px] sm:min-w-[200px] text-center font-medium text-xs sm:text-sm">
-                    {format(weekStart, "MMM d")} -{" "}
-                    {format(weekEnd, "MMM d, yyyy")}
-                  </Caption>
+                  <p className="min-w-0 flex-1 px-1 text-center text-xs font-medium leading-tight sm:text-sm">
+                    {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
+                  </p>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
-                    className="flex-shrink-0"
+                    className={dbPeriodNavButton}
+                    aria-label="Next week"
                   >
                     <Icon name="CaretRight" size={IconSizes.sm} />
                   </Button>

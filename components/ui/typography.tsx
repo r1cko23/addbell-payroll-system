@@ -106,7 +106,7 @@ export function BodySmall({
   );
 }
 
-/** One-line subtitle below a page H1. */
+/** One-line subtitle below a page H1 — sentence case, not title case. */
 export function PageSubtitle({
   children,
   className,
@@ -115,11 +115,11 @@ export function PageSubtitle({
 }: TypographyProps) {
   return (
     <p
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("text-sm leading-relaxed text-muted-foreground", className)}
       style={style}
       {...props}
     >
-      {typeof children === "string" ? toTitleCase(children) : children}
+      {children}
     </p>
   );
 }

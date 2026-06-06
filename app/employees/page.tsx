@@ -34,6 +34,9 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
 import { EmployeeFormSection } from "@/components/employees/EmployeeFormSection";
 
 interface Employee {
@@ -693,17 +696,19 @@ export default function EmployeesPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full min-w-0 pb-24">
+      <VStack gap="8" className={cn("w-full min-w-0 pb-16 sm:pb-24", dbPageStack)}>
         <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row sm:gap-4">
           <VStack gap="2" align="start">
             <H1>Employees</H1>
             <PageSubtitle>Add and update employee records.</PageSubtitle>
           </VStack>
           {canCreate("employees") && (
-            <Button onClick={openAddModal}>
-              <Icon name="Plus" size={IconSizes.sm} />
-              New Employee
-            </Button>
+            <div className={dbHeaderActions}>
+              <Button onClick={openAddModal} className="col-span-2 sm:col-span-1">
+                <Icon name="Plus" size={IconSizes.sm} />
+                New Employee
+              </Button>
+            </div>
           )}
         </HStack>
 
@@ -751,8 +756,117 @@ export default function EmployeesPage() {
               <div className="flex items-center justify-center py-10">
                 <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
               </div>
+            ) : filteredEmployees.length === 0 ? (
+              <p className="py-8 text-center text-muted-foreground">
+                {searchTerm ? "No matching employees found." : "No employees yet."}
+              </p>
             ) : (
-              <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
+              <>
+              <DbMobileBlock>
+                <div className="space-y-2">
+                  {filteredEmployees.map((employee) => (
+                    <div
+                      key={employee.id}
+                      className="rounded-lg border border-border/80 bg-card p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <Link
+                            href={`/employees/${employee.id}`}
+                            className="text-sm font-medium text-primary hover:underline"
+                          >
+                            {fullName(employee)}
+                          </Link>
+                          {employee.email ? (
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {employee.email}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`shrink-0 text-xs capitalize ${
+                            employee.employment_status === "active"
+                              ? "border-primary/25 bg-primary/10 text-primary"
+                              : employee.employment_status === "terminated"
+                                ? "border-destructive/30 bg-destructive/10 text-destructive"
+                                : "border-border bg-muted/70 text-foreground"
+                          }`}
+                        >
+                          {employee.employment_status}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        <DashboardMobileField
+                          label="Company ID"
+                          value={employee.company_id_no}
+                          valueClassName="font-mono"
+                        />
+                        <DashboardMobileField
+                          label="Time clock"
+                          value={employee.employee_code || "—"}
+                          valueClassName="font-mono text-muted-foreground"
+                        />
+                        <DashboardMobileField
+                          label="Department"
+                          value={
+                            employee.departments?.name
+                              ? toUpperDisplay(employee.departments.name)
+                              : "—"
+                          }
+                        />
+                        <DashboardMobileField
+                          label="Position"
+                          value={
+                            employee.positions
+                              ? toUpperDisplay(employee.positions.name)
+                              : "—"
+                          }
+                        />
+                        <DashboardMobileField
+                          label="Type"
+                          value={formatTypeDisplay(employee.employment_type)}
+                        />
+                      </div>
+                      <HStack gap="2" justify="end" className="mt-3">
+                        <Link href={`/employees/${employee.id}`}>
+                          <Button size="sm" variant="outline" className="h-9 px-3">
+                            <Icon name="Eye" size={IconSizes.sm} className="mr-1" />
+                            View
+                          </Button>
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditModal(employee)}
+                          className="h-9 px-3"
+                        >
+                          <Icon name="PencilSimple" size={IconSizes.sm} className="mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={
+                            employee.employment_status === "active"
+                              ? "destructive"
+                              : "default"
+                          }
+                          onClick={() => toggleEmployeeStatus(employee)}
+                          className="h-9 w-9 p-0"
+                          aria-label={
+                            employee.employment_status === "active"
+                              ? "Deactivate"
+                              : "Activate"
+                          }
+                        >
+                          <Icon name="Power" size={IconSizes.sm} />
+                        </Button>
+                      </HStack>
+                    </div>
+                  ))}
+                </div>
+              </DbMobileBlock>
+              <DbDesktopBlock className={dbTableShell}>
                 <Table className="w-full min-w-[820px] 2xl:min-w-full">
                   <TableHeader>
                     <TableRow className="h-10">
@@ -769,14 +883,7 @@ export default function EmployeesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredEmployees.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                          {searchTerm ? "No matching employees found." : "No employees yet."}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredEmployees.map((employee) => (
+                      {filteredEmployees.map((employee) => (
                         <TableRow key={employee.id} className="h-auto hover:bg-muted/50">
                           <TableCell className="whitespace-nowrap py-2 font-mono text-sm font-semibold">
                             {employee.company_id_no}
@@ -874,11 +981,11 @@ export default function EmployeesPage() {
                             </HStack>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
+                      ))}
                   </TableBody>
                 </Table>
-              </div>
+              </DbDesktopBlock>
+              </>
             )}
           </CardSection>
         </div>

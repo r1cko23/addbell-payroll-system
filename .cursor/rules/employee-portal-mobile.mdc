@@ -29,7 +29,8 @@ Design and implement **mobile first**, then enhance at `sm` / `md` / `lg`.
 ## Typography
 
 - Page titles: `PageTitle` (`text-xl` → `md:text-2xl`), not `H1`.
-- Secondary labels: `BodySmall` + `text-muted-foreground`, not mono uppercase `Caption` for form labels.
+- Subtext/descriptions: `PageSubtitle` or `BodySmall` + `text-muted-foreground` — **sentence case**, end with a period. Do not title-case every word.
+- Form labels: `BodySmall` or `Label`, not mono uppercase `Caption` for field labels.
 
 ## Motion
 

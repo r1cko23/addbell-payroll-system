@@ -45,7 +45,7 @@ export function DashboardApprovalQueueCards({ items, queueHrefByType }: Props) {
                 View all
               </Link>
             </div>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {typeItems.map((item) => (
                 <ApprovalQueueRequestCard
                   key={`${item.queueType}-${item.id}`}

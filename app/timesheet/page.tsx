@@ -8,6 +8,10 @@ import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbPageStack } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -1725,7 +1729,7 @@ export default function TimesheetPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full pb-24">
+      <VStack gap="8" className={cn("w-full pb-16 sm:pb-24", dbPageStack)}>
         <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
           <VStack gap="2" align="start">
             <H1>Timesheet</H1>
@@ -1898,7 +1902,106 @@ export default function TimesheetPage() {
         {/* Attendance Table */}
         {selectedEmployee && (
           <CardSection>
-            <div className="overflow-x-auto rounded-xl border border-border/80 bg-background/80">
+            <DbMobileBlock>
+              <div className="space-y-2">
+                {attendanceDays.map((day) => {
+                  const isWeekend = day.dayName === "Sat" || day.dayName === "Sun";
+                  const statusColor =
+                    day.status === "LOG" || day.status === "OT" || day.status === "RD"
+                      ? "bg-green-100 text-green-700 border-green-200"
+                      : day.status === "OB"
+                        ? "bg-blue-100 text-blue-700 border-blue-200"
+                        : day.status === "LEAVE" || day.status === "CTO"
+                          ? "bg-orange-100 text-orange-700 border-orange-200"
+                          : day.status === "ABSENT" || day.status === "LWOP" || day.status === "INC"
+                            ? "bg-red-100 text-red-700 border-red-200"
+                            : day.status === "RH" || day.status === "SH"
+                              ? "bg-purple-100 text-purple-700 border-purple-200"
+                              : "bg-gray-100 text-gray-600 border-gray-200";
+                  const bhDisplay =
+                    day.status === "LWOP" && !day.isHalfDayLeave
+                      ? "—"
+                      : day.status === "LEAVE"
+                        ? "8.0"
+                        : day.bh > 0
+                          ? day.bh.toFixed(1)
+                          : "—";
+
+                  return (
+                    <div
+                      key={day.date}
+                      className={cn(
+                        "rounded-lg border border-border/80 bg-card p-3",
+                        isWeekend && "bg-primary/5"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {format(parseISO(day.date), "MMM dd")} · {day.dayName}
+                          </p>
+                        </div>
+                        <span
+                          className={`inline-block rounded border px-2 py-0.5 text-xs font-semibold ${statusColor}`}
+                        >
+                          {day.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
+                        <div>
+                          <p className="text-muted-foreground">BH</p>
+                          <p className="font-medium">{bhDisplay}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">OT</p>
+                          <p className="font-medium">{day.ot > 0 ? day.ot.toFixed(2) : "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">LT</p>
+                          <p className="font-medium">{day.lt > 0 ? day.lt.toFixed(0) : "0"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">UT</p>
+                          <p className="font-medium">{day.ut > 0 ? day.ut.toFixed(1) : "0"}</p>
+                        </div>
+                      </div>
+                      {isAdmin && day.clockEntryIds && day.clockEntryIds.length > 0 ? (
+                        <div className="mt-2 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() =>
+                              handleRemoveTimeEntry(
+                                day.clockEntryIds!,
+                                format(parseISO(day.date), "MMM d, yyyy")
+                              )
+                            }
+                          >
+                            <Icon name="TrashSimple" size={IconSizes.sm} className="mr-1" />
+                            Remove
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-3">
+                  <p className="text-sm font-semibold">
+                    Days work: {(daysWorked || 0).toFixed(2)}
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-5">
+                    <DashboardMobileField label="BH total" value={totalBH > 0 ? totalBH.toFixed(1) : "0"} />
+                    <DashboardMobileField label="OT total" value={totalOT > 0 ? totalOT.toFixed(2) : "0"} />
+                    <DashboardMobileField label="LT total" value={totalLTHours > 0 ? totalLTHours.toFixed(0) : "0"} />
+                    <DashboardMobileField label="UT total" value={totalUTHours > 0 ? totalUTHours.toFixed(2) : "0"} />
+                    <DashboardMobileField label="ND total" value={totalND > 0 ? totalND.toFixed(2) : "0"} />
+                  </div>
+                </div>
+              </div>
+            </DbMobileBlock>
+            <DbDesktopBlock className="overflow-x-auto rounded-xl border border-border/80 bg-background/80">
               <table className="min-w-full border-collapse">
                 <thead>
                   <tr className="border-b bg-muted/40">
@@ -2058,7 +2161,7 @@ export default function TimesheetPage() {
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </DbDesktopBlock>
           </CardSection>
         )}
       </VStack>

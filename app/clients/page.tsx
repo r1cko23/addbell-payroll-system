@@ -206,7 +206,7 @@ export default function ClientsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
           <PageSubtitle>
-            Manage your construction clients and their information
+            Manage your construction clients and their information.
           </PageSubtitle>
         </div>
         {canManage && (

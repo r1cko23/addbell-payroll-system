@@ -43,7 +43,6 @@ import {
   type OtRowWithEmployee,
 } from "@/lib/ftl-ot-synthesis";
 import {
-  H1,
   H2,
   H3,
   H4,
@@ -53,6 +52,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbPageStack, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, addDays, getWeek, parseISO, startOfYear, endOfYear, startOfMonth, endOfMonth } from "date-fns";
 import {
@@ -3077,26 +3079,29 @@ export default function PayslipsPage() {
   return (
     <>
       <DashboardLayout>
-        <VStack gap="3" className="w-full print:hidden pb-24">
-          <H1>Payslip Generation</H1>
+        <VStack gap="3" className={cn("w-full print:hidden pb-16 sm:pb-24", dbPageStack)}>
+          <DashboardPageHeader
+            title="Payslip generation"
+            description="Select a cutoff period and employee to view or edit payslips."
+          />
 
           <CardSection className="py-3">
-            <HStack gap="4" align="start" className="flex-wrap">
-              {/* Period Navigation */}
-              <VStack gap="1" align="start">
+            <div className="flex w-full min-w-0 flex-col gap-4 sm:flex-row sm:flex-wrap">
+              <VStack gap="1" align="start" className="w-full min-w-0 sm:w-auto">
                 <Label className="text-xs text-muted-foreground">
-                  Select Cut-off Period
+                  Select cut-off period
                 </Label>
-                <HStack gap="1" align="center">
+                <div className={dbPeriodNavRow}>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0"
+                    className={dbPeriodNavButton}
                     onClick={() => changePeriod("prev")}
+                    aria-label="Previous period"
                   >
                     <Icon name="CaretLeft" size={IconSizes.sm} />
                   </Button>
-                  <span className="font-medium text-sm min-w-[160px] text-center">
+                  <span className="min-w-0 flex-1 px-1 text-center text-xs font-medium sm:text-sm">
                     {`${format(periodStart, "MMM d")} – ${format(
                       periodEnd,
                       "MMM d, yyyy"
@@ -3105,16 +3110,16 @@ export default function PayslipsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0"
+                    className={dbPeriodNavButton}
                     onClick={() => changePeriod("next")}
+                    aria-label="Next period"
                   >
                     <Icon name="CaretRight" size={IconSizes.sm} />
                   </Button>
-                </HStack>
+                </div>
               </VStack>
 
-              {/* Employee Selection - search by name or employee ID */}
-              <VStack gap="1" align="start">
+              <VStack gap="1" align="start" className="w-full min-w-0 flex-1 sm:min-w-[240px]">
                 <Label className="text-xs text-muted-foreground">
                   Employee
                 </Label>
@@ -3122,6 +3127,7 @@ export default function PayslipsPage() {
                   <Button
                     variant="secondary"
                     size="sm"
+                    className="w-full sm:w-auto"
                     onClick={() => (window.location.href = "/employees")}
                   >
                     <Icon name="UsersThree" size={IconSizes.sm} />
@@ -3140,16 +3146,16 @@ export default function PayslipsPage() {
                     onValueChange={setSelectedEmployeeId}
                     showAllOption={false}
                     placeholder="Search by name or employee ID..."
-                    triggerClassName="h-8 w-[200px]"
+                    triggerClassName="h-10 w-full min-w-0 sm:h-8 sm:w-[200px]"
                   />
                 )}
                 <Caption className="text-muted-foreground">
                   {employees.length === 0
-                    ? "No employees loaded. Open Employees to manage your roster."
+                    ? "No employees loaded. Open employees to manage your roster."
                     : "Search and select an employee to view or generate their payslip."}
                 </Caption>
               </VStack>
-            </HStack>
+            </div>
           </CardSection>
 
           {/* Missing Data Messages */}

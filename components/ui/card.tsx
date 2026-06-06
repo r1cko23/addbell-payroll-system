@@ -56,7 +56,7 @@ const CardDescription = React.forwardRef<
     className={cn("text-sm text-muted-foreground leading-relaxed", className)}
     {...props}
   >
-    {typeof children === "string" ? toTitleCase(children) : children}
+    {children}
   </div>
 ));
 CardDescription.displayName = "CardDescription";

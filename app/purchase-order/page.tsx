@@ -388,7 +388,7 @@ export default function PurchaseOrderPage() {
           <Button variant="ghost" size="icon" onClick={() => setView("list")}><ArrowLeft className="h-5 w-5" /></Button>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">New Purchase Order</h1>
-            <PageSubtitle className="mt-0.5">Create a PO with Addbell branding</PageSubtitle>
+            <PageSubtitle className="mt-0.5">Create a PO with Addbell branding.</PageSubtitle>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">

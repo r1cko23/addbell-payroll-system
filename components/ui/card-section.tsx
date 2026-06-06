@@ -34,9 +34,7 @@ export function CardSection({
             </CardTitle>
           )}
           {description && (
-            <CardDescription>
-              {typeof description === "string" ? toTitleCase(description) : description}
-            </CardDescription>
+            <CardDescription>{description}</CardDescription>
           )}
         </CardHeader>
       )}

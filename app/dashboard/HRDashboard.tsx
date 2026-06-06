@@ -18,6 +18,8 @@ import {
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
@@ -32,6 +34,7 @@ import {
   type DashboardQueueItem,
 } from "@/lib/fetch-dashboard-approval-queue";
 import { DashboardApprovalQueueCards } from "@/components/DashboardApprovalQueueCards";
+import { cn } from "@/lib/utils";
 
 const NO_SCOPE_MATCH_EMPLOYEE_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -176,7 +179,33 @@ function CurrentlyClockedInSection({
           No employees currently clocked in.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <>
+        <DbMobileBlock>
+          <div className="space-y-2">
+            {employees.map((emp) => (
+              <div key={emp.id} className="rounded-lg border border-border/80 bg-card p-3">
+                <Link
+                  href={`/employees/${emp.id}`}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  {emp.first_name} {emp.last_name}
+                </Link>
+                <p className="text-xs font-mono text-muted-foreground">{emp.company_id_no}</p>
+                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Department</span>
+                  <span className="text-right font-medium">{emp.department_name || "—"}</span>
+                  <span className="text-muted-foreground">Clocked in</span>
+                  <span className="text-right font-medium">
+                    {format(new Date(emp.clocked_in_at), "h:mm a")}
+                  </span>
+                  <span className="text-muted-foreground">Time clock ID</span>
+                  <span className="text-right font-mono">{emp.employee_code || "—"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DbMobileBlock>
+        <DbDesktopBlock className={dbTableShell}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -213,7 +242,8 @@ function CurrentlyClockedInSection({
               ))}
             </TableBody>
           </Table>
-        </div>
+        </DbDesktopBlock>
+        </>
       )}
       {showViewAllLink ? (
         <div className="mt-2 flex justify-end">
@@ -569,7 +599,7 @@ export default function HRDashboard() {
         : "your group";
 
   return (
-    <VStack gap="6" align="stretch" className="w-full pb-16">
+    <VStack gap="6" align="stretch" className={cn("w-full pb-12 sm:pb-16", dbPageStack)}>
       <DashboardPageHeader
         title={
           isOperationsManager ? operationsManagerHeading : "Workforce overview"
@@ -580,7 +610,7 @@ export default function HRDashboard() {
             : "Track employee registrations and the latest time in/out activity."
         }
         actions={
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          <div className={dbHeaderActions}>
             {!isOperationsManager ? (
               <Link href="/employees">
                 <Button size="sm" variant="outline">
@@ -649,10 +679,10 @@ export default function HRDashboard() {
           <CardHeader className="pb-2">
             <CardDescription>
               {showAllCompanyPending
-                ? "All pending approvals — click a request to review"
+                ? "All pending approvals — click a request to review."
                 : isHR
-                  ? "Pending HR approvals — click a request to review"
-                  : "Your approval groups — click a request to review"}
+                  ? "Pending HR approvals — click a request to review."
+                  : "Your approval groups — click a request to review."}
             </CardDescription>
             <CardTitle>
               {queueItems.length === 0
@@ -717,7 +747,7 @@ export default function HRDashboard() {
         />
         <Card className="rounded-2xl border bg-card/90 shadow-sm xl:col-span-6">
           <CardHeader className="pb-3">
-            <CardDescription>Employment types</CardDescription>
+            <CardDescription>Active employees by employment type.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

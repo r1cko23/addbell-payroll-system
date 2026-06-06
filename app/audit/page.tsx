@@ -450,7 +450,7 @@ export default function AuditDashboardPage() {
         <VStack gap="2" align="start">
           <H1>Audit Dashboard</H1>
           <PageSubtitle>
-            Comprehensive audit trail and employee first login tracking
+            Comprehensive audit trail and employee first login tracking.
           </PageSubtitle>
         </VStack>
 

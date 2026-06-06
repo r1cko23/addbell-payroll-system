@@ -182,7 +182,7 @@ export default function VendorsPage() {
           <div>
             <h1 className="text-2xl font-semibold">Vendors</h1>
             <PageSubtitle>
-              Manage suppliers for Purchase Orders
+              Manage suppliers for purchase orders.
             </PageSubtitle>
           </div>
           <Button onClick={() => handleOpenDialog()}>

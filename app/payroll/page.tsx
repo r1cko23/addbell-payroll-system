@@ -37,6 +37,10 @@ import { H1, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbHeaderActions, dbPageStack, dbTableShell } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -892,7 +896,76 @@ export default function PayrollPage() {
                   : "No payslips found for this run."}
               </div>
             ) : (
-              <div className="w-full max-w-full overflow-x-auto rounded-lg border">
+              <>
+              <DbMobileBlock>
+                <div className="space-y-2">
+                  {payslips.map((ps) => (
+                    <div
+                      key={ps.id}
+                      className="rounded-lg border border-border/80 bg-card p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          {ps.employee ? (
+                            <Link
+                              href={`/employees/${ps.employee.id}`}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {empName(ps.employee)}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-medium">Unknown</span>
+                          )}
+                          <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                            {ps.employee?.company_id_no || "—"}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-sm font-bold text-primary">
+                          ₱{Number(ps.net_pay).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        <DashboardMobileField
+                          label="Department"
+                          value={(ps.employee as any)?.departments?.name || "—"}
+                        />
+                        <DashboardMobileField
+                          label="Gross pay"
+                          value={`₱${Number(ps.gross_pay).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                        />
+                        <DashboardMobileField
+                          label="Deductions"
+                          value={`₱${Number(ps.total_deductions).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                          valueClassName="text-destructive"
+                        />
+                      </div>
+                      <HStack gap="2" justify="end" className="mt-3">
+                        <Link
+                          href={`/payslips?employee_id=${encodeURIComponent(
+                            ps.employee?.id || ps.employee_id
+                          )}&period_start=${encodeURIComponent(
+                            selectedRun.cutoff_start
+                          )}&payroll_run_id=${encodeURIComponent(selectedRun.id)}`}
+                        >
+                          <Button size="sm" variant="secondary">
+                            <Icon name="PencilSimple" size={IconSizes.sm} className="mr-1" />
+                            Edit
+                          </Button>
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDownloadPayslip(ps)}
+                        >
+                          <Icon name="Download" size={IconSizes.sm} className="mr-1" />
+                          Payslip
+                        </Button>
+                      </HStack>
+                    </div>
+                  ))}
+                </div>
+              </DbMobileBlock>
+              <DbDesktopBlock className={dbTableShell}>
                 <Table className="w-full min-w-[980px]">
                   <TableHeader>
                     <TableRow>
@@ -963,7 +1036,8 @@ export default function PayrollPage() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </DbDesktopBlock>
+              </>
             )}
           </CardSection>
 
@@ -1013,14 +1087,16 @@ export default function PayrollPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="mx-auto w-full max-w-6xl pb-24">
+      <VStack gap="8" className={cn("mx-auto w-full max-w-6xl pb-16 sm:pb-24", dbPageStack)}>
         <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row">
           <H1>Payroll</H1>
           {(isManagement || isHR) && (
-            <Button onClick={openNewRunDialog} className="w-full sm:ml-auto sm:w-auto">
-              <Icon name="Plus" size={IconSizes.sm} />
-              New Payroll Run
-            </Button>
+            <div className={dbHeaderActions}>
+              <Button onClick={openNewRunDialog} className="col-span-2 sm:col-span-1">
+                <Icon name="Plus" size={IconSizes.sm} />
+                New Payroll Run
+              </Button>
+            </div>
           )}
         </HStack>
 
@@ -1034,7 +1110,64 @@ export default function PayrollPage() {
               No payroll runs yet.
             </div>
           ) : (
-            <div className="w-full max-w-full overflow-x-auto rounded-lg border">
+            <>
+            <DbMobileBlock>
+              <div className="space-y-2">
+                {payrollRuns.map((run) => (
+                  <div
+                    key={run.id}
+                    className="rounded-lg border border-border/80 bg-card p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium">
+                        {format(new Date(run.cutoff_start), "MMM d")} –{" "}
+                        {format(new Date(run.cutoff_end), "MMM d, yyyy")}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 capitalize ${statusStyles[run.status] || ""}`}
+                      >
+                        {run.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      <DashboardMobileField
+                        label="Pay date"
+                        value={
+                          run.pay_date
+                            ? format(new Date(run.pay_date), "MMM d, yyyy")
+                            : "—"
+                        }
+                      />
+                      <DashboardMobileField
+                        label="Employees"
+                        value={
+                          run.payslip_count && run.payslip_count > 0
+                            ? run.payslip_count
+                            : runScopeCount(run) ?? 0
+                        }
+                      />
+                      <DashboardMobileField
+                        label="Total gross"
+                        value={`₱${(run.total_gross || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                      />
+                      <DashboardMobileField
+                        label="Total net"
+                        value={`₱${(run.total_net || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                        valueClassName="text-primary"
+                      />
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button size="sm" variant="ghost" onClick={() => openRunDetail(run)}>
+                        <Icon name="Eye" size={IconSizes.sm} className="mr-1" />
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DbMobileBlock>
+            <DbDesktopBlock className={dbTableShell}>
               <Table className="w-full min-w-[760px]">
                 <TableHeader>
                   <TableRow>
@@ -1074,7 +1207,8 @@ export default function PayrollPage() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </DbDesktopBlock>
+            </>
           )}
         </CardSection>
       </VStack>

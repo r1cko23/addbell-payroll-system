@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall, Caption, KpiValue, PageSubtitle } from "@/components/ui/typography";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { dbHeaderActions, dbPageStack } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -1279,13 +1282,13 @@ export default function TimeEntriesPage() {
 
   return (
     <DashboardLayout>
-      <VStack gap="8" className="w-full max-w-full min-w-0">
+      <VStack gap="8" className={cn("w-full max-w-full min-w-0 pb-16 sm:pb-24", dbPageStack)}>
         <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <VStack gap="2" align="start">
             <H1>Time Entries</H1>
             <PageSubtitle>View punches and export logs.</PageSubtitle>
           </VStack>
-          <HStack gap="2" className="w-full flex-wrap sm:ml-auto sm:w-auto sm:justify-end">
+          <div className={dbHeaderActions}>
             {/* Admin-only: Add Time Entry for any employee */}
             {isManagement && (
               <>
@@ -1388,7 +1391,7 @@ export default function TimeEntriesPage() {
               <Icon name="ArrowsClockwise" size={IconSizes.sm} />
               Export CSV
             </Button>
-          </HStack>
+          </div>
         </div>
 
         {/* Stats Cards — use full horizontal space */}
@@ -1495,7 +1498,148 @@ export default function TimeEntriesPage() {
         {/* Entries List — full width */}
         <Card className="overflow-hidden w-full max-w-full">
           <CardContent className="p-0 w-full">
-            <div className="overflow-x-auto w-full">
+            <DbMobileBlock className="space-y-2 p-3">
+              {loading ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Icon name="Clock" size={IconSizes.lg} className="mx-auto mb-2 animate-spin" />
+                  Loading...
+                </div>
+              ) : groupedByDay.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  <Icon name="WarningCircle" size={IconSizes.xl} className="mx-auto mb-3 opacity-50" />
+                  No time entries found for this period.
+                </div>
+              ) : (
+                groupedByDay.map((group) => {
+                  const isExpanded = expandedDayKeys.has(group.key);
+                  const dayTypeLabel = getDayType(group.entries[0].clock_in_time, group.employeeId);
+                  return (
+                    <div
+                      key={group.key}
+                      className="rounded-lg border border-border/80 bg-card"
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-start justify-between gap-2 p-3 text-left"
+                        onClick={() => toggleDayExpanded(group.key)}
+                      >
+                        <HStack gap="3" align="center" className="min-w-0">
+                          <EmployeeAvatar
+                            profilePictureUrl={group.employee.profile_picture_url}
+                            fullName={group.employee.full_name}
+                            size="sm"
+                          />
+                          <VStack gap="0" align="start" className="min-w-0">
+                            <span className="text-sm font-medium">{group.employee.full_name}</span>
+                            <Caption className="text-xs text-muted-foreground">
+                              {group.employee.employee_id} · {group.dateLabel}
+                            </Caption>
+                          </VStack>
+                        </HStack>
+                        <Icon
+                          name={isExpanded ? "CaretUp" : "CaretDown"}
+                          size={IconSizes.sm}
+                          className="mt-1 shrink-0 text-muted-foreground"
+                        />
+                      </button>
+                      <div className="grid grid-cols-3 gap-2 border-t border-border/60 px-3 py-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">BH</p>
+                          <p className="font-medium">{group.metrics.bh.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">OT</p>
+                          <p className="font-medium">{group.metrics.ot.toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total</p>
+                          <p className="font-medium">{group.totalHours.toFixed(2)}h</p>
+                        </div>
+                      </div>
+                      <p className="border-t border-border/60 px-3 py-1.5 text-xs text-muted-foreground">
+                        {dayTypeLabel} · {group.entries.length} punch
+                        {group.entries.length !== 1 ? "es" : ""}
+                      </p>
+                      {isExpanded ? (
+                        <div className="space-y-2 border-t border-border/60 p-3">
+                          {group.entries.map((entry) => {
+                            const clockInDetails = resolveLocationDetails(
+                              entry.clock_in_location ?? null,
+                              officeLocations
+                            );
+                            const clockOutDetails = resolveLocationDetails(
+                              entry.clock_out_location ?? null,
+                              officeLocations
+                            );
+                            return (
+                              <div
+                                key={entry.id}
+                                className="rounded-md border border-border/70 bg-muted/30 p-2.5"
+                              >
+                                <p className="text-xs font-medium">
+                                  {format(new Date(entry.clock_in_time), "h:mm a")} –{" "}
+                                  {entry.clock_out_time
+                                    ? format(new Date(entry.clock_out_time), "h:mm a")
+                                    : "—"}
+                                </p>
+                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                  In: {getResolvedAddress(clockInDetails)}
+                                </p>
+                                {entry.clock_out_time ? (
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Out: {getResolvedAddress(clockOutDetails)}
+                                  </p>
+                                ) : null}
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                  {getStatusBadge(entry.status, entry.clock_out_time)}
+                                  <div className="flex gap-1">
+                                    {entry.status === "clocked_out" && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => {
+                                          setSelectedEntry(entry);
+                                          setHrNotes(entry.hr_notes || "");
+                                        }}
+                                      >
+                                        <Icon name="PencilSimple" size={IconSizes.sm} />
+                                      </Button>
+                                    )}
+                                    {(entry.status === "clocked_in" ||
+                                      entry.status === "clocked_out" ||
+                                      entry.status === "rejected") &&
+                                      isHR && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 text-destructive"
+                                          onClick={() => {
+                                            if (
+                                              confirm(
+                                                "Are you sure you want to delete this time entry? This action cannot be undone."
+                                              )
+                                            ) {
+                                              handleDelete(entry.id);
+                                            }
+                                          }}
+                                        >
+                                          <Icon name="Trash" size={IconSizes.sm} />
+                                        </Button>
+                                      )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              )}
+            </DbMobileBlock>
+            <DbDesktopBlock className="overflow-x-auto w-full">
               <Table className="w-full">
                 <TableHeader className="bg-muted">
                   <TableRow>
@@ -1758,7 +1902,7 @@ export default function TimeEntriesPage() {
                   )}
                 </TableBody>
               </Table>
-            </div>
+            </DbDesktopBlock>
           </CardContent>
         </Card>
 

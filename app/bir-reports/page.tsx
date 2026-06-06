@@ -632,7 +632,7 @@ export default function BIRReportsPage() {
         )}
 
         {/* Export Options */}
-        <CardSection title="Export Reports" description="Generate BIR-compliant reports">
+        <CardSection title="Export Reports" description="Generate BIR-compliant reports.">
           <VStack gap="3">
             <Button onClick={generateAlphalist} className="w-full sm:w-auto" variant="secondary">
               <Icon name="FileCsv" size={IconSizes.sm} />

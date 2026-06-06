@@ -79,7 +79,7 @@ export const epFormCard = "w-full min-w-0 max-w-full";
 
 /** Native <select> — matches Input touch height and width constraints */
 export const epNativeSelect =
-  "box-border flex h-11 min-h-11 min-w-0 w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-10 sm:min-h-10";
+  "box-border flex h-11 min-h-11 min-w-0 w-full max-w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm sm:h-10 sm:min-h-10";
 
 /** Single labeled field block — room below date/time so iOS borders aren't clipped */
 export const epFormField =

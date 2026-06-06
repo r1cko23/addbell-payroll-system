@@ -58,6 +58,15 @@ Log in as a test employee. Check **layout**, **touch targets (≥44px)**, and **
 | Info | `/employee-portal/info` | Label/value rows wrap, no overflow |
 | Fund request | `/employee-portal/fund-request` | List + new form if applicable |
 
+### iOS Safari — auto-zoom on login / forms
+
+- [ ] Employee login (`/login?mode=employee`) does **not** zoom in when tapping Employee ID or Password
+- [ ] After login, employee portal loads at normal scale (no pinch-out needed)
+- [ ] OT / Leave / Failure to Log inputs do not trigger zoom on focus
+
+Cause: iOS Safari zooms when `font-size` &lt; 16px on focused inputs; zoom can persist after redirect.  
+Mitigation: `16px` form controls on mobile (`globals.css` + `text-base md:text-sm` on shared inputs).
+
 ### iOS Safari — date/time inputs (highest risk)
 
 On **OT Filing** and **Failure to Log**:

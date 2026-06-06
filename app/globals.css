@@ -385,6 +385,20 @@
     letter-spacing: var(--letter-spacing-normal);
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /*
+   * iOS Safari auto-zooms when an input has font-size < 16px.
+   * That zoom persists after login — use 16px on mobile form controls.
+   */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
 
   h1 {

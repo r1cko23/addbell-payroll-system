@@ -8,6 +8,7 @@
 | [SETUP](./setup/SETUP.md)                      | Full setup guide            |
 | [DEPLOYMENT](./deployment/DEPLOYMENT_GUIDE.md) | Deploy to production        |
 | [PRIVACY COMPLIANCE](./privacy/README.md)      | Data Privacy Act compliance |
+| [Cross-browser QA](./testing/CROSS_BROWSER_QA_CHECKLIST.md) | Mobile/desktop responsive test checklist |
 
 ---
 

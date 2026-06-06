@@ -439,8 +439,11 @@
    * iOS Safari: date/time inputs ignore width:100% when padding is set (WebKit #301648).
    * Shell + min-logical-width + datetime-edit padding reset keeps fields inside cards.
    */
+  /* Clip width only — overflow:hidden was slicing off bottom borders on iOS */
   .ios-temporal-input-shell {
     contain: inline-size;
+    overflow-x: clip;
+    overflow-y: visible;
   }
 
   .ios-temporal-input,
@@ -455,6 +458,7 @@
     max-width: 100%;
     box-sizing: border-box;
     -webkit-min-logical-width: 0;
+    line-height: 1.5;
   }
 
   input[type="date"]::-webkit-date-and-time-value,
@@ -462,15 +466,12 @@
   input[type="datetime-local"]::-webkit-date-and-time-value {
     min-width: 0;
     text-align: left;
+    line-height: 1.5;
   }
 
-  .ios-temporal-input::-webkit-datetime-edit,
   .ios-temporal-input::-webkit-datetime-edit-fields-wrapper,
-  input[type="date"]::-webkit-datetime-edit,
   input[type="date"]::-webkit-datetime-edit-fields-wrapper,
-  input[type="time"]::-webkit-datetime-edit,
   input[type="time"]::-webkit-datetime-edit-fields-wrapper,
-  input[type="datetime-local"]::-webkit-datetime-edit,
   input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
     padding: 0;
   }

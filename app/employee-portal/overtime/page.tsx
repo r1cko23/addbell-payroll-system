@@ -500,7 +500,7 @@ export default function OvertimePage() {
           </BodySmall>
         </CardHeader>
         <CardContent className="w-full min-w-0 p-3 md:p-6">
-          <form onSubmit={handleSubmit} className="w-full min-w-0 max-w-full overflow-hidden">
+          <form onSubmit={handleSubmit} className="w-full min-w-0 max-w-full">
             <div className={epFormStack}>
               <div className={epFormField}>
                 <Label htmlFor="ot-date">OT Date</Label>

@@ -41,7 +41,7 @@ export const dbTableShell =
   "w-full min-w-0 overflow-x-auto rounded-lg border";
 
 /** Form / detail card — clip horizontal overflow on phones */
-export const dbFormCard = "w-full min-w-0 overflow-x-clip";
+export const dbFormCard = "w-full min-w-0 max-w-full overflow-x-clip";
 
 /** Filter/toolbar select — full width on mobile, fixed from sm */
 export const dbFilterSelect = "w-full min-w-0 sm:w-[180px]";

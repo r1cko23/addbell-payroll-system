@@ -1,7 +1,10 @@
 /**
- * Download payslip PDF from the same DOM used by Print (#payslip-print-content).
- * Clones full letter-size layout off-screen (no preview zoom) so output matches print.
+ * Download payslip PDF from #payslip-print-content using the same HTML shell as Print.
  */
+
+import { buildPayslipPrintDocumentHtml } from "@/lib/payslip-print-document";
+
+const LETTER_WIDTH_PX = Math.round(8.5 * 96);
 
 function waitForImages(root: ParentNode): Promise<void> {
   const images = Array.from(root.querySelectorAll("img"));
@@ -32,57 +35,73 @@ function fixImageSources(root: ParentNode) {
   });
 }
 
-function createFullSizePayslipClone(source: HTMLElement): HTMLDivElement {
-  const host = document.createElement("div");
-  host.style.position = "fixed";
-  host.style.left = "-10000px";
-  host.style.top = "0";
-  host.style.width = "8.5in";
-  host.style.background = "#fff";
-  host.style.zIndex = "-1";
-  host.style.pointerEvents = "none";
-  host.innerHTML = source.outerHTML;
+function waitForIframeLoad(iframe: HTMLIFrameElement): Promise<Document> {
+  return new Promise((resolve, reject) => {
+    iframe.onload = () => {
+      const doc = iframe.contentDocument;
+      if (!doc) {
+        reject(new Error("PDF capture document unavailable"));
+        return;
+      }
+      resolve(doc);
+    };
+    iframe.onerror = () => reject(new Error("Failed to prepare payslip for PDF"));
+  });
+}
 
-  const clone = host.firstElementChild as HTMLElement | null;
-  if (clone) {
-    clone.style.width = "8.5in";
-    clone.style.padding = "0.5in";
-    clone.style.margin = "0";
-    clone.style.backgroundColor = "#fff";
-    clone.style.color = "#000";
-    clone.style.fontFamily = "Arial, sans-serif";
-    clone.style.fontSize = "10pt";
-    clone.style.lineHeight = "1.2";
-    clone.style.boxSizing = "border-box";
+async function renderPayslipInPrintDocument(
+  source: HTMLElement
+): Promise<{ doc: Document; target: HTMLElement; cleanup: () => void }> {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = `${LETTER_WIDTH_PX}px`;
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.visibility = "hidden";
+  document.body.appendChild(iframe);
+
+  const loadPromise = waitForIframeLoad(iframe);
+  iframe.srcdoc = buildPayslipPrintDocumentHtml(source.outerHTML, "Payslip PDF");
+  const doc = await loadPromise;
+
+  fixImageSources(doc);
+  await waitForImages(doc);
+  await new Promise((resolve) => window.setTimeout(resolve, 200));
+
+  const target = doc.getElementById("payslip-print-content");
+  if (!target) {
+    iframe.remove();
+    throw new Error("Payslip content not found");
   }
 
-  fixImageSources(host);
-  document.body.appendChild(host);
-  return host;
+  return {
+    doc,
+    target,
+    cleanup: () => iframe.remove(),
+  };
 }
 
 export async function downloadPayslipPdfFromDom(
   source: HTMLElement,
   filename: string
 ): Promise<void> {
-  const host = createFullSizePayslipClone(source);
-  const captureTarget =
-    (host.firstElementChild as HTMLElement | null) ?? host;
+  const { target, cleanup } = await renderPayslipInPrintDocument(source);
 
   try {
-    await waitForImages(host);
-
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    const canvas = await html2canvas(captureTarget, {
+    const canvas = await html2canvas(target, {
       scale: 2,
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#ffffff",
       logging: false,
-      width: captureTarget.scrollWidth,
-      height: captureTarget.scrollHeight,
+      width: LETTER_WIDTH_PX,
+      windowWidth: LETTER_WIDTH_PX,
       onclone: (clonedDoc) => {
         fixImageSources(clonedDoc);
       },
@@ -98,23 +117,23 @@ export async function downloadPayslipPdfFromDom(
     const pageHeight = pdf.internal.pageSize.getHeight();
     const imgWidth = pageWidth;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+    const imgData = canvas.toDataURL("image/png");
 
     let heightLeft = imgHeight;
     let position = 0;
 
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
 
     while (heightLeft > 0) {
       pdf.addPage();
       position = heightLeft - imgHeight;
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
     }
 
     pdf.save(filename);
   } finally {
-    host.remove();
+    cleanup();
   }
 }

@@ -40,6 +40,7 @@ import {
 } from "@/components/employee-portal/PayslipPreviewDialog";
 import { toast } from "sonner";
 import type { EmployeeProfileForPayslip } from "@/lib/payslip-display";
+import { buildPayslipPrintDocumentHtml } from "@/lib/payslip-print-document";
 import { downloadPayslipPdfFromDom } from "@/utils/payslip-download-from-dom";
 
 interface Payslip {
@@ -268,66 +269,17 @@ export default function EmployeePayslipsPage() {
     // Get the payslip HTML content
     const payslipHTML = payslipContainer.outerHTML;
 
-    // Write the HTML document with print styles
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Payslip - ${selectedPayslip?.employee_id || "Employee"}</title>
-          <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            html, body {
-              width: 100%;
-              height: 100%;
-              margin: 0;
-              padding: 0;
-              background: white;
-              color: black;
-              font-family: Arial, sans-serif;
-            }
-            .payslip-container {
-              width: 8.5in;
-              padding: 0.5in;
-              margin: 0 auto;
-              background: white;
-              color: black;
-            }
-            @media print {
-              @page {
-                size: letter portrait;
-                margin: 0.5in;
-              }
-              html, body {
-                margin: 0;
-                padding: 0;
-                background: white;
-              }
-              .payslip-container {
-                margin: 0 auto;
-                page-break-inside: avoid;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          ${payslipHTML}
+    printWindow.document.write(
+      buildPayslipPrintDocumentHtml(
+        `${payslipHTML}
           <script>
-            // Auto-print when window loads
             window.onload = function() {
-              setTimeout(function() {
-                window.print();
-              }, 250);
+              setTimeout(function() { window.print(); }, 250);
             };
-          </script>
-        </body>
-      </html>
-    `);
+          </script>`,
+        `Payslip - ${selectedPayslip?.employee_id || "Employee"}`
+      )
+    );
     printWindow.document.close();
   }
 

@@ -25,6 +25,7 @@ import {
 import { aggregateMetricsFromAttendanceDays } from "@/lib/day-attendance-summary";
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import type { PayslipPrintEarningsSync } from "@/lib/payslip-print-sync";
+import { PAYSLIP_PRINT_INLINE_STYLES } from "@/lib/payslip-print-document";
 
 interface PayslipPrintProps {
   employee: {
@@ -694,6 +695,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         lineHeight: "1.2",
       }}
     >
+      <style dangerouslySetInnerHTML={{ __html: PAYSLIP_PRINT_INLINE_STYLES }} />
       {/* Header with Logo - Enlarged */}
       <div
         style={{
@@ -791,6 +793,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             Earnings:
           </div>
           <table
+            className="payslip-earnings-table"
             style={{
               width: "100%",
               borderCollapse: "collapse",
@@ -1605,6 +1608,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
             Deduction:
           </div>
           <table
+            className="payslip-deductions-table"
             style={{
               width: "100%",
               borderCollapse: "collapse",
@@ -1936,6 +1940,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
       {/* Summary Section */}
       <table
+        className="payslip-summary-table"
         style={{
           width: "100%",
           borderCollapse: "collapse",

@@ -12,6 +12,7 @@ import {
   resolvePayslipAllowanceAmount,
   type CutoffAllowanceRow,
 } from "@/lib/payslip-allowances";
+import { computePayslipNetPay } from "@/lib/payslip-net";
 import {
   calculateDailyPay,
   type DayType,
@@ -72,7 +73,11 @@ function otherDeductionAmountsFromBreakdown(ded: Record<string, unknown>) {
     return amounts;
   }
   // Legacy: all manual other deductions were stored only in weekly.vale.
-  amounts.Vale = safeNumber(ded?.weekly?.vale ?? ded?.vale);
+  const weekly =
+    ded?.weekly && typeof ded.weekly === "object"
+      ? (ded.weekly as Record<string, unknown>)
+      : null;
+  amounts.Vale = safeNumber(weekly?.vale ?? ded?.vale);
   return amounts;
 }
 
@@ -359,7 +364,6 @@ export function buildPayrollRunTemplateTable(params: {
       (perHour > 0 ? regularHoursBasicGross(attendance, perHour) : 0);
 
     const gross = safeNumber(ps.gross_pay);
-    const net = safeNumber(ps.net_pay);
     const ded = ps.deductions_breakdown || {};
 
     const sss = safeNumber(ded?.sss) + safeNumber(ded?.sss_wisp);
@@ -390,6 +394,12 @@ export function buildPayrollRunTemplateTable(params: {
       },
       cutoffAllowance
     );
+    const net = computePayslipNetPay({
+      grossPay: gross,
+      adjustmentAmount: adjustments,
+      totalDeductions: safeNumber(ps.total_deductions),
+      allowanceAmount: allowances,
+    });
 
     const row = Array(columns.length).fill("");
     row[1] = String(emp.company_id_no || "").trim() || String(ps.employee_id);
@@ -436,8 +446,8 @@ export function buildPayrollRunTemplateTable(params: {
     dataRows,
     colorGroups: {
       earningsCols: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18],
-      deductionCols: [22, 23, 24, 25, 26, 27, 28, 29, 30, 31],
-      netCols: [33, 34],
+      deductionCols: [22, 23, 24, 25, 26, 27, 28, 29, 30],
+      netCols: [31, 32, 33, 34],
     },
   };
 }

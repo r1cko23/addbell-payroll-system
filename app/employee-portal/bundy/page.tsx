@@ -38,8 +38,8 @@ import {
 import { getBundyBusinessDayKeyForInPunch } from "@/lib/bundy-business-day";
 import {
   calculateLateHours,
+  calculateUndertimeHours,
   getBusinessDayPolicyByDay,
-  halfDayRequiredHoursByDay,
   regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 
@@ -1659,33 +1659,31 @@ export default function BundyClockPage() {
           }
         }
 
-        // Calculate UT (Undertime)
-        // Policy: UT is based on REQUIRED business hours for that day:
-        // - Mon–Thu: 10 hours (07–12, 13–18)
-        // - Fri: 8 hours (07–12, 13–16)
-        // - Uses employee schedule window when present; otherwise business-hours windows.
-        const requiredHoursFromWindows = (windows: Array<{ startHour: number; endHour: number }>) =>
-          windows.reduce((s, w) => s + Math.max(0, (w.endHour - w.startHour)), 0);
-
-        let requiredHours = businessPolicy.requiresOffice
-          ? requiredHoursFromWindows(businessPolicy.windows)
-          : 0;
-
-        if (hasScheduleWindow && resolvedStartMinutes !== null && resolvedEndMinutes !== null) {
-          requiredHours = Math.max(0, (resolvedEndMinutes - resolvedStartMinutes) / 60);
+        // Undertime: clock-out before scheduled end (not missing BH from late arrival).
+        let utEndMinutes = resolvedEndMinutes;
+        if (isHalfDayLeave && businessPolicy.windows.length > 0) {
+          utEndMinutes = businessPolicy.windows[0].endHour * 60;
         }
-
-        // Half-day approved leave: UT vs first business window only (7AM–12NN = 5h); BH = actual worked.
-        if (isHalfDayLeave) {
-          const halfRequired = halfDayRequiredHoursByDay(dayOfWeek);
-          if (halfRequired > 0) {
-            requiredHours = halfRequired;
+        const lastClockOutEntry = [...allDayEntries]
+          .filter((e) => e.clock_out_time)
+          .sort(
+            (a, b) =>
+              new Date(a.clock_out_time!).getTime() -
+              new Date(b.clock_out_time!).getTime()
+          )
+          .pop();
+        let ut = 0;
+        if (lastClockOutEntry?.clock_out_time && utEndMinutes !== null) {
+          try {
+            const actualOut = getManilaHourMinute(lastClockOutEntry.clock_out_time);
+            ut = calculateUndertimeHours(
+              utEndMinutes,
+              actualOut.hour * 60 + actualOut.minute
+            );
+          } catch (e) {
+            console.warn("Error calculating undertime:", e);
           }
         }
-
-        const rawDeficit = Math.max(0, requiredHours - bh);
-        // Policy: UT is rounded up to the next FULL hour.
-        let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
 
         // Future / not-yet-worked days (status "-") should not show late or undertime.
         if (status === "-") {

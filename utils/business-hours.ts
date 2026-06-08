@@ -41,6 +41,31 @@ export function calculateLateHours(
   return Math.ceil((lateMinutes - graceMinutes) / 60);
 }
 
+/** Undertime when clock-out is before scheduled business end (mirrors late bucketing). */
+export function calculateUndertimeHours(
+  scheduledEndMinutes: number,
+  actualOutMinutes: number,
+  graceMinutes: number = BUSINESS_HOURS_GRACE_MINUTES
+): number {
+  const earlyMinutes = scheduledEndMinutes - actualOutMinutes;
+  if (!Number.isFinite(earlyMinutes) || earlyMinutes <= graceMinutes) return 0;
+  return Math.ceil((earlyMinutes - graceMinutes) / 60);
+}
+
+export function scheduledBusinessEndMinutes(dayOfWeek: number): number | null {
+  const policy = getBusinessDayPolicyByDay(dayOfWeek);
+  if (!policy.requiresOffice || policy.windows.length === 0) return null;
+  const last = policy.windows[policy.windows.length - 1];
+  return last.endHour * 60;
+}
+
+/** First-window end (e.g. 12 NN) for half-day leave undertime. */
+export function scheduledHalfDayEndMinutes(dayOfWeek: number): number | null {
+  const policy = getBusinessDayPolicyByDay(dayOfWeek);
+  if (!policy.requiresOffice || policy.windows.length === 0) return null;
+  return policy.windows[0].endHour * 60;
+}
+
 const REQUIRED_WEEKDAY_WINDOWS: TimeWindow[] = [
   { startHour: 7, endHour: 12 },
   { startHour: 13, endHour: 18 },

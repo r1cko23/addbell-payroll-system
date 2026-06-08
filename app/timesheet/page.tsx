@@ -39,9 +39,9 @@ import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthl
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
   calculateLateHours,
+  calculateUndertimeHours,
   getBusinessDayPolicyByDay,
   getManilaHourMinute,
-  halfDayRequiredHoursByDay,
   regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 import {
@@ -1487,30 +1487,6 @@ export default function TimesheetPage() {
         }
       }
 
-      // Calculate UT (Undertime)
-      // Policy: UT is based on REQUIRED business hours for that day:
-      // - Mon–Thu: 10 hours (07–12, 13–18)
-      // - Fri: 8 hours (07–12, 13–16)
-      // - Uses employee schedule window when present; otherwise business-hours windows.
-      const requiredHoursFromWindows = (windows: Array<{ startHour: number; endHour: number }>) =>
-        windows.reduce((s, w) => s + Math.max(0, (w.endHour - w.startHour)), 0);
-
-      let requiredHours = businessPolicy.requiresOffice
-        ? requiredHoursFromWindows(businessPolicy.windows)
-        : 0;
-
-      if (hasScheduleWindow && resolvedStartMinutes !== null && resolvedEndMinutes !== null) {
-        requiredHours = Math.max(0, (resolvedEndMinutes - resolvedStartMinutes) / 60);
-      }
-
-      // Half-day approved leave: UT vs first business window only (7AM–12NN = 5h); BH = actual worked.
-      if (isHalfDayLeave) {
-        const halfRequired = halfDayRequiredHoursByDay(dayOfWeek);
-        if (halfRequired > 0) {
-          requiredHours = halfRequired;
-        }
-      }
-
       // Payroll engine (same path as payslip + bulk generate) is source of truth for BH/OT/ND.
       const engineDay = engineByDate.get(dateStr);
       if (engineDay) {
@@ -1519,10 +1495,24 @@ export default function TimesheetPage() {
         ndHours = engineDay.nightDiffHours;
       }
 
-      // Undertime is the missing required hours after credited BH (BH already uses business windows).
-      // Policy: UT is rounded up to the next FULL hour.
-      const rawDeficit = Math.max(0, requiredHours - bh);
-      let ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
+      // Undertime: clock-out before scheduled end (not missing BH from late arrival).
+      let utEndMinutes = resolvedEndMinutes;
+      if (isHalfDayLeave && businessPolicy.windows.length > 0) {
+        utEndMinutes = businessPolicy.windows[0].endHour * 60;
+      }
+      const lastClockOutIso = [...dayEntries, ...incompleteDayEntries]
+        .filter((e) => e.clock_out_time)
+        .map((e) => e.clock_out_time!)
+        .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+        .pop();
+      let ut = 0;
+      if (lastClockOutIso && utEndMinutes !== null) {
+        const actualOut = getManilaHourMinute(lastClockOutIso);
+        ut = calculateUndertimeHours(
+          utEndMinutes,
+          actualOut.hour * 60 + actualOut.minute
+        );
+      }
 
       // Future / not-yet-worked days (status "-") should not accrue late or undertime.
       if (status === "-") {

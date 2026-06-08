@@ -110,6 +110,7 @@ import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, mergeBundyAndFtlClockSessions } from "@/lib/timeEntries";
 import { resolveAllowanceInputAmount } from "@/lib/payslip-allowances";
+import { computePayslipNetPay } from "@/lib/payslip-net";
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
 
@@ -1921,7 +1922,6 @@ export default function PayslipsPage() {
         adjustmentRows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0) *
           100
       ) / 100;
-      const periodGross = grossPay + adjustment;
       const periodEndTuesday = new Date(periodStart);
       periodEndTuesday.setDate(periodEndTuesday.getDate() + 6);
       periodEndTuesday.setHours(0, 0, 0, 0);
@@ -2065,8 +2065,12 @@ export default function PayslipsPage() {
       }
       totalDeductions += withholdingTax;
 
-      // Net pay = (Gross + adjustment) - total deductions; adjustment already in periodGross above
-      const netPay = periodGross - totalDeductions;
+      const netPay = computePayslipNetPay({
+        grossPay: grossPay,
+        adjustmentAmount: adjustment,
+        totalDeductions,
+        allowanceAmount: allowanceTotal,
+      });
 
       // Create deductions breakdown - default all to 0 if no deduction record
       const deductionsBreakdown: any = {
@@ -3007,10 +3011,20 @@ export default function PayslipsPage() {
     return earningsBaseForPeriod + adjustment;
   }, [earningsBaseForPeriod, adjustment]);
 
-  // Net pay = gross (incl. adjustment) − total deductions
+  const allowancePreview = useMemo(
+    () => parseFloat(allowanceAmountInput) || 0,
+    [allowanceAmountInput]
+  );
+
+  // Net = gross + adjustment − deductions + allowance (adjustment already in finalGrossPay)
   const netPay = useMemo(() => {
-    return finalGrossPay - totalDed;
-  }, [finalGrossPay, totalDed]);
+    return computePayslipNetPay({
+      grossPay: earningsBaseForPeriod,
+      adjustmentAmount: adjustment,
+      totalDeductions: totalDed,
+      allowanceAmount: allowancePreview,
+    });
+  }, [earningsBaseForPeriod, adjustment, totalDed, allowancePreview]);
 
   const payslipHasLocalEdits = useMemo(() => {
     const b = payslipEditBaselineRef.current;
@@ -3051,8 +3065,12 @@ export default function PayslipsPage() {
     isLocked && savedPayslip
       ? Number(savedPayslip.allowance_amount ?? 0)
       : parseFloat(allowanceAmountInput) || 0;
-  const displayNetPay =
-    Math.round((displayGrossPay - displayTotalDed) * 100) / 100;
+  const displayNetPay = computePayslipNetPay({
+    grossPay: earningsBaseForPeriod,
+    adjustmentAmount: adjustment,
+    totalDeductions: displayTotalDed,
+    allowanceAmount: displayAllowance,
+  });
 
   // Show loading or access denied - MUST be after all hooks
   if (roleLoading || permissionsLoading || loading) {

@@ -1,9 +1,11 @@
 import { getDay, parseISO } from "date-fns";
 import {
   calculateLateHours,
+  calculateUndertimeHours,
   getBusinessDayPolicyByDay,
-  halfDayRequiredHoursByDay,
   regularHoursFromBundyClockPair,
+  scheduledBusinessEndMinutes,
+  scheduledHalfDayEndMinutes,
 } from "@/utils/business-hours";
 import { creditWorkHoursHalfHour } from "@/utils/overtime";
 
@@ -38,15 +40,6 @@ function getManilaHourMinute(iso: string): { hour: number; minute: number } {
   const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
   return { hour, minute };
-}
-
-function requiredHoursForDate(dateStr: string): number {
-  const policy = getBusinessDayPolicyByDay(manilaDayOfWeek(dateStr));
-  if (!policy.requiresOffice) return 0;
-  return policy.windows.reduce(
-    (s, w) => s + Math.max(0, w.endHour - w.startHour),
-    0
-  );
 }
 
 function scheduledStartMinutes(dateStr: string): number | null {
@@ -87,10 +80,6 @@ export function computeDayAttendanceMetrics(
   let ot = 0;
 
   const dow = manilaDayOfWeek(dateStr);
-  const fullRequired = requiredHoursForDate(dateStr);
-  const halfDayRequired = halfDayRequiredHoursByDay(dow);
-  const required =
-    options?.isHalfDayLeave && halfDayRequired > 0 ? halfDayRequired : fullRequired;
 
   if (isSaturday) {
     bh = 0;
@@ -111,8 +100,20 @@ export function computeDayAttendanceMetrics(
     lt = calculateLateHours(startMin, hour * 60 + minute);
   }
 
-  const rawDeficit = Math.max(0, required - bh);
-  const ut = rawDeficit > 0 ? Math.ceil(rawDeficit) : 0;
+  let ut = 0;
+  const utEndMinutes =
+    options?.isHalfDayLeave && scheduledHalfDayEndMinutes(dow) !== null
+      ? scheduledHalfDayEndMinutes(dow)
+      : scheduledBusinessEndMinutes(dow);
+  const lastOut = punches
+    .map((p) => p.clock_out_time)
+    .filter((t): t is string => Boolean(t))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+    .pop();
+  if (lastOut && utEndMinutes !== null) {
+    const { hour, minute } = getManilaHourMinute(lastOut);
+    ut = calculateUndertimeHours(utEndMinutes, hour * 60 + minute);
+  }
 
   return {
     bh,

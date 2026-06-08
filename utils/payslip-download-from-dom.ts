@@ -118,22 +118,20 @@ export async function downloadPayslipPdfFromDom(
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
     const imgData = canvas.toDataURL("image/png");
 
-    let heightLeft = imgHeight;
-    let position = 0;
+    let imgWidth = pageWidth;
+    let imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft > 0) {
-      pdf.addPage();
-      position = heightLeft - imgHeight;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    // Always fit on a single letter page (scale down if content is taller than the page).
+    if (imgHeight > pageHeight) {
+      const fitScale = pageHeight / imgHeight;
+      imgWidth *= fitScale;
+      imgHeight = pageHeight;
     }
+
+    const xOffset = (pageWidth - imgWidth) / 2;
+    pdf.addImage(imgData, "PNG", xOffset, 0, imgWidth, imgHeight);
 
     pdf.save(filename);
   } finally {

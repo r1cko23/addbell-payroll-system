@@ -109,6 +109,7 @@ import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, mergeBundyAndFtlClockSessions } from "@/lib/timeEntries";
+import { resolveAllowanceInputAmount } from "@/lib/payslip-allowances";
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
 
@@ -304,6 +305,7 @@ type PayslipEditBaseline = {
   dbAdjustmentAmount: number;
   adjFp: string;
   otherFp: string;
+  allowanceFp: string;
   govFp: string;
 };
 
@@ -488,6 +490,7 @@ export default function PayslipsPage() {
   const [otherDeductionRows, setOtherDeductionRows] = useState<
     OtherDeductionRow[]
   >(() => createDefaultOtherDeductionRows());
+  const [allowanceAmountInput, setAllowanceAmountInput] = useState("0");
   /** Same calendar month **and BIR semi-month half** as period end (Tue): saved gross+adj from other weeks in that half; prior WH in that half */
   const [semiMonthlyRollupForTax, setSemiMonthlyRollupForTax] = useState<{
     grossFromSavedOtherWeeksInSemiMonth: number;
@@ -504,6 +507,7 @@ export default function PayslipsPage() {
     total_deductions: number;
     net_pay: number;
     adjustment_amount: number;
+    allowance_amount: number;
     adjustment_reason: string | null;
     deductions_breakdown: Record<string, unknown>;
     sss_amount: number;
@@ -521,7 +525,8 @@ export default function PayslipsPage() {
       adjustment_amount?: number | null;
     } | null,
     adjRows: AdjustmentRow[],
-    otherRows: OtherDeductionRow[]
+    otherRows: OtherDeductionRow[],
+    allowanceAmountForBaseline: string
   ) => {
     if (!row) {
       payslipEditBaselineRef.current = null;
@@ -532,6 +537,7 @@ export default function PayslipsPage() {
         dbAdjustmentAmount: Number(row.adjustment_amount ?? 0),
         adjFp: fingerprintAdjustmentRows(adjRows),
         otherFp: fingerprintOtherDeductionRows(otherRows),
+        allowanceFp: allowanceAmountForBaseline,
         govFp: JSON.stringify(govContributionOverrides),
       };
     }
@@ -855,7 +861,7 @@ export default function PayslipsPage() {
       // Load saved payslip for this employee + period (if any). When present, we display DB values and lock edits.
       let existingPayslipQuery = supabase
         .from("payslips")
-        .select("id, gross_pay, total_deductions, net_pay, adjustment_amount, adjustment_reason, deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount, earnings_breakdown")
+        .select("id, gross_pay, total_deductions, net_pay, adjustment_amount, allowance_amount, adjustment_reason, deductions_breakdown, sss_amount, philhealth_amount, pagibig_amount, earnings_breakdown")
         .eq("employee_id", selectedEmployeeId)
         .eq("period_start", periodStartStr)
         .eq("period_end", periodEndStr)
@@ -864,8 +870,21 @@ export default function PayslipsPage() {
       if (payrollRunId) {
         existingPayslipQuery = existingPayslipQuery.eq("payroll_run_id", payrollRunId);
       }
-      const { data: existingPayslipRows } = await existingPayslipQuery;
-      const existingPayslipRow = Array.isArray(existingPayslipRows) ? existingPayslipRows[0] : null;
+      const [{ data: existingPayslipRows }, { data: cutoffAllowanceRow }] =
+        await Promise.all([
+          existingPayslipQuery,
+          supabase
+            .from("cutoff_allowances")
+            .select(
+              "transpo_allowance, load_allowance, allowance, refund"
+            )
+            .eq("employee_id", selectedEmployeeId)
+            .eq("period_start", periodStartStr)
+            .maybeSingle(),
+        ]);
+      const existingPayslipRow = Array.isArray(existingPayslipRows)
+        ? existingPayslipRows[0]
+        : null;
 
       const mergedAdjRowsForBaseline = existingPayslipRow
         ? mergeAdjustmentRowsFromSaved(
@@ -883,6 +902,7 @@ export default function PayslipsPage() {
           total_deductions: existingPayslipRow.total_deductions ?? 0,
           net_pay: existingPayslipRow.net_pay,
           adjustment_amount: existingPayslipRow.adjustment_amount ?? 0,
+          allowance_amount: existingPayslipRow.allowance_amount ?? 0,
           adjustment_reason: existingPayslipRow.adjustment_reason,
           deductions_breakdown: ded,
           sss_amount: existingPayslipRow.sss_amount ?? 0,
@@ -1645,6 +1665,13 @@ export default function PayslipsPage() {
             : mergeOtherDeductionRowsFromSaved(undefined, dedRow?.vale_amount ?? 0);
         setOtherDeductionRows(nextOtherDeductionRows);
 
+        const nextAllowanceAmount = resolveAllowanceInputAmount(
+          savedBr,
+          cutoffAllowanceRow,
+          existingPayslipRow?.allowance_amount
+        );
+        setAllowanceAmountInput(nextAllowanceAmount);
+
         applyPayslipEditBaseline(
           existingPayslipRow
             ? {
@@ -1654,7 +1681,8 @@ export default function PayslipsPage() {
               }
             : null,
           mergedAdjRowsForBaseline,
-          nextOtherDeductionRows
+          nextOtherDeductionRows,
+          nextAllowanceAmount
         );
       } catch (dedErr) {
         console.error("Exception loading deductions:", dedErr);
@@ -1671,6 +1699,14 @@ export default function PayslipsPage() {
         });
         const fallbackOther = createDefaultOtherDeductionRows();
         setOtherDeductionRows(fallbackOther);
+        const fallbackAllowanceAmount = resolveAllowanceInputAmount(
+          existingPayslipRow?.deductions_breakdown as
+            | Record<string, unknown>
+            | undefined,
+          cutoffAllowanceRow,
+          existingPayslipRow?.allowance_amount
+        );
+        setAllowanceAmountInput(fallbackAllowanceAmount);
         applyPayslipEditBaseline(
           existingPayslipRow
             ? {
@@ -1680,7 +1716,8 @@ export default function PayslipsPage() {
               }
             : null,
           mergedAdjRowsForBaseline,
-          fallbackOther
+          fallbackOther,
+          fallbackAllowanceAmount
         );
       }
     } catch (error) {
@@ -1978,6 +2015,7 @@ export default function PayslipsPage() {
         (s, r) => s + (parseFloat(r.amount) || 0),
         0
       );
+      const allowanceTotal = parseFloat(allowanceAmountInput) || 0;
 
       // Weekly deductions (always applied) - default to 0 if no deduction record
       // Loan deductions are now calculated from employee_loans table based on effectivity date and cutoff
@@ -2027,8 +2065,6 @@ export default function PayslipsPage() {
       }
       totalDeductions += withholdingTax;
 
-      const allowance = 0;
-
       // Net pay = (Gross + adjustment) - total deductions; adjustment already in periodGross above
       const netPay = periodGross - totalDeductions;
 
@@ -2060,6 +2096,9 @@ export default function PayslipsPage() {
           amount: parseFloat(r.amount) || 0,
         })),
       };
+      if (allowanceTotal > 0) {
+        deductionsBreakdown.allowance_amount = allowanceTotal;
+      }
 
       // Mandatory government contributions (always included)
       deductionsBreakdown.sss = sssRegularAmount; // Regular SSS only (MSC up to PHP 20,000)
@@ -2245,7 +2284,7 @@ export default function PayslipsPage() {
         thirteenth_month_pay: thirteenthMonthPay,
         adjustment_amount: adjustment,
         adjustment_reason: combineAdjustmentReasonForDb(adjustmentRows),
-        allowance_amount: 0,
+        allowance_amount: Math.round(allowanceTotal * 100) / 100,
         net_pay: netPay,
         status: "draft",
         created_by: null, // Set to null initially to avoid RLS issues
@@ -2958,8 +2997,6 @@ export default function PayslipsPage() {
     [govContributionOverrides.tax]
   );
 
-  const allowance = 0;
-
   // Memoize total deductions
   const totalDed = useMemo(() => {
     return weeklyDed + govDed + tax;
@@ -2981,11 +3018,13 @@ export default function PayslipsPage() {
     return (
       fingerprintAdjustmentRows(adjustmentRows) !== b.adjFp ||
       fingerprintOtherDeductionRows(otherDeductionRows) !== b.otherFp ||
+      allowanceAmountInput !== b.allowanceFp ||
       JSON.stringify(govContributionOverrides) !== b.govFp
     );
   }, [
     adjustmentRows,
     otherDeductionRows,
+    allowanceAmountInput,
     govContributionOverrides,
     savedPayslip,
     payslipBaselineTick,
@@ -3004,14 +3043,14 @@ export default function PayslipsPage() {
   const isRunFinalized = payrollRunId ? payrollRunStatus === "finalized" : false;
   const isLocked = isSavedPayslip && !(payrollRunId && !isRunFinalized);
 
-  const savedGrossMismatch =
-    savedPayslip &&
-    Math.abs(Number(savedPayslip.gross_pay) - finalGrossPay) > 0.01;
-
   // Summary always follows live earnings (matches breakdown). DB gross is reference only when stale.
   const displayGrossPay = finalGrossPay;
   const displayTotalDed =
     isLocked && savedPayslip ? Number(savedPayslip.total_deductions) : totalDed;
+  const displayAllowance =
+    isLocked && savedPayslip
+      ? Number(savedPayslip.allowance_amount ?? 0)
+      : parseFloat(allowanceAmountInput) || 0;
   const displayNetPay =
     Math.round((displayGrossPay - displayTotalDed) * 100) / 100;
 
@@ -3191,53 +3230,197 @@ export default function PayslipsPage() {
           {selectedEmployee && (
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {/* Detailed Earnings Breakdown - Left Side (60% width on large screens, 66% on medium) */}
-              {selectedEmployee &&
-                attendance &&
-                Array.isArray(attendance.attendance_data) &&
-                attendance.attendance_data.length > 0 &&
-                (selectedEmployee.per_day || selectedEmployee.rate_per_day) &&
-                (selectedEmployee.rate_per_hour || selectedEmployee.per_day) && (
+              {selectedEmployee && (
                   <CardSection
                     title="Earnings Breakdown"
                     className="compact md:col-span-2 lg:col-span-3"
                   >
-                    <div className="max-h-[500px] md:max-h-[600px] lg:max-h-[700px] overflow-y-auto">
-                      <PayslipDetailedBreakdown
-                        employee={{
-                          employee_id: selectedEmployee.employee_id,
-                          full_name: selectedEmployee.full_name,
-                          rate_per_day:
-                            selectedEmployee.monthly_rate
-                              ? selectedEmployee.monthly_rate / 26
-                              : selectedEmployee.per_day ||
-                                selectedEmployee.rate_per_day ||
-                                0,
-                          rate_per_hour:
-                            selectedEmployee.rate_per_hour ||
-                            (selectedEmployee.monthly_rate
-                              ? selectedEmployee.monthly_rate / 26 / 8
-                              : selectedEmployee.per_day
-                              ? selectedEmployee.per_day / 8
-                              : 0),
-                          position: selectedEmployee.position || null,
-                          assigned_hotel:
-                            selectedEmployee.assigned_hotel || null,
-                          employee_type: selectedEmployee.employee_type ?? null,
-                          job_level: selectedEmployee.job_level ?? null,
-                          hire_date: (selectedEmployee as any).hire_date || null,
-                          termination_date: (selectedEmployee as any).termination_date || null,
-                        }}
-                        periodStart={periodStart}
-                        periodEnd={periodEnd}
-                        restDays={restDaysMap}
-                        holidays={holidays}
-                        onTotalGrossPayChange={(value) => {
-                          console.log('[PayslipsPage] onTotalGrossPayChange callback called with:', value);
-                          setCalculatedTotalGrossPay(value);
-                        }}
-                        attendanceData={payslipAttendanceDays}
-                      />
-                    </div>
+                    <VStack gap="4" align="stretch">
+                      {attendance &&
+                        Array.isArray(attendance.attendance_data) &&
+                        attendance.attendance_data.length > 0 &&
+                        (selectedEmployee.per_day || selectedEmployee.rate_per_day) &&
+                        (selectedEmployee.rate_per_hour || selectedEmployee.per_day) && (
+                          <div className="max-h-[500px] md:max-h-[600px] lg:max-h-[700px] overflow-y-auto">
+                            <PayslipDetailedBreakdown
+                              employee={{
+                                employee_id: selectedEmployee.employee_id,
+                                full_name: selectedEmployee.full_name,
+                                rate_per_day:
+                                  selectedEmployee.monthly_rate
+                                    ? selectedEmployee.monthly_rate / 26
+                                    : selectedEmployee.per_day ||
+                                      selectedEmployee.rate_per_day ||
+                                      0,
+                                rate_per_hour:
+                                  selectedEmployee.rate_per_hour ||
+                                  (selectedEmployee.monthly_rate
+                                    ? selectedEmployee.monthly_rate / 26 / 8
+                                    : selectedEmployee.per_day
+                                    ? selectedEmployee.per_day / 8
+                                    : 0),
+                                position: selectedEmployee.position || null,
+                                assigned_hotel:
+                                  selectedEmployee.assigned_hotel || null,
+                                employee_type: selectedEmployee.employee_type ?? null,
+                                job_level: selectedEmployee.job_level ?? null,
+                                hire_date: (selectedEmployee as any).hire_date || null,
+                                termination_date: (selectedEmployee as any).termination_date || null,
+                              }}
+                              periodStart={periodStart}
+                              periodEnd={periodEnd}
+                              restDays={restDaysMap}
+                              holidays={holidays}
+                              onTotalGrossPayChange={(value) => {
+                                console.log('[PayslipsPage] onTotalGrossPayChange callback called with:', value);
+                                setCalculatedTotalGrossPay(value);
+                              }}
+                              attendanceData={payslipAttendanceDays}
+                            />
+                          </div>
+                        )}
+
+                      {/* Government Contributions */}
+                      <VStack gap="2" align="start">
+                        <H4 className="text-sm font-medium text-muted-foreground">
+                          Government Contributions
+                        </H4>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 w-full">
+                          {monthlySalary > 0 ? (
+                            <>
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="rounded-lg border border-border bg-muted/40 p-2.5"
+                              >
+                                <span className="font-medium text-sm">
+                                  SSS (Regular)
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={weeklyStatutory.sssReg}
+                                  onChange={(e) =>
+                                    setGovContributionOverrides((prev) => ({
+                                      ...prev,
+                                      sssReg: parseNumberInput(e.target.value),
+                                    }))
+                                  }
+                                  disabled={isLocked}
+                                  className="h-9 w-full max-w-[170px] text-right"
+                                />
+                              </HStack>
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="rounded-lg border border-border bg-muted/40 p-2.5"
+                              >
+                                <span className="font-medium text-sm">
+                                  SSS WISP
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={weeklyStatutory.sssWisp}
+                                  onChange={(e) =>
+                                    setGovContributionOverrides((prev) => ({
+                                      ...prev,
+                                      sssWisp: parseNumberInput(e.target.value),
+                                    }))
+                                  }
+                                  disabled={isLocked}
+                                  className="h-9 w-full max-w-[170px] text-right"
+                                />
+                              </HStack>
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="rounded-lg border border-border bg-muted/40 p-2.5"
+                              >
+                                <span className="font-medium text-sm">
+                                  PhilHealth
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={weeklyStatutory.phil}
+                                  onChange={(e) =>
+                                    setGovContributionOverrides((prev) => ({
+                                      ...prev,
+                                      phil: parseNumberInput(e.target.value),
+                                    }))
+                                  }
+                                  disabled={isLocked}
+                                  className="h-9 w-full max-w-[170px] text-right"
+                                />
+                              </HStack>
+                              <HStack
+                                justify="between"
+                                align="center"
+                                className="rounded-lg border border-border bg-muted/40 p-2.5"
+                              >
+                                <span className="font-medium text-sm">
+                                  Pag-IBIG
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={weeklyStatutory.pagibig}
+                                  onChange={(e) =>
+                                    setGovContributionOverrides((prev) => ({
+                                      ...prev,
+                                      pagibig: parseNumberInput(e.target.value),
+                                    }))
+                                  }
+                                  disabled={isLocked}
+                                  className="h-9 w-full max-w-[170px] text-right"
+                                />
+                              </HStack>
+                            </>
+                          ) : null}
+
+                          {(() => {
+                            const adj = adjustment;
+                            const periodGross = earningsBaseForPeriod + adj;
+                            if (periodGross <= 0 && monthlySalary <= 0) return null;
+
+                            return (
+                              <VStack gap="1" className="rounded-lg border border-border bg-muted/40 p-2.5">
+                                <HStack justify="between" align="center" className="w-full">
+                                  <span className="font-medium text-sm">Tax</span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={
+                                      govContributionOverrides.tax === null ||
+                                      govContributionOverrides.tax === undefined
+                                        ? ""
+                                        : govContributionOverrides.tax
+                                    }
+                                    onChange={(e) =>
+                                      setGovContributionOverrides((prev) => ({
+                                        ...prev,
+                                        tax:
+                                          e.target.value.trim() === ""
+                                            ? null
+                                            : parseNumberInput(e.target.value),
+                                      }))
+                                    }
+                                    disabled={isLocked}
+                                    className="h-9 w-full max-w-[170px] text-right"
+                                  />
+                                </HStack>
+                              </VStack>
+                            );
+                          })()}
+                        </div>
+                      </VStack>
+                    </VStack>
                   </CardSection>
                 )}
 
@@ -3340,6 +3523,30 @@ export default function PayslipsPage() {
                             </tbody>
                           </table>
                         </div>
+                      </VStack>
+                    </VStack>
+
+                    {/* Allowances — single amount saved on payslip for payroll Excel export */}
+                    <VStack gap="1" align="start" className="w-full min-w-0">
+                      <H4 className="text-sm font-medium text-muted-foreground">
+                        Allowances
+                      </H4>
+                      <VStack
+                        gap="2"
+                        className="h-full w-full rounded-xl border border-border/80 bg-muted/40 p-3"
+                      >
+                        <HStack justify="between" align="center" className="w-full gap-3">
+                          <BodySmall className="shrink-0 font-medium">Amount</BodySmall>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0"
+                            value={allowanceAmountInput}
+                            onChange={(e) => setAllowanceAmountInput(e.target.value)}
+                            disabled={isLocked}
+                            className="h-8 max-w-[140px] text-sm text-right"
+                          />
+                        </HStack>
                       </VStack>
                     </VStack>
 
@@ -3457,9 +3664,6 @@ export default function PayslipsPage() {
                             Add adjustment row
                           </Button>
                         )}
-                        <Caption className="text-xs text-muted-foreground">
-                          Positive adds to net pay; negative deducts from net pay.
-                        </Caption>
                         {adjustment !== 0 && (
                           <div className="border-t pt-2 mt-2 w-full">
                             <HStack
@@ -3630,198 +3834,6 @@ export default function PayslipsPage() {
                     </VStack>
                   </VStack>
 
-                  {/* Government Contributions */}
-                  <VStack gap="2" align="start">
-                    <H4 className="text-sm font-medium text-muted-foreground">
-                      Government Contributions
-                    </H4>
-                    {/* Use grid layout for side-by-side cards - 2 columns on larger screens */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 w-full">
-                      {monthlySalary > 0 ? (
-                          <>
-                            <div className="p-2 border rounded-lg bg-emerald-50 border-emerald-200 col-span-2">
-                              <BodySmall className="text-emerald-700 text-xs">
-                                Based on monthly salary {formatCurrency(monthlySalary)}: SSS, PhilHealth, and Pag-IBIG are applied on the statutory deduction week only, while other weeks show ₱0.
-                                {mtdWorkDaysForStatutory !== null ? (
-                                  <>
-                                    {" "}Proration preview:{" "}
-                                    <strong>{mtdWorkDaysForStatutory}</strong> day
-                                    {mtdWorkDaysForStatutory === 1 ? "" : "s"} MTD
-                                    (factor ≈ {(statutoryProrationFactorPreview * 100).toFixed(2)}%).
-                                  </>
-                                ) : null}
-                              </BodySmall>
-                            </div>
-                            <HStack
-                              justify="between"
-                              align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2.5"
-                            >
-                              <span className="font-medium text-sm">
-                                SSS (Regular)
-                              </span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={weeklyStatutory.sssReg}
-                                onChange={(e) =>
-                                  setGovContributionOverrides((prev) => ({
-                                    ...prev,
-                                    sssReg: parseNumberInput(e.target.value),
-                                  }))
-                                }
-                                className="h-9 w-full max-w-[170px] text-right"
-                              />
-                            </HStack>
-                            <HStack
-                              justify="between"
-                              align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2.5"
-                            >
-                              <span className="font-medium text-sm">
-                                SSS WISP
-                              </span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={weeklyStatutory.sssWisp}
-                                onChange={(e) =>
-                                  setGovContributionOverrides((prev) => ({
-                                    ...prev,
-                                    sssWisp: parseNumberInput(e.target.value),
-                                  }))
-                                }
-                                className="h-9 w-full max-w-[170px] text-right"
-                              />
-                            </HStack>
-                            <HStack
-                              justify="between"
-                              align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2.5"
-                            >
-                              <span className="font-medium text-sm">
-                                PhilHealth
-                              </span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={weeklyStatutory.phil}
-                                onChange={(e) =>
-                                  setGovContributionOverrides((prev) => ({
-                                    ...prev,
-                                    phil: parseNumberInput(e.target.value),
-                                  }))
-                                }
-                                className="h-9 w-full max-w-[170px] text-right"
-                              />
-                            </HStack>
-                            <HStack
-                              justify="between"
-                              align="center"
-                              className="rounded-lg border border-border bg-muted/40 p-2.5"
-                            >
-                              <span className="font-medium text-sm">
-                                Pag-IBIG
-                              </span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={weeklyStatutory.pagibig}
-                                onChange={(e) =>
-                                  setGovContributionOverrides((prev) => ({
-                                    ...prev,
-                                    pagibig: parseNumberInput(e.target.value),
-                                  }))
-                                }
-                                className="h-9 w-full max-w-[170px] text-right"
-                              />
-                            </HStack>
-                          </>
-                        ) : null}
-
-                      {(() => {
-                        const adj = adjustment;
-                        const periodGross = earningsBaseForPeriod + adj;
-                        if (periodGross <= 0 && monthlySalary <= 0) return null;
-
-                        const nSemiWeeks = countWeeklyPaysInSemiMonth(periodEnd);
-                        const grossOther =
-                          semiMonthlyRollupForTax?.grossFromSavedOtherWeeksInSemiMonth ??
-                          0;
-                        const actualSemiGross =
-                          semiMonthlyRollupForTax != null
-                            ? Math.round((grossOther + periodGross) * 100) / 100
-                            : Math.round(periodGross * nSemiWeeks * 100) / 100;
-
-                        const sss = calculateSSS(monthlySalary);
-                        const philhealth = calculatePhilHealth(monthlySalary);
-                        const pagibig = calculatePagIBIG(monthlySalary);
-                        const monthlyContributionsFull =
-                          sss.employeeShare +
-                          philhealth.employeeShare +
-                          pagibig.employeeShare;
-                        const monthlyContributionsUsed =
-                          applyStatutoryProration(
-                            Math.round(monthlyContributionsFull * 100) / 100,
-                            statutoryProrationFactorPreview
-                          );
-                        const halfMonthlyContrib =
-                          Math.round((monthlyContributionsUsed / 2) * 100) / 100;
-                        const semiTaxableIncome =
-                          actualSemiGross > 0
-                            ? Math.max(0, actualSemiGross - halfMonthlyContrib)
-                            : 0;
-                        const monthlyEquivTaxable = semiTaxableIncome * 2;
-                        const taxBreakdown =
-                          semiTaxableIncome > 0
-                            ? getWithholdingTaxBreakdown(monthlyEquivTaxable)
-                            : null;
-                        const semiTaxDue = calculateSemiMonthlyWithholdingTax(
-                          semiTaxableIncome
-                        );
-                        const taxPrior =
-                          semiMonthlyRollupForTax?.taxWithheldPriorExcludingCurrentInSemiMonth ??
-                          0;
-                        const semiHalfLabel =
-                          semiMonthlyPeriodIndex(periodEnd) === 1
-                            ? "1st (days 1–15)"
-                            : "2nd (days 16–end)";
-
-                        return (
-                          <VStack gap="1" className="rounded-lg border border-border bg-muted/40 p-2.5">
-                            <HStack justify="between" align="center" className="w-full">
-                              <span className="font-medium text-sm">Tax</span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={
-                                  govContributionOverrides.tax === null ||
-                                  govContributionOverrides.tax === undefined
-                                    ? ""
-                                    : govContributionOverrides.tax
-                                }
-                                onChange={(e) =>
-                                  setGovContributionOverrides((prev) => ({
-                                    ...prev,
-                                    tax:
-                                      e.target.value.trim() === ""
-                                        ? null
-                                        : parseNumberInput(e.target.value),
-                                  }))
-                                }
-                                className="h-9 w-full max-w-[170px] text-right"
-                              />
-                            </HStack>
-                          </VStack>
-                        );
-                      })()}
-                    </div>
-                  </VStack>
                 </VStack>
               </CardSection>
             </div>
@@ -3830,115 +3842,15 @@ export default function PayslipsPage() {
           {/* Payslip Summary - Below Both Sections (uses saved values when payslip already saved) */}
           {selectedEmployee && attendance && (
             <CardSection title="Payslip Summary">
-              {isSavedPayslip && (
-                <>
-                  <div className="mb-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5 text-xs text-primary">
-                    {isLocked
-                      ? "This payslip is finalized from the database; edits are locked."
-                      : "The on-screen payslip is your working copy (live attendance and rates). The database is updated only when you click Save."}
-                  </div>
-                  {savedPayslip && (() => {
-                    const earnings = earningsBaseForPeriod;
-                    const previewGross = finalGrossPay;
-                    const dbGross = savedPayslip.gross_pay;
-                    const grossDiffDbVsPreview =
-                      Math.round((dbGross - previewGross) * 100) / 100;
-                    const showGrossMismatchExplainer =
-                      (payslipHasLocalEdits || savedGrossMismatch) &&
-                      Math.abs(grossDiffDbVsPreview) > 0.01;
-
-                    return (
-                      <>
-                        {!isLocked && !payslipHasLocalEdits && (
-                          <div className="mb-2 text-xs text-muted-foreground">
-                            Totals above follow the generated payslip from time entries. Use{" "}
-                            <span className="font-medium text-foreground">Save payslip</span> to persist
-                            this cutoff to the database.
-                          </div>
-                        )}
-                        {savedGrossMismatch && isLocked && (
-                          <div className="mb-2 text-xs text-amber-800 dark:text-amber-200/90 rounded border border-amber-200/80 bg-amber-50/90 dark:bg-amber-950/30 px-2 py-1.5">
-                            Saved gross in the database does not match live attendance (
-                            {formatCurrency(dbGross)} saved vs {formatCurrency(previewGross)} preview).
-                            Re-open the payroll run or save again after correcting attendance.
-                          </div>
-                        )}
-                        {!isLocked && payslipHasLocalEdits && !showGrossMismatchExplainer && (
-                          <div className="mb-2 text-xs text-amber-800 dark:text-amber-200/90 rounded border border-amber-200/80 bg-amber-50/90 dark:bg-amber-950/30 px-2 py-1.5">
-                            You have unsaved edits (adjustments, other deductions, or government
-                            amounts). Save payslip to write them to the database.
-                          </div>
-                        )}
-                        {showGrossMismatchExplainer && (
-                      <div className="mb-2 space-y-1 rounded border border-border/80 bg-muted/40 px-2 py-1.5 text-xs text-foreground">
-                        <div className="font-medium text-foreground">Unsaved preview vs last saved gross</div>
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex justify-between">
-                            <span>Preview earnings (this period):</span>
-                            <span>{formatCurrency(earnings)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Adjustment (form, included in preview gross):</span>
-                            <span className={adjustment >= 0 ? "text-primary" : "text-destructive"}>
-                              {adjustment >= 0 ? "+" : ""}{formatCurrency(adjustment)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-primary/80">
-                            <span>Difference (DB gross − preview gross):</span>
-                            <span>{grossDiffDbVsPreview >= 0 ? "+" : ""}{formatCurrency(grossDiffDbVsPreview)}</span>
-                          </div>
-                          <div className="flex justify-between border-t border-border pt-1 font-medium">
-                            <span>Last saved gross (database):</span>
-                            <span>{formatCurrency(dbGross)}</span>
-                          </div>
-                          <div className="flex justify-between font-medium">
-                            <span>Preview gross (this screen):</span>
-                            <span>{formatCurrency(previewGross)}</span>
-                          </div>
-                        </div>
-                        <div className="mt-1 text-[10px] text-primary/80">
-                          {grossDiffDbVsPreview > 0
-                            ? `The database gross is ${formatCurrency(grossDiffDbVsPreview)} higher than your current preview. Saving will overwrite the stored gross with the preview amount (unless you change the preview first).`
-                            : `The database gross is ${formatCurrency(Math.abs(grossDiffDbVsPreview))} lower than your current preview. Save payslip to update the stored gross to ${formatCurrency(previewGross)}.`}
-                        </div>
-                        {(() => {
-                          const lines = savedPayslip.deductions_breakdown
-                            ?.adjustment_lines;
-                          if (Array.isArray(lines) && lines.length > 0) {
-                            return (
-                              <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
-                                {lines.map((line: unknown, i: number) => {
-                                  const L = line as {
-                                    description?: string;
-                                    amount?: number;
-                                  };
-                                  const amt = Number(L?.amount) || 0;
-                                  return (
-                                    <li key={i}>
-                                      {(L?.description || "").trim() ||
-                                        "Adjustment"}
-                                      : {formatCurrency(amt)}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            );
-                          }
-                          if (savedPayslip.adjustment_reason) {
-                            return (
-                              <div className="mt-1 text-muted-foreground">
-                                Last saved reason: {savedPayslip.adjustment_reason}
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </>
+              {isSavedPayslip && !isLocked && payslipHasLocalEdits && (
+                <div className="mb-2 text-xs text-amber-800 dark:text-amber-200/90 rounded border border-amber-200/80 bg-amber-50/90 dark:bg-amber-950/30 px-2 py-1.5">
+                  You have unsaved edits. Save payslip to update the database.
+                </div>
+              )}
+              {isSavedPayslip && isLocked && (
+                <div className="mb-2 rounded border border-primary/25 bg-primary/10 px-2 py-1.5 text-xs text-primary">
+                  This payslip is finalized from the database; edits are locked.
+                </div>
               )}
               <VStack gap="2">
                 <HStack
@@ -3954,29 +3866,34 @@ export default function PayslipsPage() {
                 <HStack
                   justify="between"
                   align="center"
-                  className="w-full rounded-lg bg-muted/40 p-2 text-sm text-destructive"
+                  className="w-full rounded-lg bg-muted/40 p-2 text-sm"
                 >
                   <span className="font-medium">Total Deductions:</span>
                   <span className="font-semibold">
-                    ({formatCurrency(displayTotalDed)})
+                    {formatCurrency(displayTotalDed)}
                   </span>
                 </HStack>
-                {adjustment !== 0 && (
-                  <HStack
-                    justify="between"
-                    align="center"
-                    className={`w-full rounded-lg bg-muted/40 p-2 text-sm ${
-                      adjustment >= 0
-                        ? "text-primary"
-                        : "text-destructive"
-                    }`}
-                  >
-                    <span className="font-medium">Adjustments:</span>
-                    <span className="font-semibold">
-                      {formatCurrency(adjustment)}
-                    </span>
-                  </HStack>
-                )}
+                <HStack
+                  justify="between"
+                  align="center"
+                  className="w-full rounded-lg bg-muted/40 p-2 text-sm"
+                >
+                  <span className="font-medium">Allowances:</span>
+                  <span className="font-semibold">
+                    {formatCurrency(displayAllowance)}
+                  </span>
+                </HStack>
+                <HStack
+                  justify="between"
+                  align="center"
+                  className="w-full rounded-lg bg-muted/40 p-2 text-sm"
+                >
+                  <span className="font-medium">Adjustments:</span>
+                  <span className="font-semibold">
+                    {adjustment >= 0 ? "+" : ""}
+                    {formatCurrency(adjustment)}
+                  </span>
+                </HStack>
                 <div className="border-t-2 pt-2 w-full">
                   <HStack
                     justify="between"

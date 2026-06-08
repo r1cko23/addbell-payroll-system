@@ -712,16 +712,16 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          marginBottom: "10px",
+          marginBottom: "6px",
           borderBottom: "2px solid #000",
-          paddingBottom: "10px",
+          paddingBottom: "6px",
         }}
       >
         <img
           src="/add-bell-logo-new.png"
           alt="Add-bell Technical Services, Inc."
           style={{
-            height: "100px",
+            height: "72px",
             width: "auto",
             objectFit: "contain",
           }}
@@ -1245,7 +1245,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           </table>
 
           {/* Other Pay Section */}
-          <div style={{ marginTop: "8px" }}>
+          <div className="payslip-other-pay-section">
             <div className="payslip-section-label">
               Other Pay
               {useFixedAllowancesDisplay && (
@@ -1263,6 +1263,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
               )}
             </div>
             <table
+              className="payslip-other-pay-table payslip-earnings-table"
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
@@ -1494,11 +1495,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     <td
                       style={{
                         border: "1px solid #000",
-                        fontWeight: "bold",
                         width: "40%",
                       }}
                     >
-                      Other Pay
+                      —
                     </td>
                     <td
                       style={{
@@ -1843,38 +1843,20 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           width: "100%",
           borderCollapse: "collapse",
           fontSize: "9pt",
-          marginTop: "10px",
+          marginTop: "6px",
         }}
       >
         <tbody>
           <tr>
             <td
-              style={{ width: "50%", padding: "3px 5px", verticalAlign: "top" }}
+              style={{ width: "50%", padding: "4px 6px", verticalAlign: "top" }}
             >
-              <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                Total Salary:
-              </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  marginBottom: "8px",
-                  borderBottom: "1px solid #000",
-                  paddingBottom: "2px",
-                }}
-              >
+              <div className="payslip-summary-label">Total Salary:</div>
+              <div className="payslip-summary-amount">
                 {formatCurrency(totalSalary)}
               </div>
-              <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                Less Tardiness:
-              </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  marginBottom: "8px",
-                  borderBottom: "1px solid #000",
-                  paddingBottom: "2px",
-                }}
-              >
+              <div className="payslip-summary-label">Less Tardiness:</div>
+              <div className="payslip-summary-amount">
                 {formatCurrency(tardiness)}
                 {attendanceMetrics.lateHours > 0 && (
                   <span style={{ fontSize: "7pt", color: "#444" }}>
@@ -1883,17 +1865,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   </span>
                 )}
               </div>
-              <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                Less Undertime:
-              </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  marginBottom: "8px",
-                  borderBottom: "1px solid #000",
-                  paddingBottom: "2px",
-                }}
-              >
+              <div className="payslip-summary-label">Less Undertime:</div>
+              <div className="payslip-summary-amount">
                 {formatCurrency(undertimeAmount)}
                 {attendanceMetrics.undertimeHours > 0 && (
                   <span style={{ fontSize: "7pt", color: "#444" }}>
@@ -1902,97 +1875,44 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   </span>
                 )}
               </div>
-              <div
-                style={{
-                  fontWeight: "bold",
-                  marginTop: "5px",
-                  marginBottom: "3px",
-                }}
-              >
+              <div className="payslip-summary-label payslip-summary-label-spaced">
                 Total Gross Pay:
               </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  marginBottom: "5px",
-                  fontWeight: "bold",
-                  borderTop: "2px solid #000",
-                  borderBottom: "2px solid #000",
-                  paddingTop: "3px",
-                  paddingBottom: "3px",
-                }}
-              >
+              <div className="payslip-summary-total-amount">
                 {formatCurrency(printGrossPay)}
               </div>
             </td>
             <td
-              style={{ width: "50%", padding: "3px 5px", verticalAlign: "top" }}
+              style={{ width: "50%", padding: "4px 6px", verticalAlign: "top" }}
             >
-              <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-                Total Deduction:
-              </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  marginBottom: "5px",
-                  fontWeight: "bold",
-                  borderTop: "1px solid #000",
-                  borderBottom: "1px solid #000",
-                  paddingTop: "2px",
-                  paddingBottom: "2px",
-                }}
-              >
+              <div className="payslip-summary-label">Total Deduction:</div>
+              <div className="payslip-summary-deduction-total">
                 {formatCurrency(totalDeductions)}
               </div>
               {(typeof adjustment === "number" && adjustment !== 0) && (
                 <>
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      marginTop: "10px",
-                      marginBottom: "3px",
-                    }}
-                  >
+                  <div className="payslip-summary-label payslip-summary-label-spaced">
                     Adjustment:
                   </div>
                   <div
+                    className="payslip-summary-adjustment"
                     style={{
-                      textAlign: "right",
-                      marginBottom: "5px",
-                      fontWeight: "bold",
                       color: adjustment >= 0 ? "#166534" : "#b91c1c",
                     }}
                   >
                     {adjustment >= 0 ? "+" : ""}{formatCurrency(adjustment)}
                     {adjustmentReason && (
-                      <div style={{ fontWeight: "normal", fontSize: "8pt", color: "#374151", marginTop: "2px" }}>
+                      <div className="payslip-summary-adjustment-note">
                         {adjustmentReason}
                       </div>
                     )}
                   </div>
                 </>
               )}
-              <div
-                style={{
-                  fontWeight: "bold",
-                  marginTop: "15px",
-                  marginBottom: "3px",
-                }}
-              >
+              <div className="payslip-summary-label payslip-summary-label-spaced">
                 Net Pay:
               </div>
-              <div
-                style={{
-                  textAlign: "right",
-                  marginBottom: "5px",
-                  fontWeight: "bold",
-                  borderTop: "2px solid #000",
-                  borderBottom: "2px solid #000",
-                  paddingTop: "3px",
-                  paddingBottom: "3px",
-                  fontSize: "11pt",
-                }}
-              >
+              <div className="payslip-summary-total-amount payslip-summary-net-amount">
                 {formatCurrency(printNetPay)}
               </div>
             </td>

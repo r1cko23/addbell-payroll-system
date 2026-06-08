@@ -9,6 +9,10 @@ import {
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
 import {
+  resolvePayslipAllowanceAmount,
+  type CutoffAllowanceRow,
+} from "@/lib/payslip-allowances";
+import {
   calculateDailyPay,
   type DayType,
 } from "@/utils/payroll-calculator";
@@ -58,24 +62,6 @@ function formatHolidayRange(dates: Date[]) {
   if (uniqueDays.length === 1) return `${monthLabel} ${uniqueDays[0]}`;
   if (uniqueDays.length === 2) return `${monthLabel} ${uniqueDays[0]}-${uniqueDays[1]}`;
   return `${monthLabel} ${uniqueDays[0]}-${uniqueDays[uniqueDays.length - 1]}`;
-}
-
-type CutoffAllowanceRow = {
-  employee_id: string;
-  transpo_allowance?: number | null;
-  load_allowance?: number | null;
-  allowance?: number | null;
-  refund?: number | null;
-};
-
-function sumCutoffAllowances(row?: CutoffAllowanceRow | null): number {
-  if (!row) return 0;
-  return (
-    safeNumber(row.transpo_allowance) +
-    safeNumber(row.load_allowance) +
-    safeNumber(row.allowance) +
-    safeNumber(row.refund)
-  );
 }
 
 function aggregateHolidayAndOtFromAttendance(
@@ -360,11 +346,15 @@ export function buildPayrollRunTemplateTable(params: {
         (ded?.safety_shoes ?? ded?.safetyShoes)
     );
     const uniformCombined = uniform + ppe + gasul + safetyShoes;
-    const adjustments = safeNumber(ps.adjustment_amount ?? ded?.adjustments ?? 0);
+    const adjustments = safeNumber(ps.adjustment_amount ?? 0);
     const cutoffAllowance = params.cutoffAllowancesByEmployee?.[ps.employee_id];
-    const allowances =
-      sumCutoffAllowances(cutoffAllowance) ||
-      safeNumber(ps.allowance_amount ?? ded?.allowances ?? 0);
+    const allowances = resolvePayslipAllowanceAmount(
+      {
+        allowance_amount: ps.allowance_amount,
+        deductions_breakdown: ded,
+      },
+      cutoffAllowance
+    );
 
     const row = Array(columns.length).fill("");
     row[1] = String(emp.company_id_no || "").trim() || String(ps.employee_id);

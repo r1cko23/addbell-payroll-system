@@ -1,7 +1,7 @@
 /** Shared table layout fixes for payslip preview, print, and PDF capture. */
 
 const PAYSLIP_TABLE_CELL_SELECTOR =
-  ".payslip-earnings-table td, .payslip-earnings-table th, .payslip-deductions-table td, .payslip-deductions-table th";
+  ".payslip-earnings-table td, .payslip-earnings-table th, .payslip-other-pay-table td, .payslip-other-pay-table th, .payslip-deductions-table td, .payslip-deductions-table th";
 
 function getCellFlexAlign(cell: HTMLTableCellElement): string {
   const inlineAlign = cell.style.textAlign;
@@ -24,7 +24,7 @@ export function applyPayslipTableLayoutFixes(root: ParentNode) {
     cell.style.padding = "0";
     cell.style.lineHeight = "1.3";
     cell.style.boxSizing = "border-box";
-    cell.style.minHeight = "22px";
+    cell.style.minHeight = "18px";
 
     if (cell.querySelector(":scope > .payslip-cell-inner")) return;
 
@@ -32,9 +32,9 @@ export function applyPayslipTableLayoutFixes(root: ParentNode) {
     inner.className = "payslip-cell-inner";
     inner.style.display = "flex";
     inner.style.alignItems = "center";
-    inner.style.minHeight = "22px";
+    inner.style.minHeight = "18px";
     inner.style.width = "100%";
-    inner.style.padding = "5px";
+    inner.style.padding = "3px 4px";
     inner.style.boxSizing = "border-box";
 
     const align = getCellFlexAlign(cell);
@@ -54,7 +54,28 @@ export function applyPayslipTableLayoutFixes(root: ParentNode) {
     const label = el as HTMLElement;
     label.style.display = "block";
     label.style.margin = "0";
-    label.style.padding = "0 0 12px 0";
+    label.style.padding = "0 0 10px 0";
     label.style.lineHeight = "1.2";
   });
+
+  root
+    .querySelectorAll(
+      ".payslip-summary-amount, .payslip-summary-deduction-total, .payslip-summary-total-amount"
+    )
+    .forEach((el) => {
+      const amount = el as HTMLElement;
+      amount.style.lineHeight = "1.4";
+      amount.style.paddingBottom = amount.classList.contains(
+        "payslip-summary-total-amount"
+      )
+        ? "7px"
+        : "6px";
+      amount.style.paddingTop = amount.classList.contains(
+        "payslip-summary-total-amount"
+      )
+        ? "5px"
+        : amount.classList.contains("payslip-summary-deduction-total")
+          ? "4px"
+          : "2px";
+    });
 }

@@ -41,6 +41,41 @@ function safeNumber(n: unknown) {
   return Number.isFinite(x) ? x : 0;
 }
 
+const OTHER_DEDUCTION_EXPORT_TYPES = [
+  "Vale",
+  "Uniform",
+  "PPE",
+  "Gasul",
+] as const;
+
+/** Reads Vale / Uniform / PPE / Gasul from payslip other_deduction_lines (saved on payslip UI). */
+function otherDeductionAmountsFromBreakdown(ded: Record<string, unknown>) {
+  const amounts: Record<(typeof OTHER_DEDUCTION_EXPORT_TYPES)[number], number> =
+    {
+      Vale: 0,
+      Uniform: 0,
+      PPE: 0,
+      Gasul: 0,
+    };
+  const lines = ded?.other_deduction_lines;
+  if (Array.isArray(lines) && lines.length > 0) {
+    for (const line of lines) {
+      const row = line as { type?: string; amount?: unknown };
+      const typ = String(row?.type ?? "").trim();
+      if (
+        (OTHER_DEDUCTION_EXPORT_TYPES as readonly string[]).includes(typ)
+      ) {
+        amounts[typ as (typeof OTHER_DEDUCTION_EXPORT_TYPES)[number]] =
+          safeNumber(row?.amount);
+      }
+    }
+    return amounts;
+  }
+  // Legacy: all manual other deductions were stored only in weekly.vale.
+  amounts.Vale = safeNumber(ded?.weekly?.vale ?? ded?.vale);
+  return amounts;
+}
+
 function ratePerDayAndHourFromEmployee(employee: any): { perDay: number; perHour: number } {
   const basis = String(employee?.salary_basis || "").toLowerCase();
   const baseRate = safeNumber(employee?.base_rate);
@@ -330,22 +365,22 @@ export function buildPayrollRunTemplateTable(params: {
     const sss = safeNumber(ded?.sss) + safeNumber(ded?.sss_wisp);
     const philhealth = safeNumber(ded?.philhealth);
     const pagibig = safeNumber(ded?.pagibig);
-    const tax = safeNumber(ded?.withholding_tax ?? ded?.tax);
+    const tax = safeNumber(ded?.tax ?? ded?.withholding_tax);
 
     const salaryLoan = safeNumber(ded?.weekly?.sss_loan ?? ded?.sss_loan);
     const pagibigLoan = safeNumber(ded?.weekly?.pagibig_loan ?? ded?.pagibig_loan);
     const calamity = safeNumber(ded?.weekly?.pagibig_calamity ?? ded?.pagibig_calamity);
-    const vale = safeNumber(ded?.weekly?.vale ?? ded?.vale);
-    // These are encoded in the "Other Deductions" section of the Payslip UI.
-    // Store/expect them under deductions_breakdown.weekly.* (or top-level fallback).
-    const uniform = safeNumber(ded?.weekly?.uniform ?? ded?.uniform);
-    const ppe = safeNumber(ded?.weekly?.ppe ?? ded?.ppe);
-    const gasul = safeNumber(ded?.weekly?.gasul ?? ded?.gasul);
+    const otherDeductions = otherDeductionAmountsFromBreakdown(ded);
+    const vale = otherDeductions.Vale;
     const safetyShoes = safeNumber(
       (ded?.weekly?.safety_shoes ?? ded?.weekly?.safetyShoes) ??
         (ded?.safety_shoes ?? ded?.safetyShoes)
     );
-    const uniformCombined = uniform + ppe + gasul + safetyShoes;
+    const uniformCombined =
+      otherDeductions.Uniform +
+      otherDeductions.PPE +
+      otherDeductions.Gasul +
+      safetyShoes;
     const adjustments = safeNumber(ps.adjustment_amount ?? 0);
     const cutoffAllowance = params.cutoffAllowancesByEmployee?.[ps.employee_id];
     const allowances = resolvePayslipAllowanceAmount(

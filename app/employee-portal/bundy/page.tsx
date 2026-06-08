@@ -122,7 +122,6 @@ import { formatSilCreditsAvailable } from "@/lib/employee-sil-display";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
 import {
   punchesToSessions,
-  getActiveBundyBusinessDayKey,
   getOpenEntryFromPunches,
   type TimeEntryPunch,
   type TimeEntrySession,
@@ -543,7 +542,7 @@ export default function BundyClockPage() {
     [employee.id, supabase]
   );
 
-  const checkClockStatus = useCallback(async () => {
+  const checkClockStatus = useCallback(async (): Promise<TimeEntrySession | null> => {
     const res = await fetch(
       `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(
         employee.id
@@ -557,14 +556,12 @@ export default function BundyClockPage() {
       console.error("checkClockStatus:", json.error || res.statusText);
     }
     const list = (json.punches || []) as TimeEntryPunch[];
-    const activeBusinessDay = getActiveBundyBusinessDayKey(list);
-    const open = getOpenEntryFromPunches(
-      list,
-      (iso) => getDateInManilaTimezone(iso),
-      activeBusinessDay
+    const open = getOpenEntryFromPunches(list, (iso) =>
+      getDateInManilaTimezone(iso)
     );
     setCurrentEntry(open ? (open as any) : null);
-  }, [employee.id, supabase]);
+    return open;
+  }, [employee.id]);
 
   const fetchEntries = useCallback(async () => {
     const params = new URLSearchParams({
@@ -1799,10 +1796,21 @@ export default function BundyClockPage() {
   );
 
   // Show modal when time in/out is clicked
-  function handleClock(event: "in" | "out") {
+  async function handleClock(event: "in" | "out") {
     // Prevent clock in/out on rest days
     if (isRestDayToday) {
       toast.error("Cannot clock in/out on rest day");
+      return;
+    }
+    const openSession = await checkClockStatus();
+    if (event === "in" && openSession) {
+      toast.error(
+        "You are still clocked in. Time out first before starting another session."
+      );
+      return;
+    }
+    if (event === "out" && !openSession) {
+      toast.error("No active time in found. Clock in before clocking out.");
       return;
     }
     setPendingClockAction(event);
@@ -1826,6 +1834,18 @@ export default function BundyClockPage() {
     }
 
     try {
+      const openSession = await checkClockStatus();
+      if (action === "in" && openSession) {
+        toast.error(
+          "You are still clocked in. Time out first before starting another session."
+        );
+        return false;
+      }
+      if (action === "out" && !openSession) {
+        toast.error("No active time in found. Clock in before clocking out.");
+        return false;
+      }
+
       if (action === "in") {
         console.log("Starting clock in process...");
         const deviceInfo =
@@ -2212,6 +2232,24 @@ export default function BundyClockPage() {
               </div>
             </div>
           </div>
+
+          {currentEntry && !isRestDayToday ? (
+            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+              <BodySmall className="font-semibold mb-1 flex items-center gap-2">
+                <Icon name="Clock" size={IconSizes.sm} />
+                You are clocked in
+              </BodySmall>
+              <BodySmall>
+                Time in:{" "}
+                {new Date(currentEntry.clock_in_time).toLocaleString("en-PH", {
+                  timeZone: "Asia/Manila",
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+                . Use Time Out when you finish your shift.
+              </BodySmall>
+            </div>
+          ) : null}
 
           {isRestDayToday ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">

@@ -9,10 +9,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
 import {
-  getBundyBusinessDayKeyForClockIn,
-  getBundyBusinessDayKeyForInPunch,
-} from "@/lib/bundy-business-day";
-import {
   getDateInManilaDefault,
   getOpenEntryFromPunches,
   type TimeEntryPunch,
@@ -76,16 +72,8 @@ export async function POST(req: NextRequest) {
       .order("punched_at", { ascending: false })
       .limit(100);
     const punchList = (recentPunches || []) as TimeEntryPunch[];
-    const openAny = getOpenEntryFromPunches(punchList, getDateInManilaDefault);
-    const activeBiz =
-      openAny != null
-        ? getBundyBusinessDayKeyForInPunch(openAny.id, openAny.clock_in_time, punchList)
-        : getBundyBusinessDayKeyForClockIn(punchedAt, false, null);
-    const open = getOpenEntryFromPunches(
-      punchList,
-      getDateInManilaDefault,
-      activeBiz
-    );
+    // Any unclosed IN blocks a new clock-in (matches employee expectation).
+    const open = getOpenEntryFromPunches(punchList, getDateInManilaDefault);
 
     if (body.punch_type === "in") {
       if (open) {

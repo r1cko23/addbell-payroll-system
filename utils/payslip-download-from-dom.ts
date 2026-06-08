@@ -3,6 +3,7 @@
  */
 
 import { buildPayslipPrintDocumentHtml } from "@/lib/payslip-print-document";
+import { applyPayslipTableLayoutFixes } from "@/lib/payslip-table-layout";
 
 const LETTER_WIDTH_PX = Math.round(8.5 * 96);
 
@@ -68,6 +69,7 @@ async function renderPayslipInPrintDocument(
   const doc = await loadPromise;
 
   fixImageSources(doc);
+  applyPayslipTableLayoutFixes(doc);
   await waitForImages(doc);
   await new Promise((resolve) => window.setTimeout(resolve, 200));
 
@@ -104,6 +106,7 @@ export async function downloadPayslipPdfFromDom(
       windowWidth: LETTER_WIDTH_PX,
       onclone: (clonedDoc) => {
         fixImageSources(clonedDoc);
+        applyPayslipTableLayoutFixes(clonedDoc);
       },
     });
 

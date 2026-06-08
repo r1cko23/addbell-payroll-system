@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useLayoutEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import { formatCurrency } from "@/utils/format";
 import {
@@ -26,6 +26,7 @@ import { aggregateMetricsFromAttendanceDays } from "@/lib/day-attendance-summary
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import type { PayslipPrintEarningsSync } from "@/lib/payslip-print-sync";
 import { PAYSLIP_PRINT_INLINE_STYLES } from "@/lib/payslip-print-document";
+import { applyPayslipTableLayoutFixes } from "@/lib/payslip-table-layout";
 
 interface PayslipPrintProps {
   employee: {
@@ -681,8 +682,17 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       ? summaryNetPay
       : netPay || netPayProp || 0;
 
+  const payslipContainerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (payslipContainerRef.current) {
+      applyPayslipTableLayoutFixes(payslipContainerRef.current);
+    }
+  });
+
   return (
     <div
+      ref={payslipContainerRef}
       id="payslip-print-content"
       className="payslip-container"
       style={{
@@ -780,18 +790,10 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       </table>
 
       {/* Earnings and Deductions Table */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: "15px" }}>
+      <div className="payslip-earnings-deductions-row">
         {/* Earnings Section */}
         <div style={{ width: "50%" }}>
-          <div
-            style={{
-              fontWeight: "bold",
-              marginBottom: "2px",
-              fontSize: "9pt",
-            }}
-          >
-            Earnings:
-          </div>
+          <div className="payslip-section-label">Earnings:</div>
           <table
             className="payslip-earnings-table"
             style={{
@@ -805,7 +807,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <th
                   style={{
                     border: "1px solid #000",
-                    padding: "3px",
                     textAlign: "center",
                     fontSize: "8pt",
                     width: "40%",
@@ -814,7 +815,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <th
                   style={{
                     border: "1px solid #000",
-                    padding: "3px",
                     textAlign: "center",
                     fontSize: "8pt",
                     width: "30%",
@@ -825,7 +825,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <th
                   style={{
                     border: "1px solid #000",
-                    padding: "3px",
                     textAlign: "center",
                     fontSize: "8pt",
                     width: "30%",
@@ -840,7 +839,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -849,7 +847,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -858,7 +855,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -870,7 +866,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -879,7 +874,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -890,7 +884,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -903,7 +896,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -912,7 +904,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -923,7 +914,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -935,7 +925,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -944,7 +933,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -953,7 +941,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -965,7 +952,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -974,7 +960,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -985,7 +970,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -998,7 +982,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1007,7 +990,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1018,7 +1000,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1030,7 +1011,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1039,7 +1019,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1048,7 +1027,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1060,7 +1038,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1069,7 +1046,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1080,7 +1056,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1093,7 +1068,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1102,7 +1076,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1113,7 +1086,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1126,7 +1098,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1135,7 +1106,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1146,7 +1116,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1159,7 +1128,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1168,7 +1136,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1179,7 +1146,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1192,7 +1158,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1201,7 +1166,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1210,7 +1174,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1222,7 +1185,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1231,7 +1193,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1242,7 +1203,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1255,7 +1215,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1264,7 +1223,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1275,7 +1233,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1288,14 +1245,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           </table>
 
           {/* Other Pay Section */}
-          <div style={{ marginTop: "5px" }}>
-            <div
-              style={{
-                fontWeight: "bold",
-                marginBottom: "2px",
-                fontSize: "9pt",
-              }}
-            >
+          <div style={{ marginTop: "8px" }}>
+            <div className="payslip-section-label">
               Other Pay
               {useFixedAllowancesDisplay && (
                 <span
@@ -1327,7 +1278,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             fontWeight: "bold",
                             width: "40%",
                           }}
@@ -1337,7 +1287,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1347,7 +1296,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1363,7 +1311,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             fontWeight: "bold",
                             width: "40%",
                           }}
@@ -1373,7 +1320,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1383,7 +1329,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1399,7 +1344,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             fontWeight: "bold",
                             width: "40%",
                           }}
@@ -1409,7 +1353,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1419,7 +1362,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1436,7 +1378,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             fontWeight: "bold",
                             width: "40%",
                           }}
@@ -1446,7 +1387,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1456,7 +1396,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1474,7 +1413,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             fontWeight: "bold",
                             width: "40%",
                           }}
@@ -1484,7 +1422,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1494,7 +1431,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1518,7 +1454,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             fontWeight: "bold",
                             width: "40%",
                           }}
@@ -1528,7 +1463,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1538,7 +1472,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             width: "30%",
                           }}
@@ -1561,7 +1494,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     <td
                       style={{
                         border: "1px solid #000",
-                        padding: "3px 5px",
                         fontWeight: "bold",
                         width: "40%",
                       }}
@@ -1571,7 +1503,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     <td
                       style={{
                         border: "1px solid #000",
-                        padding: "3px 5px",
                         textAlign: "right",
                         width: "30%",
                       }}
@@ -1581,7 +1512,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     <td
                       style={{
                         border: "1px solid #000",
-                        padding: "3px 5px",
                         textAlign: "right",
                         width: "30%",
                       }}
@@ -1597,14 +1527,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
         {/* Deductions Section */}
         <div style={{ width: "50%" }}>
-          <div
-            style={{
-              fontWeight: "bold",
-              marginBottom: "2px",
-              fontSize: "9pt",
-              textAlign: "right",
-            }}
-          >
+          <div className="payslip-section-label payslip-section-label-right">
             Deduction:
           </div>
           <table
@@ -1620,7 +1543,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <th
                   style={{
                     border: "1px solid #000",
-                    padding: "3px",
                     textAlign: "center",
                     fontSize: "8pt",
                   }}
@@ -1635,7 +1557,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1644,7 +1565,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1656,7 +1576,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       fontWeight: "bold",
                     }}
                   >
@@ -1665,7 +1584,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                   <td
                     style={{
                       border: "1px solid #000",
-                      padding: "3px 5px",
                       textAlign: "right",
                     }}
                   >
@@ -1677,7 +1595,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1686,7 +1603,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1697,7 +1613,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1706,7 +1621,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1717,7 +1631,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1726,7 +1639,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1737,7 +1649,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     fontWeight: "bold",
                   }}
                 >
@@ -1746,7 +1657,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                 <td
                   style={{
                     border: "1px solid #000",
-                    padding: "3px 5px",
                     textAlign: "right",
                   }}
                 >
@@ -1780,7 +1690,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             paddingLeft: "15px",
                             fontSize: "8pt",
                           }}
@@ -1790,7 +1699,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             fontSize: "8pt",
                           }}
@@ -1806,7 +1714,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             paddingLeft: "15px",
                             fontSize: "8pt",
                           }}
@@ -1816,7 +1723,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             fontSize: "8pt",
                           }}
@@ -1832,7 +1738,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             paddingLeft: "15px",
                             fontSize: "8pt",
                           }}
@@ -1842,7 +1747,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             fontSize: "8pt",
                           }}
@@ -1858,7 +1762,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             paddingLeft: "15px",
                             fontSize: "8pt",
                           }}
@@ -1868,7 +1771,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             fontSize: "8pt",
                           }}
@@ -1884,7 +1786,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             paddingLeft: "15px",
                             fontSize: "8pt",
                           }}
@@ -1894,7 +1795,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                         <td
                           style={{
                             border: "1px solid #000",
-                            padding: "3px 5px",
                             textAlign: "right",
                             fontSize: "8pt",
                           }}
@@ -1914,7 +1814,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     <td
                       style={{
                         border: "1px solid #000",
-                        padding: "3px 5px",
                         paddingLeft: "15px",
                         fontSize: "8pt",
                       }}
@@ -1924,7 +1823,6 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                     <td
                       style={{
                         border: "1px solid #000",
-                        padding: "3px 5px",
                         textAlign: "right",
                         fontSize: "8pt",
                       }}

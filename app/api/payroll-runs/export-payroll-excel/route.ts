@@ -87,17 +87,28 @@ export async function POST(req: NextRequest) {
 
     const cutoffStart = String(run.cutoff_start);
     const cutoffEnd = String(run.cutoff_end);
-    const [{ data: slips, error: slipsErr }, holidaysNormalized] = await Promise.all([
+    const [{ data: slips, error: slipsErr }, holidaysNormalized, { data: allowanceRows }] =
+      await Promise.all([
       admin
         .from("payslips")
         .select(
-          "id, employee_id, gross_pay, total_deductions, net_pay, earnings_breakdown, deductions_breakdown, employees:employee_id ( company_id_no, first_name, middle_name, last_name, salary_basis, base_rate )"
+          "id, employee_id, gross_pay, total_deductions, net_pay, adjustment_amount, allowance_amount, earnings_breakdown, deductions_breakdown, employees:employee_id ( company_id_no, first_name, middle_name, last_name, salary_basis, base_rate )"
         )
         .eq("payroll_run_id", payroll_run_id)
         .order("created_at", { ascending: true }),
       fetchHolidaysRange(admin as any, { start: cutoffStart, end: cutoffEnd }),
+      admin
+        .from("cutoff_allowances")
+        .select(
+          "employee_id, transpo_allowance, load_allowance, allowance, refund"
+        )
+        .eq("period_start", cutoffStart.split("T")[0]),
     ]);
     if (slipsErr) throw slipsErr;
+
+    const cutoffAllowancesByEmployee = Object.fromEntries(
+      (allowanceRows || []).map((row: any) => [row.employee_id, row])
+    );
 
     const table = buildPayrollRunTemplateTable({
       run: {
@@ -110,6 +121,7 @@ export async function POST(req: NextRequest) {
         is_regular: h.type === "regular",
       })) as any[],
       slips: (slips || []) as any[],
+      cutoffAllowancesByEmployee,
     });
 
     const columns = table.columns;

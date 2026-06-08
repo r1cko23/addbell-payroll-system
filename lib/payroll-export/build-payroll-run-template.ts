@@ -4,6 +4,14 @@ import {
   normalizeEarningsBreakdownForExport,
   regularHoursBasicGross,
 } from "@/lib/payroll-earnings-breakdown";
+import {
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
+} from "@/utils/holidays";
+import {
+  calculateDailyPay,
+  type DayType,
+} from "@/utils/payroll-calculator";
 
 type RunRow = {
   cutoff_start: string;
@@ -52,10 +60,120 @@ function formatHolidayRange(dates: Date[]) {
   return `${monthLabel} ${uniqueDays[0]}-${uniqueDays[uniqueDays.length - 1]}`;
 }
 
+type CutoffAllowanceRow = {
+  employee_id: string;
+  transpo_allowance?: number | null;
+  load_allowance?: number | null;
+  allowance?: number | null;
+  refund?: number | null;
+};
+
+function sumCutoffAllowances(row?: CutoffAllowanceRow | null): number {
+  if (!row) return 0;
+  return (
+    safeNumber(row.transpo_allowance) +
+    safeNumber(row.load_allowance) +
+    safeNumber(row.allowance) +
+    safeNumber(row.refund)
+  );
+}
+
+function aggregateHolidayAndOtFromAttendance(
+  attendance: any[],
+  perHour: number
+) {
+  const totals = {
+    regOtHours: 0,
+    restOtHours: 0,
+    nwhHours: 0,
+    regHolHours: 0,
+    regOtPay: 0,
+    restOtPay: 0,
+    nwhPay: 0,
+    regHolPay: 0,
+  };
+
+  if (!perHour || !Array.isArray(attendance)) return totals;
+
+  attendance.forEach((day) => {
+    const dayType = (day?.dayType || "regular") as DayType;
+    const regularHours = safeNumber(day?.regularHours);
+    const overtimeHours = safeNumber(day?.overtimeHours);
+    const nightDiffHours = safeNumber(day?.nightDiffHours);
+    const calc = calculateDailyPay(
+      dayType,
+      regularHours,
+      overtimeHours,
+      nightDiffHours,
+      perHour
+    );
+
+    if (dayType === "regular") {
+      totals.regOtHours += overtimeHours;
+      totals.regOtPay += calc.overtimePay;
+      return;
+    }
+
+    if (
+      dayType === "regular-holiday" ||
+      dayType === "sunday-regular-holiday"
+    ) {
+      const eligible = isEligibleForHolidayPayRule(
+        String(day?.date || ""),
+        regularHours,
+        attendance
+      );
+      if (eligible) {
+        const hasCompleteLog = Boolean(day?.clockInTime && day?.clockOutTime);
+        const paidH = hasCompleteLog
+          ? regularHours
+          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+        totals.regHolHours += paidH;
+        totals.regHolPay += calc.regularPay;
+      }
+      if (overtimeHours > 0) {
+        totals.regHolPay += calc.overtimePay;
+      }
+      return;
+    }
+
+    if (
+      dayType === "non-working-holiday" ||
+      dayType === "sunday-special-holiday"
+    ) {
+      const eligible = isEligibleForHolidayPayRule(
+        String(day?.date || ""),
+        regularHours,
+        attendance
+      );
+      if (eligible) {
+        const hasCompleteLog = Boolean(day?.clockInTime && day?.clockOutTime);
+        const paidH = hasCompleteLog
+          ? regularHours
+          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+        totals.nwhHours += paidH;
+        totals.nwhPay += calc.regularPay;
+      }
+      if (overtimeHours > 0) {
+        totals.nwhPay += calc.overtimePay;
+      }
+      return;
+    }
+
+    if (dayType === "sunday") {
+      totals.restOtHours += overtimeHours;
+      totals.restOtPay += calc.overtimePay;
+    }
+  });
+
+  return totals;
+}
+
 export function buildPayrollRunTemplateTable(params: {
   run: RunRow;
   holidays: Array<{ holiday_date: string; is_regular: boolean }>;
   slips: any[];
+  cutoffAllowancesByEmployee?: Record<string, CutoffAllowanceRow>;
 }): PayrollRunTemplateTable {
   const cutoffStart = String(params.run.cutoff_start);
   const cutoffEnd = String(params.run.cutoff_end);
@@ -149,8 +267,9 @@ export function buildPayrollRunTemplateTable(params: {
   r3[24] = " PAG-IBIG ";
   r3[25] = " Salary Loan ";
   r3[26] = " Pag-IBIG Loan ";
-  r3[33] = allowancesHeader;
-  r3[34] = " NET ";
+  r3[31] = " ADJUSTMENTS ";
+  r3[32] = allowancesHeader;
+  r3[33] = " NET ";
 
   const r4 = Array(columns.length).fill("");
   r4[4] = "Rateday";
@@ -175,6 +294,8 @@ export function buildPayrollRunTemplateTable(params: {
   r4[29] = " VALE ";
   r4[30] = " UNIFORM / SAFETY SHOES / PPE / GASUL ";
   r4[31] = " ADJUSTMENTS ";
+  r4[32] = " Allowances / Load ";
+  r4[33] = " NET ";
   r4[34] = " PAYROLL ";
 
   const dataRows: any[][] = [];
@@ -201,16 +322,16 @@ export function buildPayrollRunTemplateTable(params: {
     const totalRegularHours = Array.isArray(attendance)
       ? attendance.reduce((s, d) => s + safeNumber(d?.regularHours), 0)
       : 0;
-    const totalOvertimeHours = Array.isArray(attendance)
-      ? attendance.reduce((s, d) => s + safeNumber(d?.overtimeHours), 0)
-      : 0;
-    const totalNightDiffHours = Array.isArray(attendance)
-      ? attendance.reduce((s, d) => s + safeNumber(d?.nightDiffHours), 0)
-      : 0;
     const { perDay } = ratePerDayAndHourFromEmployee(emp);
     const daysWorked = totalRegularHours > 0 ? totalRegularHours / 8 : 0;
 
-    const otPay = safeNumber(payrollResult?.totals?.overtimePay);
+    const holidayOt = aggregateHolidayAndOtFromAttendance(attendance, perHour);
+    const totalOvertimeHours = holidayOt.regOtHours;
+    const totalNightDiffHours = Array.isArray(attendance)
+      ? attendance.reduce((s, d) => s + safeNumber(d?.nightDiffHours), 0)
+      : 0;
+
+    const otPay = holidayOt.regOtPay || safeNumber(payrollResult?.totals?.overtimePay);
     const ndPay = safeNumber(payrollResult?.totals?.nightDiffPay);
     const regularPay =
       safeNumber(payrollResult?.totals?.regularPay) ||
@@ -240,7 +361,10 @@ export function buildPayrollRunTemplateTable(params: {
     );
     const uniformCombined = uniform + ppe + gasul + safetyShoes;
     const adjustments = safeNumber(ps.adjustment_amount ?? ded?.adjustments ?? 0);
-    const allowances = safeNumber(ded?.allowances ?? 0);
+    const cutoffAllowance = params.cutoffAllowancesByEmployee?.[ps.employee_id];
+    const allowances =
+      sumCutoffAllowances(cutoffAllowance) ||
+      safeNumber(ps.allowance_amount ?? ded?.allowances ?? 0);
 
     const row = Array(columns.length).fill("");
     row[1] = String(emp.company_id_no || "").trim() || String(ps.employee_id);
@@ -250,10 +374,16 @@ export function buildPayrollRunTemplateTable(params: {
     row[5] = daysWorked;
     row[6] = regularPay > 0 ? regularPay : perDay > 0 ? perDay * daysWorked : gross;
     row[7] = perHour;
-    row[8] = totalOvertimeHours;
-    row[12] = totalNightDiffHours;
-    row[13] = otPay;
-    row[18] = ndPay;
+    row[8] = totalOvertimeHours > 0 ? totalOvertimeHours : "";
+    row[9] = holidayOt.restOtHours > 0 ? holidayOt.restOtHours : "";
+    row[10] = holidayOt.nwhHours > 0 ? holidayOt.nwhHours : "";
+    row[11] = holidayOt.regHolHours > 0 ? holidayOt.regHolHours : "";
+    row[12] = totalNightDiffHours > 0 ? totalNightDiffHours : "";
+    row[13] = otPay > 0 ? otPay : "";
+    row[14] = holidayOt.restOtPay > 0 ? holidayOt.restOtPay : "";
+    row[15] = holidayOt.nwhPay > 0 ? holidayOt.nwhPay : "";
+    row[16] = holidayOt.regHolPay > 0 ? holidayOt.regHolPay : "";
+    row[18] = ndPay > 0 ? ndPay : "";
     row[19] = lateHours > 0 ? lateHours : "";
     row[20] = undertimeHours > 0 ? undertimeHours : "";
     row[21] = gross;
@@ -266,8 +396,8 @@ export function buildPayrollRunTemplateTable(params: {
     row[28] = tax;
     row[29] = vale;
     row[30] = uniformCombined;
-    row[31] = adjustments;
-    row[32] = allowances;
+    row[31] = adjustments !== 0 ? adjustments : "";
+    row[32] = allowances > 0 ? allowances : "";
     row[33] = net;
     row[34] = net;
     dataRows.push(row);

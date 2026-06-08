@@ -17,6 +17,10 @@ import {
   calculateSundayRestDay,
 } from "@/utils/payroll-calculator";
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
+import {
+  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
+} from "@/utils/holidays";
 
 export type PayslipPrintEarningsTable = {
   basic: { days: number; hours: number; amount: number };
@@ -92,8 +96,6 @@ type DetailedBreakdownSnapshot = {
   };
   useFixedAllowances: boolean;
 };
-
-const HOLIDAY_UNWORKED_CREDIT_HOURS = 8;
 
 function hoursToDays(hours: number) {
   return hours > 0 ? hours / 8 : 0;
@@ -265,26 +267,44 @@ export function buildPayslipPrintSyncFromStoredPayslip(
     }
 
     if (dayType === "regular-holiday") {
-      const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
-      const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
-      if (paidH > 0) {
-        breakdown.legalHoliday.hours += paidH;
-        breakdown.legalHoliday.amount += calculateRegularHoliday(
-          paidH,
-          ratePerHour
-        );
+      const eligible = isEligibleForHolidayPayRule(
+        day.date,
+        regularHours,
+        attendanceData
+      );
+      if (eligible) {
+        const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+        const paidH = hasCompleteLog
+          ? regularHours
+          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+        if (paidH > 0) {
+          breakdown.legalHoliday.hours += paidH;
+          breakdown.legalHoliday.amount += calculateRegularHoliday(
+            paidH,
+            ratePerHour
+          );
+        }
       }
     }
 
     if (dayType === "non-working-holiday") {
-      const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
-      const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
-      if (paidH > 0) {
-        breakdown.specialHoliday.hours += paidH;
-        breakdown.specialHoliday.amount += calculateNonWorkingHoliday(
-          paidH,
-          ratePerHour
-        );
+      const eligible = isEligibleForHolidayPayRule(
+        day.date,
+        regularHours,
+        attendanceData
+      );
+      if (eligible) {
+        const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
+        const paidH = hasCompleteLog
+          ? regularHours
+          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+        if (paidH > 0) {
+          breakdown.specialHoliday.hours += paidH;
+          breakdown.specialHoliday.amount += calculateNonWorkingHoliday(
+            paidH,
+            ratePerHour
+          );
+        }
       }
     }
 

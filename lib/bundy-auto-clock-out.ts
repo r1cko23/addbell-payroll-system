@@ -45,16 +45,11 @@ export async function applyBundyAutoClockOutIfNeeded(
   const punchedAtMs = new Date(punchedAt).getTime();
   const clockInMs = new Date(open.clock_in_time).getTime();
 
-  const alreadyHasAutoOut = punches.some(
+  const alreadyHasOutAfterIn = punches.some(
     (p) =>
-      p.punch_type === "out" &&
-      (p.device_info?.startsWith("auto:business-day-close") ||
-        p.device_info?.startsWith("auto:23h-open-shift-close") ||
-        p.device_info?.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO)) &&
-      new Date(p.punched_at).getTime() > clockInMs &&
-      new Date(p.punched_at).getTime() <= punchedAtMs + 60_000
+      p.punch_type === "out" && new Date(p.punched_at).getTime() > clockInMs
   );
-  if (alreadyHasAutoOut) {
+  if (alreadyHasOutAfterIn) {
     return { applied: false };
   }
 

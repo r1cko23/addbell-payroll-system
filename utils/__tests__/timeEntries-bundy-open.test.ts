@@ -1,6 +1,8 @@
 import {
   getActiveBundyBusinessDayKey,
   getOpenEntryFromPunches,
+  isAdminManualBackfillPunch,
+  isStaleAdminManualOpenIn,
   isSupersededInPunch,
   punchesToSessions,
   getDateInManilaDefault,
@@ -105,6 +107,41 @@ describe("bundy open session / superseded IN", () => {
     expect(sessions).toHaveLength(1);
     expect(sessions[0].id).toBe("early");
     expect(sessions[0].clock_out_time).not.toBeNull();
+  });
+
+  test("same-day admin manual time in stays open for bundy clock out", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "admin-in",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-06-10T22:30:00+00",
+        source: "admin_correction",
+        device_info: "admin:manual time in — forgot to clock in",
+      },
+    ];
+    const now = new Date("2026-06-10T10:00:00+08:00");
+    expect(isAdminManualBackfillPunch(punches[0])).toBe(true);
+    expect(isStaleAdminManualOpenIn(punches[0], now)).toBe(false);
+    const open = getOpenEntryFromPunches(punches, getDateInManilaDefault);
+    expect(open?.id).toBe("admin-in");
+  });
+
+  test("prior-day admin manual time in without out does not block bundy", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "admin-in",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-06-09T22:30:00+00",
+        source: "admin_correction",
+        device_info: "admin:manual time in — forgot to clock in",
+      },
+    ];
+    const now = new Date("2026-06-10T10:00:00+08:00");
+    expect(isStaleAdminManualOpenIn(punches[0], now)).toBe(true);
+    const open = getOpenEntryFromPunches(punches, getDateInManilaDefault);
+    expect(open).toBeNull();
   });
 
   test("overnight open before 7 AM still counts as open", () => {

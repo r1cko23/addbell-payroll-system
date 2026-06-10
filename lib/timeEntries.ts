@@ -139,6 +139,27 @@ export function isAdminPreOpenClockIn(punch: TimeEntryPunch): boolean {
   );
 }
 
+/** HR manual punch from Time Entries → Manual punch (forgot time in/out backfill). */
+export function isAdminManualBackfillPunch(punch: TimeEntryPunch): boolean {
+  const info = punch.device_info?.toLowerCase() ?? "";
+  return punch.source === "admin_correction" && info.startsWith("admin:manual");
+}
+
+/**
+ * Prior-day admin manual time-in without clock-out is a payroll backfill, not a live Bundy shift.
+ * Same-day admin manual time-in stays open so the employee can clock out in the app.
+ */
+export function isStaleAdminManualOpenIn(
+  inPunch: TimeEntryPunch | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!inPunch || inPunch.punch_type !== "in") return false;
+  if (!isAdminManualBackfillPunch(inPunch)) return false;
+  const inDay = getDateInManilaDefault(inPunch.punched_at);
+  const today = getDateInManilaDefault(now.toISOString());
+  return inDay < today;
+}
+
 function shouldSkipAdminPreOpenIn(
   punch: TimeEntryPunch,
   punchIndex: number,
@@ -193,7 +214,7 @@ export function isSupersededInPunch(
 
   for (const p of sorted) {
     if (p.punch_type !== "in" || p.id === inPunchId) continue;
-    if (isAdminPreOpenClockIn(p)) continue;
+    if (isAdminPreOpenClockIn(p) || isAdminManualBackfillPunch(p)) continue;
     const laterMs = new Date(p.punched_at).getTime();
     if (laterMs <= inMs) continue;
     const hasOutBetween = sorted.some(
@@ -510,14 +531,18 @@ export function getOpenEntryFromPunches(
   );
   const sessions = punchesToSessions(sorted, getDateInManila);
   const bizMap = assignBundyBusinessDayKeysFromPunches(sorted);
-  const openSessions = sessions.filter(
-    (s) =>
-      !s.clock_out_time &&
-      !isSupersededInPunch(s.id, sorted) &&
-      (activeBusinessDayKey == null ||
-        (bizMap.get(s.id) ?? getBundyBusinessDayKey(s.clock_in_time)) ===
-          activeBusinessDayKey)
-  );
+  const now = new Date();
+  const punchById = new Map(sorted.map((p) => [p.id, p]));
+  const openSessions = sessions.filter((s) => {
+    if (s.clock_out_time || isSupersededInPunch(s.id, sorted)) return false;
+    const inPunch = punchById.get(s.id);
+    if (isStaleAdminManualOpenIn(inPunch, now)) return false;
+    if (activeBusinessDayKey == null) return true;
+    return (
+      (bizMap.get(s.id) ?? getBundyBusinessDayKey(s.clock_in_time)) ===
+      activeBusinessDayKey
+    );
+  });
   return openSessions.length > 0 ? openSessions[openSessions.length - 1] : null;
 }
 

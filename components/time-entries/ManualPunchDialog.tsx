@@ -200,8 +200,11 @@ export function ManualPunchDialog({
         <DialogHeader>
           <DialogTitle>Manual punch</DialogTitle>
           <DialogDescription>
-            Add a single time in or time out for one or more employees. Use this for
-            bundy backfills and corrections (entries are marked as admin manual punches).
+            Backfill missed punches. Use <strong>Time in</strong> when an employee forgot
+            to clock in (same day: they can still clock out in Bundy). Use{" "}
+            <strong>Time out</strong> to complete a pair. If they forgot to clock{" "}
+            <em>out</em>, do not add a manual time in — Bundy auto-closes open sessions
+            after 23 hours.
           </DialogDescription>
         </DialogHeader>
 
@@ -275,7 +278,9 @@ export function ManualPunchDialog({
               )}
             </div>
             <Caption className="text-muted-foreground mt-1">
-              You can add time in only, time out only, or run this twice for a pair.
+              For a past workday, add both time in and time out (or use Add time entry for
+              a full pair). Same-day forgot time in: add time in only — employee clocks out
+              in Bundy.
             </Caption>
           </div>
 

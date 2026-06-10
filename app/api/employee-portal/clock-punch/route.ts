@@ -7,12 +7,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
-import {
-  getDateInManilaDefault,
-  getOpenEntryFromPunches,
-  type TimeEntryPunch,
-} from "@/lib/timeEntries";
+import { resolveOpenBundySessionAfterAutoClose } from "@/lib/bundy-auto-clock-out";
+import type { TimeEntrySession } from "@/lib/timeEntries";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -48,8 +44,15 @@ export async function POST(req: NextRequest) {
 
     const admin = getAdminClient();
 
+    let autoClosed = false;
+    let open: TimeEntrySession | null = null;
     try {
-      await applyBundyAutoClockOutIfNeeded(admin, body.employee_id);
+      const resolved = await resolveOpenBundySessionAfterAutoClose(
+        admin,
+        body.employee_id
+      );
+      open = resolved.open;
+      autoClosed = resolved.autoClosed;
     } catch (autoErr) {
       console.error("Bundy auto clock-out:", autoErr);
     }
@@ -65,22 +68,14 @@ export async function POST(req: NextRequest) {
     }
     const punchedAt = new Date(serverTimeData as string).toISOString();
 
-    const { data: recentPunches } = await admin
-      .from("time_entries")
-      .select("id, employee_id, punch_type, punched_at")
-      .eq("employee_id", body.employee_id)
-      .order("punched_at", { ascending: false })
-      .limit(100);
-    const punchList = (recentPunches || []) as TimeEntryPunch[];
-    // Any unclosed IN blocks a new clock-in (matches employee expectation).
-    const open = getOpenEntryFromPunches(punchList, getDateInManilaDefault);
-
     if (body.punch_type === "in") {
       if (open) {
         return NextResponse.json(
           {
-            error:
-              "You already have an open Time In. Clock out first before starting another session.",
+            error: autoClosed
+              ? "Your previous session was auto-closed after 23 hours. Please tap Time In again."
+              : "You already have an open Time In. Clock out first before starting another session.",
+            auto_closed: autoClosed,
           },
           { status: 409 }
         );

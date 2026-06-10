@@ -5,7 +5,10 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
+import {
+  BUNDY_OPEN_SESSION_PUNCH_LIMIT,
+  resolveOpenBundySessionAfterAutoClose,
+} from "@/lib/bundy-auto-clock-out";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,19 +40,21 @@ export async function GET(req: NextRequest) {
     const admin = getAdminClient();
 
     try {
-      await applyBundyAutoClockOutIfNeeded(admin, employeeId);
+      await resolveOpenBundySessionAfterAutoClose(admin, employeeId);
     } catch (autoErr) {
       console.error("Bundy auto clock-out:", autoErr);
     }
 
+    const fetchLimit = Math.max(limit, BUNDY_OPEN_SESSION_PUNCH_LIMIT);
+
     let q = admin
       .from("time_entries")
       .select(
-        "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id"
+        "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id, source"
       )
       .eq("employee_id", employeeId)
       .order("punched_at", { ascending: false })
-      .limit(limit);
+      .limit(fetchLimit);
 
     if (start) {
       q = q.gte("punched_at", start);

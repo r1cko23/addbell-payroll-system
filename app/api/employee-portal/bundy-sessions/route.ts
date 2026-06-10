@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { applyBundyAutoClockOutIfNeeded } from "@/lib/bundy-auto-clock-out";
+import { resolveOpenBundySessionAfterAutoClose } from "@/lib/bundy-auto-clock-out";
 import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
 import { buildUsedOtPairKeys, validateBundyOtSessionPair } from "@/lib/validate-bundy-ot-session";
 import {
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     const admin = getAdminClient();
 
     try {
-      await applyBundyAutoClockOutIfNeeded(admin, employeeId);
+      await resolveOpenBundySessionAfterAutoClose(admin, employeeId);
     } catch (autoErr) {
       console.error("Bundy auto clock-out:", autoErr);
     }
@@ -47,11 +47,11 @@ export async function GET(req: NextRequest) {
     const { data: punches, error: punchError } = await admin
       .from("time_entries")
       .select(
-        "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id"
+        "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id, source"
       )
       .eq("employee_id", employeeId)
       .order("punched_at", { ascending: false })
-      .limit(200);
+      .limit(500);
 
     if (punchError) {
       return NextResponse.json({ error: punchError.message }, { status: 500 });

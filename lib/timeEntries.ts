@@ -121,7 +121,7 @@ const MAX_PAIR_GAP_MS = 20 * 60 * 60 * 1000;
 /** Pair auto-outs up to 23h + buffer (matches BUNDY_MAX_OPEN_SESSION_HOURS). */
 const MAX_BUNDY_AUTO_PAIR_MS = 24 * 60 * 60 * 1000;
 
-function isBundyAutoClockOutPunch(punch: TimeEntryPunch): boolean {
+export function isBundyAutoClockOutPunch(punch: TimeEntryPunch): boolean {
   const info = punch.device_info ?? "";
   return (
     info.includes(BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO) ||

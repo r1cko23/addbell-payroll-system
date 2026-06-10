@@ -546,7 +546,7 @@ export default function BundyClockPage() {
     const res = await fetch(
       `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(
         employee.id
-      )}&limit=100`
+      )}&limit=500`
     );
     const json = (await res.json().catch(() => ({}))) as {
       punches?: TimeEntryPunch[];
@@ -1869,9 +1869,20 @@ export default function BundyClockPage() {
 
         if (!clockRes.ok || !clockJson.id || !clockJson.punched_at) {
           console.error("Clock in error:", clockJson);
-          toast.error(
-            `Failed to clock in: ${clockJson.error || clockRes.statusText || "Unknown error"}`
+          const autoClosed = Boolean(
+            (clockJson as { auto_closed?: boolean }).auto_closed
           );
+          if (autoClosed) {
+            await checkClockStatus();
+            toast.message(
+              clockJson.error ||
+                "Your previous session was auto-closed. Tap Time In again."
+            );
+          } else {
+            toast.error(
+              `Failed to clock in: ${clockJson.error || clockRes.statusText || "Unknown error"}`
+            );
+          }
           return false;
         }
 

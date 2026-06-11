@@ -146,8 +146,9 @@ export function isAdminManualBackfillPunch(punch: TimeEntryPunch): boolean {
 }
 
 /**
- * Prior-day admin manual time-in without clock-out is a payroll backfill, not a live Bundy shift.
- * Same-day admin manual time-in stays open so the employee can clock out in the app.
+ * Prior-day admin manual time-in without clock-out is payroll backfill once the 23h window
+ * has passed — not a live Bundy shift. Before 23h, keep it open so overnight workers can
+ * still tap TIME OUT after midnight.
  */
 export function isStaleAdminManualOpenIn(
   inPunch: TimeEntryPunch | undefined,
@@ -157,7 +158,8 @@ export function isStaleAdminManualOpenIn(
   if (!isAdminManualBackfillPunch(inPunch)) return false;
   const inDay = getDateInManilaDefault(inPunch.punched_at);
   const today = getDateInManilaDefault(now.toISOString());
-  return inDay < today;
+  if (inDay >= today) return false;
+  return isPastBundyAutoClockOut(inPunch.punched_at, now);
 }
 
 function shouldSkipAdminPreOpenIn(

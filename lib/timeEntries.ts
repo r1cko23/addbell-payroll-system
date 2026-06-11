@@ -546,6 +546,30 @@ export function getOpenEntryFromPunches(
   return openSessions.length > 0 ? openSessions[openSessions.length - 1] : null;
 }
 
+/** Every open session (not superseded, not stale admin backfill). Oldest clock-in first. */
+export function getAllOpenSessionsFromPunches(
+  punches: TimeEntryPunch[],
+  getDateInManila: (iso: string) => string,
+  now: Date = new Date()
+): TimeEntrySession[] {
+  const sorted = [...punches].sort(
+    (a, b) => new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
+  );
+  const sessions = punchesToSessions(sorted, getDateInManila);
+  const punchById = new Map(sorted.map((p) => [p.id, p]));
+  return sessions
+    .filter((s) => {
+      if (s.clock_out_time || isSupersededInPunch(s.id, sorted)) return false;
+      const inPunch = punchById.get(s.id);
+      if (isStaleAdminManualOpenIn(inPunch, now)) return false;
+      return true;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.clock_in_time).getTime() - new Date(b.clock_in_time).getTime()
+    );
+}
+
 export function getDateInManilaDefault(iso: string): string {
   const date = new Date(iso);
   const formatter = new Intl.DateTimeFormat("en-US", {

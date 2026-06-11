@@ -158,6 +158,13 @@ export function ManualPunchDialog({
           errors.push(`${emp ? formatEmployeeLabel(emp) : employeeId}: ${error.message}`);
         } else {
           successCount += 1;
+          await fetch("/api/time-entries/auto-close-stale", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ employee_id: employeeId }),
+          }).catch((err) => {
+            console.warn("Stale session auto-close after manual punch:", err);
+          });
         }
       }
 

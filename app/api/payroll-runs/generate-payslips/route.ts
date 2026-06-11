@@ -39,6 +39,7 @@ import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { buildStoredEarningsBreakdown } from "@/lib/payroll-earnings-breakdown";
 import { resolveEmployeePosition } from "@/lib/payslip-display";
+import { applyAllStaleBundyAutoClockOutsForEmployees } from "@/lib/bundy-auto-clock-out";
 type EmployeeRow = {
   id: string;
   employment_status?: string | null;
@@ -285,6 +286,11 @@ export async function POST(req: NextRequest) {
       .delete()
       .eq("payroll_run_id", payroll_run_id);
     if (deleteErr) throw deleteErr;
+
+    await applyAllStaleBundyAutoClockOutsForEmployees(
+      admin,
+      emps.map((e) => e.id)
+    );
 
     const inserts: any[] = [];
     const skipped: any[] = [];

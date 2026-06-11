@@ -444,6 +444,14 @@ export default function TimesheetPage() {
       const periodStartStr = format(periodStart, "yyyy-MM-dd");
       const periodEndStr = format(periodEnd, "yyyy-MM-dd");
 
+      await fetch("/api/time-entries/auto-close-stale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employee_id: selectedEmployee.id }),
+      }).catch((err) => {
+        console.warn("Stale session auto-close before timesheet load:", err);
+      });
+
       // Wider fetch: 7 days before cutoff so holiday eligibility can see prior regular workdays.
       const periodStartDate = new Date(periodStart);
       periodStartDate.setHours(0, 0, 0, 0);

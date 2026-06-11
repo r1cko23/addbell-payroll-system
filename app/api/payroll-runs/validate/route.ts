@@ -7,6 +7,7 @@ import {
   type PayrollEntryEmployeeInput,
 } from "@/lib/ph-payroll/payroll-entry-validation";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
+import { applyAllStaleBundyAutoClockOutsForEmployees } from "@/lib/bundy-auto-clock-out";
 import { fetchSessionsInRange } from "@/lib/timeEntries";
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
@@ -136,6 +137,10 @@ export async function GET(request: NextRequest) {
       .in("employee_id", idFilter);
     if (weeklyAttendanceErr) {
       console.warn("weekly_attendance unavailable for payroll validate:", weeklyAttendanceErr.message);
+    }
+
+    if (employeeIds.length > 0) {
+      await applyAllStaleBundyAutoClockOutsForEmployees(admin, employeeIds);
     }
 
     const holidays = (

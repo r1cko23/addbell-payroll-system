@@ -96,7 +96,6 @@ export async function GET(request: NextRequest) {
 
     const [
       { data: payslips },
-      { data: weeklyAttendance },
       { data: pendingLeave },
       { data: pendingOt },
       { data: pendingFtl },
@@ -105,12 +104,6 @@ export async function GET(request: NextRequest) {
         .from("payslips")
         .select("id, employee_id, status, gross_pay, net_pay")
         .eq("payroll_run_id", payrollRunId)
-        .in("employee_id", idFilter),
-      admin
-        .from("weekly_attendance")
-        .select("id, employee_id, status")
-        .eq("period_start", cutoffStart)
-        .eq("period_end", cutoffEnd)
         .in("employee_id", idFilter),
       admin
         .from("leave_requests")
@@ -134,6 +127,16 @@ export async function GET(request: NextRequest) {
         .lte("missed_date", cutoffEnd)
         .eq("status", "pending"),
     ]);
+
+    const { data: weeklyAttendance, error: weeklyAttendanceErr } = await admin
+      .from("weekly_attendance")
+      .select("id, employee_id, status")
+      .eq("period_start", cutoffStart)
+      .eq("period_end", cutoffEnd)
+      .in("employee_id", idFilter);
+    if (weeklyAttendanceErr) {
+      console.warn("weekly_attendance unavailable for payroll validate:", weeklyAttendanceErr.message);
+    }
 
     const holidays = (
       await fetchHolidaysRange(admin as any, { start: cutoffStart, end: cutoffEnd })
@@ -174,7 +177,7 @@ export async function GET(request: NextRequest) {
     );
 
     const timesheetMap = new Map(
-      (weeklyAttendance || []).map((t: any) => [
+      (weeklyAttendanceErr ? [] : weeklyAttendance || []).map((t: any) => [
         t.employee_id,
         { id: t.id, status: t.status },
       ])

@@ -96,15 +96,15 @@ export function PayrollReadinessPanel({
           <MetricCard label="Blocked" value={validation.blocked} />
           <MetricCard label="Saved" value={validation.saved} />
           <MetricCard
-            label="Finalized TS"
+            label="TS Finalized"
             value={`${validation.timesheetsFinalized}/${validation.total}`}
+            meta="Optional"
           />
         </div>
 
         {validation.blocked > 0 && (
           <BodySmall className="text-red-700 mb-3">
-            {validation.blocked} employee(s) blocked — fix issues or use admin override on
-            generate.
+            {validation.blocked} employee(s) blocked — fix issues before generating.
           </BodySmall>
         )}
 

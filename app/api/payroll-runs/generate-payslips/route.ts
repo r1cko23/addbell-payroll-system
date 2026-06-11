@@ -39,8 +39,6 @@ import { creditNightDiffHours, creditOvertimeHours } from "@/utils/overtime";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { buildStoredEarningsBreakdown } from "@/lib/payroll-earnings-breakdown";
 import { resolveEmployeePosition } from "@/lib/payslip-display";
-import { canGeneratePayslipForTimesheet } from "@/lib/ph-payroll/timesheet-review";
-
 type EmployeeRow = {
   id: string;
   employment_status?: string | null;
@@ -53,7 +51,7 @@ type EmployeeRow = {
 };
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
-const GENERATOR_VERSION = "payroll-run-generate-v9-timesheet-finalize-gate";
+const GENERATOR_VERSION = "payroll-run-generate-v10-live-attendance";
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -117,26 +115,9 @@ export async function POST(req: NextRequest) {
     const admin = getAdminClient();
     const body = await req.json();
     const payroll_run_id = body?.payroll_run_id as string | undefined;
-    const force_override = body?.force_override === true;
-    const override_reason = String(body?.override_reason || "").trim();
-
     if (!payroll_run_id) {
       return NextResponse.json(
         { error: "payroll_run_id is required" },
-        { status: 400 }
-      );
-    }
-
-    if (force_override && authUser.role !== "admin") {
-      return NextResponse.json(
-        { error: "Only admin can override the timesheet finalize gate" },
-        { status: 403 }
-      );
-    }
-
-    if (force_override && !override_reason) {
-      return NextResponse.json(
-        { error: "override_reason is required when force_override is true" },
         { status: 400 }
       );
     }
@@ -181,17 +162,6 @@ export async function POST(req: NextRequest) {
     }
 
     const employeeIds = emps.map((e) => e.id);
-
-    const { data: attendanceGateRows } = await admin
-      .from("weekly_attendance")
-      .select("employee_id, status")
-      .eq("period_start", cutoffStart)
-      .eq("period_end", cutoffEnd)
-      .in("employee_id", employeeIds);
-
-    const attendanceStatusByEmployee = new Map(
-      (attendanceGateRows || []).map((row: any) => [row.employee_id, row])
-    );
 
     const holidays = (await fetchHolidaysRange(admin as any, { start: cutoffStart, end: cutoffEnd })).map(
       (h) => ({
@@ -321,15 +291,6 @@ export async function POST(req: NextRequest) {
     const diagnostics: Array<Record<string, unknown>> = [];
 
     for (const e of emps) {
-      const attendanceGate = attendanceStatusByEmployee.get(e.id) || null;
-      const gate = canGeneratePayslipForTimesheet(attendanceGate, {
-        forceOverride: force_override,
-      });
-      if (!gate.allowed) {
-        skipped.push({ employee_id: e.id, reason: gate.reason });
-        continue;
-      }
-
       // Match Payslips page behavior: fetch both main + project sessions, bucketed by Manila date.
       // Use a slightly wider range to avoid timezone edge misses.
       // Build fetch bounds in explicit Asia/Manila offset to avoid
@@ -448,14 +409,7 @@ export async function POST(req: NextRequest) {
       const periodEndTuesday = new Date(`${cutoffEnd}T12:00:00+08:00`);
       diagnostics.push({
         employee_id: e.id,
-        timesheet_status: attendanceGate?.status ?? "missing",
-        timesheet_override: Boolean(
-          force_override && attendanceGate?.status !== "finalized"
-        ),
-        override_reason:
-          force_override && attendanceGate?.status !== "finalized"
-            ? override_reason
-            : null,
+        timesheet_status: "live",
         employment_status: e.employment_status ?? null,
         salary_basis: e.salary_basis ?? null,
         base_rate: e.base_rate ?? null,

@@ -1,6 +1,6 @@
 /**
  * Payroll Entry validation (Frappe HR pre-check before bulk payslip generation).
- * Addbell: weekly Wed–Tue cutoffs, weekly_attendance finalize gate.
+ * Addbell: weekly Wed–Tue cutoffs; payroll uses live clock data (finalize optional).
  */
 
 import { parseISO } from "date-fns";
@@ -124,10 +124,6 @@ export function buildPayrollEntryRow(
 
   if (!hasRate) {
     issues.push("Missing pay rate (base_rate + salary_basis)");
-  }
-
-  if (!params.payslip && timesheetStatus !== "finalized") {
-    issues.push("Timesheet not finalized for this cutoff");
   }
 
   if (pendingLeave > 0) {

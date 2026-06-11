@@ -282,7 +282,7 @@ export function punchesToSessions(
     while (j < sorted.length) {
       const q = sorted[j];
       if (q.punch_type === "in") {
-        if (isAdminPreOpenClockIn(q)) {
+        if (isAdminPreOpenClockIn(q) || isAdminManualBackfillPunch(q)) {
           j++;
           continue;
         }

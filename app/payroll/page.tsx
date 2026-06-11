@@ -516,20 +516,12 @@ export default function PayrollPage() {
     }
   }
 
-  async function generatePayslips(options?: {
-    forceOverride?: boolean;
-    overrideReason?: string;
-    skipWarningsConfirm?: boolean;
-  }) {
+  async function generatePayslips(options?: { skipWarningsConfirm?: boolean }) {
     if (!selectedRun) return;
 
-    if (
-      payrollValidation &&
-      payrollValidation.blocked > 0 &&
-      !options?.forceOverride
-    ) {
+    if (payrollValidation && payrollValidation.blocked > 0) {
       toast.error(
-        `${payrollValidation.blocked} employee(s) blocked. Fix on Time Attendance or export blocked list.`
+        `${payrollValidation.blocked} employee(s) blocked. Fix issues or export blocked list.`
       );
       return;
     }
@@ -537,7 +529,6 @@ export default function PayrollPage() {
     if (
       payrollValidation &&
       payrollValidation.warning > 0 &&
-      !options?.forceOverride &&
       !options?.skipWarningsConfirm
     ) {
       const ok = window.confirm(
@@ -552,11 +543,7 @@ export default function PayrollPage() {
       const res = await fetch("/api/payroll-runs/generate-payslips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payroll_run_id: selectedRun.id,
-          force_override: options?.forceOverride === true,
-          override_reason: options?.overrideReason || undefined,
-        }),
+        body: JSON.stringify({ payroll_run_id: selectedRun.id }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -570,27 +557,10 @@ export default function PayrollPage() {
         .eq("id", selectedRun.id);
 
       const skipped = Array.isArray(json?.skipped) ? json.skipped : [];
-      const notFinalized = skipped.filter((s: any) =>
-        String(s?.reason || "").toLowerCase().includes("not finalized")
-      );
 
       toast.success(
         `Generated ${json?.generated ?? 0} draft payslip(s). Skipped ${skipped.length}.${json?.generator_version ? ` [${json.generator_version}]` : ""}`
       );
-
-      if (notFinalized.length > 0) {
-        toast.message(
-          `${notFinalized.length} employee(s) skipped — finalize timesheets on Time Attendance first.`,
-          {
-            action: {
-              label: "Open Time Attendance",
-              onClick: () => {
-                window.location.href = `/timesheet?period_start=${selectedRun.cutoff_start}`;
-              },
-            },
-          }
-        );
-      }
 
       openRunDetail({ ...selectedRun, status: "processing" });
       void loadPayrollValidation({ ...selectedRun, status: "processing" });
@@ -600,18 +570,6 @@ export default function PayrollPage() {
     } finally {
       setProcessing(false);
     }
-  }
-
-  async function generatePayslipsWithAdminOverride() {
-    if (!isAdmin) return;
-    const reason = window.prompt(
-      "Admin override: enter reason for generating without finalized timesheets"
-    );
-    if (!reason?.trim()) {
-      toast.error("Override reason is required");
-      return;
-    }
-    await generatePayslips({ forceOverride: true, overrideReason: reason.trim() });
   }
 
   async function finalizeRun() {
@@ -802,15 +760,6 @@ export default function PayrollPage() {
                   <Icon name="ArrowsClockwise" size={IconSizes.sm} className={processing ? "animate-spin mr-2" : "mr-2"} />
                   {processing ? "Generating..." : "Generate Payslips"}
                 </Button>
-                  {isAdmin && (
-                    <Button
-                      variant="outline"
-                      onClick={generatePayslipsWithAdminOverride}
-                      disabled={processing}
-                    >
-                      Admin Override
-                    </Button>
-                  )}
                 </>
               )}
               {selectedRun.status === "processing" && (

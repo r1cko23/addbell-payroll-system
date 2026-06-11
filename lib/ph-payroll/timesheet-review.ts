@@ -25,19 +25,11 @@ export function resolveTimesheetReviewStatus(
   return "draft";
 }
 
+/** Payroll generates from live clock data; weekly_attendance finalize is optional. */
 export function canGeneratePayslipForTimesheet(
-  record: Pick<WeeklyAttendanceRow, "status"> | null | undefined,
-  options?: { forceOverride?: boolean }
+  _record: Pick<WeeklyAttendanceRow, "status"> | null | undefined,
+  _options?: { forceOverride?: boolean }
 ): { allowed: boolean; reason?: string } {
-  if (options?.forceOverride) {
-    return { allowed: true };
-  }
-  if (!record) {
-    return { allowed: false, reason: "No weekly attendance record for this cutoff" };
-  }
-  if (record.status !== "finalized") {
-    return { allowed: false, reason: "Timesheet not finalized" };
-  }
   return { allowed: true };
 }
 

@@ -127,6 +127,33 @@ describe("bundy open session / superseded IN", () => {
     expect(open?.id).toBe("admin-in");
   });
 
+  test("admin manual time in does not supersede open employee web clock-in", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "web-in",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-06-09T23:00:59.777Z",
+        source: "web",
+      },
+      {
+        id: "admin-in",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-06-10T22:48:00+00",
+        source: "admin_correction",
+        device_info: "admin:manual time in",
+      },
+    ];
+    const sessions = punchesToSessions(punches, getDateInManilaDefault);
+    const open = sessions.filter((s) => !s.clock_out_time);
+    expect(open).toHaveLength(2);
+    expect(open.map((s) => s.id).sort()).toEqual(["admin-in", "web-in"]);
+    expect(getOpenEntryFromPunches(punches, getDateInManilaDefault)?.id).toBe(
+      "web-in"
+    );
+  });
+
   test("prior-day admin manual time in without out does not block bundy", () => {
     const punches: TimeEntryPunch[] = [
       {

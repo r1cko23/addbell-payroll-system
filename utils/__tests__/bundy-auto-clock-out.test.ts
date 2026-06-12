@@ -71,20 +71,22 @@ describe("findStaleOpenSessionsForAutoClose", () => {
     expect(findStaleOpenSessionsForAutoClose(punches, now)).toHaveLength(0);
   });
 
-  test("ignores prior-day admin manual backfill after 23h window", () => {
+  test("auto-closes admin manual IN after 23h even on a prior calendar day", () => {
     const punches: TimeEntryPunch[] = [
       {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-08T23:00:00+00",
+        punched_at: "2026-06-10T22:48:00+00",
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
     ];
 
-    const now = new Date("2026-06-10T10:00:00+08:00");
-    expect(findStaleOpenSessionsForAutoClose(punches, now)).toHaveLength(0);
+    const now = new Date("2026-06-12T04:48:00+08:00");
+    const stale = findStaleOpenSessionsForAutoClose(punches, now);
+    expect(stale).toHaveLength(1);
+    expect(stale[0].id).toBe("admin-in");
   });
 
   test("includes admin manual open IN after midnight before 23h", () => {

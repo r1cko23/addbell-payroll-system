@@ -548,12 +548,14 @@ export function getOpenEntryFromPunches(
   return openSessions.length > 0 ? openSessions[openSessions.length - 1] : null;
 }
 
-/** Every open session (not superseded, not stale admin backfill). Oldest clock-in first. */
+/** Every open session (not superseded). Oldest clock-in first. */
 export function getAllOpenSessionsFromPunches(
   punches: TimeEntryPunch[],
   getDateInManila: (iso: string) => string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  options?: { excludeStaleAdminManual?: boolean }
 ): TimeEntrySession[] {
+  const excludeStaleAdminManual = options?.excludeStaleAdminManual !== false;
   const sorted = [...punches].sort(
     (a, b) => new Date(a.punched_at).getTime() - new Date(b.punched_at).getTime()
   );
@@ -563,7 +565,9 @@ export function getAllOpenSessionsFromPunches(
     .filter((s) => {
       if (s.clock_out_time || isSupersededInPunch(s.id, sorted)) return false;
       const inPunch = punchById.get(s.id);
-      if (isStaleAdminManualOpenIn(inPunch, now)) return false;
+      if (excludeStaleAdminManual && isStaleAdminManualOpenIn(inPunch, now)) {
+        return false;
+      }
       return true;
     })
     .sort(

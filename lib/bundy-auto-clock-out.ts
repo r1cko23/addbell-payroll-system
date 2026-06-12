@@ -35,12 +35,14 @@ export function hasAutoOutForClockIn(
   );
 }
 
-/** Open sessions past 23h without an auto-out yet (oldest first). */
+/** Open sessions past 23h without an auto-out yet (oldest first). Includes admin manual INs. */
 export function findStaleOpenSessionsForAutoClose(
   punches: TimeEntryPunch[],
   now: Date = new Date()
 ): TimeEntrySession[] {
-  return getAllOpenSessionsFromPunches(punches, getDateInManilaDefault, now).filter(
+  return getAllOpenSessionsFromPunches(punches, getDateInManilaDefault, now, {
+    excludeStaleAdminManual: false,
+  }).filter(
     (session) =>
       session.clock_in_time &&
       !isSupersededInPunch(session.id, punches) &&

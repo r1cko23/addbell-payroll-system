@@ -176,17 +176,26 @@ export const MODULE_INFO: ModuleInfo[] = [
 ];
 
 // Full system admin permissions (Jericko / role `admin` only)
+const FULL_MODULE_PERMISSIONS: ModulePermissions = {
+  create: true,
+  read: true,
+  update: true,
+  delete: true,
+};
+
+const ADMIN_DIRECTORY_MODULES: ModuleName[] = ["clients", "projects", "vendors"];
+
 const ADMIN_PERMISSIONS = Object.fromEntries(
-  Object.values(MODULES).map((module) => [
-    module,
-    { create: true, read: true, update: true, delete: true },
-  ])
+  Object.values(MODULES).map((module) => [module, { ...FULL_MODULE_PERMISSIONS }])
 ) as UserPermissions;
 
-// Upper management: same as admin except user_management (system owner only)
+// Upper management: same as admin except user_management and project-directory writes
 const UPPER_MANAGEMENT_PERMISSIONS: UserPermissions = {
   ...ADMIN_PERMISSIONS,
   user_management: { create: false, read: false, update: false, delete: false },
+  clients: { create: false, read: true, update: false, delete: false },
+  projects: { create: false, read: true, update: false, delete: false },
+  vendors: { create: false, read: true, update: false, delete: false },
 };
 
 // Default permissions by role
@@ -212,7 +221,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     user_management: { create: false, read: false, update: false, delete: false },
     clients: { create: false, read: true, update: false, delete: false },
     projects: { create: false, read: true, update: false, delete: false },
-    vendors: { create: true, read: true, update: true, delete: false },
+    vendors: { create: false, read: true, update: false, delete: false },
   },
   // Addbell: Operations Manager - project oversight, approvals, fund requests
   operations_manager: {
@@ -232,9 +241,9 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
-    clients: { create: true, read: true, update: true, delete: false },
+    clients: { create: false, read: true, update: false, delete: false },
     projects: { create: true, read: true, update: true, delete: true },
-    vendors: { create: true, read: true, update: true, delete: false },
+    vendors: { create: false, read: true, update: false, delete: false },
   },
   // Addbell: Purchasing Officer - fund request approval, limited dashboard
   purchasing_officer: {
@@ -256,7 +265,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     user_management: { create: false, read: false, update: false, delete: false },
     clients: { create: false, read: true, update: false, delete: false },
     projects: { create: false, read: true, update: false, delete: false },
-    vendors: { create: false, read: true, update: false, delete: false },
+    vendors: { create: true, read: true, update: true, delete: true },
   },
   approver: {
     dashboard: { create: false, read: false, update: false, delete: false },
@@ -318,8 +327,8 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
     clients: { create: false, read: true, update: false, delete: false },
-    projects: { create: true, read: true, update: true, delete: true },
-    vendors: { create: true, read: true, update: true, delete: false },
+    projects: { create: false, read: true, update: false, delete: false },
+    vendors: { create: false, read: true, update: false, delete: false },
   },
 };
 
@@ -366,6 +375,14 @@ export function mergePermissions(
       update: false,
       delete: false,
     };
+  }
+
+  // Admin always retains full CRUD on clients, projects, vendors, and subcontractors
+  // (subcontractors share the vendors permission module).
+  if (role === "admin") {
+    for (const module of ADMIN_DIRECTORY_MODULES) {
+      merged[module] = { ...FULL_MODULE_PERMISSIONS };
+    }
   }
 
   return merged;

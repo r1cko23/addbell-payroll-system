@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
@@ -53,6 +54,7 @@ interface Client {
 export default function ClientsPage() {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -192,8 +194,11 @@ export default function ClientsPage() {
     );
   });
 
-  // Only admin or upper management can add, edit, or delete clients (same level as admin)
-  const canManage = profile?.role === "admin" || profile?.role === "upper_management";
+  const canCreateClients = canCreate("clients");
+  const canUpdateClients = canUpdate("clients");
+  const canDeleteClients = canDelete("clients");
+  const canManageClients =
+    canCreateClients || canUpdateClients || canDeleteClients;
 
   if (profileLoading) {
     return (
@@ -213,7 +218,7 @@ export default function ClientsPage() {
             Manage your construction clients and their information.
           </PageSubtitle>
         </div>
-        {canManage && (
+        {canCreateClients && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <div className={dbHeaderActions}>
@@ -359,16 +364,20 @@ export default function ClientsPage() {
                           value={format(new Date(client.created_at), "MMM d, yyyy")}
                         />
                       </div>
-                      {canManage ? (
+                      {canManageClients ? (
                         <div className="mt-3 flex justify-end gap-2">
+                          {canUpdateClients ? (
                           <Button variant="outline" size="sm" onClick={() => handleOpenDialog(client)}>
                             <Pencil className="mr-1 h-4 w-4" />
                             Edit
                           </Button>
+                          ) : null}
+                          {canDeleteClients ? (
                           <Button variant="outline" size="sm" onClick={() => handleDelete(client)}>
                             <Trash2 className="mr-1 h-4 w-4" />
                             Delete
                           </Button>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -386,7 +395,7 @@ export default function ClientsPage() {
                       <TableHead>Phone</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
-                      {canManage && <TableHead className="text-right">Actions</TableHead>}
+                      {canManageClients && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -405,9 +414,10 @@ export default function ClientsPage() {
                         <TableCell>
                           {format(new Date(client.created_at), "MMM d, yyyy")}
                         </TableCell>
-                        {canManage && (
+                        {canManageClients && (
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              {canUpdateClients ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -415,6 +425,8 @@ export default function ClientsPage() {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
+                              ) : null}
+                              {canDeleteClients ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -422,6 +434,7 @@ export default function ClientsPage() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
+                              ) : null}
                             </div>
                           </TableCell>
                         )}

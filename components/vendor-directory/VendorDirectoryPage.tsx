@@ -39,6 +39,7 @@ import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardV
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { cn } from "@/lib/utils";
 import type { VendorType } from "@/types/vendor";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 import {
   VENDOR_DIRECTORY_CONFIG,
   type VendorRecord,
@@ -50,6 +51,12 @@ type VendorDirectoryPageProps = {
 
 export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const config = VENDOR_DIRECTORY_CONFIG[vendorType];
+  const { canCreate, canUpdate, canDelete } = usePermissions();
+  const canCreateVendors = canCreate("vendors");
+  const canUpdateVendors = canUpdate("vendors");
+  const canDeleteVendors = canDelete("vendors");
+  const canManageVendors =
+    canCreateVendors || canUpdateVendors || canDeleteVendors;
   const supabase = createClient();
   const [records, setRecords] = useState<VendorRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,14 +135,30 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       toast.error(config.nameRequired);
       return;
     }
+    if (!contactPerson.trim()) {
+      toast.error("Contact person is required.");
+      return;
+    }
+    if (!tin.trim()) {
+      toast.error("TIN is required.");
+      return;
+    }
+    if (!address.trim()) {
+      toast.error("Address is required.");
+      return;
+    }
+    if (!phone.trim()) {
+      toast.error("Phone is required.");
+      return;
+    }
 
     try {
       const payload = {
         name: name.trim(),
-        contact_person: contactPerson.trim() || null,
-        tin: tin.trim() || "",
-        address: address.trim() || "",
-        phone: phone.trim() || "",
+        contact_person: contactPerson.trim(),
+        tin: tin.trim(),
+        address: address.trim(),
+        phone: phone.trim(),
         email: email.trim() || "",
         type: vendorType,
         is_active: isActive,
@@ -199,10 +222,12 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
             <PageSubtitle>{config.subtitle}</PageSubtitle>
           </div>
           <div className={dbHeaderActions}>
+            {canCreateVendors ? (
             <Button onClick={() => handleOpenDialog()} className={dbHeaderButton}>
               <Plus className="mr-2 h-4 w-4" />
               {config.addButtonLabel}
             </Button>
+            ) : null}
           </div>
         </div>
 
@@ -253,7 +278,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             value={record.phone || record.email || "—"}
                           />
                         </div>
+                        {canManageVendors ? (
                         <div className="mt-3 flex justify-end gap-2">
+                          {canUpdateVendors ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -262,6 +289,8 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             <Pencil className="mr-1 h-4 w-4" />
                             Edit
                           </Button>
+                          ) : null}
+                          {canDeleteVendors ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -270,7 +299,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             <Trash2 className="mr-1 h-4 w-4" />
                             Delete
                           </Button>
+                          ) : null}
                         </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -284,7 +315,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                         <TableHead>TIN</TableHead>
                         <TableHead>Contact</TableHead>
                         <TableHead>Status</TableHead>
+                        {canManageVendors ? (
                         <TableHead className="w-24">Actions</TableHead>
+                        ) : null}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -311,8 +344,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                               {record.is_active ? "Active" : "Inactive"}
                             </span>
                           </TableCell>
+                          {canManageVendors ? (
                           <TableCell>
                             <div className="flex gap-2">
+                              {canUpdateVendors ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -320,6 +355,8 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
+                              ) : null}
+                              {canDeleteVendors ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -327,8 +364,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
+                              ) : null}
                             </div>
                           </TableCell>
+                          ) : null}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -346,7 +385,13 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
             <DialogTitle>
               {editingRecord ? config.dialogEditTitle : config.dialogAddTitle}
             </DialogTitle>
-            <DialogDescription>{config.dialogDescription}</DialogDescription>
+            {(editingRecord ? config.dialogEditDescription : config.dialogAddDescription) ? (
+              <DialogDescription>
+                {editingRecord
+                  ? config.dialogEditDescription
+                  : config.dialogAddDescription}
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -356,44 +401,49 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={config.namePlaceholder}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="contact_person">Contact Person</Label>
+              <Label htmlFor="contact_person">Contact Person *</Label>
               <Input
                 id="contact_person"
                 value={contactPerson}
                 onChange={(e) => setContactPerson(e.target.value)}
                 placeholder="Primary contact person"
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tin">TIN</Label>
+              <Label htmlFor="tin">TIN *</Label>
               <Input
                 id="tin"
                 value={tin}
                 onChange={(e) => setTin(e.target.value)}
                 placeholder="000 000 000 000000"
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
+              <Label htmlFor="address">Address *</Label>
               <Textarea
                 id="address"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Street, Barangay, City, Province"
                 rows={2}
+                required
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Phone *</Label>
                 <Input
                   id="phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Phone number"
+                  required
                 />
               </div>
               <div className="space-y-2">

@@ -25,6 +25,7 @@ import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { PageSubtitle } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { usePermissions } from "@/lib/hooks/usePermissions";
 
 interface Project {
   id: string;
@@ -65,6 +66,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const { isHR, loading: roleLoading } = useUserRole();
   const { profile, loading: profileLoading } = useProfile();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,12 +145,11 @@ export default function ProjectsPage() {
     fetchProjects();
   };
 
-  // Only upper management and project managers can create/edit/delete projects
-  const canManage =
-    profile?.role === "admin" ||
-    profile?.role === "upper_management" ||
-    profile?.role === "operations_manager" ||
-    profile?.role === "project_manager";
+  const canCreateProjects = canCreate("projects");
+  const canUpdateProjects = canUpdate("projects");
+  const canDeleteProjects = canDelete("projects");
+  const canManageProjects =
+    canCreateProjects || canUpdateProjects || canDeleteProjects;
 
   const filteredProjects = projects.filter((p) => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
@@ -169,7 +170,7 @@ export default function ProjectsPage() {
             <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
             <PageSubtitle className="mt-1">Manage construction projects, track progress and costs.</PageSubtitle>
           </div>
-          {canManage && (
+          {canCreateProjects && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button><Plus className="h-4 w-4 mr-2" />New Project</Button>

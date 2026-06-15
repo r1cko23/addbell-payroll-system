@@ -6,7 +6,8 @@ export type VendorDirectoryConfig = {
   addButtonLabel: string;
   dialogAddTitle: string;
   dialogEditTitle: string;
-  dialogDescription: string;
+  dialogAddDescription: string;
+  dialogEditDescription: string;
   namePlaceholder: string;
   emptyState: string;
   loadError: string;
@@ -24,7 +25,8 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
     addButtonLabel: "Add Vendor",
     dialogAddTitle: "Add Vendor",
     dialogEditTitle: "Edit Vendor",
-    dialogDescription: "Vendor details will auto-fill when selected in Purchase Orders.",
+    dialogAddDescription: "Vendor details will auto-fill when selected in Purchase Orders.",
+    dialogEditDescription: "",
     namePlaceholder: "Vendor or supplier name",
     emptyState: "No vendors found. Add one to use in Purchase Orders.",
     loadError: "Failed to load vendors",
@@ -40,8 +42,8 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
     addButtonLabel: "Add Subcontractor",
     dialogAddTitle: "Add Subcontractor",
     dialogEditTitle: "Edit Subcontractor",
-    dialogDescription:
-      "Subcontractor details will appear in fund request subcontractor payments.",
+    dialogAddDescription: "Add a new subcontractor to the system.",
+    dialogEditDescription: "",
     namePlaceholder: "Subcontractor name",
     emptyState: "No subcontractors found. Add one to use in fund requests.",
     loadError: "Failed to load subcontractors",

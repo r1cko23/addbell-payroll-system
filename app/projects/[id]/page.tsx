@@ -70,7 +70,7 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
-  const { canCreate } = usePermissions();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const router = useRouter();
   const { isHR, loading: roleLoading } = useUserRole();
 
@@ -208,12 +208,11 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // Only upper management and project managers can edit project (costs, progress, etc.)
-  const canManage =
-    profile?.role === "admin" ||
-    profile?.role === "upper_management" ||
-    profile?.role === "operations_manager" ||
-    profile?.role === "project_manager";
+  const canCreateProjects = canCreate("projects");
+  const canUpdateProjects = canUpdate("projects");
+  const canDeleteProjects = canDelete("projects");
+  const canManageProjects =
+    canCreateProjects || canUpdateProjects || canDeleteProjects;
   const budget = project ? (project.budget_labor ?? 0) + (project.budget_materials ?? 0) + (project.budget_subcontract ?? 0) + (project.budget_other ?? 0) : 0;
   const profit = (project?.contract_value ?? 0) - totalCost;
   const profitMargin = project?.contract_value ? (profit / project.contract_value) * 100 : 0;
@@ -363,7 +362,7 @@ export default function ProjectDetailPage() {
           <TabsContent value="team" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Assigned Employees</h3>
-              {canManage && (
+              {canManageProjects && (
                 <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
                   <DialogTrigger asChild>
                     <Button onClick={openAssignDialog}><Plus className="h-4 w-4 mr-2" />Assign Employee</Button>
@@ -416,7 +415,7 @@ export default function ProjectDetailPage() {
           <TabsContent value="progress" className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-lg font-semibold">Progress History</h3>
-              {canManage && (
+              {canManageProjects && (
                 <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
                   <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Update Progress</Button></DialogTrigger>
                   <DialogContent>

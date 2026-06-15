@@ -2,7 +2,7 @@ export type FundRequestReferenceMode = "client_linked" | "internal_stock";
 
 export const FUND_REQUEST_REFERENCE_MODE_LABELS: Record<FundRequestReferenceMode, string> = {
   client_linked: "Client-Linked Requests",
-  internal_stock: "Office Related Requests",
+  internal_stock: "Office-Related Requests",
 };
 
 export function getFundRequestReferenceModeLabel(

@@ -21,8 +21,8 @@ type CreateFundRequestPayload = {
   details: Array<{ description: string; amount: number }>;
   total_requested_amount: number;
   date_needed: string | null;
-  remarks: string;
-  urgent_reason: string;
+  remarks: string | null;
+  urgent_reason: string | null;
   status: string;
   project_manager_approved_by: string | null;
   project_manager_approved_at: string | null;
@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
         details: body.details,
         total_requested_amount: body.total_requested_amount,
         date_needed: body.date_needed,
-        remarks: body.remarks,
-        urgent_reason: body.urgent_reason,
+        remarks: body.remarks?.trim() || null,
+        urgent_reason: body.urgent_reason?.trim() || null,
         status: body.status,
         project_manager_approved_by: body.project_manager_approved_by,
         project_manager_approved_at: body.project_manager_approved_at,

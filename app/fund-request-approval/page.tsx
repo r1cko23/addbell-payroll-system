@@ -875,7 +875,7 @@ export default function FundRequestApprovalPage() {
                           {r.urgent_reason && (
                             <div className="sm:col-span-2">
                               <span className="text-xs font-medium text-muted-foreground uppercase">
-                                If urgent, state reason
+                                Reason for Urgency
                               </span>
                               <p className="mt-0.5">{r.urgent_reason}</p>
                             </div>

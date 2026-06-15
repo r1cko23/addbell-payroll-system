@@ -380,15 +380,20 @@ export default function NewFundRequestPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (referenceMode !== "internal_stock") return;
-    setProjectTitle(NOT_APPLICABLE);
-    setProjectLocation(NOT_APPLICABLE);
-    setPoNumber("");
-    setCurrentProjectPercentage("");
-    setVendorId("");
-    setVendorPONumber("");
-    setPoAmount("");
-    setPoAmountPercentage("");
+    if (referenceMode === "internal_stock") {
+      setProjectTitle("");
+      setProjectLocation("");
+      setPoNumber("");
+      setCurrentProjectPercentage("");
+      setVendorId("");
+      setVendorPONumber("");
+      setPoAmount("");
+      setPoAmountPercentage("");
+      return;
+    }
+
+    setProjectTitle((prev) => (isNotApplicableValue(prev) ? "" : prev));
+    setProjectLocation((prev) => (isNotApplicableValue(prev) ? "" : prev));
   }, [referenceMode]);
 
   useEffect(() => {
@@ -497,11 +502,11 @@ export default function NewFundRequestPage() {
       return;
     }
     if (showProjectReferenceFields && !projectTitle.trim()) {
-      toast.error("Project Title is required. Enter a value or N/A.");
+      toast.error("Project Title is required.");
       return;
     }
     if (showProjectReferenceFields && !projectLocation.trim()) {
-      toast.error("Project Location is required. Enter a value or N/A.");
+      toast.error("Project Location is required.");
       return;
     }
     const detailValidationError = validateDetailRows(details);
@@ -509,16 +514,8 @@ export default function NewFundRequestPage() {
       toast.error(detailValidationError);
       return;
     }
-    if (!dateNeeded) {
-      toast.error("Date needed is required.");
-      return;
-    }
-    if (!remarks.trim()) {
-      toast.error("Remarks is required. Enter a value or N/A.");
-      return;
-    }
-    if (!urgentReason.trim()) {
-      toast.error("If urgent, state reason is required. Enter a reason or N/A.");
+    if (dateNeeded && !urgentReason.trim()) {
+      toast.error("Reason for urgency is required when a date is specified.");
       return;
     }
     const trimmedPoNumber = poNumber.trim();
@@ -611,8 +608,8 @@ export default function NewFundRequestPage() {
         details: detailsPayload,
         total_requested_amount: totalRequested,
         date_needed: dateNeeded || null,
-        remarks: remarks.trim(),
-        urgent_reason: urgentReason.trim(),
+        remarks: remarks.trim() || null,
+        urgent_reason: urgentReason.trim() || null,
         status: workflow.status,
         project_manager_approved_by: workflow.project_manager_approved_by,
         project_manager_approved_at: workflow.project_manager_approved_at,
@@ -689,7 +686,7 @@ export default function NewFundRequestPage() {
           <CardTitle>New Fund Request</CardTitle>
           <div>
             <p className="text-sm text-muted-foreground whitespace-nowrap overflow-x-auto">
-              <span className="font-medium text-foreground">Approval stream:</span>{" "}
+              <span className="font-medium text-foreground">Approval Stream:</span>{" "}
               {FUND_REQUEST_APPROVAL_STREAM}
             </p>
           </div>
@@ -772,85 +769,74 @@ export default function NewFundRequestPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Choose{" "}
                     <span className="font-medium">Client-Linked Requests</span> when tied to a
-                    client P.O. Choose{" "}
-                    <span className="font-medium">Office Related Requests</span> with no
-                    client/project reference.
+                    client Purchase Order. Choose{" "}
+                    <span className="font-medium">Office-Related Requests</span> if no client or
+                    project reference.
                   </p>
                 </div>
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-3">
-                    Project and P.O. References
+                    Project Reference Details
                   </summary>
                   <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-3">
-                    Project and P.O. References
+                    Project Reference Details
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle>{purposeConfig.referenceCardTitle}</CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                          {showProjectReferenceFields
-                            ? purposeConfig.referenceCardDescription
-                            : "Office Related Requests mode does not require client P.O. and project linkage."}
-                        </p>
-                      </CardHeader>
-                      <CardContent className="grid grid-cols-1 gap-3">
-                        {showClientPOField ? (
-                          <div>
-                            <Label htmlFor="po_number">P.O. Number *</Label>
-                            <Input
-                              id="po_number"
-                              value={poNumber}
-                              onChange={(e) => setPoNumber(e.target.value)}
-                              placeholder="Enter P.O. number or N/A"
-                              required
-                            />
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Type the P.O. number manually, or enter{" "}
-                              <span className="font-medium">N/A</span> when it does not apply.
-                            </p>
-                          </div>
-                        ) : null}
-                        {showProjectReferenceFields ? (
-                          <div>
-                            <Label htmlFor="project_title">Project Title *</Label>
-                            <Input
-                              id="project_title"
-                              value={projectTitle}
-                              onChange={(e) => setProjectTitle(e.target.value)}
-                              placeholder="Enter project title or N/A"
-                              required
-                            />
-                          </div>
-                        ) : null}
-                        {showProjectReferenceFields ? (
-                          <div>
-                            <Label htmlFor="project_location">Project Location *</Label>
-                            <Input
-                              id="project_location"
-                              value={projectLocation}
-                              onChange={(e) => setProjectLocation(e.target.value)}
-                              placeholder="e.g. Site name, city, or N/A"
-                              required
-                            />
-                          </div>
-                        ) : null}
-                        {showVendorPaymentSection ? (
-                          <div>
-                            <Label htmlFor="current_project_percentage">Current Project %</Label>
-                            <Input
-                              id="current_project_percentage"
-                              type="text"
-                              inputMode="decimal"
-                              value={currentProjectPercentage}
-                              onChange={(e) => setCurrentProjectPercentage(e.target.value)}
-                              placeholder="Enter percentage or N/A"
-                              required
-                            />
-                          </div>
-                        ) : null}
-                      </CardContent>
-                    </Card>
+                    {!showProjectReferenceFields ? (
+                      <p className="text-xs text-muted-foreground">
+                        Office-Related Requests mode does not require client P.O. and project linkage.
+                      </p>
+                    ) : null}
+                    {showClientPOField ? (
+                      <div>
+                        <Label htmlFor="po_number">P.O. Number *</Label>
+                        <Input
+                          id="po_number"
+                          value={poNumber}
+                          onChange={(e) => setPoNumber(e.target.value)}
+                          placeholder="Enter P.O. number"
+                          required
+                        />
+                      </div>
+                    ) : null}
+                    {showProjectReferenceFields ? (
+                      <div>
+                        <Label htmlFor="project_title">Project Title *</Label>
+                        <Input
+                          id="project_title"
+                          value={projectTitle}
+                          onChange={(e) => setProjectTitle(e.target.value)}
+                          placeholder="Enter project title"
+                          required
+                        />
+                      </div>
+                    ) : null}
+                    {showProjectReferenceFields ? (
+                      <div>
+                        <Label htmlFor="project_location">Project Location *</Label>
+                        <Input
+                          id="project_location"
+                          value={projectLocation}
+                          onChange={(e) => setProjectLocation(e.target.value)}
+                          placeholder="Enter project location"
+                          required
+                        />
+                      </div>
+                    ) : null}
+                    {showVendorPaymentSection ? (
+                      <div>
+                        <Label htmlFor="current_project_percentage">Current Project %</Label>
+                        <Input
+                          id="current_project_percentage"
+                          type="text"
+                          inputMode="decimal"
+                          value={currentProjectPercentage}
+                          onChange={(e) => setCurrentProjectPercentage(e.target.value)}
+                          placeholder="Enter percentage or N/A"
+                          required
+                        />
+                      </div>
+                    ) : null}
 
                     {showVendorPaymentSection ? (
                       <Card>
@@ -925,20 +911,12 @@ export default function NewFundRequestPage() {
               <div className="flex min-w-0 flex-col gap-4">
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-2">
-                    {purposeConfig.detailsSectionTitle}
+                    Request Details
                   </summary>
                   <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-2">
-                    {purposeConfig.detailsSectionTitle}
+                    Request Details
                   </h3>
-                  <p className="mb-2 text-xs text-muted-foreground">
-                    {purposeConfig.detailsSectionDescription}
-                  </p>
                   <div className="space-y-1.5">
-                    <div className="grid grid-cols-1 gap-2 text-xs font-medium text-muted-foreground sm:grid-cols-[1fr_100px_2rem]">
-                      <span>Details *</span>
-                      <span className="sm:text-right">Amount (PHP) *</span>
-                      <span className="sr-only">Remove</span>
-                    </div>
                     {details.map((row, i) => (
                       <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px_2rem]">
                         <Input
@@ -982,31 +960,40 @@ export default function NewFundRequestPage() {
                 </details>
                 <div className="grid grid-cols-1 gap-3">
                   <div>
-                    <Label htmlFor="remarks">Remarks *</Label>
+                    <Label htmlFor="remarks">Remarks</Label>
                     <Textarea
                       id="remarks"
                       value={remarks}
                       onChange={(e) => setRemarks(e.target.value)}
-                      placeholder="Enter remarks or N/A"
-                      rows={2}
-                      className="resize-none"
-                      required
+                      placeholder="Enter remarks"
+                      rows={1}
+                      className="min-h-10 resize-none"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="date_needed">Date needed *</Label>
-                    <Input id="date_needed" type="date" value={dateNeeded} onChange={(e) => setDateNeeded(e.target.value)} required />
+                    <Label htmlFor="date_needed">Date needed</Label>
+                    <Input
+                      id="date_needed"
+                      type="date"
+                      value={dateNeeded}
+                      onChange={(e) => setDateNeeded(e.target.value)}
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Specify a date only for urgent requests. Otherwise, this will follow the
+                      fund release in accordance with SOP.
+                    </p>
                   </div>
                   <div>
-                    <Label htmlFor="urgent_reason">If urgent, state reason *</Label>
+                    <Label htmlFor="urgent_reason">
+                      Reason for Urgency{dateNeeded ? " *" : ""}
+                    </Label>
                     <Textarea
                       id="urgent_reason"
                       value={urgentReason}
                       onChange={(e) => setUrgentReason(e.target.value)}
-                      placeholder="Reason for urgency or N/A"
-                      rows={2}
-                      className="resize-none"
-                      required
+                      placeholder="Enter reason for urgency"
+                      rows={1}
+                      className="min-h-10 resize-none"
                     />
                   </div>
                 </div>

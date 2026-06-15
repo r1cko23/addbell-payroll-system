@@ -18,6 +18,7 @@ import {
   CaretDown,
   CaretRight,
   X,
+  Wrench,
   FileText,
   ArrowsClockwise,
   ClipboardText,
@@ -71,6 +72,12 @@ const navGroups: NavGroup[] = [
       { name: "Clients", href: "/clients", icon: Users, permissionModule: "clients" },
       { name: "Projects", href: "/projects", icon: ChartLineUp, permissionModule: "projects" },
       { name: "Vendors", href: "/vendors", icon: Receipt, permissionModule: "vendors" },
+      {
+        name: "Subcontractors",
+        href: "/subcontractors",
+        icon: Wrench,
+        permissionModule: "vendors",
+      },
     ],
   },
   {

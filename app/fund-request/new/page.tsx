@@ -29,7 +29,6 @@ import {
 import { resolveLinkedEmployee } from "@/lib/resolveLinkedEmployee";
 import {
   epFormActionButton,
-  epFormActions,
   epFormCard,
   epFileInput,
   epSubmitRequestButton,
@@ -45,6 +44,7 @@ import {
   resolveRequestDocumentMimeType,
 } from "@/lib/request-supporting-document";
 import { cn } from "@/lib/utils";
+import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import {
   type FundRequestReferenceMode,
   FUND_REQUEST_REFERENCE_MODE_LABELS,
@@ -59,7 +59,6 @@ const PURPOSE_OPTIONS = [
 ] as const;
 
 const INITIAL_DETAIL_ROWS = 1;
-const PROGRESS_BILLING_PREFIX = "Progress Billing";
 const NOT_APPLICABLE = "N/A";
 type PurposeOption = (typeof PURPOSE_OPTIONS)[number];
 type ReferenceMode = FundRequestReferenceMode;
@@ -77,10 +76,6 @@ type VendorOption = { id: string; name: string };
 
 function createEmptyDetailRow(): DetailRow {
   return { description: "", amount: "" };
-}
-
-function isProgressBillingRow(row: DetailRow): boolean {
-  return row.description.trim().startsWith(PROGRESS_BILLING_PREFIX);
 }
 
 function validateDetailRows(rows: DetailRow[]): string | null {
@@ -176,32 +171,26 @@ function getPurposeFieldConfig(purpose: string): PurposeFieldConfig {
   }
 }
 
-function parseRequiredNumericOrNA(
+function parseRequiredPercentage(
   value: string,
   fieldLabel: string,
   options?: { min?: number; max?: number }
-): number | null {
-  const trimmed = value.trim();
+): number {
+  const trimmed = value.trim().replace(/%$/, "").trim();
 
   if (!trimmed) {
-    throw new Error(`${fieldLabel} is required. Enter a number or N/A.`);
-  }
-
-  if (isNotApplicableValue(trimmed)) {
-    return null;
+    throw new Error(`${fieldLabel} is required.`);
   }
 
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed)) {
-    throw new Error(`${fieldLabel} must be a valid number or N/A.`);
+    throw new Error(`${fieldLabel} must be a valid number.`);
   }
 
-  if (options?.min != null && parsed < options.min) {
-    throw new Error(`${fieldLabel} must be at least ${options.min}, or N/A.`);
-  }
-
-  if (options?.max != null && parsed > options.max) {
-    throw new Error(`${fieldLabel} must not be greater than ${options.max}, or N/A.`);
+  const min = options?.min ?? 0;
+  const max = options?.max ?? 100;
+  if (parsed < min || parsed > max) {
+    throw new Error(`${fieldLabel} must be between ${min} and ${max}.`);
   }
 
   return parsed;
@@ -281,9 +270,7 @@ export default function NewFundRequestPage() {
   const [projectTitle, setProjectTitle] = useState("");
   const [projectLocation, setProjectLocation] = useState("");
   const [vendorId, setVendorId] = useState("");
-  const [vendorPONumber, setVendorPONumber] = useState("");
-  const [poAmount, setPoAmount] = useState("");
-  const [poAmountPercentage, setPoAmountPercentage] = useState("");
+  const [subcontractorProgressCompletion, setSubcontractorProgressCompletion] = useState("");
   const [currentProjectPercentage, setCurrentProjectPercentage] = useState("");
   const [details, setDetails] = useState<DetailRow[]>(() =>
     Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyDetailRow()),
@@ -294,7 +281,7 @@ export default function NewFundRequestPage() {
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [subcontractors, setSubcontractors] = useState<VendorOption[]>([]);
   const workflow = getSubmissionWorkflow(user?.role, isPortal, user?.id ?? null);
   const purposeConfig = useMemo(
     () => getPurposeFieldConfig(purposeOption),
@@ -375,8 +362,9 @@ export default function NewFundRequestPage() {
       .from("vendors")
       .select("id, name")
       .eq("is_active", true)
+      .eq("type", "subcontractor")
       .order("name")
-      .then(({ data }) => setVendors((data as VendorOption[]) ?? []));
+      .then(({ data }) => setSubcontractors((data as VendorOption[]) ?? []));
   }, [supabase]);
 
   useEffect(() => {
@@ -384,11 +372,8 @@ export default function NewFundRequestPage() {
       setProjectTitle("");
       setProjectLocation("");
       setPoNumber("");
-      setCurrentProjectPercentage("");
       setVendorId("");
-      setVendorPONumber("");
-      setPoAmount("");
-      setPoAmountPercentage("");
+      setSubcontractorProgressCompletion("");
       return;
     }
 
@@ -399,77 +384,11 @@ export default function NewFundRequestPage() {
   useEffect(() => {
     if (showVendorPaymentSection) return;
     setVendorId("");
-    setVendorPONumber("");
-    setPoAmount("");
-    setPoAmountPercentage("");
-    setCurrentProjectPercentage("");
+    setSubcontractorProgressCompletion("");
   }, [showVendorPaymentSection]);
 
   const detailAmounts = details.map((d) => (d.amount ? Number(d.amount) : 0));
   const totalRequested = detailAmounts.reduce((a, b) => a + b, 0);
-  const progressBillingPercent = !showVendorPaymentSection || !poAmountPercentage || isNotApplicableValue(poAmountPercentage)
-    ? 0
-    : Number(poAmountPercentage);
-  const progressBillingBaseAmount = !showVendorPaymentSection || !poAmount || isNotApplicableValue(poAmount)
-    ? 0
-    : Number(poAmount);
-  const hasProgressBilling =
-    Number.isFinite(progressBillingPercent) &&
-    progressBillingPercent > 0 &&
-    Number.isFinite(progressBillingBaseAmount) &&
-    progressBillingBaseAmount > 0;
-  const progressBillingDescription = hasProgressBilling
-    ? `${PROGRESS_BILLING_PREFIX} ${progressBillingPercent}%`
-    : "";
-  const progressBillingAmount = hasProgressBilling
-    ? (progressBillingBaseAmount * progressBillingPercent) / 100
-    : 0;
-
-  useEffect(() => {
-    setDetails((prev) => {
-      const progressRowIndex = prev.findIndex(isProgressBillingRow);
-
-      if (!hasProgressBilling) {
-        if (progressRowIndex === -1) return prev;
-        return prev.filter((_, index) => index !== progressRowIndex);
-      }
-
-      const nextProgressRow = {
-        description: progressBillingDescription,
-        amount: progressBillingAmount.toFixed(2),
-      };
-
-      if (progressRowIndex >= 0) {
-        const current = prev[progressRowIndex];
-        if (
-          current.description === nextProgressRow.description &&
-          current.amount === nextProgressRow.amount
-        ) {
-          return prev;
-        }
-
-        const next = [...prev];
-        next[progressRowIndex] = nextProgressRow;
-        return next;
-      }
-
-      const emptyIndex = prev.findIndex(
-        (row) => !row.description.trim() && !row.amount.trim()
-      );
-
-      if (emptyIndex >= 0) {
-        const next = [...prev];
-        next[emptyIndex] = nextProgressRow;
-        return next;
-      }
-
-      return [...prev, nextProgressRow];
-    });
-  }, [
-    hasProgressBilling,
-    progressBillingAmount,
-    progressBillingDescription,
-  ]);
 
   const updateDetail = (index: number, field: "description" | "amount", value: string) => {
     setDetails((prev) => {
@@ -523,29 +442,22 @@ export default function NewFundRequestPage() {
       toast.error("P.O. Number is required in client-linked mode.");
       return;
     }
-    let parsedPoAmount: number | null = null;
-    let parsedPoAmountPercentage: number | null = null;
     let parsedCurrentProjectPercentage: number | null = null;
-    const trimmedVendorPONumber = vendorPONumber.trim();
+    let parsedSubcontractorProgressCompletion: number | null = null;
     if (showVendorPaymentSection && !vendorId) {
-      toast.error("Select a vendor or subcontractor.");
-      return;
-    }
-    if (showVendorPaymentSection && !trimmedVendorPONumber) {
-      toast.error("Vendor P.O. Number is required for subcontractor payment.");
+      toast.error("Select a subcontractor.");
       return;
     }
     try {
+      parsedCurrentProjectPercentage = parseRequiredPercentage(
+        currentProjectPercentage,
+        "Current Project Completion Percentage",
+        { min: 0, max: 100 }
+      );
       if (showVendorPaymentSection) {
-        parsedPoAmount = parseRequiredNumericOrNA(poAmount, "Vendor P.O. Amount", { min: 0 });
-        parsedPoAmountPercentage = parseRequiredNumericOrNA(
-          poAmountPercentage,
-          "Vendor Amount %",
-          { min: 0, max: 100 }
-        );
-        parsedCurrentProjectPercentage = parseRequiredNumericOrNA(
-          currentProjectPercentage,
-          "Current Project %",
+        parsedSubcontractorProgressCompletion = parseRequiredPercentage(
+          subcontractorProgressCompletion,
+          "Subcontractor Progress Completion %",
           { min: 0, max: 100 }
         );
       }
@@ -601,10 +513,11 @@ export default function NewFundRequestPage() {
         project_title: showProjectReferenceFields ? projectTitle.trim() : null,
         project_location: showProjectReferenceFields ? projectLocation.trim() : null,
         vendor_id: showVendorPaymentSection ? vendorId : null,
-        vendor_po_number: showVendorPaymentSection ? trimmedVendorPONumber : null,
-        po_amount: parsedPoAmount,
-        po_amount_percentage: parsedPoAmountPercentage,
+        vendor_po_number: null,
+        po_amount: null,
+        po_amount_percentage: null,
         current_project_percentage: parsedCurrentProjectPercentage,
+        subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
         details: detailsPayload,
         total_requested_amount: totalRequested,
         date_needed: dateNeeded || null,
@@ -823,81 +736,58 @@ export default function NewFundRequestPage() {
                         />
                       </div>
                     ) : null}
-                    {showVendorPaymentSection ? (
-                      <div>
-                        <Label htmlFor="current_project_percentage">Current Project %</Label>
-                        <Input
-                          id="current_project_percentage"
-                          type="text"
-                          inputMode="decimal"
-                          value={currentProjectPercentage}
-                          onChange={(e) => setCurrentProjectPercentage(e.target.value)}
-                          placeholder="Enter percentage or N/A"
-                          required
-                        />
-                      </div>
-                    ) : null}
+                    <div>
+                      <Label htmlFor="current_project_percentage">
+                        Current Project Completion Percentage *
+                      </Label>
+                      <Input
+                        id="current_project_percentage"
+                        type="text"
+                        inputMode="decimal"
+                        value={currentProjectPercentage}
+                        onChange={(e) => setCurrentProjectPercentage(e.target.value)}
+                        placeholder="Enter percentage"
+                        required
+                      />
+                    </div>
 
                     {showVendorPaymentSection ? (
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle>Vendor/Subcontractor P.O. Details</CardTitle>
-                          <p className="text-xs text-muted-foreground">
-                            Capture the vendor reference and Addbell vendor P.O. details for this
-                            subcontractor payment request.
-                          </p>
+                          <CardTitle>SUBCONTRACTOR DETAILS</CardTitle>
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="sm:col-span-3">
-                            <Label htmlFor="vendor_id">Vendor / Subcontractor *</Label>
+                            <Label htmlFor="vendor_id">SUBCONTRACTOR *</Label>
                             <Select value={vendorId} onValueChange={setVendorId}>
                               <SelectTrigger id="vendor_id">
-                                <SelectValue placeholder="Select vendor or subcontractor" />
+                                <SelectValue placeholder="Select subcontractor" />
                               </SelectTrigger>
                               <SelectContent>
-                                {vendors.map((vendor) => (
-                                  <SelectItem key={vendor.id} value={vendor.id}>
-                                    {vendor.name}
+                                {subcontractors.map((subcontractor) => (
+                                  <SelectItem key={subcontractor.id} value={subcontractor.id}>
+                                    {subcontractor.name}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
-                          <div>
-                            <Label htmlFor="vendor_po_number">Vendor P.O. Number *</Label>
+                          <div className="sm:col-span-3">
+                            <Label htmlFor="subcontractor_progress_completion">
+                              Subcontractor Progress Completion % *
+                            </Label>
                             <Input
-                              id="vendor_po_number"
-                              value={vendorPONumber}
-                              onChange={(e) => setVendorPONumber(e.target.value)}
-                              placeholder="Enter vendor P.O. number"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="po_amount">Vendor P.O. Amount (PHP)</Label>
-                            <Input
-                              id="po_amount"
+                              id="subcontractor_progress_completion"
                               type="text"
                               inputMode="decimal"
-                              value={poAmount}
-                              onChange={(e) => setPoAmount(e.target.value)}
-                              placeholder="Enter amount or N/A"
-                              required
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="po_amount_percentage">Vendor Amount %</Label>
-                            <Input
-                              id="po_amount_percentage"
-                              type="text"
-                              inputMode="decimal"
-                              value={poAmountPercentage}
-                              onChange={(e) => setPoAmountPercentage(e.target.value)}
-                              placeholder="Enter percentage or N/A"
+                              value={subcontractorProgressCompletion}
+                              onChange={(e) => setSubcontractorProgressCompletion(e.target.value)}
+                              placeholder="Enter percentage"
                               required
                             />
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Used for progress billing when applicable.
+                              Indicate the actual percentage of work completed by the subcontractor
+                              as of the request date.
                             </p>
                           </div>
                         </CardContent>
@@ -1038,24 +928,39 @@ export default function NewFundRequestPage() {
                     <p className="mt-1 text-sm font-medium text-destructive">{docError}</p>
                   ) : null}
                 </div>
-                <div className={isPortal ? epFormActions : "flex gap-3 pt-1"}>
-                  <Button
-                    type="submit"
-                    disabled={submitting}
-                    className={isPortal ? epSubmitRequestButton : undefined}
-                  >
-                    {submitting ? "Submitting..." : "Submit fund request"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.push(base)}
-                    className={isPortal ? epFormActionButton : undefined}
-                  >
-                    Cancel
-                  </Button>
-                </div>
               </div>
+            </div>
+            <div className="flex w-full flex-col gap-2 border-t pt-4 sm:flex-row sm:items-center sm:gap-3">
+              <Button
+                type="submit"
+                disabled={submitting}
+                className={cn(epSubmitRequestButton, "sm:flex-1")}
+                size="sm"
+              >
+                {submitting ? (
+                  <>
+                    <Icon
+                      name="ArrowsClockwise"
+                      size={IconSizes.sm}
+                      className="animate-spin"
+                    />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Icon name="ArrowRight" size={IconSizes.sm} />
+                    Submit Request
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push(base)}
+                className={epFormActionButton}
+              >
+                Cancel
+              </Button>
             </div>
           </form>
         </CardContent>

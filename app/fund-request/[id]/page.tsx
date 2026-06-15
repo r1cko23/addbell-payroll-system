@@ -11,7 +11,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { FundRequestRow } from '@/types/fund-request';
-import { getFundRequestReferenceModeLabel } from '@/types/fund-request';
+import { getFundRequestReferenceModeLabel, formatFundRequestPercentage } from '@/types/fund-request';
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
@@ -191,24 +191,16 @@ export default function FundRequestDetailPage() {
               <p className="mt-1">{request.project_location ?? '—'}</p>
             </div>
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor / Subcontractor</h4>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subcontractor</h4>
               <p className="mt-1">{vendorName || '—'}</p>
             </div>
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor P.O. Number</h4>
-              <p className="mt-1">{request.vendor_po_number ?? '—'}</p>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subcontractor Progress Completion %</h4>
+              <p className="mt-1">{formatFundRequestPercentage(request.subcontractor_progress_completion_percentage)}</p>
             </div>
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor P.O. Amount (PHP)</h4>
-              <p className="mt-1">{request.po_amount != null ? Number(request.po_amount).toLocaleString() : '—'}</p>
-            </div>
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor Amount %</h4>
-              <p className="mt-1">{request.po_amount_percentage != null ? `${request.po_amount_percentage}%` : '—'}</p>
-            </div>
-            <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Project %</h4>
-              <p className="mt-1">{request.current_project_percentage != null ? `${request.current_project_percentage}%` : '—'}</p>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Current Project Completion Percentage</h4>
+              <p className="mt-1">{formatFundRequestPercentage(request.current_project_percentage)}</p>
             </div>
           </div>
           <div>

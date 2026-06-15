@@ -170,7 +170,7 @@ export const MODULE_INFO: ModuleInfo[] = [
   {
     key: "vendors",
     label: "Vendors",
-    description: "Suppliers and vendors",
+    description: "Suppliers for purchase orders",
     category: "admin",
   },
 ];

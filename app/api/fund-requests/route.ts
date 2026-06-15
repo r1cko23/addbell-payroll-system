@@ -18,6 +18,7 @@ type CreateFundRequestPayload = {
   po_amount: number | null;
   po_amount_percentage: number | null;
   current_project_percentage: number | null;
+  subcontractor_progress_completion_percentage: number | null;
   details: Array<{ description: string; amount: number }>;
   total_requested_amount: number;
   date_needed: string | null;
@@ -79,6 +80,8 @@ export async function POST(req: NextRequest) {
         po_amount: body.po_amount,
         po_amount_percentage: body.po_amount_percentage,
         current_project_percentage: body.current_project_percentage,
+        subcontractor_progress_completion_percentage:
+          body.subcontractor_progress_completion_percentage,
         details: body.details,
         total_requested_amount: body.total_requested_amount,
         date_needed: body.date_needed,

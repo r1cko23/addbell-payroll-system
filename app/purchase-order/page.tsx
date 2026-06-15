@@ -150,7 +150,7 @@ export default function PurchaseOrderPage() {
     if (view !== "create" || !canCreatePurchaseOrders) return;
     (async () => {
       const [vRes, pRes] = await Promise.all([
-        supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email").eq("is_active", true).order("name"),
+        supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email").eq("is_active", true).eq("type", "supplier").order("name"),
         supabase.from("projects").select("id, name, code, site_address").order("name"),
       ]);
       if (!vRes.error) setVendors((vRes.data as VendorRecord[]) || []);

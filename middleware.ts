@@ -36,6 +36,7 @@ export async function middleware(req: NextRequest) {
     "/projects",
     "/clients",
     "/vendors",
+    "/subcontractors",
     "/fund-request",
     "/fund-request-approval",
     "/purchase-order",

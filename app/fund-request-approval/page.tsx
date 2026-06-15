@@ -31,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
-import { getFundRequestReferenceModeLabel } from "@/types/fund-request";
+import { getFundRequestReferenceModeLabel, formatFundRequestPercentage } from "@/types/fund-request";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 type RowWithRequester = FundRequestRow & {
@@ -587,25 +587,18 @@ export default function FundRequestApprovalPage() {
                   : "?";
                 const title = (r.project_title || "").trim() || "—";
                 const location = (r.project_location || "").trim() || "—";
-                const poAmt =
-                  r.po_amount != null
-                    ? `₱${Number(r.po_amount).toLocaleString()}`
-                    : "—";
-                const currentAccomplishment =
-                  r.current_project_percentage != null
-                    ? `${r.current_project_percentage}%`
-                    : "—";
-                const poAmountPercent =
-                  r.po_amount_percentage != null
-                    ? `${r.po_amount_percentage}%`
-                    : "—";
+                const subcontractorProgress = formatFundRequestPercentage(
+                  r.subcontractor_progress_completion_percentage
+                );
+                const currentAccomplishment = formatFundRequestPercentage(
+                  r.current_project_percentage
+                );
                 const totalReq = `₱${Number(r.total_requested_amount).toLocaleString()}`;
                 const purpose = (r.purpose || "").trim() || "—";
                 const headline = [
                   title,
                   location,
-                  poAmt,
-                  poAmountPercent,
+                  subcontractorProgress,
                   currentAccomplishment,
                   totalReq,
                   purpose,
@@ -784,32 +777,20 @@ export default function FundRequestApprovalPage() {
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Vendor P.O. Amount (PHP)
+                              Subcontractor Progress Completion %
                             </span>
                             <p className="mt-0.5">
-                              {r.po_amount != null
-                                ? Number(r.po_amount).toLocaleString()
-                                : "—"}
+                              {formatFundRequestPercentage(
+                                r.subcontractor_progress_completion_percentage
+                              )}
                             </p>
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Current Project %
+                              Current Project Completion Percentage
                             </span>
                             <p className="mt-0.5">
-                              {r.current_project_percentage != null
-                                ? `${r.current_project_percentage}%`
-                                : "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Vendor Amount %
-                            </span>
-                            <p className="mt-0.5">
-                              {r.po_amount_percentage != null
-                                ? `${r.po_amount_percentage}%`
-                                : "—"}
+                              {formatFundRequestPercentage(r.current_project_percentage)}
                             </p>
                           </div>
                           <div>
@@ -838,15 +819,9 @@ export default function FundRequestApprovalPage() {
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Vendor / Subcontractor
+                              Subcontractor
                             </span>
                             <p className="mt-0.5">{r.vendors?.name ?? "—"}</p>
-                          </div>
-                          <div>
-                            <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Vendor P.O. Number
-                            </span>
-                            <p className="mt-0.5">{r.vendor_po_number ?? "—"}</p>
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">

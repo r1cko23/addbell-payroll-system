@@ -14,6 +14,17 @@ export function getFundRequestReferenceModeLabel(
   return FUND_REQUEST_REFERENCE_MODE_LABELS.client_linked;
 }
 
+export function formatFundRequestPercentage(
+  value: number | string | null | undefined
+): string {
+  if (value == null || value === "") return "—";
+  const normalized = String(value).trim().replace(/%$/, "");
+  if (!normalized) return "—";
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) return "—";
+  return `${numeric}%`;
+}
+
 export type FundRequestDocumentSummary = {
   id: string;
   fund_request_id: string;
@@ -40,6 +51,7 @@ export type FundRequestRow = {
   po_amount: number | null;
   po_amount_percentage: number | null;
   current_project_percentage: number | null;
+  subcontractor_progress_completion_percentage: number | null;
   details: unknown;
   total_requested_amount: number;
   date_needed: string | null;

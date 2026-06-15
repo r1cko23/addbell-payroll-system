@@ -232,7 +232,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     reports: { create: false, read: false, update: false, delete: false },
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
-    clients: { create: false, read: true, update: false, delete: false },
+    clients: { create: true, read: true, update: true, delete: false },
     projects: { create: true, read: true, update: true, delete: true },
     vendors: { create: true, read: true, update: true, delete: false },
   },

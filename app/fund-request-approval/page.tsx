@@ -866,7 +866,7 @@ export default function FundRequestApprovalPage() {
                           )}
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Date needed
+                              Date Needed
                             </span>
                             <p className="mt-0.5">
                               {r.date_needed ? format(new Date(r.date_needed), "MMM d, yyyy") : "—"}

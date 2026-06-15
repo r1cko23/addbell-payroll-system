@@ -454,7 +454,7 @@ export default function FundRequestApprovalDetailPage() {
                 </div>
               )}
               <div>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date needed</h4>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Needed</h4>
                 <p className="mt-1">{request.date_needed ? format(new Date(request.date_needed), "MMM d, yyyy") : "—"}</p>
               </div>
               {request.urgent_reason && (

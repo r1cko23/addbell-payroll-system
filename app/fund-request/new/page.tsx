@@ -696,8 +696,8 @@ export default function NewFundRequestPage() {
             <div className="grid w-full min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-6">
               {/* Left column */}
               <div className="flex min-w-0 flex-col gap-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
+                <div className="flex w-full min-w-0 flex-col gap-4">
+                  <div className="w-full min-w-0">
                     <Label>Requested by</Label>
                     {employeeId ? (
                       <div className="flex h-10 w-full items-center rounded-md border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
@@ -713,6 +713,7 @@ export default function NewFundRequestPage() {
                           }
                           showAllOption={false}
                           placeholder="Search your employee name or ID..."
+                          className="w-full"
                         />
                         <p className="text-xs text-amber-700">
                           This dashboard account is not linked yet. Select your employee
@@ -721,18 +722,19 @@ export default function NewFundRequestPage() {
                       </div>
                     )}
                   </div>
-                  <div>
+                  <div className="w-full min-w-0">
                     <Label htmlFor="request_date">Date</Label>
                     <Input
                       id="request_date"
                       type="date"
                       value={requestDate}
                       onChange={(e) => setRequestDate(e.target.value)}
+                      className="w-full"
                       required
                     />
                   </div>
                 </div>
-                <div>
+                <div className="w-full min-w-0">
                   <Label htmlFor="purpose">Purpose *</Label>
                   <Select value={purposeOption} onValueChange={setPurposeOption} required>
                     <SelectTrigger id="purpose">
@@ -748,7 +750,7 @@ export default function NewFundRequestPage() {
                     <Input className="mt-2" value={purposeOther} onChange={(e) => setPurposeOther(e.target.value)} placeholder="Specify purpose" />
                   )}
                 </div>
-                <div>
+                <div className="w-full min-w-0">
                   <Label htmlFor="reference_mode">Reference Basis *</Label>
                   <Select
                     value={referenceMode}
@@ -776,10 +778,10 @@ export default function NewFundRequestPage() {
                 </div>
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-3">
-                    Project Reference Details
+                    PROJECT REFERENCE DETAILS
                   </summary>
                   <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-3">
-                    Project Reference Details
+                    PROJECT REFERENCE DETAILS
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     {!showProjectReferenceFields ? (
@@ -847,8 +849,8 @@ export default function NewFundRequestPage() {
                             subcontractor payment request.
                           </p>
                         </CardHeader>
-                        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                          <div className="sm:col-span-3">
+                        <CardContent className="grid grid-cols-1 gap-3">
+                          <div>
                             <Label htmlFor="vendor_id">Vendor / Subcontractor *</Label>
                             <Select value={vendorId} onValueChange={setVendorId}>
                               <SelectTrigger id="vendor_id">
@@ -911,10 +913,10 @@ export default function NewFundRequestPage() {
               <div className="flex min-w-0 flex-col gap-4">
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-2">
-                    Request Details
+                    REQUEST DETAILS
                   </summary>
                   <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-2">
-                    Request Details
+                    REQUEST DETAILS
                   </h3>
                   <div className="space-y-1.5">
                     {details.map((row, i) => (
@@ -958,8 +960,8 @@ export default function NewFundRequestPage() {
                     Total: PHP {totalRequested.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
                 </details>
-                <div className="grid grid-cols-1 gap-3">
-                  <div>
+                <div className="flex w-full min-w-0 flex-col gap-3">
+                  <div className="w-full min-w-0">
                     <Label htmlFor="remarks">Remarks</Label>
                     <Textarea
                       id="remarks"
@@ -967,23 +969,24 @@ export default function NewFundRequestPage() {
                       onChange={(e) => setRemarks(e.target.value)}
                       placeholder="Enter remarks"
                       rows={1}
-                      className="min-h-10 resize-none"
+                      className="min-h-10 w-full resize-none"
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="date_needed">Date needed</Label>
+                  <div className="w-full min-w-0">
+                    <Label htmlFor="date_needed">Date Needed</Label>
                     <Input
                       id="date_needed"
                       type="date"
                       value={dateNeeded}
                       onChange={(e) => setDateNeeded(e.target.value)}
+                      className="w-full"
                     />
                     <p className="mt-1 text-xs text-muted-foreground">
                       Specify a date only for urgent requests. Otherwise, this will follow the
                       fund release in accordance with SOP.
                     </p>
                   </div>
-                  <div>
+                  <div className="w-full min-w-0">
                     <Label htmlFor="urgent_reason">
                       Reason for Urgency{dateNeeded ? " *" : ""}
                     </Label>
@@ -993,7 +996,7 @@ export default function NewFundRequestPage() {
                       onChange={(e) => setUrgentReason(e.target.value)}
                       placeholder="Enter reason for urgency"
                       rows={1}
-                      className="min-h-10 resize-none"
+                      className="min-h-10 w-full resize-none"
                     />
                   </div>
                 </div>

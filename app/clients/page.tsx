@@ -3,12 +3,12 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,7 @@ interface Client {
   contact_email: string | null;
   contact_phone: string | null;
   address: string | null;
+  business_unit_sub_company: string | null;
   tin: string | null;
   is_active: boolean;
   created_at: string;
@@ -76,6 +78,7 @@ export default function ClientsPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [businessUnitSubCompany, setBusinessUnitSubCompany] = useState("");
   const [tin, setTin] = useState("");
   const [isActive, setIsActive] = useState(true);
 
@@ -110,6 +113,7 @@ export default function ClientsPage() {
       setContactEmail(client.contact_email || "");
       setContactPhone(client.contact_phone || "");
       setAddress(client.address || "");
+      setBusinessUnitSubCompany(client.business_unit_sub_company || "");
       setTin(client.tin || "");
       setIsActive(client.is_active);
     } else {
@@ -120,6 +124,7 @@ export default function ClientsPage() {
       setContactEmail("");
       setContactPhone("");
       setAddress("");
+      setBusinessUnitSubCompany("");
       setTin("");
       setIsActive(true);
     }
@@ -138,6 +143,14 @@ export default function ClientsPage() {
       toast.error("Client code and name are required");
       return;
     }
+    if (!address.trim()) {
+      toast.error("Address is required");
+      return;
+    }
+    if (!tin.trim()) {
+      toast.error("TIN is required");
+      return;
+    }
 
     try {
       const payload = {
@@ -146,8 +159,9 @@ export default function ClientsPage() {
         contact_person: contactPerson.trim() || null,
         contact_email: contactEmail.trim() || null,
         contact_phone: contactPhone.trim() || null,
-        address: address.trim() || null,
-        tin: tin.trim() || null,
+        address: address.trim(),
+        business_unit_sub_company: businessUnitSubCompany.trim() || null,
+        tin: tin.trim(),
         is_active: isActive,
       };
 
@@ -205,7 +219,9 @@ export default function ClientsPage() {
       (client.client_code && client.client_code.toLowerCase().includes(search)) ||
       client.name.toLowerCase().includes(search) ||
       (client.contact_person && client.contact_person.toLowerCase().includes(search)) ||
-      (client.contact_email && client.contact_email.toLowerCase().includes(search))
+      (client.contact_email && client.contact_email.toLowerCase().includes(search)) ||
+      (client.business_unit_sub_company &&
+        client.business_unit_sub_company.toLowerCase().includes(search))
     );
   });
 
@@ -268,39 +284,53 @@ export default function ClientsPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="client_name">Client Name *</Label>
+                    <Label htmlFor="client_name">Registered Name *</Label>
                     <Input
                       id="client_name"
                       value={clientName}
                       onChange={(e) => setClientName(e.target.value)}
+                      placeholder="Client name"
                       required
                     />
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="address">Address</Label>
+                  <Label htmlFor="business_unit_sub_company">Business Unit / Sub Company</Label>
                   <Input
+                    id="business_unit_sub_company"
+                    value={businessUnitSubCompany}
+                    onChange={(e) => setBusinessUnitSubCompany(e.target.value)}
+                    placeholder="Business unit or sub company"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="address">Business Address *</Label>
+                  <Textarea
                     id="address"
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="Street, Barangay, City, Province"
+                    rows={2}
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="tin">TIN No.</Label>
+                  <Label htmlFor="tin">TIN *</Label>
                   <Input
                     id="tin"
                     value={tin}
                     onChange={(e) => setTin(e.target.value)}
                     placeholder="000 000 000 000000"
+                    required
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contact_person">Primary Contact Person</Label>
+                  <Label htmlFor="contact_person">Contact Person</Label>
                   <Input
                     id="contact_person"
                     value={contactPerson}
                     onChange={(e) => setContactPerson(e.target.value)}
+                    placeholder="Primary contact person"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -311,6 +341,7 @@ export default function ClientsPage() {
                       type="email"
                       value={contactEmail}
                       onChange={(e) => setContactEmail(e.target.value)}
+                      placeholder="client@example.com"
                     />
                   </div>
                   <div>
@@ -319,23 +350,19 @@ export default function ClientsPage() {
                       id="contact_phone"
                       value={contactPhone}
                       onChange={(e) => setContactPhone(e.target.value)}
+                      placeholder="Phone number"
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client_status">Status</Label>
-                  <Select
-                    value={isActive ? "active" : "inactive"}
-                    onValueChange={(value) => setIsActive(value === "active")}
-                  >
-                    <SelectTrigger id="client_status">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="client_status"
+                    checked={isActive}
+                    onCheckedChange={(checked) => setIsActive(checked === true)}
+                  />
+                  <Label htmlFor="client_status" className="font-normal">
+                    Active
+                  </Label>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={handleCloseDialog}>
@@ -351,29 +378,30 @@ export default function ClientsPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search clients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by code, name, contact, or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">Loading...</div>
@@ -397,13 +425,13 @@ export default function ClientsPage() {
                         </Badge>
                       </div>
                       <div className="mt-2 space-y-1">
-                        <DashboardMobileField label="Primary Contact" value={client.contact_person || "—"} />
-                        <DashboardMobileField label="Email" value={client.contact_email || "—"} />
-                        <DashboardMobileField label="Phone" value={client.contact_phone || "—"} />
                         <DashboardMobileField
-                          label="Created"
-                          value={format(new Date(client.created_at), "MMM d, yyyy")}
+                          label="BU/Sub"
+                          value={client.business_unit_sub_company || "—"}
                         />
+                        <DashboardMobileField label="Contact person" value={client.contact_person || "—"} />
+                        <DashboardMobileField label="email" value={client.contact_email || "—"} />
+                        <DashboardMobileField label="phone" value={client.contact_phone || "—"} />
                       </div>
                       {canManageClients ? (
                         <div className="mt-3 flex justify-end gap-2">
@@ -426,16 +454,16 @@ export default function ClientsPage() {
                 </div>
               </DbMobileBlock>
               <DbDesktopBlock className={dbTableShell}>
-                <Table className="w-full min-w-[860px]">
+                <Table className="w-full min-w-[960px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Code</TableHead>
                       <TableHead>Client Name</TableHead>
-                      <TableHead>Primary Contact Person</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
+                      <TableHead>BU/Sub</TableHead>
+                      <TableHead>Contact person</TableHead>
+                      <TableHead>email</TableHead>
+                      <TableHead>phone</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
                       {canManageClients && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
@@ -444,6 +472,7 @@ export default function ClientsPage() {
                       <TableRow key={client.id}>
                         <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
                         <TableCell>{client.name}</TableCell>
+                        <TableCell>{client.business_unit_sub_company || "—"}</TableCell>
                         <TableCell>{client.contact_person || "—"}</TableCell>
                         <TableCell>{client.contact_email || "—"}</TableCell>
                         <TableCell>{client.contact_phone || "—"}</TableCell>
@@ -451,9 +480,6 @@ export default function ClientsPage() {
                           <Badge variant={client.is_active ? "default" : "secondary"}>
                             {client.is_active ? "Active" : "Inactive"}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {format(new Date(client.created_at), "MMM d, yyyy")}
                         </TableCell>
                         {canManageClients && (
                           <TableCell className="text-right">

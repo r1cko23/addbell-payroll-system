@@ -30,7 +30,13 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
-import { getProjectStatusColor, getProjectStatusLabel } from "@/types/project";
+import { TypeToDeleteDialog } from "@/components/TypeToDeleteDialog";
+import {
+  getProjectDeleteDescription,
+  getProjectDeleteErrorMessage,
+  getProjectStatusColor,
+  getProjectStatusLabel,
+} from "@/types/project";
 
 interface Project {
   id: string; code: string; name: string; client_id: string | null; site_address: string | null;
@@ -79,6 +85,8 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isProgressDialogOpen, setIsProgressDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
   const [assignEmployeeId, setAssignEmployeeId] = useState("");
   const [assignRole, setAssignRole] = useState("");
   const [assignStartDate, setAssignStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -205,6 +213,24 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!project) return;
+
+    setDeletingProject(true);
+    try {
+      const { error } = await supabase.from("projects").delete().eq("id", project.id);
+      if (error) throw error;
+      toast.success("Project deleted successfully");
+      setDeleteDialogOpen(false);
+      router.push("/projects");
+    } catch (err: unknown) {
+      toast.error(getProjectDeleteErrorMessage(err));
+      console.error(err);
+    } finally {
+      setDeletingProject(false);
+    }
+  };
+
   const canCreateProjects = canCreate("projects");
   const canUpdateProjects = canUpdate("projects");
   const canDeleteProjects = canDelete("projects");
@@ -235,9 +261,17 @@ export default function ProjectDetailPage() {
               <p className="text-muted-foreground text-sm">{project.code} {project.clients?.name ? `· ${project.clients.name}` : ""}</p>
             </div>
           </div>
-          <Badge variant={getProjectStatusColor(project.status)} className="text-sm">
-            {getProjectStatusLabel(project.status)}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={getProjectStatusColor(project.status)} className="text-sm">
+              {getProjectStatusLabel(project.status)}
+            </Badge>
+            {canDeleteProjects ? (
+              <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                Delete
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -448,6 +482,20 @@ export default function ProjectDetailPage() {
             </CardContent></Card>
           </TabsContent>
         </Tabs>
+
+        <TypeToDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={(open) => {
+            if (!deletingProject) setDeleteDialogOpen(open);
+          }}
+          title="Delete Project"
+          description={
+            project ? getProjectDeleteDescription(project.name) : ""
+          }
+          confirmLabel="Delete Project"
+          deleting={deletingProject}
+          onConfirm={handleDelete}
+        />
       </div>
     </DashboardLayout>
   );

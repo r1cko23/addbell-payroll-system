@@ -69,3 +69,30 @@ export function projectMatchesStatusFilter(
         : projectStatus;
   return normalizedProjectStatus === filter;
 }
+
+export function getProjectDeleteDescription(projectName: string): string {
+  return `This action cannot be undone. This will permanently delete "${projectName}" and all linked fund requests, purchase orders, assignments, progress records, and time entries.`;
+}
+
+export function getProjectDeleteErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" &&
+          error !== null &&
+          "message" in error &&
+          typeof (error as { message: unknown }).message === "string"
+        ? (error as { message: string }).message
+        : "";
+
+  if (message.includes("purchase_orders_project_id_fkey")) {
+    return "This project cannot be deleted because purchase orders are still linked. Run the latest database migration to enable cascading deletes.";
+  }
+  if (message.includes("fund_requests_project_id_fkey")) {
+    return "This project cannot be deleted because fund requests are still linked. Run the latest database migration to enable cascading deletes.";
+  }
+  if (message.includes("violates foreign key constraint")) {
+    return "This project cannot be deleted because other records still reference it.";
+  }
+  return message || "Failed to delete project";
+}

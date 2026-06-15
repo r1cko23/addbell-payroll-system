@@ -28,7 +28,6 @@ import {
 } from "@/components/EmployeeSearchSelect";
 import { resolveLinkedEmployee } from "@/lib/resolveLinkedEmployee";
 import {
-  epFormActionButton,
   epFormCard,
   epFileInput,
   epSubmitRequestButton,
@@ -79,8 +78,16 @@ function createEmptyDetailRow(): DetailRow {
 }
 
 function validateDetailRows(rows: DetailRow[]): string | null {
-  if (rows.length === 0) {
-    return "Add at least one item with a description and amount.";
+  const hasDescription = rows.some((row) => row.description.trim());
+  if (!hasDescription) {
+    return "Add at least one item with a description.";
+  }
+
+  const amountOnlyRowIndex = rows.findIndex(
+    (row) => !row.description.trim() && row.amount.trim()
+  );
+  if (amountOnlyRowIndex >= 0) {
+    return `Item ${amountOnlyRowIndex + 1} must have a description.`;
   }
 
   const blankRowIndex = rows.findIndex(
@@ -88,25 +95,17 @@ function validateDetailRows(rows: DetailRow[]): string | null {
   );
   if (blankRowIndex >= 0) {
     return rows.length === 1
-      ? "Add at least one item with a description and amount."
+      ? "Add at least one item with a description."
       : `Item ${blankRowIndex + 1} is blank. Remove it or complete it.`;
   }
 
-  const incompleteRowIndex = rows.findIndex((row) => {
-    const hasDescription = Boolean(row.description.trim());
-    const hasAmount = Boolean(row.amount.trim());
-    return hasDescription !== hasAmount;
-  });
-  if (incompleteRowIndex >= 0) {
-    return `Item ${incompleteRowIndex + 1} must have both a description and amount.`;
-  }
-
   const invalidAmountIndex = rows.findIndex((row) => {
+    if (!row.amount.trim()) return false;
     const amount = Number(row.amount);
-    return !Number.isFinite(amount) || amount <= 0;
+    return !Number.isFinite(amount) || amount < 0;
   });
   if (invalidAmountIndex >= 0) {
-    return `Item ${invalidAmountIndex + 1} must have an amount greater than zero.`;
+    return `Item ${invalidAmountIndex + 1} has an invalid amount.`;
   }
 
   return null;
@@ -374,6 +373,7 @@ export default function NewFundRequestPage() {
       setPoNumber("");
       setVendorId("");
       setSubcontractorProgressCompletion("");
+      setCurrentProjectPercentage("");
       return;
     }
 
@@ -449,15 +449,17 @@ export default function NewFundRequestPage() {
       return;
     }
     try {
-      parsedCurrentProjectPercentage = parseRequiredPercentage(
-        currentProjectPercentage,
-        "Current Project Completion Percentage",
-        { min: 0, max: 100 }
-      );
+      if (showProjectReferenceFields) {
+        parsedCurrentProjectPercentage = parseRequiredPercentage(
+          currentProjectPercentage,
+          "Current Project Completion Percentage",
+          { min: 0, max: 100 }
+        );
+      }
       if (showVendorPaymentSection) {
         parsedSubcontractorProgressCompletion = parseRequiredPercentage(
           subcontractorProgressCompletion,
-          "Subcontractor Progress Completion %",
+          "Subcontractor Current Progress Percentage",
           { min: 0, max: 100 }
         );
       }
@@ -478,10 +480,12 @@ export default function NewFundRequestPage() {
 
     setSubmitting(true);
     try {
-      const detailsPayload = details.map((d) => ({
-        description: d.description.trim(),
-        amount: Number(d.amount),
-      }));
+      const detailsPayload = details
+        .filter((d) => d.description.trim())
+        .map((d) => ({
+          description: d.description.trim(),
+          amount: d.amount.trim() ? Number(d.amount) : 0,
+        }));
 
       if (!session?.employee?.id && !linkedEmployeeId && selectedRequesterEmployeeId && user?.id) {
         await supabase
@@ -516,7 +520,9 @@ export default function NewFundRequestPage() {
         vendor_po_number: null,
         po_amount: null,
         po_amount_percentage: null,
-        current_project_percentage: parsedCurrentProjectPercentage,
+        current_project_percentage: showProjectReferenceFields
+          ? parsedCurrentProjectPercentage
+          : null,
         subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
         details: detailsPayload,
         total_requested_amount: totalRequested,
@@ -687,6 +693,7 @@ export default function NewFundRequestPage() {
                     project reference.
                   </p>
                 </div>
+                {showProjectReferenceFields ? (
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-3">
                     PROJECT REFERENCE DETAILS
@@ -695,11 +702,6 @@ export default function NewFundRequestPage() {
                     PROJECT REFERENCE DETAILS
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
-                    {!showProjectReferenceFields ? (
-                      <p className="text-xs text-muted-foreground">
-                        Office-Related Requests mode does not require client P.O. and project linkage.
-                      </p>
-                    ) : null}
                     {showClientPOField ? (
                       <div>
                         <Label htmlFor="po_number">P.O. Number *</Label>
@@ -712,30 +714,26 @@ export default function NewFundRequestPage() {
                         />
                       </div>
                     ) : null}
-                    {showProjectReferenceFields ? (
-                      <div>
-                        <Label htmlFor="project_title">Project Title *</Label>
-                        <Input
-                          id="project_title"
-                          value={projectTitle}
-                          onChange={(e) => setProjectTitle(e.target.value)}
-                          placeholder="Enter project title"
-                          required
-                        />
-                      </div>
-                    ) : null}
-                    {showProjectReferenceFields ? (
-                      <div>
-                        <Label htmlFor="project_location">Project Location *</Label>
-                        <Input
-                          id="project_location"
-                          value={projectLocation}
-                          onChange={(e) => setProjectLocation(e.target.value)}
-                          placeholder="Enter project location"
-                          required
-                        />
-                      </div>
-                    ) : null}
+                    <div>
+                      <Label htmlFor="project_title">Project Title *</Label>
+                      <Input
+                        id="project_title"
+                        value={projectTitle}
+                        onChange={(e) => setProjectTitle(e.target.value)}
+                        placeholder="Enter project title"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="project_location">Project Location *</Label>
+                      <Input
+                        id="project_location"
+                        value={projectLocation}
+                        onChange={(e) => setProjectLocation(e.target.value)}
+                        placeholder="Enter project location"
+                        required
+                      />
+                    </div>
                     <div>
                       <Label htmlFor="current_project_percentage">
                         Current Project Completion Percentage *
@@ -758,7 +756,7 @@ export default function NewFundRequestPage() {
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="sm:col-span-3">
-                            <Label htmlFor="vendor_id">SUBCONTRACTOR *</Label>
+                            <Label htmlFor="vendor_id">Subcontractor Name *</Label>
                             <Select value={vendorId} onValueChange={setVendorId}>
                               <SelectTrigger id="vendor_id">
                                 <SelectValue placeholder="Select subcontractor" />
@@ -774,7 +772,7 @@ export default function NewFundRequestPage() {
                           </div>
                           <div className="sm:col-span-3">
                             <Label htmlFor="subcontractor_progress_completion">
-                              Subcontractor Progress Completion % *
+                              Subcontractor Current Progress Percentage *
                             </Label>
                             <Input
                               id="subcontractor_progress_completion"
@@ -795,6 +793,7 @@ export default function NewFundRequestPage() {
                     ) : null}
                   </div>
                 </details>
+                ) : null}
               </div>
 
               {/* Right column */}
@@ -823,7 +822,6 @@ export default function NewFundRequestPage() {
                           placeholder="0"
                           value={row.amount}
                           onChange={(e) => updateDetail(i, "amount", e.target.value)}
-                          required
                         />
                         <Button
                           type="button"
@@ -952,14 +950,6 @@ export default function NewFundRequestPage() {
                     Submit Request
                   </>
                 )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push(base)}
-                className={epFormActionButton}
-              >
-                Cancel
               </Button>
             </div>
           </form>

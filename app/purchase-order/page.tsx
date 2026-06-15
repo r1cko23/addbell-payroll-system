@@ -31,8 +31,9 @@ import {
 } from "@/components/ui/select";
 import { Printer, Plus, Trash2, FileDown, Hash, Save, Search, ArrowLeft, List } from "lucide-react";
 import { toast } from "sonner";
-import { normalizePOData } from "@/utils/po-format";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { normalizePOData } from "@/utils/po-format";
+import { primaryVendorEmail, primaryVendorPhone } from "@/lib/vendor-contacts";
 
 const emptyVendor: PurchaseOrderVendor = { name: "", contactPerson: "", tin: "", address: "", phone: "", email: "" };
 const emptyItem = (n: number): PurchaseOrderLineItem => ({ itemNo: n, description: "", qty: "", unitPrice: 0, totalAmount: 0 });
@@ -64,7 +65,17 @@ function generatePONumber(projectCode: string, vendorCode: string): string {
   return `${(projectCode || "PROJ").slice(0, 6)}-${(vendorCode || "VEND").slice(0, 6)}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-interface VendorRecord { id: string; name: string; contact_person: string | null; tin: string | null; address: string | null; phone: string | null; email: string | null }
+interface VendorRecord {
+  id: string;
+  name: string;
+  contact_person: string | null;
+  tin: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  phones?: string[] | null;
+  emails?: string[] | null;
+}
 interface ProjectRecord { id: string; name: string; code: string; site_address: string | null }
 interface PORow {
   id: string; po_number: string; po_date: string; status: string; subtotal: number; total_amount: number;
@@ -150,7 +161,7 @@ export default function PurchaseOrderPage() {
     if (view !== "create" || !canCreatePurchaseOrders) return;
     (async () => {
       const [vRes, pRes] = await Promise.all([
-        supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email").eq("is_active", true).eq("type", "supplier").order("name"),
+        supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email, phones, emails").eq("is_active", true).eq("type", "supplier").order("name"),
         supabase.from("projects").select("id, name, code, site_address").order("name"),
       ]);
       if (!vRes.error) setVendors((vRes.data as VendorRecord[]) || []);
@@ -179,7 +190,7 @@ export default function PurchaseOrderPage() {
   const handleSelectVendor = useCallback((id: string) => {
     setSelectedVendorId(id);
     const v = vendors.find((x) => x.id === id);
-    if (v) setVendor({ name: v.name, contactPerson: v.contact_person ?? "", tin: v.tin ?? "", address: v.address ?? "", phone: v.phone ?? "", email: v.email ?? "" });
+    if (v) setVendor({ name: v.name, contactPerson: v.contact_person ?? "", tin: v.tin ?? "", address: v.address ?? "", phone: primaryVendorPhone(v.phones, v.phone), email: primaryVendorEmail(v.emails, v.email) });
   }, [vendors]);
 
   const handleSelectProject = useCallback((id: string) => {
@@ -319,23 +330,32 @@ export default function PurchaseOrderPage() {
           <Button onClick={() => setView("create")}><Plus className="h-4 w-4 mr-2" />New PO</Button>
         ) : null}
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search PO#, vendor, project..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="draft">Draft</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="posted">Posted</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
       <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search PO#, vendor, project..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="posted">Posted</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           {listLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading...</div>

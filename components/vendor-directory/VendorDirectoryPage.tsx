@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -52,10 +53,56 @@ import {
   VENDOR_DIRECTORY_CONFIG,
   type VendorRecord,
 } from "@/components/vendor-directory/vendor-directory-config";
+import {
+  canonicalizePhilippinePhoneDigits,
+  formatPhilippinePhoneDisplay,
+  getPhilippinePhoneLabel,
+  isAcceptableVendorPhoneEntry,
+  normalizePhoneEntryForStorage,
+  normalizePhilippinePhone,
+  primaryStoredPhone,
+} from "@/lib/philippine-phone";
+
+import {
+  isValidEmailAddress,
+  partitionVendorContactDisplay,
+  recordMatchesContactSearch,
+} from "@/lib/vendor-contacts";
 
 type VendorDirectoryPageProps = {
   vendorType: VendorType;
 };
+
+function VendorPhoneList({ record }: { record: VendorRecord }) {
+  const { phones } = partitionVendorContactDisplay(record);
+
+  if (phones.length === 0) return <span>—</span>;
+
+  return (
+    <div className="space-y-0.5 text-sm">
+      {phones.map((entry, index) => (
+        <p key={`${canonicalizePhilippinePhoneDigits(entry)}-${index}`}>
+          <span className="text-muted-foreground">{getPhilippinePhoneLabel(entry)}: </span>
+          {formatPhilippinePhoneDisplay(entry)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function VendorEmailList({ record }: { record: VendorRecord }) {
+  const { emails } = partitionVendorContactDisplay(record);
+
+  if (emails.length === 0) return <span>—</span>;
+
+  return (
+    <div className="space-y-0.5 text-sm">
+      {emails.map((entry) => (
+        <p key={entry}>{entry}</p>
+      ))}
+    </div>
+  );
+}
 
 export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const config = VENDOR_DIRECTORY_CONFIG[vendorType];
@@ -77,9 +124,40 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const [contactPerson, setContactPerson] = useState("");
   const [tin, setTin] = useState("");
   const [address, setAddress] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [phones, setPhones] = useState<string[]>([]);
+  const [emails, setEmails] = useState<string[]>([]);
   const [isActive, setIsActive] = useState(true);
+
+  const resetContactFields = () => {
+    setPhones([]);
+    setEmails([]);
+  };
+
+  const addPhone = () => setPhones((current) => [...current, ""]);
+  const updatePhone = (index: number, value: string) => {
+    setPhones((current) =>
+      current.map((entry, entryIndex) =>
+        entryIndex === index
+          ? normalizePhilippinePhone(value).slice(0, 11)
+          : entry
+      )
+    );
+  };
+  const removePhone = (index: number) => {
+    setPhones((current) => current.filter((_, entryIndex) => entryIndex !== index));
+  };
+
+  const addEmail = () => setEmails((current) => [...current, ""]);
+  const updateEmail = (index: number, value: string) => {
+    setEmails((current) =>
+      current.map((entry, entryIndex) =>
+        entryIndex === index ? value : entry
+      )
+    );
+  };
+  const removeEmail = (index: number) => {
+    setEmails((current) => current.filter((_, entryIndex) => entryIndex !== index));
+  };
 
   useEffect(() => {
     fetchRecords();
@@ -116,8 +194,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       setContactPerson(record.contact_person || "");
       setTin(record.tin || "");
       setAddress(record.address || "");
-      setPhone(record.phone || "");
-      setEmail(record.email || "");
+      const { phones: existingPhones, emails: existingEmails } =
+        partitionVendorContactDisplay(record);
+      setPhones(existingPhones);
+      setEmails(existingEmails);
       setIsActive(record.is_active);
     } else {
       setEditingRecord(null);
@@ -125,8 +205,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       setContactPerson("");
       setTin("");
       setAddress("");
-      setPhone("");
-      setEmail("");
+      resetContactFields();
       setIsActive(true);
     }
     setIsDialogOpen(true);
@@ -153,11 +232,27 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       return;
     }
     if (!address.trim()) {
-      toast.error("Address is required.");
+      toast.error("Business address is required.");
       return;
     }
-    if (!phone.trim()) {
-      toast.error("Phone is required.");
+    const normalizedPhones = phones
+      .map((entry) => normalizePhoneEntryForStorage(entry))
+      .filter(Boolean);
+    const invalidPhone = normalizedPhones.find(
+      (entry) => !isAcceptableVendorPhoneEntry(entry)
+    );
+    if (invalidPhone) {
+      toast.error(
+        "Each phone must be a valid Philippine mobile, landline, or international (+...) number."
+      );
+      return;
+    }
+    const normalizedEmails = emails
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+    const invalidEmail = normalizedEmails.find((entry) => !isValidEmailAddress(entry));
+    if (invalidEmail) {
+      toast.error("Enter a valid email address or remove the invalid email.");
       return;
     }
 
@@ -167,8 +262,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
         contact_person: contactPerson.trim(),
         tin: tin.trim(),
         address: address.trim(),
-        phone: phone.trim(),
-        email: email.trim() || "",
+        phones: normalizedPhones,
+        emails: normalizedEmails,
+        phone: primaryStoredPhone(normalizedPhones[0] ?? ""),
+        email: normalizedEmails[0] ?? "",
         type: vendorType,
         is_active: isActive,
         updated_at: new Date().toISOString(),
@@ -221,7 +318,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       record.name.toLowerCase().includes(s) ||
       (record.contact_person && record.contact_person.toLowerCase().includes(s)) ||
       (record.tin && record.tin.includes(s)) ||
-      (record.email && record.email.toLowerCase().includes(s))
+      recordMatchesContactSearch(record.phones, record.phone, record.emails, record.email, s)
     );
   });
 
@@ -298,8 +395,21 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                           />
                           <DashboardMobileField label="TIN" value={record.tin || "—"} />
                           <DashboardMobileField
-                            label="Phone / email"
-                            value={record.phone || record.email || "—"}
+                            label="Phone"
+                            value={
+                              partitionVendorContactDisplay(record).phones
+                                .map(
+                                  (entry) =>
+                                    `${getPhilippinePhoneLabel(entry)}: ${formatPhilippinePhoneDisplay(entry)}`
+                                )
+                                .join("\n") || "—"
+                            }
+                          />
+                          <DashboardMobileField
+                            label="Email"
+                            value={
+                              partitionVendorContactDisplay(record).emails.join("\n") || "—"
+                            }
                           />
                         </div>
                         {canManageVendors ? (
@@ -331,13 +441,14 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                   </div>
                 </DbMobileBlock>
                 <DbDesktopBlock className={dbTableShell}>
-                  <Table className="w-full min-w-[760px]">
+                  <Table className="w-full min-w-[900px]">
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
+                        <TableHead>Registered Name</TableHead>
                         <TableHead>Contact Person</TableHead>
                         <TableHead>TIN</TableHead>
-                        <TableHead>Contact</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>Email</TableHead>
                         <TableHead>Status</TableHead>
                         {canManageVendors ? (
                         <TableHead className="w-24">Actions</TableHead>
@@ -355,7 +466,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             {record.tin || "—"}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {record.phone || record.email || "—"}
+                            <VendorPhoneList record={record} />
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            <VendorEmailList record={record} />
                           </TableCell>
                           <TableCell>
                             <Badge variant={record.is_active ? "default" : "secondary"}>
@@ -398,7 +512,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingRecord ? config.dialogEditTitle : config.dialogAddTitle}
@@ -413,22 +527,12 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{config.nameLabel} *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={config.namePlaceholder}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact_person">Contact Person *</Label>
-              <Input
-                id="contact_person"
-                value={contactPerson}
-                onChange={(e) => setContactPerson(e.target.value)}
-                placeholder="Primary contact person"
                 required
               />
             </div>
@@ -443,7 +547,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Address *</Label>
+              <Label htmlFor="address">Business Address *</Label>
               <Textarea
                 id="address"
                 value={address}
@@ -453,42 +557,90 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone *</Label>
-                <Input
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="vendor@example.com"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact_person">Contact Person *</Label>
+              <Input
+                id="contact_person"
+                value={contactPerson}
+                onChange={(e) => setContactPerson(e.target.value)}
+                placeholder="Primary contact person"
+                required
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="record_status">Status</Label>
-              <Select
-                value={isActive ? "active" : "inactive"}
-                onValueChange={(value) => setIsActive(value === "active")}
-              >
-                <SelectTrigger id="record_status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Phone</Label>
+              {phones.length > 0 ? (
+                <div className="space-y-2">
+                  {phones.map((entry, index) => (
+                    <div key={`phone-${index}`} className="flex gap-2">
+                      <Input
+                        value={entry}
+                        onChange={(e) => updatePhone(index, e.target.value)}
+                        placeholder="09XXXXXXXXX or 02XXXXXXXX"
+                        inputMode="numeric"
+                        maxLength={11}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removePhone(index)}
+                        aria-label="Remove phone"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No phone added yet.</p>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={addPhone}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add phone
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              {emails.length > 0 ? (
+                <div className="space-y-2">
+                  {emails.map((entry, index) => (
+                    <div key={`email-${index}`} className="flex gap-2">
+                      <Input
+                        type="email"
+                        value={entry}
+                        onChange={(e) => updateEmail(index, e.target.value)}
+                        placeholder="vendor@example.com"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => removeEmail(index)}
+                        aria-label="Remove email"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No email added yet.</p>
+              )}
+              <Button type="button" variant="outline" size="sm" onClick={addEmail}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add email
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="record_status"
+                checked={isActive}
+                onCheckedChange={(checked) => setIsActive(checked === true)}
+              />
+              <Label htmlFor="record_status" className="font-normal">
+                Active
+              </Label>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>

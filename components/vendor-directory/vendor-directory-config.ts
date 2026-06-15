@@ -9,13 +9,14 @@ export type VendorDirectoryConfig = {
   dialogAddDescription: string;
   dialogEditDescription: string;
   namePlaceholder: string;
+  nameLabel: string;
+  nameRequired: string;
   emptyState: string;
   loadError: string;
   saveError: string;
   deleteSuccess: string;
   createSuccess: string;
   updateSuccess: string;
-  nameRequired: string;
 };
 
 export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> = {
@@ -27,14 +28,15 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
     dialogEditTitle: "Edit Vendor",
     dialogAddDescription: "Vendor details will auto-fill when selected in Purchase Orders.",
     dialogEditDescription: "",
-    namePlaceholder: "Vendor or supplier name",
+    namePlaceholder: "Vendor name",
+    nameLabel: "Registered Name",
+    nameRequired: "Registered name is required",
     emptyState: "No vendors found. Add one to use in Purchase Orders.",
     loadError: "Failed to load vendors",
     saveError: "Failed to save vendor",
     deleteSuccess: "Vendor deleted successfully",
     createSuccess: "Vendor created successfully",
     updateSuccess: "Vendor updated successfully",
-    nameRequired: "Vendor name is required",
   },
   subcontractor: {
     title: "Subcontractors",
@@ -45,13 +47,14 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
     dialogAddDescription: "Add a new subcontractor to the system.",
     dialogEditDescription: "",
     namePlaceholder: "Subcontractor name",
+    nameLabel: "Registered Name",
+    nameRequired: "Registered name is required",
     emptyState: "No subcontractors found. Add one to use in fund requests.",
     loadError: "Failed to load subcontractors",
     saveError: "Failed to save subcontractor",
     deleteSuccess: "Subcontractor deleted successfully",
     createSuccess: "Subcontractor created successfully",
     updateSuccess: "Subcontractor updated successfully",
-    nameRequired: "Subcontractor name is required",
   },
 };
 
@@ -64,6 +67,8 @@ export interface VendorRecord {
   address: string | null;
   phone: string | null;
   email: string | null;
+  phones?: string[] | null;
+  emails?: string[] | null;
   type: VendorType;
   is_active: boolean;
   created_at: string;

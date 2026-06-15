@@ -19,16 +19,19 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useProfile } from "@/lib/hooks/useProfile";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { PageSubtitle } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { TypeToDeleteDialog } from "@/components/TypeToDeleteDialog";
 import {
   PROJECT_STATUSES,
   PROJECT_STATUS_LABELS,
+  getProjectDeleteDescription,
+  getProjectDeleteErrorMessage,
   getProjectStatusColor,
   getProjectStatusLabel,
   projectMatchesStatusFilter,
@@ -73,6 +76,8 @@ export default function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const [deletingProject, setDeletingProject] = useState(false);
 
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -143,6 +148,27 @@ export default function ProjectsPage() {
     setIsDialogOpen(false);
     resetForm();
     fetchProjects();
+  };
+
+  const handleDelete = async () => {
+    if (!projectToDelete) return;
+
+    setDeletingProject(true);
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .delete()
+        .eq("id", projectToDelete.id);
+      if (error) throw error;
+      toast.success("Project deleted successfully");
+      setProjectToDelete(null);
+      fetchProjects();
+    } catch (error: unknown) {
+      toast.error(getProjectDeleteErrorMessage(error));
+      console.error(error);
+    } finally {
+      setDeletingProject(false);
+    }
   };
 
   const canCreateProjects = canCreate("projects");
@@ -225,25 +251,33 @@ export default function ProjectsPage() {
           )}
         </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Search by code, name, or client..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              {PROJECT_STATUSES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {PROJECT_STATUS_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by code, name, or client..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {PROJECT_STATUSES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {PROJECT_STATUS_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardHeader>
           <CardContent className="p-0">
             {loading ? (
               <div className="p-8 text-center text-muted-foreground">Loading...</div>
@@ -262,7 +296,11 @@ export default function ProjectsPage() {
                       <th className="px-4 py-3 font-medium">Location</th>
                       <th className="px-4 py-3 font-medium text-right">Contract Value</th>
                       <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 font-medium" />
+                      {canManageProjects ? (
+                        <th className="px-4 py-3 font-medium text-right">Actions</th>
+                      ) : (
+                        <th className="px-4 py-3 font-medium" />
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -279,7 +317,24 @@ export default function ProjectsPage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <Link href={`/projects/${p.id}`} className="text-primary font-medium hover:underline text-sm">View</Link>
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              href={`/projects/${p.id}`}
+                              className="text-primary font-medium hover:underline text-sm"
+                            >
+                              View
+                            </Link>
+                            {canDeleteProjects ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setProjectToDelete(p)}
+                                aria-label={`Delete ${p.name}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -289,6 +344,22 @@ export default function ProjectsPage() {
             )}
           </CardContent>
         </Card>
+
+        <TypeToDeleteDialog
+          open={!!projectToDelete}
+          onOpenChange={(open) => {
+            if (!deletingProject) setProjectToDelete(open ? projectToDelete : null);
+          }}
+          title="Delete Project"
+          description={
+            projectToDelete
+              ? getProjectDeleteDescription(projectToDelete.name)
+              : ""
+          }
+          confirmLabel="Delete Project"
+          deleting={deletingProject}
+          onConfirm={handleDelete}
+        />
       </div>
     </DashboardLayout>
   );

@@ -11,7 +11,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -160,35 +160,33 @@ export default function FundRequestListPage() {
         )}
       </div>
 
-      <div className={cn(
-        'flex gap-3',
-        isPortal ? 'w-full flex-col sm:flex-row sm:flex-wrap sm:items-center' : 'flex-wrap items-center'
-      )}>
-        <div className={cn('relative flex-1', isPortal ? 'w-full min-w-0' : 'min-w-[200px] max-w-sm')}>
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by purpose or project..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className={isPortal ? 'w-full sm:w-[180px]' : 'w-[180px]'}>
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="pending">Pending (Operations Manager)</SelectItem>
-            <SelectItem value="project_manager_approved">Approved by Operations Manager</SelectItem>
-            <SelectItem value="purchasing_officer_approved">Approved by Purchasing Officer</SelectItem>
-            <SelectItem value="management_approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <Card className="border-border/80 bg-card/95">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by purpose or project..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="pending">Pending (Operations Manager)</SelectItem>
+                <SelectItem value="project_manager_approved">Approved by Operations Manager</SelectItem>
+                <SelectItem value="purchasing_officer_approved">Approved by Purchasing Officer</SelectItem>
+                <SelectItem value="management_approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">Loading...</div>

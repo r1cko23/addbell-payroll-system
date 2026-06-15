@@ -3,18 +3,22 @@
 export const requestReasonLabel = "Reason";
 
 export const requestSupportingDocLabel =
-  "Supporting Document (optional, PDF/DOC/DOCX)";
+  "Supporting Document (PDF/DOC/DOCX)";
 
 export const requestFormCopy = {
   overtime: {
     reasonPlaceholder: "Provide reason for overtime request...",
     supportingDocHint:
-      "Optional: Attach supporting document for overtime. Max 5MB.",
+      "Attach supporting document for overtime. Max 5MB.",
   },
   leave: {
     reasonPlaceholder: "Provide reason for leave request...",
     supportingDocHint:
-      "Optional: Attach clinic slip or documentation for SIL. Max 5MB.",
+      "Attach clinic slip or documentation for SIL. Max 5MB.",
+  },
+  fundRequest: {
+    supportingDocHint:
+      "Attach quotation, invoice, purchase order etc. as needed. Max 5MB.",
   },
   failureToLog: {
     reasonPlaceholder:

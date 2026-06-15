@@ -11,6 +11,10 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { FundRequestRow } from '@/types/fund-request';
+import { getFundRequestReferenceModeLabel } from '@/types/fund-request';
+import type { FundRequestDocumentSummary } from '@/types/fund-request';
+import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
+import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { epPageWrapper } from '@/lib/employee-portal-ui';
 import { dbPageWrapper } from '@/lib/dashboard-ui';
 import { cn } from '@/lib/utils';
@@ -38,6 +42,7 @@ export default function FundRequestDetailPage() {
   const [requesterName, setRequesterName] = useState<string>('');
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
   const [vendorName, setVendorName] = useState<string>("");
+  const [documents, setDocuments] = useState<FundRequestDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -92,6 +97,25 @@ export default function FundRequestDetailPage() {
         );
       }
 
+      promises.push(
+        Promise.resolve(
+          supabase
+            .from("fund_request_documents")
+            .select("id, fund_request_id, employee_id, file_name, file_type, file_size, created_at")
+            .eq("fund_request_id", row.id)
+            .order("created_at", { ascending: true })
+            .then(({ data, error }) => {
+              if (error) {
+                if (!isSchemaMissingTableOrRelationError(error)) {
+                  console.error("fund_request_documents load:", error);
+                }
+                return;
+              }
+              setDocuments((data as FundRequestDocumentSummary[]) ?? []);
+            })
+        )
+      );
+
       await Promise.all(promises);
       setLoading(false);
     })();
@@ -113,10 +137,7 @@ export default function FundRequestDetailPage() {
   }
 
   const details = (request.details as DetailItem[] | null) ?? [];
-  const referenceModeLabel =
-    request.reference_mode === "internal_stock"
-      ? "Internal stock / warehouse purchase"
-      : "Client-linked request";
+  const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
 
   const content = (
     <div className={cn('w-full max-w-3xl', isPortal ? epPageWrapper : dbPageWrapper)}>
@@ -158,12 +179,16 @@ export default function FundRequestDetailPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Client P.O. Number</h4>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">P.O. Number</h4>
               <p className="mt-1">{request.po_number ?? '—'}</p>
             </div>
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Project Title</h4>
               <p className="mt-1">{request.project_title ?? '—'}</p>
+            </div>
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Project Location</h4>
+              <p className="mt-1">{request.project_location ?? '—'}</p>
             </div>
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Vendor / Subcontractor</h4>
@@ -252,17 +277,24 @@ export default function FundRequestDetailPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {request.remarks && (
+              <div className="sm:col-span-2">
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Remarks</h4>
+                <p className="mt-1">{request.remarks}</p>
+              </div>
+            )}
             <div>
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date needed</h4>
               <p className="mt-1">{request.date_needed ? format(new Date(request.date_needed), 'MMM d, yyyy') : '—'}</p>
             </div>
             {request.urgent_reason && (
               <div className="sm:col-span-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Urgent reason</h4>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">If urgent, state reason</h4>
                 <p className="mt-1">{request.urgent_reason}</p>
               </div>
             )}
           </div>
+          <FundRequestSupportingDocuments documents={documents} />
           {request.status === 'rejected' && request.rejection_reason && (
             <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
               <h4 className="text-xs font-medium text-destructive uppercase tracking-wide">Rejection reason</h4>

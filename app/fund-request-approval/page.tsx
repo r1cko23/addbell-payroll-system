@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
 import { SummaryStatCard } from "@/components/approval/SummaryStatCard";
 import type { FundRequestRow } from "@/types/fund-request";
+import { getFundRequestReferenceModeLabel } from "@/types/fund-request";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 type RowWithRequester = FundRequestRow & {
@@ -831,7 +832,7 @@ export default function FundRequestApprovalPage() {
                           </div>
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
-                              Client P.O. Number
+                              P.O. Number
                             </span>
                             <p className="mt-0.5">{r.po_number ?? "—"}</p>
                           </div>
@@ -852,11 +853,17 @@ export default function FundRequestApprovalPage() {
                               Reference basis
                             </span>
                             <p className="mt-0.5">
-                              {r.reference_mode === "internal_stock"
-                                ? "Internal stock / warehouse purchase"
-                                : "Client-linked request"}
+                              {getFundRequestReferenceModeLabel(r.reference_mode)}
                             </p>
                           </div>
+                          {r.remarks && (
+                            <div className="sm:col-span-2">
+                              <span className="text-xs font-medium text-muted-foreground uppercase">
+                                Remarks
+                              </span>
+                              <p className="mt-0.5">{r.remarks}</p>
+                            </div>
+                          )}
                           <div>
                             <span className="text-xs font-medium text-muted-foreground uppercase">
                               Date needed
@@ -868,7 +875,7 @@ export default function FundRequestApprovalPage() {
                           {r.urgent_reason && (
                             <div className="sm:col-span-2">
                               <span className="text-xs font-medium text-muted-foreground uppercase">
-                                Urgent reason
+                                If urgent, state reason
                               </span>
                               <p className="mt-0.5">{r.urgent_reason}</p>
                             </div>

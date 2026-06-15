@@ -13,6 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useProfile } from "@/lib/hooks/useProfile";
 import type { FundRequestRow } from "@/types/fund-request";
+import { getFundRequestReferenceModeLabel } from "@/types/fund-request";
+import type { FundRequestDocumentSummary } from "@/types/fund-request";
+import { FundRequestSupportingDocuments } from "@/components/fund-request/FundRequestSupportingDocuments";
+import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +47,7 @@ export default function FundRequestApprovalDetailPage() {
   const [approverNames, setApproverNames] = useState<Record<string, string>>({});
   const [editableDetails, setEditableDetails] = useState<EditableDetailItem[]>([]);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [documents, setDocuments] = useState<FundRequestDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -104,6 +109,19 @@ export default function FundRequestApprovalDetailPage() {
           .eq("id", row.vendor_id)
           .single();
         setVendorName((vendor as { name?: string } | null)?.name ?? "");
+      }
+
+      const { data: docRows, error: docsError } = await supabase
+        .from("fund_request_documents")
+        .select("id, fund_request_id, employee_id, file_name, file_type, file_size, created_at")
+        .eq("fund_request_id", row.id)
+        .order("created_at", { ascending: true });
+      if (docsError) {
+        if (!isSchemaMissingTableOrRelationError(docsError)) {
+          console.error("fund_request_documents load:", docsError);
+        }
+      } else {
+        setDocuments((docRows as FundRequestDocumentSummary[]) ?? []);
       }
 
       setLoading(false);
@@ -214,10 +232,7 @@ export default function FundRequestApprovalDetailPage() {
   }
 
   const details = (request.details as DetailItem[] | null) ?? [];
-  const referenceModeLabel =
-    request.reference_mode === "internal_stock"
-      ? "Internal stock / warehouse purchase"
-      : "Client-linked request";
+  const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
 
   return (
     <div className={cn("w-full max-w-3xl", dbPageWrapper)}>
@@ -292,7 +307,7 @@ export default function FundRequestApprovalDetailPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Client P.O. Number</h4>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">P.O. Number</h4>
                 <p className="mt-1">{request.po_number ?? "—"}</p>
               </div>
               <div>
@@ -432,17 +447,24 @@ export default function FundRequestApprovalDetailPage() {
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {request.remarks && (
+                <div className="sm:col-span-2">
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Remarks</h4>
+                  <p className="mt-1">{request.remarks}</p>
+                </div>
+              )}
               <div>
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date needed</h4>
                 <p className="mt-1">{request.date_needed ? format(new Date(request.date_needed), "MMM d, yyyy") : "—"}</p>
               </div>
               {request.urgent_reason && (
                 <div className="sm:col-span-2">
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Urgent reason</h4>
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">If urgent, state reason</h4>
                   <p className="mt-1">{request.urgent_reason}</p>
                 </div>
               )}
             </div>
+            <FundRequestSupportingDocuments documents={documents} />
             <div className="rounded-lg border bg-muted/20 p-4">
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Approval history</h4>
               <ul className="space-y-2 text-sm">

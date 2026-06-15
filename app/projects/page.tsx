@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { deleteProject } from "@/lib/delete-project-client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -155,16 +156,16 @@ export default function ProjectsPage() {
 
     setDeletingProject(true);
     try {
-      const { error } = await supabase
-        .from("projects")
-        .delete()
-        .eq("id", projectToDelete.id);
-      if (error) throw error;
+      await deleteProject(projectToDelete.id);
       toast.success("Project deleted successfully");
       setProjectToDelete(null);
       fetchProjects();
     } catch (error: unknown) {
-      toast.error(getProjectDeleteErrorMessage(error));
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : getProjectDeleteErrorMessage(error)
+      );
       console.error(error);
     } finally {
       setDeletingProject(false);

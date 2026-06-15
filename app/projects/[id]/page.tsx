@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { deleteProject } from "@/lib/delete-project-client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -218,13 +219,14 @@ export default function ProjectDetailPage() {
 
     setDeletingProject(true);
     try {
-      const { error } = await supabase.from("projects").delete().eq("id", project.id);
-      if (error) throw error;
+      await deleteProject(project.id);
       toast.success("Project deleted successfully");
       setDeleteDialogOpen(false);
       router.push("/projects");
     } catch (err: unknown) {
-      toast.error(getProjectDeleteErrorMessage(err));
+      toast.error(
+        err instanceof Error ? err.message : getProjectDeleteErrorMessage(err)
+      );
       console.error(err);
     } finally {
       setDeletingProject(false);

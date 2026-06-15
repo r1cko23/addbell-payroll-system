@@ -7,6 +7,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 import { NextResponse } from "next/server";
+import { mergePermissions } from "@/lib/permissions";
 
 // Note: Using profiles table instead of users table
 type UserSelect = { role: string };
@@ -151,6 +152,42 @@ export async function verifyEmployeeRecordEditAccess(): Promise<{
 }
 
 const CLOCK_SITE_MANAGEMENT_ROLES = new Set(["admin", "upper_management"]);
+
+export async function verifyProjectDeleteAccess(): Promise<{
+  userId: string;
+  role: string;
+} | null> {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, permissions")
+    .eq("id", user.id)
+    .eq("is_active", true)
+    .single();
+
+  if (profileError || !profileData) {
+    return null;
+  }
+
+  const permissions = mergePermissions(
+    profileData.role,
+    profileData.permissions as Parameters<typeof mergePermissions>[1]
+  );
+
+  if (!permissions.projects.delete) {
+    return null;
+  }
+
+  return { userId: user.id, role: profileData.role };
+}
 
 /**
  * Admin/upper management always; HR and others need profiles.can_manage_clock_access.

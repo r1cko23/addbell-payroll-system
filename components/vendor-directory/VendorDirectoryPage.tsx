@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { useVendors } from "@/lib/hooks/useVendors";
+import { invalidateVendors } from "@/lib/queries/invalidate";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
@@ -113,8 +116,12 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const canManageVendors =
     canCreateVendors || canUpdateVendors || canDeleteVendors;
   const supabase = createClient();
-  const [records, setRecords] = useState<VendorRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const {
+    data: records = [],
+    isLoading: loading,
+    isError,
+  } = useVendors(vendorType);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -160,32 +167,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   };
 
   useEffect(() => {
-    fetchRecords();
-  }, [vendorType]);
-
-  const fetchRecords = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("vendors")
-        .select("*")
-        .eq("type", vendorType)
-        .order("name", { ascending: true });
-
-      if (error) throw error;
-      setRecords(
-        (data || []).map((record) => ({
-          ...record,
-          type: record.type === "subcontractor" ? "subcontractor" : "supplier",
-        }))
-      );
-    } catch (error) {
+    if (isError) {
       toast.error(config.loadError);
-      console.error(error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [config.loadError, isError]);
 
   const handleOpenDialog = (record?: VendorRecord) => {
     if (record) {
@@ -287,7 +272,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       }
 
       handleCloseDialog();
-      fetchRecords();
+      await invalidateVendors(queryClient);
     } catch (error: unknown) {
       toast.error((error as Error).message || config.saveError);
       console.error(error);
@@ -302,7 +287,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
 
       if (error) throw error;
       toast.success(config.deleteSuccess);
-      fetchRecords();
+      await invalidateVendors(queryClient);
     } catch (error: unknown) {
       toast.error((error as Error).message || config.saveError);
       console.error(error);

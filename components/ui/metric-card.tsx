@@ -28,7 +28,7 @@ export function MetricCard({
       )}
     >
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-        <div className="text-sm font-medium text-muted-foreground">
+        <div className="text-xs font-medium leading-tight text-muted-foreground whitespace-nowrap sm:text-sm">
           {typeof label === "string" ? toTitleCase(label) : label}
         </div>
         {icon ? (

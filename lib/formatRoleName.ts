@@ -1,8 +1,11 @@
 /**
  * Display label for `users.role` (snake_case in DB).
  */
+import { normalizeUserRole } from "@/lib/user-roles";
+
 export function formatRoleName(role: string): string {
   if (!role) return "";
+  const normalizedRole = normalizeUserRole(role);
   const roleMap: Record<string, string> = {
     admin: "Admin",
     upper_management: "Upper Management",
@@ -17,7 +20,7 @@ export function formatRoleName(role: string): string {
     ot_viewer: "OT Viewer",
   };
   return (
-    roleMap[role] ||
-    role.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
+    roleMap[normalizedRole] ||
+    normalizedRole.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())
   );
 }

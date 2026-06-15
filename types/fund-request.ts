@@ -25,6 +25,30 @@ export function formatFundRequestPercentage(
   return `${numeric}%`;
 }
 
+export const FUND_REQUEST_FIELD_LABELS = {
+  poNumber: "P.O. Number",
+  projectTitle: "Project Title",
+  projectLocation: "Project Location",
+  subcontractorName: "Subcontractor Name",
+  subcontractorProgress: "Subcontractor Current Progress Percentage",
+  projectCompletion: "Current Project Completion Percentage",
+  supplierBankDetails: "Bank Details",
+  referenceBasis: "Reference Basis",
+  purpose: "Purpose",
+  remarks: "Remarks",
+  dateNeeded: "Date Needed",
+  urgentReason: "Reason for Urgency",
+  totalRequested: "Total Requested Amount",
+} as const;
+
+export const FUND_REQUEST_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending (Operations Manager)",
+  project_manager_approved: "Pending (Purchasing Officer)",
+  purchasing_officer_approved: "Pending (Upper Management)",
+  management_approved: "Approved by Upper Management",
+  rejected: "Rejected",
+};
+
 export type FundRequestDocumentSummary = {
   id: string;
   fund_request_id: string;

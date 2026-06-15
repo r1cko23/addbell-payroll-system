@@ -29,12 +29,14 @@ import { formatRoleName } from "@/lib/formatRoleName";
 import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions, type ModuleName } from "@/lib/hooks/usePermissions";
+import { isFundRequestApproverRole } from "@/lib/fund-request-approval";
 
 type NavItem = {
   name: string;
   href: string;
   icon: React.ElementType;
   permissionModule?: ModuleName;
+  approverOnly?: boolean;
 };
 
 type NavGroup = {
@@ -213,6 +215,10 @@ function SidebarInner({ className, onClose }: SidebarProps) {
         if (isOperationsManager && group.label === "People") return null;
 
         const filteredItems = group.items.filter((item) => {
+          if (item.approverOnly && !isFundRequestApproverRole(role)) {
+            return false;
+          }
+
           if (item.permissionModule === "employees") {
             const hideForApproverOrViewer = (isApprover && !isHR) || isViewer;
             if (hideForApproverOrViewer) {
@@ -248,6 +254,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
     canRead,
     roleLoading,
     permissionsLoading,
+    role,
   ]);
 
   React.useEffect(() => {

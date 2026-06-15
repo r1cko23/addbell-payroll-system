@@ -4,6 +4,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
+import { useProjectsForPO } from "@/lib/hooks/useProjects";
+import { useSuppliersForPO } from "@/lib/hooks/useVendors";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
@@ -65,18 +67,6 @@ function generatePONumber(projectCode: string, vendorCode: string): string {
   return `${(projectCode || "PROJ").slice(0, 6)}-${(vendorCode || "VEND").slice(0, 6)}-${year}-${String(seq).padStart(4, "0")}`;
 }
 
-interface VendorRecord {
-  id: string;
-  name: string;
-  contact_person: string | null;
-  tin: string | null;
-  address: string | null;
-  phone: string | null;
-  email: string | null;
-  phones?: string[] | null;
-  emails?: string[] | null;
-}
-interface ProjectRecord { id: string; name: string; code: string; site_address: string | null }
 interface PORow {
   id: string; po_number: string; po_date: string; status: string; subtotal: number; total_amount: number;
   vendor_id: string; project_id: string | null; project_title: string | null;
@@ -137,8 +127,9 @@ export default function PurchaseOrderPage() {
 
   // ----- CREATE FORM STATE -----
   const printRef = useRef<HTMLDivElement>(null);
-  const [vendors, setVendors] = useState<VendorRecord[]>([]);
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const poReferenceEnabled = view === "create" && canCreatePurchaseOrders;
+  const { data: vendors = [] } = useSuppliersForPO({ enabled: poReferenceEnabled });
+  const { data: projects = [] } = useProjectsForPO({ enabled: poReferenceEnabled });
   const [selectedVendorId, setSelectedVendorId] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [poNumber, setPoNumber] = useState("");
@@ -156,18 +147,6 @@ export default function PurchaseOrderPage() {
   const [approvedByTitle, setApprovedByTitle] = useState("President");
   const [isPrinting, setIsPrinting] = useState(false);
   const [isSavingPO, setIsSavingPO] = useState(false);
-
-  useEffect(() => {
-    if (view !== "create" || !canCreatePurchaseOrders) return;
-    (async () => {
-      const [vRes, pRes] = await Promise.all([
-        supabase.from("vendors").select("id, name, contact_person, tin, address, phone, email, phones, emails").eq("is_active", true).eq("type", "supplier").order("name"),
-        supabase.from("projects").select("id, name, code, site_address").order("name"),
-      ]);
-      if (!vRes.error) setVendors((vRes.data as VendorRecord[]) || []);
-      if (!pRes.error) setProjects((pRes.data as ProjectRecord[]) || []);
-    })();
-  }, [supabase, view]);
 
   const updateItem = useCallback((index: number, updates: Partial<PurchaseOrderLineItem>) => {
     setItems((prev) => {

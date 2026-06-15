@@ -18,17 +18,16 @@ test.describe("Fund Request Approval Flow", () => {
     await page.click('button:has-text("Sign In"), button:has-text("Login")');
 
     await page.waitForURL(
-      /\/dashboard|\/leave-approval|\/overtime-approval|\/loans|\/employees|\/payslips|\/fund-request-approval/i,
+      /\/dashboard|\/leave-approval|\/overtime-approval|\/loans|\/employees|\/payslips|\/fund-request/i,
       { timeout: 20000 },
     );
   });
 
   test("does not double-render dashboard layout (list + detail)", async ({ page }) => {
-    // Navigate directly (layout duplication is caused by page/layout composition).
-    await page.goto("/fund-request-approval");
-    await expect(page).toHaveURL(/\/fund-request-approval\/?$/);
+    await page.goto("/fund-request?tab=inbox");
+    await expect(page).toHaveURL(/\/fund-request\/?\?tab=inbox/);
 
-    const listHeading = page.locator('h1:has-text("Fund Request Approval")');
+    const listHeading = page.locator('h1:has-text("Fund Requests")');
     await expect(listHeading).toHaveCount(1);
 
     // Open the user dropdown and ensure logout only exists once.
@@ -40,14 +39,13 @@ test.describe("Fund Request Approval Flow", () => {
     await expect(page.locator('text=Logout')).toHaveCount(1);
 
     // Navigate to the first fund request detail page (if available).
-    const openFullPageLinks = page.getByRole("link", { name: /Open full page/i });
+    const openFullPageLinks = page.getByRole("link", { name: /View details/i });
     if ((await openFullPageLinks.count()) > 0) {
       await openFullPageLinks.first().click();
-      await expect(page.locator("text=Fund Request (approval view)")).toHaveCount(1);
+      await expect(page.locator("text=Fund request")).toHaveCount(1);
 
-      // Go back to the list and re-assert layout is still single-rendered.
-      await page.getByRole("link", { name: /Back to Fund Request Approval/i }).click();
-      await expect(page).toHaveURL(/\/fund-request-approval\/?$/);
+      await page.getByRole("link", { name: /Back to For Approval/i }).click();
+      await expect(page).toHaveURL(/\/fund-request\/?\?tab=inbox/);
       await expect(listHeading).toHaveCount(1);
     } else {
       // Still validate that layout didn't double-render even when there are no rows.

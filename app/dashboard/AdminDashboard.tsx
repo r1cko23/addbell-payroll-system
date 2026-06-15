@@ -178,7 +178,7 @@ export default function AdminDashboard() {
         actions={
           <div className={dbHeaderActions}>
             {showFundRequestActions ? (
-              <Link href="/fund-request-approval">
+              <Link href="/fund-request?tab=inbox">
                 <Button variant="outline" size="sm">
                   Fund Requests
                 </Button>
@@ -218,7 +218,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <Link href="/fund-request-approval">
+              <Link href="/fund-request?tab=inbox">
                 <Button size="sm" variant="outline" className="w-full justify-start">
                   Fund requests ({stats?.pendingFundRequests ?? 0})
                 </Button>

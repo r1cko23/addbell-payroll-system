@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { useClients } from "@/lib/hooks/useClients";
+import { invalidateClients, invalidateProjects } from "@/lib/queries/invalidate";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
@@ -62,10 +65,14 @@ interface Client {
 
 export default function ClientsPage() {
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const { profile, loading: profileLoading } = useProfile();
   const { canCreate, canUpdate, canDelete } = usePermissions();
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: clients = [],
+    isLoading: loading,
+    isError,
+  } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -83,26 +90,10 @@ export default function ClientsPage() {
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
-    fetchClients();
-  }, [supabase]);
-
-  const fetchClients = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (error) throw error;
-      setClients(data || []);
-    } catch (error) {
+    if (isError) {
       toast.error("Failed to load clients");
-      console.error(error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isError]);
 
   const handleOpenDialog = (client?: Client) => {
     if (client) {
@@ -183,7 +174,10 @@ export default function ClientsPage() {
       }
 
       handleCloseDialog();
-      fetchClients();
+      await Promise.all([
+        invalidateClients(queryClient),
+        invalidateProjects(queryClient),
+      ]);
     } catch (error: any) {
       toast.error(error.message || "Failed to save client");
       console.error(error);
@@ -203,7 +197,10 @@ export default function ClientsPage() {
 
       if (error) throw error;
       toast.success("Client deleted successfully");
-      fetchClients();
+      await Promise.all([
+        invalidateClients(queryClient),
+        invalidateProjects(queryClient),
+      ]);
     } catch (error: any) {
       toast.error(error.message || "Failed to delete client");
       console.error(error);

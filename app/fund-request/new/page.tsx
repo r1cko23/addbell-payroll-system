@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useSubcontractorOptions } from "@/lib/hooks/useVendors";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useOptionalEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { toast } from "sonner";
@@ -71,7 +72,6 @@ type PurposeFieldConfig = {
 };
 
 type DetailRow = { description: string; amount: string };
-type VendorOption = { id: string; name: string };
 
 function createEmptyDetailRow(): DetailRow {
   return { description: "", amount: "" };
@@ -207,8 +207,8 @@ function getSubmissionWorkflow(
   if (!isPortal && role === "operations_manager" && currentUserId) {
     return {
       status: "project_manager_approved",
-      project_manager_approved_by: currentUserId,
-      project_manager_approved_at: timestamp,
+      project_manager_approved_by: null,
+      project_manager_approved_at: null,
       purchasing_officer_approved_by: null,
       purchasing_officer_approved_at: null,
       management_approved_by: null,
@@ -280,7 +280,7 @@ export default function NewFundRequestPage() {
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [subcontractors, setSubcontractors] = useState<VendorOption[]>([]);
+  const { data: subcontractors = [] } = useSubcontractorOptions();
   const workflow = getSubmissionWorkflow(user?.role, isPortal, user?.id ?? null);
   const purposeConfig = useMemo(
     () => getPurposeFieldConfig(purposeOption),
@@ -355,16 +355,6 @@ export default function NewFundRequestPage() {
       setRequesterName(nextRequesterName);
     }
   }, [requesterEmployees, selectedRequesterEmployeeId]);
-
-  useEffect(() => {
-    supabase
-      .from("vendors")
-      .select("id, name")
-      .eq("is_active", true)
-      .eq("type", "subcontractor")
-      .order("name")
-      .then(({ data }) => setSubcontractors((data as VendorOption[]) ?? []));
-  }, [supabase]);
 
   useEffect(() => {
     if (referenceMode === "internal_stock") {

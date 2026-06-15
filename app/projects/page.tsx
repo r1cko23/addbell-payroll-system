@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { useActiveClients } from "@/lib/hooks/useClients";
+import { useProjects } from "@/lib/hooks/useProjects";
+import { invalidateProjects } from "@/lib/queries/invalidate";
 import { deleteProject } from "@/lib/delete-project-client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -67,13 +71,17 @@ interface Client { id: string; name: string }
 
 export default function ProjectsPage() {
   const supabase = createClient();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { isHR, loading: roleLoading } = useUserRole();
   const { profile, loading: profileLoading } = useProfile();
   const { canCreate, canUpdate, canDelete } = usePermissions();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: projects = [],
+    isLoading: loading,
+    isError: projectsError,
+  } = useProjects();
+  const { data: clients = [] } = useActiveClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -92,7 +100,11 @@ export default function ProjectsPage() {
   const [contractValue, setContractValue] = useState("");
   const [description, setDescription] = useState("");
 
-  useEffect(() => { fetchProjects(); fetchClients(); }, [supabase]);
+  useEffect(() => {
+    if (projectsError) {
+      toast.error("Failed to load projects");
+    }
+  }, [projectsError]);
 
   useEffect(() => {
     if (!roleLoading && isHR) {
@@ -100,19 +112,6 @@ export default function ProjectsPage() {
       router.replace("/dashboard?type=workforce");
     }
   }, [isHR, roleLoading, router]);
-
-  const fetchClients = async () => {
-    const { data } = await supabase.from("clients").select("id, name").eq("is_active", true).order("name");
-    setClients(data ?? []);
-  };
-
-  const fetchProjects = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from("projects").select("*, clients:client_id ( name )").order("created_at", { ascending: false });
-    if (error) toast.error("Failed to load projects");
-    setProjects((data as Project[]) ?? []);
-    setLoading(false);
-  };
 
   const resetForm = () => {
     setCode(""); setName(""); setClientId(""); setSiteAddress(""); setCity(""); setProvince("");
@@ -148,7 +147,7 @@ export default function ProjectsPage() {
     toast.success("Project created.");
     setIsDialogOpen(false);
     resetForm();
-    fetchProjects();
+    await invalidateProjects(queryClient);
   };
 
   const handleDelete = async () => {
@@ -159,7 +158,7 @@ export default function ProjectsPage() {
       await deleteProject(projectToDelete.id);
       toast.success("Project deleted successfully");
       setProjectToDelete(null);
-      fetchProjects();
+      await invalidateProjects(queryClient);
     } catch (error: unknown) {
       toast.error(
         error instanceof Error

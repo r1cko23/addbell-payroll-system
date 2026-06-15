@@ -60,56 +60,43 @@ export function FundRequestEmployeeDetail({
       setRequest(row);
       setVendorName('');
 
-      const promises: Promise<void>[] = [
-        resolveFundRequestRequesterInfo(supabase, row.requested_by).then((info) => {
-          setRequesterName(info.name);
-        }),
-      ];
+      const requesterInfo = await resolveFundRequestRequesterInfo(
+        supabase,
+        row.requested_by
+      );
+      setRequesterName(requesterInfo.name);
 
       if (row.project_id) {
-        promises.push(
-          supabase
-            .from('projects')
-            .select('name, code, site_address')
-            .eq('id', row.project_id)
-            .single()
-            .then(({ data: proj }) => {
-              if (proj) setProjectInfo(proj as ProjectInfo);
-            })
-        );
+        const { data: proj } = await supabase
+          .from('projects')
+          .select('name, code, site_address')
+          .eq('id', row.project_id)
+          .single();
+        if (proj) setProjectInfo(proj as ProjectInfo);
       }
 
       if (row.vendor_id) {
-        promises.push(
-          supabase
-            .from('vendors')
-            .select('name')
-            .eq('id', row.vendor_id)
-            .single()
-            .then(({ data: vendor }) => {
-              setVendorName((vendor as { name?: string } | null)?.name ?? '');
-            })
-        );
+        const { data: vendor } = await supabase
+          .from('vendors')
+          .select('name')
+          .eq('id', row.vendor_id)
+          .single();
+        setVendorName((vendor as { name?: string } | null)?.name ?? '');
       }
 
-      promises.push(
-        supabase
-          .from('fund_request_documents')
-          .select('id, fund_request_id, employee_id, file_name, file_type, file_size, created_at')
-          .eq('fund_request_id', row.id)
-          .order('created_at', { ascending: true })
-          .then(({ data, error: docsError }) => {
-            if (docsError) {
-              if (!isSchemaMissingTableOrRelationError(docsError)) {
-                console.error('fund_request_documents load:', docsError);
-              }
-              return;
-            }
-            setDocuments((data as FundRequestDocumentSummary[]) ?? []);
-          })
-      );
+      const { data: docRows, error: docsError } = await supabase
+        .from('fund_request_documents')
+        .select('id, fund_request_id, employee_id, file_name, file_type, file_size, created_at')
+        .eq('fund_request_id', row.id)
+        .order('created_at', { ascending: true });
+      if (docsError) {
+        if (!isSchemaMissingTableOrRelationError(docsError)) {
+          console.error('fund_request_documents load:', docsError);
+        }
+      } else {
+        setDocuments((docRows as FundRequestDocumentSummary[]) ?? []);
+      }
 
-      await Promise.all(promises);
       setLoading(false);
     })();
   }, [fundRequestId, supabase]);

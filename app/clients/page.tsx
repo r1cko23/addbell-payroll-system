@@ -9,7 +9,6 @@ import { PageSubtitle } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +27,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
@@ -46,6 +52,7 @@ interface Client {
   contact_email: string | null;
   contact_phone: string | null;
   address: string | null;
+  tin: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -58,6 +65,7 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
 
@@ -68,6 +76,7 @@ export default function ClientsPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [tin, setTin] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -101,6 +110,7 @@ export default function ClientsPage() {
       setContactEmail(client.contact_email || "");
       setContactPhone(client.contact_phone || "");
       setAddress(client.address || "");
+      setTin(client.tin || "");
       setIsActive(client.is_active);
     } else {
       setEditingClient(null);
@@ -110,6 +120,7 @@ export default function ClientsPage() {
       setContactEmail("");
       setContactPhone("");
       setAddress("");
+      setTin("");
       setIsActive(true);
     }
     setIsDialogOpen(true);
@@ -136,6 +147,7 @@ export default function ClientsPage() {
         contact_email: contactEmail.trim() || null,
         contact_phone: contactPhone.trim() || null,
         address: address.trim() || null,
+        tin: tin.trim() || null,
         is_active: isActive,
       };
 
@@ -185,6 +197,9 @@ export default function ClientsPage() {
   };
 
   const filteredClients = clients.filter((client) => {
+    if (statusFilter === "active" && !client.is_active) return false;
+    if (statusFilter === "inactive" && client.is_active) return false;
+    if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
     return (
       (client.client_code && client.client_code.toLowerCase().includes(search)) ||
@@ -215,7 +230,7 @@ export default function ClientsPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
           <PageSubtitle>
-            Manage your construction clients and their information.
+            Manage clients and their information.
           </PageSubtitle>
         </div>
         {canCreateClients && (
@@ -231,12 +246,12 @@ export default function ClientsPage() {
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
-                  {editingClient ? "Edit Client" : "New Client"}
+                  {editingClient ? "Edit Client" : "Add Client"}
                 </DialogTitle>
                 <DialogDescription>
                   {editingClient
                     ? "Update client information"
-                    : "Add a new client to the system"}
+                    : "Add a new client to the system."}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -263,7 +278,25 @@ export default function ClientsPage() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="contact_person">Contact Person</Label>
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Street, Barangay, City, Province"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="tin">TIN No.</Label>
+                  <Input
+                    id="tin"
+                    value={tin}
+                    onChange={(e) => setTin(e.target.value)}
+                    placeholder="000 000 000 000000"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="contact_person">Primary Contact Person</Label>
                   <Input
                     id="contact_person"
                     value={contactPerson}
@@ -289,24 +322,20 @@ export default function ClientsPage() {
                     />
                   </div>
                 </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Textarea
-                    id="address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    rows={2}
-                  />
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="rounded"
-                  />
-                  <Label htmlFor="is_active">Active</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="client_status">Status</Label>
+                  <Select
+                    value={isActive ? "active" : "inactive"}
+                    onValueChange={(value) => setIsActive(value === "active")}
+                  >
+                    <SelectTrigger id="client_status">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={handleCloseDialog}>
@@ -322,14 +351,26 @@ export default function ClientsPage() {
         )}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search clients..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full flex-1 min-w-0 sm:min-w-[200px] sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search clients..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>
@@ -338,7 +379,7 @@ export default function ClientsPage() {
             <div className="p-8 text-center text-muted-foreground">Loading...</div>
           ) : filteredClients.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? "No clients match your search." : "No clients yet."}
+              {searchTerm || statusFilter !== "all" ? "No clients match your filters." : "No clients yet."}
             </div>
           ) : (
             <>
@@ -356,7 +397,7 @@ export default function ClientsPage() {
                         </Badge>
                       </div>
                       <div className="mt-2 space-y-1">
-                        <DashboardMobileField label="Contact" value={client.contact_person || "—"} />
+                        <DashboardMobileField label="Primary Contact" value={client.contact_person || "—"} />
                         <DashboardMobileField label="Email" value={client.contact_email || "—"} />
                         <DashboardMobileField label="Phone" value={client.contact_phone || "—"} />
                         <DashboardMobileField
@@ -390,7 +431,7 @@ export default function ClientsPage() {
                     <TableRow>
                       <TableHead>Code</TableHead>
                       <TableHead>Client Name</TableHead>
-                      <TableHead>Contact Person</TableHead>
+                      <TableHead>Primary Contact Person</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Status</TableHead>

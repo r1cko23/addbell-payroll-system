@@ -21,7 +21,7 @@ export type VendorDirectoryConfig = {
 export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> = {
   supplier: {
     title: "Vendors",
-    subtitle: "Manage suppliers for purchase orders.",
+    subtitle: "Manage suppliers and their information.",
     addButtonLabel: "Add Vendor",
     dialogAddTitle: "Add Vendor",
     dialogEditTitle: "Edit Vendor",
@@ -38,7 +38,7 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
   },
   subcontractor: {
     title: "Subcontractors",
-    subtitle: "Manage subcontractors for fund request payments.",
+    subtitle: "Manage subcontractors and their information.",
     addButtonLabel: "Add Subcontractor",
     dialogAddTitle: "Add Subcontractor",
     dialogEditTitle: "Edit Subcontractor",

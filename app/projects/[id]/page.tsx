@@ -30,6 +30,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { getProjectStatusColor, getProjectStatusLabel } from "@/types/project";
 
 interface Project {
   id: string; code: string; name: string; client_id: string | null; site_address: string | null;
@@ -44,10 +45,6 @@ interface ProjectAssignment { id: string; employee_id: string; role: string | nu
 interface ProjectProgressEntry { id: string; progress_date: string; progress_percentage: number; notes: string | null; milestone: string | null; created_at: string; }
 interface FundRequestBrief { id: string; purpose: string; total_requested_amount: number; status: string; request_date: string; }
 interface POBrief { id: string; po_number: string; total_amount: number; status: string; po_date: string; vendors: { name: string } | null; }
-
-const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  active: "default", completed: "default", "on-hold": "secondary", cancelled: "destructive", planned: "outline",
-};
 
 const EXCLUDED_COST_STATUSES = new Set(["rejected"]);
 const APPROVED_COST_STATUSES = new Set(["management_approved"]);
@@ -238,7 +235,9 @@ export default function ProjectDetailPage() {
               <p className="text-muted-foreground text-sm">{project.code} {project.clients?.name ? `· ${project.clients.name}` : ""}</p>
             </div>
           </div>
-          <Badge variant={STATUS_COLORS[project.status] ?? "outline"} className="text-sm capitalize">{formatLabel(project.status)}</Badge>
+          <Badge variant={getProjectStatusColor(project.status)} className="text-sm">
+            {getProjectStatusLabel(project.status)}
+          </Badge>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

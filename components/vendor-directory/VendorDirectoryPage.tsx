@@ -9,6 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +69,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const [records, setRecords] = useState<VendorRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<VendorRecord | null>(null);
 
@@ -204,6 +213,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   };
 
   const filteredRecords = records.filter((record) => {
+    if (statusFilter === "active" && !record.is_active) return false;
+    if (statusFilter === "inactive" && record.is_active) return false;
+    if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
     return (
       record.name.toLowerCase().includes(s) ||
@@ -243,13 +255,27 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                   className="pl-9"
                 />
               </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[160px]">
+                  <SelectValue placeholder="All statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="py-12 text-center text-muted-foreground">Loading...</div>
             ) : filteredRecords.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground">{config.emptyState}</div>
+              <div className="py-12 text-center text-muted-foreground">
+                {searchTerm || statusFilter !== "all"
+                  ? "No records match your filters."
+                  : config.emptyState}
+              </div>
             ) : (
               <>
                 <DbMobileBlock>
@@ -258,14 +284,12 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                       <div key={record.id} className={dbMobileListCard}>
                         <div className="flex items-start justify-between gap-2">
                           <p className="min-w-0 truncate text-sm font-medium">{record.name}</p>
-                          <span
-                            className={cn(
-                              "shrink-0 text-xs font-medium",
-                              record.is_active ? "text-primary" : "text-muted-foreground"
-                            )}
+                          <Badge
+                            variant={record.is_active ? "default" : "secondary"}
+                            className="shrink-0"
                           >
                             {record.is_active ? "Active" : "Inactive"}
-                          </span>
+                          </Badge>
                         </div>
                         <div className="mt-2 space-y-1">
                           <DashboardMobileField
@@ -334,15 +358,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             {record.phone || record.email || "—"}
                           </TableCell>
                           <TableCell>
-                            <span
-                              className={
-                                record.is_active
-                                  ? "text-primary"
-                                  : "text-muted-foreground"
-                              }
-                            >
+                            <Badge variant={record.is_active ? "default" : "secondary"}>
                               {record.is_active ? "Active" : "Inactive"}
-                            </span>
+                            </Badge>
                           </TableCell>
                           {canManageVendors ? (
                           <TableCell>
@@ -457,15 +475,20 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="isActive">Active</Label>
+            <div className="space-y-2">
+              <Label htmlFor="record_status">Status</Label>
+              <Select
+                value={isActive ? "active" : "inactive"}
+                onValueChange={(value) => setIsActive(value === "active")}
+              >
+                <SelectTrigger id="record_status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>

@@ -26,6 +26,13 @@ import { cn } from "@/lib/utils";
 import { PageSubtitle } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import {
+  PROJECT_STATUSES,
+  PROJECT_STATUS_LABELS,
+  getProjectStatusColor,
+  getProjectStatusLabel,
+  projectMatchesStatusFilter,
+} from "@/types/project";
 
 interface Project {
   id: string;
@@ -54,13 +61,6 @@ interface Project {
 
 interface Client { id: string; name: string }
 
-const STATUS_LABELS: Record<string, string> = {
-  planned: "Planned", active: "Active", "on-hold": "On Hold", completed: "Completed", cancelled: "Cancelled",
-};
-const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  active: "default", completed: "default", "on-hold": "secondary", cancelled: "destructive", planned: "outline",
-};
-
 export default function ProjectsPage() {
   const supabase = createClient();
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function ProjectsPage() {
   const [province, setProvince] = useState("");
   const [startDate, setStartDate] = useState("");
   const [targetEndDate, setTargetEndDate] = useState("");
-  const [status, setStatus] = useState("planned");
+  const [status, setStatus] = useState<string>("pending");
   const [contractValue, setContractValue] = useState("");
   const [description, setDescription] = useState("");
 
@@ -110,7 +110,7 @@ export default function ProjectsPage() {
 
   const resetForm = () => {
     setCode(""); setName(""); setClientId(""); setSiteAddress(""); setCity(""); setProvince("");
-    setStartDate(""); setTargetEndDate(""); setStatus("planned"); setContractValue(""); setDescription("");
+    setStartDate(""); setTargetEndDate(""); setStatus("pending"); setContractValue(""); setDescription("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -152,7 +152,7 @@ export default function ProjectsPage() {
     canCreateProjects || canUpdateProjects || canDeleteProjects;
 
   const filteredProjects = projects.filter((p) => {
-    if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (!projectMatchesStatusFilter(p.status, statusFilter)) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       if (!(p.code || "").toLowerCase().includes(term) && !(p.name || "").toLowerCase().includes(term) && !(p.clients?.name || "").toLowerCase().includes(term)) return false;
@@ -168,7 +168,7 @@ export default function ProjectsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-            <PageSubtitle className="mt-1">Manage construction projects, track progress and costs.</PageSubtitle>
+            <PageSubtitle className="mt-1">Manage construction projects, track progress, costs, and overall status.</PageSubtitle>
           </div>
           {canCreateProjects && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -204,11 +204,11 @@ export default function ProjectsPage() {
                       <Select value={status} onValueChange={setStatus}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="planned">Planned</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="on-hold">On Hold</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                          {PROJECT_STATUSES.map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {PROJECT_STATUS_LABELS[value]}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -234,11 +234,11 @@ export default function ProjectsPage() {
             <SelectTrigger className="w-[160px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="planned">Planned</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="on-hold">On Hold</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
+              {PROJECT_STATUSES.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {PROJECT_STATUS_LABELS[value]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -274,7 +274,9 @@ export default function ProjectsPage() {
                         <td className="px-4 py-3 max-w-[180px] truncate">{[p.site_address, p.city].filter(Boolean).join(", ") || "—"}</td>
                         <td className="px-4 py-3 text-right tabular-nums">{p.contract_value ? `₱${Number(p.contract_value).toLocaleString()}` : "—"}</td>
                         <td className="px-4 py-3">
-                          <Badge variant={STATUS_COLORS[p.status] ?? "outline"} className="text-xs capitalize">{STATUS_LABELS[p.status] ?? p.status}</Badge>
+                          <Badge variant={getProjectStatusColor(p.status)} className="text-xs">
+                            {getProjectStatusLabel(p.status)}
+                          </Badge>
                         </td>
                         <td className="px-4 py-3">
                           <Link href={`/projects/${p.id}`} className="text-primary font-medium hover:underline text-sm">View</Link>

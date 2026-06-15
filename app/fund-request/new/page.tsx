@@ -207,6 +207,9 @@ function parseRequiredNumericOrNA(
   return parsed;
 }
 
+const FUND_REQUEST_APPROVAL_STREAM =
+  "Requester → Operations Manager → Purchasing Officer → Upper Management";
+
 function getSubmissionWorkflow(
   role: string | undefined,
   isPortal: boolean,
@@ -222,8 +225,6 @@ function getSubmissionWorkflow(
       purchasing_officer_approved_at: null,
       management_approved_by: null,
       management_approved_at: null,
-      workflowLabel:
-        "Requester/Operations Manager → Purchasing Officer → Upper Management",
     };
   }
 
@@ -236,8 +237,6 @@ function getSubmissionWorkflow(
       purchasing_officer_approved_at: timestamp,
       management_approved_by: null,
       management_approved_at: null,
-      workflowLabel:
-        "Requester/Purchasing Officer → Upper Management",
     };
   }
 
@@ -249,8 +248,6 @@ function getSubmissionWorkflow(
     purchasing_officer_approved_at: null,
     management_approved_by: null,
     management_approved_at: null,
-    workflowLabel:
-      "Requester → Operations Manager → Purchasing Officer → Upper Management",
   };
 }
 
@@ -683,30 +680,25 @@ export default function NewFundRequestPage() {
   if (loading) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;
 
   const formContent = (
-    <div
-      className={cn(
-        "flex w-full max-w-6xl flex-col gap-4",
-        isPortal
-          ? "min-h-0"
-          : "min-h-0 max-h-[calc(100vh-6rem)] overflow-hidden"
-      )}
-    >
+    <div className="flex w-full min-w-0 flex-col gap-4">
       <Link href={base} className="text-muted-foreground hover:text-foreground text-sm shrink-0">
         ← Back to Fund Requests
       </Link>
-      <Card className={cn(epFormCard, "flex min-h-0 flex-1 flex-col border-primary/20 bg-card/95")}>
+      <Card className={cn(epFormCard, "w-full flex flex-col border-primary/20 bg-card/95")}>
         <CardHeader className="pb-4 shrink-0">
           <CardTitle>New Fund Request</CardTitle>
           <div>
-            <p className="text-sm font-medium">Approval stream</p>
-            <p className="text-sm text-muted-foreground">{workflow.workflowLabel}</p>
+            <p className="text-sm text-muted-foreground whitespace-nowrap overflow-x-auto">
+              <span className="font-medium text-foreground">Approval stream:</span>{" "}
+              {FUND_REQUEST_APPROVAL_STREAM}
+            </p>
           </div>
         </CardHeader>
-        <CardContent className="overflow-y-auto min-h-0 flex-1">
+        <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-6">
               {/* Left column */}
-              <div className="flex flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <Label>Requested by</Label>
@@ -734,7 +726,13 @@ export default function NewFundRequestPage() {
                   </div>
                   <div>
                     <Label htmlFor="request_date">Date</Label>
-                    <Input id="request_date" type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} required />
+                    <Input
+                      id="request_date"
+                      type="date"
+                      value={requestDate}
+                      onChange={(e) => setRequestDate(e.target.value)}
+                      required
+                    />
                   </div>
                 </div>
                 <div>
@@ -799,9 +797,7 @@ export default function NewFundRequestPage() {
                       <CardContent className="grid grid-cols-1 gap-3">
                         {showClientPOField ? (
                           <div>
-                            <Label htmlFor="po_number">
-                              P.O. Number *
-                            </Label>
+                            <Label htmlFor="po_number">P.O. Number *</Label>
                             <Input
                               id="po_number"
                               value={poNumber}
@@ -926,7 +922,7 @@ export default function NewFundRequestPage() {
               </div>
 
               {/* Right column */}
-              <div className="flex flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-4">
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-2">
                     {purposeConfig.detailsSectionTitle}

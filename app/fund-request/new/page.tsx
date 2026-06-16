@@ -55,7 +55,6 @@ import {
   createEmptyFundRequestProjectRow,
   normalizeFundRequestProjectRows,
   serializeFundRequestProjectDetails,
-  usesFundRequestPerProjectPo,
   validateFundRequestProjectRows,
   type FundRequestProjectDetailRow,
 } from "@/lib/fund-request-project-details";
@@ -303,7 +302,7 @@ export default function NewFundRequestPage() {
   const showVendorPaymentSection =
     !isInternalStockReference && isSubcontractorPaymentPurpose(purposeOption);
   const allowMultipleProjects = allowsMultipleFundRequestProjects(purposeOption);
-  const poPerProject = showClientPOField && usesFundRequestPerProjectPo(purposeOption);
+  const poPerProject = showClientPOField;
 
   useEffect(() => {
     if (session?.employee?.full_name) {
@@ -404,7 +403,7 @@ export default function NewFundRequestPage() {
       return [{ ...row, poNumber }];
     });
     setPoNumber("");
-  }, [poPerProject, purposeOption]);
+  }, [poPerProject]);
 
   useEffect(() => {
     if (showVendorPaymentSection) return;

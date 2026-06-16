@@ -1,7 +1,6 @@
 import type { FundRequestRow } from "@/types/fund-request";
 import {
   approvalApprovedStatusBadgeClass,
-  approvalPendingStatusBadgeClass,
   approvalRejectedStatusBadgeClass,
 } from "@/lib/approval-status-badge";
 
@@ -135,7 +134,16 @@ export function getFundRequestStatusBadgeClass(
   if (status === "rejected") {
     return approvalRejectedStatusBadgeClass;
   }
-  return approvalPendingStatusBadgeClass;
+  // Amber styling comes from Badge variant="pending".
+  return "";
+}
+
+export function getFundRequestStatusBadgeVariant(
+  status: FundRequestRow["status"] | string
+): "pending" | "default" | "destructive" | "outline" {
+  if (status === "management_approved") return "default";
+  if (status === "rejected") return "destructive";
+  return "pending";
 }
 
 const REQUESTER_DELETABLE_STATUSES = new Set<FundRequestRow["status"]>([

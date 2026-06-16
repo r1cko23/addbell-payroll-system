@@ -1,4 +1,5 @@
 import type { FundRequestRow } from "@/types/fund-request";
+import { isOfficeRelatedFundRequest } from "@/types/fund-request";
 
 export type FundRequestProjectDetail = {
   po_number: string | null;
@@ -30,6 +31,14 @@ export function allowsMultipleFundRequestProjects(
     purposeOption === "Project Funds" ||
     purposeOption === "Liquidation" ||
     purposeOption === "Others"
+  );
+}
+
+export function usesFundRequestPerProjectPo(purposeOption: string): boolean {
+  return (
+    purposeOption === "Material Purchase" ||
+    purposeOption === "Subcontractor Payment" ||
+    allowsMultipleFundRequestProjects(purposeOption)
   );
 }
 
@@ -183,6 +192,23 @@ export function getFundRequestPrimaryProjectLabel(
   if (projects.length === 1) return projects[0].title || "—";
   const first = projects[0].title || "Project";
   return `${first} (+${projects.length - 1} more)`;
+}
+
+export function getFundRequestListProjectLabel(
+  request: Pick<
+    FundRequestRow,
+    | "reference_mode"
+    | "project_details"
+    | "project_title"
+    | "project_location"
+    | "current_project_percentage"
+    | "po_number"
+  >
+): string {
+  if (isOfficeRelatedFundRequest(request.reference_mode)) {
+    return "Office-Related Request";
+  }
+  return getFundRequestPrimaryProjectLabel(request);
 }
 
 export function fundRequestUsesPerProjectPo(

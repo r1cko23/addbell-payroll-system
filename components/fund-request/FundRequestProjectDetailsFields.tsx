@@ -48,8 +48,12 @@ export function FundRequestProjectDetailsFields({
   };
 
   const desktopGridClass = poPerProject
-    ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_88px_2.25rem]"
-    : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_2.25rem]";
+    ? allowMultiple
+      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_88px_2.25rem]"
+      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_88px]"
+    : allowMultiple
+      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_2.25rem]"
+      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px]";
 
   return (
     <div className="space-y-2">
@@ -65,7 +69,7 @@ export function FundRequestProjectDetailsFields({
         <Label className={fieldLabelClass}>Project Title *</Label>
         <Label className={fieldLabelClass}>Project Location *</Label>
         <Label className={fieldLabelClass}>Completion % *</Label>
-        <span className="sr-only">Remove</span>
+        {allowMultiple ? <span className="sr-only">Remove</span> : null}
       </div>
 
       {rows.map((row, index) => (
@@ -125,17 +129,19 @@ export function FundRequestProjectDetailsFields({
               required
             />
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => removeRow(index)}
-            disabled={!allowMultiple || rows.length <= 1}
-            className="h-9 w-9 shrink-0 justify-self-end text-muted-foreground hover:text-destructive sm:justify-self-center"
-            aria-label={`Remove project ${index + 1}`}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          {allowMultiple ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => removeRow(index)}
+              disabled={rows.length <= 1}
+              className="h-9 w-9 shrink-0 justify-self-end text-muted-foreground hover:text-destructive sm:justify-self-center"
+              aria-label={`Remove project ${index + 1}`}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
       ))}
 

@@ -31,18 +31,19 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Trash2 } from 'lucide-react';
 import { H1, PageTitle, PageSubtitle } from '@/components/ui/typography';
 import { epPageHeaderRow, epPageWrapper } from '@/lib/employee-portal-ui';
 import { dbPageWrapper } from '@/lib/dashboard-ui';
 import { cn } from '@/lib/utils';
 import type { FundRequestRow } from '@/types/fund-request';
 import { FUND_REQUEST_STATUS_LABELS } from '@/types/fund-request';
-import { getFundRequestPrimaryProjectLabel } from '@/lib/fund-request-project-details';
+import { getFundRequestListProjectLabel } from '@/lib/fund-request-project-details';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
 import {
   canRequesterDeleteFundRequest,
   getFundRequestStatusBadgeClass,
+  getFundRequestStatusBadgeVariant,
   isFundRequestApproverRole,
 } from '@/lib/fund-request-approval';
 import { FundRequestInbox } from '@/components/fund-request/FundRequestInbox';
@@ -112,6 +113,11 @@ function FundRequestAllList({
     return true;
   });
 
+  const canDeleteRequest = (request: FundRequestWithProject) =>
+    Boolean(requesterEmployeeId) &&
+    request.requested_by === requesterEmployeeId &&
+    canRequesterDeleteFundRequest(request.status);
+
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
   }
@@ -146,7 +152,7 @@ function FundRequestAllList({
               <tr key={r.id} className="border-b last:border-0 hover:bg-primary/5">
                 <td className="px-4 py-3 whitespace-nowrap">{format(new Date(r.request_date), 'MMM d, yyyy')}</td>
                 <td className="px-4 py-3 max-w-[180px] truncate">
-                  {getFundRequestPrimaryProjectLabel(r)}
+                  {getFundRequestListProjectLabel(r)}
                 </td>
                 <td className="px-4 py-3 max-w-[200px] truncate">{r.purpose}</td>
                 <td className="px-4 py-3 font-medium text-right tabular-nums">
@@ -157,7 +163,7 @@ function FundRequestAllList({
                 </td>
                 <td className="px-4 py-3">
                   <Badge
-                    variant="outline"
+                    variant={getFundRequestStatusBadgeVariant(r.status)}
                     className={cn(
                       'whitespace-nowrap text-xs',
                       getFundRequestStatusBadgeClass(r.status)
@@ -171,13 +177,14 @@ function FundRequestAllList({
                     <Link href={`${base}/${r.id}`} className="text-primary font-medium hover:underline text-sm">
                       View
                     </Link>
-                    {requesterEmployeeId && canRequesterDeleteFundRequest(r.status) ? (
+                    {canDeleteRequest(r) ? (
                       <button
                         type="button"
                         onClick={() => setDeleteId(r.id)}
-                        className="text-destructive text-sm font-medium hover:underline"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                        aria-label="Delete request"
                       >
-                        Delete
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     ) : null}
                   </div>
@@ -198,12 +205,12 @@ function FundRequestAllList({
                     {format(new Date(r.request_date), 'MMM d, yyyy')}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {getFundRequestPrimaryProjectLabel(r)}
+                    {getFundRequestListProjectLabel(r)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 truncate">{r.purpose}</div>
                 </div>
                 <Badge
-                  variant="outline"
+                  variant={getFundRequestStatusBadgeVariant(r.status)}
                   className={cn(
                     'max-w-[45%] shrink-0 whitespace-normal text-right text-xs leading-snug sm:max-w-none',
                     getFundRequestStatusBadgeClass(r.status)
@@ -220,13 +227,14 @@ function FundRequestAllList({
                   <Link href={`${base}/${r.id}`} className="text-primary font-medium hover:underline text-sm">
                     View
                   </Link>
-                  {requesterEmployeeId && canRequesterDeleteFundRequest(r.status) ? (
+                  {canDeleteRequest(r) ? (
                     <button
                       type="button"
                       onClick={() => setDeleteId(r.id)}
-                      className="text-destructive text-sm font-medium hover:underline"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                      aria-label="Delete request"
                     >
-                      Delete
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   ) : null}
                 </div>

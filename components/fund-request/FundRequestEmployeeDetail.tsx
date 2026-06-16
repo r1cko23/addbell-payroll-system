@@ -14,6 +14,7 @@ import {
   formatFundRequestPercentage,
   getFundRequestReferenceModeLabel,
   isSubcontractorPaymentPurpose,
+  shouldShowFundRequestProjectReferenceFields,
 } from '@/types/fund-request';
 import { FundRequestField } from '@/components/fund-request/FundRequestField';
 import {
@@ -23,7 +24,7 @@ import {
 import { FundRequestDetailsSection } from '@/components/fund-request/FundRequestDetailsSection';
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
-import { getFundRequestStatusBadgeClass } from '@/lib/fund-request-approval';
+import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant } from '@/lib/fund-request-approval';
 import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { epPageWrapper } from '@/lib/employee-portal-ui';
@@ -124,7 +125,12 @@ export function FundRequestEmployeeDetail({
 
   const details = (request.details as FundRequestDetailItem[] | null) ?? [];
   const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
-  const showSubcontractorFields = isSubcontractorPaymentPurpose(request.purpose);
+  const showProjectReferenceFields = shouldShowFundRequestProjectReferenceFields(
+    request.reference_mode
+  );
+  const showSubcontractorFields =
+    showProjectReferenceFields &&
+    isSubcontractorPaymentPurpose(request.purpose);
 
   return (
     <div className={cn('w-full max-w-3xl', epPageWrapper)}>
@@ -140,7 +146,7 @@ export function FundRequestEmployeeDetail({
               {format(new Date(request.request_date), 'MMMM d, yyyy')}
             </p>
             <Badge
-              variant="outline"
+              variant={getFundRequestStatusBadgeVariant(request.status)}
               className={cn('w-fit', getFundRequestStatusBadgeClass(request.status))}
             >
               {STATUS_LABELS[request.status] ?? request.status}
@@ -154,7 +160,7 @@ export function FundRequestEmployeeDetail({
             value={referenceModeLabel}
           />
 
-          {projectInfo && (
+          {projectInfo && showProjectReferenceFields && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Linked Project
@@ -168,6 +174,7 @@ export function FundRequestEmployeeDetail({
             </div>
           )}
 
+          {showProjectReferenceFields ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {shouldShowTopLevelFundRequestPo(request) ? (
               <FundRequestField label={FUND_REQUEST_FIELD_LABELS.poNumber} value={request.po_number ?? '—'} />
@@ -186,6 +193,7 @@ export function FundRequestEmployeeDetail({
               </>
             ) : null}
           </div>
+          ) : null}
 
           <FundRequestDetailsSection
             details={details}

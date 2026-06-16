@@ -49,7 +49,7 @@ export function RequestApprovalLabels({
       align="start"
       className={className ?? "mt-2 text-xs text-muted-foreground"}
     >
-      {managerId && (
+      {managerId && !(status === "rejected" && rejectedByRole === "manager") && (
         <Caption>
           Approved by Manager:{" "}
           {resolveApproverName(names, managerId, "Manager")}

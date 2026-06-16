@@ -25,13 +25,19 @@ import {
 } from "@/lib/approval-queue-card-ui";
 import type { FundRequestRow } from "@/types/fund-request";
 import { formatFundRequestPercentage, isSubcontractorPaymentPurpose } from "@/types/fund-request";
-import { getFundRequestPrimaryProjectLabel } from "@/lib/fund-request-project-details";
+import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
+import { isOfficeRelatedFundRequest } from "@/types/fund-request";
 import { cn } from "@/lib/utils";
 import {
   resolveFundRequestRequesterMap,
   type FundRequestRequesterInfo,
 } from "@/lib/fund-request-requester";
-import { getActionableFundRequestStatuses, getFundRequestStatusBadgeClass } from "@/lib/fund-request-approval";
+import {
+  canRequesterDeleteFundRequest,
+  getFundRequestStatusBadgeClass,
+  getFundRequestStatusBadgeVariant,
+  getActionableFundRequestStatuses,
+} from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
 import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
 
@@ -355,7 +361,8 @@ export function FundRequestInbox({
             const name = getRequesterDisplayName(r, requesterInfo);
             const emp = r.employees;
             const employeeIdLabel = formatEmployeeIdDisplay(emp?.employee_id);
-            const projectTitle = getFundRequestPrimaryProjectLabel(r);
+            const projectTitle = getFundRequestListProjectLabel(r);
+            const isOfficeRelated = isOfficeRelatedFundRequest(r.reference_mode);
             const purpose = (r.purpose || "").trim() || "—";
             const showSubcontractorFields = isSubcontractorPaymentPurpose(r.purpose);
             const canAct = canQuickApproveFromInbox(
@@ -403,7 +410,7 @@ export function FundRequestInbox({
                       </Badge>
                     </HStack>
                     <Badge
-                      variant="outline"
+                      variant={getFundRequestStatusBadgeVariant(r.status)}
                       className={cn(
                         approvalQueueStatusBadge,
                         getFundRequestStatusBadgeClass(r.status)
@@ -432,9 +439,15 @@ export function FundRequestInbox({
                       </span>
                     </HStack>
                     <BodySmall className="line-clamp-2">
-                      <strong>Project:</strong> {projectTitle}
+                      {isOfficeRelated ? (
+                        projectTitle
+                      ) : (
+                        <>
+                          <strong>Project:</strong> {projectTitle}
+                        </>
+                      )}
                     </BodySmall>
-                    {r.project_location ? (
+                    {!isOfficeRelated && r.project_location ? (
                       <BodySmall className="mt-1 line-clamp-1 uppercase text-muted-foreground">
                         <strong>Location:</strong> {r.project_location}
                       </BodySmall>

@@ -46,22 +46,29 @@ type OtLike = {
 };
 
 export function otToApprovalFields(request: OtLike): ApprovalLabelFields {
-  const managerId =
-    request.project_manager_id || request.account_manager_id || null;
-  const hrId =
-    request.status === "approved"
-      ? request.hr_approved_by || request.approved_by || null
-      : null;
-
   let rejectedByRole: ApprovalLabelFields["rejectedByRole"] = null;
   if (request.status === "rejected") {
     rejectedByRole = request.hr_approved_by ? "hr" : "manager";
   }
 
+  const managerRejectedAtStage =
+    request.status === "rejected" && rejectedByRole === "manager";
+
+  const managerId = managerRejectedAtStage
+    ? null
+    : request.project_manager_id || request.account_manager_id || null;
+
+  const hrId =
+    request.status === "approved"
+      ? request.hr_approved_by || request.approved_by || null
+      : null;
+
   return {
     status: request.status,
     managerId,
-    managerApprovedAt: request.project_manager_approved_at || null,
+    managerApprovedAt: managerRejectedAtStage
+      ? null
+      : request.project_manager_approved_at || null,
     hrId,
     hrApprovedAt: request.status === "approved" ? request.approved_at : null,
     rejectedById:
@@ -83,23 +90,26 @@ type FtlLike = {
 };
 
 export function ftlToApprovalFields(request: FtlLike): ApprovalLabelFields {
-  const managerId = request.account_manager_id || null;
+  const managerIdRaw = request.account_manager_id || null;
   const hrId =
     request.status === "approved" ? request.approved_by || null : null;
 
   let rejectedByRole: ApprovalLabelFields["rejectedByRole"] = null;
   if (request.status === "rejected" && request.approved_by) {
     rejectedByRole =
-      managerId && request.approved_by !== managerId ? "hr" : "manager";
+      managerIdRaw && request.approved_by !== managerIdRaw ? "hr" : "manager";
   }
+
+  const managerRejectedAtStage =
+    request.status === "rejected" && rejectedByRole === "manager";
 
   return {
     status: request.status,
-    managerId,
+    managerId: managerRejectedAtStage ? null : managerIdRaw,
     managerApprovedAt:
-      request.status === "pending" && managerId
-        ? request.updated_at || null
-        : null,
+      managerRejectedAtStage || request.status !== "pending" || !managerIdRaw
+        ? null
+        : request.updated_at || null,
     hrId,
     hrApprovedAt: request.status === "approved" ? request.approved_at : null,
     rejectedById:

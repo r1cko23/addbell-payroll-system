@@ -14,6 +14,18 @@ export function getFundRequestReferenceModeLabel(
   return FUND_REQUEST_REFERENCE_MODE_LABELS.client_linked;
 }
 
+export function isOfficeRelatedFundRequest(
+  mode: FundRequestReferenceMode | null | undefined
+): boolean {
+  return mode === "internal_stock";
+}
+
+export function shouldShowFundRequestProjectReferenceFields(
+  mode: FundRequestReferenceMode | null | undefined
+): boolean {
+  return !isOfficeRelatedFundRequest(mode);
+}
+
 export function formatFundRequestPercentage(
   value: number | string | null | undefined
 ): string {

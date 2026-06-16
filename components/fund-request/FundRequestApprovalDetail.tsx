@@ -18,6 +18,7 @@ import {
   formatFundRequestPercentage,
   getFundRequestReferenceModeLabel,
   isSubcontractorPaymentPurpose,
+  shouldShowFundRequestProjectReferenceFields,
 } from "@/types/fund-request";
 import { FundRequestField } from "@/components/fund-request/FundRequestField";
 import {
@@ -30,6 +31,7 @@ import {
   canActOnFundRequest,
   getFundRequestApprovalActionCopy,
   getFundRequestStatusBadgeClass,
+  getFundRequestStatusBadgeVariant,
 } from "@/lib/fund-request-approval";
 import {
   canPurchasingOfficerEditDetails,
@@ -364,7 +366,12 @@ export function FundRequestApprovalDetail({
 
   const details = (request.details as FundRequestDetailItem[] | null) ?? [];
   const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
-  const showSubcontractorFields = isSubcontractorPaymentPurpose(request.purpose);
+  const showProjectReferenceFields = shouldShowFundRequestProjectReferenceFields(
+    request.reference_mode
+  );
+  const showSubcontractorFields =
+    showProjectReferenceFields &&
+    isSubcontractorPaymentPurpose(request.purpose);
 
   return (
     <div className={cn(dbPageWrapper)}>
@@ -383,7 +390,7 @@ export function FundRequestApprovalDetail({
               {format(new Date(request.request_date), "MMMM d, yyyy")}
             </p>
             <Badge
-              variant="outline"
+              variant={getFundRequestStatusBadgeVariant(request.status)}
               className={cn("w-fit", getFundRequestStatusBadgeClass(request.status))}
             >
               {STATUS_LABELS[request.status] ?? request.status}
@@ -400,7 +407,7 @@ export function FundRequestApprovalDetail({
             value={referenceModeLabel}
           />
 
-            {projectInfo && (
+            {projectInfo && showProjectReferenceFields && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Linked Project — Budget Context</h4>
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -428,6 +435,7 @@ export function FundRequestApprovalDetail({
               </div>
             )}
 
+            {showProjectReferenceFields ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {shouldShowTopLevelFundRequestPo(request) ? (
                 <FundRequestField
@@ -451,6 +459,7 @@ export function FundRequestApprovalDetail({
                 </>
               ) : null}
             </div>
+            ) : null}
             <FundRequestDetailsSection
               details={details}
               totalRequestedAmount={request.total_requested_amount}

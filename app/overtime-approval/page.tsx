@@ -991,9 +991,6 @@ export default function OvertimeApprovalPage() {
     const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {
           status: "rejected",
-          project_manager_id: user.id,
-          project_manager_approved_at: now,
-          account_manager_id: user.id,
           approved_by: user.id,
           approved_at: now,
           updated_at: now,

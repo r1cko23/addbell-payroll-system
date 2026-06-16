@@ -379,6 +379,7 @@ export default function NewFundRequestPage() {
 
     setProjectRows((prev) =>
       prev.map((row) => ({
+        poNumber: row.poNumber,
         title: isNotApplicableValue(row.title) ? "" : row.title,
         location: isNotApplicableValue(row.location) ? "" : row.location,
         completionPercentage: row.completionPercentage,

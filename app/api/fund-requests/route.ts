@@ -20,7 +20,6 @@ type CreateFundRequestPayload = {
   po_amount_percentage: number | null;
   current_project_percentage: number | null;
   subcontractor_progress_completion_percentage: number | null;
-  project_details?: unknown;
   details: Array<{ description: string; amount: number }>;
   total_requested_amount: number;
   date_needed: string | null;

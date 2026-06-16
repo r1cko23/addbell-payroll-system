@@ -23,8 +23,8 @@ export function FundRequestBankDetailsFields({
       </h4>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="min-w-0">
-          <Label htmlFor={`${idPrefix}-account-name`} className="text-xs">
-            Account Name <span className="text-destructive">*</span>
+          <Label htmlFor={`${idPrefix}-account-name`} className="text-xs" required>
+            Account Name
           </Label>
           <Input
             id={`${idPrefix}-account-name`}

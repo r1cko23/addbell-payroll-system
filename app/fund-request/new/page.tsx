@@ -382,6 +382,7 @@ export default function NewFundRequestPage() {
         poNumber: row.poNumber,
         title: isNotApplicableValue(row.title) ? "" : row.title,
         location: isNotApplicableValue(row.location) ? "" : row.location,
+        poAmount: row.poAmount,
         completionPercentage: row.completionPercentage,
       }))
     );
@@ -548,7 +549,7 @@ export default function NewFundRequestPage() {
         project_location: primaryProject?.location ?? null,
         vendor_id: showVendorPaymentSection ? vendorId : null,
         vendor_po_number: null,
-        po_amount: null,
+        po_amount: primaryProject?.po_amount ?? null,
         po_amount_percentage: null,
         current_project_percentage: primaryProject?.completion_percentage ?? null,
         project_details: serializeFundRequestProjectDetails(normalizedProjects),
@@ -670,7 +671,9 @@ export default function NewFundRequestPage() {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="request_date">Date</Label>
+                    <Label htmlFor="request_date" required>
+                      Date
+                    </Label>
                     <Input
                       id="request_date"
                       type="date"
@@ -681,7 +684,9 @@ export default function NewFundRequestPage() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="purpose">Purpose *</Label>
+                  <Label htmlFor="purpose" required>
+                    Purpose
+                  </Label>
                   <Select value={purposeOption} onValueChange={setPurposeOption} required>
                     <SelectTrigger id="purpose">
                       <SelectValue placeholder="Select purpose" />
@@ -697,7 +702,9 @@ export default function NewFundRequestPage() {
                   )}
                 </div>
                 <div>
-                  <Label htmlFor="reference_mode">Reference Basis *</Label>
+                  <Label htmlFor="reference_mode" required>
+                    Reference Basis
+                  </Label>
                   <Select
                     value={referenceMode}
                     onValueChange={(value) => setReferenceMode(value as ReferenceMode)}
@@ -733,7 +740,9 @@ export default function NewFundRequestPage() {
                   <div className="grid grid-cols-1 gap-3">
                     {showClientPOField && !poPerProject ? (
                       <div>
-                        <Label htmlFor="po_number">P.O. Number *</Label>
+                        <Label htmlFor="po_number" required>
+                          P.O. Number
+                        </Label>
                         <Input
                           id="po_number"
                           value={poNumber}
@@ -757,7 +766,9 @@ export default function NewFundRequestPage() {
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="sm:col-span-3">
-                            <Label htmlFor="vendor_id">Subcontractor Name *</Label>
+                            <Label htmlFor="vendor_id" required>
+                              Subcontractor Name
+                            </Label>
                             <Select value={vendorId} onValueChange={setVendorId}>
                               <SelectTrigger id="vendor_id">
                                 <SelectValue placeholder="Select subcontractor" />
@@ -772,8 +783,8 @@ export default function NewFundRequestPage() {
                             </Select>
                           </div>
                           <div className="sm:col-span-3">
-                            <Label htmlFor="subcontractor_progress_completion">
-                              Subcontractor Current Progress Percentage *
+                            <Label htmlFor="subcontractor_progress_completion" required>
+                              Subcontractor Current Progress Percentage
                             </Label>
                             <Input
                               id="subcontractor_progress_completion"
@@ -873,8 +884,8 @@ export default function NewFundRequestPage() {
                     </p>
                   </div>
                   <div>
-                    <Label htmlFor="urgent_reason">
-                      Reason for Urgency{dateNeeded ? " *" : ""}
+                    <Label htmlFor="urgent_reason" required={Boolean(dateNeeded)}>
+                      Reason for Urgency
                     </Label>
                     <Textarea
                       id="urgent_reason"

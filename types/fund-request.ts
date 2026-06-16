@@ -50,6 +50,7 @@ export const FUND_REQUEST_FIELD_LABELS = {
   subcontractorName: "Subcontractor Name",
   subcontractorProgress: "Subcontractor Current Progress Percentage",
   projectCompletion: "Current Project Completion Percentage",
+  poAmount: "P.O. Amount",
   supplierBankDetails: "Bank Details",
   referenceBasis: "Reference Basis",
   purpose: "Purpose",

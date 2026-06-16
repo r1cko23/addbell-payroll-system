@@ -404,7 +404,9 @@ export default function FailureToLogPage() {
               <div className={epFormStack}>
                 <div className={epFormGrid}>
                   <div className={epFormField}>
-                    <Label htmlFor="missed-date">Time In Date</Label>
+                    <Label htmlFor="missed-date" required>
+                      Time In Date
+                    </Label>
                     <Input
                       id="missed-date"
                       type="date"
@@ -416,7 +418,9 @@ export default function FailureToLogPage() {
                   </div>
 
                   <div className={epFormField}>
-                    <Label htmlFor="time-in">Time In</Label>
+                    <Label htmlFor="time-in" required>
+                      Time In
+                    </Label>
                     <Input
                       id="time-in"
                       type="time"
@@ -429,7 +433,9 @@ export default function FailureToLogPage() {
 
                 <div className={epFormGrid}>
                   <div className={epFormField}>
-                    <Label htmlFor="time-out-date">Time Out Date</Label>
+                    <Label htmlFor="time-out-date" required>
+                      Time Out Date
+                    </Label>
                     <Input
                       id="time-out-date"
                       type="date"
@@ -442,7 +448,9 @@ export default function FailureToLogPage() {
                   </div>
 
                   <div className={epFormField}>
-                    <Label htmlFor="time-out">Time Out</Label>
+                    <Label htmlFor="time-out" required>
+                      Time Out
+                    </Label>
                     <Input
                       id="time-out"
                       type="time"
@@ -455,9 +463,8 @@ export default function FailureToLogPage() {
               </div>
 
               <div className={epFormField}>
-                <Label htmlFor="reason">
-                  {requestReasonLabel}{" "}
-                  <span className="text-destructive">*</span>
+                <Label htmlFor="reason" required>
+                  {requestReasonLabel}
                 </Label>
                 <Textarea
                   id="reason"

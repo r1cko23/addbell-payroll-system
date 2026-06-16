@@ -448,8 +448,9 @@ export function FundRequestInbox({
                       )}
                     </BodySmall>
                     {!isOfficeRelated && r.project_location ? (
-                      <BodySmall className="mt-1 line-clamp-1 uppercase text-muted-foreground">
-                        <strong>Location:</strong> {r.project_location}
+                      <BodySmall className="mt-1 line-clamp-1 text-muted-foreground">
+                        <strong>Location:</strong>{" "}
+                        <span className="uppercase">{r.project_location}</span>
                       </BodySmall>
                     ) : null}
                     {showSubcontractorFields && r.vendors?.name ? (

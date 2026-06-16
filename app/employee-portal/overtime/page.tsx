@@ -503,7 +503,9 @@ export default function OvertimePage() {
           <form onSubmit={handleSubmit} className="w-full min-w-0 max-w-full">
             <div className={epFormStack}>
               <div className={epFormField}>
-                <Label htmlFor="ot-date">OT Date</Label>
+                <Label htmlFor="ot-date" required>
+                  OT Date
+                </Label>
                 <Input
                   id="ot-date"
                   type="date"
@@ -544,7 +546,9 @@ export default function OvertimePage() {
 
               <div className={epFormGrid}>
                 <div className={epFormField}>
-                  <Label htmlFor="start-time">Start Time</Label>
+                  <Label htmlFor="start-time" required>
+                    Start Time
+                  </Label>
                   <Input
                     id="start-time"
                     type="time"
@@ -559,7 +563,9 @@ export default function OvertimePage() {
                   />
                 </div>
                 <div className={epFormField}>
-                  <Label htmlFor="end-time">End Time</Label>
+                  <Label htmlFor="end-time" required>
+                    End Time
+                  </Label>
                   <Input
                     id="end-time"
                     type="time"
@@ -686,7 +692,9 @@ export default function OvertimePage() {
               ) : null}
 
               <div className={epFormField}>
-                <Label htmlFor="reason">{requestReasonLabel}</Label>
+                <Label htmlFor="reason" required>
+                  {requestReasonLabel}
+                </Label>
                 <Textarea
                   id="reason"
                   rows={4}

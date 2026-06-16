@@ -38,7 +38,7 @@ export function FundRequestProjectDetailsFields({
   const addRow = () => {
     onChange([
       ...rows,
-      { poNumber: "", title: "", location: "", completionPercentage: "" },
+      { poNumber: "", title: "", location: "", poAmount: "", completionPercentage: "" },
     ]);
   };
 
@@ -49,11 +49,11 @@ export function FundRequestProjectDetailsFields({
 
   const desktopGridClass = poPerProject
     ? allowMultiple
-      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_88px_2.25rem]"
-      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)_88px]"
+      ? "sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)_minmax(0,1.05fr)_minmax(0,0.9fr)_72px_2.25rem]"
+      : "sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)_minmax(0,1.05fr)_minmax(0,0.9fr)_72px]"
     : allowMultiple
-      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px_2.25rem]"
-      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_88px]";
+      ? "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_72px_2.25rem]"
+      : "sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)_72px]";
 
   return (
     <div className="space-y-2">
@@ -64,11 +64,22 @@ export function FundRequestProjectDetailsFields({
         )}
       >
         {poPerProject ? (
-          <Label className={fieldLabelClass}>P.O. Number *</Label>
+          <Label className={fieldLabelClass} required>
+            P.O. Number
+          </Label>
         ) : null}
-        <Label className={fieldLabelClass}>Project Title *</Label>
-        <Label className={fieldLabelClass}>Project Location *</Label>
-        <Label className={fieldLabelClass}>Completion % *</Label>
+        <Label className={fieldLabelClass} required>
+          Project Title
+        </Label>
+        <Label className={fieldLabelClass} required>
+          Project Location
+        </Label>
+        <Label className={fieldLabelClass} required>
+          P.O. Amount
+        </Label>
+        <Label className={fieldLabelClass} required>
+          Completion %
+        </Label>
         {allowMultiple ? <span className="sr-only">Remove</span> : null}
       </div>
 
@@ -82,8 +93,8 @@ export function FundRequestProjectDetailsFields({
         >
           {poPerProject ? (
             <div className="space-y-1 sm:space-y-0">
-              <Label className={cn(fieldLabelClass, "sm:sr-only")}>
-                P.O. Number *
+              <Label className={cn(fieldLabelClass, "sm:sr-only")} required>
+                P.O. Number
               </Label>
               <Input
                 value={row.poNumber}
@@ -95,7 +106,9 @@ export function FundRequestProjectDetailsFields({
             </div>
           ) : null}
           <div className="space-y-1 sm:space-y-0">
-            <Label className={cn(fieldLabelClass, "sm:sr-only")}>Project Title *</Label>
+            <Label className={cn(fieldLabelClass, "sm:sr-only")} required>
+              Project Title
+            </Label>
             <Input
               value={row.title}
               onChange={(event) => updateRow(index, "title", event.target.value)}
@@ -105,8 +118,8 @@ export function FundRequestProjectDetailsFields({
             />
           </div>
           <div className="space-y-1 sm:space-y-0">
-            <Label className={cn(fieldLabelClass, "sm:sr-only")}>
-              Project Location *
+            <Label className={cn(fieldLabelClass, "sm:sr-only")} required>
+              Project Location
             </Label>
             <Input
               value={row.location}
@@ -117,7 +130,22 @@ export function FundRequestProjectDetailsFields({
             />
           </div>
           <div className="space-y-1 sm:space-y-0">
-            <Label className={cn(fieldLabelClass, "sm:sr-only")}>Completion % *</Label>
+            <Label className={cn(fieldLabelClass, "sm:sr-only")} required>
+              P.O. Amount
+            </Label>
+            <Input
+              value={row.poAmount}
+              onChange={(event) => updateRow(index, "poAmount", event.target.value)}
+              placeholder="0.00"
+              inputMode="decimal"
+              className="h-9"
+              required
+            />
+          </div>
+          <div className="space-y-1 sm:space-y-0">
+            <Label className={cn(fieldLabelClass, "sm:sr-only")} required>
+              Completion %
+            </Label>
             <Input
               value={row.completionPercentage}
               onChange={(event) =>

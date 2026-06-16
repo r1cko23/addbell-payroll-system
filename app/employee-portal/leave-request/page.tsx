@@ -767,7 +767,7 @@ export default function LeaveRequestPage() {
             <form onSubmit={handleSubmit} className="w-full min-w-0">
               <div className={epFormStack}>
                 <div className={epFormField}>
-                  <Label>Leave Type</Label>
+                  <Label required>Leave Type</Label>
                   <div className="w-full flex flex-wrap gap-4">
                     <label
                       className={`flex items-center space-x-2 ${
@@ -828,7 +828,9 @@ export default function LeaveRequestPage() {
                 </div>
 
                 <div className={epFormField}>
-                  <Label htmlFor="leave_subtype">Leave Sub-Type</Label>
+                  <Label htmlFor="leave_subtype" required>
+                    Leave Sub-Type
+                  </Label>
                   <select
                     id="leave_subtype"
                     value={leaveSubtype}
@@ -852,7 +854,7 @@ export default function LeaveRequestPage() {
                 </div>
 
                 <div className={epFormField}>
-                  <Label>Select Dates</Label>
+                  <Label required>Select Dates</Label>
                   <MultiDatePicker
                     selectedDates={selectedDates}
                     onChange={setSelectedDates}
@@ -991,7 +993,9 @@ export default function LeaveRequestPage() {
                 )}
 
                 <div className="w-full space-y-2">
-                  <Label htmlFor="reason">{requestReasonLabel}</Label>
+                  <Label htmlFor="reason" required>
+                    {requestReasonLabel}
+                  </Label>
                   <Textarea
                     id="reason"
                     value={reason}

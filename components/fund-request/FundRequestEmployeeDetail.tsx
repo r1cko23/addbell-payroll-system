@@ -11,16 +11,12 @@ import type { FundRequestRow } from '@/types/fund-request';
 import {
   FUND_REQUEST_FIELD_LABELS,
   FUND_REQUEST_STATUS_LABELS,
-  formatFundRequestPercentage,
   getFundRequestReferenceModeLabel,
   isSubcontractorPaymentPurpose,
   shouldShowFundRequestProjectReferenceFields,
 } from '@/types/fund-request';
 import { FundRequestField } from '@/components/fund-request/FundRequestField';
-import {
-  FundRequestProjectDetailsDisplay,
-  shouldShowTopLevelFundRequestPo,
-} from '@/components/fund-request/FundRequestProjectDetailsDisplay';
+import { FundRequestProjectDetailsDisplay } from '@/components/fund-request/FundRequestProjectDetailsDisplay';
 import { FundRequestDetailsSection } from '@/components/fund-request/FundRequestDetailsSection';
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
@@ -175,24 +171,11 @@ export function FundRequestEmployeeDetail({
           )}
 
           {showProjectReferenceFields ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {shouldShowTopLevelFundRequestPo(request) ? (
-              <FundRequestField label={FUND_REQUEST_FIELD_LABELS.poNumber} value={request.po_number ?? '—'} />
-            ) : null}
-            <FundRequestProjectDetailsDisplay request={request} />
-            {showSubcontractorFields ? (
-              <>
-                <FundRequestField
-                  label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
-                  value={vendorName || '—'}
-                />
-                <FundRequestField
-                  label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
-                  value={formatFundRequestPercentage(request.subcontractor_progress_completion_percentage)}
-                />
-              </>
-            ) : null}
-          </div>
+            <FundRequestProjectDetailsDisplay
+              request={request}
+              vendorName={vendorName}
+              showSubcontractorFields={showSubcontractorFields}
+            />
           ) : null}
 
           <FundRequestDetailsSection

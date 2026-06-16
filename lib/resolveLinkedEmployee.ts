@@ -32,20 +32,49 @@ export async function resolveLinkedEmployee(
     const { data } = await supabase
       .from("employees")
       .select("id, first_name, last_name, full_name")
-      .eq("email", trimmedEmail)
+      .ilike("email", trimmedEmail)
       .maybeSingle();
 
     if (data) return data as ResolvedEmployee;
   }
 
   if (trimmedFullName) {
-    const { data } = await supabase
+    const { data: exactNameMatch } = await supabase
       .from("employees")
       .select("id, first_name, last_name, full_name")
       .ilike("full_name", trimmedFullName)
       .maybeSingle();
 
-    if (data) return data as ResolvedEmployee;
+    if (exactNameMatch) return exactNameMatch as ResolvedEmployee;
+
+    // Dashboard display names (e.g. "Phen Conte") may differ from HR legal names
+    // (e.g. "Josefina Echavia Conte"). Match one employee by email + last name.
+    const nameParts = trimmedFullName.split(/\s+/).filter(Boolean);
+    const lastName = nameParts[nameParts.length - 1];
+    if (lastName && trimmedEmail) {
+      const { data: emailMatches } = await supabase
+        .from("employees")
+        .select("id, first_name, last_name, full_name, email")
+        .ilike("email", trimmedEmail);
+
+      if (emailMatches?.length === 1) {
+        const { email: _email, ...employee } = emailMatches[0];
+        return employee as ResolvedEmployee;
+      }
+
+      if (emailMatches && emailMatches.length > 1) {
+        const lastNameLower = lastName.toLowerCase();
+        const narrowed = emailMatches.filter(
+          (row) =>
+            row.last_name?.toLowerCase().includes(lastNameLower) ||
+            row.full_name?.toLowerCase().includes(lastNameLower)
+        );
+        if (narrowed.length === 1) {
+          const { email: _email, ...employee } = narrowed[0];
+          return employee as ResolvedEmployee;
+        }
+      }
+    }
   }
 
   return null;

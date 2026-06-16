@@ -19,6 +19,7 @@ import { FundRequestDetailsSection } from '@/components/fund-request/FundRequest
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
 import { getFundRequestStatusBadgeClass } from '@/lib/fund-request-approval';
+import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { epPageWrapper } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';

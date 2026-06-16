@@ -30,8 +30,9 @@ import {
   resolveFundRequestRequesterMap,
   type FundRequestRequesterInfo,
 } from "@/lib/fund-request-requester";
-import { getActionableFundRequestStatuses } from "@/lib/fund-request-approval";
+import { getActionableFundRequestStatuses, getFundRequestStatusBadgeClass } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
+import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
 
 type RowWithRequester = FundRequestRow & {
   employees: {
@@ -53,13 +54,13 @@ const NEXT_STATUS: Record<string, FundRequestRow["status"]> = {
   purchasing_officer_approved: "management_approved",
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending (Operations Manager)",
-  project_manager_approved: "Pending (Purchasing Officer)",
-  purchasing_officer_approved: "Pending (Upper Management)",
-  management_approved: "Approved",
-  rejected: "Rejected",
-};
+function formatEmployeeIdDisplay(
+  employeeId: string | null | undefined
+): string | null {
+  const trimmed = employeeId?.trim();
+  if (!trimmed || trimmed === "-" || trimmed === "—") return null;
+  return trimmed;
+}
 
 function getRequesterDisplayName(
   row: RowWithRequester,
@@ -352,6 +353,7 @@ export function FundRequestInbox({
             const requesterInfo = requesterInfoById[r.requested_by];
             const name = getRequesterDisplayName(r, requesterInfo);
             const emp = r.employees;
+            const employeeIdLabel = formatEmployeeIdDisplay(emp?.employee_id);
             const projectTitle = (r.project_title || "").trim() || "—";
             const purpose = (r.purpose || "").trim() || "—";
             const canAct = canQuickApproveFromInbox(
@@ -391,22 +393,21 @@ export function FundRequestInbox({
                         size="sm"
                       />
                       <span className="text-lg font-bold">{name}</span>
-                      <Caption>({emp?.employee_id ?? "—"})</Caption>
+                      {employeeIdLabel ? (
+                        <Caption>({employeeIdLabel})</Caption>
+                      ) : null}
                       <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
                         {purpose}
                       </Badge>
                     </HStack>
                     <Badge
-                      variant={
-                        r.status === "management_approved"
-                          ? "default"
-                          : r.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                      className={approvalQueueStatusBadge}
+                      variant="outline"
+                      className={cn(
+                        approvalQueueStatusBadge,
+                        getFundRequestStatusBadgeClass(r.status)
+                      )}
                     >
-                      {STATUS_LABEL[r.status] ?? r.status}
+                      {FUND_REQUEST_STATUS_LABELS[r.status] ?? r.status}
                     </Badge>
                   </div>
 
@@ -432,7 +433,7 @@ export function FundRequestInbox({
                       <strong>Project:</strong> {projectTitle}
                     </BodySmall>
                     {r.project_location ? (
-                      <BodySmall className="mt-1 line-clamp-1 text-muted-foreground">
+                      <BodySmall className="mt-1 line-clamp-1 uppercase text-muted-foreground">
                         <strong>Location:</strong> {r.project_location}
                       </BodySmall>
                     ) : null}
@@ -445,14 +446,14 @@ export function FundRequestInbox({
                       r.current_project_percentage != null) && (
                       <Caption className="mt-1 block text-muted-foreground">
                         {r.subcontractor_progress_completion_percentage != null
-                          ? `Subcontractor progress: ${formatFundRequestPercentage(r.subcontractor_progress_completion_percentage)}`
+                          ? `Subcontractor Progress: ${formatFundRequestPercentage(r.subcontractor_progress_completion_percentage)}`
                           : null}
                         {r.subcontractor_progress_completion_percentage != null &&
                         r.current_project_percentage != null
                           ? " · "
                           : null}
                         {r.current_project_percentage != null
-                          ? `Project completion: ${formatFundRequestPercentage(r.current_project_percentage)}`
+                          ? `Project Completion: ${formatFundRequestPercentage(r.current_project_percentage)}`
                           : null}
                       </Caption>
                     )}
@@ -547,7 +548,7 @@ export function FundRequestInbox({
                             </>
                           ) : showPurchasingDetailOnly ? (
                             <Caption className="text-muted-foreground">
-                              Open to enter bank details and approve.
+                              Open to review details and approve.
                             </Caption>
                           ) : null}
                         </>

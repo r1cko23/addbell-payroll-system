@@ -279,7 +279,7 @@ export function FundRequestDetailsSection({
 
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">
-                        VAT / EWT options
+                        VAT / EWT Options
                       </Label>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <VatOptionCheckbox
@@ -324,7 +324,7 @@ export function FundRequestDetailsSection({
 
                   {showAdjustedAmount ? (
                     <p className="text-sm text-muted-foreground">
-                      Adjusted amount
+                      Adjusted Amount
                       {adjustmentLabel ? ` (${adjustmentLabel})` : ""}:{" "}
                       <span className="font-medium text-foreground">
                         PHP{" "}
@@ -350,6 +350,63 @@ export function FundRequestDetailsSection({
               <Plus className="mr-2 h-4 w-4" />
               Add item
             </Button>
+          </div>
+
+          <div className="space-y-1 border-t pt-3 text-sm">
+            <p>
+              Line Items Subtotal: PHP{" "}
+              {itemsSubtotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+              })}
+            </p>
+            {deductionsSubtotal > 0 ? (
+              <p className="text-destructive">
+                Deductions: PHP{" "}
+                {deductionsSubtotal.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                })}
+              </p>
+            ) : null}
+            <p className="font-medium">
+              Updated Total Requested Amount: PHP{" "}
+              {editableTotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+              })}
+            </p>
+          </div>
+
+          {deductionsExceedItems ? (
+            <p className="text-xs text-destructive">
+              Deductions cannot exceed the Line Items Subtotal.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              If applicable: For each line item, select VAT Inc or VAT Ex and the
+              EWT rate (1% or 2%). Add deductions before forwarding to Upper
+              Management.
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            {onSave ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={saving || deductionsExceedItems}
+                onClick={() =>
+                  void onSave({ items: editableDetails, deductions: editableDeductions })
+                }
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save line items"
+                )}
+              </Button>
+            ) : null}
           </div>
 
           <div className="space-y-3 border-t pt-3">
@@ -415,65 +472,6 @@ export function FundRequestDetailsSection({
               </div>
             )}
           </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
-            {onSave ? (
-              <Button
-                type="button"
-                size="sm"
-                disabled={saving || deductionsExceedItems}
-                onClick={() =>
-                  void onSave({ items: editableDetails, deductions: editableDeductions })
-                }
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save line items"
-                )}
-              </Button>
-            ) : (
-              <span />
-            )}
-          </div>
-
-          <div className="space-y-1 text-sm">
-            <p>
-              Line Items subtotal: PHP{" "}
-              {itemsSubtotal.toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-              })}
-            </p>
-            {deductionsSubtotal > 0 ? (
-              <p className="text-destructive">
-                Deductions: PHP{" "}
-                {deductionsSubtotal.toLocaleString("en-PH", {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-            ) : null}
-            <p className="font-medium">
-              Updated Total Requested Amount: PHP{" "}
-              {editableTotal.toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-              })}
-            </p>
-          </div>
-
-          {deductionsExceedItems ? (
-            <p className="text-xs text-destructive">
-              Deductions cannot exceed the line items subtotal.
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              For each line item, select VAT Inc or VAT Ex and the EWT rate (1%
-              or 2%). Add deductions if applicable before forwarding to Upper
-              Management.
-            </p>
-          )}
         </div>
       ) : (
         <>

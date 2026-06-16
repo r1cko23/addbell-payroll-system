@@ -120,3 +120,15 @@ export function buildFundRequestApprovalUpdates(
 
   return updates;
 }
+
+export function getFundRequestStatusBadgeClass(
+  status: FundRequestRow["status"] | string
+): string {
+  if (status === "management_approved") {
+    return "bg-emerald-600 text-white border-emerald-600";
+  }
+  if (status === "rejected") {
+    return "bg-red-50 text-red-700 border-red-200";
+  }
+  return "bg-amber-50 text-amber-700 border-amber-200";
+}

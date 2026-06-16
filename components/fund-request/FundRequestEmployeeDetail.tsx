@@ -18,7 +18,7 @@ import { FundRequestField } from '@/components/fund-request/FundRequestField';
 import { FundRequestDetailsSection } from '@/components/fund-request/FundRequestDetailsSection';
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
-import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
+import { getFundRequestStatusBadgeClass } from '@/lib/fund-request-approval';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { epPageWrapper } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';
@@ -127,22 +127,18 @@ export function FundRequestEmployeeDetail({
       <Card className="border-border/80 bg-card/95">
         <CardHeader>
           <CardTitle>Fund request</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Request date: {format(new Date(request.request_date), 'MMMM d, yyyy')} · Requested by{' '}
-            {requesterName}
-          </p>
-          <Badge
-            variant={
-              request.status === 'management_approved'
-                ? 'default'
-                : request.status === 'rejected'
-                  ? 'destructive'
-                  : 'secondary'
-            }
-            className="w-fit"
-          >
-            {STATUS_LABELS[request.status] ?? request.status}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              Requested by {requesterName} on{' '}
+              {format(new Date(request.request_date), 'MMMM d, yyyy')}
+            </p>
+            <Badge
+              variant="outline"
+              className={cn('w-fit', getFundRequestStatusBadgeClass(request.status))}
+            >
+              {STATUS_LABELS[request.status] ?? request.status}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <FundRequestField label={FUND_REQUEST_FIELD_LABELS.purpose} value={request.purpose} />
@@ -176,16 +172,16 @@ export function FundRequestEmployeeDetail({
               value={request.project_location ?? '—'}
             />
             <FundRequestField
+              label={FUND_REQUEST_FIELD_LABELS.projectCompletion}
+              value={formatFundRequestPercentage(request.current_project_percentage)}
+            />
+            <FundRequestField
               label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
               value={vendorName || '—'}
             />
             <FundRequestField
               label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
               value={formatFundRequestPercentage(request.subcontractor_progress_completion_percentage)}
-            />
-            <FundRequestField
-              label={FUND_REQUEST_FIELD_LABELS.projectCompletion}
-              value={formatFundRequestPercentage(request.current_project_percentage)}
             />
           </div>
 

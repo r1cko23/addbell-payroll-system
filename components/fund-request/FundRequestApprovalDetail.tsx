@@ -24,6 +24,7 @@ import {
   buildFundRequestApprovalUpdates,
   canActOnFundRequest,
   getFundRequestApprovalActionCopy,
+  getFundRequestStatusBadgeClass,
 } from "@/lib/fund-request-approval";
 import {
   canPurchasingOfficerEditDetails,
@@ -370,23 +371,18 @@ export function FundRequestApprovalDetail({
       <Card className="w-full">
         <CardHeader>
           <CardTitle>Fund request</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Request date:{" "}
-            {format(new Date(request.request_date), "MMMM d, yyyy")} · Requested
-            by {requesterName}
-          </p>
-          <Badge
-            variant={
-              request.status === "management_approved"
-                ? "default"
-                : request.status === "rejected"
-                  ? "destructive"
-                  : "secondary"
-            }
-            className="w-fit"
-          >
-            {STATUS_LABELS[request.status] ?? request.status}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              Requested by {requesterName} on{" "}
+              {format(new Date(request.request_date), "MMMM d, yyyy")}
+            </p>
+            <Badge
+              variant="outline"
+              className={cn("w-fit", getFundRequestStatusBadgeClass(request.status))}
+            >
+              {STATUS_LABELS[request.status] ?? request.status}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <FundRequestField
@@ -440,6 +436,10 @@ export function FundRequestApprovalDetail({
                 value={request.project_location ?? "—"}
               />
               <FundRequestField
+                label={FUND_REQUEST_FIELD_LABELS.projectCompletion}
+                value={formatFundRequestPercentage(request.current_project_percentage)}
+              />
+              <FundRequestField
                 label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
                 value={vendorName || "—"}
               />
@@ -448,10 +448,6 @@ export function FundRequestApprovalDetail({
                 value={formatFundRequestPercentage(
                   request.subcontractor_progress_completion_percentage
                 )}
-              />
-              <FundRequestField
-                label={FUND_REQUEST_FIELD_LABELS.projectCompletion}
-                value={formatFundRequestPercentage(request.current_project_percentage)}
               />
             </div>
             <FundRequestDetailsSection

@@ -24,7 +24,7 @@ export function FundRequestBankDetailsFields({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="min-w-0">
           <Label htmlFor={`${idPrefix}-account-name`} className="text-xs">
-            Account Name
+            Account Name <span className="text-destructive">*</span>
           </Label>
           <Input
             id={`${idPrefix}-account-name`}

@@ -66,6 +66,12 @@ import {
   approvalQueueCardHeaderRow,
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
+import {
+  approvalApprovedStatusBadgeClass,
+  approvalCancelledStatusBadgeClass,
+  approvalPendingStatusBadgeClass,
+  approvalRejectedStatusBadgeClass,
+} from "@/lib/approval-status-badge";
 import { cn } from "@/lib/utils";
 
 interface FailureToLog {
@@ -251,10 +257,10 @@ export default function FailureToLogApprovalPage() {
   }, [supabase]);
 
   const statusStyles: Record<FailureToLog["status"], string> = {
-    pending: "bg-amber-100 text-amber-900 border-amber-200",
-    approved: "bg-emerald-600 text-white border-emerald-600",
-    rejected: "bg-rose-100 text-rose-900 border-rose-200",
-    cancelled: "bg-muted text-muted-foreground border-transparent",
+    pending: approvalPendingStatusBadgeClass,
+    approved: approvalApprovedStatusBadgeClass,
+    rejected: approvalRejectedStatusBadgeClass,
+    cancelled: approvalCancelledStatusBadgeClass,
   };
 
   const getWorkflowStep = (request: FailureToLog): 1 | 2 | 3 => {
@@ -1091,13 +1097,11 @@ export default function FailureToLogApprovalPage() {
                     </HStack>
                     <Badge
                       variant={
-                        getViewerStatus(request) === "pending"
-                          ? "secondary"
-                          : getViewerStatus(request) === "approved"
+                        getViewerStatus(request) === "approved"
                           ? "default"
                           : getViewerStatus(request) === "rejected"
                           ? "destructive"
-                          : "secondary"
+                          : "outline"
                       }
                       className={cn(
                         statusStyles[getViewerStatus(request)],

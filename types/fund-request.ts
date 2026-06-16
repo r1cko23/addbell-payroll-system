@@ -25,6 +25,12 @@ export function formatFundRequestPercentage(
   return `${numeric}%`;
 }
 
+export function isSubcontractorPaymentPurpose(
+  purpose: string | null | undefined
+): boolean {
+  return purpose?.trim().toLowerCase() === "subcontractor payment";
+}
+
 export const FUND_REQUEST_FIELD_LABELS = {
   poNumber: "P.O. Number",
   projectTitle: "Project Title",
@@ -72,6 +78,7 @@ export type FundRequestRow = {
   vendor_po_number: string | null;
   project_title: string | null;
   project_location: string | null;
+  project_details: unknown;
   po_amount: number | null;
   po_amount_percentage: number | null;
   current_project_percentage: number | null;

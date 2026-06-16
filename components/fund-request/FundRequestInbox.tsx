@@ -24,7 +24,8 @@ import {
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
 import type { FundRequestRow } from "@/types/fund-request";
-import { formatFundRequestPercentage } from "@/types/fund-request";
+import { formatFundRequestPercentage, isSubcontractorPaymentPurpose } from "@/types/fund-request";
+import { getFundRequestPrimaryProjectLabel } from "@/lib/fund-request-project-details";
 import { cn } from "@/lib/utils";
 import {
   resolveFundRequestRequesterMap,
@@ -354,8 +355,9 @@ export function FundRequestInbox({
             const name = getRequesterDisplayName(r, requesterInfo);
             const emp = r.employees;
             const employeeIdLabel = formatEmployeeIdDisplay(emp?.employee_id);
-            const projectTitle = (r.project_title || "").trim() || "—";
+            const projectTitle = getFundRequestPrimaryProjectLabel(r);
             const purpose = (r.purpose || "").trim() || "—";
+            const showSubcontractorFields = isSubcontractorPaymentPurpose(r.purpose);
             const canAct = canQuickApproveFromInbox(
               r.status,
               profile?.role,
@@ -437,18 +439,21 @@ export function FundRequestInbox({
                         <strong>Location:</strong> {r.project_location}
                       </BodySmall>
                     ) : null}
-                    {r.vendors?.name ? (
+                    {showSubcontractorFields && r.vendors?.name ? (
                       <BodySmall className="mt-1 line-clamp-1 text-muted-foreground">
                         <strong>Subcontractor:</strong> {r.vendors.name}
                       </BodySmall>
                     ) : null}
-                    {(r.subcontractor_progress_completion_percentage != null ||
-                      r.current_project_percentage != null) && (
+                    {(showSubcontractorFields &&
+                      r.subcontractor_progress_completion_percentage != null) ||
+                    r.current_project_percentage != null ? (
                       <Caption className="mt-1 block text-muted-foreground">
-                        {r.subcontractor_progress_completion_percentage != null
+                        {showSubcontractorFields &&
+                        r.subcontractor_progress_completion_percentage != null
                           ? `Subcontractor Progress: ${formatFundRequestPercentage(r.subcontractor_progress_completion_percentage)}`
                           : null}
-                        {r.subcontractor_progress_completion_percentage != null &&
+                        {showSubcontractorFields &&
+                        r.subcontractor_progress_completion_percentage != null &&
                         r.current_project_percentage != null
                           ? " · "
                           : null}
@@ -456,7 +461,7 @@ export function FundRequestInbox({
                           ? `Project Completion: ${formatFundRequestPercentage(r.current_project_percentage)}`
                           : null}
                       </Caption>
-                    )}
+                    ) : null}
                     {r.created_at ? (
                       <Caption className="mt-1 block text-muted-foreground">
                         Filed {format(new Date(r.created_at), "MMM d, yyyy h:mm a")}

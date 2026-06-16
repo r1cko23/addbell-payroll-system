@@ -55,6 +55,11 @@ import {
   approvalQueueCardHeaderRow,
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
+import {
+  approvalApprovedStatusBadgeClass,
+  approvalPendingStatusBadgeClass,
+  approvalRejectedStatusBadgeClass,
+} from "@/lib/approval-status-badge";
 import { cn } from "@/lib/utils";
 
 type OvertimeDocument = {
@@ -111,7 +116,34 @@ type OTRequest = {
   };
 };
 
-type ViewerOtStatus = "pending" | "approved" | "rejected";
+type ViewerOtStatus =
+  | "pending"
+  | "approved_by_manager"
+  | "approved"
+  | "rejected";
+
+function otStatusLabel(status: ViewerOtStatus): string {
+  switch (status) {
+    case "pending":
+      return "PENDING";
+    case "approved_by_manager":
+      return "APPROVED BY MANAGER";
+    case "approved":
+      return "APPROVED";
+    case "rejected":
+      return "REJECTED";
+  }
+}
+
+function otStatusBadgeClass(status: ViewerOtStatus): string {
+  if (status === "approved" || status === "approved_by_manager") {
+    return approvalApprovedStatusBadgeClass;
+  }
+  if (status === "rejected") {
+    return approvalRejectedStatusBadgeClass;
+  }
+  return approvalPendingStatusBadgeClass;
+}
 
 export default function OvertimeApprovalPage() {
   const supabase = createClient();
@@ -298,10 +330,14 @@ export default function OvertimeApprovalPage() {
     normalizedRole === "upper_management";
 
   const getViewerStatus = (request: OTRequest): ViewerOtStatus => {
-    if (request.status === "approved" || request.status === "rejected") {
-      return request.status;
+    if (request.status === "approved") return "approved";
+    if (request.status === "rejected") return "rejected";
+
+    if (!isFirstApproverDashboardView) {
+      if (isHrStagePending(request)) return "approved_by_manager";
+      return "pending";
     }
-    if (!isFirstApproverDashboardView) return "pending";
+
     const endorsedToHr = Boolean(
       request.project_manager_id || request.account_manager_id
     );
@@ -311,16 +347,9 @@ export default function OvertimeApprovalPage() {
         (normalizedRole === "upper_management" &&
           isUpperManagementOvertimeGroupLabel(getRequestGroupName(request))))
     ) {
-      return "approved";
+      return "approved_by_manager";
     }
     return "pending";
-  };
-
-  const statusBadgeClass = (status: OTRequest["status"]) => {
-    if (status === "approved") return "bg-emerald-600 text-white border-emerald-600";
-    if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
-    // Pending should be high-contrast (white text on blue pill).
-    return "bg-blue-600 text-white border-blue-600";
   };
 
   const getWorkflowStep = (request: OTRequest): 1 | 2 | 3 => {
@@ -1182,18 +1211,19 @@ export default function OvertimeApprovalPage() {
                       </HStack>
                       <Badge
                         variant={
-                          getViewerStatus(req) === "approved"
+                          getViewerStatus(req) === "approved" ||
+                          getViewerStatus(req) === "approved_by_manager"
                             ? "default"
                             : getViewerStatus(req) === "rejected"
                             ? "destructive"
-                            : "secondary"
+                            : "outline"
                         }
                         className={cn(
-                          statusBadgeClass(getViewerStatus(req)),
+                          otStatusBadgeClass(getViewerStatus(req)),
                           approvalQueueStatusBadge
                         )}
                       >
-                        {getViewerStatus(req).toUpperCase()}
+                        {otStatusLabel(getViewerStatus(req))}
                       </Badge>
                     </div>
                     <div className="flex-1">
@@ -1415,9 +1445,9 @@ export default function OvertimeApprovalPage() {
                     <p className="text-sm text-muted-foreground">Status</p>
                     <Badge
                       variant="outline"
-                      className={statusBadgeClass(getViewerStatus(selected))}
+                      className={otStatusBadgeClass(getViewerStatus(selected))}
                     >
-                      {getViewerStatus(selected).toUpperCase()}
+                      {otStatusLabel(getViewerStatus(selected))}
                     </Badge>
                   </div>
                   <div className="space-y-1">

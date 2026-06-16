@@ -1,4 +1,9 @@
 import type { FundRequestRow } from "@/types/fund-request";
+import {
+  approvalApprovedStatusBadgeClass,
+  approvalPendingStatusBadgeClass,
+  approvalRejectedStatusBadgeClass,
+} from "@/lib/approval-status-badge";
 
 export const FUND_REQUEST_NEXT_STATUS: Partial<
   Record<FundRequestRow["status"], FundRequestRow["status"]>
@@ -125,10 +130,21 @@ export function getFundRequestStatusBadgeClass(
   status: FundRequestRow["status"] | string
 ): string {
   if (status === "management_approved") {
-    return "bg-emerald-600 text-white border-emerald-600";
+    return approvalApprovedStatusBadgeClass;
   }
   if (status === "rejected") {
-    return "bg-red-50 text-red-700 border-red-200";
+    return approvalRejectedStatusBadgeClass;
   }
-  return "bg-amber-50 text-amber-700 border-amber-200";
+  return approvalPendingStatusBadgeClass;
+}
+
+const REQUESTER_DELETABLE_STATUSES = new Set<FundRequestRow["status"]>([
+  "pending",
+  "project_manager_approved",
+]);
+
+export function canRequesterDeleteFundRequest(
+  status: FundRequestRow["status"] | string
+): boolean {
+  return REQUESTER_DELETABLE_STATUSES.has(status as FundRequestRow["status"]);
 }

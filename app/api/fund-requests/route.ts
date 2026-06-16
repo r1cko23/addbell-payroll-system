@@ -13,12 +13,14 @@ type CreateFundRequestPayload = {
   po_number: string | null;
   project_title: string | null;
   project_location: string | null;
+  project_details?: unknown;
   vendor_id: string | null;
   vendor_po_number: string | null;
   po_amount: number | null;
   po_amount_percentage: number | null;
   current_project_percentage: number | null;
   subcontractor_progress_completion_percentage: number | null;
+  project_details?: unknown;
   details: Array<{ description: string; amount: number }>;
   total_requested_amount: number;
   date_needed: string | null;
@@ -82,6 +84,7 @@ export async function POST(req: NextRequest) {
         current_project_percentage: body.current_project_percentage,
         subcontractor_progress_completion_percentage:
           body.subcontractor_progress_completion_percentage,
+        project_details: body.project_details ?? null,
         details: body.details,
         total_requested_amount: body.total_requested_amount,
         date_needed: body.date_needed,
@@ -131,6 +134,49 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ id: inserted.id });
+  } catch (err: unknown) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const body = (await req.json()) as {
+      request_id?: string;
+      requested_by?: string;
+    };
+
+    if (!body?.request_id?.trim() || !body?.requested_by?.trim()) {
+      return NextResponse.json(
+        { error: "request_id and requested_by are required" },
+        { status: 400 }
+      );
+    }
+
+    const admin = getAdminClient();
+    const { data, error } = await admin
+      .from("fund_requests")
+      .delete()
+      .eq("id", body.request_id)
+      .eq("requested_by", body.requested_by)
+      .in("status", ["pending", "project_manager_approved"])
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data) {
+      return NextResponse.json(
+        { error: "Request not found or cannot be deleted" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ id: data.id });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },

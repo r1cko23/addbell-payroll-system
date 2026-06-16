@@ -13,8 +13,13 @@ import {
   FUND_REQUEST_STATUS_LABELS,
   formatFundRequestPercentage,
   getFundRequestReferenceModeLabel,
+  isSubcontractorPaymentPurpose,
 } from '@/types/fund-request';
 import { FundRequestField } from '@/components/fund-request/FundRequestField';
+import {
+  FundRequestProjectDetailsDisplay,
+  shouldShowTopLevelFundRequestPo,
+} from '@/components/fund-request/FundRequestProjectDetailsDisplay';
 import { FundRequestDetailsSection } from '@/components/fund-request/FundRequestDetailsSection';
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
@@ -119,6 +124,7 @@ export function FundRequestEmployeeDetail({
 
   const details = (request.details as FundRequestDetailItem[] | null) ?? [];
   const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
+  const showSubcontractorFields = isSubcontractorPaymentPurpose(request.purpose);
 
   return (
     <div className={cn('w-full max-w-3xl', epPageWrapper)}>
@@ -163,27 +169,22 @@ export function FundRequestEmployeeDetail({
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FundRequestField label={FUND_REQUEST_FIELD_LABELS.poNumber} value={request.po_number ?? '—'} />
-            <FundRequestField
-              label={FUND_REQUEST_FIELD_LABELS.projectTitle}
-              value={request.project_title ?? '—'}
-            />
-            <FundRequestField
-              label={FUND_REQUEST_FIELD_LABELS.projectLocation}
-              value={request.project_location ?? '—'}
-            />
-            <FundRequestField
-              label={FUND_REQUEST_FIELD_LABELS.projectCompletion}
-              value={formatFundRequestPercentage(request.current_project_percentage)}
-            />
-            <FundRequestField
-              label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
-              value={vendorName || '—'}
-            />
-            <FundRequestField
-              label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
-              value={formatFundRequestPercentage(request.subcontractor_progress_completion_percentage)}
-            />
+            {shouldShowTopLevelFundRequestPo(request) ? (
+              <FundRequestField label={FUND_REQUEST_FIELD_LABELS.poNumber} value={request.po_number ?? '—'} />
+            ) : null}
+            <FundRequestProjectDetailsDisplay request={request} />
+            {showSubcontractorFields ? (
+              <>
+                <FundRequestField
+                  label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
+                  value={vendorName || '—'}
+                />
+                <FundRequestField
+                  label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
+                  value={formatFundRequestPercentage(request.subcontractor_progress_completion_percentage)}
+                />
+              </>
+            ) : null}
           </div>
 
           <FundRequestDetailsSection

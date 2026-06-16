@@ -19,6 +19,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { formatRoleName } from "@/lib/formatRoleName";
 import { formatProfileDisplayName } from "@/lib/format-profile-display-name";
 import { Badge } from "@/components/ui/badge";
+import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -193,7 +194,8 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           ) : null}
         </div>
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <ChangePasswordDialog variant="dashboard" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

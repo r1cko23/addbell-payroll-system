@@ -3,6 +3,12 @@
  * Original OT card layout from md+; compact stacked layout below md (mobile).
  */
 
+import {
+  approvalApprovedStatusBadgeClass,
+  approvalPendingStatusBadgeClass,
+  approvalRejectedStatusBadgeClass,
+} from "@/lib/approval-status-badge";
+
 /** Outer list section (My OT / Leave / FTL requests) */
 export const epRequestHistorySectionContent = "w-full p-4 sm:p-6 max-md:p-3";
 
@@ -98,9 +104,9 @@ export const epRequestStatusBadgeClass =
   "inline-flex min-h-11 w-full items-center justify-center gap-2 px-3 py-2 text-center text-xs font-medium md:min-h-9 md:w-auto md:py-1";
 
 export const epRequestStatusStyles = {
-  pending: "bg-amber-100 text-amber-800 border-amber-200",
-  approved: "bg-emerald-600 text-white border-emerald-600",
-  rejected: "bg-rose-100 text-rose-900 border-rose-200",
+  pending: approvalPendingStatusBadgeClass,
+  approved: approvalApprovedStatusBadgeClass,
+  rejected: approvalRejectedStatusBadgeClass,
 } as const;
 
 export const epRequestStatusBadgePending = `${epRequestStatusBadgeClass} ${epRequestStatusStyles.pending}`;
@@ -136,7 +142,7 @@ export const epRequestHistoryDocLink =
 export function requestHistoryCardBorderClass(status: string): string {
   switch (status) {
     case "pending":
-      return "border-yellow-300";
+      return "border-amber-300";
     case "approved":
     case "approved_by_hr":
     case "approved_by_manager":

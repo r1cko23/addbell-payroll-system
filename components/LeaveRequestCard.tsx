@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { differenceInDays, parseISO } from "date-fns";
 import { getInitials } from "@/utils/format";
 import { formatDateRange, isLeaveRequestOverdue } from "@/utils/leave-requests";
+import { approvalPendingStatusBadgeClass } from "@/lib/approval-status-badge";
 
 /**
  * Leave request data interface
@@ -144,7 +145,7 @@ function getStatusBadge(status: LeaveRequestCardData["status"]) {
     pending: {
       variant: "secondary" as const,
       label: "Pending",
-      className: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      className: approvalPendingStatusBadgeClass,
     },
     approved_by_manager: {
       variant: "default" as const,

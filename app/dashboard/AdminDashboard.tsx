@@ -23,6 +23,11 @@ import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
+import {
+  approvalApprovedStatusBadgeClass,
+  approvalPendingStatusBadgeClass,
+  approvalRejectedStatusBadgeClass,
+} from "@/lib/approval-status-badge";
 
 interface DashboardStats {
   totalEmployees: number;
@@ -63,11 +68,11 @@ interface ProjectSummary {
 }
 
 const statusStyles: Record<string, string> = {
-  pending: "bg-amber-100 text-amber-900 border-amber-200",
-  approved: "bg-emerald-100 text-emerald-900 border-emerald-200",
+  pending: approvalPendingStatusBadgeClass,
+  approved: approvalApprovedStatusBadgeClass,
   active: "bg-emerald-100 text-emerald-900 border-emerald-200",
   completed: "bg-blue-100 text-blue-800 border-blue-200",
-  rejected: "bg-red-100 text-red-900 border-red-200",
+  rejected: approvalRejectedStatusBadgeClass,
   cancelled: "bg-slate-100 text-slate-800 border-slate-200",
   draft: "bg-slate-100 text-slate-800 border-slate-200",
   finalized: "bg-emerald-100 text-emerald-900 border-emerald-200",

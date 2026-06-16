@@ -72,6 +72,12 @@ import {
   approvalQueueCardHeaderRow,
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
+import {
+  approvalApprovedStatusBadgeClass,
+  approvalCancelledStatusBadgeClass,
+  approvalPendingStatusBadgeClass,
+  approvalRejectedStatusBadgeClass,
+} from "@/lib/approval-status-badge";
 
 interface LeaveDocument {
   id: string;
@@ -176,11 +182,11 @@ function leaveStatusLabel(status: LeaveRequest["status"]): string {
 }
 
 function leaveStatusClass(status: LeaveRequest["status"]): string {
-  if (status === "pending") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (isManagerApprovedStatus(status)) return "bg-emerald-600 text-white border-emerald-600";
-  if (status === "approved_by_hr") return "bg-emerald-600 text-white border-emerald-600";
-  if (status === "rejected") return "bg-red-50 text-red-700 border-red-200";
-  return "bg-slate-100 text-slate-700 border-slate-200";
+  if (status === "pending") return approvalPendingStatusBadgeClass;
+  if (isManagerApprovedStatus(status)) return approvalApprovedStatusBadgeClass;
+  if (status === "approved_by_hr") return approvalApprovedStatusBadgeClass;
+  if (status === "rejected") return approvalRejectedStatusBadgeClass;
+  return approvalCancelledStatusBadgeClass;
 }
 
 export default function LeaveApprovalPage() {
@@ -1211,13 +1217,12 @@ export default function LeaveApprovalPage() {
                     </HStack>
                     <Badge
                       variant={
-                        getViewerStatus(request) === "pending"
-                          ? "secondary"
-                          : getViewerStatus(request) === "approved_by_hr"
+                        getViewerStatus(request) === "approved_by_hr" ||
+                        isManagerApprovedStatus(getViewerStatus(request))
                           ? "default"
                           : getViewerStatus(request) === "rejected"
                           ? "destructive"
-                          : "default"
+                          : "outline"
                       }
                       className={cn(
                         leaveStatusClass(getViewerStatus(request)),

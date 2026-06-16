@@ -48,7 +48,17 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import {
   type FundRequestReferenceMode,
   FUND_REQUEST_REFERENCE_MODE_LABELS,
+  isSubcontractorPaymentPurpose,
 } from "@/types/fund-request";
+import {
+  allowsMultipleFundRequestProjects,
+  createEmptyFundRequestProjectRow,
+  normalizeFundRequestProjectRows,
+  serializeFundRequestProjectDetails,
+  validateFundRequestProjectRows,
+  type FundRequestProjectDetailRow,
+} from "@/lib/fund-request-project-details";
+import { FundRequestProjectDetailsFields } from "@/components/fund-request/FundRequestProjectDetailsFields";
 
 const PURPOSE_OPTIONS = [
   "Material Purchase",
@@ -266,11 +276,11 @@ export default function NewFundRequestPage() {
   const [purposeOther, setPurposeOther] = useState("");
   const [referenceMode, setReferenceMode] = useState<ReferenceMode>("client_linked");
   const [poNumber, setPoNumber] = useState("");
-  const [projectTitle, setProjectTitle] = useState("");
-  const [projectLocation, setProjectLocation] = useState("");
+  const [projectRows, setProjectRows] = useState<FundRequestProjectDetailRow[]>([
+    createEmptyFundRequestProjectRow(),
+  ]);
   const [vendorId, setVendorId] = useState("");
   const [subcontractorProgressCompletion, setSubcontractorProgressCompletion] = useState("");
-  const [currentProjectPercentage, setCurrentProjectPercentage] = useState("");
   const [details, setDetails] = useState<DetailRow[]>(() =>
     Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyDetailRow()),
   );
@@ -290,7 +300,9 @@ export default function NewFundRequestPage() {
   const showClientPOField = !isInternalStockReference;
   const showProjectReferenceFields = !isInternalStockReference;
   const showVendorPaymentSection =
-    !isInternalStockReference && purposeOption === "Subcontractor Payment";
+    !isInternalStockReference && isSubcontractorPaymentPurpose(purposeOption);
+  const allowMultipleProjects = allowsMultipleFundRequestProjects(purposeOption);
+  const poPerProject = allowMultipleProjects && showClientPOField;
 
   useEffect(() => {
     if (session?.employee?.full_name) {
@@ -358,18 +370,27 @@ export default function NewFundRequestPage() {
 
   useEffect(() => {
     if (referenceMode === "internal_stock") {
-      setProjectTitle("");
-      setProjectLocation("");
+      setProjectRows([createEmptyFundRequestProjectRow()]);
       setPoNumber("");
       setVendorId("");
       setSubcontractorProgressCompletion("");
-      setCurrentProjectPercentage("");
       return;
     }
 
-    setProjectTitle((prev) => (isNotApplicableValue(prev) ? "" : prev));
-    setProjectLocation((prev) => (isNotApplicableValue(prev) ? "" : prev));
+    setProjectRows((prev) =>
+      prev.map((row) => ({
+        title: isNotApplicableValue(row.title) ? "" : row.title,
+        location: isNotApplicableValue(row.location) ? "" : row.location,
+        completionPercentage: row.completionPercentage,
+      }))
+    );
   }, [referenceMode]);
+
+  useEffect(() => {
+    if (!allowMultipleProjects) {
+      setProjectRows((prev) => (prev.length > 0 ? [prev[0]] : [createEmptyFundRequestProjectRow()]));
+    }
+  }, [allowMultipleProjects]);
 
   useEffect(() => {
     if (showVendorPaymentSection) return;
@@ -410,13 +431,15 @@ export default function NewFundRequestPage() {
       toast.error(purposeOption === "Others" ? "Please enter the purpose (Others)." : "Please select a purpose.");
       return;
     }
-    if (showProjectReferenceFields && !projectTitle.trim()) {
-      toast.error("Project Title is required.");
-      return;
-    }
-    if (showProjectReferenceFields && !projectLocation.trim()) {
-      toast.error("Project Location is required.");
-      return;
+    if (showProjectReferenceFields) {
+      const projectValidationError = validateFundRequestProjectRows(projectRows, {
+        required: true,
+        requirePoPerProject: poPerProject,
+      });
+      if (projectValidationError) {
+        toast.error(projectValidationError);
+        return;
+      }
     }
     const detailValidationError = validateDetailRows(details);
     if (detailValidationError) {
@@ -428,24 +451,16 @@ export default function NewFundRequestPage() {
       return;
     }
     const trimmedPoNumber = poNumber.trim();
-    if (showClientPOField && !trimmedPoNumber) {
+    if (showClientPOField && !poPerProject && !trimmedPoNumber) {
       toast.error("P.O. Number is required in client-linked mode.");
       return;
     }
-    let parsedCurrentProjectPercentage: number | null = null;
     let parsedSubcontractorProgressCompletion: number | null = null;
     if (showVendorPaymentSection && !vendorId) {
       toast.error("Select a subcontractor.");
       return;
     }
     try {
-      if (showProjectReferenceFields) {
-        parsedCurrentProjectPercentage = parseRequiredPercentage(
-          currentProjectPercentage,
-          "Current Project Completion Percentage",
-          { min: 0, max: 100 }
-        );
-      }
       if (showVendorPaymentSection) {
         parsedSubcontractorProgressCompletion = parseRequiredPercentage(
           subcontractorProgressCompletion,
@@ -494,6 +509,20 @@ export default function NewFundRequestPage() {
         companyId = companies?.id ?? null;
       }
 
+      const normalizedProjects = showProjectReferenceFields
+        ? normalizeFundRequestProjectRows(projectRows, {
+            includePoNumber: poPerProject,
+          })
+        : [];
+      const primaryProject = normalizedProjects[0] ?? null;
+      const primaryPoNumber = poPerProject
+        ? primaryProject?.po_number ?? null
+        : showClientPOField
+          ? trimmedPoNumber.toUpperCase() === "N/A"
+            ? "N/A"
+            : trimmedPoNumber
+          : null;
+
       const payload = {
         company_id: companyId,
         reference_mode: referenceMode,
@@ -501,18 +530,15 @@ export default function NewFundRequestPage() {
         requested_by: employeeId,
         request_date: requestDate,
         purpose: purposeValue,
-        po_number: showClientPOField
-          ? (trimmedPoNumber.toUpperCase() === "N/A" ? "N/A" : trimmedPoNumber)
-          : null,
-        project_title: showProjectReferenceFields ? projectTitle.trim() : null,
-        project_location: showProjectReferenceFields ? projectLocation.trim() : null,
+        po_number: primaryPoNumber,
+        project_title: primaryProject?.title ?? null,
+        project_location: primaryProject?.location ?? null,
         vendor_id: showVendorPaymentSection ? vendorId : null,
         vendor_po_number: null,
         po_amount: null,
         po_amount_percentage: null,
-        current_project_percentage: showProjectReferenceFields
-          ? parsedCurrentProjectPercentage
-          : null,
+        current_project_percentage: primaryProject?.completion_percentage ?? null,
+        project_details: serializeFundRequestProjectDetails(normalizedProjects),
         subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
         details: detailsPayload,
         total_requested_amount: totalRequested,
@@ -692,7 +718,7 @@ export default function NewFundRequestPage() {
                     PROJECT REFERENCE DETAILS
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
-                    {showClientPOField ? (
+                    {showClientPOField && !poPerProject ? (
                       <div>
                         <Label htmlFor="po_number">P.O. Number *</Label>
                         <Input
@@ -704,40 +730,12 @@ export default function NewFundRequestPage() {
                         />
                       </div>
                     ) : null}
-                    <div>
-                      <Label htmlFor="project_title">Project Title *</Label>
-                      <Input
-                        id="project_title"
-                        value={projectTitle}
-                        onChange={(e) => setProjectTitle(e.target.value)}
-                        placeholder="Enter project title"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="project_location">Project Location *</Label>
-                      <Input
-                        id="project_location"
-                        value={projectLocation}
-                        onChange={(e) => setProjectLocation(e.target.value)}
-                        placeholder="Enter project location"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="current_project_percentage">
-                        Current Project Completion Percentage *
-                      </Label>
-                      <Input
-                        id="current_project_percentage"
-                        type="text"
-                        inputMode="decimal"
-                        value={currentProjectPercentage}
-                        onChange={(e) => setCurrentProjectPercentage(e.target.value)}
-                        placeholder="Enter percentage"
-                        required
-                      />
-                    </div>
+                    <FundRequestProjectDetailsFields
+                      rows={projectRows}
+                      allowMultiple={allowMultipleProjects}
+                      poPerProject={poPerProject}
+                      onChange={setProjectRows}
+                    />
 
                     {showVendorPaymentSection ? (
                       <Card>

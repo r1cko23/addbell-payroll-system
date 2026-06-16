@@ -22,7 +22,9 @@ import {
 } from "@/components/ui/dialog";
 
 type ChangePasswordDialogProps = {
-  employeeId: string;
+  employeeId?: string;
+  /** Dashboard staff use Supabase Auth; employees use portal_password. */
+  variant?: "employee" | "dashboard";
   className?: string;
   /** Hide button label below this Tailwind breakpoint (md = employee portal mobile). */
   compactBelow?: "sm" | "md";
@@ -30,6 +32,7 @@ type ChangePasswordDialogProps = {
 
 export function ChangePasswordDialog({
   employeeId,
+  variant = "employee",
   className,
   compactBelow = "sm",
 }: ChangePasswordDialogProps) {
@@ -90,14 +93,30 @@ export function ChangePasswordDialog({
     setIsChangingPassword(true);
 
     try {
-      const response = await fetch("/api/employee/change-password", {
+      const endpoint =
+        variant === "dashboard"
+          ? "/api/auth/change-password"
+          : "/api/employee/change-password";
+
+      if (variant === "employee" && !employeeId) {
+        throw new Error("Employee account is required to change password");
+      }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          employee_id: employeeId,
-          current_password: currentPassword.trim(),
-          new_password: newPassword.trim(),
-        }),
+        body: JSON.stringify(
+          variant === "dashboard"
+            ? {
+                current_password: currentPassword.trim(),
+                new_password: newPassword.trim(),
+              }
+            : {
+                employee_id: employeeId,
+                current_password: currentPassword.trim(),
+                new_password: newPassword.trim(),
+              }
+        ),
       });
 
       const data = await response.json();

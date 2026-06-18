@@ -48,6 +48,61 @@ export function normalizeApprovedFtlClockPair(
   return { clockInIso, clockOutIso };
 }
 
+function clockPairDurationMs(clockInIso: string, clockOutIso: string): number {
+  const cin = new Date(clockInIso).getTime();
+  const cout = new Date(clockOutIso).getTime();
+  if (Number.isNaN(cin) || Number.isNaN(cout) || cout <= cin) return 0;
+  return cout - cin;
+}
+
+/**
+ * When an approved Failure-to-Log documents a longer shift than an existing Bundy pair
+ * (e.g. erroneous 5:00–5:16 AM punch vs corrected 5:00 AM–6:42 PM FTL), prefer FTL times.
+ */
+export function resolveClockTimesWithApprovedFtl(
+  bundyIn: string | null | undefined,
+  bundyOut: string | null | undefined,
+  ftlIn: string | null | undefined,
+  ftlOut: string | null | undefined
+): { clockIn: string | null; clockOut: string | null; usedFtl: boolean } {
+  if (!ftlIn || !ftlOut) {
+    return { clockIn: bundyIn ?? null, clockOut: bundyOut ?? null, usedFtl: false };
+  }
+
+  const normalized = normalizeApprovedFtlClockPair(ftlIn, ftlOut);
+  const ftlInIso = normalized.clockInIso;
+  const ftlOutIso = normalized.clockOutIso;
+  const ftlDuration = clockPairDurationMs(ftlInIso, ftlOutIso);
+  if (ftlDuration <= 0) {
+    return { clockIn: bundyIn ?? null, clockOut: bundyOut ?? null, usedFtl: false };
+  }
+
+  if (!bundyIn) {
+    return { clockIn: ftlInIso, clockOut: ftlOutIso, usedFtl: true };
+  }
+
+  const bundyOutValid =
+    bundyOut &&
+    !Number.isNaN(new Date(bundyIn).getTime()) &&
+    !Number.isNaN(new Date(bundyOut).getTime()) &&
+    new Date(bundyOut) > new Date(bundyIn);
+
+  if (!bundyOutValid) {
+    return {
+      clockIn: bundyIn || ftlInIso,
+      clockOut: ftlOutIso,
+      usedFtl: true,
+    };
+  }
+
+  const bundyDuration = clockPairDurationMs(bundyIn, bundyOut);
+  if (ftlDuration > bundyDuration) {
+    return { clockIn: ftlInIso, clockOut: ftlOutIso, usedFtl: true };
+  }
+
+  return { clockIn: bundyIn, clockOut: bundyOut, usedFtl: false };
+}
+
 export type OtRequestLike = {
   ot_date: string;
   end_date?: string | null;

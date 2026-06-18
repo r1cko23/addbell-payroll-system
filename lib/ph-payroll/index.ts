@@ -73,7 +73,7 @@ export {
 
 export { buildApprovedOvertimeMaps } from "./prepare-overtime-maps";
 export type { OvertimeRequestForMaps } from "./prepare-overtime-maps";
-export { manilaDateKeyFromIso } from "./manila-date-key";
+export { computePayslipHoursDisplay } from "./payslip-hours";
 
 export {
   validatePayrollEntry,

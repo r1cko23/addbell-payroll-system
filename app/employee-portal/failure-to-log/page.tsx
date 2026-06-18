@@ -230,7 +230,8 @@ export default function FailureToLogPage() {
 
     const buildDateTime = (date: string, time: string) => {
       if (!date || !time) return null;
-      return new Date(`${date}T${time}`).toISOString();
+      const hhmmss = time.length === 5 ? `${time}:00` : time;
+      return `${date}T${hhmmss}+08:00`;
     };
 
     const resolvedTimeOutDate = timeOutDate || missedDate;

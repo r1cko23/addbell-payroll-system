@@ -37,6 +37,7 @@ import {
   type PayslipPrintEarningsSync,
 } from "@/lib/payslip-print-sync";
 import { resolveDaysWorkTotals } from "@/lib/ph-payroll/days-work-rollup";
+import { computePayslipHoursDisplay } from "@/lib/ph-payroll/payslip-hours";
 
 interface PayslipDetailedBreakdownProps {
   employee: {
@@ -872,30 +873,30 @@ function PayslipDetailedBreakdownComponent({
     const actualTotalBH =
       daysWorkResolved?.actualTotalBH ?? regularHoursWorked;
 
-    // Row 1 "Hours Work (Regular)" — lib/ph-payroll Days Work engine (matches Time Attendance footer).
-    const hoursWorked =
-      daysWorkResolved?.totalBHForDaysWork ??
-      (periodStart && periodEnd ? regularHoursWorked : basePayHours);
+    const otHoursTotal =
+      earningsOT.regularOvertime.hours +
+      earningsOT.legalHolidayOT.hours +
+      earningsOT.legalHolidayND.hours +
+      earningsOT.shOT.hours +
+      earningsOT.shNightDiff.hours +
+      earningsOT.shOnRDOT.hours +
+      earningsOT.lhOnRDOT.hours +
+      earningsOT.restDayOT.hours;
 
-    const totalHoursWorked =
-      Math.round(
-        (hoursWorked +
-          breakdown.nightDifferential.hours +
-          breakdown.legalHoliday.hours +
-          breakdown.specialHoliday.hours +
-          breakdown.restDay.hours +
-          breakdown.restDayNightDiff.hours +
-          earningsOT.regularOvertime.hours +
-          earningsOT.legalHolidayOT.hours +
-          earningsOT.legalHolidayND.hours +
-          earningsOT.shOT.hours +
-          earningsOT.shNightDiff.hours +
-          earningsOT.shOnRDOT.hours +
-          earningsOT.lhOnRDOT.hours +
-          earningsOT.restDayOT.hours) *
-          100
-      ) / 100;
+    const { hoursWorkedRegular, totalHoursWorked } = computePayslipHoursDisplay({
+      regularHoursWorked,
+      actualTotalBH: daysWorkResolved?.actualTotalBH ?? null,
+      isAllowanceTier: isEligibleForAllowances,
+      totalBHForDaysWork: daysWorkResolved?.totalBHForDaysWork ?? null,
+      basePayHours,
+      premiumHolidayHours: breakdown.legalHoliday.hours,
+      premiumSpecialHolidayHours: breakdown.specialHoliday.hours,
+      premiumRestDayHours: breakdown.restDay.hours,
+      otHoursTotal,
+      hasPeriod: Boolean(periodStart && periodEnd),
+    });
 
+    const hoursWorked = hoursWorkedRegular;
     const totalBHForHoursWork = actualTotalBH;
 
     // Ensure basicSalary = regular hours worked × hourly rate

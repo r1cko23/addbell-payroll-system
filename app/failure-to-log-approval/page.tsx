@@ -58,6 +58,7 @@ import {
   shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
 import { normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
+import { removeShorterBundyPunchesForApprovedFtl } from "@/lib/timeEntries";
 import { ftlToApprovalFields } from "@/lib/dual-approval-display";
 import { RequestApprovalLabels } from "@/components/approval/RequestApprovalLabels";
 import { fetchApproverNameMap } from "@/lib/load-approver-names";
@@ -798,6 +799,37 @@ export default function FailureToLogApprovalPage() {
       }
 
       if (punchRows.length > 0) {
+        if (
+          requestData.entry_type === "both" &&
+          requestData.actual_clock_in_time &&
+          requestData.actual_clock_out_time &&
+          requestData.missed_date
+        ) {
+          const missedDateYmd = String(requestData.missed_date).split("T")[0];
+          try {
+            await removeShorterBundyPunchesForApprovedFtl(
+              supabase,
+              request.employee_id,
+              missedDateYmd,
+              requestData.actual_clock_in_time,
+              requestData.actual_clock_out_time
+            );
+          } catch (cleanupError) {
+            console.error(
+              "Error removing shorter Bundy punches before FTL insert:",
+              cleanupError
+            );
+            toast.error("FTL approved, but failed to replace existing punch rows", {
+              description:
+                cleanupError instanceof Error
+                  ? cleanupError.message
+                  : "Please check time_entries permissions.",
+            });
+            setApproveLoading(false);
+            return;
+          }
+        }
+
         const { error: insertPunchError } = await supabase
           .from("time_entries")
           .insert(punchRows);

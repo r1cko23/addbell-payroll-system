@@ -295,6 +295,8 @@ function FundRequestListPageContent() {
   const normalizedRole = (profile?.role || '').trim().toLowerCase();
   const isPortal = (pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal')) ?? false;
   const isApprover = isFundRequestApproverRole(normalizedRole) && !isPortal;
+  const isUpperManagement = normalizedRole === 'upper_management';
+  const showMyRequestsTab = isApprover && !isUpperManagement;
   const initialTab = searchParams.get('tab') === 'inbox' && isApprover ? 'inbox' : 'all';
   const [activeTab, setActiveTab] = useState<'inbox' | 'all'>(initialTab);
   const [rows, setRows] = useState<FundRequestWithProject[]>([]);
@@ -314,8 +316,16 @@ function FundRequestListPageContent() {
       normalizedRole === 'upper_management');
 
   useEffect(() => {
-    setActiveTab(searchParams.get('tab') === 'inbox' && isApprover ? 'inbox' : 'all');
-  }, [searchParams, isApprover]);
+    if (!isApprover) {
+      setActiveTab('all');
+      return;
+    }
+    if (!showMyRequestsTab) {
+      setActiveTab('inbox');
+      return;
+    }
+    setActiveTab(searchParams.get('tab') === 'inbox' ? 'inbox' : 'all');
+  }, [searchParams, isApprover, showMyRequestsTab]);
 
   useEffect(() => {
     if (session?.employee?.id || !profile?.id || isPortal) return;
@@ -432,7 +442,9 @@ function FundRequestListPageContent() {
               <H1>Fund Requests</H1>
               <PageSubtitle className="mt-1">
                 {isApprover
-                  ? 'Review requests pending your approval or view your submitted requests.'
+                  ? showMyRequestsTab
+                    ? 'Review requests pending your approval or view your submitted requests.'
+                    : 'Review requests pending your approval.'
                   : 'Materials, subcontractor, project funds, or liquidation.'}
               </PageSubtitle>
             </>
@@ -449,6 +461,7 @@ function FundRequestListPageContent() {
       </div>
 
       {isApprover ? (
+        showMyRequestsTab ? (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList>
             <TabsTrigger value="inbox">For Approval</TabsTrigger>
@@ -476,6 +489,11 @@ function FundRequestListPageContent() {
             </Card>
           </TabsContent>
         </Tabs>
+        ) : (
+          <div className="mt-4">
+            <FundRequestInbox />
+          </div>
+        )
       ) : (
         <Card className="border-border/80 bg-card/95">
           <CardHeader>

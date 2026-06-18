@@ -60,7 +60,7 @@ import {
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { computeDayAttendanceMetrics } from "@/lib/day-attendance-summary";
 import { fetchSessionsInRange, getDateInManilaDefault } from "@/lib/timeEntries";
-import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
+import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair, resolveClockTimesWithApprovedFtl } from "@/lib/ftl-ot-synthesis";
 import { ManualPunchDialog } from "@/components/time-entries/ManualPunchDialog";
 
 interface TimeEntry {
@@ -686,7 +686,21 @@ export default function TimeEntriesPage() {
             ftlCompositeKey(entry.employee_id, entryDateKey)
           );
 
+          const resolvedTimes = resolveClockTimesWithApprovedFtl(
+            entry.clock_in_time,
+            entry.clock_out_time,
+            ftlForEntry?.inTime,
+            ftlForEntry?.outTime
+          );
+
+          const resolvedClockInTime =
+            resolvedTimes.clockIn ||
+            (entry.status === "clocked_in" ? ftlForEntry?.inTime || null : null);
+
           const resolvedClockOutTime = (() => {
+            if (resolvedTimes.usedFtl && resolvedTimes.clockOut) {
+              return resolvedTimes.clockOut;
+            }
             if (entry.clock_out_time) return entry.clock_out_time;
             if (entry.status !== "clocked_in" || !entry.clock_in_time || !ftlForEntry?.outTime) {
               return null;
@@ -696,10 +710,6 @@ export default function TimeEntriesPage() {
             }
             return ftlForEntry.outTime;
           })();
-
-          const resolvedClockInTime =
-            entry.clock_in_time ||
-            (entry.status === "clocked_in" ? ftlForEntry?.inTime || null : null);
 
           return {
             ...entry,

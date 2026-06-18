@@ -13,6 +13,7 @@ import {
   isPastBundyAutoClockOut,
 } from "@/lib/bundy-business-day";
 import { filterOfficialBundySessions } from "@/lib/official-bundy-sessions";
+import { resolveClockTimesWithApprovedFtl, normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 
 export type PunchType = "in" | "out";
@@ -434,6 +435,48 @@ export function mergeBundyAndFtlClockSessions(
     const empId = ftl.employee_id;
     const d = getDateInManila(ftl.clock_in_time);
     if (completeDates.has(d)) {
+      const sameEmployeeOnDate = (s: TimeEntrySession) =>
+        !empId || !s.employee_id || s.employee_id === empId;
+
+      const completeIdx = out.findIndex((s) => {
+        if (!sameEmployeeOnDate(s) || !s.clock_in_time || !s.clock_out_time) return false;
+        if (getDateInManila(s.clock_in_time) !== d) return false;
+        const cin = new Date(s.clock_in_time);
+        const cout = new Date(s.clock_out_time);
+        return (
+          !Number.isNaN(cin.getTime()) &&
+          !Number.isNaN(cout.getTime()) &&
+          cout > cin
+        );
+      });
+
+      if (completeIdx >= 0) {
+        const s = out[completeIdx];
+        const resolved = resolveClockTimesWithApprovedFtl(
+          s.clock_in_time,
+          s.clock_out_time,
+          ftl.clock_in_time,
+          ftl.clock_out_time
+        );
+        if (resolved.usedFtl && resolved.clockIn && resolved.clockOut) {
+          const mergedIn = resolved.clockIn;
+          const mergedOut = resolved.clockOut;
+          out[completeIdx] = {
+            ...s,
+            clock_in_time: mergedIn,
+            clock_out_time: mergedOut,
+            clock_in_date_ph: getDateInManila(mergedIn),
+            status: "approved",
+            total_hours:
+              Math.round(
+                ((new Date(mergedOut).getTime() - new Date(mergedIn).getTime()) /
+                  (1000 * 60 * 60)) *
+                  100
+              ) / 100,
+            regular_hours: regularHoursFromBundyClockPair(mergedIn, mergedOut),
+          };
+        }
+      }
       continue;
     }
 
@@ -664,6 +707,74 @@ export async function fetchSessionsForEmployee(
     })),
     (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, list)
   );
+}
+
+function isFtlApprovedPunch(punch: TimeEntryPunch): boolean {
+  return Boolean(punch.device_info?.includes("FTL approved"));
+}
+
+/**
+ * Removes erroneous short Bundy pairs on the same Manila date before inserting FTL punches.
+ * Example: Bundy 5:00–5:16 AM replaced when approved FTL documents 5:00 AM–6:42 PM.
+ */
+export async function removeShorterBundyPunchesForApprovedFtl(
+  supabase: any,
+  employeeId: string,
+  missedDateYmd: string,
+  ftlClockIn: string,
+  ftlClockOut: string
+): Promise<{ deletedPunchIds: string[] }> {
+  const normalized = normalizeApprovedFtlClockPair(ftlClockIn, ftlClockOut);
+  const ftlDuration =
+    new Date(normalized.clockOutIso).getTime() -
+    new Date(normalized.clockInIso).getTime();
+  if (ftlDuration <= 0) return { deletedPunchIds: [] };
+
+  const dayStart = `${missedDateYmd}T00:00:00+08:00`;
+  const dayEnd = `${missedDateYmd}T23:59:59.999+08:00`;
+
+  const { data: punches, error } = await supabase
+    .from("time_entries")
+    .select("id, employee_id, punch_type, punched_at, device_info")
+    .eq("employee_id", employeeId)
+    .gte("punched_at", dayStart)
+    .lte("punched_at", dayEnd);
+
+  if (error || !punches?.length) return { deletedPunchIds: [] };
+
+  const punchList = punches as TimeEntryPunch[];
+  const sessions = punchesToSessions(punchList, getDateInManilaDefault);
+  const idsToDelete = new Set<string>();
+
+  for (const session of sessions) {
+    if (!session.clock_in_time || !session.clock_out_time) continue;
+    if (getDateInManilaDefault(session.clock_in_time) !== missedDateYmd) continue;
+
+    const inPunch = punchList.find((p) => p.id === session.id);
+    if (inPunch && isFtlApprovedPunch(inPunch)) continue;
+
+    const duration =
+      new Date(session.clock_out_time).getTime() -
+      new Date(session.clock_in_time).getTime();
+    if (duration >= ftlDuration) continue;
+
+    idsToDelete.add(session.id);
+    if (session.out_punch_id) idsToDelete.add(session.out_punch_id);
+  }
+
+  const deletedPunchIds = Array.from(idsToDelete);
+  if (deletedPunchIds.length === 0) return { deletedPunchIds: [] };
+
+  const { error: deleteError } = await supabase
+    .from("time_entries")
+    .delete()
+    .in("id", deletedPunchIds);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  return { deletedPunchIds };
 }
 
 /**

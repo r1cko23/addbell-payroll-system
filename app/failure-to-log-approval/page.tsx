@@ -657,6 +657,7 @@ export default function FailureToLogApprovalPage() {
         id,
         employee_id,
         time_entry_id,
+        missed_date,
         entry_type,
         actual_clock_in_time,
         actual_clock_out_time,
@@ -679,6 +680,7 @@ export default function FailureToLogApprovalPage() {
       entry_type: "in" | "out" | "both";
       actual_clock_in_time: string | null;
       actual_clock_out_time: string | null;
+      missed_date: string | null;
     };
 
     // Validate required times based on entry_type

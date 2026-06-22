@@ -47,6 +47,7 @@ import {
   isFundRequestApproverRole,
 } from '@/lib/fund-request-approval';
 import { FundRequestInbox } from '@/components/fund-request/FundRequestInbox';
+import { FundRequestCutoffHistory } from '@/components/fund-request/FundRequestCutoffHistory';
 
 type FundRequestWithProject = FundRequestRow & {
   projects: { name: string; code: string } | null;
@@ -286,6 +287,8 @@ export default function FundRequestListPage() {
   );
 }
 
+type FundRequestListTab = 'inbox' | 'history' | 'all-requests' | 'my-requests';
+
 function FundRequestListPageContent() {
   const pathname = usePathname();
   const router = useRouter();
@@ -296,9 +299,21 @@ function FundRequestListPageContent() {
   const isPortal = (pathname?.startsWith('/app') || pathname?.startsWith('/employee-portal')) ?? false;
   const isApprover = isFundRequestApproverRole(normalizedRole) && !isPortal;
   const isUpperManagement = normalizedRole === 'upper_management';
+  const isPurchasingOfficer = normalizedRole === 'purchasing_officer';
+  const isOperationsManager = normalizedRole === 'operations_manager';
+  const showAllRequestsTab = isPurchasingOfficer || isOperationsManager;
+  const showHistoryTab = isUpperManagement || isPurchasingOfficer;
   const showMyRequestsTab = isApprover && !isUpperManagement;
-  const initialTab = searchParams.get('tab') === 'inbox' && isApprover ? 'inbox' : 'all';
-  const [activeTab, setActiveTab] = useState<'inbox' | 'all'>(initialTab);
+  const tabParam = searchParams.get('tab');
+  const initialTab: FundRequestListTab =
+    tabParam === 'inbox' && isApprover
+      ? 'inbox'
+      : tabParam === 'history' && showHistoryTab
+        ? 'history'
+        : tabParam === 'all-requests' && showAllRequestsTab
+          ? 'all-requests'
+          : 'my-requests';
+  const [activeTab, setActiveTab] = useState<FundRequestListTab>(initialTab);
   const [rows, setRows] = useState<FundRequestWithProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -316,16 +331,31 @@ function FundRequestListPageContent() {
       normalizedRole === 'upper_management');
 
   useEffect(() => {
-    if (!isApprover) {
-      setActiveTab('all');
+    if (!isApprover) return;
+    if (showHistoryTab && !showMyRequestsTab) {
+      const nextTab = searchParams.get('tab');
+      setActiveTab(nextTab === 'history' ? 'history' : 'inbox');
       return;
     }
     if (!showMyRequestsTab) {
       setActiveTab('inbox');
       return;
     }
-    setActiveTab(searchParams.get('tab') === 'inbox' ? 'inbox' : 'all');
-  }, [searchParams, isApprover, showMyRequestsTab]);
+    const nextTab = searchParams.get('tab');
+    if (nextTab === 'inbox') {
+      setActiveTab('inbox');
+      return;
+    }
+    if (nextTab === 'history' && showHistoryTab) {
+      setActiveTab('history');
+      return;
+    }
+    if (nextTab === 'all-requests' && showAllRequestsTab) {
+      setActiveTab('all-requests');
+      return;
+    }
+    setActiveTab('my-requests');
+  }, [searchParams, isApprover, showMyRequestsTab, showAllRequestsTab, showHistoryTab]);
 
   useEffect(() => {
     if (session?.employee?.id || !profile?.id || isPortal) return;
@@ -350,6 +380,7 @@ function FundRequestListPageContent() {
     if (profileLoading || resolvingLinkedEmployee) return;
     const fetchData = async () => {
       const shouldFilterByRequester =
+        activeTab === 'my-requests' &&
         Boolean(employeeId) &&
         (isPortal || isApprover || !canViewAllFromDashboard);
       if (!employeeId) {
@@ -377,6 +408,7 @@ function FundRequestListPageContent() {
     canViewAllFromDashboard,
     isPortal,
     isApprover,
+    activeTab,
   ]);
 
   const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
@@ -392,11 +424,22 @@ function FundRequestListPageContent() {
   const base = pathname?.startsWith('/employee-portal') ? '/employee-portal/fund-request' : isPortal ? '/app/fund-request' : '/fund-request';
 
   const handleTabChange = (value: string) => {
-    const tab = value === 'inbox' ? 'inbox' : 'all';
+    const tab: FundRequestListTab =
+      value === 'inbox'
+        ? 'inbox'
+        : value === 'history'
+          ? 'history'
+          : value === 'all-requests'
+            ? 'all-requests'
+            : 'my-requests';
     setActiveTab(tab);
     const params = new URLSearchParams(searchParams.toString());
     if (tab === 'inbox') {
       params.set('tab', 'inbox');
+    } else if (tab === 'history') {
+      params.set('tab', 'history');
+    } else if (tab === 'all-requests') {
+      params.set('tab', 'all-requests');
     } else {
       params.delete('tab');
     }
@@ -444,7 +487,11 @@ function FundRequestListPageContent() {
                 {isApprover
                   ? showMyRequestsTab
                     ? 'Review requests pending your approval or view your submitted requests.'
-                    : 'Review requests pending your approval.'
+                    : isUpperManagement
+                      ? 'Review pending requests for final approval, or open History to see approved and returned requests by cutoff.'
+                      : isPurchasingOfficer || isOperationsManager
+                        ? 'Review pending requests, browse all statuses, or open History for approved and rejected requests by cutoff.'
+                        : 'Review requests pending your approval.'
                   : 'Materials, subcontractor, project funds, or liquidation.'}
               </PageSubtitle>
             </>
@@ -465,12 +512,46 @@ function FundRequestListPageContent() {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList>
             <TabsTrigger value="inbox">For Approval</TabsTrigger>
-            <TabsTrigger value="all">My Requests</TabsTrigger>
+            {showHistoryTab ? (
+              <TabsTrigger value="history">History</TabsTrigger>
+            ) : null}
+            {showAllRequestsTab ? (
+              <TabsTrigger value="all-requests">All Requests</TabsTrigger>
+            ) : null}
+            <TabsTrigger value="my-requests">My Requests</TabsTrigger>
           </TabsList>
           <TabsContent value="inbox" className="mt-4">
             <FundRequestInbox />
           </TabsContent>
-          <TabsContent value="all" className="mt-4">
+          {showHistoryTab ? (
+            <TabsContent value="history" className="mt-4">
+              <FundRequestCutoffHistory
+                detailHrefBase={base}
+                role={isPurchasingOfficer ? 'purchasing_officer' : 'upper_management'}
+              />
+            </TabsContent>
+          ) : null}
+          {showAllRequestsTab ? (
+            <TabsContent value="all-requests" className="mt-4">
+              <Card className="border-border/80 bg-card/95">
+                {allRequestsFilters}
+                <CardContent className="p-0">
+                  <FundRequestAllList
+                    rows={rows}
+                    loading={loading}
+                    searchTerm={searchTerm}
+                    statusFilter={statusFilter}
+                    base={base}
+                    requesterEmployeeId={employeeId}
+                    onRequestDeleted={(requestId) =>
+                      setRows((current) => current.filter((row) => row.id !== requestId))
+                    }
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          ) : null}
+          <TabsContent value="my-requests" className="mt-4">
             <Card className="border-border/80 bg-card/95">
               {allRequestsFilters}
               <CardContent className="p-0">
@@ -489,6 +570,19 @@ function FundRequestListPageContent() {
             </Card>
           </TabsContent>
         </Tabs>
+        ) : showHistoryTab ? (
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList>
+              <TabsTrigger value="inbox">For Approval</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+            </TabsList>
+            <TabsContent value="inbox" className="mt-4">
+              <FundRequestInbox />
+            </TabsContent>
+            <TabsContent value="history" className="mt-4">
+              <FundRequestCutoffHistory detailHrefBase={base} role="upper_management" />
+            </TabsContent>
+          </Tabs>
         ) : (
           <div className="mt-4">
             <FundRequestInbox />

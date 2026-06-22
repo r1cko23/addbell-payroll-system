@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
+import {
+  formatFundRequestSubmittedAtLabel,
+} from "@/lib/fund-request-history";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +27,17 @@ import { FundRequestProjectDetailsDisplay } from "@/components/fund-request/Fund
 import { FundRequestDetailsSection } from "@/components/fund-request/FundRequestDetailsSection";
 import {
   buildFundRequestApprovalUpdates,
+  buildFundRequestRejectUpdates,
+  buildFundRequestUndoRejectionUpdates,
+  buildFundRequestUndoManagementApprovalUpdates,
+  buildFundRequestUpperManagementReturnUpdates,
+  buildFundRequestRejectionUndoSnapshot,
   canActOnFundRequest,
+  canReturnFundRequestToPurchasing,
+  canUndoFundRequestManagementApproval,
+  canUndoFundRequestRejection,
   getFundRequestApprovalActionCopy,
+  getFundRequestUndoRejectionLabel,
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
 } from "@/lib/fund-request-approval";
@@ -94,6 +106,7 @@ export function FundRequestApprovalDetail({
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [supplierBankDetails, setSupplierBankDetails] =
@@ -205,6 +218,10 @@ export function FundRequestApprovalDetail({
     profile?.role,
     request?.status
   );
+  const isUpperManagementReview = Boolean(
+    request &&
+      canReturnFundRequestToPurchasing(profile?.role, request.status)
+  );
 
   const handleApprove = async () => {
     if (!request || !profile?.id) return;
@@ -263,7 +280,9 @@ export function FundRequestApprovalDetail({
     const nextStatus = updates.status as FundRequestRow["status"];
     toast.success(
       nextStatus === "management_approved"
-        ? "Fund request fully approved."
+        ? isUpperManagementReview
+          ? "Review completed."
+          : "Fund request fully approved."
         : "Approved. Moved to next step."
     );
     setRequest({
@@ -275,38 +294,108 @@ export function FundRequestApprovalDetail({
 
   const handleReject = async () => {
     if (!request || !profile?.id) return;
-    if (!rejectReason.trim()) {
+    const returningToPurchasing = canReturnFundRequestToPurchasing(
+      profile.role,
+      request.status
+    );
+    if (!returningToPurchasing && !rejectReason.trim()) {
       toast.error("Please enter a rejection reason.");
       return;
     }
 
     setRejecting(true);
+    const undoSnapshot = buildFundRequestRejectionUndoSnapshot(request);
+    const updates = returningToPurchasing
+      ? buildFundRequestUpperManagementReturnUpdates(
+          profile.id,
+          rejectReason,
+          undoSnapshot
+        )
+      : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
+
     const { error } = await supabase
       .from("fund_requests")
-      .update({
-        status: "rejected",
-        rejected_by: profile.id,
-        rejected_at: new Date().toISOString(),
-        rejection_reason: rejectReason.trim(),
-        updated_at: new Date().toISOString(),
-      } as never)
+      .update(updates as never)
       .eq("id", request.id);
     setRejecting(false);
 
     if (error) {
-      toast.error("Failed to reject");
+      toast.error(
+        returningToPurchasing
+          ? "Failed to return request to purchasing"
+          : "Failed to reject"
+      );
       return;
     }
 
-    toast.success("Fund request rejected.");
+    toast.success(
+      returningToPurchasing
+        ? "Returned to purchasing officer for review."
+        : "Fund request rejected."
+    );
     setRequest({
       ...request,
-      status: "rejected",
-      rejected_by: profile.id,
-      rejected_at: new Date().toISOString(),
-      rejection_reason: rejectReason.trim(),
+      ...(updates as Partial<FundRequestRow>),
     });
     setShowRejectForm(false);
+  };
+
+  const handleUndoManagementApproval = async () => {
+    if (!request || !profile?.id) return;
+
+    const updates = buildFundRequestUndoManagementApprovalUpdates(request);
+    if (!updates) {
+      toast.error("This request cannot be restored.");
+      return;
+    }
+
+    setUndoing(true);
+    const { error } = await supabase
+      .from("fund_requests")
+      .update(updates as never)
+      .eq("id", request.id);
+    setUndoing(false);
+
+    if (error) {
+      toast.error("Failed to undo approval.");
+      return;
+    }
+
+    toast.success("Approval undone. Request returned to pending final approval.");
+    setRequest({
+      ...request,
+      ...(updates as Partial<FundRequestRow>),
+    });
+  };
+
+  const handleUndoRejection = async () => {
+    if (!request || !profile?.id) return;
+
+    const updates = buildFundRequestUndoRejectionUpdates(request);
+    if (!updates) {
+      toast.error("This request cannot be restored.");
+      return;
+    }
+
+    setUndoing(true);
+    const { error } = await supabase
+      .from("fund_requests")
+      .update(updates as never)
+      .eq("id", request.id);
+    setUndoing(false);
+
+    if (error) {
+      toast.error("Failed to undo rejection.");
+      return;
+    }
+
+    toast.success("Rejection undone. Request restored to its previous step.");
+    setRequest({
+      ...request,
+      ...(updates as Partial<FundRequestRow>),
+    });
+    setShowRejectForm(false);
+    setRejectReason("");
   };
 
   const canEditPurchasingDetails = canPurchasingOfficerEditDetails(
@@ -368,6 +457,17 @@ export function FundRequestApprovalDetail({
   const showSubcontractorFields =
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
+  const canUndoRejection = canUndoFundRequestRejection(
+    profile?.role,
+    profile?.id,
+    request
+  );
+  const canUndoApproval = canUndoFundRequestManagementApproval(
+    profile?.role,
+    profile?.id,
+    request
+  );
+  const undoRejectionLabel = getFundRequestUndoRejectionLabel(request);
 
   return (
     <div className={cn(dbPageWrapper)}>
@@ -383,7 +483,7 @@ export function FundRequestApprovalDetail({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-muted-foreground">
               Requested by {requesterName} on{" "}
-              {format(new Date(request.request_date), "MMMM d, yyyy")}
+              {formatFundRequestSubmittedAtLabel(request)}
             </p>
             <Badge
               variant={getFundRequestStatusBadgeVariant(request.status)}
@@ -490,15 +590,71 @@ export function FundRequestApprovalDetail({
               requesterIsOperationsManager={requesterIsOperationsManager}
               approverNames={approverNames}
             />
+            {request.status === "project_manager_approved" &&
+              request.rejection_reason &&
+              request.rejected_at && (
+                <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-3 space-y-3">
+                  <FundRequestField
+                    label="Returned by upper management"
+                    value={request.rejection_reason}
+                  />
+                  {canUndoRejection ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={undoing}
+                      onClick={handleUndoRejection}
+                    >
+                      {undoing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {undoRejectionLabel}
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+
             {request.status === "rejected" && request.rejection_reason && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 space-y-3">
                 <FundRequestField
                   label="Rejection Reason"
                   value={request.rejection_reason}
                   className="[&_h4]:text-destructive"
                 />
+                {canUndoRejection ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={undoing}
+                    onClick={handleUndoRejection}
+                  >
+                    {undoing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {undoRejectionLabel}
+                  </Button>
+                ) : null}
               </div>
             )}
+
+            {request.status === "management_approved" && canUndoApproval ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={undoing}
+                  onClick={handleUndoManagementApproval}
+                >
+                  {undoing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Undo approval
+                </Button>
+              </div>
+            ) : null}
 
             {canAct ? (
               <div
@@ -541,21 +697,31 @@ export function FundRequestApprovalDetail({
 
                 {showRejectForm ? (
                   <div className="space-y-2">
-                    <Label htmlFor="reject_reason">Rejection reason</Label>
+                    <Label htmlFor="reject_reason">
+                      {isUpperManagementReview
+                        ? "Reason for returning to purchasing (optional)"
+                        : "Rejection reason"}
+                    </Label>
                     <Input
                       id="reject_reason"
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder="Reason"
+                      placeholder={
+                        isUpperManagementReview
+                          ? "What needs to be corrected?"
+                          : "Reason"
+                      }
                     />
                     <div className="flex flex-wrap gap-2">
                       <Button
-                        variant="destructive"
+                        variant={isUpperManagementReview ? "default" : "destructive"}
                         disabled={rejecting}
                         onClick={handleReject}
                       >
                         {rejecting ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isUpperManagementReview ? (
+                          "Confirm return"
                         ) : (
                           "Confirm Reject"
                         )}
@@ -572,6 +738,10 @@ export function FundRequestApprovalDetail({
                       </Button>
                     </div>
                   </div>
+                ) : isUpperManagementReview ? (
+                  <Button disabled={acting} onClick={() => setShowRejectForm(true)}>
+                    Return to purchasing
+                  </Button>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     <Button disabled={acting} onClick={handleApprove}>

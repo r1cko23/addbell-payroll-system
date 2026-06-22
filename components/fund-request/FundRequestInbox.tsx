@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatFundRequestFiledAtCompact } from "@/lib/fund-request-history";
 import { Loader2 } from "lucide-react";
 import { MetricCard } from "@/components/ui/metric-card";
 import { BodySmall, Caption } from "@/components/ui/typography";
@@ -33,27 +34,21 @@ import {
   type FundRequestRequesterInfo,
 } from "@/lib/fund-request-requester";
 import {
-  canRequesterDeleteFundRequest,
+  canReturnFundRequestToPurchasing,
+  buildFundRequestUpperManagementReturnUpdates,
+  buildFundRequestRejectUpdates,
+  buildFundRequestRejectionUndoSnapshot,
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
   getActionableFundRequestStatuses,
 } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
 import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
-
-type RowWithRequester = FundRequestRow & {
-  employees: {
-    employee_id: string;
-    first_name: string;
-    last_name: string;
-    full_name?: string | null;
-    profile_picture_url?: string | null;
-    user_id?: string | null;
-  } | null;
-  vendors: {
-    name: string;
-  } | null;
-};
+import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
+import {
+  getFundRequestPayeeAccountName,
+  type FundRequestInboxRow,
+} from "@/lib/fund-request-inbox-grouping";
 
 const NEXT_STATUS: Record<string, FundRequestRow["status"]> = {
   pending: "project_manager_approved",
@@ -70,7 +65,7 @@ function formatEmployeeIdDisplay(
 }
 
 function getRequesterDisplayName(
-  row: RowWithRequester,
+  row: FundRequestInboxRow,
   requesterInfo?: FundRequestRequesterInfo
 ): string {
   if (requesterInfo?.name) return requesterInfo.name;
@@ -97,6 +92,7 @@ function canQuickApproveFromInbox(
   actionableStatuses: FundRequestRow["status"][]
 ): boolean {
   if (!actionableStatuses.includes(status)) return false;
+  if (canReturnFundRequestToPurchasing(role, status)) return false;
   if (
     status === "project_manager_approved" &&
     normalizeUserRole(role) === "purchasing_officer"
@@ -114,10 +110,11 @@ export function FundRequestInbox({
   const router = useRouter();
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
-  const [rows, setRows] = useState<RowWithRequester[]>([]);
+  const [rows, setRows] = useState<FundRequestInboxRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [bulkApproving, setBulkApproving] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,7 +134,7 @@ export function FundRequestInbox({
           ? supabase
               .from("fund_requests")
               .select(
-                `*, employees ( employee_id, first_name, last_name, full_name, profile_picture_url, user_id ), vendors ( name )`
+                `*, employees ( employee_id, first_name, last_name, full_name, profile_picture_url, user_id ), vendors ( name ), projects ( name, code, clients: client_id ( name ) )`
               )
               .in("status", statuses)
               .order("created_at", { ascending: false })
@@ -147,7 +144,7 @@ export function FundRequestInbox({
       if (actionableRes.error) {
         toast.error("Failed to load fund requests");
       } else {
-        setRows((actionableRes.data as RowWithRequester[]) ?? []);
+        setRows((actionableRes.data as FundRequestInboxRow[]) ?? []);
       }
       if (!allRes.error && allRes.data) {
         const c: Record<string, number> = {};
@@ -157,7 +154,7 @@ export function FundRequestInbox({
         setCounts(c);
       }
       const actionableRows =
-        (actionableRes.data as RowWithRequester[] | null) ?? [];
+        (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
       const requestedByIds = new Set<string>();
 
       actionableRows.forEach((r: FundRequestRow) => {
@@ -174,6 +171,17 @@ export function FundRequestInbox({
   }, [supabase, profile?.role]);
 
   const currentUserId = profile?.id ?? null;
+
+  const refreshCounts = async () => {
+    const { data: all } = await supabase.from("fund_requests").select("id, status");
+    if (all) {
+      const c: Record<string, number> = {};
+      all.forEach((r: { status: string }) => {
+        c[r.status] = (c[r.status] || 0) + 1;
+      });
+      setCounts(c);
+    }
+  };
 
   const handleApprove = async (
     id: string,
@@ -211,54 +219,104 @@ export function FundRequestInbox({
           : "Approved. Moved to next step."
       );
       setRows((prev) => prev.filter((r) => r.id !== id));
-      const { data: all } = await supabase
-        .from("fund_requests")
-        .select("id, status");
-      if (all) {
-        const c: Record<string, number> = {};
-        all.forEach((r: { status: string }) => {
-          c[r.status] = (c[r.status] || 0) + 1;
-        });
-        setCounts(c);
-      }
+      await refreshCounts();
     }
   };
 
-  const handleReject = async (id: string) => {
-    if (!rejectReason.trim()) {
-      toast.error("Please enter a rejection reason.");
+  const handleApproveAll = async (requests: FundRequestInboxRow[]) => {
+    if (!currentUserId || requests.length === 0) return;
+
+    setBulkApproving(true);
+    const timestamp = new Date().toISOString();
+    const results = await Promise.all(
+      requests.map((request) =>
+        supabase
+          .from("fund_requests")
+          .update({
+            status: "management_approved",
+            management_approved_by: currentUserId,
+            management_approved_at: timestamp,
+            updated_at: timestamp,
+          } as never)
+          .eq("id", request.id)
+      )
+    );
+
+    const failed = results.filter((result) => result.error).length;
+    setBulkApproving(false);
+
+    if (failed === requests.length) {
+      toast.error("Failed to approve requests.");
+      return;
+    }
+
+    const approvedIds = new Set(
+      requests
+        .filter((_, index) => !results[index]?.error)
+        .map((request) => request.id)
+    );
+    setRows((prev) => prev.filter((row) => !approvedIds.has(row.id)));
+    await refreshCounts();
+
+    if (failed > 0) {
+      toast.warning(
+        `Approved ${requests.length - failed} of ${requests.length} requests.`
+      );
+      return;
+    }
+
+    toast.success(
+      `Approved ${requests.length} fund request${requests.length === 1 ? "" : "s"}.`
+    );
+  };
+
+  const handleReject = async (id: string, currentStatus: FundRequestRow["status"]) => {
+    const returningToPurchasing = canReturnFundRequestToPurchasing(
+      profile?.role,
+      currentStatus
+    );
+    if (!returningToPurchasing && !rejectReason.trim()) {
+      toast.error("Please enter a reason.");
       return;
     }
     if (!currentUserId) return;
+    const row = rows.find((item) => item.id === id);
+    const updates = returningToPurchasing
+      ? buildFundRequestUpperManagementReturnUpdates(
+          currentUserId,
+          rejectReason,
+          buildFundRequestRejectionUndoSnapshot(
+            row ?? ({ status: currentStatus } as FundRequestInboxRow)
+          )
+        )
+      : buildFundRequestRejectUpdates(
+          currentUserId,
+          rejectReason,
+          row ?? ({ status: currentStatus } as FundRequestInboxRow)
+        );
+
     setActingId(id);
     const { error } = await supabase
       .from("fund_requests")
-      .update({
-        status: "rejected",
-        rejected_by: currentUserId,
-        rejected_at: new Date().toISOString(),
-        rejection_reason: rejectReason.trim(),
-        updated_at: new Date().toISOString(),
-      } as never)
+      .update(updates as never)
       .eq("id", id);
     setActingId(null);
     setRejectId(null);
     setRejectReason("");
     if (error) {
-      toast.error("Failed to reject");
+      toast.error(
+        returningToPurchasing
+          ? "Failed to return request to purchasing"
+          : "Failed to reject"
+      );
     } else {
-      toast.success("Fund request rejected.");
+      toast.success(
+        returningToPurchasing
+          ? "Returned to purchasing officer for review."
+          : "Fund request rejected."
+      );
       setRows((prev) => prev.filter((r) => r.id !== id));
-      const { data: all } = await supabase
-        .from("fund_requests")
-        .select("id, status");
-      if (all) {
-        const c: Record<string, number> = {};
-        all.forEach((r: { status: string }) => {
-          c[r.status] = (c[r.status] || 0) + 1;
-        });
-        setCounts(c);
-      }
+      await refreshCounts();
     }
   };
 
@@ -279,8 +337,13 @@ export function FundRequestInbox({
   const pendingPo = counts.project_manager_approved ?? 0;
   const pendingMgmt = counts.purchasing_officer_approved ?? 0;
   const rejected = counts.rejected ?? 0;
+  const approvedForPayment = counts.purchasing_officer_approved ?? 0;
   const approved = counts.management_approved ?? 0;
   const actionableStatuses = getActionableStatuses();
+  const isUpperManagement =
+    normalizeUserRole(profile?.role) === "upper_management";
+  const useClientGroupedView =
+    isUpperManagement || normalizeUserRole(profile?.role) === "admin";
 
   const filteredRows = searchTerm
     ? rows.filter((r) => {
@@ -289,12 +352,18 @@ export function FundRequestInbox({
         const purpose = (r.purpose || "").toLowerCase();
         const projectTitle = (r.project_title || "").toLowerCase();
         const projectLocation = (r.project_location || "").toLowerCase();
+        const clientName = (r.projects?.clients?.name || "").toLowerCase();
+        const payeeAccountName = (
+          getFundRequestPayeeAccountName(r) || ""
+        ).toLowerCase();
         const term = searchTerm.toLowerCase();
         return (
           name.includes(term) ||
           purpose.includes(term) ||
           projectTitle.includes(term) ||
-          projectLocation.includes(term)
+          projectLocation.includes(term) ||
+          clientName.includes(term) ||
+          payeeAccountName.includes(term)
         );
       })
     : rows;
@@ -308,13 +377,26 @@ export function FundRequestInbox({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 xl:grid-cols-6 w-full items-stretch">
-        <MetricCard label="Total" value={total} />
-        <MetricCard label="Pending (Operations)" value={pendingPm} />
-        <MetricCard label="Pending (Purchasing)" value={pendingPo} />
-        <MetricCard label="Pending (U.M.)" value={pendingMgmt} />
-        <MetricCard label="Approved" value={approved} />
-        <MetricCard label="Rejected" value={rejected} />
+      <div
+        className={cn(
+          "grid w-full items-stretch gap-2.5 sm:gap-4",
+          isUpperManagement
+            ? "grid-cols-1 max-w-xs"
+            : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"
+        )}
+      >
+        {isUpperManagement ? (
+          <MetricCard label="Pending final approval" value={approvedForPayment} />
+        ) : (
+          <>
+            <MetricCard label="Total" value={total} />
+            <MetricCard label="Pending (Operations)" value={pendingPm} />
+            <MetricCard label="Pending (Purchasing)" value={pendingPo} />
+            <MetricCard label="Pending (U.M.)" value={pendingMgmt} />
+            <MetricCard label="Approved" value={approved} />
+            <MetricCard label="Rejected" value={rejected} />
+          </>
+        )}
       </div>
 
       <Card className="w-full">
@@ -326,7 +408,7 @@ export function FundRequestInbox({
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              placeholder="Search by name, purpose, or project..."
+              placeholder="Search by name, account name, purpose, or project..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -349,11 +431,36 @@ export function FundRequestInbox({
               <BodySmall>
                 {searchTerm
                   ? "No requests match your search."
-                  : "No requests waiting for your approval."}
+                  : isUpperManagement
+                    ? "No requests pending payment review."
+                    : "No requests waiting for your approval."}
               </BodySmall>
             </VStack>
           </CardContent>
         </Card>
+      ) : useClientGroupedView ? (
+        <FundRequestClientGroupedInbox
+          rows={filteredRows}
+          detailHref={detailHref}
+          getRequesterName={(row) =>
+            getRequesterDisplayName(row, requesterInfoById[row.requested_by])
+          }
+          canReturnOn={(row) =>
+            canReturnFundRequestToPurchasing(profile?.role, row.status)
+          }
+          actingId={actingId}
+          rejectId={rejectId}
+          rejectReason={rejectReason}
+          onRejectReasonChange={setRejectReason}
+          onStartReject={setRejectId}
+          onCancelReject={() => {
+            setRejectId(null);
+            setRejectReason("");
+          }}
+          onReject={handleReject}
+          bulkApproving={bulkApproving}
+          onApproveAll={() => handleApproveAll(filteredRows)}
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {filteredRows.map((r) => {
@@ -428,7 +535,7 @@ export function FundRequestInbox({
                     >
                       <HStack gap="1" align="center">
                         <Icon name="CalendarBlank" size={IconSizes.sm} />
-                        {format(new Date(r.request_date), "MMM d, yyyy")}
+                        {formatFundRequestFiledAtCompact(r)}
                       </HStack>
                       <span className="font-semibold text-primary">
                         ₱
@@ -476,11 +583,6 @@ export function FundRequestInbox({
                           : null}
                       </Caption>
                     ) : null}
-                    {r.created_at ? (
-                      <Caption className="mt-1 block text-muted-foreground">
-                        Filed {format(new Date(r.created_at), "MMM d, yyyy h:mm a")}
-                      </Caption>
-                    ) : null}
                   </div>
 
                   {(canAct || showPurchasingDetailOnly) && (
@@ -505,7 +607,7 @@ export function FundRequestInbox({
                               size="sm"
                               variant="destructive"
                               disabled={actingId === r.id}
-                              onClick={() => handleReject(r.id)}
+                              onClick={() => handleReject(r.id, r.status)}
                             >
                               {actingId === r.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

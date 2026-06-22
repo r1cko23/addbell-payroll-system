@@ -1,4 +1,7 @@
 import type { FundRequestRow } from "@/types/fund-request";
+import { parseTimestampInManila } from "@/utils/business-hours";
+
+const MANILA_TZ = "Asia/Manila";
 
 export type FundRequestHistoryInput = Pick<
   FundRequestRow,
@@ -63,4 +66,70 @@ export function fundRequestSubmissionHasTime(
   request: FundRequestHistoryInput
 ): boolean {
   return Boolean(request.created_at);
+}
+
+function toManilaInstant(raw: string): Date {
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return parseTimestampInManila(`${trimmed}T12:00:00`);
+  }
+  return parseTimestampInManila(trimmed);
+}
+
+export function formatFundRequestSubmittedDate(
+  request: FundRequestHistoryInput
+): string {
+  const date = toManilaInstant(getFundRequestSubmittedAt(request));
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MANILA_TZ,
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+export function formatFundRequestSubmittedTime(
+  request: FundRequestHistoryInput
+): string | null {
+  if (!fundRequestSubmissionHasTime(request)) return null;
+  const date = toManilaInstant(getFundRequestSubmittedAt(request));
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MANILA_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+/** e.g. "June 15, 2026 at 9:14 PM" (Manila) when filed timestamp exists. */
+export function formatFundRequestSubmittedAtLabel(
+  request: FundRequestHistoryInput
+): string {
+  const dateLabel = formatFundRequestSubmittedDate(request);
+  const timeLabel = formatFundRequestSubmittedTime(request);
+  return timeLabel ? `${dateLabel} at ${timeLabel}` : dateLabel;
+}
+
+/** Compact filing label for tables and inbox rows. */
+export function formatFundRequestFiledAtCompact(
+  request: FundRequestHistoryInput
+): string {
+  const date = toManilaInstant(getFundRequestSubmittedAt(request));
+  if (fundRequestSubmissionHasTime(request)) {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: MANILA_TZ,
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(date);
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MANILA_TZ,
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }

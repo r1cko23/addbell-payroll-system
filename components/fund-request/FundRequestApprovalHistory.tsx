@@ -2,9 +2,8 @@
 
 import { format } from "date-fns";
 import {
-  fundRequestSubmissionHasTime,
+  formatFundRequestSubmittedAtLabel,
   getFundRequestRequesterLabel,
-  getFundRequestSubmittedAt,
   shouldShowOperationsManagerApproval,
   type FundRequestHistoryInput,
 } from "@/lib/fund-request-history";
@@ -26,8 +25,6 @@ export function FundRequestApprovalHistory({
   approverNames,
   className,
 }: FundRequestApprovalHistoryProps) {
-  const submittedAt = getFundRequestSubmittedAt(request);
-  const showSubmittedTime = fundRequestSubmissionHasTime(request);
   const showOperationsManagerApproval = shouldShowOperationsManagerApproval(request, {
     requesterUserId,
     requesterIsOperationsManager,
@@ -43,10 +40,7 @@ export function FundRequestApprovalHistory({
           <span className="font-medium">
             {getFundRequestRequesterLabel(requesterIsOperationsManager)}
           </span>{" "}
-          {requesterName} on {format(new Date(submittedAt), "MMM d, yyyy")}
-          {showSubmittedTime ? (
-            <> at {format(new Date(submittedAt), "h:mm a")}</>
-          ) : null}
+          {requesterName} on {formatFundRequestSubmittedAtLabel(request)}
         </li>
 
         {showOperationsManagerApproval ? (

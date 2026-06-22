@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { format } from 'date-fns';
+import { formatFundRequestSubmittedAtLabel } from '@/lib/fund-request-history';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { FundRequestRow } from '@/types/fund-request';
@@ -139,7 +140,7 @@ export function FundRequestEmployeeDetail({
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-muted-foreground">
               Requested by {requesterName} on{' '}
-              {format(new Date(request.request_date), 'MMMM d, yyyy')}
+              {formatFundRequestSubmittedAtLabel(request)}
             </p>
             <Badge
               variant={getFundRequestStatusBadgeVariant(request.status)}

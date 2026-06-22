@@ -112,6 +112,16 @@ export type FundRequestRow = {
   rejected_by: string | null;
   rejected_at: string | null;
   rejection_reason: string | null;
+  rejection_undo_snapshot: FundRequestRejectionUndoSnapshot | null;
   created_at: string;
   updated_at: string;
+};
+
+export type FundRequestRejectionUndoSnapshot = {
+  status: string;
+  purchasing_officer_approved_by: string | null;
+  purchasing_officer_approved_at: string | null;
+  supplier_bank_details: string | null;
+  management_approved_by: string | null;
+  management_approved_at: string | null;
 };

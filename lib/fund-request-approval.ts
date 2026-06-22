@@ -1,4 +1,4 @@
-import type { FundRequestRow } from "@/types/fund-request";
+import type { FundRequestRow, FundRequestRejectionUndoSnapshot } from "@/types/fund-request";
 import {
   approvalApprovedStatusBadgeClass,
   approvalRejectedStatusBadgeClass,
@@ -85,9 +85,9 @@ export function getFundRequestApprovalActionCopy(
     status === "purchasing_officer_approved"
   ) {
     return {
-      title: "Upper Management approval required",
+      title: "Final approval required",
       description:
-        "Operations and Purchasing have reviewed this request. Your final approval is required to release the funds.",
+        "Purchasing has approved these for payment. Return any line to purchasing if needed, then approve all when your review is complete.",
     };
   }
 
@@ -123,6 +123,178 @@ export function buildFundRequestApprovalUpdates(
   }
 
   return updates;
+}
+
+export function canReturnFundRequestToPurchasing(
+  role: string | null | undefined,
+  status: string
+): boolean {
+  if (status !== "purchasing_officer_approved") return false;
+  const normalizedRole = normalizeUserRole(role);
+  return normalizedRole === "upper_management" || normalizedRole === "admin";
+}
+
+export function buildFundRequestUpperManagementReturnUpdates(
+  currentUserId: string,
+  reason: string,
+  undoSnapshot: FundRequestRejectionUndoSnapshot
+): Record<string, unknown> {
+  return {
+    status: "project_manager_approved",
+    purchasing_officer_approved_by: null,
+    purchasing_officer_approved_at: null,
+    supplier_bank_details: null,
+    rejection_reason: reason.trim() || null,
+    rejected_by: currentUserId,
+    rejected_at: new Date().toISOString(),
+    rejection_undo_snapshot: undoSnapshot,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function buildFundRequestRejectionUndoSnapshot(
+  request: FundRequestRow
+): FundRequestRejectionUndoSnapshot {
+  return {
+    status: request.status,
+    purchasing_officer_approved_by: request.purchasing_officer_approved_by,
+    purchasing_officer_approved_at: request.purchasing_officer_approved_at,
+    supplier_bank_details: request.supplier_bank_details,
+    management_approved_by: request.management_approved_by,
+    management_approved_at: request.management_approved_at,
+  };
+}
+
+export function isFundRequestReturnedToPurchasing(request: FundRequestRow): boolean {
+  return (
+    request.status === "project_manager_approved" &&
+    Boolean(request.rejected_at) &&
+    Boolean(request.rejection_undo_snapshot) &&
+    !request.purchasing_officer_approved_at
+  );
+}
+
+export function isFundRequestRejectionUndoable(request: FundRequestRow): boolean {
+  if (request.status === "rejected") return true;
+  if (isFundRequestReturnedToPurchasing(request)) {
+    return Boolean(request.rejection_undo_snapshot);
+  }
+  return false;
+}
+
+export function canUndoFundRequestRejection(
+  role: string | null | undefined,
+  userId: string | null | undefined,
+  request: FundRequestRow
+): boolean {
+  if (!userId || !isFundRequestRejectionUndoable(request)) return false;
+
+  const normalizedRole = normalizeUserRole(role);
+  if (normalizedRole === "admin") return true;
+  if (request.rejected_by === userId) return true;
+
+  if (
+    isFundRequestReturnedToPurchasing(request) &&
+    (normalizedRole === "upper_management" || normalizedRole === "admin")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export function getFundRequestUndoRejectionLabel(request: FundRequestRow): string {
+  return isFundRequestReturnedToPurchasing(request)
+    ? "Undo return to purchasing"
+    : "Undo rejection";
+}
+
+export function canUndoFundRequestManagementApproval(
+  role: string | null | undefined,
+  userId: string | null | undefined,
+  request: FundRequestRow
+): boolean {
+  if (!userId || request.status !== "management_approved") return false;
+  if (!request.management_approved_at || !request.purchasing_officer_approved_at) {
+    return false;
+  }
+
+  const normalizedRole = normalizeUserRole(role);
+  if (normalizedRole === "admin" || normalizedRole === "upper_management") {
+    return true;
+  }
+
+  return request.management_approved_by === userId;
+}
+
+export function buildFundRequestUndoManagementApprovalUpdates(
+  request: FundRequestRow
+): Record<string, unknown> | null {
+  if (request.status !== "management_approved") return null;
+  if (!request.purchasing_officer_approved_at) return null;
+
+  return {
+    status: "purchasing_officer_approved",
+    management_approved_by: null,
+    management_approved_at: null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function inferFundRequestStatusBeforeRejection(
+  request: FundRequestRow
+): FundRequestRow["status"] {
+  if (request.purchasing_officer_approved_at) return "purchasing_officer_approved";
+  if (request.project_manager_approved_at) return "project_manager_approved";
+  return "pending";
+}
+
+export function buildFundRequestUndoRejectionUpdates(
+  request: FundRequestRow
+): Record<string, unknown> | null {
+  const snapshot = request.rejection_undo_snapshot;
+
+  if (snapshot) {
+    return {
+      status: snapshot.status,
+      purchasing_officer_approved_by: snapshot.purchasing_officer_approved_by,
+      purchasing_officer_approved_at: snapshot.purchasing_officer_approved_at,
+      supplier_bank_details: snapshot.supplier_bank_details,
+      management_approved_by: snapshot.management_approved_by,
+      management_approved_at: snapshot.management_approved_at,
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null,
+      rejection_undo_snapshot: null,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  if (request.status !== "rejected") return null;
+
+  return {
+    status: inferFundRequestStatusBeforeRejection(request),
+    rejected_by: null,
+    rejected_at: null,
+    rejection_reason: null,
+    rejection_undo_snapshot: null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export function buildFundRequestRejectUpdates(
+  currentUserId: string,
+  reason: string,
+  request: FundRequestRow
+): Record<string, unknown> {
+  return {
+    status: "rejected",
+    rejected_by: currentUserId,
+    rejected_at: new Date().toISOString(),
+    rejection_reason: reason.trim(),
+    rejection_undo_snapshot: buildFundRequestRejectionUndoSnapshot(request),
+    updated_at: new Date().toISOString(),
+  };
 }
 
 export function getFundRequestStatusBadgeClass(

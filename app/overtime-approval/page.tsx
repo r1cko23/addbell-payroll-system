@@ -470,10 +470,6 @@ export default function OvertimeApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
-    const skipWeekFilterForPendingQueue =
-      statusFilter === "pending" &&
-      (isOperationsManager || isHR || isFirstApproverDashboardView);
-
     let query = supabase.from("overtime_requests").select(
       `
         *,
@@ -488,11 +484,10 @@ export default function OvertimeApprovalPage() {
       `
     );
 
-    if (!skipWeekFilterForPendingQueue) {
-      query = query.gte("ot_date", weekStartStr).lte("ot_date", weekEndStr);
-    }
-
-    query = query.order("created_at", { ascending: false });
+    query = query
+      .gte("ot_date", weekStartStr)
+      .lte("ot_date", weekEndStr)
+      .order("created_at", { ascending: false });
 
     if (
       shouldApplyServerStatusFilter(statusFilter, {

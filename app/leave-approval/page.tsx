@@ -518,18 +518,13 @@ export default function LeaveApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
-    const skipWeekFilterForPendingQueue =
-      statusFilter === "pending" &&
-      (isOperationsManager || isHR || isFirstApproverDashboardView);
-
-    let query = supabase.from("leave_requests").select("*");
-
-    if (!skipWeekFilterForPendingQueue) {
+    let query = supabase
+      .from("leave_requests")
+      .select("*")
       // Leave overlaps selected week when start_date <= weekEnd AND end_date >= weekStart
-      query = query.lte("start_date", weekEndStr).gte("end_date", weekStartStr);
-    }
-
-    query = query.order("created_at", { ascending: false });
+      .lte("start_date", weekEndStr)
+      .gte("end_date", weekStartStr)
+      .order("created_at", { ascending: false });
 
     // HR can see all requests (pending, approved_by_manager, approved_by_hr, rejected)
     // Admin can see all requests (no filtering)

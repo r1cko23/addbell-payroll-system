@@ -521,10 +521,6 @@ export default function FailureToLogApprovalPage() {
     const weekStartStr = format(weekStart, "yyyy-MM-dd");
     const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
 
-    const skipWeekFilterForPendingQueue =
-      statusFilter === "pending" &&
-      (isOperationsManager || isHR || isFirstApproverDashboardView);
-
     const applyFilters = <T extends { eq: Function }>(query: T): T => {
       let filtered = query;
       if (
@@ -542,12 +538,11 @@ export default function FailureToLogApprovalPage() {
       return filtered;
     };
 
-    let ftlQuery = supabase.from("failure_to_log").select("*");
-    if (!skipWeekFilterForPendingQueue) {
-      ftlQuery = ftlQuery
-        .gte("missed_date", weekStartStr)
-        .lte("missed_date", weekEndStr);
-    }
+    let ftlQuery = supabase
+      .from("failure_to_log")
+      .select("*")
+      .gte("missed_date", weekStartStr)
+      .lte("missed_date", weekEndStr);
     const plainQuery = applyFilters(ftlQuery.order("created_at", { ascending: false }));
 
     const { data, error } = await plainQuery;

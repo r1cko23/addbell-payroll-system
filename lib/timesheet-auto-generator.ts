@@ -45,17 +45,6 @@ export interface TimesheetGenerationResult {
   errors?: string[];
 }
 
-/** Full punch span in hours (credited), for Saturday OT when business-window overlap is 0. */
-function rawWorkedHoursBetweenPunches(entry: TimeClockEntry): number {
-  if (!entry.clock_in_time || !entry.clock_out_time) return 0;
-  const clockIn = parseTimestampInManila(entry.clock_in_time);
-  const clockOut = parseTimestampInManila(entry.clock_out_time);
-  if (clockOut <= clockIn) return 0;
-  return creditWorkHoursHalfHour(
-    Math.round(((clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60)) * 100) / 100
-  );
-}
-
 /**
  * Generate timesheet data from time clock entries for a specific period
  */
@@ -195,17 +184,7 @@ export function generateTimesheetFromClockEntries(
           ? 0
           : entry.total_night_diff_hours || 0;
         if (isSaturday) {
-          // Saturday is outside the required office schedule for now.
-          // Treat worked hours as OT instead of regular hours.
-          if (eligibleForOT && !enforceApprovedOtNdOnly) {
-            const saturdayOtHours =
-              entryOTHours > 0
-                ? entryOTHours
-                : entryRegularHours > 0
-                  ? entryRegularHours
-                  : rawWorkedHoursBetweenPunches(entry);
-            overtimeHours += saturdayOtHours;
-          }
+          // Saturday bundy punches do not auto-count as OT (approved OT requests below).
         } else {
           regularHours += entryRegularHours;
           // Only count overtime if employee is eligible for OT
@@ -228,7 +207,10 @@ export function generateTimesheetFromClockEntries(
     // But if there are no clock entries for a date, we need to add OT hours here
     if (eligibleForOT && approvedOTByDate) {
       const otFromRequest = approvedOTByDate.get(dateStr) || 0;
-      if (otFromRequest > 0) {
+      if (isSaturday) {
+        // Saturday: only approved OT filings count (never bundy auto-OT).
+        overtimeHours = otFromRequest;
+      } else if (otFromRequest > 0) {
         // If there are no clock entries, add OT hours from approved requests
         // If there are clock entries, they already have OT hours mapped (don't double-count)
         if (dayEntries.length === 0) {

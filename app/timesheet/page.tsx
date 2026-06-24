@@ -1379,33 +1379,8 @@ export default function TimesheetPage() {
             Math.round(bhFromBusinessWindows * 100) / 100
           );
           if (dayOfWeek === 6) {
-            // Saturday is not part of the compressed Mon–Fri base schedule; worked time is OT
-            // (matches lib/timesheet-auto-generator.ts: isSaturday → overtimeHours, not regularHours).
+            // Saturday: bundy punches do not auto-count as OT; OT comes from approved filings only.
             bh = 0;
-            let saturdayOt = credited;
-            if (saturdayOt <= 0 && dayEntries.length > 0) {
-              saturdayOt = dayEntries.reduce((sum, entry) => {
-                if (!entry.clock_in_time || !entry.clock_out_time) {
-                  return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
-                }
-                try {
-                  const cin = parseISO(entry.clock_in_time);
-                  const cout = parseISO(entry.clock_out_time);
-                  if (cout <= cin) {
-                    return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
-                  }
-                  const rawH =
-                    (cout.getTime() - cin.getTime()) / (1000 * 60 * 60);
-                  return (
-                    sum +
-                    creditWorkHoursHalfHour(Math.round(Math.min(24, rawH) * 100) / 100)
-                  );
-                } catch {
-                  return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
-                }
-              }, 0);
-            }
-            otHours = Math.round(Math.max(otHours, saturdayOt) * 100) / 100;
           } else {
             bh = credited;
           }
@@ -1442,9 +1417,8 @@ export default function TimesheetPage() {
 
       // IMPORTANT: BH is set based on:
       // 1. Actual completed time log entries (business-window overlap Mon–Fri)
-      // 2. Saturday: worked overlap is OT, not BH (compressed work week; matches timesheet-auto-generator)
+      // 2. Saturday: BH stays 0; OT only from approved OT filings (not bundy auto-OT)
       // 3. Leave types (CTO, SIL, etc.) — handled above
-      // Payslip uses generateTimesheetFromClockEntries with the same Saturday rule.
 
       // LT/UT priority: employee schedule first, then business-hours fallback.
       const businessPolicy = getBusinessDayPolicyByDay(getDay(parseISO(dateStr)));

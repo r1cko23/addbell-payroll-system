@@ -1583,8 +1583,8 @@ export default function BundyClockPage() {
               Math.round(bhFromBusinessWindows * 100) / 100
             );
             if (dayOfWeek === 6) {
+              // Saturday: bundy punches do not auto-count as OT; OT comes from approved filings only.
               bh = 0;
-              otHours = Math.round(Math.max(otHours, credited) * 100) / 100;
             } else {
               bh = credited;
             }

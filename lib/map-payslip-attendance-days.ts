@@ -78,10 +78,8 @@ export function mapPayslipAttendanceDays(
     let overtimeHours = Number(day.overtimeHours || 0);
     if (isSaturday) {
       regularHours = 0;
-      overtimeHours =
-        workedHours > 0
-          ? workedHours
-          : creditWorkHoursHalfHour(Math.round(overtimeHours * 100) / 100);
+      // OT from approved filings only (generator); do not promote Saturday clock punches to OT.
+      overtimeHours = creditWorkHoursHalfHour(Math.round(overtimeHours * 100) / 100);
     } else {
       regularHours = workedHours;
     }

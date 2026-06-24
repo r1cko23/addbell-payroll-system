@@ -210,7 +210,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     fund_requests: { create: true, read: true, update: true, delete: false },
     purchase_orders: { create: true, read: true, update: true, delete: false },
     timesheet: { create: false, read: true, update: true, delete: false },
-    time_entries: { create: true, read: true, update: true, delete: true },
+    time_entries: { create: true, read: true, update: false, delete: true },
     leave_approval: { create: false, read: true, update: true, delete: false },
     overtime_approval: { create: false, read: true, update: true, delete: false },
     failure_to_log: { create: false, read: true, update: true, delete: false },

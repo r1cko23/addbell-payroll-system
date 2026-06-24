@@ -28,7 +28,35 @@ describe("computeDayAttendanceMetrics undertime", () => {
   });
 });
 
-describe("calculateLateHours", () => {
+describe("computeDayAttendanceMetrics Saturday OT", () => {
+  test("Saturday bundy punches do not auto-count as OT", () => {
+    const metrics = computeDayAttendanceMetrics("2026-06-20", [
+      {
+        clock_in_time: "2026-06-20T13:00:00+08:00",
+        clock_out_time: "2026-06-20T18:07:00+08:00",
+      },
+    ]);
+    expect(metrics.bh).toBe(0);
+    expect(metrics.ot).toBe(0);
+    expect(metrics.totalWorked).toBe(4);
+  });
+
+  test("Saturday OT credits only approved filing hours", () => {
+    const metrics = computeDayAttendanceMetrics(
+      "2026-06-20",
+      [
+        {
+          clock_in_time: "2026-06-20T13:00:00+08:00",
+          clock_out_time: "2026-06-20T18:07:00+08:00",
+        },
+      ],
+      { approvedOtHours: 4 }
+    );
+    expect(metrics.bh).toBe(0);
+    expect(metrics.ot).toBe(4);
+  });
+});
+
   test("8:35 AM arrival is 2 hours late from 7 AM start", () => {
     expect(calculateLateHours(7 * 60, 8 * 60 + 35)).toBe(2);
   });

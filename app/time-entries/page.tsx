@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/select";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { computeDayAttendanceMetrics } from "@/lib/day-attendance-summary";
+import { creditOvertimeHours } from "@/utils/overtime";
 import { fetchSessionsInRange, getDateInManilaDefault } from "@/lib/timeEntries";
 import { syntheticClockOutFromApprovedOt, normalizeApprovedFtlClockPair, resolveClockTimesWithApprovedFtl } from "@/lib/ftl-ot-synthesis";
 import { ManualPunchDialog } from "@/components/time-entries/ManualPunchDialog";
@@ -163,6 +164,10 @@ export default function TimeEntriesPage() {
   const [reverseGeocodeMap, setReverseGeocodeMap] = useState<Record<string, string>>({});
   /** `${employeeId}::yyyy-MM-dd` for approved half-day leave dates */
   const [halfDayLeaveKeys, setHalfDayLeaveKeys] = useState<Set<string>>(new Set());
+  /** `${employeeId}::yyyy-MM-dd` → credited approved OT hours for that day */
+  const [approvedOtByEmployeeDate, setApprovedOtByEmployeeDate] = useState<Map<string, number>>(
+    new Map()
+  );
 
   // Weekly cutoff: Wednesday to Tuesday
   const periodStart = selectedWeekStart;
@@ -238,8 +243,8 @@ export default function TimeEntriesPage() {
     setDriversEmployees([]);
   }, []);
 
-  // Only HR may correct clock in/out times (not admin).
-  const canEditTime = isHR;
+  // Only system admin may correct clock in/out times.
+  const canEditTime = isAdmin;
 
   const getDayType = (clockInTime: string, employeeId?: string): string => {
     const dateString = format(new Date(clockInTime), "yyyy-MM-dd");
@@ -341,6 +346,8 @@ export default function TimeEntriesPage() {
       const dateKey = keyToDateStr(first.clock_in_time);
       const dateLabel = format(new Date(first.clock_in_time), "MMM d, yyyy");
       const isHalfDayLeave = halfDayLeaveKeys.has(`${first.employee_id}::${dateKey}`);
+      const approvedOtHours =
+        approvedOtByEmployeeDate.get(`${first.employee_id}::${dateKey}`) ?? 0;
       const metrics = computeDayAttendanceMetrics(
         dateKey,
         dayEntries.map((e) => ({
@@ -349,7 +356,7 @@ export default function TimeEntriesPage() {
           regular_hours: e.regular_hours,
           total_hours: e.total_hours,
         })),
-        { isHalfDayLeave }
+        { isHalfDayLeave, approvedOtHours }
       );
       result.push({
         key,
@@ -370,7 +377,7 @@ export default function TimeEntriesPage() {
       return (a.employee?.full_name ?? "").localeCompare(b.employee?.full_name ?? "");
     });
     return result;
-  }, [entries, halfDayLeaveKeys]);
+  }, [entries, halfDayLeaveKeys, approvedOtByEmployeeDate]);
 
   const parseCoordinates = (locationString?: string | null): string | null => {
     if (!locationString) return null;
@@ -638,6 +645,15 @@ export default function TimeEntriesPage() {
         }
       }
 
+      const approvedOtByDate = new Map<string, number>();
+      approvedOtRowsForFtl.forEach((ot) => {
+        const dateKey = String(ot.ot_date).split("T")[0];
+        const key = `${ot.employee_id}::${dateKey}`;
+        const credited = creditOvertimeHours(Number(ot.total_hours || 0));
+        if (credited <= 0) return;
+        approvedOtByDate.set(key, (approvedOtByDate.get(key) || 0) + credited);
+      });
+
       approvedFtlByEmployeeDate.forEach((pair, key) => {
         if (!pair.inTime || pair.outTime || approvedOtRowsForFtl.length === 0) return;
         const parts = key.split("::");
@@ -805,6 +821,7 @@ export default function TimeEntriesPage() {
 
       setHolidays(formattedHolidays);
       setHalfDayLeaveKeys(halfDayKeys);
+      setApprovedOtByEmployeeDate(approvedOtByDate);
       setEntries(transformedEntries);
 
       // Fetch employee info and schedules for rest day determination
@@ -859,6 +876,7 @@ export default function TimeEntriesPage() {
           "Failed to load time entries. Please refresh the page."
       );
       setHalfDayLeaveKeys(new Set());
+      setApprovedOtByEmployeeDate(new Map());
       setEntries([]); // Clear entries on error
     } finally {
       setLoading(false);
@@ -960,33 +978,43 @@ export default function TimeEntriesPage() {
   async function handleSaveTimeEdit() {
     if (!selectedEntry) return;
 
-    if (!editedClockIn || !editedClockOut) {
-      toast.error("Please provide both clock in and clock out times");
+    if (!editedClockIn && !editedClockOut) {
+      toast.error("Please provide at least one time to update");
       return;
     }
 
-    const clockInDate = new Date(editedClockIn);
-    const clockOutDate = new Date(editedClockOut);
-    if (clockOutDate <= clockInDate) {
-      toast.error("Clock out time must be after clock in time");
-      return;
+    if (editedClockIn && editedClockOut) {
+      const clockInDate = new Date(editedClockIn);
+      const clockOutDate = new Date(editedClockOut);
+      if (clockOutDate <= clockInDate) {
+        toast.error("Clock out time must be after clock in time");
+        return;
+      }
     }
 
     setSavingTimeEdit(true);
     try {
       const entry = selectedEntry as TimeEntry & { out_punch_id?: string | null };
-      const { error: inError } = await supabase
-        .from("time_entries")
-        .update({ punched_at: clockInDate.toISOString() })
-        .eq("id", selectedEntry.id);
-      if (inError) {
-        toast.error("Failed to update clock-in time");
-        return;
+
+      if (editedClockIn) {
+        const { error: inError } = await supabase
+          .from("time_entries")
+          .update({ punched_at: new Date(editedClockIn).toISOString() })
+          .eq("id", selectedEntry.id);
+        if (inError) {
+          toast.error("Failed to update clock-in time");
+          return;
+        }
       }
-      if (entry.out_punch_id) {
+
+      if (editedClockOut) {
+        if (!entry.out_punch_id) {
+          toast.error("No clock-out punch found for this entry");
+          return;
+        }
         const { error: outError } = await supabase
           .from("time_entries")
-          .update({ punched_at: clockOutDate.toISOString() })
+          .update({ punched_at: new Date(editedClockOut).toISOString() })
           .eq("id", entry.out_punch_id);
         if (outError) {
           toast.error("Failed to update clock-out time");
@@ -1747,7 +1775,7 @@ export default function TimeEntriesPage() {
                                 <HStack gap="4" align="center" className="text-xs sm:text-sm text-muted-foreground shrink-0 flex-wrap justify-end">
                                   <span>{dayTypeLabel}</span>
                                   <span title="Basic hours">BH {group.metrics.bh.toFixed(2)}</span>
-                                  <span title="Overtime (Saturday work counts here)">OT {group.metrics.ot.toFixed(2)}</span>
+                                  <span title="Overtime (Saturday requires approved OT filing)">OT {group.metrics.ot.toFixed(2)}</span>
                                   <span title="Late (hours)">Late {group.metrics.lt > 0 ? group.metrics.lt : "—"}</span>
                                   <span title="Undertime (hours)">UT {group.metrics.ut > 0 ? group.metrics.ut : "—"}</span>
                                   <span className="font-medium text-foreground">{group.totalHours.toFixed(2)}h</span>
@@ -1980,7 +2008,7 @@ export default function TimeEntriesPage() {
                             className="w-full"
                           />
                           <Caption className="text-muted-foreground mt-1">
-                            Edit clock in time (HR only)
+                            Edit clock in time
                           </Caption>
                         </div>
                       ) : (
@@ -2028,7 +2056,7 @@ export default function TimeEntriesPage() {
                             className="w-full"
                           />
                           <Caption className="text-muted-foreground mt-1">
-                            Edit clock out time (HR only)
+                            Edit clock out time
                           </Caption>
                         </div>
                       ) : (
@@ -2067,7 +2095,7 @@ export default function TimeEntriesPage() {
                     </div>
                   </div>
 
-                  {/* Edit clock times — HR only */}
+                  {/* Edit clock times */}
                   {canEditTime && !isEditingTime && (
                     <div className="pt-2 border-t">
                       <Button
@@ -2076,7 +2104,7 @@ export default function TimeEntriesPage() {
                         className="w-full"
                       >
                         <Icon name="PencilSimple" size={IconSizes.sm} className="mr-2" />
-                        Edit Clock Times (HR only)
+                        Edit Clock Times
                       </Button>
                     </div>
                   )}

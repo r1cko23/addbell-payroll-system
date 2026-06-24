@@ -7,7 +7,7 @@ import {
   scheduledBusinessEndMinutes,
   scheduledHalfDayEndMinutes,
 } from "@/utils/business-hours";
-import { creditWorkHoursHalfHour } from "@/utils/overtime";
+import { creditOvertimeHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 
 export type DayPunch = {
   clock_in_time: string;
@@ -51,6 +51,8 @@ function scheduledStartMinutes(dateStr: string): number | null {
 export type ComputeDayAttendanceOptions = {
   /** Approved half-day leave: UT vs morning window (5h); BH credits actual worked time. */
   isHalfDayLeave?: boolean;
+  /** Approved OT hours for this calendar day (required for Saturday OT credit). */
+  approvedOtHours?: number;
 };
 
 /** BH / OT / Late / Undertime for one calendar day (matches Timesheet rules). */
@@ -82,8 +84,9 @@ export function computeDayAttendanceMetrics(
   const dow = manilaDayOfWeek(dateStr);
 
   if (isSaturday) {
+    // Saturday bundy punches do not auto-count as OT; only approved OT filings pay OT.
     bh = 0;
-    ot = worked;
+    ot = creditOvertimeHours(options?.approvedOtHours ?? 0);
   } else {
     bh = worked;
     ot = 0;

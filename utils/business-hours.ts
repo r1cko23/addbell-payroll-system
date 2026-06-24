@@ -8,7 +8,7 @@ import { creditWorkHoursHalfHour } from "@/utils/overtime";
  * - Monday to Thursday: 07:00-18:00 (with 12:00-13:00 unpaid lunch)
  * - Friday: 07:00-16:00 (with 12:00-13:00 unpaid lunch)
  *
- * Saturday is not a required in-office day, but attendance can still be recorded.
+ * Saturday is not a required in-office day; bundy punches alone do not auto-count as OT.
  */
 
 export interface TimeWindow {

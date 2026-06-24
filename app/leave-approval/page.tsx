@@ -60,6 +60,7 @@ import {
   isDedicatedFirstApproverUser,
   passesDedicatedApproverRequestFilter,
 } from "@/lib/dedicated-employee-approver-routing";
+import { filterLeaveRequestsByStatus } from "@/lib/approval-status-filter";
 import {
   approvalQueueUrlWithRequest,
   isUserApproverForOvertimeGroup,
@@ -532,10 +533,17 @@ export default function LeaveApprovalPage() {
     // Admin can see all requests (no filtering)
     if (
       statusFilter !== "all" &&
-      !isFirstApproverDashboardView &&
-      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter)
+      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter) &&
+      (statusFilter === "approved_by_hr" ||
+        statusFilter === "rejected" ||
+        statusFilter === "approved_by_pm" ||
+        !isFirstApproverDashboardView)
     ) {
-      query = query.eq("status", statusFilter);
+      if (statusFilter === "approved_by_pm") {
+        query = query.in("status", ["approved_by_pm", "approved_by_manager"]);
+      } else {
+        query = query.eq("status", statusFilter);
+      }
     }
     // Admin and HR see all requests regardless of status (no filtering)
 
@@ -677,11 +685,17 @@ export default function LeaveApprovalPage() {
       leave_type: normalizeLeaveTypeLabel(r.leave_type || ""),
       leave_request_documents: docsByRequestId[r.id] || [],
     }));
-    setRequests(withDocs as any);
+    const statusFiltered = filterLeaveRequestsByStatus(
+      withDocs as LeaveRequest[],
+      statusFilter,
+      isFirstApproverDashboardView,
+      getViewerStatus
+    );
+    setRequests(statusFiltered as any);
 
     const allApproverIds = Array.from(
       new Set(
-        cleaned.flatMap((r) =>
+        statusFiltered.flatMap((r) =>
           [
             r.project_manager_id,
             r.account_manager_id,

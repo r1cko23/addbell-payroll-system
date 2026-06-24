@@ -43,6 +43,7 @@ import {
   isDedicatedFirstApproverUser,
   passesDedicatedApproverRequestFilter,
 } from "@/lib/dedicated-employee-approver-routing";
+import { filterOtRequestsByStatus } from "@/lib/approval-status-filter";
 import {
   approvalQueueUrlWithRequest,
   isUserApproverForOvertimeGroup,
@@ -493,8 +494,10 @@ export default function OvertimeApprovalPage() {
 
     if (
       statusFilter !== "all" &&
-      !isFirstApproverDashboardView &&
-      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter)
+      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter) &&
+      (statusFilter === "approved" ||
+        statusFilter === "rejected" ||
+        !isFirstApproverDashboardView)
     ) {
       query = query.eq("status", statusFilter);
     }
@@ -656,12 +659,18 @@ export default function OvertimeApprovalPage() {
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    setRequests(cleaned as OTRequest[]);
+    const statusFiltered = filterOtRequestsByStatus(
+      cleaned as OTRequest[],
+      statusFilter,
+      isFirstApproverDashboardView,
+      getViewerStatus
+    );
+    setRequests(statusFiltered);
 
     // Load display names for anyone who may appear on approved/rejected rows.
     const approverIds = Array.from(
       new Set(
-        cleaned.flatMap((r) => {
+        statusFiltered.flatMap((r) => {
           const row = r as OTRequest;
           return [
             row.approved_by,

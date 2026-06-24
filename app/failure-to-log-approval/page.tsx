@@ -48,6 +48,7 @@ import {
   isDedicatedFirstApproverUser,
   passesDedicatedApproverRequestFilter,
 } from "@/lib/dedicated-employee-approver-routing";
+import { filterFtlRequestsByStatus } from "@/lib/approval-status-filter";
 import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
@@ -526,8 +527,10 @@ export default function FailureToLogApprovalPage() {
       let filtered = query;
       if (
         statusFilter !== "all" &&
-        !isFirstApproverDashboardView &&
-        !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter)
+        !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter) &&
+        (statusFilter === "approved" ||
+          statusFilter === "rejected" ||
+          !isFirstApproverDashboardView)
       ) {
         filtered = filtered.eq("status", statusFilter);
       }
@@ -643,11 +646,17 @@ export default function FailureToLogApprovalPage() {
     const cleaned = (requestsData || []).filter(
       (r) => r.status !== "cancelled"
     );
-    setRequests(cleaned as FailureToLog[]);
+    const statusFiltered = filterFtlRequestsByStatus(
+      cleaned as FailureToLog[],
+      statusFilter,
+      isFirstApproverDashboardView,
+      getViewerStatus
+    );
+    setRequests(statusFiltered);
 
     const approverIds = Array.from(
       new Set(
-        cleaned.flatMap((r) =>
+        statusFiltered.flatMap((r) =>
           [r.account_manager_id, r.approved_by].filter((id): id is string =>
             Boolean(id)
           )

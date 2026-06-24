@@ -43,7 +43,10 @@ import {
   isDedicatedFirstApproverUser,
   passesDedicatedApproverRequestFilter,
 } from "@/lib/dedicated-employee-approver-routing";
-import { filterOtRequestsByStatus } from "@/lib/approval-status-filter";
+import {
+  filterOtRequestsByStatus,
+  shouldApplyServerStatusFilter,
+} from "@/lib/approval-status-filter";
 import {
   approvalQueueUrlWithRequest,
   isUserApproverForOvertimeGroup,
@@ -53,7 +56,6 @@ import {
   canOperationsManagerViewOtRequest,
   overtimeRequestInHrQueue,
   overtimeRequestInOperationsManagerQueue,
-  shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
 import { otToApprovalFields } from "@/lib/dual-approval-display";
 import { RequestApprovalLabels } from "@/components/approval/RequestApprovalLabels";
@@ -493,11 +495,11 @@ export default function OvertimeApprovalPage() {
     query = query.order("created_at", { ascending: false });
 
     if (
-      statusFilter !== "all" &&
-      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter) &&
-      (statusFilter === "approved" ||
-        statusFilter === "rejected" ||
-        !isFirstApproverDashboardView)
+      shouldApplyServerStatusFilter(statusFilter, {
+        isHR,
+        isFirstApproverDashboardView,
+        queueKind: "ot",
+      })
     ) {
       query = query.eq("status", statusFilter);
     }

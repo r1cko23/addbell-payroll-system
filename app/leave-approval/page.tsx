@@ -60,7 +60,10 @@ import {
   isDedicatedFirstApproverUser,
   passesDedicatedApproverRequestFilter,
 } from "@/lib/dedicated-employee-approver-routing";
-import { filterLeaveRequestsByStatus } from "@/lib/approval-status-filter";
+import {
+  filterLeaveRequestsByStatus,
+  shouldApplyServerStatusFilter,
+} from "@/lib/approval-status-filter";
 import {
   approvalQueueUrlWithRequest,
   isUserApproverForOvertimeGroup,
@@ -70,7 +73,6 @@ import {
   canOperationsManagerViewLeaveRequest,
   leaveRequestInHrQueue,
   leaveRequestInOperationsManagerQueue,
-  shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
 import { leaveToApprovalFields } from "@/lib/dual-approval-display";
 import { RequestApprovalLabels } from "@/components/approval/RequestApprovalLabels";
@@ -532,12 +534,11 @@ export default function LeaveApprovalPage() {
     // HR can see all requests (pending, approved_by_manager, approved_by_hr, rejected)
     // Admin can see all requests (no filtering)
     if (
-      statusFilter !== "all" &&
-      !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter) &&
-      (statusFilter === "approved_by_hr" ||
-        statusFilter === "rejected" ||
-        statusFilter === "approved_by_pm" ||
-        !isFirstApproverDashboardView)
+      shouldApplyServerStatusFilter(statusFilter, {
+        isHR,
+        isFirstApproverDashboardView,
+        queueKind: "leave",
+      })
     ) {
       if (statusFilter === "approved_by_pm") {
         query = query.in("status", ["approved_by_pm", "approved_by_manager"]);

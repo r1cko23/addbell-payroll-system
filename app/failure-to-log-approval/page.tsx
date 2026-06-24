@@ -48,7 +48,10 @@ import {
   isDedicatedFirstApproverUser,
   passesDedicatedApproverRequestFilter,
 } from "@/lib/dedicated-employee-approver-routing";
-import { filterFtlRequestsByStatus } from "@/lib/approval-status-filter";
+import {
+  filterFtlRequestsByStatus,
+  shouldApplyServerStatusFilter,
+} from "@/lib/approval-status-filter";
 import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
@@ -63,7 +66,6 @@ import {
   canOperationsManagerViewFtlRequest,
   ftlRequestInHrQueue,
   ftlRequestInOperationsManagerQueue,
-  shouldSkipServerStatusFilterForHrPending,
 } from "@/lib/approval-queue-visibility";
 import { normalizeApprovedFtlClockPair } from "@/lib/ftl-ot-synthesis";
 import { removeShorterBundyPunchesForApprovedFtl } from "@/lib/timeEntries";
@@ -526,11 +528,11 @@ export default function FailureToLogApprovalPage() {
     const applyFilters = <T extends { eq: Function }>(query: T): T => {
       let filtered = query;
       if (
-        statusFilter !== "all" &&
-        !shouldSkipServerStatusFilterForHrPending(isHR, statusFilter) &&
-        (statusFilter === "approved" ||
-          statusFilter === "rejected" ||
-          !isFirstApproverDashboardView)
+        shouldApplyServerStatusFilter(statusFilter, {
+          isHR,
+          isFirstApproverDashboardView,
+          queueKind: "ftl",
+        })
       ) {
         filtered = filtered.eq("status", statusFilter);
       }

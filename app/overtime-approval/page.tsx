@@ -37,6 +37,13 @@ import {
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
 import {
+  canDedicatedApproverActOnEmployeeRequest,
+  employeeIdsForDedicatedApprover,
+  hasDedicatedFirstApprover,
+  isDedicatedFirstApproverUser,
+  passesDedicatedApproverRequestFilter,
+} from "@/lib/dedicated-employee-approver-routing";
+import {
   approvalQueueUrlWithRequest,
   isUserApproverForOvertimeGroup,
 } from "@/lib/manager-approval-queue";
@@ -266,6 +273,18 @@ export default function OvertimeApprovalPage() {
 
   const canCurrentUserActOnRequest = (request: OTRequest): boolean => {
     if (request.status !== "pending") return false;
+
+    if (hasDedicatedFirstApprover(request.employee_id)) {
+      return canDedicatedApproverActOnEmployeeRequest(
+        currentUserId,
+        request.employee_id
+      );
+    }
+
+    if (isDedicatedFirstApproverUser(currentUserId)) {
+      return false;
+    }
+
     // Admin and upper management may act on any pending OT
     if (isManagement) return true;
     if (!currentUserId) return false;
@@ -618,6 +637,14 @@ export default function OvertimeApprovalPage() {
         }
         return false;
       });
+    } else {
+      filteredData = dataWithDocs.filter((request) =>
+        passesDedicatedApproverRequestFilter(
+          currentUserId,
+          isAdmin,
+          request.employee_id
+        )
+      );
     }
     const requestsData = filteredData as Array<{
       status: string;
@@ -730,6 +757,12 @@ export default function OvertimeApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
+      if (isDedicatedFirstApproverUser(currentUserId)) {
+        return employeeIdsForDedicatedApprover(currentUserId).includes(employee.id);
+      }
+      if (hasDedicatedFirstApprover(employee.id) && !isAdmin) {
+        return false;
+      }
       if (isManagement) return true;
       if (normalizedRole === "operations_manager") {
         const gid = employee.overtime_group_id as string | null | undefined;
@@ -909,8 +942,14 @@ export default function OvertimeApprovalPage() {
       managerStage &&
       (isUserFirstApproverForRequest(user.id, request) ||
         isUpperManagementOvertimeGroupLabel(getRequestGroupName(request)));
+    const skipManagerStageForDedicatedApprover =
+      hasDedicatedFirstApprover(request.employee_id) &&
+      canDedicatedApproverActOnEmployeeRequest(user.id, request.employee_id);
     const effectiveManagerStage =
-      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+      managerStage &&
+      !skipManagerStageForHr &&
+      !skipManagerStageForUpperManagement &&
+      !skipManagerStageForDedicatedApprover;
 
     const patch: Record<string, unknown> = effectiveManagerStage
       ? {
@@ -986,8 +1025,14 @@ export default function OvertimeApprovalPage() {
       managerStage &&
       (isUserFirstApproverForRequest(user.id, request) ||
         isUpperManagementOvertimeGroupLabel(getRequestGroupName(request)));
+    const skipManagerStageForDedicatedApprover =
+      hasDedicatedFirstApprover(request.employee_id) &&
+      canDedicatedApproverActOnEmployeeRequest(user.id, request.employee_id);
     const effectiveManagerStageFinal =
-      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+      managerStage &&
+      !skipManagerStageForHr &&
+      !skipManagerStageForUpperManagement &&
+      !skipManagerStageForDedicatedApprover;
     const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {
           status: "rejected",

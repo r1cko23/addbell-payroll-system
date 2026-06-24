@@ -284,7 +284,7 @@ export default function HRDashboard() {
   const [queueItems, setQueueItems] = useState<DashboardQueueItem[]>([]);
   const [approverGroupNames, setApproverGroupNames] = useState<string[]>([]);
 
-  const { isHR, isOperationsManager, isManagement, loading: roleLoading } = useUserRole();
+  const { isHR, isOperationsManager, isManagement, isAdmin, loading: roleLoading } = useUserRole();
   const showAllCompanyPending = isManagement && !isHR && !isOperationsManager;
   const usesManagerApprovalQueue =
     isOperationsManager || isHR || showAllCompanyPending;
@@ -530,6 +530,7 @@ export default function HRDashboard() {
           userId: authUser.id,
           isHR,
           isOperationsManager,
+          isAdmin,
           showAllCompanyPending,
           isManagerFocus,
           scopedEmployeeIds,

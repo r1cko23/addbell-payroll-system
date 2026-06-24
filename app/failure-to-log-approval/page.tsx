@@ -42,6 +42,13 @@ import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { MetricCard } from "@/components/ui/metric-card";
 import {
+  canDedicatedApproverActOnEmployeeRequest,
+  employeeIdsForDedicatedApprover,
+  hasDedicatedFirstApprover,
+  isDedicatedFirstApproverUser,
+  passesDedicatedApproverRequestFilter,
+} from "@/lib/dedicated-employee-approver-routing";
+import {
   FINAL_HR_APPROVER_ID,
   isFinalHrApprover,
   normalizeGroupName,
@@ -191,6 +198,17 @@ export default function FailureToLogApprovalPage() {
   const canCurrentUserActOnRequest = (request: FailureToLog): boolean => {
     if (request.status !== "pending") return false;
     if (!currentUserId) return false;
+
+    if (hasDedicatedFirstApprover(request.employee_id)) {
+      return canDedicatedApproverActOnEmployeeRequest(
+        currentUserId,
+        request.employee_id
+      );
+    }
+
+    if (isDedicatedFirstApproverUser(currentUserId)) {
+      return false;
+    }
 
     if (isManagement) return true;
 
@@ -378,6 +396,12 @@ export default function FailureToLogApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
+      if (isDedicatedFirstApproverUser(currentUserId)) {
+        return employeeIdsForDedicatedApprover(currentUserId).includes(employee.id);
+      }
+      if (hasDedicatedFirstApprover(employee.id) && !isAdmin) {
+        return false;
+      }
       if (isManagement) return true;
       if (normalizedRole === "operations_manager") {
         return isUserApproverForGroup(
@@ -599,6 +623,14 @@ export default function FailureToLogApprovalPage() {
         }
         return false;
       });
+    } else {
+      filteredData = dataWithEmployees.filter((request: any) =>
+        passesDedicatedApproverRequestFilter(
+          currentUserId,
+          isAdmin,
+          request.employee_id
+        )
+      );
     }
 
     const requestsData = filteredData as Array<{
@@ -713,8 +745,18 @@ export default function FailureToLogApprovalPage() {
       managerStage &&
       isUserApproverForGroup(user.id, getRequestGroupName(selectedFailureToLog));
 
+    const skipManagerStageForDedicatedApprover =
+      hasDedicatedFirstApprover(selectedFailureToLog.employee_id) &&
+      canDedicatedApproverActOnEmployeeRequest(
+        user.id,
+        selectedFailureToLog.employee_id
+      );
+
     const effectiveManagerStageFinal =
-      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+      managerStage &&
+      !skipManagerStageForHr &&
+      !skipManagerStageForUpperManagement &&
+      !skipManagerStageForDedicatedApprover;
 
     const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {
@@ -895,8 +937,18 @@ export default function FailureToLogApprovalPage() {
       managerStage &&
       isUserApproverForGroup(user.id, getRequestGroupName(selectedFailureToLog));
 
+    const skipManagerStageForDedicatedApprover =
+      hasDedicatedFirstApprover(selectedFailureToLog.employee_id) &&
+      canDedicatedApproverActOnEmployeeRequest(
+        user.id,
+        selectedFailureToLog.employee_id
+      );
+
     const effectiveManagerStageFinal =
-      managerStage && !skipManagerStageForHr && !skipManagerStageForUpperManagement;
+      managerStage &&
+      !skipManagerStageForHr &&
+      !skipManagerStageForUpperManagement &&
+      !skipManagerStageForDedicatedApprover;
 
     const patch: Record<string, unknown> = effectiveManagerStageFinal
       ? {

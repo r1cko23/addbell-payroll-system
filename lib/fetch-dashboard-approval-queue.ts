@@ -19,6 +19,7 @@ import {
   overtimeRequestInOperationsManagerQueue,
 } from "@/lib/approval-queue-visibility";
 import { normalizeGroupName } from "@/lib/requestApprovalRouting";
+import { passesDedicatedApproverRequestFilter } from "@/lib/dedicated-employee-approver-routing";
 import {
   formatFiledAtLabel,
   formatFtlRequestDateLabel,
@@ -43,6 +44,7 @@ export type DashboardQueueFetchContext = {
   userId: string;
   isHR: boolean;
   isOperationsManager: boolean;
+  isAdmin?: boolean;
   /** Admin / upper management: all company requests still awaiting approval. */
   showAllCompanyPending: boolean;
   /** Non-HR roles on workforce dashboard (ops manager, upper management, admin). */
@@ -108,6 +110,15 @@ function includeLeave(
   maps: GroupMaps
 ): boolean {
   if (!inEmployeeScope(request.employee_id, ctx.scopedEmployeeIds)) return false;
+  if (
+    !passesDedicatedApproverRequestFilter(
+      ctx.userId,
+      Boolean(ctx.isAdmin),
+      request.employee_id
+    )
+  ) {
+    return false;
+  }
   const groupName = maps.employeeGroupNameByEmployeeId[request.employee_id] || null;
   if (ctx.showAllCompanyPending) {
     return leaveRequestAwaitingApproval(request);
@@ -148,6 +159,15 @@ function includeOt(
   maps: GroupMaps
 ): boolean {
   if (!inEmployeeScope(request.employee_id, ctx.scopedEmployeeIds)) return false;
+  if (
+    !passesDedicatedApproverRequestFilter(
+      ctx.userId,
+      Boolean(ctx.isAdmin),
+      request.employee_id
+    )
+  ) {
+    return false;
+  }
   const groupName = maps.employeeGroupNameByEmployeeId[request.employee_id] || null;
   if (ctx.showAllCompanyPending) {
     return overtimeRequestAwaitingApproval(request);
@@ -187,6 +207,15 @@ function includeFtl(
   maps: GroupMaps
 ): boolean {
   if (!inEmployeeScope(request.employee_id, ctx.scopedEmployeeIds)) return false;
+  if (
+    !passesDedicatedApproverRequestFilter(
+      ctx.userId,
+      Boolean(ctx.isAdmin),
+      request.employee_id
+    )
+  ) {
+    return false;
+  }
   const groupName = maps.employeeGroupNameByEmployeeId[request.employee_id] || null;
   if (ctx.showAllCompanyPending) {
     return ftlRequestAwaitingApproval(request);

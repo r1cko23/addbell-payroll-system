@@ -54,6 +54,13 @@ import {
   normalizeGroupName,
 } from "@/lib/requestApprovalRouting";
 import {
+  canDedicatedApproverActOnEmployeeRequest,
+  employeeIdsForDedicatedApprover,
+  hasDedicatedFirstApprover,
+  isDedicatedFirstApproverUser,
+  passesDedicatedApproverRequestFilter,
+} from "@/lib/dedicated-employee-approver-routing";
+import {
   approvalQueueUrlWithRequest,
   isUserApproverForOvertimeGroup,
 } from "@/lib/manager-approval-queue";
@@ -280,6 +287,20 @@ export default function LeaveApprovalPage() {
   const getApprovalLevel = (
     request: LeaveRequest
   ): "manager" | "hr" | null => {
+    if (hasDedicatedFirstApprover(request.employee_id)) {
+      if (!canDedicatedApproverActOnEmployeeRequest(currentUserId, request.employee_id)) {
+        return null;
+      }
+      if (request.status === "pending" || isManagerApprovedStatus(request.status)) {
+        return "hr";
+      }
+      return null;
+    }
+
+    if (isDedicatedFirstApproverUser(currentUserId)) {
+      return null;
+    }
+
     if (isManagerApprovedStatus(request.status)) {
       return (normalizedRole === "hr" && isFinalHrApprover(currentUserId)) ||
         isManagement
@@ -429,6 +450,12 @@ export default function LeaveApprovalPage() {
     }
 
     const filteredEmployees = (data || []).filter((employee: any) => {
+      if (isDedicatedFirstApproverUser(currentUserId)) {
+        return employeeIdsForDedicatedApprover(currentUserId).includes(employee.id);
+      }
+      if (hasDedicatedFirstApprover(employee.id) && !isAdmin) {
+        return false;
+      }
       if (isManagement) {
         return true;
       }
@@ -603,6 +630,14 @@ export default function LeaveApprovalPage() {
         }
         return false;
       });
+    } else {
+      filteredData = dataWithEmployees.filter((request: any) =>
+        passesDedicatedApproverRequestFilter(
+          currentUserId,
+          isAdmin,
+          request.employee_id
+        )
+      );
     }
 
     const requestsData = filteredData as any[];

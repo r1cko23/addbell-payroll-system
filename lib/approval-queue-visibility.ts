@@ -1,5 +1,9 @@
 import { isUserApproverForOvertimeGroup } from "@/lib/manager-approval-queue";
 import {
+  getDedicatedFirstApproverId,
+  isDedicatedFirstApproverUser,
+} from "@/lib/dedicated-employee-approver-routing";
+import {
   FINAL_HR_APPROVER_ID,
   getFirstApproverIdForGroup,
   normalizeGroupName,
@@ -28,6 +32,14 @@ export function isHrFirstApproverGroup(
   return approverId === FINAL_HR_APPROVER_ID;
 }
 
+function blocksDedicatedEmployeeFromStandardQueue(
+  employeeId: string | undefined,
+  userId: string | null
+): boolean {
+  if (!employeeId || !getDedicatedFirstApproverId(employeeId)) return false;
+  return !isDedicatedFirstApproverUser(userId);
+}
+
 // —— Leave ——
 
 export function isLeaveManagerStage(request: {
@@ -47,6 +59,7 @@ export function isLeaveHrStage(request: { status: string }): boolean {
 /** Ops manager actionable queue (first approval only). */
 export function leaveRequestInOperationsManagerQueue(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -55,6 +68,9 @@ export function leaveRequestInOperationsManagerQueue(
   groupName: string | null,
   approverIdByGroupName: Record<string, string>
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (!isUserApproverForOvertimeGroup(userId, groupName, approverIdByGroupName)) {
     return false;
   }
@@ -64,6 +80,7 @@ export function leaveRequestInOperationsManagerQueue(
 /** HR actionable queue: 2nd step, or 1st+final when HR is the group's first approver. */
 export function leaveRequestInHrQueue(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -73,6 +90,9 @@ export function leaveRequestInHrQueue(
   approverIdByGroupName: Record<string, string>
 ): boolean {
   if (!userId) return false;
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
 
   const hrFirst = isHrFirstApproverGroup(groupName, approverIdByGroupName);
   const groupApprover = isUserApproverForOvertimeGroup(
@@ -92,6 +112,7 @@ export function leaveRequestInHrQueue(
 
 export function canOperationsManagerViewLeaveRequest(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -101,6 +122,9 @@ export function canOperationsManagerViewLeaveRequest(
   approverIdByGroupName: Record<string, string>,
   statusFilter: string
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (!isUserApproverForOvertimeGroup(userId, groupName, approverIdByGroupName)) {
     return false;
   }
@@ -117,6 +141,7 @@ export function canOperationsManagerViewLeaveRequest(
 
 export function canHrViewLeaveRequest(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -126,6 +151,9 @@ export function canHrViewLeaveRequest(
   approverIdByGroupName: Record<string, string>,
   statusFilter: string
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (statusFilter === "pending") {
     return leaveRequestInHrQueue(request, userId, groupName, approverIdByGroupName);
   }
@@ -186,6 +214,7 @@ export function isFtlHrStage(request: {
 
 export function overtimeRequestInOperationsManagerQueue(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -194,6 +223,9 @@ export function overtimeRequestInOperationsManagerQueue(
   groupName: string | null,
   approverIdByGroupName: Record<string, string>
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (!isUserApproverForOvertimeGroup(userId, groupName, approverIdByGroupName)) {
     return false;
   }
@@ -202,6 +234,7 @@ export function overtimeRequestInOperationsManagerQueue(
 
 export function overtimeRequestInHrQueue(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -211,6 +244,9 @@ export function overtimeRequestInHrQueue(
   approverIdByGroupName: Record<string, string>
 ): boolean {
   if (!userId) return false;
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
 
   const hrFirst = isHrFirstApproverGroup(groupName, approverIdByGroupName);
   const groupApprover = isUserApproverForOvertimeGroup(
@@ -229,11 +265,14 @@ export function overtimeRequestInHrQueue(
 }
 
 export function ftlRequestInOperationsManagerQueue(
-  request: { status: string; account_manager_id?: string | null },
+  request: { employee_id?: string; status: string; account_manager_id?: string | null },
   userId: string | null,
   groupName: string | null,
   approverIdByGroupName: Record<string, string>
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (!isUserApproverForOvertimeGroup(userId, groupName, approverIdByGroupName)) {
     return false;
   }
@@ -241,12 +280,15 @@ export function ftlRequestInOperationsManagerQueue(
 }
 
 export function ftlRequestInHrQueue(
-  request: { status: string; account_manager_id?: string | null },
+  request: { employee_id?: string; status: string; account_manager_id?: string | null },
   userId: string | null,
   groupName: string | null,
   approverIdByGroupName: Record<string, string>
 ): boolean {
   if (!userId) return false;
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
 
   const hrFirst = isHrFirstApproverGroup(groupName, approverIdByGroupName);
   const groupApprover = isUserApproverForOvertimeGroup(
@@ -266,6 +308,7 @@ export function ftlRequestInHrQueue(
 
 export function canOperationsManagerViewOtRequest(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -275,6 +318,9 @@ export function canOperationsManagerViewOtRequest(
   approverIdByGroupName: Record<string, string>,
   statusFilter: string
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (!isUserApproverForOvertimeGroup(userId, groupName, approverIdByGroupName)) {
     return false;
   }
@@ -291,6 +337,7 @@ export function canOperationsManagerViewOtRequest(
 
 export function canHrViewOtRequest(
   request: {
+    employee_id?: string;
     status: string;
     project_manager_id?: string | null;
     account_manager_id?: string | null;
@@ -300,6 +347,9 @@ export function canHrViewOtRequest(
   approverIdByGroupName: Record<string, string>,
   statusFilter: string
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (statusFilter === "pending") {
     return overtimeRequestInHrQueue(request, userId, groupName, approverIdByGroupName);
   }
@@ -319,12 +369,15 @@ export function canHrViewOtRequest(
 }
 
 export function canOperationsManagerViewFtlRequest(
-  request: { status: string; account_manager_id?: string | null },
+  request: { employee_id?: string; status: string; account_manager_id?: string | null },
   userId: string | null,
   groupName: string | null,
   approverIdByGroupName: Record<string, string>,
   statusFilter: string
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (!isUserApproverForOvertimeGroup(userId, groupName, approverIdByGroupName)) {
     return false;
   }
@@ -340,12 +393,15 @@ export function canOperationsManagerViewFtlRequest(
 }
 
 export function canHrViewFtlRequest(
-  request: { status: string; account_manager_id?: string | null },
+  request: { employee_id?: string; status: string; account_manager_id?: string | null },
   userId: string | null,
   groupName: string | null,
   approverIdByGroupName: Record<string, string>,
   statusFilter: string
 ): boolean {
+  if (blocksDedicatedEmployeeFromStandardQueue(request.employee_id, userId)) {
+    return false;
+  }
   if (statusFilter === "pending") {
     return ftlRequestInHrQueue(request, userId, groupName, approverIdByGroupName);
   }

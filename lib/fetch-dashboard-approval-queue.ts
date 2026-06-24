@@ -44,6 +44,8 @@ export type DashboardQueueFetchContext = {
   userId: string;
   isHR: boolean;
   isOperationsManager: boolean;
+  /** Operations manager or purchasing officer (scoped OT-group queues). */
+  isOvertimeGroupQueueApprover: boolean;
   isAdmin?: boolean;
   /** Admin / upper management: all company requests still awaiting approval. */
   showAllCompanyPending: boolean;
@@ -123,7 +125,7 @@ function includeLeave(
   if (ctx.showAllCompanyPending) {
     return leaveRequestAwaitingApproval(request);
   }
-  if (ctx.isOperationsManager) {
+  if (ctx.isOvertimeGroupQueueApprover) {
     return leaveRequestInOperationsManagerQueue(
       request,
       ctx.userId,
@@ -172,7 +174,7 @@ function includeOt(
   if (ctx.showAllCompanyPending) {
     return overtimeRequestAwaitingApproval(request);
   }
-  if (ctx.isOperationsManager) {
+  if (ctx.isOvertimeGroupQueueApprover) {
     return overtimeRequestInOperationsManagerQueue(
       request,
       ctx.userId,
@@ -220,7 +222,7 @@ function includeFtl(
   if (ctx.showAllCompanyPending) {
     return ftlRequestAwaitingApproval(request);
   }
-  if (ctx.isOperationsManager) {
+  if (ctx.isOvertimeGroupQueueApprover) {
     return ftlRequestInOperationsManagerQueue(
       request,
       ctx.userId,

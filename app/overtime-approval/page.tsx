@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { creditOvertimeHours } from "@/utils/overtime";
 import { formatTime12h, formatTimeRange12h } from "@/utils/format";
@@ -183,12 +184,12 @@ export default function OvertimeApprovalPage() {
       { scroll: false }
     );
   };
-  const { isAdmin, isManagement, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, role, isHR, isOperationsManager, isOvertimeGroupQueueApprover, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageOvertime =
     isManagement ||
     isHR ||
-    normalizedRole === "operations_manager";
+    isOvertimeGroupQueueApprover;
 
   /** May approve or reject pending OT (not viewers). */
   const canActOnPendingOvertime = canManageOvertime;
@@ -317,7 +318,7 @@ export default function OvertimeApprovalPage() {
     }
 
     if (
-      normalizedRole === "operations_manager" &&
+      isOvertimeGroupQueueApproverRole(normalizedRole) &&
       isManagerStagePending(request)
     ) {
       return isUserFirstApproverForRequest(currentUserId, request);
@@ -348,7 +349,7 @@ export default function OvertimeApprovalPage() {
   };
 
   const isFirstApproverDashboardView =
-    normalizedRole === "operations_manager" ||
+    isOvertimeGroupQueueApproverRole(normalizedRole) ||
     normalizedRole === "upper_management";
 
   const getViewerStatus = (request: OTRequest): ViewerOtStatus => {
@@ -617,7 +618,7 @@ export default function OvertimeApprovalPage() {
           const name = overtimeGroupNameById[groupId];
           if (name && approverId) otApproverMap[name] = approverId;
         });
-        if (normalizedRole === "operations_manager") {
+        if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
           return canOperationsManagerViewOtRequest(
             request,
             currentUserId,
@@ -770,7 +771,7 @@ export default function OvertimeApprovalPage() {
         return false;
       }
       if (isManagement) return true;
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         const gid = employee.overtime_group_id as string | null | undefined;
         if (gid && overtimeGroupFirstApproverIdById[gid]) {
           return overtimeGroupFirstApproverIdById[gid] === currentUserId;
@@ -806,8 +807,8 @@ export default function OvertimeApprovalPage() {
       setStatusFilter(status);
       return;
     }
-    if (isOperationsManager || isHR) setStatusFilter("pending");
-  }, [searchParams, isOperationsManager, isHR]);
+    if (isOperationsManager || isOvertimeGroupQueueApprover || isHR) setStatusFilter("pending");
+  }, [searchParams, isOperationsManager, isOvertimeGroupQueueApprover, isHR]);
 
   useEffect(() => {
     const canLoadOtRequests =
@@ -815,7 +816,7 @@ export default function OvertimeApprovalPage() {
       (role === "admin" ||
         role === "upper_management" ||
         role === "hr" ||
-        role === "operations_manager");
+        isOvertimeGroupQueueApproverRole(role));
 
     if (canLoadOtRequests) {
       loadRequests();
@@ -837,7 +838,7 @@ export default function OvertimeApprovalPage() {
     if (
       !isFirstApproverDashboardView &&
       !isHR &&
-      normalizedRole !== "operations_manager"
+      !isOvertimeGroupQueueApproverRole(normalizedRole)
     ) {
       return;
     }
@@ -886,7 +887,7 @@ export default function OvertimeApprovalPage() {
     });
     const firstActionable = requests.find((r) => {
       const groupName = getRequestGroupName(r);
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         return (
           overtimeRequestInOperationsManagerQueue(
             r,
@@ -1093,7 +1094,7 @@ export default function OvertimeApprovalPage() {
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Admin, Upper Management, HR, and Operations Managers can access OT approvals.
+            Only Admin, Upper Management, HR, Operations Managers, and Purchasing Officers can access OT approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>

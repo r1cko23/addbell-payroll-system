@@ -13,7 +13,11 @@ import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/types/database";
 import { useCurrentUser } from "./useCurrentUser";
-import { isOperationsManagerRole, normalizeUserRole } from "@/lib/user-roles";
+import {
+  isOperationsManagerRole,
+  isOvertimeGroupQueueApproverRole,
+  normalizeUserRole,
+} from "@/lib/user-roles";
 
 type DbUserRole = Database["public"]["Tables"]["users"]["Row"]["role"];
 
@@ -40,6 +44,8 @@ interface UserRoleData {
   isViewer: boolean;
   isRestrictedAccess: boolean; // approver or viewer
   isOperationsManager: boolean;
+  /** Operations manager or purchasing officer (OT-group first approver queues). */
+  isOvertimeGroupQueueApprover: boolean;
   canAccessSalaryInfo: boolean;
   /** Admin/upper management, or HR with explicit profile flag */
   canManageClockAccess: boolean;
@@ -86,6 +92,8 @@ export function useUserRole(): UserRoleData {
       isViewer: normalizedRole === "viewer",
       isRestrictedAccess: normalizedRole === "approver" || normalizedRole === "viewer",
       isOperationsManager: isOperationsManagerRole(normalizedRole),
+      isOvertimeGroupQueueApprover:
+        isOvertimeGroupQueueApproverRole(normalizedRole),
       canAccessSalaryInfo:
         isManagement || (user?.can_access_salary ?? false),
       canManageClockAccess:

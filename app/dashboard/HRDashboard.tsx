@@ -284,14 +284,15 @@ export default function HRDashboard() {
   const [queueItems, setQueueItems] = useState<DashboardQueueItem[]>([]);
   const [approverGroupNames, setApproverGroupNames] = useState<string[]>([]);
 
-  const { isHR, isOperationsManager, isManagement, isAdmin, loading: roleLoading } = useUserRole();
-  const showAllCompanyPending = isManagement && !isHR && !isOperationsManager;
+  const { isHR, isOperationsManager, isOvertimeGroupQueueApprover, isManagement, isAdmin, loading: roleLoading } = useUserRole();
+  const showAllCompanyPending =
+    isManagement && !isHR && !isOvertimeGroupQueueApprover;
   const usesManagerApprovalQueue =
-    isOperationsManager || isHR || showAllCompanyPending;
+    isOvertimeGroupQueueApprover || isHR || showAllCompanyPending;
 
   useEffect(() => {
     if (!roleLoading) loadData();
-  }, [roleLoading, isOperationsManager, isHR, isManagement]);
+  }, [roleLoading, isOvertimeGroupQueueApprover, isHR, isManagement]);
 
   async function loadData() {
     const initialLoad = !lastUpdatedAt;
@@ -305,10 +306,10 @@ export default function HRDashboard() {
         data: { user: authUser },
       } = await supabase.auth.getUser();
 
-      // Operations managers only see/act on requests for employees in their OT groups.
+      // Group approvers only see/act on requests for employees in their OT groups.
       let scopedEmployeeIds: string[] | null = null;
       let approverGroupIds: string[] = [];
-      if (isOperationsManager) {
+      if (isOvertimeGroupQueueApprover) {
         if (authUser?.id) {
           const [managedIds, groupNames, groupIds] = await Promise.all([
             fetchManagedEmployeeIdsForApprover(supabase, authUser.id),
@@ -329,7 +330,7 @@ export default function HRDashboard() {
 
       const employeeScope = employeeScopeFilter(scopedEmployeeIds);
 
-      if (isOperationsManager) {
+      if (isOvertimeGroupQueueApprover) {
         const teamCount = scopedEmployeeIds?.length ?? 0;
         setTotalEmployees(teamCount);
         setActiveEmployees(teamCount);
@@ -530,6 +531,7 @@ export default function HRDashboard() {
           userId: authUser.id,
           isHR,
           isOperationsManager,
+          isOvertimeGroupQueueApprover,
           isAdmin,
           showAllCompanyPending,
           isManagerFocus,
@@ -559,21 +561,21 @@ export default function HRDashboard() {
 
   const inactiveEmployees = totalEmployees - activeEmployees;
   const isManagerFocus = !isHR;
-  const displayedLeaveCount = isOperationsManager
+  const displayedLeaveCount = isOvertimeGroupQueueApprover
     ? managerPendingLeaveCount
     : isHR
       ? pendingLeaveApprovals
       : showAllCompanyPending
         ? companyPendingLeaveCount
         : managerPendingLeaveCount;
-  const displayedOtCount = isOperationsManager
+  const displayedOtCount = isOvertimeGroupQueueApprover
     ? managerPendingOvertimeCount
     : isHR
       ? pendingOvertimeApprovals
       : showAllCompanyPending
         ? companyPendingOvertimeCount
         : managerPendingOvertimeCount;
-  const displayedFtlCount = isOperationsManager
+  const displayedFtlCount = isOvertimeGroupQueueApprover
     ? managerPendingFailureToLogCount
     : isHR
       ? pendingFailureToLogApprovals
@@ -603,16 +605,16 @@ export default function HRDashboard() {
     <div className={cn("w-full", dbPageWrapper)}>
       <DashboardPageHeader
         title={
-          isOperationsManager ? operationsManagerHeading : "Workforce overview"
+          isOvertimeGroupQueueApprover ? operationsManagerHeading : "Workforce overview"
         }
         description={
-          isOperationsManager
+          isOvertimeGroupQueueApprover
             ? `Pending approvals of leave, overtime, and failure to log by ${operationsManagerGroupLabel}.`
             : "Track employee registrations and the latest time in/out activity."
         }
         actions={
           <div className={dbHeaderActions}>
-            {!isOperationsManager ? (
+            {!isOvertimeGroupQueueApprover ? (
               <Link href="/employees">
                 <Button size="sm" variant="outline">
                   Open employees
@@ -636,7 +638,7 @@ export default function HRDashboard() {
         }
       />
 
-      {isOperationsManager ? (
+      {isOvertimeGroupQueueApprover ? (
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
           <Card className="h-full border-primary/20 bg-gradient-to-r from-primary/10 to-background">
             <CardHeader className="pb-2">
@@ -715,7 +717,7 @@ export default function HRDashboard() {
         </Card>
       )}
 
-      {!isOperationsManager ? (
+      {!isOvertimeGroupQueueApprover ? (
         <>
       <HStack justify="between" align="start" className="flex-col gap-2">
         <div className="space-y-1">

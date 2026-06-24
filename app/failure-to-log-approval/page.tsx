@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import {
   Card,
   CardContent,
@@ -152,12 +153,12 @@ export default function FailureToLogApprovalPage() {
       { scroll: false }
     );
   };
-  const { isAdmin, isManagement, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, role, isHR, isOvertimeGroupQueueApprover, loading: roleLoading } = useUserRole();
   const normalizedRole = (role || "").trim().toLowerCase();
   const canManageFailureToLog =
     isManagement ||
     isHR ||
-    normalizedRole === "operations_manager";
+    isOvertimeGroupQueueApprover;
 
   const canActOnFailureToLog = canManageFailureToLog;
 
@@ -230,7 +231,7 @@ export default function FailureToLogApprovalPage() {
       );
     }
 
-    if (normalizedRole === "operations_manager" && managerStage) {
+    if (isOvertimeGroupQueueApproverRole(normalizedRole) && managerStage) {
       return isUserApproverForGroup(currentUserId, getRequestGroupName(request));
     }
 
@@ -244,7 +245,7 @@ export default function FailureToLogApprovalPage() {
   };
 
   const isFirstApproverDashboardView =
-    normalizedRole === "operations_manager" ||
+    isOvertimeGroupQueueApproverRole(normalizedRole) ||
     normalizedRole === "upper_management";
 
   const getViewerStatus = (request: FailureToLog): ViewerFtlStatus => {
@@ -406,7 +407,7 @@ export default function FailureToLogApprovalPage() {
         return false;
       }
       if (isManagement) return true;
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         return isUserApproverForGroup(
           currentUserId,
           employeeGroupNameByEmployeeId[employee.employee_id]
@@ -427,8 +428,8 @@ export default function FailureToLogApprovalPage() {
       setStatusFilter(status);
       return;
     }
-    if (isOperationsManager || isHR) setStatusFilter("pending");
-  }, [searchParams, isOperationsManager, isHR]);
+    if (isOvertimeGroupQueueApprover || isHR) setStatusFilter("pending");
+  }, [searchParams, isOvertimeGroupQueueApprover, isHR]);
 
   useEffect(() => {
     if (canManageFailureToLog) {
@@ -451,7 +452,7 @@ export default function FailureToLogApprovalPage() {
     if (
       !isFirstApproverDashboardView &&
       !isHR &&
-      normalizedRole !== "operations_manager"
+      !isOvertimeGroupQueueApproverRole(normalizedRole)
     ) {
       return;
     }
@@ -483,7 +484,7 @@ export default function FailureToLogApprovalPage() {
 
     const firstActionable = requests.find((r) => {
       const groupName = getRequestGroupName(r);
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         return (
           ftlRequestInOperationsManagerQueue(
             r,
@@ -603,7 +604,7 @@ export default function FailureToLogApprovalPage() {
         if (!currentUserId) return false;
         const groupName =
           employeeGroupNameByEmployeeId[request.employee_id] || null;
-        if (normalizedRole === "operations_manager") {
+        if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
           return canOperationsManagerViewFtlRequest(
             request,
             currentUserId,
@@ -1022,7 +1023,7 @@ export default function FailureToLogApprovalPage() {
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Admin, Upper Management, HR, and Operations Managers can access failure to log approvals.
+            Only Admin, Upper Management, HR, Operations Managers, and Purchasing Officers can access failure to log approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>

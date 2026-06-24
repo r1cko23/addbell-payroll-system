@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import {
   Card,
   CardContent,
@@ -229,14 +230,14 @@ export default function LeaveApprovalPage() {
       { scroll: false }
     );
   };
-  const { isAdmin, isManagement, role, isHR, isOperationsManager, loading: roleLoading } = useUserRole();
+  const { isAdmin, isManagement, role, isHR, isOvertimeGroupQueueApprover, loading: roleLoading } = useUserRole();
   const normalizedRole = role?.trim().toLowerCase() || "";
   const canManageLeave =
     isManagement ||
     isHR ||
-    normalizedRole === "operations_manager";
+    isOvertimeGroupQueueApprover;
   const isFirstApproverDashboardView =
-    normalizedRole === "operations_manager" ||
+    isOvertimeGroupQueueApproverRole(normalizedRole) ||
     normalizedRole === "upper_management";
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [employees, setEmployees] = useState<
@@ -336,7 +337,7 @@ export default function LeaveApprovalPage() {
     }
 
     if (isManagement) return "manager";
-    if (normalizedRole === "operations_manager") {
+    if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
       const groupName = getRequestGroupName(request);
       if (
         !leaveRequestInOperationsManagerQueue(
@@ -462,7 +463,7 @@ export default function LeaveApprovalPage() {
       if (isManagement) {
         return true;
       }
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         return isUserApproverForGroup(
           currentUserId,
           employeeGroupNameByEmployeeId[employee.employee_id]
@@ -614,7 +615,7 @@ export default function LeaveApprovalPage() {
       filteredData = dataWithEmployees.filter((request: any) => {
         const groupName =
           employeeGroupNameByEmployeeId[request.employee_id] || null;
-        if (normalizedRole === "operations_manager") {
+        if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
           return canOperationsManagerViewLeaveRequest(
             request,
             currentUserId,
@@ -927,8 +928,8 @@ export default function LeaveApprovalPage() {
       setStatusFilter(status);
       return;
     }
-    if (isOperationsManager || isHR) setStatusFilter("pending");
-  }, [searchParams, isOperationsManager, isHR]);
+    if (isOvertimeGroupQueueApprover || isHR) setStatusFilter("pending");
+  }, [searchParams, isOvertimeGroupQueueApprover, isHR]);
 
   // This useEffect must be called before any conditional returns (React hooks rule)
   useEffect(() => {
@@ -951,7 +952,7 @@ export default function LeaveApprovalPage() {
     if (
       !isFirstApproverDashboardView &&
       !isHR &&
-      normalizedRole !== "operations_manager"
+      !isOvertimeGroupQueueApproverRole(normalizedRole)
     ) {
       return;
     }
@@ -984,7 +985,7 @@ export default function LeaveApprovalPage() {
 
     const firstActionable = requests.find((r) => {
       const groupName = getRequestGroupName(r);
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         return leaveRequestInOperationsManagerQueue(
           r,
           currentUserId,
@@ -1035,7 +1036,7 @@ export default function LeaveApprovalPage() {
       <DashboardLayout>
         <VStack gap="4" className="p-8">
           <BodySmall>
-            Only Admin, Upper Management, HR, and Operations Managers can access leave approvals.
+            Only Admin, Upper Management, HR, Operations Managers, and Purchasing Officers can access leave approvals.
           </BodySmall>
         </VStack>
       </DashboardLayout>
@@ -1046,7 +1047,7 @@ export default function LeaveApprovalPage() {
     total: requests.length,
     pending: requests.filter((r) => {
       const groupName = getRequestGroupName(r);
-      if (normalizedRole === "operations_manager") {
+      if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
         return leaveRequestInOperationsManagerQueue(
           r,
           currentUserId,

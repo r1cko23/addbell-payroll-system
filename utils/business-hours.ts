@@ -52,6 +52,28 @@ export function calculateUndertimeHours(
   return Math.ceil((earlyMinutes - graceMinutes) / 60);
 }
 
+/**
+ * Undertime for an attendance row keyed by Manila calendar `attendanceDateStr`.
+ * Clock-out on a later calendar day (overnight shift) is not undertime.
+ */
+export function calculateUndertimeHoursForAttendanceDay(
+  attendanceDateStr: string,
+  clockOutIso: string,
+  scheduledEndMinutes: number,
+  graceMinutes: number = BUSINESS_HOURS_GRACE_MINUTES
+): number {
+  const outDateKey = getManilaDateKeyFromIso(clockOutIso);
+  if (!outDateKey || outDateKey > attendanceDateStr) return 0;
+  if (outDateKey < attendanceDateStr) return 0;
+
+  const { hour, minute } = getManilaHourMinute(clockOutIso);
+  return calculateUndertimeHours(
+    scheduledEndMinutes,
+    hour * 60 + minute,
+    graceMinutes
+  );
+}
+
 export function scheduledBusinessEndMinutes(dayOfWeek: number): number | null {
   const policy = getBusinessDayPolicyByDay(dayOfWeek);
   if (!policy.requiresOffice || policy.windows.length === 0) return null;

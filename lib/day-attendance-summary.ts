@@ -1,7 +1,7 @@
 import { getDay, parseISO } from "date-fns";
 import {
   calculateLateHours,
-  calculateUndertimeHours,
+  calculateUndertimeHoursForAttendanceDay,
   getBusinessDayPolicyByDay,
   regularHoursFromBundyClockPair,
   scheduledBusinessEndMinutes,
@@ -114,8 +114,11 @@ export function computeDayAttendanceMetrics(
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
     .pop();
   if (lastOut && utEndMinutes !== null) {
-    const { hour, minute } = getManilaHourMinute(lastOut);
-    ut = calculateUndertimeHours(utEndMinutes, hour * 60 + minute);
+    ut = calculateUndertimeHoursForAttendanceDay(
+      dateStr,
+      lastOut,
+      utEndMinutes
+    );
   }
 
   return {

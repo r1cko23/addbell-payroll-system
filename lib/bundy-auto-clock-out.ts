@@ -26,13 +26,22 @@ export function hasAutoOutForClockIn(
   clockInIso: string,
   punches: TimeEntryPunch[]
 ): boolean {
+  return findAutoOutForClockIn(clockInIso, punches) !== null;
+}
+
+export function findAutoOutForClockIn(
+  clockInIso: string,
+  punches: TimeEntryPunch[]
+): { outPunchId: string; punchedAt: string } | null {
   const expectedMs = new Date(getBundy23HourAutoOutIso(clockInIso)).getTime();
-  return punches.some(
+  const match = punches.find(
     (p) =>
       p.punch_type === "out" &&
       isBundyAutoClockOutPunch(p) &&
       Math.abs(new Date(p.punched_at).getTime() - expectedMs) < 2 * 60 * 1000
   );
+  if (!match) return null;
+  return { outPunchId: match.id, punchedAt: match.punched_at };
 }
 
 /** Open sessions past 23h without an auto-out yet (oldest first). Includes admin manual INs. */
@@ -71,9 +80,13 @@ async function fetchRecentPunches(
 async function insertAutoOutForSession(
   supabase: SupabaseAdmin,
   employeeId: string,
-  clockInIso: string
+  clockInIso: string,
+  punches?: TimeEntryPunch[]
 ): Promise<{ outPunchId: string; punchedAt: string }> {
   const punchedAt = getBundy23HourAutoOutIso(clockInIso);
+  const recentPunches = punches ?? (await fetchRecentPunches(supabase, employeeId));
+  const existing = findAutoOutForClockIn(clockInIso, recentPunches);
+  if (existing) return existing;
 
   const { data: insertData, error: insertError } = await supabase
     .from("time_entries")
@@ -86,8 +99,19 @@ async function insertAutoOutForSession(
     .select("id, punched_at")
     .single();
 
-  if (insertError || !insertData) {
-    throw new Error(insertError?.message || "Failed to auto clock out");
+  if (insertError) {
+    if (insertError.code === "23505") {
+      const afterRace = findAutoOutForClockIn(
+        clockInIso,
+        await fetchRecentPunches(supabase, employeeId)
+      );
+      if (afterRace) return afterRace;
+    }
+    throw new Error(insertError.message || "Failed to auto clock out");
+  }
+
+  if (!insertData) {
+    throw new Error("Failed to auto clock out");
   }
 
   const row = insertData as { id: string; punched_at: string };
@@ -121,7 +145,8 @@ export async function applyAllStaleBundyAutoClockOuts(
     const inserted = await insertAutoOutForSession(
       supabase,
       employeeId,
-      session.clock_in_time
+      session.clock_in_time,
+      punches
     );
     closedSessions.push({
       clockInId: session.id,

@@ -39,8 +39,9 @@ import { getBiMonthlyPeriodStart, getBiMonthlyPeriodEnd } from "@/utils/bimonthl
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
   calculateLateHours,
-  calculateUndertimeHours,
+  calculateUndertimeHoursForAttendanceDay,
   getBusinessDayPolicyByDay,
+  getManilaDateKeyFromIso,
   getManilaHourMinute,
   regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
@@ -1231,7 +1232,14 @@ export default function TimesheetPage() {
         hideClockForFullDayLeave
           ? null
           : hasActualClockEntry && firstEntry?.clock_out_time
-          ? format(parseISO(firstEntry.clock_out_time), "hh:mm a")
+          ? (() => {
+              const formatted = format(
+                parseISO(firstEntry.clock_out_time),
+                "hh:mm a"
+              );
+              const outDate = getManilaDateKeyFromIso(firstEntry.clock_out_time);
+              return outDate && outDate > dateStr ? `${formatted} (+1)` : formatted;
+            })()
           : null;
 
       // Get scheduled times
@@ -1489,10 +1497,10 @@ export default function TimesheetPage() {
         .pop();
       let ut = 0;
       if (lastClockOutIso && utEndMinutes !== null) {
-        const actualOut = getManilaHourMinute(lastClockOutIso);
-        ut = calculateUndertimeHours(
-          utEndMinutes,
-          actualOut.hour * 60 + actualOut.minute
+        ut = calculateUndertimeHoursForAttendanceDay(
+          dateStr,
+          lastClockOutIso,
+          utEndMinutes
         );
       }
 

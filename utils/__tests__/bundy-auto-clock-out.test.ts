@@ -1,8 +1,32 @@
 import {
+  findAutoOutForClockIn,
   findStaleOpenSessionsForAutoClose,
   hasAutoOutForClockIn,
 } from "@/lib/bundy-auto-clock-out";
 import { getDateInManilaDefault, type TimeEntryPunch } from "@/lib/timeEntries";
+
+describe("hasAutoOutForClockIn", () => {
+  test("detects matching 23h auto-out punch", () => {
+    const clockIn = "2026-06-23T22:42:00+00:00";
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "in1",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: clockIn,
+      },
+      {
+        id: "auto-out",
+        employee_id: "x",
+        punch_type: "out",
+        punched_at: "2026-06-24T21:42:00+00:00",
+        device_info: "auto:23h-open-shift-close Manila",
+      },
+    ];
+    expect(hasAutoOutForClockIn(clockIn, punches)).toBe(true);
+    expect(findAutoOutForClockIn(clockIn, punches)?.outPunchId).toBe("auto-out");
+  });
+});
 
 describe("findStaleOpenSessionsForAutoClose", () => {
   test("finds older web IN even when a newer admin manual IN is still open", () => {

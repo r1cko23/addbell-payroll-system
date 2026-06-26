@@ -38,8 +38,9 @@ import {
 import { getBundyBusinessDayKeyForInPunch } from "@/lib/bundy-business-day";
 import {
   calculateLateHours,
-  calculateUndertimeHours,
+  calculateUndertimeHoursForAttendanceDay,
   getBusinessDayPolicyByDay,
+  getManilaDateKeyFromIso,
   regularHoursFromBundyClockPair,
 } from "@/utils/business-hours";
 
@@ -1511,11 +1512,12 @@ export default function BundyClockPage() {
           const inParts = allDayEntries.map((e) =>
             formatDate(parseISO(e.clock_in_time), "hh:mm a")
           );
-          const outParts = allDayEntries.map((e) =>
-            e.clock_out_time
-              ? formatDate(parseISO(e.clock_out_time), "hh:mm a")
-              : "—"
-          );
+          const outParts = allDayEntries.map((e) => {
+            if (!e.clock_out_time) return "—";
+            const formatted = formatDate(parseISO(e.clock_out_time), "hh:mm a");
+            const outDate = getManilaDateKeyFromIso(e.clock_out_time);
+            return outDate && outDate > dateStr ? `${formatted} (+1)` : formatted;
+          });
           timeIn = inParts.join(", ");
           timeOut = outParts.join(", ");
         }
@@ -1675,10 +1677,10 @@ export default function BundyClockPage() {
         let ut = 0;
         if (lastClockOutEntry?.clock_out_time && utEndMinutes !== null) {
           try {
-            const actualOut = getManilaHourMinute(lastClockOutEntry.clock_out_time);
-            ut = calculateUndertimeHours(
-              utEndMinutes,
-              actualOut.hour * 60 + actualOut.minute
+            ut = calculateUndertimeHoursForAttendanceDay(
+              dateStr,
+              lastClockOutEntry.clock_out_time,
+              utEndMinutes
             );
           } catch (e) {
             console.warn("Error calculating undertime:", e);

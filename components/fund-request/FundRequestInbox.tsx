@@ -37,6 +37,7 @@ import {
 import {
   canReturnFundRequestToPurchasing,
   buildFundRequestUpperManagementReturnUpdates,
+  type FundRequestDisposalAction,
   buildFundRequestRejectUpdates,
   buildFundRequestRejectionUndoSnapshot,
   getFundRequestStatusBadgeClass,
@@ -119,7 +120,10 @@ export function FundRequestInbox({
   const [actingId, setActingId] = useState<string | null>(null);
   const [bulkApproving, setBulkApproving] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [rejectId, setRejectId] = useState<string | null>(null);
+  const [pendingDisposal, setPendingDisposal] = useState<{
+    id: string;
+    action: FundRequestDisposalAction;
+  } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [requesterInfoById, setRequesterInfoById] = useState<
     Record<string, FundRequestRequesterInfo>
@@ -295,30 +299,32 @@ export function FundRequestInbox({
     );
   };
 
-  const handleReject = async (id: string, currentStatus: FundRequestRow["status"]) => {
-    const returningToPurchasing = canReturnFundRequestToPurchasing(
-      profile?.role,
-      currentStatus
-    );
-    if (!returningToPurchasing && !rejectReason.trim()) {
-      toast.error("Please enter a reason.");
+  const handleDisposal = async (
+    id: string,
+    currentStatus: FundRequestRow["status"],
+    action: FundRequestDisposalAction
+  ) => {
+    if (action === "reject" && !rejectReason.trim()) {
+      toast.error("Please enter a rejection reason.");
       return;
     }
     if (!currentUserId) return;
     const row = rows.find((item) => item.id === id);
-    const updates = returningToPurchasing
-      ? buildFundRequestUpperManagementReturnUpdates(
-          currentUserId,
-          rejectReason,
-          buildFundRequestRejectionUndoSnapshot(
-            row ?? ({ status: currentStatus } as FundRequestInboxRow)
+    const requestRow =
+      row ?? ({ status: currentStatus } as FundRequestInboxRow);
+    const undoSnapshot = buildFundRequestRejectionUndoSnapshot(requestRow);
+    const updates =
+      action === "return"
+        ? buildFundRequestUpperManagementReturnUpdates(
+            currentUserId,
+            rejectReason,
+            undoSnapshot
           )
-        )
-      : buildFundRequestRejectUpdates(
-          currentUserId,
-          rejectReason,
-          row ?? ({ status: currentStatus } as FundRequestInboxRow)
-        );
+        : buildFundRequestRejectUpdates(
+            currentUserId,
+            rejectReason,
+            requestRow
+          );
 
     setActingId(id);
     const { error } = await supabase
@@ -326,17 +332,17 @@ export function FundRequestInbox({
       .update(updates as never)
       .eq("id", id);
     setActingId(null);
-    setRejectId(null);
+    setPendingDisposal(null);
     setRejectReason("");
     if (error) {
       toast.error(
-        returningToPurchasing
+        action === "return"
           ? "Failed to return request to purchasing"
           : "Failed to reject"
       );
     } else {
       toast.success(
-        returningToPurchasing
+        action === "return"
           ? "Returned to purchasing officer for review."
           : "Fund request rejected."
       );
@@ -474,15 +480,16 @@ export function FundRequestInbox({
             canReturnFundRequestToPurchasing(profile?.role, row.status)
           }
           actingId={actingId}
-          rejectId={rejectId}
+          pendingDisposal={pendingDisposal}
           rejectReason={rejectReason}
           onRejectReasonChange={setRejectReason}
-          onStartReject={setRejectId}
-          onCancelReject={() => {
-            setRejectId(null);
+          onStartReturn={(id) => setPendingDisposal({ id, action: "return" })}
+          onStartReject={(id) => setPendingDisposal({ id, action: "reject" })}
+          onCancelDisposal={() => {
+            setPendingDisposal(null);
             setRejectReason("");
           }}
-          onReject={handleReject}
+          onConfirmDisposal={handleDisposal}
           bulkApproving={bulkApproving}
           onApproveAll={() => handleApproveAll(filteredRows)}
         />
@@ -615,24 +622,40 @@ export function FundRequestInbox({
                       className={cn("mt-auto border-t pt-2", dbToolbarActions)}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {rejectId === r.id ? (
+                      {pendingDisposal?.id === r.id ? (
                         <div className="w-full space-y-2">
-                          <Label className="text-xs">Rejection reason</Label>
+                          <Label className="text-xs">
+                            {pendingDisposal.action === "return"
+                              ? "Return reason (optional)"
+                              : "Rejection reason"}
+                          </Label>
                           <Input
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
-                            placeholder="Reason"
+                            placeholder={
+                              pendingDisposal.action === "return"
+                                ? "What needs to be corrected?"
+                                : "Reason"
+                            }
                           />
                           <div className={dbToolbarActions}>
                             <Button
                               size="sm"
-                              variant="destructive"
+                              variant={
+                                pendingDisposal.action === "return"
+                                  ? "default"
+                                  : "destructive"
+                              }
                               className={dbHeaderButton}
                               disabled={actingId === r.id}
-                              onClick={() => handleReject(r.id, r.status)}
+                              onClick={() =>
+                                handleDisposal(r.id, r.status, pendingDisposal.action)
+                              }
                             >
                               {actingId === r.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : pendingDisposal.action === "return" ? (
+                                "Confirm return"
                               ) : (
                                 "Confirm reject"
                               )}
@@ -642,7 +665,7 @@ export function FundRequestInbox({
                               variant="outline"
                               className={dbHeaderButton}
                               onClick={() => {
-                                setRejectId(null);
+                                setPendingDisposal(null);
                                 setRejectReason("");
                               }}
                             >
@@ -667,7 +690,7 @@ export function FundRequestInbox({
                                 size="sm"
                                 className={dbHeaderButton}
                                 onClick={() => {
-                                  setRejectId(r.id);
+                                  setPendingDisposal({ id: r.id, action: "reject" });
                                   setRejectReason("");
                                 }}
                               >

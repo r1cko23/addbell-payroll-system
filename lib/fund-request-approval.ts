@@ -111,7 +111,7 @@ export function getFundRequestApprovalActionCopy(
     return {
       title: "Final approval required",
       description:
-        "Purchasing has approved these for payment. Return any line to purchasing if needed, then approve all when your review is complete.",
+        "Purchasing has approved these for payment. Return a line to purchasing for corrections, reject to decline it, then approve all when your review is complete.",
     };
   }
 
@@ -156,6 +156,15 @@ export function canReturnFundRequestToPurchasing(
   if (status !== "purchasing_officer_approved") return false;
   const normalizedRole = normalizeUserRole(role);
   return normalizedRole === "upper_management" || normalizedRole === "admin";
+}
+
+export type FundRequestDisposalAction = "return" | "reject";
+
+export function canRejectFundRequestAtUpperManagement(
+  role: string | null | undefined,
+  status: string
+): boolean {
+  return canReturnFundRequestToPurchasing(role, status);
 }
 
 export function buildFundRequestUpperManagementReturnUpdates(

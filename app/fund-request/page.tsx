@@ -254,7 +254,7 @@ function FundRequestListPageContent() {
       {isApprover ? (
         showMyRequestsTab ? (
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList>
+          <TabsList className="h-auto w-full justify-start overflow-x-auto">
             <TabsTrigger value="inbox">For Approval</TabsTrigger>
             {showHistoryTab ? (
               <TabsTrigger value="history">History</TabsTrigger>
@@ -304,7 +304,7 @@ function FundRequestListPageContent() {
         </Tabs>
         ) : showHistoryTab ? (
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList>
+            <TabsList className="h-auto w-full justify-start overflow-x-auto">
               <TabsTrigger value="inbox">For Approval</TabsTrigger>
               <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>

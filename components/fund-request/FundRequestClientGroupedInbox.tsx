@@ -39,6 +39,131 @@ function formatPhp(amount: number): string {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 }
 
+type GroupedInboxRequestActionsProps = {
+  request: FundRequestInboxRow;
+  canReturn: boolean;
+  actingId: string | null;
+  rejectId: string | null;
+  rejectReason: string;
+  detailHref: (id: string) => string;
+  onRejectReasonChange: (value: string) => void;
+  onStartReject: (id: string) => void;
+  onCancelReject: () => void;
+  onReject: (id: string, status: FundRequestRow["status"]) => void;
+};
+
+function GroupedInboxRequestActions({
+  request,
+  canReturn,
+  actingId,
+  rejectId,
+  rejectReason,
+  detailHref,
+  onRejectReasonChange,
+  onStartReject,
+  onCancelReject,
+  onReject,
+}: GroupedInboxRequestActionsProps) {
+  if (canReturn) {
+    if (rejectId === request.id) {
+      return (
+        <VStack gap="2" className="w-full max-w-md">
+          <Label className="text-xs">Return reason (optional)</Label>
+          <Input
+            value={rejectReason}
+            onChange={(e) => onRejectReasonChange(e.target.value)}
+            placeholder="Reason for returning to purchasing (optional)"
+            className="h-9 text-sm"
+          />
+          <HStack gap="2" className="flex-wrap">
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-10"
+              disabled={actingId === request.id}
+              onClick={() => onReject(request.id, request.status)}
+            >
+              {actingId === request.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Confirm"
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="min-h-10"
+              onClick={onCancelReject}
+            >
+              Cancel
+            </Button>
+          </HStack>
+        </VStack>
+      );
+    }
+
+    return (
+      <HStack gap="2" className="flex-wrap">
+        <Button type="button" size="sm" variant="outline" className="min-h-10" asChild>
+          <Link href={detailHref(request.id)}>Review</Link>
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="min-h-10"
+          disabled={actingId === request.id}
+          onClick={() => onStartReject(request.id)}
+        >
+          Reject
+        </Button>
+      </HStack>
+    );
+  }
+
+  return (
+    <Button type="button" size="sm" variant="outline" className="min-h-10" asChild>
+      <Link href={detailHref(request.id)}>Review</Link>
+    </Button>
+  );
+}
+
+type GroupedInboxPaymentLinesProps = {
+  summary: ReturnType<typeof summarizeFundRequestPayment>;
+};
+
+function GroupedInboxPaymentLines({ summary }: GroupedInboxPaymentLinesProps) {
+  const showEwt = summary.ewtAmount > 0;
+  const showDeductions = summary.deductionsAmount > 0;
+
+  return (
+    <dl className="space-y-1 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <dt className="text-muted-foreground">Amount</dt>
+        <dd className="font-mono text-muted-foreground">{formatPhp(summary.grossAmount)}</dd>
+      </div>
+      {showEwt ? (
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-muted-foreground">EWT</dt>
+          <dd className="font-mono text-muted-foreground">{formatPhp(summary.ewtAmount)}</dd>
+        </div>
+      ) : null}
+      {showDeductions ? (
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-muted-foreground">Deductions</dt>
+          <dd className="font-mono text-muted-foreground">
+            {formatPhp(summary.deductionsAmount)}
+          </dd>
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+        <dt className="font-medium">Amount to pay</dt>
+        <dd className="font-mono font-semibold">{formatPhp(summary.netAmount)}</dd>
+      </div>
+    </dl>
+  );
+}
+
 export function FundRequestClientGroupedInbox({
   rows,
   detailHref,
@@ -75,7 +200,7 @@ export function FundRequestClientGroupedInbox({
       </div>
 
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[640px] border-collapse text-xs sm:text-sm">
             <tbody>
               {groups.map((group, groupIndex) => (
@@ -187,80 +312,18 @@ export function FundRequestClientGroupedInbox({
                         >
                           <td />
                           <td className="px-3 pb-3 pt-2" colSpan={3}>
-                            {canReturn ? (
-                              rejectId === request.id ? (
-                                <VStack gap="2" className="max-w-md">
-                                  <Label className="text-xs">
-                                    Return reason (optional)
-                                  </Label>
-                                  <Input
-                                    value={rejectReason}
-                                    onChange={(e) =>
-                                      onRejectReasonChange(e.target.value)
-                                    }
-                                    placeholder="Reason for returning to purchasing (optional)"
-                                    className="h-8 text-xs"
-                                  />
-                                  <HStack gap="2">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      className="h-7 text-xs"
-                                      disabled={actingId === request.id}
-                                      onClick={() =>
-                                        onReject(request.id, request.status)
-                                      }
-                                    >
-                                      {actingId === request.id ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        "Confirm"
-                                      )}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-7 text-xs"
-                                      onClick={onCancelReject}
-                                    >
-                                      Cancel
-                                    </Button>
-                                  </HStack>
-                                </VStack>
-                              ) : (
-                                <HStack gap="2" className="flex-wrap">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 text-xs"
-                                    asChild
-                                  >
-                                    <Link href={detailHref(request.id)}>Review</Link>
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    disabled={actingId === request.id}
-                                    onClick={() => onStartReject(request.id)}
-                                  >
-                                    Reject
-                                  </Button>
-                                </HStack>
-                              )
-                            ) : (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                asChild
-                              >
-                                <Link href={detailHref(request.id)}>Review</Link>
-                              </Button>
-                            )}
+                            <GroupedInboxRequestActions
+                              request={request}
+                              canReturn={canReturn}
+                              actingId={actingId}
+                              rejectId={rejectId}
+                              rejectReason={rejectReason}
+                              detailHref={detailHref}
+                              onRejectReasonChange={onRejectReasonChange}
+                              onStartReject={onStartReject}
+                              onCancelReject={onCancelReject}
+                              onReject={onReject}
+                            />
                           </td>
                         </tr>
                       </Fragment>
@@ -272,11 +335,86 @@ export function FundRequestClientGroupedInbox({
           </table>
         </div>
 
+        <div className="space-y-4 p-4 md:hidden">
+          {groups.map((group, groupIndex) => (
+            <div
+              key={group.key}
+              className={cn(
+                "space-y-3",
+                groupIndex > 0 && "border-t-4 border-double border-emerald-700/50 pt-4"
+              )}
+            >
+              <div className="rounded-lg border-2 border-emerald-700/70 bg-emerald-50/90 px-4 py-3">
+                <p className="text-sm font-bold uppercase tracking-wide text-emerald-950">
+                  {group.clientName}
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <BodySmall className="text-emerald-800/80">
+                    {group.requests.length} payable
+                    {group.requests.length === 1 ? "" : "s"}
+                  </BodySmall>
+                  <p className="text-sm font-bold text-emerald-950">
+                    {formatPhp(group.subtotalNet)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {group.requests.map((request, index) => {
+                  const summary = summarizeFundRequestPayment(request);
+                  const requesterName = getRequesterName(request);
+
+                  return (
+                    <Card key={request.id} className="border-border/80">
+                      <CardContent className="space-y-3 p-4">
+                        <div className="min-w-0">
+                          <div className="flex items-start gap-2">
+                            <span className="shrink-0 text-sm text-muted-foreground">
+                              {index + 1}.
+                            </span>
+                            <div className="min-w-0">
+                              <Link
+                                href={detailHref(request.id)}
+                                className="group inline-flex items-start gap-1.5 font-medium uppercase leading-snug text-primary hover:underline"
+                              >
+                                <span>{summary.label}</span>
+                                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
+                              </Link>
+                              <Caption className="mt-1 block text-muted-foreground">
+                                {requesterName} · {formatFundRequestFiledAtCompact(request)}
+                              </Caption>
+                            </div>
+                          </div>
+                        </div>
+
+                        <GroupedInboxPaymentLines summary={summary} />
+
+                        <GroupedInboxRequestActions
+                          request={request}
+                          canReturn={canReturnOn(request)}
+                          actingId={actingId}
+                          rejectId={rejectId}
+                          rejectReason={rejectReason}
+                          detailHref={detailHref}
+                          onRejectReasonChange={onRejectReasonChange}
+                          onStartReject={onStartReject}
+                          onCancelReject={onCancelReject}
+                          onReject={onReject}
+                        />
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
         <div className="flex justify-end border-t bg-muted/20 px-4 py-3">
           <Button
             type="button"
             size="sm"
-            className="shrink-0"
+            className="w-full shrink-0 sm:w-auto"
             disabled={bulkApproving || rows.length === 0}
             onClick={onApproveAll}
           >

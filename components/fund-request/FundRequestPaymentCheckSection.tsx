@@ -20,8 +20,6 @@ type FundRequestPaymentCheckSectionProps = {
   documents: FundRequestDocumentSummary[];
   canUpload: boolean;
   onDocumentsChange: (documents: FundRequestDocumentSummary[]) => void;
-  selectedFile: File | null;
-  onSelectedFileChange: (file: File | null) => void;
   className?: string;
 };
 
@@ -30,18 +28,17 @@ export function FundRequestPaymentCheckSection({
   documents,
   canUpload,
   onDocumentsChange,
-  selectedFile,
-  onSelectedFileChange,
   className,
 }: FundRequestPaymentCheckSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const paymentChecks = documents.filter(isFundRequestPaymentCheckDocument);
 
   function resetInput() {
-    onSelectedFileChange(null);
+    setSelectedFile(null);
     setFileError(null);
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -79,23 +76,23 @@ export function FundRequestPaymentCheckSection({
     <div className={cn("rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4", className)}>
       <div>
         <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Payment check (audit)
+          Payment check (optional audit)
         </h4>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload a scan or photo of the issued check for this request before or after final
-          approval.
+          Optionally upload a scan or photo of the issued check for audit. Approval does not
+          require a check upload—you can add one before or after approving.
         </p>
       </div>
 
       <FundRequestSupportingDocuments
         documents={paymentChecks}
         title="Uploaded payment check"
-        emptyLabel="No payment check uploaded yet."
+        emptyLabel="No payment check uploaded."
       />
 
       {canUpload ? (
         <div className="space-y-2 border-t border-primary/10 pt-4">
-          <Label htmlFor="fund-request-payment-check">Upload payment check</Label>
+          <Label htmlFor="fund-request-payment-check">Upload payment check (optional)</Label>
           <input
             ref={inputRef}
             id="fund-request-payment-check"
@@ -105,18 +102,18 @@ export function FundRequestPaymentCheckSection({
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (!file) {
-                onSelectedFileChange(null);
+                setSelectedFile(null);
                 setFileError(null);
                 return;
               }
               const validationError = validatePaymentCheckFile(file);
               if (validationError) {
                 setFileError(validationError);
-                onSelectedFileChange(null);
+                setSelectedFile(null);
                 return;
               }
               setFileError(null);
-              onSelectedFileChange(file);
+              setSelectedFile(file);
             }}
             className={epFileInput}
           />

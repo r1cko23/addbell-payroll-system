@@ -61,11 +61,7 @@ import {
   FundRequestPaymentCheckSection,
   splitFundRequestDocuments,
 } from "@/components/fund-request/FundRequestPaymentCheckSection";
-import {
-  canUploadFundRequestPaymentCheck,
-  uploadFundRequestPaymentCheck,
-  validatePaymentCheckFile,
-} from "@/lib/fund-request-payment-check";
+import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
 import { FundRequestApprovalHistory } from "@/components/fund-request/FundRequestApprovalHistory";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundRequestBankDetailsDisplay";
@@ -114,7 +110,6 @@ export function FundRequestApprovalDetail({
   >([]);
   const [savingDetails, setSavingDetails] = useState(false);
   const [documents, setDocuments] = useState<FundRequestDocumentSummary[]>([]);
-  const [pendingPaymentCheckFile, setPendingPaymentCheckFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -324,27 +319,7 @@ export function FundRequestApprovalDetail({
     });
     if (!updates) return;
 
-    if (pendingPaymentCheckFile && canUploadPaymentCheck) {
-      const checkValidationError = validatePaymentCheckFile(pendingPaymentCheckFile);
-      if (checkValidationError) {
-        toast.error(checkValidationError);
-        return;
-      }
-      setActing(true);
-      const uploadResult = await uploadFundRequestPaymentCheck(
-        request.id,
-        pendingPaymentCheckFile
-      );
-      if (uploadResult.error || !uploadResult.document) {
-        setActing(false);
-        toast.error(uploadResult.error ?? "Unable to upload payment check");
-        return;
-      }
-      setDocuments((prev) => [...prev, uploadResult.document!]);
-      setPendingPaymentCheckFile(null);
-    } else {
-      setActing(true);
-    }
+    setActing(true);
     const { error } = await supabase
       .from("fund_requests")
       .update(updates as never)
@@ -666,8 +641,6 @@ export function FundRequestApprovalDetail({
                 documents={documents}
                 canUpload={canUploadPaymentCheck}
                 onDocumentsChange={setDocuments}
-                selectedFile={pendingPaymentCheckFile}
-                onSelectedFileChange={setPendingPaymentCheckFile}
               />
             ) : null}
             <FundRequestApprovalHistory
@@ -828,16 +801,7 @@ export function FundRequestApprovalDetail({
                     </div>
                   </div>
                 ) : isUpperManagementFinalReview ? (
-                  <div className="space-y-4">
-                    {pendingPaymentCheckFile ? (
-                      <p className="text-sm text-muted-foreground">
-                        Selected check will upload when you approve:{" "}
-                        <span className="font-medium text-foreground">
-                          {pendingPaymentCheckFile.name}
-                        </span>
-                      </p>
-                    ) : null}
-                    <div className={dbToolbarActions}>
+                  <div className={dbToolbarActions}>
                     <Button
                       disabled={acting}
                       className={dbHeaderButton}
@@ -864,7 +828,6 @@ export function FundRequestApprovalDetail({
                     >
                       Reject
                     </Button>
-                  </div>
                   </div>
                 ) : (
                   <div className={dbToolbarActions}>

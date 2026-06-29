@@ -938,7 +938,10 @@ export default function NewFundRequestPage() {
                   </h3>
                   <div className="space-y-1.5">
                     {details.map((row, i) => (
-                      <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px_2rem]">
+                      <div
+                        key={i}
+                        className="grid grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] items-center gap-2"
+                      >
                         <Input
                           placeholder={`${purposeConfig.detailPlaceholderPrefix} ${i + 1}`}
                           value={row.description}
@@ -953,6 +956,7 @@ export default function NewFundRequestPage() {
                           placeholder="0"
                           value={row.amount}
                           onChange={(e) => updateDetail(i, "amount", e.target.value)}
+                          className="min-w-0 px-2"
                         />
                         <Button
                           type="button"
@@ -991,12 +995,30 @@ export default function NewFundRequestPage() {
                   </div>
                   <div>
                     <Label htmlFor="date_needed">Date Needed</Label>
-                    <Input
-                      id="date_needed"
-                      type="date"
-                      value={dateNeeded}
-                      onChange={(e) => setDateNeeded(e.target.value)}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="date_needed"
+                        type="date"
+                        value={dateNeeded}
+                        onChange={(e) => setDateNeeded(e.target.value)}
+                        className="min-w-0 flex-1"
+                      />
+                      {dateNeeded ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
+                          aria-label="Clear date needed"
+                          onClick={() => {
+                            setDateNeeded("");
+                            setUrgentReason("");
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Specify a date only for urgent requests. Otherwise, this will follow the
                       fund release in accordance with SOP.

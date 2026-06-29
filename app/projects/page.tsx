@@ -26,7 +26,10 @@ import {
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbDialogContent, dbDialogFooter, dbHeaderActions, dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { PageSubtitle } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
@@ -191,44 +194,47 @@ export default function ProjectsPage() {
   return (
     <DashboardLayout>
       <div className={cn("min-w-0 w-full", dbPageWrapper)}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-            <PageSubtitle className="mt-1">Manage construction projects, track progress, costs, and overall status.</PageSubtitle>
-          </div>
-          {canCreateProjects && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button><Plus className="h-4 w-4 mr-2" />New Project</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DashboardPageHeader
+          title="Projects"
+          description="Manage construction projects, track progress, costs, and overall status."
+          actions={
+            canCreateProjects ? (
+              <div className={dbHeaderActions}>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className={dbHeaderButton}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      New project
+                    </Button>
+                  </DialogTrigger>
+              <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
                 <DialogHeader>
                   <DialogTitle>New Project</DialogTitle>
                   <DialogDescription>Add a new construction project.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div><Label htmlFor="code">Project Code *</Label><Input id="code" value={code} onChange={(e) => setCode(e.target.value)} required /></div>
                     <div><Label htmlFor="name">Project Name *</Label><Input id="name" value={name} onChange={(e) => setName(e.target.value)} required /></div>
                   </div>
                   <div>
                     <Label htmlFor="client">Client</Label>
                     <Select value={clientId} onValueChange={setClientId}>
-                      <SelectTrigger><SelectValue placeholder="Select client..." /></SelectTrigger>
+                      <SelectTrigger className="min-h-11 w-full sm:min-h-9"><SelectValue placeholder="Select client..." /></SelectTrigger>
                       <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div><Label>Site Address</Label><Input value={siteAddress} onChange={(e) => setSiteAddress(e.target.value)} /></div>
                     <div><Label>City</Label><Input value={city} onChange={(e) => setCity(e.target.value)} /></div>
                     <div><Label>Province</Label><Input value={province} onChange={(e) => setProvince(e.target.value)} /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div><Label>Start Date</Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
                     <div><Label>Target End</Label><Input type="date" value={targetEndDate} onChange={(e) => setTargetEndDate(e.target.value)} /></div>
                     <div><Label>Status</Label>
                       <Select value={status} onValueChange={setStatus}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="min-h-11 w-full sm:min-h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {PROJECT_STATUSES.map((value) => (
                             <SelectItem key={value} value={value}>
@@ -241,15 +247,17 @@ export default function ProjectsPage() {
                   </div>
                   <div><Label>Contract Value (PHP)</Label><Input type="number" step="0.01" value={contractValue} onChange={(e) => setContractValue(e.target.value)} /></div>
                   <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                    <Button type="submit">Create Project</Button>
+                  <DialogFooter className={dbDialogFooter}>
+                    <Button type="button" variant="outline" className={dbHeaderButton} onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                    <Button type="submit" className={dbHeaderButton}>Create project</Button>
                   </DialogFooter>
                 </form>
               </DialogContent>
             </Dialog>
-          )}
-        </div>
+              </div>
+            ) : undefined
+          }
+        />
 
         <Card>
           <CardHeader>
@@ -286,6 +294,65 @@ export default function ProjectsPage() {
                 {searchTerm || statusFilter !== "all" ? "No projects match your filters." : "No projects yet."}
               </div>
             ) : (
+              <>
+                <DbMobileBlock className="p-4 pt-0">
+                  <div className="space-y-2">
+                    {filteredProjects.map((p) => (
+                      <div
+                        key={p.id}
+                        className="rounded-lg border border-border/80 bg-card p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-mono text-xs text-muted-foreground">{p.code}</p>
+                            <Link
+                              href={`/projects/${p.id}`}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {p.name}
+                            </Link>
+                          </div>
+                          <Badge variant={getProjectStatusColor(p.status)} className="shrink-0 text-xs">
+                            {getProjectStatusLabel(p.status)}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          <DashboardMobileField label="Client" value={p.clients?.name ?? "—"} />
+                          <DashboardMobileField
+                            label="Location"
+                            value={[p.site_address, p.city].filter(Boolean).join(", ") || "—"}
+                          />
+                          <DashboardMobileField
+                            label="Contract"
+                            value={
+                              p.contract_value
+                                ? `₱${Number(p.contract_value).toLocaleString()}`
+                                : "—"
+                            }
+                          />
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Link href={`/projects/${p.id}`} className="flex-1">
+                            <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>
+                              View
+                            </Button>
+                          </Link>
+                          {canDeleteProjects ? (
+                            <Button
+                              variant="outline"
+                              className={dbHeaderButton}
+                              onClick={() => setProjectToDelete(p)}
+                              aria-label={`Delete ${p.name}`}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DbMobileBlock>
+                <DbDesktopBlock>
           <div className="w-full max-w-full overflow-x-auto">
             <table className="w-full min-w-[860px] text-left text-sm">
                   <thead className="bg-muted/50 border-b">
@@ -341,6 +408,8 @@ export default function ProjectsPage() {
                   </tbody>
                 </table>
               </div>
+                </DbDesktopBlock>
+              </>
             )}
           </CardContent>
         </Card>

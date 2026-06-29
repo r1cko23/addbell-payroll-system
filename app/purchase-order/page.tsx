@@ -7,7 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useProjectsForPO } from "@/lib/hooks/useProjects";
 import { useSuppliersForPO } from "@/lib/hooks/useVendors";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbHeaderActions, dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { PurchaseOrderPrint } from "@/components/PurchaseOrderPrint";
 import {
@@ -298,17 +301,24 @@ export default function PurchaseOrderPage() {
   // ========== LIST VIEW ==========
   const listView = (
     <div className={cn("min-w-0 w-full", dbPageWrapper)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Purchase Orders</h1>
-          <PageSubtitle className="mt-1">
-            {canCreatePurchaseOrders ? "Create, view, and manage purchase orders." : "View purchase orders."}
-          </PageSubtitle>
-        </div>
-        {canCreatePurchaseOrders ? (
-          <Button onClick={() => setView("create")}><Plus className="h-4 w-4 mr-2" />New PO</Button>
-        ) : null}
-      </div>
+      <DashboardPageHeader
+        title="Purchase orders"
+        description={
+          canCreatePurchaseOrders
+            ? "Create, view, and manage purchase orders."
+            : "View purchase orders."
+        }
+        actions={
+          canCreatePurchaseOrders ? (
+            <div className={dbHeaderActions}>
+              <Button onClick={() => setView("create")} className={dbHeaderButton}>
+                <Plus className="h-4 w-4 mr-2" />
+                New PO
+              </Button>
+            </div>
+          ) : undefined
+        }
+      />
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row gap-4">
@@ -343,6 +353,46 @@ export default function PurchaseOrderPage() {
               {searchTerm || statusFilter !== "all" ? "No POs match your filters." : "No purchase orders yet."}
             </div>
           ) : (
+            <>
+              <DbMobileBlock className="p-4 pt-0">
+                <div className="space-y-2">
+                  {filteredPOs.map((po) => (
+                    <div
+                      key={po.id}
+                      className="rounded-lg border border-border/80 bg-card p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-mono text-xs text-muted-foreground">{po.po_number}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {format(new Date(po.po_date), "MMM d, yyyy")}
+                          </p>
+                        </div>
+                        <Badge variant={STATUS_COLORS[po.status] ?? "secondary"} className="shrink-0 text-xs capitalize">
+                          {po.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        <DashboardMobileField label="Vendor" value={po.vendors?.name ?? "—"} />
+                        <DashboardMobileField
+                          label="Project"
+                          value={po.projects?.name || po.project_title || "—"}
+                        />
+                        <DashboardMobileField
+                          label="Amount"
+                          value={`₱${Number(po.total_amount).toLocaleString()}`}
+                        />
+                      </div>
+                      <Link href={`/purchase-order/${po.id}`} className="mt-3 block">
+                        <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>
+                          View
+                        </Button>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </DbMobileBlock>
+              <DbDesktopBlock>
             <div className="w-full max-w-full overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="bg-muted/50 border-b">
@@ -375,6 +425,8 @@ export default function PurchaseOrderPage() {
                 </tbody>
               </table>
             </div>
+              </DbDesktopBlock>
+            </>
           )}
         </CardContent>
       </Card>

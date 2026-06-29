@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { ArrowLeft, Clock, CheckCircle } from "lucide-react";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { PageTitle } from "@/components/ui/typography";
-import { epPageWrapper } from "@/lib/employee-portal-ui";
+import { epPageWrapper, epTouchButton } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 
 interface Project {
@@ -100,7 +101,7 @@ export default function EmployeePortalProjectClockPage() {
     return (
       <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
         <Link href="/employee-portal/project-time">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
+          <Button variant="ghost" className={epTouchButton}><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
         </Link>
         <Card><CardContent className="p-8 text-center text-muted-foreground">Employee not found. Please log in again.</CardContent></Card>
       </div>
@@ -120,7 +121,7 @@ export default function EmployeePortalProjectClockPage() {
     return (
       <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
         <Link href="/employee-portal/project-time">
-          <Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
+          <Button variant="ghost" className={epTouchButton}><ArrowLeft className="h-4 w-4 mr-2" />Back to Project Assignments</Button>
         </Link>
         <Card><CardContent className="p-8 text-center text-muted-foreground">Project not found.</CardContent></Card>
       </div>
@@ -134,7 +135,7 @@ export default function EmployeePortalProjectClockPage() {
     <div className={cn("mx-auto w-full max-w-2xl", epPageWrapper)}>
       <div>
         <Link href="/employee-portal/project-time">
-          <Button variant="ghost" size="sm" className="min-h-11 px-2 sm:min-h-9">
+          <Button variant="ghost" className={epTouchButton}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Project Assignments
           </Button>

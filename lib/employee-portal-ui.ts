@@ -108,9 +108,9 @@ export const epTouchIconButton =
 export const epPeriodNavRow =
   "mb-6 flex w-full min-w-0 max-w-full items-center justify-between gap-1 sm:gap-2";
 
-/** Compact prev/next control for period navigation (not full 44px squares) */
+/** Compact prev/next control for period navigation */
 export const epPeriodNavButton =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center p-0 sm:h-9 sm:w-auto sm:px-3";
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center p-0 sm:h-9 sm:w-auto sm:px-3";
 
 /** Category labels on request cards (leave type, subtype, OT) — plain muted text */
 export const epRequestCategoryText =

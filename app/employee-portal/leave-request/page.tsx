@@ -23,6 +23,7 @@ import {
   epNativeSelect,
   epPageWrapper,
   epSubmitRequestButton,
+  epTouchButton,
 } from "@/lib/employee-portal-ui";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import {
@@ -1011,7 +1012,6 @@ export default function LeaveRequestPage() {
                   type="submit"
                   disabled={submitting}
                   className={epSubmitRequestButton}
-                  size="sm"
                 >
                   {submitting ? (
                     <>
@@ -1051,7 +1051,7 @@ export default function LeaveRequestPage() {
                   <BodySmall className="text-destructive">{requestsFetchError}</BodySmall>
                   <Button
                     variant="outline"
-                    size="sm"
+                    className={epTouchButton}
                     onClick={() => {
                       if (employee?.id) {
                         setRequestsFetchError(null);

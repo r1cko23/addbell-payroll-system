@@ -46,15 +46,15 @@ export function EmployeePortalMobileNav({
               key={href}
               href={href}
               className={cn(
-                "flex flex-col items-center justify-center rounded-xl px-1 py-1.5 transition-all duration-200 sm:px-2",
+                "flex min-h-11 flex-col items-center justify-center rounded-xl px-1 py-2 sm:px-2",
                 isActive
                   ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+                  : "text-muted-foreground motion-safe:md:hover:bg-primary/5 motion-safe:md:hover:text-foreground"
               )}
               aria-current={isActive ? "page" : undefined}
             >
               <Icon className="h-5 w-5" weight={isActive ? "fill" : "regular"} />
-              <span className="mt-1 text-[10px] font-medium leading-tight sm:text-xs">
+              <span className="mt-1 text-xs font-medium leading-tight">
                 {label}
               </span>
             </Link>
@@ -65,16 +65,16 @@ export function EmployeePortalMobileNav({
           type="button"
           onClick={onOpenMenu}
           className={cn(
-            "flex flex-col items-center justify-center rounded-xl px-1 py-1.5 transition-all duration-200 sm:px-2",
+            "flex min-h-11 flex-col items-center justify-center rounded-xl px-1 py-2 sm:px-2",
             isMoreActive
               ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-primary/5 hover:text-foreground"
+              : "text-muted-foreground motion-safe:md:hover:bg-primary/5 motion-safe:md:hover:text-foreground"
           )}
           aria-label="Open all portal pages"
           aria-expanded={false}
         >
           <List className="h-5 w-5" weight={isMoreActive ? "bold" : "regular"} />
-          <span className="mt-1 text-[10px] font-medium leading-tight sm:text-xs">
+          <span className="mt-1 text-xs font-medium leading-tight">
             More
           </span>
         </button>

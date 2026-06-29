@@ -18,6 +18,12 @@ import {
   XCircle,
 } from "phosphor-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  epDialogContentWide,
+  epFormActions,
+  epFormActionButton,
+} from "@/lib/employee-portal-ui";
 
 interface LocationConfirmationModalProps {
   isOpen: boolean;
@@ -217,7 +223,7 @@ export function LocationConfirmationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={cn(epDialogContentWide, "sm:max-w-2xl")}>
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
             Confirm location
@@ -388,8 +394,8 @@ export function LocationConfirmationModal({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="secondary" onClick={onClose}>
+        <DialogFooter className={epFormActions}>
+          <Button variant="secondary" onClick={onClose} className={epFormActionButton}>
             Cancel
           </Button>
           <Button
@@ -400,7 +406,10 @@ export function LocationConfirmationModal({
               isLoading ||
               isConfirming
             }
-            className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className={cn(
+              epFormActionButton,
+              "bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            )}
           >
             {isConfirming ? (
               <>

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,11 +23,7 @@ import {
   approvalQueueCardHeaderRow,
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
-import { dbHeaderButton, dbToolbarActions } from "@/lib/dashboard-ui";
-import type { FundRequestRow } from "@/types/fund-request";
-import { formatFundRequestPercentage, isSubcontractorPaymentPurpose } from "@/types/fund-request";
-import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
-import { isOfficeRelatedFundRequest } from "@/types/fund-request";
+import { dbHeaderButton, dbKpiGrid, dbToolbarActions } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import {
   resolveFundRequestRequesterMap,
@@ -45,7 +40,14 @@ import {
   getActionableFundRequestStatuses,
 } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
-import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
+import type { FundRequestRow } from "@/types/fund-request";
+import {
+  FUND_REQUEST_STATUS_LABELS,
+  formatFundRequestPercentage,
+  isOfficeRelatedFundRequest,
+  isSubcontractorPaymentPurpose,
+} from "@/types/fund-request";
+import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
 import {
   getFundRequestPayeeAccountName,
@@ -111,7 +113,6 @@ export function FundRequestInbox({
 }: {
   detailHrefBase?: string;
 }) {
-  const router = useRouter();
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
   const [rows, setRows] = useState<FundRequestInboxRow[]>([]);
@@ -402,18 +403,12 @@ export function FundRequestInbox({
   const detailHref = (id: string) =>
     `${detailHrefBase}/${id}${detailHrefBase === "/fund-request" ? "?tab=inbox" : ""}`;
 
-  const openDetail = (id: string) => {
-    router.push(detailHref(id));
-  };
-
   return (
     <div className="space-y-4">
       <div
         className={cn(
-          "grid w-full items-stretch gap-2 sm:gap-4",
-          isUpperManagement
-            ? "grid-cols-1 max-w-xs"
-            : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"
+          "w-full",
+          isUpperManagement ? "grid max-w-xs grid-cols-1 gap-2 sm:gap-4" : dbKpiGrid
         )}
       >
         {isUpperManagement ? (
@@ -443,6 +438,7 @@ export function FundRequestInbox({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
+              aria-label="Search fund requests for approval"
             />
           </div>
         </CardContent>
@@ -517,16 +513,7 @@ export function FundRequestInbox({
             return (
               <Card
                 key={r.id}
-                className="h-full min-h-[220px] cursor-pointer border-muted/60 transition-shadow hover:shadow-hover"
-                role="button"
-                tabIndex={0}
-                onClick={() => openDetail(r.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openDetail(r.id);
-                  }
-                }}
+                className="h-full min-h-[220px] border-muted/60 transition-shadow hover:shadow-hover"
               >
                 <CardContent className="flex h-full flex-col gap-3 p-4">
                   <div className={approvalQueueCardHeaderRow}>
@@ -617,13 +604,18 @@ export function FundRequestInbox({
                     ) : null}
                   </div>
 
-                  {(canAct || showPurchasingDetailOnly) && (
-                    <div
-                      className={cn("mt-auto border-t pt-2", dbToolbarActions)}
-                      onClick={(e) => e.stopPropagation()}
+                  <div className={cn("mt-auto border-t pt-2", dbToolbarActions)}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className={dbHeaderButton}
+                      asChild
                     >
-                      {pendingDisposal?.id === r.id ? (
-                        <div className="w-full space-y-2">
+                      <Link href={detailHref(r.id)}>View details</Link>
+                    </Button>
+                    {(canAct || showPurchasingDetailOnly) &&
+                      (pendingDisposal?.id === r.id ? (
+                        <div className="w-full space-y-2 sm:col-span-full">
                           <Label className="text-xs">
                             {pendingDisposal.action === "return"
                               ? "Return reason (optional)"
@@ -673,53 +665,40 @@ export function FundRequestInbox({
                             </Button>
                           </div>
                         </div>
-                      ) : (
+                      ) : canAct ? (
                         <>
                           <Button
-                            variant="secondary"
+                            variant="destructive"
                             size="sm"
                             className={dbHeaderButton}
-                            asChild
+                            onClick={() => {
+                              setPendingDisposal({ id: r.id, action: "reject" });
+                              setRejectReason("");
+                            }}
                           >
-                            <Link href={detailHref(r.id)}>View details</Link>
+                            <Icon name="X" size={IconSizes.sm} />
+                            Reject
                           </Button>
-                          {canAct ? (
-                            <>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className={dbHeaderButton}
-                                onClick={() => {
-                                  setPendingDisposal({ id: r.id, action: "reject" });
-                                  setRejectReason("");
-                                }}
-                              >
-                                <Icon name="X" size={IconSizes.sm} />
-                                Reject
-                              </Button>
-                              <Button
-                                size="sm"
-                                className={dbHeaderButton}
-                                disabled={actingId === r.id}
-                                onClick={() => handleApprove(r.id, r.status)}
-                              >
-                                {actingId === r.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Icon name="Check" size={IconSizes.sm} />
-                                )}
-                                {getApproveLabel(r.status)}
-                              </Button>
-                            </>
-                          ) : showPurchasingDetailOnly ? (
-                            <Caption className="text-muted-foreground">
-                              Open to review details and approve.
-                            </Caption>
-                          ) : null}
+                          <Button
+                            size="sm"
+                            className={dbHeaderButton}
+                            disabled={actingId === r.id}
+                            onClick={() => handleApprove(r.id, r.status)}
+                          >
+                            {actingId === r.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Icon name="Check" size={IconSizes.sm} />
+                            )}
+                            {getApproveLabel(r.status)}
+                          </Button>
                         </>
-                      )}
-                    </div>
-                  )}
+                      ) : showPurchasingDetailOnly ? (
+                        <Caption className="text-muted-foreground sm:col-span-full">
+                          Open to review details and approve.
+                        </Caption>
+                      ) : null)}
+                  </div>
                 </CardContent>
               </Card>
             );

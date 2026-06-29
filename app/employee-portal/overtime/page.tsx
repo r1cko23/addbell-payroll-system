@@ -38,6 +38,7 @@ import {
 } from "@/lib/ot-claimed-range";
 import { getManilaDateKeyFromIso } from "@/utils/business-hours";
 import {
+  epFormActionButton,
   epFileInput,
   epFormField,
   epFormGrid,
@@ -769,7 +770,6 @@ export default function OvertimePage() {
                   hoursFromTimeRange <= 0
                 }
                 className={epSubmitRequestButton}
-                size="sm"
               >
                 {submitting ? (
                   <>
@@ -989,7 +989,7 @@ export default function OvertimePage() {
                               id={`replace-doc-${req.id}`}
                               type="file"
                               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                              className="flex w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs file:mr-2 file:border-0 file:bg-transparent file:text-xs"
+                              className={epFileInput}
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (!file) {
@@ -1018,7 +1018,7 @@ export default function OvertimePage() {
                             <Button
                               type="button"
                               variant="secondary"
-                              size="sm"
+                              className={epFormActionButton}
                               disabled={
                                 replaceDocLoadingId === req.id ||
                                 !replaceDocByRequestId[req.id]

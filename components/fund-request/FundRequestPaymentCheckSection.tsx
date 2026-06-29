@@ -84,15 +84,9 @@ export function FundRequestPaymentCheckSection({
 
   return (
     <div className={cn("rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4", className)}>
-      <div>
-        <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Payment check (optional audit)
-        </h4>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Optionally upload a scan or photo of the issued check for audit. Large photos are
-          compressed automatically before upload. Approval does not require a check upload.
-        </p>
-      </div>
+      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Payment check (optional audit)
+      </h4>
 
       <FundRequestSupportingDocuments
         documents={paymentChecks}

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbFilterSelect, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { dbDialogContent, dbDialogFooter, dbFilterSelect, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { cn } from "@/lib/utils";
@@ -1192,7 +1192,7 @@ export default function LoansPage() {
 
         {/* Add/Edit Loan Modal */}
         <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
             <DialogHeader>
               <DialogTitle>
                 {editingLoan ? "Edit Loan" : "Add New Loan"}
@@ -1267,7 +1267,7 @@ export default function LoansPage() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="original_balance">Original Balance *</Label>
                   <Input
@@ -1395,7 +1395,7 @@ export default function LoansPage() {
                 </Caption>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="total_terms">
                     Total Terms * (
@@ -1484,7 +1484,7 @@ export default function LoansPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="effectivity_date">Effectivity Date *</Label>
                   <Input
@@ -1536,7 +1536,7 @@ export default function LoansPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className={dbDialogFooter}>
               <Button
                 type="button"
                 variant="outline"
@@ -1614,7 +1614,7 @@ export default function LoansPage() {
 
         {/* Audit History Modal */}
         <Dialog open={showAuditModal} onOpenChange={setShowAuditModal}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={cn(dbDialogContent, "max-w-4xl")}>
             <DialogHeader>
               <DialogTitle>
                 Audit History - {selectedLoanForAudit?.employee?.full_name}
@@ -1701,7 +1701,7 @@ export default function LoansPage() {
                 </div>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className={dbDialogFooter}>
               <Button
                 type="button"
                 variant="outline"
@@ -1718,7 +1718,7 @@ export default function LoansPage() {
           open={showPaymentHistoryModal}
           onOpenChange={setShowPaymentHistoryModal}
         >
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={cn(dbDialogContent, "max-w-4xl")}>
             <DialogHeader>
               <DialogTitle>
                 Payment History - {selectedLoanForHistory?.employee?.full_name}
@@ -1769,7 +1769,7 @@ export default function LoansPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4">
+                    <div className="mt-4 border-t pt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <BodySmall className="text-muted-foreground">
                           Terms Paid
@@ -1808,6 +1808,38 @@ export default function LoansPage() {
                 ) : (
                   <div className="space-y-2">
                     <H3 className="text-lg">Payment History</H3>
+                    <DbMobileBlock>
+                      <div className="space-y-2">
+                        {paymentHistory.map((payment, index) => (
+                          <div
+                            key={payment.payslip_id || index}
+                            className={dbMobileListCard}
+                          >
+                            <DashboardMobileField
+                              label="Period"
+                              value={`${format(new Date(payment.period_start), "MMM dd")} - ${format(new Date(payment.period_end), "MMM dd, yyyy")}`}
+                            />
+                            <DashboardMobileField
+                              label="Payslip #"
+                              value={payment.payslip_number}
+                            />
+                            <DashboardMobileField
+                              label="Payment"
+                              value={formatCurrency(payment.payment_amount)}
+                            />
+                            <DashboardMobileField
+                              label="Balance"
+                              value={formatCurrency(payment.running_balance)}
+                            />
+                            <DashboardMobileField
+                              label="Date"
+                              value={format(new Date(payment.created_at), "MMM dd, yyyy")}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </DbMobileBlock>
+                    <DbDesktopBlock>
                     <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
                       <Table className="w-full min-w-[680px]">
                         <TableHeader>
@@ -1857,6 +1889,7 @@ export default function LoansPage() {
                         </TableBody>
                       </Table>
                     </div>
+                    </DbDesktopBlock>
                     <div className="flex justify-between items-center pt-2 border-t">
                       <BodySmall className="text-muted-foreground">
                         Total Payments: {paymentHistory.length}
@@ -1875,7 +1908,7 @@ export default function LoansPage() {
                 )}
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className={dbDialogFooter}>
               <Button
                 variant="outline"
                 onClick={() => setShowPaymentHistoryModal(false)}

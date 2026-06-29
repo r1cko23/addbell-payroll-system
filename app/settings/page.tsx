@@ -48,7 +48,9 @@ import {
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { PermissionsManager } from "@/components/PermissionsManager";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbDialogContent, dbDialogFooter, dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 
 interface User {
@@ -494,6 +496,80 @@ export default function SettingsPage() {
                 Add User
               </Button>
             </HStack>
+            {users.length > 0 ? (
+              <DbMobileBlock>
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div
+                      key={user.id}
+                      className="rounded-lg border border-border/80 bg-card p-3"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">{user.full_name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                        </div>
+                        <Badge variant={user.is_active ? "default" : "secondary"}>
+                          {user.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 space-y-1">
+                        <DashboardMobileField
+                          label="Role"
+                          value={formatRoleName(user.role)}
+                        />
+                        <DashboardMobileField
+                          label="Salary access"
+                          value={
+                            user.role === "admin" || user.role === "upper_management"
+                              ? "Yes (full access)"
+                              : user.can_access_salary
+                                ? "Yes"
+                                : "No"
+                          }
+                        />
+                        {user.employee_specific_assignments &&
+                        user.employee_specific_assignments.length > 0 ? (
+                          <DashboardMobileField
+                            label="OT assignments"
+                            value={`${user.employee_specific_assignments.length} employee(s)`}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        {user.is_active ? (
+                          <Button
+                            variant="outline"
+                            className={dbHeaderButton}
+                            disabled={user.id === currentUser?.id}
+                            onClick={() => setUserToDeactivate(user)}
+                          >
+                            Deactivate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className={dbHeaderButton}
+                            onClick={() => setUserToActivate(user)}
+                          >
+                            Activate
+                          </Button>
+                        )}
+                        <Button
+                          variant="destructive"
+                          className={dbHeaderButton}
+                          disabled={user.id === currentUser?.id}
+                          onClick={() => setUserToDelete(user)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </DbMobileBlock>
+            ) : null}
+            <DbDesktopBlock>
             <div className="w-full max-w-full overflow-x-auto rounded-lg border border-border/80">
               <table className="w-full min-w-[980px] divide-y divide-border/70">
                 <thead className="bg-gray-50">
@@ -798,6 +874,7 @@ export default function SettingsPage() {
                 </tbody>
               </table>
             </div>
+            </DbDesktopBlock>
           </CardSection>
         )}
 
@@ -896,7 +973,7 @@ export default function SettingsPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className={dbDialogContent}>
           <DialogHeader>
             <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
           </DialogHeader>
@@ -1066,7 +1143,7 @@ export default function SettingsPage() {
               </VStack>
 
             </VStack>
-            <DialogFooter className="mt-6">
+            <DialogFooter className={cn(dbDialogFooter, "mt-6")}>
               <Button
                 type="button"
                 variant="secondary"
@@ -1280,7 +1357,7 @@ export default function SettingsPage() {
 
       {/* OT Assignment Details Modal */}
       <Dialog open={showOTDetailsModal} onOpenChange={setShowOTDetailsModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>
               OT Assignments for {editingUser?.full_name}
@@ -1336,7 +1413,7 @@ export default function SettingsPage() {
             )}
           </VStack>
 
-          <DialogFooter>
+          <DialogFooter className={dbDialogFooter}>
             <Button variant="outline" onClick={() => setShowOTDetailsModal(false)}>
               Close
             </Button>

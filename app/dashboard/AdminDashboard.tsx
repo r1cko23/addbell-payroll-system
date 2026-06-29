@@ -17,9 +17,10 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { toTitleCase } from "@/lib/to-title-case";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
-import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
@@ -184,19 +185,19 @@ export default function AdminDashboard() {
           <div className={dbHeaderActions}>
             {showFundRequestActions ? (
               <Link href="/fund-request?tab=inbox">
-                <Button variant="outline" size="sm">
-                  Fund Requests
+                <Button variant="outline" className={dbHeaderButton}>
+                  Fund requests
                 </Button>
               </Link>
             ) : null}
             <Link href="/purchase-order">
-              <Button size="sm" variant="outline">
-                Purchase Orders
+              <Button variant="outline" className={dbHeaderButton}>
+                Purchase orders
               </Button>
             </Link>
             <Button
               variant="outline"
-              size="sm"
+              className={dbHeaderButton}
               onClick={() => fetchDashboard()}
               disabled={refreshing}
             >
@@ -214,7 +215,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Card className="border-primary/20 bg-primary/10 xl:col-span-6">
           <CardHeader className="pb-2">
-            <CardDescription>Today&apos;s operating focus.</CardDescription>
+            <CardDescription>{toTitleCase("Today's operating focus.")}</CardDescription>
             <CardTitle>
               {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0) === 0
                 ? "No Finance Approvals Pending"
@@ -224,17 +225,17 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <Link href="/fund-request?tab=inbox">
-                <Button size="sm" variant="outline" className="w-full justify-start">
+                <Button variant="outline" className={cn(dbHeaderButton, "w-full justify-start")}>
                   Fund requests ({stats?.pendingFundRequests ?? 0})
                 </Button>
               </Link>
               <Link href="/purchase-order">
-                <Button size="sm" variant="outline" className="w-full justify-start">
+                <Button variant="outline" className={cn(dbHeaderButton, "w-full justify-start")}>
                   Purchase orders ({stats?.pendingPOs ?? 0})
                 </Button>
               </Link>
               <Link href="/projects">
-                <Button size="sm" variant="outline" className="w-full justify-start">
+                <Button variant="outline" className={cn(dbHeaderButton, "w-full justify-start")}>
                   Active projects ({stats?.activeProjects ?? 0})
                 </Button>
               </Link>
@@ -243,34 +244,36 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Pending leave approvals.</CardDescription>
+            <CardDescription>{toTitleCase("Pending leave approvals.")}</CardDescription>
             <KpiValue>{pendingLeaveApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
             <Link href="/leave-approval">
-              <Button size="sm" variant="outline" className="w-full">Open Leave Queue</Button>
+              <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>Open leave queue</Button>
             </Link>
           </CardContent>
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Pending OT approvals.</CardDescription>
+            <CardDescription>{toTitleCase("Pending OT approvals.")}</CardDescription>
             <KpiValue>{pendingOvertimeApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
             <Link href="/overtime-approval">
-              <Button size="sm" variant="outline" className="w-full">Open OT Queue</Button>
+              <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>Open OT queue</Button>
             </Link>
           </CardContent>
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>Pending failure to log requests.</CardDescription>
+            <CardDescription>
+              {toTitleCase("Pending failure to log requests.")}
+            </CardDescription>
             <KpiValue>{pendingFailureToLogApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
             <Link href="/failure-to-log-approval">
-              <Button size="sm" variant="outline" className="w-full">Open FTL Queue</Button>
+              <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>Open FTL queue</Button>
             </Link>
           </CardContent>
         </Card>
@@ -280,21 +283,21 @@ export default function AdminDashboard() {
         <div className="space-y-1">
           <SectionHeading>Performance Snapshot</SectionHeading>
           <PageSubtitle>
-            Key metrics and pending actions.
+            {toTitleCase("Key metrics and pending actions.")}
           </PageSubtitle>
         </div>
-        <HStack gap="2" className="flex-wrap">
+        <HStack gap="2" className={cn(dbHeaderActions, "sm:flex-wrap")}>
           <Link href="/employees">
-            <Button variant="outline" size="sm">People</Button>
+            <Button variant="outline" className={dbHeaderButton}>People</Button>
           </Link>
           <Link href="/leave-approval">
-            <Button variant="outline" size="sm">Leave Queue</Button>
+            <Button variant="outline" className={dbHeaderButton}>Leave Queue</Button>
           </Link>
           <Link href="/overtime-approval">
-            <Button variant="outline" size="sm">OT Queue</Button>
+            <Button variant="outline" className={dbHeaderButton}>OT Queue</Button>
           </Link>
           <Link href="/failure-to-log-approval">
-            <Button variant="outline" size="sm">FTL Queue</Button>
+            <Button variant="outline" className={dbHeaderButton}>FTL Queue</Button>
           </Link>
         </HStack>
       </div>
@@ -417,7 +420,7 @@ export default function AdminDashboard() {
           </>
         )}
         <div className="flex justify-end mt-2">
-          <Link href="/projects"><Button variant="ghost" size="sm">View all projects</Button></Link>
+          <Link href="/projects"><Button variant="ghost" className={dbHeaderButton}>View all projects</Button></Link>
         </div>
       </CardSection>
 
@@ -445,7 +448,7 @@ export default function AdminDashboard() {
             </div>
           )}
           <div className="flex justify-end mt-2">
-            <Link href="/fund-request"><Button variant="ghost" size="sm">View All →</Button></Link>
+            <Link href="/fund-request"><Button variant="ghost" className={dbHeaderButton}>View All →</Button></Link>
           </div>
         </CardSection>
 
@@ -472,7 +475,7 @@ export default function AdminDashboard() {
           )}
           {canReadPurchaseOrders ? (
             <div className="flex justify-end mt-2">
-              <Link href="/purchase-order"><Button variant="ghost" size="sm">View All →</Button></Link>
+              <Link href="/purchase-order"><Button variant="ghost" className={dbHeaderButton}>View All →</Button></Link>
             </div>
           ) : null}
         </CardSection>
@@ -482,25 +485,25 @@ export default function AdminDashboard() {
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
+          <div className={cn(dbHeaderActions, "sm:flex-wrap")}>
             {canReadPayslips ? (
-              <Link href="/payroll"><Button variant="outline" size="sm"><Icon name="Receipt" size={IconSizes.sm} className="mr-2" />Run Payroll</Button></Link>
+              <Link href="/payroll"><Button variant="outline" className={dbHeaderButton}><Icon name="Receipt" size={IconSizes.sm} className="mr-2" />Run Payroll</Button></Link>
             ) : null}
             {showFundRequestActions ? (
-              <Link href="/fund-request/new"><Button variant="outline" size="sm"><Icon name="Plus" size={IconSizes.sm} className="mr-2" />New Fund Request</Button></Link>
+              <Link href="/fund-request/new"><Button variant="outline" className={dbHeaderButton}><Icon name="Plus" size={IconSizes.sm} className="mr-2" />New Fund Request</Button></Link>
             ) : null}
             {canReadPurchaseOrders ? (
               <Link href="/purchase-order">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" className={dbHeaderButton}>
                   <Icon name={canCreatePurchaseOrders ? "Plus" : "FileText"} size={IconSizes.sm} className="mr-2" />
                   {canCreatePurchaseOrders ? "New Purchase Order" : "View Purchase Orders"}
                 </Button>
               </Link>
             ) : null}
             {canReadEmployees ? (
-              <Link href="/employees"><Button variant="outline" size="sm"><Icon name="UsersThree" size={IconSizes.sm} className="mr-2" />Manage Employees</Button></Link>
+              <Link href="/employees"><Button variant="outline" className={dbHeaderButton}><Icon name="UsersThree" size={IconSizes.sm} className="mr-2" />Manage Employees</Button></Link>
             ) : null}
-            <Link href="/projects"><Button variant="outline" size="sm"><Icon name="ChartLineUp" size={IconSizes.sm} className="mr-2" />View Projects</Button></Link>
+            <Link href="/projects"><Button variant="outline" className={dbHeaderButton}><Icon name="ChartLineUp" size={IconSizes.sm} className="mr-2" />View Projects</Button></Link>
           </div>
         </CardContent>
       </Card>

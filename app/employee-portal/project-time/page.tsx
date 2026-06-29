@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Clock, MapPin } from "lucide-react";
-import { PageTitle } from "@/components/ui/typography";
-import { epCardInteractive, epPageWrapper } from "@/lib/employee-portal-ui";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { epCardInteractive, epPageWrapper, epTouchButton } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
 
 interface Assignment {
@@ -65,7 +65,7 @@ export default function EmployeePortalProjectTimePage() {
   if (!employeeId) {
     return (
       <div className={cn("w-full", epPageWrapper)}>
-        <PageTitle>Project Assignments</PageTitle>
+        <PortalPageHeader title="Project Assignments" />
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             Employee session not found. Please log in again.
@@ -77,7 +77,7 @@ export default function EmployeePortalProjectTimePage() {
 
   return (
     <div className={cn("w-full", epPageWrapper)}>
-      <PageTitle>Project Assignments</PageTitle>
+      <PortalPageHeader title="Project Assignments" />
 
       {loading ? (
         <div className="animate-pulse h-32 bg-muted rounded-lg" />
@@ -126,8 +126,7 @@ export default function EmployeePortalProjectTimePage() {
                     <Link href="/employee-portal/bundy" className="w-full md:w-auto">
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="min-h-11 w-full justify-center text-xs md:min-h-9 md:w-auto md:text-sm"
+                        className={epTouchButton}
                       >
                         <Clock className="h-4 w-4 mr-2" />
                         Open Time Clock

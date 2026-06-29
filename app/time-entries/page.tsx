@@ -14,7 +14,7 @@ import {
 import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall, Caption, KpiValue, PageSubtitle } from "@/components/ui/typography";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
-import { dbHeaderActions, dbPageWrapper } from "@/lib/dashboard-ui";
+import { dbDialogContent, dbDialogFooter, dbHeaderActions, dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
@@ -1956,7 +1956,7 @@ export default function TimeEntriesPage() {
             }
           }}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className={dbDialogContent}>
             {selectedEntry && (
               <>
                 <DialogHeader>
@@ -2288,7 +2288,7 @@ export default function TimeEntriesPage() {
             }
           }}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className={dbDialogContent}>
             <DialogHeader>
               <DialogTitle>Add New Time Entry</DialogTitle>
               <DialogDescription>
@@ -2431,7 +2431,7 @@ export default function TimeEntriesPage() {
             }
           }}
         >
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={cn(dbDialogContent, "max-w-4xl")}>
             <DialogHeader>
               <DialogTitle>Bulk Add Time Entries</DialogTitle>
               <DialogDescription>

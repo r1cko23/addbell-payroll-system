@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -966,6 +968,45 @@ export default function EmployeeDetailPage() {
                 <CardTitle>Project Assignments</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
+                <DbMobileBlock className="p-4">
+                  {assignments.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-6 text-sm">
+                      No project assignments
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {assignments.map((a) => (
+                        <div
+                          key={a.id}
+                          className="rounded-lg border border-border/80 bg-card p-3"
+                        >
+                          {a.projects ? (
+                            <Link
+                              href={`/projects/${a.projects.code}`}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {a.projects.code} — {a.projects.name}
+                            </Link>
+                          ) : (
+                            <p className="text-sm font-medium">—</p>
+                          )}
+                          <div className="mt-2 space-y-1">
+                            <DashboardMobileField label="Role" value={a.role || "—"} />
+                            <DashboardMobileField
+                              label="Start"
+                              value={format(new Date(a.start_date), "MMM d, yyyy")}
+                            />
+                            <DashboardMobileField
+                              label="Status"
+                              value={a.is_active ? "Active" : "Inactive"}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </DbMobileBlock>
+                <DbDesktopBlock>
                 <div className="w-full max-w-full overflow-x-auto">
                 <Table className="w-full min-w-[640px]">
                   <TableHeader>
@@ -1011,6 +1052,7 @@ export default function EmployeeDetailPage() {
                   </TableBody>
                 </Table>
                 </div>
+                </DbDesktopBlock>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1210,6 +1252,48 @@ export default function EmployeeDetailPage() {
                 <CardTitle>Recent Attendance (last 30 records)</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
+                <DbMobileBlock className="p-4">
+                  {attendance.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-6 text-sm">
+                      No attendance records
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {attendance.map((a) => (
+                        <div
+                          key={a.id}
+                          className="rounded-lg border border-border/80 bg-card p-3"
+                        >
+                          <p className="text-sm font-semibold">
+                            {format(new Date(a.work_date), "MMM d, yyyy")}
+                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                            <span className="text-muted-foreground">Regular</span>
+                            <span className="text-right tabular-nums font-medium">
+                              {a.regular_hours != null ? Number(a.regular_hours).toFixed(2) : "—"}
+                            </span>
+                            <span className="text-muted-foreground">OT</span>
+                            <span className="text-right tabular-nums font-medium">
+                              {a.overtime_hours != null ? Number(a.overtime_hours).toFixed(2) : "—"}
+                            </span>
+                            <span className="text-muted-foreground">Night diff</span>
+                            <span className="text-right tabular-nums font-medium">
+                              {a.night_diff_hours != null ? Number(a.night_diff_hours).toFixed(2) : "—"}
+                            </span>
+                            <span className="text-muted-foreground">Total</span>
+                            <span className="text-right tabular-nums font-semibold">
+                              {a.total_hours != null ? Number(a.total_hours).toFixed(2) : "—"}
+                            </span>
+                          </div>
+                          <Badge variant="outline" className="mt-2 capitalize text-xs">
+                            {a.status || "—"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </DbMobileBlock>
+                <DbDesktopBlock>
                 <div className="w-full max-w-full overflow-x-auto">
                 <Table className="w-full min-w-[640px]">
                   <TableHeader>
@@ -1258,6 +1342,7 @@ export default function EmployeeDetailPage() {
                   </TableBody>
                 </Table>
                 </div>
+                </DbDesktopBlock>
               </CardContent>
             </Card>
           </TabsContent>

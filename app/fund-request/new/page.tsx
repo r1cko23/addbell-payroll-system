@@ -748,8 +748,8 @@ export default function NewFundRequestPage() {
           <CardTitle>{isEditMode ? "Edit Fund Request" : "New Fund Request"}</CardTitle>
           {!isEditMode ? (
             <div>
-              <p className="text-sm text-muted-foreground whitespace-nowrap overflow-x-auto">
-                <span className="font-medium text-foreground">Approval Stream:</span>{" "}
+              <p className="text-pretty text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">Approval stream:</span>{" "}
                 {FUND_REQUEST_APPROVAL_STREAM}
               </p>
             </div>
@@ -940,7 +940,7 @@ export default function NewFundRequestPage() {
                     {details.map((row, i) => (
                       <div
                         key={i}
-                        className="grid grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] items-center gap-2"
+                        className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] sm:items-center"
                       >
                         <Input
                           placeholder={`${purposeConfig.detailPlaceholderPrefix} ${i + 1}`}
@@ -949,26 +949,28 @@ export default function NewFundRequestPage() {
                           className="min-w-0"
                           required
                         />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0"
-                          value={row.amount}
-                          onChange={(e) => updateDetail(i, "amount", e.target.value)}
-                          className="min-w-0 px-2"
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeDetailRow(i)}
-                          disabled={details.length <= 1}
-                          className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
-                          aria-label={`Remove item ${i + 1}`}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2 sm:contents">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0"
+                            value={row.amount}
+                            onChange={(e) => updateDetail(i, "amount", e.target.value)}
+                            className="min-w-0 flex-1 px-2 sm:flex-none"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeDetailRow(i)}
+                            disabled={details.length <= 1}
+                            className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10"
+                            aria-label={`Remove item ${i + 1}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

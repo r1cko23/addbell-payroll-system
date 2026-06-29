@@ -9,6 +9,8 @@ import {
   EpDesktopBlock,
   EpMobileBlock,
 } from "@/components/employee-portal/EmployeePortalViewport";
+import { epTouchIconButton } from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 
 type EmployeePortalHeaderProps = {
   displayName: string;
@@ -37,7 +39,7 @@ export function EmployeePortalHeader({
   const initials = profileInitials(displayName);
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-border/80 bg-background/90 shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-border/80 bg-background/90 pt-[max(0px,env(safe-area-inset-top,0px))] shadow-sm backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
       {/* Mobile: compact single row */}
       <EpMobileBlock className="px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -47,7 +49,7 @@ export function EmployeePortalHeader({
               variant="ghost"
               size="sm"
               onClick={onOpenMenu}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl px-0"
+              className={cn(epTouchIconButton, "rounded-xl")}
               aria-label="Open menu"
             >
               <List className="h-5 w-5" weight="bold" />
@@ -78,7 +80,7 @@ export function EmployeePortalHeader({
               variant="secondary"
               size="sm"
               onClick={onLogout}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-xl px-0"
+              className={cn(epTouchIconButton, "rounded-xl md:hidden")}
               aria-label="Log out"
             >
               <SignOut className="h-4 w-4 shrink-0" weight="bold" />

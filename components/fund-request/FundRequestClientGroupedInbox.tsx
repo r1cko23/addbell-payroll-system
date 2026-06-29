@@ -239,7 +239,7 @@ export function FundRequestClientGroupedInbox({
       </div>
 
       <CardContent className="p-0">
-        <div className="hidden overflow-x-auto md:block">
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full min-w-[640px] border-collapse text-xs sm:text-sm">
             <tbody>
               {groups.map((group, groupIndex) => (
@@ -288,7 +288,7 @@ export function FundRequestClientGroupedInbox({
                               className="group inline-flex items-start gap-1.5 font-medium uppercase leading-snug text-primary hover:underline"
                             >
                               <span>{summary.label}</span>
-                              <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60" />
+                              <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-50 motion-safe:md:group-hover:opacity-80" />
                             </Link>
                             <Caption className="mt-0.5 block text-muted-foreground">
                               {requesterName} · {formatFundRequestFiledAtCompact(request)}
@@ -374,7 +374,7 @@ export function FundRequestClientGroupedInbox({
           </table>
         </div>
 
-        <div className="space-y-4 p-4 md:hidden">
+        <div className="space-y-4 p-4 lg:hidden">
           {groups.map((group, groupIndex) => (
             <div
               key={group.key}

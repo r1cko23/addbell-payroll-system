@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -239,19 +244,20 @@ export default function ProjectProfitabilityDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h2 className="text-xl font-bold">{project?.project_name || "Project"}</h2>
-            <p className="text-sm text-muted-foreground">
-              {project?.project_code || "No code"} • {project?.project_status || "N/A"}
-              {start && end ? ` • Period ${start} to ${end}` : ""}
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => router.push("/project-profitability")}>
-            Back to Report
-          </Button>
-        </div>
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title={project?.project_name || "Project"}
+          description={`${project?.project_code || "No code"} · ${project?.project_status || "N/A"}${start && end ? ` · Period ${start} to ${end}` : ""}`}
+          actions={
+            <Button
+              variant="outline"
+              className={dbHeaderButton}
+              onClick={() => router.push("/project-profitability")}
+            >
+              Back to report
+            </Button>
+          }
+        />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
           <Card>
@@ -328,15 +334,45 @@ export default function ProjectProfitabilityDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="ml-auto flex items-end gap-2">
-                <Button variant="outline" size="sm" onClick={exportDetailPDF}>
+              <div className="ml-auto flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+                <Button variant="outline" className={dbHeaderButton} onClick={exportDetailPDF}>
                   Export PDF
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportDetailCSV}>
+                <Button variant="outline" className={dbHeaderButton} onClick={exportDetailCSV}>
                   Export CSV
                 </Button>
               </div>
             </div>
+            {filteredRows.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                No cost entries found for the selected filters.
+              </p>
+            ) : (
+              <>
+                <DbMobileBlock className="p-4">
+                  <div className="space-y-2">
+                    {filteredRows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="rounded-lg border border-border/80 bg-card p-3"
+                      >
+                        <p className="text-sm font-medium">{row.ledger_date}</p>
+                        <div className="mt-2 space-y-1">
+                          <DashboardMobileField label="Source" value={row.source_type} />
+                          <DashboardMobileField label="Status" value={row.status} />
+                          <DashboardMobileField
+                            label="Amount"
+                            value={formatCurrency(row.amount || 0)}
+                          />
+                          {row.notes ? (
+                            <DashboardMobileField label="Notes" value={row.notes} />
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DbMobileBlock>
+                <DbDesktopBlock>
             <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[760px]">
                 <TableHeader>
@@ -371,6 +407,9 @@ export default function ProjectProfitabilityDetailPage() {
                 </TableBody>
               </Table>
             </div>
+                </DbDesktopBlock>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -379,6 +418,43 @@ export default function ProjectProfitabilityDetailPage() {
             <CardTitle className="text-sm">Monthly Cost Trend</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
+            {monthlyTrend.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                No monthly trend data for selected filters.
+              </p>
+            ) : (
+              <>
+                <DbMobileBlock className="p-4">
+                  <div className="space-y-2">
+                    {monthlyTrend.map((row) => (
+                      <div
+                        key={row.month}
+                        className="rounded-lg border border-border/80 bg-card p-3"
+                      >
+                        <p className="text-sm font-medium">{row.month}</p>
+                        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                          <span className="text-muted-foreground">Manpower</span>
+                          <span className="text-right tabular-nums font-medium">
+                            {formatCurrency(row.manpower || 0)}
+                          </span>
+                          <span className="text-muted-foreground">Material</span>
+                          <span className="text-right tabular-nums font-medium">
+                            {formatCurrency(row.material || 0)}
+                          </span>
+                          <span className="text-muted-foreground">Other</span>
+                          <span className="text-right tabular-nums font-medium">
+                            {formatCurrency(row.other || 0)}
+                          </span>
+                          <span className="text-muted-foreground">Total</span>
+                          <span className="text-right tabular-nums font-semibold">
+                            {formatCurrency(row.total || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DbMobileBlock>
+                <DbDesktopBlock>
             <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[640px]">
                 <TableHeader>
@@ -411,6 +487,9 @@ export default function ProjectProfitabilityDetailPage() {
                 </TableBody>
               </Table>
             </div>
+                </DbDesktopBlock>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

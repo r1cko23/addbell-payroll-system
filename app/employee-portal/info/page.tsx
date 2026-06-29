@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { CardSection } from "@/components/ui/card-section";
 import { Card, CardContent } from "@/components/ui/card";
-import { PageTitle, H2, BodySmall, Caption } from "@/components/ui/typography";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { H2, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
@@ -176,7 +177,10 @@ export default function EmployeeInfoPage() {
 
   return (
     <div className={cn("w-full", epPageWrapper)}>
-      <PageTitle>My Information</PageTitle>
+      <PortalPageHeader
+        title="My Information"
+        description="Your profile and government IDs on file."
+      />
       <CardSection>
         {errorMessage && (
           <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">

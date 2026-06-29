@@ -19,9 +19,10 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Plus } from 'lucide-react';
-import { H1, PageTitle, PageSubtitle } from '@/components/ui/typography';
+import { PageTitle } from '@/components/ui/typography';
 import { epPageHeaderRow, epPageWrapper } from '@/lib/employee-portal-ui';
-import { dbPageWrapper } from '@/lib/dashboard-ui';
+import { dbHeaderActions, dbHeaderButton, dbPageWrapper } from '@/lib/dashboard-ui';
+import { DashboardPageHeader } from '@/components/dashboard/DashboardPageHeader';
 import { cn } from '@/lib/utils';
 import type { FundRequestRow } from '@/types/fund-request';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
@@ -200,6 +201,7 @@ function FundRequestListPageContent() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-9"
+          aria-label="Search fund requests"
         />
       </div>
       <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -218,57 +220,70 @@ function FundRequestListPageContent() {
     </div>
   );
 
+  const fundRequestSubtitle = isApprover
+    ? showMyRequestsTab
+      ? 'Review requests pending your approval or view your submitted requests.'
+      : isUpperManagement
+        ? 'Review pending requests for final approval, or open History to see approved and returned requests by cutoff.'
+        : isPurchasingOfficer
+          ? 'Review pending requests, browse all statuses, or open History for approved and rejected requests by cutoff.'
+          : 'Review requests pending your approval.'
+    : 'Materials, subcontractor, project funds, or liquidation.';
+
+  const newRequestButton = canCreate ? (
+    <Button asChild className={isPortal ? 'min-h-11 w-full sm:min-h-9 sm:w-auto' : cn(dbHeaderButton)}>
+      <Link href={`${base}/new`}>
+        <Plus className="h-4 w-4 mr-2" />
+        New Request
+      </Link>
+    </Button>
+  ) : null;
+
   const content = (
     <div className={cn('w-full', isPortal ? epPageWrapper : dbPageWrapper)}>
-      <div className={isPortal ? epPageHeaderRow : 'flex items-center justify-between gap-4'}>
-        <div className="min-w-0">
-          {isPortal ? (
-            <PageTitle>Fund Requests</PageTitle>
-          ) : (
-            <>
-              <H1>Fund Requests</H1>
-              <PageSubtitle className="mt-1">
-                {isApprover
-                  ? showMyRequestsTab
-                    ? 'Review requests pending your approval or view your submitted requests.'
-                    : isUpperManagement
-                      ? 'Review pending requests for final approval, or open History to see approved and returned requests by cutoff.'
-                      : isPurchasingOfficer
-                        ? 'Review pending requests, browse all statuses, or open History for approved and rejected requests by cutoff.'
-                        : 'Review requests pending your approval.'
-                  : 'Materials, subcontractor, project funds, or liquidation.'}
-              </PageSubtitle>
-            </>
-          )}
+      {isPortal ? (
+        <div className={epPageHeaderRow}>
+          <PageTitle>Fund Requests</PageTitle>
+          {newRequestButton}
         </div>
-        {canCreate && (
-          <Button asChild className={isPortal ? 'min-h-11 w-full sm:min-h-9 sm:w-auto' : undefined}>
-            <Link href={`${base}/new`}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Request
-            </Link>
-          </Button>
-        )}
-      </div>
+      ) : (
+        <DashboardPageHeader
+          title="Fund Requests"
+          description={fundRequestSubtitle}
+          actions={
+            newRequestButton ? (
+              <div className={dbHeaderActions}>{newRequestButton}</div>
+            ) : undefined
+          }
+        />
+      )}
 
       {isApprover ? (
         showMyRequestsTab ? (
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="h-auto w-full justify-start overflow-x-auto">
-            <TabsTrigger value="inbox">For Approval</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col gap-4">
+          <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsTrigger value="inbox" className="min-h-10 shrink-0 px-3">
+              For Approval
+            </TabsTrigger>
             {showHistoryTab ? (
-              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="history" className="min-h-10 shrink-0 px-3">
+                History
+              </TabsTrigger>
             ) : null}
             {showAllRequestsTab ? (
-              <TabsTrigger value="all-requests">All Requests</TabsTrigger>
+              <TabsTrigger value="all-requests" className="min-h-10 shrink-0 px-3">
+                All Requests
+              </TabsTrigger>
             ) : null}
-            <TabsTrigger value="my-requests">My Requests</TabsTrigger>
+            <TabsTrigger value="my-requests" className="min-h-10 shrink-0 px-3">
+              My Requests
+            </TabsTrigger>
           </TabsList>
-          <TabsContent value="inbox" className="mt-4">
+          <TabsContent value="inbox" className="mt-0">
             <FundRequestInbox />
           </TabsContent>
           {showHistoryTab ? (
-            <TabsContent value="history" className="mt-4">
+            <TabsContent value="history" className="mt-0">
               <FundRequestCutoffHistory
                 detailHrefBase={base}
                 role={isPurchasingOfficer ? 'purchasing_officer' : 'upper_management'}
@@ -276,7 +291,7 @@ function FundRequestListPageContent() {
             </TabsContent>
           ) : null}
           {showAllRequestsTab ? (
-            <TabsContent value="all-requests" className="mt-4">
+            <TabsContent value="all-requests" className="mt-0">
               <Card className="border-border/80 bg-card/95">
                 {allRequestsFilters}
                 <CardContent className="p-0">
@@ -295,7 +310,7 @@ function FundRequestListPageContent() {
               </Card>
             </TabsContent>
           ) : null}
-          <TabsContent value="my-requests" className="mt-4">
+          <TabsContent value="my-requests" className="mt-0">
             <FundRequestMyRequests
               detailHrefBase={base}
               requesterEmployeeId={employeeId}
@@ -303,22 +318,24 @@ function FundRequestListPageContent() {
           </TabsContent>
         </Tabs>
         ) : showHistoryTab ? (
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-            <TabsList className="h-auto w-full justify-start overflow-x-auto">
-              <TabsTrigger value="inbox">For Approval</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col gap-4">
+            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <TabsTrigger value="inbox" className="min-h-10 shrink-0 px-3">
+                For Approval
+              </TabsTrigger>
+              <TabsTrigger value="history" className="min-h-10 shrink-0 px-3">
+                History
+              </TabsTrigger>
             </TabsList>
-            <TabsContent value="inbox" className="mt-4">
+            <TabsContent value="inbox" className="mt-0">
               <FundRequestInbox />
             </TabsContent>
-            <TabsContent value="history" className="mt-4">
+            <TabsContent value="history" className="mt-0">
               <FundRequestCutoffHistory detailHrefBase={base} role="upper_management" />
             </TabsContent>
           </Tabs>
         ) : (
-          <div className="mt-4">
-            <FundRequestInbox />
-          </div>
+          <FundRequestInbox />
         )
       ) : (
         <FundRequestMyRequests detailHrefBase={base} requesterEmployeeId={employeeId} />

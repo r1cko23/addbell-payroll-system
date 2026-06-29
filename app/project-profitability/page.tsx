@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbHeaderActions, dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useRouter } from "next/navigation";
@@ -228,39 +233,42 @@ export default function ProjectProfitabilityPage() {
 
   return (
     <DashboardLayout>
-      <div className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h2 className="text-xl font-bold">Project Profitability</h2>
-          <div className="flex w-full flex-wrap items-end justify-end gap-2 sm:w-auto">
-            <div>
-              <Label className="mb-1 text-xs">Cutoff Start</Label>
-              <Input
-                type="date"
-                value={cutoffStart}
-                onChange={(e) => setCutoffStart(e.target.value)}
-                className="h-9 w-full sm:w-[160px]"
-              />
+      <div className={cn("min-w-0 w-full", dbPageWrapper)}>
+        <DashboardPageHeader
+          title="Project profitability"
+          description={`Period ${cutoffStart} to ${cutoffEnd}.`}
+          actions={
+            <div className={cn(dbHeaderActions, "items-end")}>
+              <div>
+                <Label className="mb-1 text-xs">Cutoff start</Label>
+                <Input
+                  type="date"
+                  value={cutoffStart}
+                  onChange={(e) => setCutoffStart(e.target.value)}
+                  className="h-10 w-full sm:h-9 sm:w-[160px]"
+                />
+              </div>
+              <div>
+                <Label className="mb-1 text-xs">Cutoff end</Label>
+                <Input
+                  type="date"
+                  value={cutoffEnd}
+                  onChange={(e) => setCutoffEnd(e.target.value)}
+                  className="h-10 w-full sm:h-9 sm:w-[160px]"
+                />
+              </div>
+              <Button onClick={loadData} disabled={refreshing} className={dbHeaderButton}>
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </Button>
+              <Button onClick={exportToPDF} variant="outline" className={dbHeaderButton}>
+                Export PDF
+              </Button>
+              <Button onClick={exportToCSV} variant="outline" className={dbHeaderButton}>
+                Export CSV
+              </Button>
             </div>
-            <div>
-              <Label className="mb-1 text-xs">Cutoff End</Label>
-              <Input
-                type="date"
-                value={cutoffEnd}
-                onChange={(e) => setCutoffEnd(e.target.value)}
-                className="h-9 w-full sm:w-[160px]"
-              />
-            </div>
-            <Button onClick={loadData} disabled={refreshing} size="sm">
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </Button>
-            <Button onClick={exportToPDF} variant="outline" size="sm">
-              Export PDF
-            </Button>
-            <Button onClick={exportToCSV} variant="outline" size="sm">
-              Export CSV
-            </Button>
-          </div>
-        </div>
+          }
+        />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Card>
@@ -291,6 +299,53 @@ export default function ProjectProfitabilityPage() {
 
         <Card>
           <CardContent className="p-0">
+            {rows.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No projects found for this period.
+              </p>
+            ) : (
+              <>
+                <DbMobileBlock className="p-4 pt-0">
+                  <div className="space-y-2">
+                    {rows.map((row) => (
+                      <div
+                        key={row.project_id}
+                        className="rounded-lg border border-border/80 bg-card p-3"
+                      >
+                        <p className="text-sm font-medium">{row.project_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {row.project_code || "No code"} · {row.client_name || "—"}
+                        </p>
+                        <div className="mt-2 space-y-1">
+                          <DashboardMobileField
+                            label="Period total"
+                            value={formatCurrency(row.period_total_cost || 0)}
+                          />
+                          <DashboardMobileField
+                            label="Period margin"
+                            value={`${Number(row.period_margin_pct || 0).toFixed(2)}%`}
+                          />
+                          <DashboardMobileField
+                            label="Contract"
+                            value={formatCurrency(row.contract_amount || 0)}
+                          />
+                        </div>
+                        <Button
+                          variant="outline"
+                          className={cn(dbHeaderButton, "mt-3 w-full")}
+                          onClick={() =>
+                            router.push(
+                              `/project-profitability/${row.project_id}?start=${cutoffStart}&end=${cutoffEnd}`
+                            )
+                          }
+                        >
+                          View details
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </DbMobileBlock>
+                <DbDesktopBlock>
             <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[1060px]">
                 <TableHeader>
@@ -354,6 +409,9 @@ export default function ProjectProfitabilityPage() {
                 </TableBody>
               </Table>
             </div>
+                </DbDesktopBlock>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

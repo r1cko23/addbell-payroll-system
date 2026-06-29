@@ -33,7 +33,7 @@ import {
 import { CardSection } from "@/components/ui/card-section";
 import { H3, BodySmall, Caption } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
+import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow, dbHeaderButton, dbToolbarActions, dbDialogContent, dbDialogFooter } from "@/lib/dashboard-ui";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { toast } from "sonner";
@@ -1101,6 +1101,7 @@ export default function FailureToLogApprovalPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
+                    aria-label="Filter by status"
                     className="flex h-10 w-full sm:w-[160px] lg:w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <option value="all">All Status</option>
@@ -1158,15 +1159,6 @@ export default function FailureToLogApprovalPage() {
               <Card
                 key={request.id}
                 className="border-muted/60 transition-shadow hover:shadow-hover h-full min-h-[220px]"
-                role="button"
-                tabIndex={0}
-                onClick={() => openRequestModal(request)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openRequestModal(request);
-                  }
-                }}
               >
                 <CardContent className="p-4 flex flex-col gap-3 h-full">
                   <div className={approvalQueueCardHeaderRow}>
@@ -1258,48 +1250,41 @@ export default function FailureToLogApprovalPage() {
                         names={approverNames}
                       />
                   </div>
-                  {canActOnFailureToLog && canCurrentUserActOnRequest(request) && (
-                    <HStack
-                      gap="2"
-                      align="center"
-                      className="flex-wrap mt-auto pt-2 border-t"
+                  <div className={cn(dbToolbarActions, "mt-auto pt-2 border-t")}>
+                    <Button
+                      variant="secondary"
+                      className={dbHeaderButton}
+                      onClick={() => openRequestModal(request)}
                     >
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRequestModal(request);
-                        }}
-                      >
-                        View details
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRejectionReason("");
-                          openRequestModal(request);
-                        }}
-                      >
-                        <Icon name="X" size={IconSizes.sm} />
-                        Reject
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRequestModal(request);
-                          handleApprove(request.id);
-                        }}
-                        disabled={approveLoading}
-                      >
-                        <Icon name="Check" size={IconSizes.sm} />
-                        {approveLoading ? "Processing..." : "Approve"}
-                      </Button>
-                    </HStack>
-                  )}
+                      View details
+                    </Button>
+                    {canActOnFailureToLog && canCurrentUserActOnRequest(request) && (
+                      <>
+                        <Button
+                          variant="destructive"
+                          className={dbHeaderButton}
+                          onClick={() => {
+                            setRejectionReason("");
+                            openRequestModal(request);
+                          }}
+                        >
+                          <Icon name="X" size={IconSizes.sm} />
+                          Reject
+                        </Button>
+                        <Button
+                          className={dbHeaderButton}
+                          onClick={() => {
+                            openRequestModal(request);
+                            handleApprove(request.id);
+                          }}
+                          disabled={approveLoading}
+                        >
+                          <Icon name="Check" size={IconSizes.sm} />
+                          {approveLoading ? "Processing..." : "Approve"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -1312,7 +1297,7 @@ export default function FailureToLogApprovalPage() {
             if (!open) closeRequestModal();
           }}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className={dbDialogContent}>
             <DialogHeader>
               <DialogTitle>Failure-to-log details</DialogTitle>
             </DialogHeader>
@@ -1458,14 +1443,15 @@ export default function FailureToLogApprovalPage() {
                 )}
               </div>
             )}
-            <DialogFooter className="flex flex-wrap justify-between gap-2">
-              <Button variant="secondary" onClick={closeRequestModal}>
+            <DialogFooter className={dbDialogFooter}>
+              <Button variant="secondary" className={dbHeaderButton} onClick={closeRequestModal}>
                 Close
               </Button>
               {selectedRequest && canActOnFailureToLog && canCurrentUserActOnRequest(selectedRequest) && (
-                <div className="flex gap-2">
+                <>
                   <Button
                     variant="destructive"
+                    className={dbHeaderButton}
                     onClick={() => {
                       if (!selectedRequest) return;
                       handleReject(selectedRequest.id);
@@ -1475,6 +1461,7 @@ export default function FailureToLogApprovalPage() {
                     Reject
                   </Button>
                   <Button
+                    className={dbHeaderButton}
                     onClick={() => {
                       if (!selectedRequest) return;
                       handleApprove(selectedRequest.id);
@@ -1484,7 +1471,7 @@ export default function FailureToLogApprovalPage() {
                     <Icon name="Check" size={IconSizes.sm} />
                     {approveLoading ? "Processing..." : "Approve"}
                   </Button>
-                </div>
+                </>
               )}
             </DialogFooter>
           </DialogContent>

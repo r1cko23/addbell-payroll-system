@@ -39,7 +39,8 @@ import { CardSection } from "@/components/ui/card-section";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
-import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbDialogContent, dbDialogFooter, dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -1037,17 +1038,20 @@ export default function PayrollPage() {
   return (
     <DashboardLayout>
       <div className={cn("mx-auto w-full max-w-6xl", dbPageWrapper)}>
-        <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row">
-          <H1>Payroll</H1>
-          {(isManagement || isHR) && (
-            <div className={dbHeaderActions}>
-              <Button onClick={openNewRunDialog} className="col-span-2 sm:col-span-1">
-                <Icon name="Plus" size={IconSizes.sm} />
-                New Payroll Run
-              </Button>
-            </div>
-          )}
-        </HStack>
+        <DashboardPageHeader
+          title="Payroll"
+          description="Create and review payroll runs."
+          actions={
+            (isManagement || isHR) ? (
+              <div className={dbHeaderActions}>
+                <Button onClick={openNewRunDialog} className={dbHeaderButton}>
+                  <Icon name="Plus" size={IconSizes.sm} />
+                  New payroll run
+                </Button>
+              </div>
+            ) : undefined
+          }
+        />
 
         <CardSection title="Payroll runs" description="Most recent first.">
           {loading ? (
@@ -1174,7 +1178,7 @@ export default function PayrollPage() {
           }
         }}
       >
-        <DialogContent className="max-w-xl sm:max-w-2xl max-h-[min(90vh,800px)] overflow-y-auto">
+        <DialogContent className={cn(dbDialogContent, "max-w-xl sm:max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>New Payroll Run</DialogTitle>
             <DialogDescription>
@@ -1403,7 +1407,7 @@ export default function PayrollPage() {
                 </BodySmall>
               )}
             </div>
-            <DialogFooter>
+            <DialogFooter className={dbDialogFooter}>
               <Button type="button" variant="outline" onClick={() => setShowNewRunDialog(false)}>Cancel</Button>
               <Button type="submit" disabled={creating}>{creating ? "Creating..." : "Create Run"}</Button>
             </DialogFooter>

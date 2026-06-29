@@ -5,6 +5,7 @@ import { format, parse, addDays } from "date-fns";
 import { Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MetricCard } from "@/components/ui/metric-card";
+import { epPeriodNavButton } from "@/lib/employee-portal-ui";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import type { FundRequestRow } from "@/types/fund-request";
 import {
@@ -168,7 +169,7 @@ export function FundRequestMyRequests({
               type="button"
               variant="secondary"
               size="sm"
-              className="h-9 w-9 shrink-0 p-0"
+              className={epPeriodNavButton}
               disabled={!canGoToOlderCutoff || loading}
               onClick={() =>
                 setSelectedCutoffIndex((index) =>
@@ -186,7 +187,7 @@ export function FundRequestMyRequests({
               type="button"
               variant="secondary"
               size="sm"
-              className="h-9 w-9 shrink-0 p-0"
+              className={epPeriodNavButton}
               disabled={!canGoToNewerCutoff || loading}
               onClick={() => setSelectedCutoffIndex((index) => Math.max(index - 1, 0))}
               aria-label="Next cutoff"
@@ -228,10 +229,11 @@ export function FundRequestMyRequests({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
+              aria-label="Search my fund requests"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-[220px]">
+            <SelectTrigger className="min-h-11 w-full sm:min-h-9 sm:w-[220px]">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
             <SelectContent>

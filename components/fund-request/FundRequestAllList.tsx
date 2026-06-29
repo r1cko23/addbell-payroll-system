@@ -17,6 +17,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { epFormActions, epModalPanel } from "@/lib/employee-portal-ui";
+import { dbDialogFooter } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import type { FundRequestRow } from "@/types/fund-request";
 import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
@@ -181,7 +183,7 @@ export function FundRequestAllList({
                       <button
                         type="button"
                         onClick={() => setDeleteId(r.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                        className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
                         aria-label="Delete request"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -244,7 +246,7 @@ export function FundRequestAllList({
                     <button
                       type="button"
                       onClick={() => setDeleteId(r.id)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                      className="inline-flex h-10 w-10 min-h-10 min-w-10 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
                       aria-label="Delete request"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -258,19 +260,21 @@ export function FundRequestAllList({
       </div>
 
       <AlertDialog open={Boolean(deleteId)} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
+        <AlertDialogContent className={cn(epModalPanel, "max-w-sm border bg-background p-0 sm:p-0")}>
+          <AlertDialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6">
             <AlertDialogTitle>Delete fund request?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently remove the request. You can only delete requests that have
               not yet been approved by Upper Management.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className={cn(epFormActions, dbDialogFooter, "px-4 pb-4 sm:px-6 sm:pb-6")}>
+            <AlertDialogCancel disabled={deleting} className="min-h-11 w-full sm:min-h-9 sm:w-auto">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="min-h-11 w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:min-h-9 sm:w-auto"
               onClick={(event) => {
                 event.preventDefault();
                 void handleDelete();

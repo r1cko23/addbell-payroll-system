@@ -28,7 +28,9 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { ArrowLeft, Plus, TrendingUp, DollarSign, Users, Calendar, MapPin, Trash2 } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
+import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { dbDialogContent, dbDialogFooter, dbHeaderButton, dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { TypeToDeleteDialog } from "@/components/TypeToDeleteDialog";
@@ -257,7 +259,7 @@ export default function ProjectDetailPage() {
       <div className={cn("min-w-0 w-full", dbPageWrapper)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <Link href="/projects"><Button variant="ghost" size="sm"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button></Link>
+            <Link href="/projects"><Button variant="ghost" className={dbHeaderButton}><ArrowLeft className="h-4 w-4 mr-2" />Back</Button></Link>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
               <p className="text-muted-foreground text-sm">{project.code} {project.clients?.name ? `· ${project.clients.name}` : ""}</p>
@@ -268,7 +270,7 @@ export default function ProjectDetailPage() {
               {getProjectStatusLabel(project.status)}
             </Badge>
             {canDeleteProjects ? (
-              <Button variant="outline" size="sm" onClick={() => setDeleteDialogOpen(true)}>
+              <Button variant="outline" className={dbHeaderButton} onClick={() => setDeleteDialogOpen(true)}>
                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
                 Delete
               </Button>
@@ -300,7 +302,7 @@ export default function ProjectDetailPage() {
         </Card>
 
         <Tabs defaultValue="costs" className="space-y-4">
-          <TabsList>
+          <TabsList className="w-full max-w-full justify-start overflow-x-auto">
             <TabsTrigger value="costs">Costs</TabsTrigger>
             {showFundRequests ? <TabsTrigger value="fund-requests">Fund Requests</TabsTrigger> : null}
             <TabsTrigger value="purchase-orders">Purchase Orders</TabsTrigger>
@@ -329,10 +331,38 @@ export default function ProjectDetailPage() {
               ))}
             </div>
             <Card><CardContent className="p-0">
+              {fundRequests.length === 0 ? (
+                <p className="py-6 text-center text-muted-foreground">No fund requests linked to this project</p>
+              ) : (
+                <>
+                  <DbMobileBlock className="p-4">
+                    <div className="space-y-2">
+                      {fundRequests.map((request) => (
+                        <div key={request.id} className="rounded-lg border border-border/80 bg-card p-3">
+                          <p className="text-sm font-medium">{request.purpose}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(request.request_date), "MMM d, yyyy")}
+                          </p>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <Badge variant={getFundRequestBadgeVariant(request.status)} className="text-xs capitalize">
+                              {formatLabel(request.status)}
+                            </Badge>
+                            <span className="font-semibold tabular-nums">
+                              ₱{Number(request.total_requested_amount).toLocaleString()}
+                            </span>
+                          </div>
+                          <Link href={`/fund-request/${request.id}`} className="mt-2 block">
+                            <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>View</Button>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </DbMobileBlock>
+                  <DbDesktopBlock>
               <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[720px]"><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Amount</TableHead><TableHead /></TableRow></TableHeader>
-                <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests linked to this project</TableCell></TableRow> :
-                  fundRequests.map((request) => (
+                <TableBody>
+                  {fundRequests.map((request) => (
                     <TableRow key={request.id}>
                       <TableCell>{format(new Date(request.request_date), "MMM d, yyyy")}</TableCell>
                       <TableCell>{request.purpose}</TableCell>
@@ -342,6 +372,9 @@ export default function ProjectDetailPage() {
                     </TableRow>
                   ))}</TableBody></Table>
               </div>
+                  </DbDesktopBlock>
+                </>
+              )}
             </CardContent></Card>
           </TabsContent>
 
@@ -352,10 +385,38 @@ export default function ProjectDetailPage() {
                 <Button asChild><Link href="/fund-request/new"><Plus className="h-4 w-4 mr-2" />New Request</Link></Button>
               </div>
               <Card><CardContent className="p-0">
+                {fundRequests.length === 0 ? (
+                  <p className="py-6 text-center text-muted-foreground">No fund requests for this project</p>
+                ) : (
+                  <>
+                    <DbMobileBlock className="p-4">
+                      <div className="space-y-2">
+                        {fundRequests.map((fr) => (
+                          <div key={fr.id} className="rounded-lg border border-border/80 bg-card p-3">
+                            <p className="text-sm font-medium">{fr.purpose}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(fr.request_date), "MMM d, yyyy")}
+                            </p>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <Badge variant={getFundRequestBadgeVariant(fr.status)} className="text-xs capitalize">
+                                {formatLabel(fr.status)}
+                              </Badge>
+                              <span className="font-semibold tabular-nums">
+                                ₱{Number(fr.total_requested_amount).toLocaleString()}
+                              </span>
+                            </div>
+                            <Link href={`/fund-request/${fr.id}`} className="mt-2 block">
+                              <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>View</Button>
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    </DbMobileBlock>
+                    <DbDesktopBlock>
                 <div className="w-full max-w-full overflow-x-auto">
                 <Table className="w-full min-w-[720px]"><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Purpose</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-                  <TableBody>{fundRequests.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No fund requests for this project</TableCell></TableRow> :
-                    fundRequests.map((fr) => (
+                  <TableBody>
+                    {fundRequests.map((fr) => (
                       <TableRow key={fr.id}>
                         <TableCell>{format(new Date(fr.request_date), "MMM d, yyyy")}</TableCell>
                         <TableCell>{fr.purpose}</TableCell>
@@ -365,6 +426,9 @@ export default function ProjectDetailPage() {
                       </TableRow>
                     ))}</TableBody></Table>
                 </div>
+                    </DbDesktopBlock>
+                  </>
+                )}
               </CardContent></Card>
             </TabsContent>
           ) : null}
@@ -377,10 +441,44 @@ export default function ProjectDetailPage() {
               ) : null}
             </div>
             <Card><CardContent className="p-0">
+              {purchaseOrders.length === 0 ? (
+                <p className="py-6 text-center text-muted-foreground">No purchase orders for this project</p>
+              ) : (
+                <>
+                  <DbMobileBlock className="p-4">
+                    <div className="space-y-2">
+                      {purchaseOrders.map((po) => (
+                        <div key={po.id} className="rounded-lg border border-border/80 bg-card p-3">
+                          <p className="font-mono text-xs text-muted-foreground">{po.po_number}</p>
+                          <p className="text-sm font-medium">{po.vendors?.name ?? "—"}</p>
+                          <div className="mt-2 space-y-1">
+                            <DashboardMobileField
+                              label="Date"
+                              value={format(new Date(po.po_date), "MMM d, yyyy")}
+                            />
+                            <DashboardMobileField
+                              label="Amount"
+                              value={`₱${Number(po.total_amount).toLocaleString()}`}
+                            />
+                          </div>
+                          <Badge
+                            variant={po.status === "posted" || po.status === "approved" ? "default" : po.status === "cancelled" ? "destructive" : "secondary"}
+                            className="mt-2 text-xs capitalize"
+                          >
+                            {po.status}
+                          </Badge>
+                          <Link href={`/purchase-order/${po.id}`} className="mt-2 block">
+                            <Button variant="outline" className={cn(dbHeaderButton, "w-full")}>View</Button>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </DbMobileBlock>
+                  <DbDesktopBlock>
               <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[760px]"><TableHeader><TableRow><TableHead>PO Number</TableHead><TableHead>Date</TableHead><TableHead>Vendor</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-                <TableBody>{purchaseOrders.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No purchase orders for this project</TableCell></TableRow> :
-                  purchaseOrders.map((po) => (
+                <TableBody>
+                  {purchaseOrders.map((po) => (
                     <TableRow key={po.id}>
                       <TableCell className="font-mono">{po.po_number}</TableCell>
                       <TableCell>{format(new Date(po.po_date), "MMM d, yyyy")}</TableCell>
@@ -391,6 +489,9 @@ export default function ProjectDetailPage() {
                     </TableRow>
                   ))}</TableBody></Table>
               </div>
+                  </DbDesktopBlock>
+                </>
+              )}
             </CardContent></Card>
           </TabsContent>
 
@@ -402,7 +503,7 @@ export default function ProjectDetailPage() {
                   <DialogTrigger asChild>
                     <Button onClick={openAssignDialog}><Plus className="h-4 w-4 mr-2" />Assign Employee</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className={dbDialogContent}>
                     <DialogHeader><DialogTitle>Assign Employee to Project</DialogTitle><DialogDescription>Add an employee to this project&apos;s team.</DialogDescription></DialogHeader>
                     <form onSubmit={handleAssignEmployee} className="space-y-4">
                       <div>
@@ -420,21 +521,52 @@ export default function ProjectDetailPage() {
                         )}
                       </div>
                       <div><Label>Role</Label><Input value={assignRole} onChange={(e) => setAssignRole(e.target.value)} placeholder="e.g. Foreman, Electrician" /></div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div><Label>Start Date *</Label><Input type="date" value={assignStartDate} onChange={(e) => setAssignStartDate(e.target.value)} required /></div>
                         <div><Label>End Date</Label><Input type="date" value={assignEndDate} onChange={(e) => setAssignEndDate(e.target.value)} /></div>
                       </div>
-                      <DialogFooter><Button type="button" variant="outline" onClick={() => setIsAssignDialogOpen(false)}>Cancel</Button><Button type="submit">Assign</Button></DialogFooter>
+                      <DialogFooter className={dbDialogFooter}><Button type="button" variant="outline" onClick={() => setIsAssignDialogOpen(false)}>Cancel</Button><Button type="submit">Assign</Button></DialogFooter>
                     </form>
                   </DialogContent>
                 </Dialog>
               )}
             </div>
             <Card><CardContent className="p-0">
+              {assignments.length === 0 ? (
+                <p className="py-6 text-center text-muted-foreground">No employees assigned</p>
+              ) : (
+                <>
+                  <DbMobileBlock className="p-4">
+                    <div className="space-y-2">
+                      {assignments.map((a) => (
+                        <div key={a.id} className="rounded-lg border border-border/80 bg-card p-3">
+                          <p className="text-sm font-medium">
+                            {a.employees ? `${a.employees.first_name} ${a.employees.last_name}` : "—"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{a.employees?.company_id_no ?? "—"}</p>
+                          <div className="mt-2 space-y-1">
+                            <DashboardMobileField label="Role" value={a.role || "—"} />
+                            <DashboardMobileField
+                              label="Start"
+                              value={format(new Date(a.start_date), "MMM d, yyyy")}
+                            />
+                            <DashboardMobileField
+                              label="End"
+                              value={a.end_date ? format(new Date(a.end_date), "MMM d, yyyy") : "Ongoing"}
+                            />
+                          </div>
+                          <Badge variant={a.is_active ? "default" : "secondary"} className="mt-2">
+                            {a.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </DbMobileBlock>
+                  <DbDesktopBlock>
               <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[720px]"><TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Role</TableHead><TableHead>Start Date</TableHead><TableHead>End Date</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-                <TableBody>{assignments.length === 0 ? <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No employees assigned</TableCell></TableRow> :
-                  assignments.map((a) => (
+                <TableBody>
+                  {assignments.map((a) => (
                     <TableRow key={a.id}>
                       <TableCell>{a.employees ? `${a.employees.first_name} ${a.employees.last_name}` : "—"} ({a.employees?.company_id_no ?? "—"})</TableCell>
                       <TableCell>{a.role || "—"}</TableCell>
@@ -444,6 +576,9 @@ export default function ProjectDetailPage() {
                     </TableRow>
                   ))}</TableBody></Table>
               </div>
+                  </DbDesktopBlock>
+                </>
+              )}
             </CardContent></Card>
           </TabsContent>
 
@@ -453,26 +588,54 @@ export default function ProjectDetailPage() {
               {canManageProjects && (
                 <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
                   <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Update Progress</Button></DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className={dbDialogContent}>
                     <DialogHeader><DialogTitle>Update Project Progress</DialogTitle></DialogHeader>
                     <form onSubmit={handleUpdateProgress} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div><Label>Date *</Label><Input type="date" value={progressDate} onChange={(e) => setProgressDate(e.target.value)} required /></div>
                         <div><Label>Progress (%) *</Label><Input type="number" min="0" max="100" step="0.01" value={progressPercentage} onChange={(e) => setProgressPercentage(e.target.value)} required /></div>
                       </div>
                       <div><Label>Milestone</Label><Input value={progressMilestone} onChange={(e) => setProgressMilestone(e.target.value)} /></div>
                       <div><Label>Notes</Label><Textarea value={progressNotes} onChange={(e) => setProgressNotes(e.target.value)} rows={3} /></div>
-                      <DialogFooter><Button type="button" variant="outline" onClick={() => setIsProgressDialogOpen(false)}>Cancel</Button><Button type="submit">Update</Button></DialogFooter>
+                      <DialogFooter className={dbDialogFooter}><Button type="button" variant="outline" onClick={() => setIsProgressDialogOpen(false)}>Cancel</Button><Button type="submit">Update</Button></DialogFooter>
                     </form>
                   </DialogContent>
                 </Dialog>
               )}
             </div>
             <Card><CardContent className="p-0">
+              {progressHistory.length === 0 ? (
+                <p className="py-6 text-center text-muted-foreground">No progress updates</p>
+              ) : (
+                <>
+                  <DbMobileBlock className="p-4">
+                    <div className="space-y-2">
+                      {progressHistory.map((p) => (
+                        <div key={p.id} className="rounded-lg border border-border/80 bg-card p-3">
+                          <p className="text-sm font-medium">
+                            {format(new Date(p.progress_date), "MMM d, yyyy")}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2">
+                            <Progress value={p.progress_percentage} className="flex-1" />
+                            <span className="shrink-0 text-sm font-semibold tabular-nums">
+                              {p.progress_percentage.toFixed(1)}%
+                            </span>
+                          </div>
+                          {p.milestone ? (
+                            <DashboardMobileField label="Milestone" value={p.milestone} />
+                          ) : null}
+                          {p.notes ? (
+                            <p className="mt-2 text-xs text-muted-foreground line-clamp-3">{p.notes}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </DbMobileBlock>
+                  <DbDesktopBlock>
               <div className="w-full max-w-full overflow-x-auto">
               <Table className="w-full min-w-[680px]"><TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Progress</TableHead><TableHead>Milestone</TableHead><TableHead>Notes</TableHead></TableRow></TableHeader>
-                <TableBody>{progressHistory.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground">No progress updates</TableCell></TableRow> :
-                  progressHistory.map((p) => (
+                <TableBody>
+                  {progressHistory.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell>{format(new Date(p.progress_date), "MMM d, yyyy")}</TableCell>
                       <TableCell><div className="flex items-center gap-2"><Progress value={p.progress_percentage} className="w-24" /><span className="font-medium">{p.progress_percentage.toFixed(1)}%</span></div></TableCell>
@@ -481,6 +644,9 @@ export default function ProjectDetailPage() {
                     </TableRow>
                   ))}</TableBody></Table>
               </div>
+                  </DbDesktopBlock>
+                </>
+              )}
             </CardContent></Card>
           </TabsContent>
         </Tabs>

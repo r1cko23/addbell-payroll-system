@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PageTitle, H3, BodySmall } from "@/components/ui/typography";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { H3, BodySmall } from "@/components/ui/typography";
 import {
   epCardInteractive,
   epFormActionButton,
@@ -302,7 +303,11 @@ export default function EmployeePayslipsPage() {
     <div className="w-full">
       <div className={cn("mx-auto w-full max-w-6xl", epPageWrapper)}>
         <div className={epPageHeaderRow}>
-          <PageTitle className="min-w-0 shrink-0">My Payslips</PageTitle>
+          <PortalPageHeader
+            title="My Payslips"
+            description="View and download your payslip records."
+            className="min-w-0 flex-1 border-0 pb-0 sm:pb-0 md:pb-0 lg:pb-0"
+          />
           {payslips.length > 0 ? (
             <div className={epInlineField}>
               <BodySmall className="shrink-0 text-muted-foreground">Month</BodySmall>
@@ -421,7 +426,6 @@ export default function EmployeePayslipsPage() {
 
                         <Button
                           variant="default"
-                          size="sm"
                           onClick={() => openPayslipPreview(payslip)}
                           className={cn(
                             epTouchButton,

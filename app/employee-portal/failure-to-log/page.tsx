@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { CardSection } from "@/components/ui/card-section";
-import { PageTitle, H3, BodySmall, StatValue } from "@/components/ui/typography";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { H3, BodySmall, StatValue } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard, SkeletonForm } from "@/components/ui/skeleton";
@@ -22,12 +23,14 @@ import {
 import {
   epFormActionButton,
   epFormActions,
+  epFormCard,
+  epFormField,
   epFormGrid,
   epFormStack,
   epModalPanel,
-  epFormField,
   epPageWrapper,
   epSubmitRequestButton,
+  epTouchButton,
 } from "@/lib/employee-portal-ui";
 import {
   epRequestApprovalBoxEmerald,
@@ -332,7 +335,10 @@ export default function FailureToLogPage() {
   return (
     <>
       <div className={cn("w-full", epPageWrapper)}>
-        <PageTitle>Failure To Log</PageTitle>
+        <PortalPageHeader
+          title="Failure To Log"
+          description="File missed clock in and out for a shift."
+        />
 
         {/* Stats */}
         <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
@@ -391,6 +397,7 @@ export default function FailureToLogPage() {
 
         {/* Request Form */}
         <CardSection
+          className={epFormCard}
           title={
             <HStack gap="2" align="center">
               <Icon name="WarningCircle" size={IconSizes.md} />
@@ -488,7 +495,6 @@ export default function FailureToLogPage() {
                   !timeOut
                 }
                 className={epSubmitRequestButton}
-                size="sm"
               >
                 {submitting ? (
                   <>
@@ -639,6 +645,16 @@ export default function FailureToLogPage() {
                         </div>
                       </div>
                     )}
+                    {request.status === "pending" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(epTouchButton, "mt-2")}
+                        onClick={() => setCancelId(request.id)}
+                      >
+                        Cancel request
+                      </Button>
+                    )}
                   </RequestHistoryCard>
                 );
               })}
@@ -648,9 +664,9 @@ export default function FailureToLogPage() {
       </div>
       {cancelId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className={epModalPanel} role="dialog" aria-modal="true">
+          <div className={epModalPanel} role="dialog" aria-modal="true" aria-labelledby="ftl-cancel-title">
             <VStack gap="4" className="w-full">
-              <H3>Cancel Failure To Log Request?</H3>
+              <H3 id="ftl-cancel-title">Cancel failure to log request?</H3>
               <BodySmall>
                 This will permanently remove the request from your records.
               </BodySmall>

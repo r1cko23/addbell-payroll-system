@@ -44,7 +44,9 @@ export function DashboardPageHeader({
         </H1>
         {description != null && description !== "" ? (
           typeof description === "string" ? (
-            <PageSubtitle className="max-w-2xl text-pretty">{description}</PageSubtitle>
+            <PageSubtitle className="max-w-2xl text-pretty">
+              {toTitleCase(description)}
+            </PageSubtitle>
           ) : (
             <div className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {description}

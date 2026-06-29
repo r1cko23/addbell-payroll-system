@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow } from "@/lib/dashboard-ui";
+import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow, dbHeaderButton, dbToolbarActions, dbDialogContent, dbDialogFooter } from "@/lib/dashboard-ui";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Button } from "@/components/ui/button";
@@ -1180,6 +1180,7 @@ export default function OvertimeApprovalPage() {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
+                    aria-label="Filter by status"
                     className="flex h-10 w-full sm:w-[160px] lg:w-[180px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
                     <option value="all">All Status</option>
@@ -1225,16 +1226,7 @@ export default function OvertimeApprovalPage() {
               {requests.map((req) => (
                 <Card
                   key={req.id}
-                  className="h-full min-h-[200px] cursor-pointer border-border/80 bg-card/95 shadow-sm transition-shadow hover:shadow-hover"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openRequestModal(req)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      openRequestModal(req);
-                    }
-                  }}
+                  className="h-full min-h-[200px] border-border/80 bg-card/95 shadow-sm transition-shadow hover:shadow-hover"
                 >
                   <CardContent className="p-4 flex flex-col gap-3 h-full">
                     <div className={approvalQueueCardHeaderRow}>
@@ -1381,47 +1373,36 @@ export default function OvertimeApprovalPage() {
                           names={approverNames}
                         />
                     </div>
-                    {canActOnPendingOvertime && canCurrentUserActOnRequest(req) && (
-                        <HStack
-                          gap="2"
-                          align="center"
-                          className="flex-wrap mt-auto pt-2 border-t"
-                        >
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openRequestModal(req);
-                            }}
-                          >
-                            View details
-                          </Button>
+                    <div className={cn(dbToolbarActions, "mt-auto pt-2 border-t")}>
+                      <Button
+                        variant="secondary"
+                        className={dbHeaderButton}
+                        onClick={() => openRequestModal(req)}
+                      >
+                        View details
+                      </Button>
+                      {canActOnPendingOvertime && canCurrentUserActOnRequest(req) && (
+                        <>
                           <Button
                             variant="destructive"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReject(req.id);
-                            }}
+                            className={dbHeaderButton}
+                            onClick={() => handleReject(req.id)}
                             disabled={actioningId === req.id}
                           >
                             <Icon name="X" size={IconSizes.sm} />
                             Reject
                           </Button>
                           <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleApprove(req.id);
-                            }}
+                            className={dbHeaderButton}
+                            onClick={() => handleApprove(req.id)}
                             disabled={actioningId === req.id}
                           >
                             <Icon name="Check" size={IconSizes.sm} />
                             Approve
                           </Button>
-                        </HStack>
+                        </>
                       )}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -1436,7 +1417,7 @@ export default function OvertimeApprovalPage() {
             if (!open) closeRequestModal();
           }}
         >
-          <DialogContent className="max-w-2xl">
+          <DialogContent className={dbDialogContent}>
             <DialogHeader>
               <DialogTitle>OT Request Details</DialogTitle>
             </DialogHeader>
@@ -1662,37 +1643,39 @@ export default function OvertimeApprovalPage() {
                 />
               </div>
             )}
-            <DialogFooter className="flex flex-wrap justify-between gap-2">
-              <Button variant="secondary" onClick={closeRequestModal}>
+            <DialogFooter className={dbDialogFooter}>
+              <Button variant="secondary" className={dbHeaderButton} onClick={closeRequestModal}>
                 Close
               </Button>
               {selected && canActOnPendingOvertime && canCurrentUserActOnRequest(selected) && (
-                  <div className="flex gap-2">
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        if (!selected) return;
-                        void handleReject(selected.id);
-                      }}
-                      disabled={actioningId === selected.id}
-                    >
-                      <Icon name="X" size={IconSizes.sm} />
-                      Reject
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        if (!selected) return;
-                        void handleApprove(selected.id);
-                      }}
-                      disabled={actioningId === selected.id}
-                    >
-                      <Icon name="Check" size={IconSizes.sm} />
-                      {actioningId === selected.id
-                        ? "Processing..."
-                        : "Approve"}
-                    </Button>
-                  </div>
-                )}
+                <>
+                  <Button
+                    variant="destructive"
+                    className={dbHeaderButton}
+                    onClick={() => {
+                      if (!selected) return;
+                      void handleReject(selected.id);
+                    }}
+                    disabled={actioningId === selected.id}
+                  >
+                    <Icon name="X" size={IconSizes.sm} />
+                    Reject
+                  </Button>
+                  <Button
+                    className={dbHeaderButton}
+                    onClick={() => {
+                      if (!selected) return;
+                      void handleApprove(selected.id);
+                    }}
+                    disabled={actioningId === selected.id}
+                  >
+                    <Icon name="Check" size={IconSizes.sm} />
+                    {actioningId === selected.id
+                      ? "Processing..."
+                      : "Approve"}
+                  </Button>
+                </>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>

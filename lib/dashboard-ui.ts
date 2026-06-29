@@ -46,9 +46,13 @@ export const dbFormCard = "w-full min-w-0 max-w-full overflow-x-clip";
 /** Filter/toolbar select — full width on mobile, fixed from sm */
 export const dbFilterSelect = "w-full min-w-0 sm:w-[180px]";
 
+/** Standard dialog — near full-width on mobile, scrollable */
+export const dbDialogContent =
+  "max-h-[min(90dvh,90vh)] w-[calc(100vw-2rem)] max-w-none gap-3 overflow-y-auto overscroll-contain p-4 sm:max-w-2xl sm:w-full sm:p-6";
+
 /** Dialog footer — stacked full-width actions on mobile */
 export const dbDialogFooter =
-  "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2";
+  "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2 [&>button]:w-full sm:[&>button]:w-auto";
 
 /** Mobile list card inside dashboard sections */
 export const dbMobileListCard =

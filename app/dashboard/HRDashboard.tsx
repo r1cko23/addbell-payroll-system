@@ -17,9 +17,10 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
+import { toTitleCase } from "@/lib/to-title-case";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
-import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import {
   buildManagerQueueUrl,
@@ -248,7 +249,7 @@ function CurrentlyClockedInSection({
       {showViewAllLink ? (
         <div className="mt-2 flex justify-end">
           <Link href="/employees">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" className={dbHeaderButton}>
               View all employees
             </Button>
           </Link>
@@ -616,14 +617,14 @@ export default function HRDashboard() {
           <div className={dbHeaderActions}>
             {!isOvertimeGroupQueueApprover ? (
               <Link href="/employees">
-                <Button size="sm" variant="outline">
+                <Button variant="outline" className={dbHeaderButton}>
                   Open employees
                 </Button>
               </Link>
             ) : null}
             <Button
               variant="outline"
-              size="sm"
+              className={dbHeaderButton}
               onClick={() => loadData()}
               disabled={refreshing}
             >
@@ -681,11 +682,13 @@ export default function HRDashboard() {
         <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
           <CardHeader className="pb-2">
             <CardDescription>
-              {showAllCompanyPending
-                ? "All pending approvals — click a request to review."
-                : isHR
-                  ? "Pending HR approvals — click a request to review."
-                  : "Your approval groups — click a request to review."}
+              {toTitleCase(
+                showAllCompanyPending
+                  ? "All pending approvals — click a request to review."
+                  : isHR
+                    ? "Pending HR approvals — click a request to review."
+                    : "Your approval groups — click a request to review."
+              )}
             </CardDescription>
             <CardTitle>
               {queueItems.length === 0
@@ -723,7 +726,7 @@ export default function HRDashboard() {
         <div className="space-y-1">
           <SectionHeading>Workforce Health</SectionHeading>
           <PageSubtitle>
-            Staffing metrics at a glance.
+            {toTitleCase("Staffing metrics at a glance.")}
           </PageSubtitle>
         </div>
       </HStack>
@@ -750,7 +753,9 @@ export default function HRDashboard() {
         />
         <Card className="rounded-2xl border bg-card/90 shadow-sm xl:col-span-6">
           <CardHeader className="pb-3">
-            <CardDescription>Active employees by employment type.</CardDescription>
+            <CardDescription>
+              {toTitleCase("Active employees by employment type.")}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

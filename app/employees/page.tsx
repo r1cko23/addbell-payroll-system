@@ -36,7 +36,8 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
-import { dbHeaderActions, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
+import { dbHeaderActions, dbHeaderButton, dbDialogContent, dbDialogFooter, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { EmployeeFormSection } from "@/components/employees/EmployeeFormSection";
 
 interface Employee {
@@ -697,20 +698,20 @@ export default function EmployeesPage() {
   return (
     <DashboardLayout>
       <div className={cn("w-full min-w-0", dbPageWrapper)}>
-        <HStack justify="between" align="center" className="w-full flex-col gap-3 sm:flex-row sm:gap-4">
-          <VStack gap="2" align="start">
-            <H1>Employees</H1>
-            <PageSubtitle>Add and update employee records.</PageSubtitle>
-          </VStack>
-          {canCreate("employees") && (
-            <div className={dbHeaderActions}>
-              <Button onClick={openAddModal} className="col-span-2 sm:col-span-1">
-                <Icon name="Plus" size={IconSizes.sm} />
-                New Employee
-              </Button>
-            </div>
-          )}
-        </HStack>
+        <DashboardPageHeader
+          title="Employees"
+          description="Add and update employee records."
+          actions={
+            canCreate("employees") ? (
+              <div className={dbHeaderActions}>
+                <Button onClick={openAddModal} className={dbHeaderButton}>
+                  <Icon name="Plus" size={IconSizes.sm} />
+                  New employee
+                </Button>
+              </div>
+            ) : undefined
+          }
+        />
 
         <div className="min-w-0 space-y-4">
           <CardSection title="Directory" description="Search and manage employees.">
@@ -1004,7 +1005,7 @@ export default function EmployeesPage() {
           }
         }}
       >
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+        <DialogContent className={cn(dbDialogContent, "max-w-4xl flex flex-col p-0")}>
           <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
             <DialogTitle>{editingEmployee ? "Edit employee" : "New employee"}</DialogTitle>
             <DialogDescription>
@@ -1442,9 +1443,9 @@ export default function EmployeesPage() {
               )}
             </div>
 
-            <DialogFooter className="flex items-center justify-end gap-2 flex-shrink-0 pt-4 pb-6 px-6 border-t bg-background">
-              <Button type="button" variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
-              <Button type="submit" disabled={submitting || modalLoading}>
+            <DialogFooter className={cn(dbDialogFooter, "flex-shrink-0 border-t bg-background px-4 py-4 sm:px-6")}>
+              <Button type="button" variant="outline" className={dbHeaderButton} onClick={() => setShowModal(false)}>Cancel</Button>
+              <Button type="submit" className={dbHeaderButton} disabled={submitting || modalLoading}>
                 {submitting ? "Saving..." : editingEmployee ? "Save Changes" : "Create Employee"}
               </Button>
             </DialogFooter>

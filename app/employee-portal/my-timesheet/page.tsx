@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PageTitle, BodySmall, Caption } from "@/components/ui/typography";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
+  EpMobileBlock,
+  EpDesktopBlock,
+} from "@/components/employee-portal/EmployeePortalViewport";
+import {
   epPageWrapper,
   epPageHeaderRow,
+  epHeaderActions,
   epTouchButton,
   epCardInteractive,
 } from "@/lib/employee-portal-ui";
@@ -109,11 +115,14 @@ export default function EmployeeMyTimesheetPage() {
     <div className="w-full py-1 sm:py-2">
       <div className={cn("mx-auto w-full max-w-6xl", epPageWrapper)}>
         <div className={epPageHeaderRow}>
-          <PageTitle className="min-w-0 shrink-0">My Timesheet</PageTitle>
-          <HStack gap="2" className="w-full sm:w-auto">
+          <PortalPageHeader
+            title="My Timesheet"
+            description="Weekly attendance summary by cutoff period."
+            className="min-w-0 flex-1 border-0 pb-0 sm:pb-0 md:pb-0 lg:pb-0"
+          />
+          <HStack gap="2" className={epHeaderActions}>
             <Button
               variant="outline"
-              size="sm"
               className={epTouchButton}
               onClick={() => setWeekStart(getPreviousWeeklyCutoff(weekStart))}
             >
@@ -122,7 +131,6 @@ export default function EmployeeMyTimesheetPage() {
             </Button>
             <Button
               variant="outline"
-              size="sm"
               className={epTouchButton}
               onClick={() => setWeekStart(getNextWeeklyCutoff(weekStart))}
             >
@@ -182,38 +190,92 @@ export default function EmployeeMyTimesheetPage() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Reg</TableHead>
-                        <TableHead className="text-right">OT</TableHead>
-                        <TableHead className="text-right">ND</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.days.map((day) => (
-                        <TableRow key={day.date}>
-                          <TableCell className="text-sm">{day.date}</TableCell>
-                          <TableCell className="text-sm capitalize">
+                <EpMobileBlock>
+                  <div className="space-y-2">
+                    {data.days.map((day) => (
+                      <div
+                        key={day.date}
+                        className="rounded-lg border border-border/80 bg-card p-3"
+                      >
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-foreground">
+                            {format(parseISO(day.date), "EEE, MMM d")}
+                          </span>
+                          <span className="shrink-0 rounded border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold capitalize">
                             {(day.dayType || "regular").replace(/-/g, " ")}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">
-                            {Number(day.regularHours || 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">
-                            {Number(day.overtimeHours || 0).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">
-                            {Number(day.nightDiffHours || 0).toFixed(2)}
-                          </TableCell>
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                          <div className="rounded-md border bg-muted/40 p-1.5">
+                            <Caption>Reg</Caption>
+                            <p className="font-semibold tabular-nums text-foreground">
+                              {Number(day.regularHours || 0).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="rounded-md border bg-muted/40 p-1.5">
+                            <Caption>OT</Caption>
+                            <p className="font-semibold tabular-nums text-foreground">
+                              {Number(day.overtimeHours || 0).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="rounded-md border bg-muted/40 p-1.5">
+                            <Caption>ND</Caption>
+                            <p className="font-semibold tabular-nums text-foreground">
+                              {Number(day.nightDiffHours || 0).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                        {(day.clockInTime || day.clockOutTime) && (
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 text-xs text-muted-foreground">
+                            <span>
+                              <strong className="text-foreground">In:</strong>{" "}
+                              {day.clockInTime || "—"}
+                            </span>
+                            <span>
+                              <strong className="text-foreground">Out:</strong>{" "}
+                              {day.clockOutTime || "—"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </EpMobileBlock>
+
+                <EpDesktopBlock>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Reg</TableHead>
+                          <TableHead className="text-right">OT</TableHead>
+                          <TableHead className="text-right">ND</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {data.days.map((day) => (
+                          <TableRow key={day.date}>
+                            <TableCell className="text-sm">{day.date}</TableCell>
+                            <TableCell className="text-sm capitalize">
+                              {(day.dayType || "regular").replace(/-/g, " ")}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-sm">
+                              {Number(day.regularHours || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-sm">
+                              {Number(day.overtimeHours || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums text-sm">
+                              {Number(day.nightDiffHours || 0).toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </EpDesktopBlock>
               </>
             )}
 

@@ -43,7 +43,7 @@ import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import { dbDialogContent, dbDialogFooter, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { cn } from "@/lib/utils";
@@ -257,7 +257,7 @@ export default function ClientsPage() {
                 </Button>
               </div>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
               <DialogHeader>
                 <DialogTitle>
                   {editingClient ? "Edit Client" : "Add Client"}
@@ -269,7 +269,7 @@ export default function ClientsPage() {
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="client_code">Client Code *</Label>
                     <Input
@@ -333,7 +333,7 @@ export default function ClientsPage() {
                     placeholder="Primary contact person"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <Label htmlFor="contact_email">Email</Label>
                     <Input
@@ -364,7 +364,7 @@ export default function ClientsPage() {
                     Active
                   </Label>
                 </div>
-                <DialogFooter>
+                <DialogFooter className={dbDialogFooter}>
                   <Button type="button" variant="outline" onClick={handleCloseDialog}>
                     Cancel
                   </Button>

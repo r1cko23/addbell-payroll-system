@@ -6,7 +6,8 @@ import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
-import { PageTitle, H3, BodySmall, Caption } from "@/components/ui/typography";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { H3, BodySmall, Caption } from "@/components/ui/typography";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
@@ -2124,7 +2125,10 @@ export default function BundyClockPage() {
 
   return (
     <div className={cn("w-full", epPageWrapper)}>
-      <PageTitle>Bundy Clock</PageTitle>
+      <PortalPageHeader
+        title="Bundy Clock"
+        description="Clock in and out for your assigned location."
+      />
       <Card className={cn(epFormCard, "border-primary/20 bg-card p-4 sm:p-6")}>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-2 text-center">
@@ -2370,7 +2374,36 @@ export default function BundyClockPage() {
             No time in or time out recorded yet for today.
           </BodySmall>
         ) : (
-          <div className="-mx-4 overflow-x-auto rounded-xl border border-border/80 bg-background/80 px-4 sm:mx-0 sm:px-0">
+          <>
+            <div className="space-y-2 md:hidden">
+              {todaySessions.map((entry, index) => (
+                <div
+                  key={entry.id}
+                  className="rounded-lg border border-border/80 bg-card p-3"
+                >
+                  <p className="mb-1.5 text-xs font-semibold text-muted-foreground">
+                    Punch {index + 1}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                    <span className="text-muted-foreground">Time in</span>
+                    <span className="text-right font-medium">
+                      {formatDate(new Date(entry.clock_in_time), "hh:mm a")}
+                    </span>
+                    <span className="text-muted-foreground">Time out</span>
+                    <span className="text-right font-medium">
+                      {entry.clock_out_time
+                        ? formatDate(new Date(entry.clock_out_time), "hh:mm a")
+                        : "—"}
+                    </span>
+                    <span className="text-muted-foreground">Hours</span>
+                    <span className="text-right tabular-nums font-semibold">
+                      {entry.total_hours != null ? entry.total_hours.toFixed(2) : "—"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block -mx-4 overflow-x-auto rounded-xl border border-border/80 bg-background/80 px-4 sm:mx-0 sm:px-0">
             <table className="w-full min-w-0 table-fixed border-collapse text-xs">
               <thead>
                 <tr className="border-b bg-muted/40">
@@ -2407,7 +2440,8 @@ export default function BundyClockPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </CardSection>
 
@@ -2454,6 +2488,16 @@ export default function BundyClockPage() {
             ))}
           </div>
         )}
+      </CardSection>
+
+      <CardSection title="Monthly Calendar" className="md:hidden">
+        <HolidayCalendar
+          date={calendarDate}
+          holidays={calendarHolidays}
+          entries={calendarEntries}
+          onPrev={() => setCalendarDate((prev) => subMonths(prev, 1))}
+          onNext={() => setCalendarDate((prev) => addMonths(prev, 1))}
+        />
       </CardSection>
 
       {/* Time Attendance and Calendar Layout */}
@@ -2764,8 +2808,9 @@ const HolidayCalendar = memo(
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className={epPeriodNavButton}
                 onClick={onPrev}
+                aria-label="Previous month"
               >
                 <Icon name="CaretLeft" size={IconSizes.xs} />
               </Button>
@@ -2773,32 +2818,33 @@ const HolidayCalendar = memo(
               <Button
                 variant="secondary"
                 size="sm"
-                className="h-7 w-7 p-0"
+                className={epPeriodNavButton}
                 onClick={onNext}
+                aria-label="Next month"
               >
                 <Icon name="CaretRight" size={IconSizes.xs} />
               </Button>
             </HStack>
-            <div className="flex flex-wrap items-center gap-1.5 text-[9px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
               <span className="inline-flex items-center gap-0.5">
-                <span className="w-2 h-2 rounded-full bg-purple-600/60" />
-                <span className="hidden sm:inline">Reg Holiday</span>
+                <span className="w-2 h-2 rounded-full bg-purple-600/60" aria-hidden />
+                <span>Reg hol</span>
               </span>
               <span className="inline-flex items-center gap-0.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400/80" />
-                <span className="hidden sm:inline">Spec Holiday</span>
+                <span className="w-2 h-2 rounded-full bg-amber-400/80" aria-hidden />
+                <span>Spec hol</span>
               </span>
               <span className="inline-flex items-center gap-0.5">
-                <span className="w-2 h-2 rounded-full bg-red-500/60" />
-                <span className="hidden sm:inline">Absent</span>
+                <span className="w-2 h-2 rounded-full bg-red-500/60" aria-hidden />
+                <span>Absent</span>
               </span>
               <span className="inline-flex items-center gap-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500/60" />
-                <span className="hidden sm:inline">Present</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500/60" aria-hidden />
+                <span>Present</span>
               </span>
               <span className="inline-flex items-center gap-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500/60" />
-                <span className="hidden sm:inline">Leave</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500/60" aria-hidden />
+                <span>Leave</span>
               </span>
             </div>
           </div>

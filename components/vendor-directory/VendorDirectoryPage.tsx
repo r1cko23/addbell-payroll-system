@@ -41,6 +41,8 @@ import {
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
+  dbDialogContent,
+  dbDialogFooter,
   dbHeaderActions,
   dbHeaderButton,
   dbMobileListCard,
@@ -415,7 +417,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                           {canUpdateVendors ? (
                           <Button
                             variant="outline"
-                            size="sm"
+                            className={dbHeaderButton}
                             onClick={() => handleOpenDialog(record)}
                           >
                             <Pencil className="mr-1 h-4 w-4" />
@@ -425,7 +427,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                           {canDeleteVendors ? (
                           <Button
                             variant="outline"
-                            size="sm"
+                            className={dbHeaderButton}
                             onClick={() => handleDelete(record)}
                           >
                             <Trash2 className="mr-1 h-4 w-4" />
@@ -510,7 +512,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>
               {editingRecord ? config.dialogEditTitle : config.dialogAddTitle}
@@ -596,7 +598,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
               ) : (
                 <p className="text-sm text-muted-foreground">No phone added yet.</p>
               )}
-              <Button type="button" variant="outline" size="sm" onClick={addPhone}>
+              <Button type="button" variant="outline" className={dbHeaderButton} onClick={addPhone}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add phone
               </Button>
@@ -628,7 +630,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
               ) : (
                 <p className="text-sm text-muted-foreground">No email added yet.</p>
               )}
-              <Button type="button" variant="outline" size="sm" onClick={addEmail}>
+              <Button type="button" variant="outline" className={dbHeaderButton} onClick={addEmail}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add email
               </Button>
@@ -643,7 +645,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 Active
               </Label>
             </div>
-            <DialogFooter>
+            <DialogFooter className={dbDialogFooter}>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
                 Cancel
               </Button>

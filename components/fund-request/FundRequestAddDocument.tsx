@@ -14,7 +14,8 @@ import {
   requestFormCopy,
   requestSupportingDocLabel,
 } from "@/lib/employee-portal-request-copy";
-import { epFileInput } from "@/lib/employee-portal-ui";
+import { epFileInput, epSubmitRequestButton } from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
 
 type FundRequestAddDocumentProps = {
@@ -129,7 +130,7 @@ export function FundRequestAddDocument({
       <Button
         type="button"
         size="sm"
-        className="mt-3"
+        className={cn("mt-3", epSubmitRequestButton, "sm:mt-3 sm:w-auto")}
         disabled={!selectedFile || uploading}
         onClick={handleUpload}
       >

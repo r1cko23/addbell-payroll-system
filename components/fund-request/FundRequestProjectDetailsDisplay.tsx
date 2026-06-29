@@ -54,6 +54,43 @@ function multiProjectFieldLabel(label: string, index: number): string {
   return `${label} ${index + 1}`;
 }
 
+function ProjectReferenceCard({
+  project,
+  poNumber,
+}: {
+  project: FundRequestProjectDetail;
+  poNumber: string | null;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 rounded-md border border-border/80 p-3 sm:grid-cols-2">
+      {poNumber ? (
+        <FundRequestField
+          label={FUND_REQUEST_FIELD_LABELS.poNumber}
+          value={poNumber}
+        />
+      ) : null}
+      <FundRequestField
+        label={FUND_REQUEST_FIELD_LABELS.projectTitle}
+        value={project.title || "—"}
+      />
+      <FundRequestField
+        label={FUND_REQUEST_FIELD_LABELS.projectLocation}
+        value={project.location || "—"}
+      />
+      <FundRequestField
+        label={FUND_REQUEST_FIELD_LABELS.poAmount}
+        value={formatFundRequestPoAmount(project.po_amount)}
+        uppercaseValue={false}
+      />
+      <FundRequestField
+        label={FUND_REQUEST_FIELD_LABELS.projectCompletion}
+        value={formatFundRequestPercentage(project.completion_percentage)}
+        uppercaseValue={false}
+      />
+    </div>
+  );
+}
+
 function ProjectReferenceTable({
   project,
   poNumber,
@@ -163,6 +200,28 @@ function MultiProjectFields({
   );
 }
 
+function SubcontractorReferenceCard({
+  vendorName,
+  subcontractorProgress,
+}: {
+  vendorName?: string;
+  subcontractorProgress: number | string | null | undefined;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 rounded-md border border-border/80 p-3 sm:grid-cols-2">
+      <FundRequestField
+        label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
+        value={vendorName || "—"}
+      />
+      <FundRequestField
+        label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
+        value={formatFundRequestPercentage(subcontractorProgress)}
+        uppercaseValue={false}
+      />
+    </div>
+  );
+}
+
 function SubcontractorReferenceTable({
   vendorName,
   subcontractorProgress,
@@ -220,12 +279,27 @@ export function FundRequestProjectDetailsDisplay({
 
     return (
       <div className="space-y-4">
-        <ProjectReferenceTable project={project} poNumber={poNumber} />
+        <div className="hidden md:block">
+          <ProjectReferenceTable project={project} poNumber={poNumber} />
+        </div>
+        <div className="md:hidden">
+          <ProjectReferenceCard project={project} poNumber={poNumber} />
+        </div>
         {showSubcontractorFields ? (
-          <SubcontractorReferenceTable
-            vendorName={vendorName}
-            subcontractorProgress={request.subcontractor_progress_completion_percentage}
-          />
+          <>
+            <div className="hidden md:block">
+              <SubcontractorReferenceTable
+                vendorName={vendorName}
+                subcontractorProgress={request.subcontractor_progress_completion_percentage}
+              />
+            </div>
+            <div className="md:hidden">
+              <SubcontractorReferenceCard
+                vendorName={vendorName}
+                subcontractorProgress={request.subcontractor_progress_completion_percentage}
+              />
+            </div>
+          </>
         ) : null}
       </div>
     );
@@ -240,10 +314,20 @@ export function FundRequestProjectDetailsDisplay({
         showTopLevelPo={showTopLevelPo}
       />
       {showSubcontractorFields ? (
-        <SubcontractorReferenceTable
-          vendorName={vendorName}
-          subcontractorProgress={request.subcontractor_progress_completion_percentage}
-        />
+        <>
+          <div className="hidden md:block">
+            <SubcontractorReferenceTable
+              vendorName={vendorName}
+              subcontractorProgress={request.subcontractor_progress_completion_percentage}
+            />
+          </div>
+          <div className="md:hidden">
+            <SubcontractorReferenceCard
+              vendorName={vendorName}
+              subcontractorProgress={request.subcontractor_progress_completion_percentage}
+            />
+          </div>
+        </>
       ) : null}
     </div>
   );

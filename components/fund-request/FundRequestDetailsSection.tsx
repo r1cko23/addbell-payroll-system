@@ -20,6 +20,7 @@ import {
   type FundRequestVatMode,
   toEditableFundRequestDetailsForm,
 } from "@/lib/fund-request-details";
+import { dbHeaderButton, dbToolbarActions } from "@/lib/dashboard-ui";
 
 interface FundRequestDetailsSectionProps {
   details: FundRequestDetailItem[] | null | undefined;
@@ -387,11 +388,12 @@ export function FundRequestDetailsSection({
             </p>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+          <div className={cn("border-t pt-3", dbToolbarActions)}>
             {onSave ? (
               <Button
                 type="button"
                 size="sm"
+                className={dbHeaderButton}
                 disabled={saving || deductionsExceedItems}
                 onClick={() =>
                   void onSave({ items: editableDetails, deductions: editableDeductions })
@@ -410,7 +412,7 @@ export function FundRequestDetailsSection({
           </div>
 
           <div className="space-y-3 border-t pt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Deductions
               </h5>
@@ -418,6 +420,7 @@ export function FundRequestDetailsSection({
                 type="button"
                 variant="outline"
                 size="sm"
+                className={dbHeaderButton}
                 onClick={handleAddDeduction}
                 disabled={saving}
               >

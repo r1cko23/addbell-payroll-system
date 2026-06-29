@@ -24,6 +24,7 @@ import {
   approvalQueueCardHeaderRow,
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
+import { dbHeaderButton, dbToolbarActions } from "@/lib/dashboard-ui";
 import type { FundRequestRow } from "@/types/fund-request";
 import { formatFundRequestPercentage, isSubcontractorPaymentPurpose } from "@/types/fund-request";
 import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
@@ -403,7 +404,7 @@ export function FundRequestInbox({
     <div className="space-y-4">
       <div
         className={cn(
-          "grid w-full items-stretch gap-2.5 sm:gap-4",
+          "grid w-full items-stretch gap-2 sm:gap-4",
           isUpperManagement
             ? "grid-cols-1 max-w-xs"
             : "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"
@@ -532,7 +533,7 @@ export function FundRequestInbox({
                         fullName={name}
                         size="sm"
                       />
-                      <span className="text-lg font-bold">{name}</span>
+                      <span className="text-base font-bold sm:text-lg">{name}</span>
                       {employeeIdLabel ? (
                         <Caption>({employeeIdLabel})</Caption>
                       ) : null}
@@ -610,26 +611,23 @@ export function FundRequestInbox({
                   </div>
 
                   {(canAct || showPurchasingDetailOnly) && (
-                    <HStack
-                      gap="2"
-                      align="center"
-                      className="mt-auto flex-wrap border-t pt-2"
+                    <div
+                      className={cn("mt-auto border-t pt-2", dbToolbarActions)}
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {rejectId === r.id ? (
-                        <div
-                          className="w-full space-y-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        <div className="w-full space-y-2">
                           <Label className="text-xs">Rejection reason</Label>
                           <Input
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
                             placeholder="Reason"
                           />
-                          <HStack gap="2">
+                          <div className={dbToolbarActions}>
                             <Button
                               size="sm"
                               variant="destructive"
+                              className={dbHeaderButton}
                               disabled={actingId === r.id}
                               onClick={() => handleReject(r.id, r.status)}
                             >
@@ -642,6 +640,7 @@ export function FundRequestInbox({
                             <Button
                               size="sm"
                               variant="outline"
+                              className={dbHeaderButton}
                               onClick={() => {
                                 setRejectId(null);
                                 setRejectReason("");
@@ -649,15 +648,15 @@ export function FundRequestInbox({
                             >
                               Cancel
                             </Button>
-                          </HStack>
+                          </div>
                         </div>
                       ) : (
                         <>
                           <Button
                             variant="secondary"
                             size="sm"
+                            className={dbHeaderButton}
                             asChild
-                            onClick={(e) => e.stopPropagation()}
                           >
                             <Link href={detailHref(r.id)}>View details</Link>
                           </Button>
@@ -666,8 +665,8 @@ export function FundRequestInbox({
                               <Button
                                 variant="destructive"
                                 size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                className={dbHeaderButton}
+                                onClick={() => {
                                   setRejectId(r.id);
                                   setRejectReason("");
                                 }}
@@ -677,11 +676,9 @@ export function FundRequestInbox({
                               </Button>
                               <Button
                                 size="sm"
+                                className={dbHeaderButton}
                                 disabled={actingId === r.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleApprove(r.id, r.status);
-                                }}
+                                onClick={() => handleApprove(r.id, r.status)}
                               >
                                 {actingId === r.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -698,7 +695,7 @@ export function FundRequestInbox({
                           ) : null}
                         </>
                       )}
-                    </HStack>
+                    </div>
                   )}
                 </CardContent>
               </Card>

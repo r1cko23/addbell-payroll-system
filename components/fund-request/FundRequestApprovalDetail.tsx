@@ -70,7 +70,7 @@ import { resolveFundRequestRequesterInfo } from "@/lib/fund-request-requester";
 import { fetchApproverNameMap } from "@/lib/load-approver-names";
 import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
-import { dbPageWrapper } from "@/lib/dashboard-ui";
+import { dbPageWrapper, dbFormCard, dbToolbarActions, dbHeaderButton } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABELS = FUND_REQUEST_STATUS_LABELS;
@@ -501,7 +501,7 @@ export function FundRequestApprovalDetail({
       >
         {backLabel}
       </Link>
-      <Card className="w-full">
+      <Card className={cn("w-full", dbFormCard)}>
         <CardHeader>
           <CardTitle>Fund request</CardTitle>
           <div className="flex flex-wrap items-center gap-2">
@@ -530,7 +530,7 @@ export function FundRequestApprovalDetail({
             {projectInfo && showProjectReferenceFields && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Linked Project — Budget Context</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                   <div>
                     <span className="text-muted-foreground">Project:</span>
                     <p className="font-medium uppercase">{projectInfo.code} — {projectInfo.name}</p>
@@ -736,10 +736,11 @@ export function FundRequestApprovalDetail({
                           : "Reason"
                       }
                     />
-                    <div className="flex flex-wrap gap-2">
+                    <div className={dbToolbarActions}>
                       <Button
                         variant={isUpperManagementReview ? "default" : "destructive"}
                         disabled={rejecting}
+                        className={dbHeaderButton}
                         onClick={handleReject}
                       >
                         {rejecting ? (
@@ -753,6 +754,7 @@ export function FundRequestApprovalDetail({
                       <Button
                         variant="outline"
                         disabled={rejecting}
+                        className={dbHeaderButton}
                         onClick={() => {
                           setShowRejectForm(false);
                           setRejectReason("");
@@ -763,12 +765,16 @@ export function FundRequestApprovalDetail({
                     </div>
                   </div>
                 ) : isUpperManagementReview ? (
-                  <Button disabled={acting} onClick={() => setShowRejectForm(true)}>
+                  <Button
+                    disabled={acting}
+                    className={dbHeaderButton}
+                    onClick={() => setShowRejectForm(true)}
+                  >
                     Return to purchasing
                   </Button>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <Button disabled={acting} onClick={handleApprove}>
+                  <div className={dbToolbarActions}>
+                    <Button disabled={acting} className={dbHeaderButton} onClick={handleApprove}>
                       {acting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
@@ -777,6 +783,7 @@ export function FundRequestApprovalDetail({
                     <Button
                       variant="destructive"
                       disabled={acting}
+                      className={dbHeaderButton}
                       onClick={() => setShowRejectForm(true)}
                     >
                       Reject

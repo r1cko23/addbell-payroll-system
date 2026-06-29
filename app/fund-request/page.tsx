@@ -192,9 +192,9 @@ function FundRequestListPageContent() {
   };
 
   const allRequestsFilters = (
-    <div className="flex flex-col sm:flex-row gap-4 border-b px-4 py-4">
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <div className="flex flex-col gap-4 border-b px-4 py-4 sm:flex-row">
+      <div className="relative min-w-0 flex-1">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search by purpose or project..."
           value={searchTerm}
@@ -203,7 +203,7 @@ function FundRequestListPageContent() {
         />
       </div>
       <Select value={statusFilter} onValueChange={setStatusFilter}>
-        <SelectTrigger className="w-full sm:w-[220px]">
+        <SelectTrigger className="w-full min-w-0 sm:w-[220px]">
           <SelectValue placeholder="All statuses" />
         </SelectTrigger>
         <SelectContent>

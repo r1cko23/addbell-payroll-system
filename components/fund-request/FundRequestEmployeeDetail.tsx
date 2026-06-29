@@ -27,7 +27,7 @@ import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { Button } from '@/components/ui/button';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
-import { epPageWrapper } from '@/lib/employee-portal-ui';
+import { epPageWrapper, epSubmitRequestButton } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';
 import type { FundRequestDetailItem } from '@/lib/fund-request-details';
 
@@ -160,7 +160,7 @@ export function FundRequestEmployeeDetail({
               </div>
             </div>
             {canEdit ? (
-              <Button asChild size="sm" variant="outline">
+              <Button asChild size="sm" variant="outline" className={cn(epSubmitRequestButton, "sm:w-auto")}>
                 <Link href={`${base}/${fundRequestId}/edit`}>Edit request</Link>
               </Button>
             ) : null}

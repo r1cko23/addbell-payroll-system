@@ -17,10 +17,6 @@ export async function assertRequesterCanManageFundRequest(
   requestId: string,
   requesterEmployeeId: string
 ) {
-  if (!authUserId) {
-    return { error: "Not authenticated", status: 401 as const };
-  }
-
   const { data: existing, error: loadError } = await admin
     .from("fund_requests")
     .select("id, requested_by, status")
@@ -43,14 +39,19 @@ export async function assertRequesterCanManageFundRequest(
 
   const { data: employee, error: employeeError } = await admin
     .from("employees")
-    .select("id, user_id")
+    .select("id, user_id, is_active")
     .eq("id", requesterEmployeeId)
     .maybeSingle();
 
   if (employeeError) {
     return { error: employeeError.message, status: 500 as const };
   }
-  if (!employee || employee.user_id !== authUserId) {
+  if (!employee?.is_active) {
+    return { error: "Request not found", status: 404 as const };
+  }
+
+  // Dashboard users authenticate via Supabase; employee portal uses localStorage only.
+  if (authUserId && employee.user_id !== authUserId) {
     return { error: "You can only change your own fund requests.", status: 403 as const };
   }
 

@@ -232,7 +232,10 @@ export function FundRequestEmployeeDetail({
             )}
           </div>
 
-          <FundRequestSupportingDocuments documents={documents} />
+          <FundRequestSupportingDocuments
+            documents={documents}
+            requestedBy={request.requested_by}
+          />
 
           {canEdit ? (
             <FundRequestAddDocument

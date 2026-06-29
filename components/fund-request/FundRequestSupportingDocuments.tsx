@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,7 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { base64ToBlob } from "@/lib/request-supporting-document";
-import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
 
 type DocumentPreview = {
@@ -21,6 +19,7 @@ type DocumentPreview = {
   url: string;
   canPreview: boolean;
   isImage: boolean;
+  revokeOnClose: boolean;
 };
 
 function isPdfDocument(fileType: string | null, fileName: string | null): boolean {
@@ -42,20 +41,23 @@ export function FundRequestSupportingDocuments({
   documents,
   title,
   emptyLabel,
+  requestedBy,
 }: {
   documents: FundRequestDocumentSummary[];
   title?: string;
   emptyLabel?: string;
+  requestedBy?: string;
 }) {
-  const supabase = createClient();
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null);
   const [preview, setPreview] = useState<DocumentPreview | null>(null);
 
   useEffect(() => {
     return () => {
-      if (preview?.url) URL.revokeObjectURL(preview.url);
+      if (preview?.revokeOnClose && preview.url) {
+        URL.revokeObjectURL(preview.url);
+      }
     };
-  }, [preview?.url]);
+  }, [preview?.url, preview?.revokeOnClose]);
 
   if (documents.length === 0) {
     return emptyLabel ? (
@@ -65,7 +67,9 @@ export function FundRequestSupportingDocuments({
 
   function closePreview() {
     setPreview((current) => {
-      if (current?.url) URL.revokeObjectURL(current.url);
+      if (current?.revokeOnClose && current.url) {
+        URL.revokeObjectURL(current.url);
+      }
       return null;
     });
   }
@@ -80,45 +84,65 @@ export function FundRequestSupportingDocuments({
 
   async function viewDocument(docId: string) {
     setLoadingDocId(docId);
-    const { data, error } = await supabase
-      .from("fund_request_documents")
-      .select("file_base64, file_name, file_type")
-      .eq("id", docId)
-      .maybeSingle();
+
+    const query = requestedBy
+      ? `?requested_by=${encodeURIComponent(requestedBy)}`
+      : "";
+    const response = await fetch(`/api/fund-requests/documents/${docId}${query}`);
+    const result = (await response.json()) as {
+      error?: string;
+      url?: string;
+      file_base64?: string;
+      file_name?: string | null;
+      file_type?: string | null;
+    };
 
     setLoadingDocId(null);
 
-    if (error) {
-      if (isSchemaMissingTableOrRelationError(error)) {
-        toast.error("Document storage is not configured");
-      } else {
-        toast.error("Unable to fetch document");
-      }
+    if (!response.ok) {
+      toast.error(result.error ?? "Unable to fetch document");
       return;
     }
-    if (!data) {
+
+    const fileName = result.file_name || "document";
+    const fileType = result.file_type || "application/octet-stream";
+
+    if (result.url) {
+      setPreview((current) => {
+        if (current?.revokeOnClose && current.url) {
+          URL.revokeObjectURL(current.url);
+        }
+        return {
+          fileName,
+          fileType,
+          url: result.url!,
+          canPreview: canPreviewDocument(result.file_type ?? null, result.file_name ?? null),
+          isImage: isImageDocument(result.file_type ?? null, result.file_name ?? null),
+          revokeOnClose: false,
+        };
+      });
+      return;
+    }
+
+    if (!result.file_base64) {
       toast.error("Unable to fetch document");
       return;
     }
 
-    const docData = data as {
-      file_base64: string;
-      file_name: string | null;
-      file_type: string | null;
-    };
-
-    const fileType = docData.file_type || "application/octet-stream";
-    const blob = base64ToBlob(docData.file_base64, fileType);
+    const blob = base64ToBlob(result.file_base64, fileType);
     const url = URL.createObjectURL(blob);
 
     setPreview((current) => {
-      if (current?.url) URL.revokeObjectURL(current.url);
+      if (current?.revokeOnClose && current.url) {
+        URL.revokeObjectURL(current.url);
+      }
       return {
-        fileName: docData.file_name || "document",
+        fileName,
         fileType,
         url,
-        canPreview: canPreviewDocument(docData.file_type, docData.file_name),
-        isImage: isImageDocument(docData.file_type, docData.file_name),
+        canPreview: canPreviewDocument(result.file_type ?? null, result.file_name ?? null),
+        isImage: isImageDocument(result.file_type ?? null, result.file_name ?? null),
+        revokeOnClose: true,
       };
     });
   }
@@ -142,7 +166,7 @@ export function FundRequestSupportingDocuments({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => viewDocument(doc.id)}
+                onClick={() => void viewDocument(doc.id)}
                 disabled={loadingDocId === doc.id}
               >
                 {loadingDocId === doc.id ? "Loading..." : "View"}

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { deleteFundRequestDocumentFiles } from "@/lib/fund-request-document-storage";
 
 async function deletePurchaseOrdersForProject(
   supabase: SupabaseClient,
@@ -72,6 +73,8 @@ async function deleteFundRequestsForProject(
   ];
 
   if (fundRequestIds.length === 0) return;
+
+  await deleteFundRequestDocumentFiles(supabase, fundRequestIds);
 
   const { error: documentsError } = await supabase
     .from("fund_request_documents")

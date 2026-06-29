@@ -8,6 +8,7 @@ import { epFileInput } from "@/lib/employee-portal-ui";
 import { dbHeaderButton } from "@/lib/dashboard-ui";
 import {
   isFundRequestPaymentCheckDocument,
+  preparePaymentCheckFile,
   uploadFundRequestPaymentCheck,
   validatePaymentCheckFile,
 } from "@/lib/fund-request-payment-check";
@@ -34,6 +35,7 @@ export function FundRequestPaymentCheckSection({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
 
   const paymentChecks = documents.filter(isFundRequestPaymentCheckDocument);
 
@@ -54,8 +56,16 @@ export function FundRequestPaymentCheckSection({
       return;
     }
 
+    setCompressing(true);
+    let fileToUpload = selectedFile;
+    try {
+      fileToUpload = await preparePaymentCheckFile(selectedFile);
+    } finally {
+      setCompressing(false);
+    }
+
     setUploading(true);
-    const result = await uploadFundRequestPaymentCheck(requestId, selectedFile);
+    const result = await uploadFundRequestPaymentCheck(requestId, fileToUpload);
     setUploading(false);
 
     if (result.error || !result.document) {
@@ -79,8 +89,8 @@ export function FundRequestPaymentCheckSection({
           Payment check (optional audit)
         </h4>
         <p className="mt-1 text-sm text-muted-foreground">
-          Optionally upload a scan or photo of the issued check for audit. Approval does not
-          require a check upload—you can add one before or after approving.
+          Optionally upload a scan or photo of the issued check for audit. Large photos are
+          compressed automatically before upload. Approval does not require a check upload.
         </p>
       </div>
 
@@ -118,7 +128,7 @@ export function FundRequestPaymentCheckSection({
             className={epFileInput}
           />
           <p className="text-xs text-muted-foreground">
-            PDF or image (JPG, PNG, WEBP). Max 5MB.
+            PDF or image (JPG, PNG, WEBP). Images are resized to about 400 KB. Max 5MB.
           </p>
           {selectedFile && !fileError ? (
             <p className="text-sm text-emerald-700">
@@ -134,10 +144,10 @@ export function FundRequestPaymentCheckSection({
             size="sm"
             variant="outline"
             className={dbHeaderButton}
-            disabled={!selectedFile || uploading}
+            disabled={!selectedFile || uploading || compressing}
             onClick={() => void handleUpload()}
           >
-            {uploading ? "Uploading..." : "Upload check"}
+            {compressing ? "Compressing..." : uploading ? "Uploading..." : "Upload check"}
           </Button>
         </div>
       ) : null}

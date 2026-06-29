@@ -80,6 +80,7 @@ export type FundRequestDocumentSummary = {
   created_at: string;
   document_type?: FundRequestDocumentType | null;
   uploaded_by?: string | null;
+  storage_path?: string | null;
 };
 
 export type FundRequestRow = {

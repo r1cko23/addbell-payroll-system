@@ -9,6 +9,7 @@ import {
   resolveFundRequestRequesterRouting,
 } from "@/lib/fund-request-routing";
 import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
+import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
 type FundRequestContentPayload = {
   reference_mode: FundRequestReferenceMode;
@@ -125,20 +126,19 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (body.document?.file_base64) {
-      const docInsert = await admin.from("fund_request_documents").insert({
-        fund_request_id: body.request_id.trim(),
-        employee_id: body.requested_by.trim(),
-        document_type: "supporting",
-        file_name: body.document.file_name,
-        file_type: body.document.file_type,
-        file_size: body.document.file_size,
-        file_base64: body.document.file_base64,
+      const docResult = await insertFundRequestDocument(admin, {
+        fundRequestId: body.request_id.trim(),
+        employeeId: body.requested_by.trim(),
+        fileName: body.document.file_name,
+        fileType: body.document.file_type,
+        fileBase64: body.document.file_base64,
+        documentType: "supporting",
       });
 
-      if (docInsert.error && !isSchemaMissingTableOrRelationError(docInsert.error)) {
+      if ("error" in docResult && !isSchemaMissingTableOrRelationError({ message: docResult.error })) {
         return NextResponse.json({
           id: body.request_id.trim(),
-          warning: `Fund request updated but document upload failed: ${docInsert.error.message}`,
+          warning: `Fund request updated but document upload failed: ${docResult.error}`,
         });
       }
     }
@@ -237,18 +237,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.document?.file_base64) {
-      const docInsert = await admin.from("fund_request_documents").insert({
-        fund_request_id: inserted.id,
-        employee_id: body.requested_by,
-        document_type: "supporting",
-        file_name: body.document.file_name,
-        file_type: body.document.file_type,
-        file_size: body.document.file_size,
-        file_base64: body.document.file_base64,
+      const docResult = await insertFundRequestDocument(admin, {
+        fundRequestId: inserted.id,
+        employeeId: body.requested_by,
+        fileName: body.document.file_name,
+        fileType: body.document.file_type,
+        fileBase64: body.document.file_base64,
+        documentType: "supporting",
       });
 
-      if (docInsert.error) {
-        if (isSchemaMissingTableOrRelationError(docInsert.error)) {
+      if ("error" in docResult) {
+        if (isSchemaMissingTableOrRelationError({ message: docResult.error })) {
           return NextResponse.json({
             id: inserted.id,
             warning:
@@ -257,7 +256,7 @@ export async function POST(req: NextRequest) {
         }
         return NextResponse.json({
           id: inserted.id,
-          warning: `Fund request created but document upload failed: ${docInsert.error.message}`,
+          warning: `Fund request created but document upload failed: ${docResult.error}`,
         });
       }
     }

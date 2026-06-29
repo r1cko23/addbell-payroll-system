@@ -98,3 +98,75 @@ export async function assertApproverCanUploadPaymentCheck(
 
   return { existing };
 }
+
+const FUND_REQUEST_DOCUMENT_VIEWER_ROLES = new Set([
+  "hr",
+  "admin",
+  "upper_management",
+  "project_manager",
+  "operations_manager",
+  "purchasing_officer",
+  "approver",
+  "viewer",
+]);
+
+/** Read fund request documents from dashboard auth or employee portal context. */
+export async function assertCanViewFundRequestDocument(
+  admin: ReturnType<typeof getAdminClient>,
+  authUserId: string | null,
+  documentId: string,
+  requestedBy?: string | null
+) {
+  const { data: document, error: loadError } = await admin
+    .from("fund_request_documents")
+    .select(
+      "id, fund_request_id, employee_id, file_name, file_type, file_size, storage_path, file_base64, document_type"
+    )
+    .eq("id", documentId)
+    .maybeSingle();
+
+  if (loadError) {
+    return { error: loadError.message, status: 500 as const };
+  }
+  if (!document) {
+    return { error: "Document not found", status: 404 as const };
+  }
+
+  if (requestedBy?.trim()) {
+    if (document.employee_id !== requestedBy.trim()) {
+      return { error: "Document not found", status: 404 as const };
+    }
+    return { document };
+  }
+
+  if (!authUserId) {
+    return { error: "Not authenticated", status: 401 as const };
+  }
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", authUserId)
+    .maybeSingle();
+
+  const normalizedRole = (profile?.role || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
+  if (FUND_REQUEST_DOCUMENT_VIEWER_ROLES.has(normalizedRole)) {
+    return { document };
+  }
+
+  const { data: employee } = await admin
+    .from("employees")
+    .select("user_id")
+    .eq("id", document.employee_id)
+    .maybeSingle();
+
+  if (employee?.user_id === authUserId) {
+    return { document };
+  }
+
+  return { error: "Not authorized to view this document", status: 403 as const };
+}

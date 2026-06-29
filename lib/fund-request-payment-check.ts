@@ -3,6 +3,10 @@ import {
   MAX_REQUEST_DOCUMENT_SIZE,
   resolveRequestDocumentMimeType,
 } from "@/lib/request-supporting-document";
+import {
+  compressImageForUpload,
+  isCompressibleImageFile,
+} from "@/lib/compress-image-for-upload";
 import type { FundRequestDocumentSummary, FundRequestRow } from "@/types/fund-request";
 import { normalizeUserRole } from "@/lib/user-roles";
 
@@ -57,20 +61,36 @@ export function isFundRequestPaymentCheckDocument(
   return document.document_type === "payment_check";
 }
 
+export async function preparePaymentCheckFile(file: File): Promise<File> {
+  if (!isAllowedPaymentCheckFile(file) || !isCompressibleImageFile(file)) {
+    return file;
+  }
+
+  try {
+    return await compressImageForUpload(file, {
+      maxDimension: 1800,
+      maxSizeKB: 400,
+    });
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadFundRequestPaymentCheck(
   requestId: string,
   file: File
 ): Promise<{ document?: FundRequestDocumentSummary; error?: string }> {
+  const preparedFile = await preparePaymentCheckFile(file);
   const response = await fetch("/api/fund-requests/payment-checks", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       request_id: requestId,
       document: {
-        file_name: file.name,
-        file_type: resolvePaymentCheckMimeType(file),
-        file_size: file.size,
-        file_base64: await fileToBase64(file),
+        file_name: preparedFile.name,
+        file_type: resolvePaymentCheckMimeType(preparedFile),
+        file_size: preparedFile.size,
+        file_base64: await fileToBase64(preparedFile),
       },
     }),
   });

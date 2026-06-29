@@ -8,6 +8,7 @@ import {
   getAdminClient,
 } from "@/lib/fund-request-api";
 import { getCurrentUserRole } from "@/lib/api-helpers";
+import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
 type UploadPaymentCheckPayload = {
   request_id?: string;
@@ -47,55 +48,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const insertPayload = {
-      fund_request_id: body.request_id.trim(),
-      employee_id: access.existing.requested_by,
-      document_type: "payment_check",
-      uploaded_by: authUser!.id,
-      file_name: body.document.file_name,
-      file_type: body.document.file_type,
-      file_size: body.document.file_size,
-      file_base64: body.document.file_base64,
-    };
+    const result = await insertFundRequestDocument(admin, {
+      fundRequestId: body.request_id.trim(),
+      employeeId: access.existing.requested_by,
+      fileName: body.document.file_name,
+      fileType: body.document.file_type,
+      fileBase64: body.document.file_base64,
+      documentType: "payment_check",
+      uploadedBy: authUser!.id,
+    });
 
-    let docInsert = await admin
-      .from("fund_request_documents")
-      .insert(insertPayload)
-      .select(
-        "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by"
-      )
-      .single();
-
-    if (
-      docInsert.error &&
-      (docInsert.error.message.includes("document_type") ||
-        docInsert.error.message.includes("uploaded_by"))
-    ) {
-      docInsert = await admin
-        .from("fund_request_documents")
-        .insert({
-          fund_request_id: body.request_id.trim(),
-          employee_id: access.existing.requested_by,
-          file_name: body.document.file_name,
-          file_type: body.document.file_type,
-          file_size: body.document.file_size,
-          file_base64: body.document.file_base64,
-        })
-        .select("id, fund_request_id, employee_id, file_name, file_type, file_size, created_at")
-        .single();
-    }
-
-    if (docInsert.error) {
-      if (isSchemaMissingTableOrRelationError(docInsert.error)) {
+    if ("error" in result) {
+      if (isSchemaMissingTableOrRelationError({ message: result.error })) {
         return NextResponse.json(
           { error: "Document storage is not available. Apply database migrations." },
           { status: 503 }
         );
       }
-      return NextResponse.json({ error: docInsert.error.message }, { status: 500 });
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    return NextResponse.json({ document: docInsert.data });
+    return NextResponse.json({ document: result.document });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },

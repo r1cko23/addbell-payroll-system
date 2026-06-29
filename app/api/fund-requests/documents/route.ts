@@ -4,6 +4,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
+import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
 type AddFundRequestDocumentPayload = {
   request_id?: string;
@@ -46,33 +47,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
 
-    const docInsert = await admin
-      .from("fund_request_documents")
-      .insert({
-        fund_request_id: body.request_id.trim(),
-        employee_id: body.requested_by.trim(),
-        document_type: "supporting",
-        file_name: body.document.file_name,
-        file_type: body.document.file_type,
-        file_size: body.document.file_size,
-        file_base64: body.document.file_base64,
-      })
-      .select(
-        "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type"
-      )
-      .single();
+    const result = await insertFundRequestDocument(admin, {
+      fundRequestId: body.request_id.trim(),
+      employeeId: body.requested_by.trim(),
+      fileName: body.document.file_name,
+      fileType: body.document.file_type,
+      fileBase64: body.document.file_base64,
+      documentType: "supporting",
+    });
 
-    if (docInsert.error) {
-      if (isSchemaMissingTableOrRelationError(docInsert.error)) {
+    if ("error" in result) {
+      if (isSchemaMissingTableOrRelationError({ message: result.error })) {
         return NextResponse.json(
           { error: "Document storage is not available. Apply database migrations." },
           { status: 503 }
         );
       }
-      return NextResponse.json({ error: docInsert.error.message }, { status: 500 });
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
-    return NextResponse.json({ document: docInsert.data });
+    return NextResponse.json({ document: result.document });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },

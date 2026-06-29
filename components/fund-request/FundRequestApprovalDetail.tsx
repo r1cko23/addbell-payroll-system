@@ -217,7 +217,7 @@ export function FundRequestApprovalDetail({
 
       let docRows: FundRequestDocumentSummary[] | null = null;
       const extendedDocSelect =
-        "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by";
+        "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path";
       const { data: extendedDocs, error: extendedDocsError } = await supabase
         .from("fund_request_documents")
         .select(extendedDocSelect)

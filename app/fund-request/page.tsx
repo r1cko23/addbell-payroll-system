@@ -139,42 +139,21 @@ function FundRequestListPageContent() {
 
   useEffect(() => {
     if (profileLoading || resolvingLinkedEmployee) return;
-    if (activeTab === 'my-requests') {
+    if (activeTab !== 'all-requests') {
       setLoading(false);
       return;
     }
     const fetchData = async () => {
-      const shouldFilterByRequester =
-        activeTab === 'my-requests' &&
-        Boolean(employeeId) &&
-        (isPortal || isApprover || !canViewAllFromDashboard);
-      if (!employeeId) {
-        if (!canViewAllFromDashboard || isApprover) {
-          setRows([]);
-          setLoading(false);
-          return;
-        }
-      }
-      let query = supabase
+      const { data } = await supabase
         .from('fund_requests')
         .select('*, projects ( name, code )')
         .order('created_at', { ascending: false });
-      if (shouldFilterByRequester) query = query.eq('requested_by', employeeId);
-      const { data } = await query;
       setRows((data as FundRequestWithProject[]) ?? []);
       setLoading(false);
     };
+    setLoading(true);
     fetchData();
-  }, [
-    employeeId,
-    profileLoading,
-    resolvingLinkedEmployee,
-    supabase,
-    canViewAllFromDashboard,
-    isPortal,
-    isApprover,
-    activeTab,
-  ]);
+  }, [profileLoading, resolvingLinkedEmployee, supabase, activeTab]);
 
   const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loadingState) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;

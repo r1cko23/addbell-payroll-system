@@ -59,6 +59,10 @@ import {
   type FundRequestProjectDetailRow,
 } from "@/lib/fund-request-project-details";
 import { FundRequestProjectDetailsFields } from "@/components/fund-request/FundRequestProjectDetailsFields";
+import {
+  getFundRequestSubmissionWorkflow,
+  resolveFundRequestRequesterRouting,
+} from "@/lib/fund-request-routing";
 
 const PURPOSE_OPTIONS = [
   "Material Purchase",
@@ -206,48 +210,7 @@ function parseRequiredPercentage(
 }
 
 const FUND_REQUEST_APPROVAL_STREAM =
-  "Requester → Operations Manager → Purchasing Officer → Upper Management";
-
-function getSubmissionWorkflow(
-  role: string | undefined,
-  isPortal: boolean,
-  currentUserId: string | null
-) {
-  const timestamp = new Date().toISOString();
-  if (!isPortal && role === "operations_manager" && currentUserId) {
-    return {
-      status: "project_manager_approved",
-      project_manager_approved_by: null,
-      project_manager_approved_at: null,
-      purchasing_officer_approved_by: null,
-      purchasing_officer_approved_at: null,
-      management_approved_by: null,
-      management_approved_at: null,
-    };
-  }
-
-  if (!isPortal && role === "purchasing_officer" && currentUserId) {
-    return {
-      status: "purchasing_officer_approved",
-      project_manager_approved_by: null,
-      project_manager_approved_at: null,
-      purchasing_officer_approved_by: currentUserId,
-      purchasing_officer_approved_at: timestamp,
-      management_approved_by: null,
-      management_approved_at: null,
-    };
-  }
-
-  return {
-    status: "pending",
-    project_manager_approved_by: null,
-    project_manager_approved_at: null,
-    purchasing_officer_approved_by: null,
-    purchasing_officer_approved_at: null,
-    management_approved_by: null,
-    management_approved_at: null,
-  };
-}
+  "Requester → Operations Manager (if assigned) → Purchasing Officer → Upper Management";
 
 export default function NewFundRequestPage() {
   const pathname = usePathname();
@@ -291,7 +254,6 @@ export default function NewFundRequestPage() {
   const [docError, setDocError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { data: subcontractors = [] } = useSubcontractorOptions();
-  const workflow = getSubmissionWorkflow(user?.role, isPortal, user?.id ?? null);
   const purposeConfig = useMemo(
     () => getPurposeFieldConfig(purposeOption),
     [purposeOption]
@@ -537,6 +499,18 @@ export default function NewFundRequestPage() {
             : trimmedPoNumber
           : null;
 
+      const requesterRouting = await resolveFundRequestRequesterRouting(
+        supabase,
+        employeeId
+      );
+      const workflow = getFundRequestSubmissionWorkflow({
+        submitterRole: user?.role,
+        isPortal,
+        submitterUserId: user?.id ?? null,
+        requiresOperationsManagerApproval:
+          requesterRouting.requiresOperationsManagerApproval,
+      });
+
       const payload = {
         company_id: companyId,
         reference_mode: referenceMode,
@@ -590,6 +564,7 @@ export default function NewFundRequestPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...payload,
+          is_portal_submission: isPortal,
           document: documentPayload,
         }),
       });

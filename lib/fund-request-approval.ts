@@ -3,6 +3,8 @@ import {
   approvalApprovedStatusBadgeClass,
   approvalRejectedStatusBadgeClass,
 } from "@/lib/approval-status-badge";
+import { fundRequestInOperationsManagerQueue } from "@/lib/fund-request-routing";
+import { normalizeUserRole } from "@/lib/user-roles";
 
 export const FUND_REQUEST_NEXT_STATUS: Partial<
   Record<FundRequestRow["status"], FundRequestRow["status"]>
@@ -24,8 +26,6 @@ export function isFundRequestApproverRole(role: string | null | undefined): bool
   return APPROVER_ROLES.has(role);
 }
 
-import { normalizeUserRole } from "@/lib/user-roles";
-
 export function getActionableFundRequestStatuses(
   role: string | null | undefined
 ): FundRequestRow["status"][] {
@@ -40,11 +40,35 @@ export function getActionableFundRequestStatuses(
 
 export function canActOnFundRequest(
   role: string | null | undefined,
-  status: string
+  status: string,
+  options?: {
+    request?: Pick<FundRequestRow, "requested_by">;
+    managedRequesterIds?: ReadonlySet<string> | string[];
+  }
 ): boolean {
-  return getActionableFundRequestStatuses(role).includes(
-    status as FundRequestRow["status"]
-  );
+  if (
+    !getActionableFundRequestStatuses(role).includes(
+      status as FundRequestRow["status"]
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    normalizeUserRole(role) === "operations_manager" &&
+    options?.request &&
+    options?.managedRequesterIds
+  ) {
+    return fundRequestInOperationsManagerQueue(
+      {
+        status: status as FundRequestRow["status"],
+        requested_by: options.request.requested_by,
+      },
+      options.managedRequesterIds
+    );
+  }
+
+  return true;
 }
 
 export type FundRequestApprovalActionCopy = {

@@ -6,23 +6,10 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
-import { format } from 'date-fns';
-import { toast } from 'sonner';
 import { DashboardLayout } from '@/components/DashboardLayout';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -31,247 +18,22 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Plus, Trash2 } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { H1, PageTitle, PageSubtitle } from '@/components/ui/typography';
 import { epPageHeaderRow, epPageWrapper } from '@/lib/employee-portal-ui';
 import { dbPageWrapper } from '@/lib/dashboard-ui';
 import { cn } from '@/lib/utils';
 import type { FundRequestRow } from '@/types/fund-request';
-import { FUND_REQUEST_STATUS_LABELS } from '@/types/fund-request';
-import { getFundRequestListProjectLabel } from '@/lib/fund-request-project-details';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
-import {
-  canRequesterDeleteFundRequest,
-  getFundRequestStatusBadgeClass,
-  getFundRequestStatusBadgeVariant,
-  isFundRequestApproverRole,
-} from '@/lib/fund-request-approval';
+import { isFundRequestApproverRole } from '@/lib/fund-request-approval';
 import { FundRequestInbox } from '@/components/fund-request/FundRequestInbox';
 import { FundRequestCutoffHistory } from '@/components/fund-request/FundRequestCutoffHistory';
+import { FundRequestAllList } from '@/components/fund-request/FundRequestAllList';
+import { FundRequestMyRequests } from '@/components/fund-request/FundRequestMyRequests';
 
 type FundRequestWithProject = FundRequestRow & {
   projects: { name: string; code: string } | null;
 };
-
-function FundRequestAllList({
-  rows,
-  loading,
-  searchTerm,
-  statusFilter,
-  base,
-  requesterEmployeeId,
-  onRequestDeleted,
-}: {
-  rows: FundRequestWithProject[];
-  loading: boolean;
-  searchTerm: string;
-  statusFilter: string;
-  base: string;
-  requesterEmployeeId: string | null;
-  onRequestDeleted: (requestId: string) => void;
-}) {
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    if (!deleteId || !requesterEmployeeId) return;
-
-    setDeleting(true);
-    try {
-      const response = await fetch('/api/fund-requests', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request_id: deleteId,
-          requested_by: requesterEmployeeId,
-        }),
-      });
-      const payload = (await response.json()) as { error?: string };
-
-      if (!response.ok) {
-        toast.error(payload.error || 'Failed to delete request');
-        return;
-      }
-
-      toast.success('Fund request deleted');
-      onRequestDeleted(deleteId);
-      setDeleteId(null);
-    } catch {
-      toast.error('Failed to delete request');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const filteredRows = rows.filter((r) => {
-    if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const matchPurpose = (r.purpose || '').toLowerCase().includes(term);
-      const matchProject = (r.project_title || r.projects?.name || '').toLowerCase().includes(term);
-      if (!matchPurpose && !matchProject) return false;
-    }
-    return true;
-  });
-
-  const canDeleteRequest = (request: FundRequestWithProject) =>
-    Boolean(requesterEmployeeId) &&
-    request.requested_by === requesterEmployeeId &&
-    canRequesterDeleteFundRequest(request.status);
-
-  if (loading) {
-    return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
-  }
-
-  if (filteredRows.length === 0) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        {searchTerm || statusFilter !== 'all'
-          ? 'No fund requests match your filters.'
-          : 'No fund requests yet.'}
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b bg-muted/40">
-            <tr>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Project</th>
-              <th className="px-4 py-3 font-medium">Purpose</th>
-              <th className="px-4 py-3 font-medium text-right">Total (PHP)</th>
-              <th className="px-4 py-3 font-medium">Date Needed</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((r) => (
-              <tr key={r.id} className="border-b last:border-0 hover:bg-primary/5">
-                <td className="px-4 py-3 whitespace-nowrap">{format(new Date(r.request_date), 'MMM d, yyyy')}</td>
-                <td className="px-4 py-3 max-w-[180px] truncate">
-                  {getFundRequestListProjectLabel(r)}
-                </td>
-                <td className="px-4 py-3 max-w-[200px] truncate">{r.purpose}</td>
-                <td className="px-4 py-3 font-medium text-right tabular-nums">
-                  ₱{Number(r.total_requested_amount).toLocaleString()}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap">
-                  {r.date_needed ? format(new Date(r.date_needed), 'MMM d') : '—'}
-                </td>
-                <td className="px-4 py-3">
-                  <Badge
-                    variant={getFundRequestStatusBadgeVariant(r.status)}
-                    className={cn(
-                      'whitespace-nowrap text-xs',
-                      getFundRequestStatusBadgeClass(r.status)
-                    )}
-                  >
-                    {FUND_REQUEST_STATUS_LABELS[r.status] ?? r.status}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <Link href={`${base}/${r.id}`} className="text-primary font-medium hover:underline text-sm">
-                      View
-                    </Link>
-                    {canDeleteRequest(r) ? (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteId(r.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
-                        aria-label="Delete request"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="md:hidden space-y-3 p-4">
-        {filteredRows.map((r) => (
-          <Card key={r.id}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold">
-                    {format(new Date(r.request_date), 'MMM d, yyyy')}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    {getFundRequestListProjectLabel(r)}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1 truncate">{r.purpose}</div>
-                </div>
-                <Badge
-                  variant={getFundRequestStatusBadgeVariant(r.status)}
-                  className={cn(
-                    'max-w-[45%] shrink-0 whitespace-normal text-right text-xs leading-snug sm:max-w-none',
-                    getFundRequestStatusBadgeClass(r.status)
-                  )}
-                >
-                  {FUND_REQUEST_STATUS_LABELS[r.status] ?? r.status}
-                </Badge>
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold tabular-nums">
-                  ₱{Number(r.total_requested_amount).toLocaleString()}
-                </div>
-                <div className="flex items-center gap-3">
-                  <Link href={`${base}/${r.id}`} className="text-primary font-medium hover:underline text-sm">
-                    View
-                  </Link>
-                  {canDeleteRequest(r) ? (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteId(r.id)}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
-                      aria-label="Delete request"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <AlertDialog open={Boolean(deleteId)} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete fund request?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove the request. You can only delete requests that are still
-              pending with the Operations Manager or Purchasing Officer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={(event) => {
-                event.preventDefault();
-                void handleDelete();
-              }}
-            >
-              {deleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
 
 export default function FundRequestListPage() {
   return (
@@ -377,6 +139,10 @@ function FundRequestListPageContent() {
 
   useEffect(() => {
     if (profileLoading || resolvingLinkedEmployee) return;
+    if (activeTab === 'my-requests') {
+      setLoading(false);
+      return;
+    }
     const fetchData = async () => {
       const shouldFilterByRequester =
         activeTab === 'my-requests' &&
@@ -551,22 +317,10 @@ function FundRequestListPageContent() {
             </TabsContent>
           ) : null}
           <TabsContent value="my-requests" className="mt-4">
-            <Card className="border-border/80 bg-card/95">
-              {allRequestsFilters}
-              <CardContent className="p-0">
-                <FundRequestAllList
-                  rows={rows}
-                  loading={loading}
-                  searchTerm={searchTerm}
-                  statusFilter={statusFilter}
-                  base={base}
-                  requesterEmployeeId={employeeId}
-                  onRequestDeleted={(requestId) =>
-                    setRows((current) => current.filter((row) => row.id !== requestId))
-                  }
-                />
-              </CardContent>
-            </Card>
+            <FundRequestMyRequests
+              detailHrefBase={base}
+              requesterEmployeeId={employeeId}
+            />
           </TabsContent>
         </Tabs>
         ) : showHistoryTab ? (
@@ -588,47 +342,7 @@ function FundRequestListPageContent() {
           </div>
         )
       ) : (
-        <Card className="border-border/80 bg-card/95">
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by purpose or project..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="pending">Pending (Operations Manager)</SelectItem>
-                  <SelectItem value="project_manager_approved">Pending (Purchasing Officer)</SelectItem>
-                  <SelectItem value="purchasing_officer_approved">Pending (Upper Management)</SelectItem>
-                  <SelectItem value="management_approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <FundRequestAllList
-              rows={rows}
-              loading={loading}
-              searchTerm={searchTerm}
-              statusFilter={statusFilter}
-              base={base}
-              requesterEmployeeId={employeeId}
-              onRequestDeleted={(requestId) =>
-                setRows((current) => current.filter((row) => row.id !== requestId))
-              }
-            />
-          </CardContent>
-        </Card>
+        <FundRequestMyRequests detailHrefBase={base} requesterEmployeeId={employeeId} />
       )}
     </div>
   );

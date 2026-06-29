@@ -68,6 +68,7 @@ import {
 } from "@/lib/fund-request-bank-details";
 import { resolveFundRequestRequesterInfo } from "@/lib/fund-request-requester";
 import { fetchApproverNameMap } from "@/lib/load-approver-names";
+import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
@@ -111,6 +112,23 @@ export function FundRequestApprovalDetail({
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails());
+  const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
+    new Set()
+  );
+
+  useEffect(() => {
+    if (!profile?.id || normalizeUserRole(profile.role) !== "operations_manager") {
+      setManagedRequesterIds(new Set());
+      return;
+    }
+    let active = true;
+    fetchManagedEmployeeIdsForApprover(supabase, profile.id).then((ids) => {
+      if (active) setManagedRequesterIds(new Set(ids));
+    });
+    return () => {
+      active = false;
+    };
+  }, [profile?.id, profile?.role, supabase]);
 
   useEffect(() => {
     const id = fundRequestId;
@@ -209,7 +227,13 @@ export function FundRequestApprovalDetail({
   const canAct = Boolean(
     request &&
       profile?.id &&
-      canActOnFundRequest(profile.role, request.status)
+      canActOnFundRequest(profile.role, request.status, {
+        request,
+        managedRequesterIds:
+          normalizeUserRole(profile.role) === "operations_manager"
+            ? managedRequesterIds
+            : undefined,
+      })
   );
   const showPurchasingBankField =
     normalizeUserRole(profile?.role) === "purchasing_officer" &&

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import type { FundRequestReferenceMode } from "@/types/fund-request";
+import type { Database } from "@/types/database";
+import {
+  getFundRequestSubmissionWorkflow,
+  resolveFundRequestRequesterRouting,
+} from "@/lib/fund-request-routing";
 
 type CreateFundRequestPayload = {
   company_id: string | null;
@@ -32,6 +39,7 @@ type CreateFundRequestPayload = {
   purchasing_officer_approved_at: string | null;
   management_approved_by: string | null;
   management_approved_at: string | null;
+  is_portal_submission?: boolean;
   document?: {
     file_name: string;
     file_type: string;
@@ -64,6 +72,32 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getAdminClient();
+    const cookieSupabase = createServerComponentClient<Database>({ cookies });
+    const {
+      data: { user: authUser },
+    } = await cookieSupabase.auth.getUser();
+    let submitterRole: string | null = null;
+    if (authUser?.id) {
+      const { data: submitterProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      submitterRole = submitterProfile?.role ?? null;
+    }
+
+    const requesterRouting = await resolveFundRequestRequesterRouting(
+      admin,
+      body.requested_by.trim()
+    );
+    const workflow = getFundRequestSubmissionWorkflow({
+      submitterRole,
+      isPortal: body.is_portal_submission ?? true,
+      submitterUserId: authUser?.id ?? null,
+      requiresOperationsManagerApproval:
+        requesterRouting.requiresOperationsManagerApproval,
+    });
+
     const { data: inserted, error } = await admin
       .from("fund_requests")
       .insert({
@@ -89,13 +123,13 @@ export async function POST(req: NextRequest) {
         date_needed: body.date_needed,
         remarks: body.remarks?.trim() || null,
         urgent_reason: body.urgent_reason?.trim() || null,
-        status: body.status,
-        project_manager_approved_by: body.project_manager_approved_by,
-        project_manager_approved_at: body.project_manager_approved_at,
-        purchasing_officer_approved_by: body.purchasing_officer_approved_by,
-        purchasing_officer_approved_at: body.purchasing_officer_approved_at,
-        management_approved_by: body.management_approved_by,
-        management_approved_at: body.management_approved_at,
+        status: workflow.status,
+        project_manager_approved_by: workflow.project_manager_approved_by,
+        project_manager_approved_at: workflow.project_manager_approved_at,
+        purchasing_officer_approved_by: workflow.purchasing_officer_approved_by,
+        purchasing_officer_approved_at: workflow.purchasing_officer_approved_at,
+        management_approved_by: workflow.management_approved_by,
+        management_approved_at: workflow.management_approved_at,
       })
       .select("id")
       .single();

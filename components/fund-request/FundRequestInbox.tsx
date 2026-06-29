@@ -49,6 +49,8 @@ import {
   getFundRequestPayeeAccountName,
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
+import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
+import { fundRequestInOperationsManagerQueue } from "@/lib/fund-request-routing";
 
 const NEXT_STATUS: Record<string, FundRequestRow["status"]> = {
   pending: "project_manager_approved",
@@ -121,6 +123,9 @@ export function FundRequestInbox({
   const [requesterInfoById, setRequesterInfoById] = useState<
     Record<string, FundRequestRequesterInfo>
   >({});
+  const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
+    new Set()
+  );
 
   const getActionableStatuses = (): FundRequestRow["status"][] =>
     getActionableFundRequestStatuses(profile?.role);
@@ -129,6 +134,13 @@ export function FundRequestInbox({
     const fetchData = async () => {
       setLoading(true);
       const statuses = getActionableStatuses();
+      const normalizedRole = normalizeUserRole(profile?.role);
+      const currentUserId = profile?.id ?? null;
+      const managedIds =
+        normalizedRole === "operations_manager" && currentUserId
+          ? new Set(await fetchManagedEmployeeIdsForApprover(supabase, currentUserId))
+          : new Set<string>();
+      setManagedRequesterIds(managedIds);
       const [actionableRes, allRes] = await Promise.all([
         statuses.length > 0
           ? supabase
@@ -144,7 +156,15 @@ export function FundRequestInbox({
       if (actionableRes.error) {
         toast.error("Failed to load fund requests");
       } else {
-        setRows((actionableRes.data as FundRequestInboxRow[]) ?? []);
+        const actionableRows =
+          (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
+        const scopedRows =
+          normalizedRole === "operations_manager"
+            ? actionableRows.filter((row) =>
+                fundRequestInOperationsManagerQueue(row, managedIds)
+              )
+            : actionableRows;
+        setRows(scopedRows);
       }
       if (!allRes.error && allRes.data) {
         const c: Record<string, number> = {};
@@ -154,7 +174,11 @@ export function FundRequestInbox({
         setCounts(c);
       }
       const actionableRows =
-        (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
+        normalizedRole === "operations_manager"
+          ? ((actionableRes.data as FundRequestInboxRow[] | null) ?? []).filter(
+              (row) => fundRequestInOperationsManagerQueue(row, managedIds)
+            )
+          : (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
       const requestedByIds = new Set<string>();
 
       actionableRows.forEach((r: FundRequestRow) => {
@@ -168,7 +192,7 @@ export function FundRequestInbox({
       setLoading(false);
     };
     fetchData();
-  }, [supabase, profile?.role]);
+  }, [supabase, profile?.role, profile?.id]);
 
   const currentUserId = profile?.id ?? null;
 

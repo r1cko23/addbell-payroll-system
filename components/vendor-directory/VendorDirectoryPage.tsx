@@ -63,7 +63,7 @@ import {
   getPhilippinePhoneLabel,
   isAcceptableVendorPhoneEntry,
   normalizePhoneEntryForStorage,
-  normalizePhilippinePhone,
+  formatPhilippinePhoneForInput,
   primaryStoredPhone,
 } from "@/lib/philippine-phone";
 
@@ -145,11 +145,17 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const updatePhone = (index: number, value: string) => {
     setPhones((current) =>
       current.map((entry, entryIndex) =>
-        entryIndex === index
-          ? normalizePhilippinePhone(value).slice(0, 11)
-          : entry
+        entryIndex === index ? formatPhilippinePhoneForInput(value) : entry
       )
     );
+  };
+  const handlePhonePaste = (
+    index: number,
+    event: React.ClipboardEvent<HTMLInputElement>
+  ) => {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData("text");
+    if (pasted) updatePhone(index, pasted);
   };
   const removePhone = (index: number) => {
     setPhones((current) => current.filter((_, entryIndex) => entryIndex !== index));
@@ -570,9 +576,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                       <Input
                         value={entry}
                         onChange={(e) => updatePhone(index, e.target.value)}
+                        onPaste={(e) => handlePhonePaste(index, e)}
                         placeholder="09XXXXXXXXX or 02XXXXXXXX"
-                        inputMode="numeric"
-                        maxLength={11}
+                        inputMode="tel"
+                        autoComplete="tel"
                       />
                       <Button
                         type="button"

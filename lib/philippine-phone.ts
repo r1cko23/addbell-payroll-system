@@ -2,9 +2,33 @@ export type PhilippinePhoneKind = "mobile" | "landline";
 
 export function normalizePhilippinePhone(value: string): string {
   let digits = value.replace(/\D/g, "");
-  if (digits.startsWith("63") && digits.length > 10) {
+  // +63 / 63… international format → local leading 0 (e.g. 639171161116 → 09171161116)
+  if (digits.startsWith("63") && digits.length >= 11) {
     digits = `0${digits.slice(2)}`;
   }
+  return digits;
+}
+
+/** Normalize phone input for form fields (paste-safe, capped at 11 local digits). */
+export function normalizePhilippinePhoneInput(value: string): string {
+  return normalizePhilippinePhone(value).slice(0, 11);
+}
+
+/** Format phone while typing or on paste (converts +63/63… and adds spacing). */
+export function formatPhilippinePhoneForInput(value: string): string {
+  const digits = normalizePhilippinePhoneInput(value);
+  if (!digits) return "";
+
+  if (/^09/.test(digits)) {
+    if (digits.length <= 4) return digits;
+    if (digits.length <= 7) return `${digits.slice(0, 4)} ${digits.slice(4)}`;
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  }
+
+  if (classifyPhilippinePhone(digits) === "landline") {
+    return formatLandlineDisplay(digits);
+  }
+
   return digits;
 }
 

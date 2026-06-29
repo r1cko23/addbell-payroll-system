@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useVendors } from "@/lib/hooks/useVendors";
 import { invalidateVendors } from "@/lib/queries/invalidate";
+import { formatTinWithDashes, stripTinDigits, TIN_PLACEHOLDER } from "@/lib/tin-format";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
@@ -177,7 +178,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       setEditingRecord(record);
       setName(record.name);
       setContactPerson(record.contact_person || "");
-      setTin(record.tin || "");
+      setTin(formatTinWithDashes(record.tin || ""));
       setAddress(record.address || "");
       const { phones: existingPhones, emails: existingEmails } =
         partitionVendorContactDisplay(record);
@@ -245,7 +246,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       const payload = {
         name: name.trim(),
         contact_person: contactPerson.trim(),
-        tin: tin.trim(),
+        tin: formatTinWithDashes(tin),
         address: address.trim(),
         phones: normalizedPhones,
         emails: normalizedEmails,
@@ -299,10 +300,13 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
     if (statusFilter === "inactive" && record.is_active) return false;
     if (!searchTerm) return true;
     const s = searchTerm.toLowerCase();
+    const sDigits = stripTinDigits(searchTerm);
     return (
       record.name.toLowerCase().includes(s) ||
       (record.contact_person && record.contact_person.toLowerCase().includes(s)) ||
-      (record.tin && record.tin.includes(s)) ||
+      (record.tin &&
+        (record.tin.toLowerCase().includes(s) ||
+          (sDigits.length > 0 && stripTinDigits(record.tin).includes(sDigits)))) ||
       recordMatchesContactSearch(record.phones, record.phone, record.emails, record.email, s)
     );
   });
@@ -378,7 +382,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             label="Contact"
                             value={record.contact_person || "—"}
                           />
-                          <DashboardMobileField label="TIN" value={record.tin || "—"} />
+                          <DashboardMobileField
+                            label="TIN"
+                            value={formatTinWithDashes(record.tin || "") || "—"}
+                          />
                           <DashboardMobileField
                             label="Phone"
                             value={
@@ -448,7 +455,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                             {record.contact_person || "—"}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
-                            {record.tin || "—"}
+                            {formatTinWithDashes(record.tin || "") || "—"}
                           </TableCell>
                           <TableCell className="text-muted-foreground">
                             <VendorPhoneList record={record} />
@@ -526,8 +533,10 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
               <Input
                 id="tin"
                 value={tin}
-                onChange={(e) => setTin(e.target.value)}
-                placeholder="000 000 000 000000"
+                onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
+                placeholder={TIN_PLACEHOLDER}
+                inputMode="numeric"
+                autoComplete="off"
                 required
               />
             </div>

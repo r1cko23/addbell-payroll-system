@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useClients } from "@/lib/hooks/useClients";
 import { invalidateClients, invalidateProjects } from "@/lib/queries/invalidate";
+import { formatTinWithDashes, TIN_PLACEHOLDER } from "@/lib/tin-format";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
@@ -105,7 +106,7 @@ export default function ClientsPage() {
       setContactPhone(client.contact_phone || "");
       setAddress(client.address || "");
       setBusinessUnitSubCompany(client.business_unit_sub_company || "");
-      setTin(client.tin || "");
+      setTin(formatTinWithDashes(client.tin || ""));
       setIsActive(client.is_active);
     } else {
       setEditingClient(null);
@@ -152,7 +153,7 @@ export default function ClientsPage() {
         contact_phone: contactPhone.trim() || null,
         address: address.trim(),
         business_unit_sub_company: businessUnitSubCompany.trim() || null,
-        tin: tin.trim(),
+        tin: formatTinWithDashes(tin),
         is_active: isActive,
       };
 
@@ -316,8 +317,10 @@ export default function ClientsPage() {
                   <Input
                     id="tin"
                     value={tin}
-                    onChange={(e) => setTin(e.target.value)}
-                    placeholder="000 000 000 000000"
+                    onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
+                    placeholder={TIN_PLACEHOLDER}
+                    inputMode="numeric"
+                    autoComplete="off"
                     required
                   />
                 </div>

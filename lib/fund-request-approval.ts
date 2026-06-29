@@ -111,7 +111,7 @@ export function getFundRequestApprovalActionCopy(
     return {
       title: "Final approval required",
       description:
-        "Purchasing has approved these for payment. Return a line to purchasing for corrections, reject to decline it, then approve all when your review is complete.",
+        "Purchasing has approved these for payment. Upload the payment check for audit, return a line to purchasing for corrections, reject to decline it, then approve when your review is complete.",
     };
   }
 
@@ -159,13 +159,6 @@ export function canReturnFundRequestToPurchasing(
 }
 
 export type FundRequestDisposalAction = "return" | "reject";
-
-export function canRejectFundRequestAtUpperManagement(
-  role: string | null | undefined,
-  status: string
-): boolean {
-  return canReturnFundRequestToPurchasing(role, status);
-}
 
 export function buildFundRequestUpperManagementReturnUpdates(
   currentUserId: string,

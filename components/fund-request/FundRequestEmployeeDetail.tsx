@@ -27,6 +27,7 @@ import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { Button } from '@/components/ui/button';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
+import { isFundRequestPaymentCheckDocument } from '@/lib/fund-request-payment-check';
 import { epPageWrapper, epSubmitRequestButton } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';
 import type { FundRequestDetailItem } from '@/lib/fund-request-details';
@@ -94,7 +95,7 @@ export function FundRequestEmployeeDetail({
 
       const { data: docRows, error: docsError } = await supabase
         .from('fund_request_documents')
-        .select('id, fund_request_id, employee_id, file_name, file_type, file_size, created_at')
+        .select('id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type')
         .eq('fund_request_id', row.id)
         .order('created_at', { ascending: true });
       if (docsError) {
@@ -102,7 +103,11 @@ export function FundRequestEmployeeDetail({
           console.error('fund_request_documents load:', docsError);
         }
       } else {
-        setDocuments((docRows as FundRequestDocumentSummary[]) ?? []);
+        setDocuments(
+          ((docRows as FundRequestDocumentSummary[]) ?? []).filter(
+            (doc) => !isFundRequestPaymentCheckDocument(doc)
+          )
+        );
       }
 
       setLoading(false);

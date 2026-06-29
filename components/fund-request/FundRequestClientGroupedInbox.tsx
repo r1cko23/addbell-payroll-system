@@ -18,6 +18,12 @@ import {
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
 import type { FundRequestRow } from "@/types/fund-request";
+import type { FundRequestDisposalAction } from "@/lib/fund-request-approval";
+
+type PendingFundRequestDisposal = {
+  id: string;
+  action: FundRequestDisposalAction;
+};
 
 type FundRequestClientGroupedInboxProps = {
   rows: FundRequestInboxRow[];
@@ -25,12 +31,17 @@ type FundRequestClientGroupedInboxProps = {
   getRequesterName: (row: FundRequestInboxRow) => string;
   canReturnOn: (row: FundRequestInboxRow) => boolean;
   actingId: string | null;
-  rejectId: string | null;
+  pendingDisposal: PendingFundRequestDisposal | null;
   rejectReason: string;
   onRejectReasonChange: (value: string) => void;
+  onStartReturn: (id: string) => void;
   onStartReject: (id: string) => void;
-  onCancelReject: () => void;
-  onReject: (id: string, status: FundRequestRow["status"]) => void;
+  onCancelDisposal: () => void;
+  onConfirmDisposal: (
+    id: string,
+    status: FundRequestRow["status"],
+    action: FundRequestDisposalAction
+  ) => void;
   bulkApproving: boolean;
   onApproveAll: () => void;
 };
@@ -43,66 +54,82 @@ type GroupedInboxRequestActionsProps = {
   request: FundRequestInboxRow;
   canReturn: boolean;
   actingId: string | null;
-  rejectId: string | null;
+  pendingDisposal: PendingFundRequestDisposal | null;
   rejectReason: string;
   detailHref: (id: string) => string;
   onRejectReasonChange: (value: string) => void;
+  onStartReturn: (id: string) => void;
   onStartReject: (id: string) => void;
-  onCancelReject: () => void;
-  onReject: (id: string, status: FundRequestRow["status"]) => void;
+  onCancelDisposal: () => void;
+  onConfirmDisposal: (
+    id: string,
+    status: FundRequestRow["status"],
+    action: FundRequestDisposalAction
+  ) => void;
 };
 
 function GroupedInboxRequestActions({
   request,
   canReturn,
   actingId,
-  rejectId,
+  pendingDisposal,
   rejectReason,
   detailHref,
   onRejectReasonChange,
+  onStartReturn,
   onStartReject,
-  onCancelReject,
-  onReject,
+  onCancelDisposal,
+  onConfirmDisposal,
 }: GroupedInboxRequestActionsProps) {
-  if (canReturn) {
-    if (rejectId === request.id) {
-      return (
-        <VStack gap="2" className="w-full max-w-md">
-          <Label className="text-xs">Return reason (optional)</Label>
-          <Input
-            value={rejectReason}
-            onChange={(e) => onRejectReasonChange(e.target.value)}
-            placeholder="Reason for returning to purchasing (optional)"
-            className="h-9 text-sm"
-          />
-          <HStack gap="2" className="flex-wrap">
-            <Button
-              type="button"
-              size="sm"
-              className="min-h-10"
-              disabled={actingId === request.id}
-              onClick={() => onReject(request.id, request.status)}
-            >
-              {actingId === request.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Confirm"
-              )}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="min-h-10"
-              onClick={onCancelReject}
-            >
-              Cancel
-            </Button>
-          </HStack>
-        </VStack>
-      );
-    }
+  if (canReturn && pendingDisposal?.id === request.id) {
+    const isReturn = pendingDisposal.action === "return";
+    return (
+      <VStack gap="2" className="w-full max-w-md">
+        <Label className="text-xs">
+          {isReturn ? "Return reason (optional)" : "Rejection reason"}
+        </Label>
+        <Input
+          value={rejectReason}
+          onChange={(e) => onRejectReasonChange(e.target.value)}
+          placeholder={
+            isReturn ? "Reason for returning to purchasing (optional)" : "Reason"
+          }
+          className="h-9 text-sm"
+        />
+        <HStack gap="2" className="flex-wrap">
+          <Button
+            type="button"
+            size="sm"
+            variant={isReturn ? "default" : "destructive"}
+            className="min-h-10"
+            disabled={actingId === request.id}
+            onClick={() =>
+              onConfirmDisposal(request.id, request.status, pendingDisposal.action)
+            }
+          >
+            {actingId === request.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isReturn ? (
+              "Confirm return"
+            ) : (
+              "Confirm reject"
+            )}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-10"
+            onClick={onCancelDisposal}
+          >
+            Cancel
+          </Button>
+        </HStack>
+      </VStack>
+    );
+  }
 
+  if (canReturn) {
     return (
       <HStack gap="2" className="flex-wrap">
         <Button type="button" size="sm" variant="outline" className="min-h-10" asChild>
@@ -111,6 +138,17 @@ function GroupedInboxRequestActions({
         <Button
           type="button"
           size="sm"
+          variant="outline"
+          className="min-h-10"
+          disabled={actingId === request.id}
+          onClick={() => onStartReturn(request.id)}
+        >
+          Return to purchasing
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="destructive"
           className="min-h-10"
           disabled={actingId === request.id}
           onClick={() => onStartReject(request.id)}
@@ -170,12 +208,13 @@ export function FundRequestClientGroupedInbox({
   getRequesterName,
   canReturnOn,
   actingId,
-  rejectId,
+  pendingDisposal,
   rejectReason,
   onRejectReasonChange,
+  onStartReturn,
   onStartReject,
-  onCancelReject,
-  onReject,
+  onCancelDisposal,
+  onConfirmDisposal,
   bulkApproving,
   onApproveAll,
 }: FundRequestClientGroupedInboxProps) {
@@ -236,7 +275,6 @@ export function FundRequestClientGroupedInbox({
                     const showEwt = summary.ewtAmount > 0;
                     const showDeductions = summary.deductionsAmount > 0;
                     const isLastInGroup = index === group.requests.length - 1;
-                    const canReturn = canReturnOn(request);
 
                     return (
                       <Fragment key={request.id}>
@@ -314,15 +352,16 @@ export function FundRequestClientGroupedInbox({
                           <td className="px-3 pb-3 pt-2" colSpan={3}>
                             <GroupedInboxRequestActions
                               request={request}
-                              canReturn={canReturn}
+                              canReturn={canReturnOn(request)}
                               actingId={actingId}
-                              rejectId={rejectId}
+                              pendingDisposal={pendingDisposal}
                               rejectReason={rejectReason}
                               detailHref={detailHref}
                               onRejectReasonChange={onRejectReasonChange}
+                              onStartReturn={onStartReturn}
                               onStartReject={onStartReject}
-                              onCancelReject={onCancelReject}
-                              onReject={onReject}
+                              onCancelDisposal={onCancelDisposal}
+                              onConfirmDisposal={onConfirmDisposal}
                             />
                           </td>
                         </tr>
@@ -393,13 +432,14 @@ export function FundRequestClientGroupedInbox({
                           request={request}
                           canReturn={canReturnOn(request)}
                           actingId={actingId}
-                          rejectId={rejectId}
+                          pendingDisposal={pendingDisposal}
                           rejectReason={rejectReason}
                           detailHref={detailHref}
                           onRejectReasonChange={onRejectReasonChange}
+                          onStartReturn={onStartReturn}
                           onStartReject={onStartReject}
-                          onCancelReject={onCancelReject}
-                          onReject={onReject}
+                          onCancelDisposal={onCancelDisposal}
+                          onConfirmDisposal={onConfirmDisposal}
                         />
                       </CardContent>
                     </Card>

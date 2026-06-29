@@ -31,6 +31,7 @@ import {
   buildFundRequestUndoRejectionUpdates,
   buildFundRequestUndoManagementApprovalUpdates,
   buildFundRequestUpperManagementReturnUpdates,
+  type FundRequestDisposalAction,
   buildFundRequestRejectionUndoSnapshot,
   canActOnFundRequest,
   canReturnFundRequestToPurchasing,
@@ -56,6 +57,15 @@ import { normalizeUserRole } from "@/lib/user-roles";
 import { Label } from "@/components/ui/label";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
 import { FundRequestSupportingDocuments } from "@/components/fund-request/FundRequestSupportingDocuments";
+import {
+  FundRequestPaymentCheckSection,
+  splitFundRequestDocuments,
+} from "@/components/fund-request/FundRequestPaymentCheckSection";
+import {
+  canUploadFundRequestPaymentCheck,
+  uploadFundRequestPaymentCheck,
+  validatePaymentCheckFile,
+} from "@/lib/fund-request-payment-check";
 import { FundRequestApprovalHistory } from "@/components/fund-request/FundRequestApprovalHistory";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundRequestBankDetailsDisplay";
@@ -104,12 +114,15 @@ export function FundRequestApprovalDetail({
   >([]);
   const [savingDetails, setSavingDetails] = useState(false);
   const [documents, setDocuments] = useState<FundRequestDocumentSummary[]>([]);
+  const [pendingPaymentCheckFile, setPendingPaymentCheckFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
-  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [disposalForm, setDisposalForm] = useState<FundRequestDisposalAction | null>(
+    null
+  );
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails());
   const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
@@ -207,17 +220,32 @@ export function FundRequestApprovalDetail({
         setVendorName((vendor as { name?: string } | null)?.name ?? "");
       }
 
-      const { data: docRows, error: docsError } = await supabase
+      let docRows: FundRequestDocumentSummary[] | null = null;
+      const extendedDocSelect =
+        "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by";
+      const { data: extendedDocs, error: extendedDocsError } = await supabase
         .from("fund_request_documents")
-        .select("id, fund_request_id, employee_id, file_name, file_type, file_size, created_at")
+        .select(extendedDocSelect)
         .eq("fund_request_id", row.id)
         .order("created_at", { ascending: true });
-      if (docsError) {
-        if (!isSchemaMissingTableOrRelationError(docsError)) {
-          console.error("fund_request_documents load:", docsError);
+      if (extendedDocsError) {
+        const { data: basicDocs, error: basicDocsError } = await supabase
+          .from("fund_request_documents")
+          .select("id, fund_request_id, employee_id, file_name, file_type, file_size, created_at")
+          .eq("fund_request_id", row.id)
+          .order("created_at", { ascending: true });
+        if (basicDocsError) {
+          if (!isSchemaMissingTableOrRelationError(basicDocsError)) {
+            console.error("fund_request_documents load:", basicDocsError);
+          }
+        } else {
+          docRows = (basicDocs as FundRequestDocumentSummary[]) ?? [];
         }
       } else {
-        setDocuments((docRows as FundRequestDocumentSummary[]) ?? []);
+        docRows = (extendedDocs as FundRequestDocumentSummary[]) ?? [];
+      }
+      if (docRows) {
+        setDocuments(docRows);
       }
 
       setLoading(false);
@@ -242,10 +270,17 @@ export function FundRequestApprovalDetail({
     profile?.role,
     request?.status
   );
-  const isUpperManagementReview = Boolean(
+  const isUpperManagementFinalReview = Boolean(
     request &&
       canReturnFundRequestToPurchasing(profile?.role, request.status)
   );
+  const canUploadPaymentCheck = Boolean(
+    request && canUploadFundRequestPaymentCheck(profile?.role, request.status)
+  );
+  const { supportingDocuments, paymentCheckDocuments } =
+    splitFundRequestDocuments(documents);
+  const showPaymentCheckSection =
+    canUploadPaymentCheck || paymentCheckDocuments.length > 0;
 
   const handleApprove = async () => {
     if (!request || !profile?.id) return;
@@ -289,7 +324,27 @@ export function FundRequestApprovalDetail({
     });
     if (!updates) return;
 
-    setActing(true);
+    if (pendingPaymentCheckFile && canUploadPaymentCheck) {
+      const checkValidationError = validatePaymentCheckFile(pendingPaymentCheckFile);
+      if (checkValidationError) {
+        toast.error(checkValidationError);
+        return;
+      }
+      setActing(true);
+      const uploadResult = await uploadFundRequestPaymentCheck(
+        request.id,
+        pendingPaymentCheckFile
+      );
+      if (uploadResult.error || !uploadResult.document) {
+        setActing(false);
+        toast.error(uploadResult.error ?? "Unable to upload payment check");
+        return;
+      }
+      setDocuments((prev) => [...prev, uploadResult.document!]);
+      setPendingPaymentCheckFile(null);
+    } else {
+      setActing(true);
+    }
     const { error } = await supabase
       .from("fund_requests")
       .update(updates as never)
@@ -304,7 +359,7 @@ export function FundRequestApprovalDetail({
     const nextStatus = updates.status as FundRequestRow["status"];
     toast.success(
       nextStatus === "management_approved"
-        ? isUpperManagementReview
+        ? isUpperManagementFinalReview
           ? "Review completed."
           : "Fund request fully approved."
         : "Approved. Moved to next step."
@@ -316,26 +371,23 @@ export function FundRequestApprovalDetail({
     } as FundRequestRow);
   };
 
-  const handleReject = async () => {
+  const handleDisposal = async (action: FundRequestDisposalAction) => {
     if (!request || !profile?.id) return;
-    const returningToPurchasing = canReturnFundRequestToPurchasing(
-      profile.role,
-      request.status
-    );
-    if (!returningToPurchasing && !rejectReason.trim()) {
+    if (action === "reject" && !rejectReason.trim()) {
       toast.error("Please enter a rejection reason.");
       return;
     }
 
     setRejecting(true);
     const undoSnapshot = buildFundRequestRejectionUndoSnapshot(request);
-    const updates = returningToPurchasing
-      ? buildFundRequestUpperManagementReturnUpdates(
-          profile.id,
-          rejectReason,
-          undoSnapshot
-        )
-      : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
+    const updates =
+      action === "return"
+        ? buildFundRequestUpperManagementReturnUpdates(
+            profile.id,
+            rejectReason,
+            undoSnapshot
+          )
+        : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
 
     const { error } = await supabase
       .from("fund_requests")
@@ -345,7 +397,7 @@ export function FundRequestApprovalDetail({
 
     if (error) {
       toast.error(
-        returningToPurchasing
+        action === "return"
           ? "Failed to return request to purchasing"
           : "Failed to reject"
       );
@@ -353,7 +405,7 @@ export function FundRequestApprovalDetail({
     }
 
     toast.success(
-      returningToPurchasing
+      action === "return"
         ? "Returned to purchasing officer for review."
         : "Fund request rejected."
     );
@@ -361,7 +413,8 @@ export function FundRequestApprovalDetail({
       ...request,
       ...(updates as Partial<FundRequestRow>),
     });
-    setShowRejectForm(false);
+    setDisposalForm(null);
+    setRejectReason("");
   };
 
   const handleUndoManagementApproval = async () => {
@@ -418,7 +471,7 @@ export function FundRequestApprovalDetail({
       ...request,
       ...(updates as Partial<FundRequestRow>),
     });
-    setShowRejectForm(false);
+    setDisposalForm(null);
     setRejectReason("");
   };
 
@@ -606,7 +659,17 @@ export function FundRequestApprovalDetail({
                 />
               </div>
             ) : null}
-            <FundRequestSupportingDocuments documents={documents} />
+            <FundRequestSupportingDocuments documents={supportingDocuments} />
+            {showPaymentCheckSection ? (
+              <FundRequestPaymentCheckSection
+                requestId={request.id}
+                documents={documents}
+                canUpload={canUploadPaymentCheck}
+                onDocumentsChange={setDocuments}
+                selectedFile={pendingPaymentCheckFile}
+                onSelectedFileChange={setPendingPaymentCheckFile}
+              />
+            ) : null}
             <FundRequestApprovalHistory
               request={request}
               requesterName={requesterName}
@@ -719,10 +782,10 @@ export function FundRequestApprovalDetail({
                   ) : null}
                 </div>
 
-                {showRejectForm ? (
+                {disposalForm ? (
                   <div className="space-y-2">
                     <Label htmlFor="reject_reason">
-                      {isUpperManagementReview
+                      {disposalForm === "return"
                         ? "Reason for returning to purchasing (optional)"
                         : "Rejection reason"}
                     </Label>
@@ -731,24 +794,24 @@ export function FundRequestApprovalDetail({
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       placeholder={
-                        isUpperManagementReview
+                        disposalForm === "return"
                           ? "What needs to be corrected?"
                           : "Reason"
                       }
                     />
                     <div className={dbToolbarActions}>
                       <Button
-                        variant={isUpperManagementReview ? "default" : "destructive"}
+                        variant={disposalForm === "return" ? "default" : "destructive"}
                         disabled={rejecting}
                         className={dbHeaderButton}
-                        onClick={handleReject}
+                        onClick={() => void handleDisposal(disposalForm)}
                       >
                         {rejecting ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : isUpperManagementReview ? (
+                        ) : disposalForm === "return" ? (
                           "Confirm return"
                         ) : (
-                          "Confirm Reject"
+                          "Confirm reject"
                         )}
                       </Button>
                       <Button
@@ -756,7 +819,7 @@ export function FundRequestApprovalDetail({
                         disabled={rejecting}
                         className={dbHeaderButton}
                         onClick={() => {
-                          setShowRejectForm(false);
+                          setDisposalForm(null);
                           setRejectReason("");
                         }}
                       >
@@ -764,14 +827,45 @@ export function FundRequestApprovalDetail({
                       </Button>
                     </div>
                   </div>
-                ) : isUpperManagementReview ? (
-                  <Button
-                    disabled={acting}
-                    className={dbHeaderButton}
-                    onClick={() => setShowRejectForm(true)}
-                  >
-                    Return to purchasing
-                  </Button>
+                ) : isUpperManagementFinalReview ? (
+                  <div className="space-y-4">
+                    {pendingPaymentCheckFile ? (
+                      <p className="text-sm text-muted-foreground">
+                        Selected check will upload when you approve:{" "}
+                        <span className="font-medium text-foreground">
+                          {pendingPaymentCheckFile.name}
+                        </span>
+                      </p>
+                    ) : null}
+                    <div className={dbToolbarActions}>
+                    <Button
+                      disabled={acting}
+                      className={dbHeaderButton}
+                      onClick={handleApprove}
+                    >
+                      {acting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Approve
+                    </Button>
+                    <Button
+                      disabled={acting}
+                      variant="outline"
+                      className={dbHeaderButton}
+                      onClick={() => setDisposalForm("return")}
+                    >
+                      Return to purchasing
+                    </Button>
+                    <Button
+                      disabled={acting}
+                      variant="destructive"
+                      className={dbHeaderButton}
+                      onClick={() => setDisposalForm("reject")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                  </div>
                 ) : (
                   <div className={dbToolbarActions}>
                     <Button disabled={acting} className={dbHeaderButton} onClick={handleApprove}>
@@ -784,7 +878,7 @@ export function FundRequestApprovalDetail({
                       variant="destructive"
                       disabled={acting}
                       className={dbHeaderButton}
-                      onClick={() => setShowRejectForm(true)}
+                      onClick={() => setDisposalForm("reject")}
                     >
                       Reject
                     </Button>

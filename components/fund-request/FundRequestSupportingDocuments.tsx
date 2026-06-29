@@ -20,6 +20,7 @@ type DocumentPreview = {
   fileType: string;
   url: string;
   canPreview: boolean;
+  isImage: boolean;
 };
 
 function isPdfDocument(fileType: string | null, fileName: string | null): boolean {
@@ -27,10 +28,24 @@ function isPdfDocument(fileType: string | null, fileName: string | null): boolea
   return (fileName || "").toLowerCase().endsWith(".pdf");
 }
 
+function isImageDocument(fileType: string | null, fileName: string | null): boolean {
+  if (fileType?.startsWith("image/")) return true;
+  const lower = (fileName || "").toLowerCase();
+  return [".jpg", ".jpeg", ".png", ".webp", ".gif"].some((ext) => lower.endsWith(ext));
+}
+
+function canPreviewDocument(fileType: string | null, fileName: string | null): boolean {
+  return isPdfDocument(fileType, fileName) || isImageDocument(fileType, fileName);
+}
+
 export function FundRequestSupportingDocuments({
   documents,
+  title,
+  emptyLabel,
 }: {
   documents: FundRequestDocumentSummary[];
+  title?: string;
+  emptyLabel?: string;
 }) {
   const supabase = createClient();
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null);
@@ -42,7 +57,11 @@ export function FundRequestSupportingDocuments({
     };
   }, [preview?.url]);
 
-  if (documents.length === 0) return null;
+  if (documents.length === 0) {
+    return emptyLabel ? (
+      <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+    ) : null;
+  }
 
   function closePreview() {
     setPreview((current) => {
@@ -98,7 +117,8 @@ export function FundRequestSupportingDocuments({
         fileName: docData.file_name || "document",
         fileType,
         url,
-        canPreview: isPdfDocument(docData.file_type, docData.file_name),
+        canPreview: canPreviewDocument(docData.file_type, docData.file_name),
+        isImage: isImageDocument(docData.file_type, docData.file_name),
       };
     });
   }
@@ -107,7 +127,7 @@ export function FundRequestSupportingDocuments({
     <>
       <div>
         <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-          Supporting Document{documents.length > 1 ? "s" : ""}
+          {title ?? `Supporting Document${documents.length > 1 ? "s" : ""}`}
         </h4>
         <div className="space-y-2">
           {documents.map((doc) => (
@@ -153,11 +173,19 @@ export function FundRequestSupportingDocuments({
 
           {preview?.canPreview ? (
             <div className="min-h-0 flex-1 bg-muted/30">
-              <iframe
-                src={preview.url}
-                title={preview.fileName}
-                className="h-[min(70vh,48rem)] w-full border-0"
-              />
+              {preview.isImage ? (
+                <img
+                  src={preview.url}
+                  alt={preview.fileName}
+                  className="mx-auto max-h-[min(70vh,48rem)] w-full object-contain p-4"
+                />
+              ) : (
+                <iframe
+                  src={preview.url}
+                  title={preview.fileName}
+                  className="h-[min(70vh,48rem)] w-full border-0"
+                />
+              )}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">

@@ -57,3 +57,44 @@ export async function assertRequesterCanManageFundRequest(
 
   return { existing };
 }
+
+/** Upper Management / admin payment check upload on final approval or after. */
+export async function assertApproverCanUploadPaymentCheck(
+  admin: ReturnType<typeof getAdminClient>,
+  authUserId: string | null,
+  requestId: string,
+  role: string | null | undefined
+) {
+  if (!authUserId) {
+    return { error: "Not authenticated", status: 401 as const };
+  }
+
+  const normalizedRole = (role || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (normalizedRole !== "upper_management" && normalizedRole !== "admin") {
+    return { error: "Not authorized to upload payment checks", status: 403 as const };
+  }
+
+  const { data: existing, error: loadError } = await admin
+    .from("fund_requests")
+    .select("id, requested_by, status")
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (loadError) {
+    return { error: loadError.message, status: 500 as const };
+  }
+  if (!existing) {
+    return { error: "Request not found", status: 404 as const };
+  }
+  if (
+    existing.status !== "purchasing_officer_approved" &&
+    existing.status !== "management_approved"
+  ) {
+    return {
+      error: "Payment checks can only be added while awaiting or after final approval.",
+      status: 403 as const,
+    };
+  }
+
+  return { existing };
+}

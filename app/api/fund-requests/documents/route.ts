@@ -51,12 +51,15 @@ export async function POST(req: NextRequest) {
       .insert({
         fund_request_id: body.request_id.trim(),
         employee_id: body.requested_by.trim(),
+        document_type: "supporting",
         file_name: body.document.file_name,
         file_type: body.document.file_type,
         file_size: body.document.file_size,
         file_base64: body.document.file_base64,
       })
-      .select("id, fund_request_id, employee_id, file_name, file_type, file_size, created_at")
+      .select(
+        "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type"
+      )
       .single();
 
     if (docInsert.error) {

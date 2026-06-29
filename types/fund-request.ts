@@ -68,6 +68,8 @@ export const FUND_REQUEST_STATUS_LABELS: Record<string, string> = {
   rejected: "Rejected",
 };
 
+export type FundRequestDocumentType = "supporting" | "payment_check";
+
 export type FundRequestDocumentSummary = {
   id: string;
   fund_request_id: string;
@@ -76,6 +78,8 @@ export type FundRequestDocumentSummary = {
   file_type: string | null;
   file_size: number | null;
   created_at: string;
+  document_type?: FundRequestDocumentType | null;
+  uploaded_by?: string | null;
 };
 
 export type FundRequestRow = {

@@ -128,6 +128,7 @@ export async function PATCH(req: NextRequest) {
       const docInsert = await admin.from("fund_request_documents").insert({
         fund_request_id: body.request_id.trim(),
         employee_id: body.requested_by.trim(),
+        document_type: "supporting",
         file_name: body.document.file_name,
         file_type: body.document.file_type,
         file_size: body.document.file_size,
@@ -239,6 +240,7 @@ export async function POST(req: NextRequest) {
       const docInsert = await admin.from("fund_request_documents").insert({
         fund_request_id: inserted.id,
         employee_id: body.requested_by,
+        document_type: "supporting",
         file_name: body.document.file_name,
         file_type: body.document.file_type,
         file_size: body.document.file_size,

@@ -21,8 +21,11 @@ import { FundRequestProjectDetailsDisplay } from '@/components/fund-request/Fund
 import { FundRequestDetailsSection } from '@/components/fund-request/FundRequestDetailsSection';
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
-import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant } from '@/lib/fund-request-approval';
+import { FundRequestAddDocument } from '@/components/fund-request/FundRequestAddDocument';
+import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterEditFundRequest } from '@/lib/fund-request-approval';
 import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
+import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
+import { Button } from '@/components/ui/button';
 import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { epPageWrapper } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';
@@ -40,6 +43,7 @@ export function FundRequestEmployeeDetail({
   base: string;
 }) {
   const { loading: profileLoading } = useProfile();
+  const session = useOptionalEmployeeSession();
   const supabase = createClient();
   const [request, setRequest] = useState<FundRequestRow | null>(null);
   const [requesterName, setRequesterName] = useState<string>('');
@@ -128,6 +132,9 @@ export function FundRequestEmployeeDetail({
   const showSubcontractorFields =
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
+  const canEdit =
+    canRequesterEditFundRequest(request.status) &&
+    request.requested_by === session?.employee?.id;
 
   return (
     <div className={cn('w-full max-w-3xl', epPageWrapper)}>
@@ -136,18 +143,27 @@ export function FundRequestEmployeeDetail({
       </Link>
       <Card className="border-border/80 bg-card/95">
         <CardHeader>
-          <CardTitle>Fund request</CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              Requested by {requesterName} on{' '}
-              {formatFundRequestSubmittedAtLabel(request)}
-            </p>
-            <Badge
-              variant={getFundRequestStatusBadgeVariant(request.status)}
-              className={cn('w-fit', getFundRequestStatusBadgeClass(request.status))}
-            >
-              {STATUS_LABELS[request.status] ?? request.status}
-            </Badge>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <CardTitle>Fund request</CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Requested by {requesterName} on{' '}
+                  {formatFundRequestSubmittedAtLabel(request)}
+                </p>
+                <Badge
+                  variant={getFundRequestStatusBadgeVariant(request.status)}
+                  className={cn('w-fit', getFundRequestStatusBadgeClass(request.status))}
+                >
+                  {STATUS_LABELS[request.status] ?? request.status}
+                </Badge>
+              </div>
+            </div>
+            {canEdit ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href={`${base}/${fundRequestId}/edit`}>Edit request</Link>
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -212,6 +228,16 @@ export function FundRequestEmployeeDetail({
           </div>
 
           <FundRequestSupportingDocuments documents={documents} />
+
+          {canEdit ? (
+            <FundRequestAddDocument
+              requestId={fundRequestId}
+              requestedBy={request.requested_by}
+              onUploaded={(document) => {
+                setDocuments((current) => [...current, document]);
+              }}
+            />
+          ) : null}
 
           {request.status === 'rejected' && request.rejection_reason && (
             <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3">

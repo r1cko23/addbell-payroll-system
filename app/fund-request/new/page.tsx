@@ -63,6 +63,17 @@ import {
   getFundRequestSubmissionWorkflow,
   resolveFundRequestRequesterRouting,
 } from "@/lib/fund-request-routing";
+import {
+  canRequesterEditFundRequest,
+} from "@/lib/fund-request-approval";
+import {
+  fundRequestDetailsToFormRows,
+  fundRequestProjectsToFormRows,
+  fundRequestPurposeToForm,
+} from "@/lib/fund-request-requester-edit";
+import type { FundRequestRow } from "@/types/fund-request";
+import type { FundRequestDetailItem } from "@/lib/fund-request-details";
+import { parseFundRequestProjectDetails } from "@/lib/fund-request-project-details";
 
 const PURPOSE_OPTIONS = [
   "Material Purchase",
@@ -212,8 +223,16 @@ function parseRequiredPercentage(
 const FUND_REQUEST_APPROVAL_STREAM =
   "Requester → Operations Manager (if assigned) → Purchasing Officer → Upper Management";
 
+function getEditRequestId(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const match = pathname.match(/\/fund-request\/([^/]+)\/edit\/?$/);
+  return match?.[1] ?? null;
+}
+
 export default function NewFundRequestPage() {
   const pathname = usePathname();
+  const editId = getEditRequestId(pathname);
+  const isEditMode = Boolean(editId);
   const router = useRouter();
   const { user, loading: userLoading } = useCurrentUser();
   const session = useOptionalEmployeeSession();
@@ -253,6 +272,8 @@ export default function NewFundRequestPage() {
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingEdit, setLoadingEdit] = useState(isEditMode);
+  const [editForbidden, setEditForbidden] = useState(false);
   const { data: subcontractors = [] } = useSubcontractorOptions();
   const purposeConfig = useMemo(
     () => getPurposeFieldConfig(purposeOption),
@@ -300,6 +321,62 @@ export default function NewFundRequestPage() {
       active = false;
     };
   }, [isPortal, session?.employee?.id, supabase, user?.email, user?.full_name, user?.id]);
+
+  useEffect(() => {
+    if (!editId) return;
+
+    let active = true;
+    setLoadingEdit(true);
+    setEditForbidden(false);
+
+    void (async () => {
+      const { data, error } = await supabase
+        .from("fund_requests")
+        .select("*")
+        .eq("id", editId)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (error || !data) {
+        setEditForbidden(true);
+        setLoadingEdit(false);
+        return;
+      }
+
+      const row = data as FundRequestRow;
+      if (!canRequesterEditFundRequest(row.status)) {
+        setEditForbidden(true);
+        setLoadingEdit(false);
+        return;
+      }
+
+      setLinkedEmployeeId(row.requested_by);
+      setRequestDate(row.request_date);
+      const purposeForm = fundRequestPurposeToForm(row.purpose);
+      setPurposeOption(purposeForm.purposeOption);
+      setPurposeOther(purposeForm.purposeOther);
+      setReferenceMode(row.reference_mode ?? "client_linked");
+      setProjectRows(fundRequestProjectsToFormRows(row));
+      const parsedProjects = parseFundRequestProjectDetails(row);
+      setPoNumber(parsedProjects[0]?.po_number ?? row.po_number ?? "");
+      setVendorId(row.vendor_id ?? "");
+      setSubcontractorProgressCompletion(
+        row.subcontractor_progress_completion_percentage != null
+          ? String(row.subcontractor_progress_completion_percentage)
+          : ""
+      );
+      setDetails(fundRequestDetailsToFormRows(row.details as FundRequestDetailItem[] | null));
+      setDateNeeded(row.date_needed ?? "");
+      setRemarks(row.remarks ?? "");
+      setUrgentReason(row.urgent_reason ?? "");
+      setLoadingEdit(false);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [editId, supabase]);
 
   useEffect(() => {
     if (isPortal || session?.employee?.id || linkedEmployeeId) return;
@@ -499,23 +576,8 @@ export default function NewFundRequestPage() {
             : trimmedPoNumber
           : null;
 
-      const requesterRouting = await resolveFundRequestRequesterRouting(
-        supabase,
-        employeeId
-      );
-      const workflow = getFundRequestSubmissionWorkflow({
-        submitterRole: user?.role,
-        isPortal,
-        submitterUserId: user?.id ?? null,
-        requiresOperationsManagerApproval:
-          requesterRouting.requiresOperationsManagerApproval,
-      });
-
-      const payload = {
-        company_id: companyId,
+      const contentPayload = {
         reference_mode: referenceMode,
-        project_id: null,
-        requested_by: employeeId,
         request_date: requestDate,
         purpose: purposeValue,
         po_number: primaryPoNumber,
@@ -533,13 +595,6 @@ export default function NewFundRequestPage() {
         date_needed: dateNeeded || null,
         remarks: remarks.trim() || null,
         urgent_reason: urgentReason.trim() || null,
-        status: workflow.status,
-        project_manager_approved_by: workflow.project_manager_approved_by,
-        project_manager_approved_at: workflow.project_manager_approved_at,
-        purchasing_officer_approved_by: workflow.purchasing_officer_approved_by,
-        purchasing_officer_approved_at: workflow.purchasing_officer_approved_at,
-        management_approved_by: workflow.management_approved_by,
-        management_approved_at: workflow.management_approved_at,
       };
 
       let documentPayload:
@@ -558,6 +613,63 @@ export default function NewFundRequestPage() {
           file_base64: await fileToBase64(supportingDoc),
         };
       }
+
+      if (isEditMode && editId) {
+        const updateResponse = await fetch("/api/fund-requests", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: editId,
+            requested_by: employeeId,
+            ...contentPayload,
+            document: documentPayload,
+          }),
+        });
+        const updateResult = await updateResponse.json();
+
+        if (!updateResponse.ok || !updateResult?.id) {
+          throw new Error(updateResult?.error || "Failed to update request.");
+        }
+
+        if (updateResult?.warning) {
+          toast.warning(updateResult.warning, {
+            description: "Fund request updated.",
+          });
+        } else {
+          toast.success("Fund request updated.");
+        }
+        setSupportingDoc(null);
+        setDocError(null);
+        router.push(`${base}/${editId}`);
+        router.refresh();
+        return;
+      }
+
+      const requesterRouting = await resolveFundRequestRequesterRouting(
+        supabase,
+        employeeId
+      );
+      const workflow = getFundRequestSubmissionWorkflow({
+        submitterRole: user?.role,
+        isPortal,
+        submitterUserId: user?.id ?? null,
+        requiresOperationsManagerApproval:
+          requesterRouting.requiresOperationsManagerApproval,
+      });
+
+      const payload = {
+        company_id: companyId,
+        project_id: null,
+        requested_by: employeeId,
+        ...contentPayload,
+        status: workflow.status,
+        project_manager_approved_by: workflow.project_manager_approved_by,
+        project_manager_approved_at: workflow.project_manager_approved_at,
+        purchasing_officer_approved_by: workflow.purchasing_officer_approved_by,
+        purchasing_officer_approved_at: workflow.purchasing_officer_approved_at,
+        management_approved_by: workflow.management_approved_by,
+        management_approved_at: workflow.management_approved_at,
+      };
 
       const createResponse = await fetch("/api/fund-requests", {
         method: "POST",
@@ -597,23 +709,55 @@ export default function NewFundRequestPage() {
     }
   };
 
-  const loading = (userLoading || resolvingLinkedEmployee) && !session?.employee?.id;
-  if (loading) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;
+  const loading =
+    ((userLoading || resolvingLinkedEmployee) && !session?.employee?.id) ||
+    (isEditMode && loadingEdit);
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+      </DashboardLayout>
+    );
+  }
+
+  if (isEditMode && editForbidden) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4">
+          <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">
+            ← Back to Fund Requests
+          </Link>
+          <p className="text-destructive">
+            This fund request cannot be edited because it was already approved by the next approver.
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const formContent = (
     <div className="flex w-full min-w-0 flex-col gap-4">
-      <Link href={base} className="text-muted-foreground hover:text-foreground text-sm shrink-0">
-        ← Back to Fund Requests
+      <Link
+        href={isEditMode && editId ? `${base}/${editId}` : base}
+        className="text-muted-foreground hover:text-foreground text-sm shrink-0"
+      >
+        {isEditMode ? "← Back to request" : "← Back to Fund Requests"}
       </Link>
       <Card className={cn(epFormCard, "w-full flex flex-col border-primary/20 bg-card/95")}>
         <CardHeader className="pb-4 shrink-0">
-          <CardTitle>New Fund Request</CardTitle>
-          <div>
-            <p className="text-sm text-muted-foreground whitespace-nowrap overflow-x-auto">
-              <span className="font-medium text-foreground">Approval Stream:</span>{" "}
-              {FUND_REQUEST_APPROVAL_STREAM}
+          <CardTitle>{isEditMode ? "Edit Fund Request" : "New Fund Request"}</CardTitle>
+          {!isEditMode ? (
+            <div>
+              <p className="text-sm text-muted-foreground whitespace-nowrap overflow-x-auto">
+                <span className="font-medium text-foreground">Approval Stream:</span>{" "}
+                {FUND_REQUEST_APPROVAL_STREAM}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              You can update this request until the next approver in the chain has approved it.
             </p>
-          </div>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -929,12 +1073,12 @@ export default function NewFundRequestPage() {
                       size={IconSizes.sm}
                       className="animate-spin"
                     />
-                    Submitting...
+                    {isEditMode ? "Saving..." : "Submitting..."}
                   </>
                 ) : (
                   <>
                     <Icon name="ArrowRight" size={IconSizes.sm} />
-                    Submit Request
+                    {isEditMode ? "Save Changes" : "Submit Request"}
                   </>
                 )}
               </Button>

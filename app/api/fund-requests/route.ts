@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
@@ -9,12 +8,10 @@ import {
   getFundRequestSubmissionWorkflow,
   resolveFundRequestRequesterRouting,
 } from "@/lib/fund-request-routing";
+import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
 
-type CreateFundRequestPayload = {
-  company_id: string | null;
+type FundRequestContentPayload = {
   reference_mode: FundRequestReferenceMode;
-  project_id: string | null;
-  requested_by: string;
   request_date: string;
   purpose: string;
   po_number: string | null;
@@ -32,14 +29,6 @@ type CreateFundRequestPayload = {
   date_needed: string | null;
   remarks: string | null;
   urgent_reason: string | null;
-  status: string;
-  project_manager_approved_by: string | null;
-  project_manager_approved_at: string | null;
-  purchasing_officer_approved_by: string | null;
-  purchasing_officer_approved_at: string | null;
-  management_approved_by: string | null;
-  management_approved_at: string | null;
-  is_portal_submission?: boolean;
   document?: {
     file_name: string;
     file_type: string;
@@ -48,13 +37,118 @@ type CreateFundRequestPayload = {
   } | null;
 };
 
-function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error("Missing Supabase service-role configuration");
+type CreateFundRequestPayload = FundRequestContentPayload & {
+  company_id: string | null;
+  project_id: string | null;
+  requested_by: string;
+  status: string;
+  project_manager_approved_by: string | null;
+  project_manager_approved_at: string | null;
+  purchasing_officer_approved_by: string | null;
+  purchasing_officer_approved_at: string | null;
+  management_approved_by: string | null;
+  management_approved_at: string | null;
+  is_portal_submission?: boolean;
+};
+
+type UpdateFundRequestPayload = FundRequestContentPayload & {
+  request_id: string;
+  requested_by: string;
+};
+
+function buildFundRequestContentUpdate(body: FundRequestContentPayload) {
+  return {
+    reference_mode: body.reference_mode,
+    request_date: body.request_date,
+    purpose: body.purpose,
+    po_number: body.po_number,
+    project_title: body.project_title,
+    project_location: body.project_location,
+    vendor_id: body.vendor_id,
+    vendor_po_number: body.vendor_po_number,
+    po_amount: body.po_amount,
+    po_amount_percentage: body.po_amount_percentage,
+    current_project_percentage: body.current_project_percentage,
+    subcontractor_progress_completion_percentage:
+      body.subcontractor_progress_completion_percentage,
+    project_details: body.project_details ?? null,
+    details: body.details,
+    total_requested_amount: body.total_requested_amount,
+    date_needed: body.date_needed,
+    remarks: body.remarks?.trim() || null,
+    urgent_reason: body.urgent_reason?.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = (await req.json()) as UpdateFundRequestPayload;
+
+    if (!body?.request_id?.trim() || !body?.requested_by?.trim()) {
+      return NextResponse.json(
+        { error: "request_id and requested_by are required" },
+        { status: 400 }
+      );
+    }
+    if (!body?.purpose?.trim()) {
+      return NextResponse.json({ error: "purpose is required" }, { status: 400 });
+    }
+    if (!Array.isArray(body.details) || body.details.length === 0) {
+      return NextResponse.json({ error: "At least one detail item is required" }, { status: 400 });
+    }
+
+    const admin = getAdminClient();
+    const cookieSupabase = createServerComponentClient<Database>({ cookies });
+    const {
+      data: { user: authUser },
+    } = await cookieSupabase.auth.getUser();
+
+    const access = await assertRequesterCanManageFundRequest(
+      admin,
+      authUser?.id ?? null,
+      body.request_id.trim(),
+      body.requested_by.trim()
+    );
+    if ("error" in access) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    const { error } = await admin
+      .from("fund_requests")
+      .update(buildFundRequestContentUpdate(body))
+      .eq("id", body.request_id.trim())
+      .eq("requested_by", body.requested_by.trim());
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (body.document?.file_base64) {
+      const docInsert = await admin.from("fund_request_documents").insert({
+        fund_request_id: body.request_id.trim(),
+        employee_id: body.requested_by.trim(),
+        file_name: body.document.file_name,
+        file_type: body.document.file_type,
+        file_size: body.document.file_size,
+        file_base64: body.document.file_base64,
+      });
+
+      if (docInsert.error && !isSchemaMissingTableOrRelationError(docInsert.error)) {
+        return NextResponse.json({
+          id: body.request_id.trim(),
+          warning: `Fund request updated but document upload failed: ${docInsert.error.message}`,
+        });
+      }
+    }
+
+    return NextResponse.json({ id: body.request_id.trim() });
+  } catch (err: unknown) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
   }
-  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export async function POST(req: NextRequest) {
@@ -195,7 +289,7 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .eq("id", body.request_id)
       .eq("requested_by", body.requested_by)
-      .in("status", ["pending", "project_manager_approved"])
+      .in("status", ["pending", "project_manager_approved", "purchasing_officer_approved"])
       .select("id")
       .maybeSingle();
 

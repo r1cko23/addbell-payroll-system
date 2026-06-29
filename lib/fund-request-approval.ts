@@ -342,13 +342,21 @@ export function getFundRequestStatusBadgeVariant(
   return "pending";
 }
 
-const REQUESTER_DELETABLE_STATUSES = new Set<FundRequestRow["status"]>([
+const REQUESTER_MANAGEABLE_STATUSES = new Set<FundRequestRow["status"]>([
   "pending",
   "project_manager_approved",
+  "purchasing_officer_approved",
 ]);
 
 export function canRequesterDeleteFundRequest(
   status: FundRequestRow["status"] | string
 ): boolean {
-  return REQUESTER_DELETABLE_STATUSES.has(status as FundRequestRow["status"]);
+  return REQUESTER_MANAGEABLE_STATUSES.has(status as FundRequestRow["status"]);
+}
+
+/** Edit fields, delete, and add documents before the next approver acts. */
+export function canRequesterEditFundRequest(
+  status: FundRequestRow["status"] | string
+): boolean {
+  return REQUESTER_MANAGEABLE_STATUSES.has(status as FundRequestRow["status"]);
 }

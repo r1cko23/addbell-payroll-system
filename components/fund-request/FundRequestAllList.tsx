@@ -26,6 +26,7 @@ import {
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
 } from "@/lib/fund-request-approval";
+import { canRequesterManageFundRequest } from "@/lib/fund-request-requester-edit";
 
 export type FundRequestListRow = FundRequestRow & {
   projects: { name: string; code: string } | null;
@@ -103,6 +104,9 @@ export function FundRequestAllList({
     request.requested_by === requesterEmployeeId &&
     canRequesterDeleteFundRequest(request.status);
 
+  const canEditRequest = (request: FundRequestListRow) =>
+    canRequesterManageFundRequest(request, requesterEmployeeId);
+
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
   }
@@ -165,6 +169,14 @@ export function FundRequestAllList({
                     >
                       View
                     </Link>
+                    {canEditRequest(r) ? (
+                      <Link
+                        href={`${base}/${r.id}/edit`}
+                        className="text-primary font-medium hover:underline text-sm"
+                      >
+                        Edit
+                      </Link>
+                    ) : null}
                     {canDeleteRequest(r) ? (
                       <button
                         type="button"
@@ -220,6 +232,14 @@ export function FundRequestAllList({
                   >
                     View
                   </Link>
+                  {canEditRequest(r) ? (
+                    <Link
+                      href={`${base}/${r.id}/edit`}
+                      className="text-primary font-medium hover:underline text-sm"
+                    >
+                      Edit
+                    </Link>
+                  ) : null}
                   {canDeleteRequest(r) ? (
                     <button
                       type="button"
@@ -242,8 +262,8 @@ export function FundRequestAllList({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete fund request?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the request. You can only delete requests that are still
-              pending with the Operations Manager or Purchasing Officer.
+              This will permanently remove the request. You can only delete requests that have
+              not yet been approved by Upper Management.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

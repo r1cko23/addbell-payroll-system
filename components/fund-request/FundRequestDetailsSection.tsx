@@ -21,6 +21,7 @@ import {
   toEditableFundRequestDetailsForm,
 } from "@/lib/fund-request-details";
 import { dbHeaderButton, dbToolbarActions } from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface FundRequestDetailsSectionProps {
   details: FundRequestDetailItem[] | null | undefined;

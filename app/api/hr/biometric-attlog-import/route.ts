@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyEmployeeRecordEditAccess } from "@/lib/api-helpers";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 type PunchInput = {
   employee_code: string;

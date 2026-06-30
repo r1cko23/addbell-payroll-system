@@ -1,4 +1,5 @@
 import type { BillingInvoiceLookupResult } from "@/lib/google-sheets-billing-invoice";
+import { isBillingInvoiceSheetTabName } from "@/lib/subcontractor-progress-billing";
 
 type CacheEntry<T> = {
   value: T;
@@ -33,7 +34,21 @@ export function getCachedBillingPoLookup(
     poLookupCache.delete(key);
     return null;
   }
-  return entry.value;
+
+  const value = entry.value;
+  const legacySheetName = (value as BillingInvoiceLookupResult & {
+    sheetName?: string | null;
+  }).sheetName;
+
+  if (
+    (value.invoiceNumber && isBillingInvoiceSheetTabName(value.invoiceNumber)) ||
+    (!value.invoiceNumber && legacySheetName)
+  ) {
+    poLookupCache.delete(key);
+    return null;
+  }
+
+  return value;
 }
 
 export function getBillingInvoiceLookupCacheStats() {

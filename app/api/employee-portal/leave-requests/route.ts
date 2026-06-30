@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 type CreateLeavePayload = {
   employee_id: string;

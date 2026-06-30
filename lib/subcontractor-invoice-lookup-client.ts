@@ -1,9 +1,10 @@
 import { normalizeBillingPoKey } from "@/lib/billing-invoice-lookup-cache";
+import { isBillingInvoiceSheetTabName } from "@/lib/subcontractor-progress-billing";
 import type { SubcontractorInvoiceStatus } from "@/lib/subcontractor-progress-billing";
 
 export type ClientInvoiceLookupResult = {
   status: SubcontractorInvoiceStatus;
-  sheetName: string | null;
+  invoiceNumber: string | null;
 };
 
 const clientInvoiceCache = new Map<string, ClientInvoiceLookupResult>();
@@ -17,7 +18,13 @@ export function getClientCachedInvoiceLookup(
 ): ClientInvoiceLookupResult | null {
   const key = normalizeBillingPoKey(poNumber);
   if (!key || key === "N/A") return null;
-  return clientInvoiceCache.get(key) ?? null;
+  const cached = clientInvoiceCache.get(key);
+  if (!cached) return null;
+  if (cached.invoiceNumber && isBillingInvoiceSheetTabName(cached.invoiceNumber)) {
+    clientInvoiceCache.delete(key);
+    return null;
+  }
+  return cached;
 }
 
 export function setClientCachedInvoiceLookup(
@@ -31,6 +38,8 @@ export function setClientCachedInvoiceLookup(
 
 type InvoiceLookupApiResponse = {
   status?: SubcontractorInvoiceStatus;
+  invoiceNumber?: string | null;
+  /** @deprecated Older API responses */
   sheetName?: string | null;
   error?: string;
   message?: string;
@@ -50,7 +59,7 @@ export async function fetchSubcontractorInvoiceStatus(
   const po = poNumber.trim();
   const key = normalizeBillingPoKey(po);
   if (!key || key === "N/A") {
-    return { status: "NOT FOUND", sheetName: null };
+    return { status: "NOT FOUND", invoiceNumber: null };
   }
 
   const cached = clientInvoiceCache.get(key);
@@ -89,8 +98,11 @@ export async function fetchSubcontractorInvoiceStatus(
 
     const result: ClientInvoiceLookupResult = {
       status: payload.status ?? "NOT FOUND",
-      sheetName: payload.sheetName ?? null,
+      invoiceNumber: payload.invoiceNumber ?? null,
     };
+    if (result.invoiceNumber && isBillingInvoiceSheetTabName(result.invoiceNumber)) {
+      result.invoiceNumber = null;
+    }
     clientInvoiceCache.set(key, result);
     return result;
   })().finally(() => {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/fund-request-project-details";
 import type { FundRequestRow } from "@/types/fund-request";
 import { FundRequestField } from "@/components/fund-request/FundRequestField";
+import { SubcontractorInvoiceTrackingDisplay } from "@/components/fund-request/SubcontractorInvoiceTrackingDisplay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ type FundRequestProjectDetailsDisplayProps = {
   editableSubcontractorPoAmount?: boolean;
   subcontractorPoAmountInput?: string;
   onSubcontractorPoAmountInputChange?: (value: string) => void;
+  showSubcontractorInvoiceTracking?: boolean;
 };
 
 const tableShellClass = "overflow-x-auto rounded-md border border-border/80";
@@ -348,6 +350,7 @@ export function FundRequestProjectDetailsDisplay({
   editableSubcontractorPoAmount = false,
   subcontractorPoAmountInput = "",
   onSubcontractorPoAmountInputChange,
+  showSubcontractorInvoiceTracking = false,
 }: FundRequestProjectDetailsDisplayProps) {
   const projects = parseFundRequestProjectDetails(request);
   const perProjectPo = fundRequestUsesPerProjectPo(request);
@@ -399,6 +402,11 @@ export function FundRequestProjectDetailsDisplay({
             </div>
           </>
         ) : null}
+        {showSubcontractorInvoiceTracking ? (
+          <SubcontractorInvoiceTrackingDisplay
+            projectDetails={request.project_details}
+          />
+        ) : null}
       </div>
     );
   }
@@ -436,6 +444,11 @@ export function FundRequestProjectDetailsDisplay({
             />
           </div>
         </>
+      ) : null}
+      {showSubcontractorInvoiceTracking ? (
+        <SubcontractorInvoiceTrackingDisplay
+          projectDetails={request.project_details}
+        />
       ) : null}
     </div>
   );

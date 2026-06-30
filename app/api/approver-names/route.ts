@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 const APPROVAL_ROLES = new Set([
   "hr",

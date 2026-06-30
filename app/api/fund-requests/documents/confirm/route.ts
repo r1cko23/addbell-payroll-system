@@ -13,6 +13,8 @@ import { registerFundRequestDocument } from "@/lib/fund-request-document-storage
 import { recordFundRequestDirectUpload } from "@/lib/platform-runtime-metrics";
 import type { FundRequestDocumentType } from "@/types/fund-request";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 type ConfirmUploadPayload = {
   request_id?: string;
   requested_by?: string;

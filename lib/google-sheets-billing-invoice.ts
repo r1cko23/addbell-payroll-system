@@ -64,7 +64,7 @@ export function listBillingSheetTitles(allTitles: string[]): string[] {
 
 export type BillingInvoiceLookupResult = {
   status: SubcontractorInvoiceStatus;
-  sheetName: string | null;
+  invoiceNumber: string | null;
   poNumber: string;
   cached?: boolean;
 };
@@ -139,8 +139,9 @@ function parseInvoiceStatus(raw: string): SubcontractorInvoiceStatus | null {
   return null;
 }
 
-/** Column A = STATUS, column G = P.O. NO. within the A:G read range */
+/** Columns within A:G — A=STATUS, B=INVOICE BOOKLET NO., G=P.O. NO. */
 const BILLING_STATUS_COL_INDEX = 0;
+const BILLING_INVOICE_NUMBER_COL_INDEX = 1;
 const BILLING_PO_COL_INDEX = 6;
 const BILLING_SHEET_VALUE_RANGE = "A:G";
 
@@ -153,12 +154,41 @@ function findColumnIndex(headers: string[], candidates: string[]): number {
   return -1;
 }
 
+function headerMatchesInvoiceNumberColumn(header: string): boolean {
+  const normalized = normalizeHeader(header);
+  return (
+    normalized.startsWith("invoice booklet no") ||
+    normalized === "invoice number" ||
+    normalized.includes("invoice booklet")
+  );
+}
+
+function findInvoiceNumberColumnIndex(
+  headers: string[],
+  candidates: string[]
+): number {
+  const index = findColumnIndex(headers, candidates);
+  if (index >= 0) return index;
+
+  for (let i = 0; i < headers.length; i += 1) {
+    if (headerMatchesInvoiceNumberColumn(headers[i] ?? "")) return i;
+  }
+
+  return -1;
+}
+
 function findHeaderRowIndex(
   rows: string[][],
   poColumnCandidates: string[],
   statusColumnCandidates: string[],
+  invoiceNumberColumnCandidates: string[],
   maxScan = 12
-): { headerRowIndex: number; poIndex: number; statusIndex: number } | null {
+): {
+  headerRowIndex: number;
+  poIndex: number;
+  statusIndex: number;
+  invoiceNumberIndex: number;
+} | null {
   const limit = Math.min(rows.length, maxScan);
   for (let rowIndex = 0; rowIndex < limit; rowIndex += 1) {
     const row = rows[rowIndex] ?? [];
@@ -175,6 +205,7 @@ function findHeaderRowIndex(
         headerRowIndex: rowIndex,
         poIndex: BILLING_PO_COL_INDEX,
         statusIndex: BILLING_STATUS_COL_INDEX,
+        invoiceNumberIndex: BILLING_INVOICE_NUMBER_COL_INDEX,
       };
     }
   }
@@ -184,28 +215,49 @@ function findHeaderRowIndex(
     const headers = (rows[rowIndex] ?? []).map((cell) => String(cell ?? ""));
     const poIndex = findColumnIndex(headers, poColumnCandidates);
     const statusIndex = findColumnIndex(headers, statusColumnCandidates);
+    const invoiceNumberIndex = findInvoiceNumberColumnIndex(
+      headers,
+      invoiceNumberColumnCandidates
+    );
     if (poIndex >= 0 && statusIndex >= 0) {
-      return { headerRowIndex: rowIndex, poIndex, statusIndex };
+      return {
+        headerRowIndex: rowIndex,
+        poIndex,
+        statusIndex,
+        invoiceNumberIndex:
+          invoiceNumberIndex >= 0 ? invoiceNumberIndex : BILLING_INVOICE_NUMBER_COL_INDEX,
+      };
     }
   }
 
   return null;
 }
 
+function formatInvoiceNumber(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed;
+}
+
 function searchSheetForPo(
   rows: string[][],
-  sheetName: string,
   normalizedPo: string,
   poNumberTrimmed: string,
   poColumnCandidates: string[],
-  statusColumnCandidates: string[]
+  statusColumnCandidates: string[],
+  invoiceNumberColumnCandidates: string[]
 ): BillingInvoiceLookupResult | null {
   if (rows.length === 0) return null;
 
-  const header = findHeaderRowIndex(rows, poColumnCandidates, statusColumnCandidates);
+  const header = findHeaderRowIndex(
+    rows,
+    poColumnCandidates,
+    statusColumnCandidates,
+    invoiceNumberColumnCandidates
+  );
   if (!header) return null;
 
-  const { headerRowIndex, poIndex, statusIndex } = header;
+  const { headerRowIndex, poIndex, statusIndex, invoiceNumberIndex } = header;
 
   for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex] ?? [];
@@ -216,7 +268,7 @@ function searchSheetForPo(
     if (parsedStatus) {
       return {
         status: parsedStatus,
-        sheetName,
+        invoiceNumber: formatInvoiceNumber(String(row[invoiceNumberIndex] ?? "")),
         poNumber: poNumberTrimmed,
       };
     }
@@ -251,7 +303,7 @@ export async function lookupBillingInvoiceStatus(
 
   const normalizedPo = normalizePo(poNumber);
   if (!normalizedPo || normalizedPo === "N/A") {
-    return { status: "NOT FOUND", sheetName: null, poNumber };
+    return { status: "NOT FOUND", invoiceNumber: null, poNumber };
   }
 
   const poColumnCandidates = (
@@ -265,6 +317,14 @@ export async function lookupBillingInvoiceStatus(
   const statusColumnCandidates = (
     process.env.GOOGLE_SHEETS_STATUS_COLUMN ||
     "STATUS,Status,Invoice Status,Billing Status"
+  )
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const invoiceNumberColumnCandidates = (
+    process.env.GOOGLE_SHEETS_INVOICE_NUMBER_COLUMN ||
+    "INVOICE BOOKLET NO.,INVOICE BOOKLET NO,Invoice Booklet No,Invoice Number"
   )
     .split(",")
     .map((value) => value.trim())
@@ -287,15 +347,14 @@ export async function lookupBillingInvoiceStatus(
     const valueRanges = batch.data.valueRanges ?? [];
 
     for (let j = 0; j < chunk.length; j += 1) {
-      const sheetName = chunk[j]!;
       const rows = (valueRanges[j]?.values ?? []) as string[][];
       const hit = searchSheetForPo(
         rows,
-        sheetName,
         normalizedPo,
         poNumberTrimmed,
         poColumnCandidates,
-        statusColumnCandidates
+        statusColumnCandidates,
+        invoiceNumberColumnCandidates
       );
       if (hit) {
         setCachedBillingPoLookup(poNumberTrimmed, hit);
@@ -306,7 +365,7 @@ export async function lookupBillingInvoiceStatus(
 
   const notFound: BillingInvoiceLookupResult = {
     status: "NOT FOUND",
-    sheetName: null,
+    invoiceNumber: null,
     poNumber: poNumberTrimmed,
   };
   setCachedBillingPoLookup(poNumberTrimmed, notFound);

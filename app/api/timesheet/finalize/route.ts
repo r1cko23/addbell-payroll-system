@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 type FinalizeAction = "finalize" | "reopen";
 

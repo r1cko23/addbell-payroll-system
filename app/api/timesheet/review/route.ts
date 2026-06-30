@@ -8,6 +8,8 @@ import {
 } from "@/lib/ph-payroll/timesheet-review";
 import { fetchSessionsInRange } from "@/lib/timeEntries";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 export async function GET(request: NextRequest) {
   try {
     const authUser = await verifyAdminOrHrAccess();

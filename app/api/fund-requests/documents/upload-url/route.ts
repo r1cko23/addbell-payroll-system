@@ -11,6 +11,8 @@ import { getCurrentUserRole } from "@/lib/api-helpers";
 import { createFundRequestDocumentUploadSession } from "@/lib/fund-request-document-storage";
 import type { FundRequestDocumentType } from "@/types/fund-request";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 type UploadUrlPayload = {
   request_id?: string;
   requested_by?: string;

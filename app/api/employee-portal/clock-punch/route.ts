@@ -9,6 +9,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { resolveOpenBundySessionAfterAutoClose } from "@/lib/bundy-auto-clock-out";
 import type { TimeEntrySession } from "@/lib/timeEntries";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 type NominatimResponse = {
   display_name?: string;

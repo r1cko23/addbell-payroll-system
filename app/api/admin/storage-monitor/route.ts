@@ -7,6 +7,8 @@ import { getAdminClient } from "@/lib/fund-request-api";
 import { getPlatformStorageMonitorSnapshot } from "@/lib/platform-storage-monitor";
 import { getPlatformApiMonitorSnapshot } from "@/lib/platform-api-monitor";
 import { normalizeUserRole } from "@/lib/user-roles";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 export async function GET() {
   try {

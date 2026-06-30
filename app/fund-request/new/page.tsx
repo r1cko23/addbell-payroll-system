@@ -63,6 +63,7 @@ import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequ
 import { SubcontractorProgressBillingSection } from "@/components/fund-request/SubcontractorProgressBillingSection";
 import {
   parseProgressBillingFromProjectDetails,
+  SUBCONTRACTOR_RETENTION_REMARKS_NOTE,
   type ProgressBillingSelection,
 } from "@/lib/subcontractor-progress-billing";
 import {
@@ -184,7 +185,7 @@ function getPurposeFieldConfig(purpose: string): PurposeFieldConfig {
       return {
         referenceCardTitle: "Project Reference",
         referenceCardDescription: "Project reference. Client P.O. optional.",
-        detailsSectionTitle: "Fund breakdown",
+        detailsSectionTitle: "Fund details",
         detailsSectionDescription: "Where funds will be used.",
         detailPlaceholderPrefix: "Fund item",
       };
@@ -316,9 +317,9 @@ export default function NewFundRequestPage() {
     poPerProject && projectRows[0]?.poNumber.trim()
       ? projectRows[0].poNumber.trim()
       : poNumber.trim();
-  const detailsSectionTitle = showVendorPaymentSection
-    ? "Progress Billing"
-    : purposeConfig.detailsSectionTitle.toUpperCase();
+  const detailsSectionTitle = (
+    showVendorPaymentSection ? "Progress Billing" : purposeConfig.detailsSectionTitle
+  ).toUpperCase();
   const showPurchasingOfficerBankDetails = useMemo(() => {
     if (normalizeUserRole(user?.role) !== "purchasing_officer" || !user?.id) {
       return false;
@@ -609,7 +610,13 @@ export default function NewFundRequestPage() {
       toast.error("Select a progress billing milestone.");
       return;
     }
-    const detailValidationError = validateDetailRows(details);
+    const hasAnyDetailContent = details.some(
+      (row) => row.description.trim() || row.amount.trim()
+    );
+    const detailValidationError =
+      hasAnyDetailContent || !showVendorPaymentSection
+        ? validateDetailRows(details)
+        : null;
     if (detailValidationError) {
       toast.error(detailValidationError);
       return;
@@ -1202,6 +1209,11 @@ export default function NewFundRequestPage() {
                       rows={1}
                       className="min-h-10 resize-none"
                     />
+                    {showVendorPaymentSection ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {SUBCONTRACTOR_RETENTION_REMARKS_NOTE}
+                      </p>
+                    ) : null}
                   </div>
                   <div>
                     <Label htmlFor="date_needed">Date Needed</Label>

@@ -5,6 +5,8 @@ import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { fetchSessionsForEmployee } from "@/lib/timeEntries";
 import { HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS } from "@/utils/holidays";
 import { subDays, format } from "date-fns";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

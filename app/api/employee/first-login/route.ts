@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 function getClientIp(req: NextRequest): string | null {
   const forwarded = req.headers.get("x-forwarded-for");

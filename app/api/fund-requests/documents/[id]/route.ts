@@ -9,6 +9,8 @@ import {
 } from "@/lib/fund-request-api";
 import { createFundRequestDocumentSignedUrl } from "@/lib/fund-request-document-storage";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 type FundRequestDocumentRow = {
   file_name: string | null;
   file_type: string | null;

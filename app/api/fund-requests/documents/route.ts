@@ -5,6 +5,8 @@ import type { Database } from "@/types/database";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
 import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 type AddFundRequestDocumentPayload = {
   request_id?: string;

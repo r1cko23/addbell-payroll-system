@@ -10,6 +10,8 @@ import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { applyAllStaleBundyAutoClockOutsForEmployees } from "@/lib/bundy-auto-clock-out";
 import { fetchSessionsInRange } from "@/lib/timeEntries";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
 
 function getAdminClient() {

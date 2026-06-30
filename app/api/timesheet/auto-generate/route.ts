@@ -30,6 +30,8 @@ import {
 } from "@/lib/ftl-ot-synthesis";
 
 /** Raw 22:00–06:00 overlap from an approved OT window, capped by credited OT hours (no ND staircase yet). */
+export { dynamic } from "@/lib/api-route-segment";
+
 function approvedOtNightOverlapHoursRaw(
   startTimeRaw: string | null | undefined,
   endTimeRaw: string | null | undefined,

@@ -40,6 +40,8 @@ import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { buildStoredEarningsBreakdown } from "@/lib/payroll-earnings-breakdown";
 import { resolveEmployeePosition } from "@/lib/payslip-display";
 import { applyAllStaleBundyAutoClockOutsForEmployees } from "@/lib/bundy-auto-clock-out";
+export { dynamic } from "@/lib/api-route-segment";
+
 type EmployeeRow = {
   id: string;
   employment_status?: string | null;

@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import {
   SUBCONTRACTOR_PAYMENT_SCHEMES,
-  SUBCONTRACTOR_RETENTION_REMARKS_NOTE,
+  formatSubcontractorInvoiceStatusLabel,
+  subcontractorInvoiceStatusToneClass,
   type ProgressBillingSelection,
   type SubcontractorInvoiceStatus,
   type SubcontractorPaymentScheme,
@@ -46,30 +46,16 @@ function makeInvoiceLookupKey(
   return `${scheme}|${milestone}|${poNumber.trim().toUpperCase()}`;
 }
 
-function invoiceStatusLabel(status: SubcontractorInvoiceStatus | null | undefined): string {
-  if (status === "COPY RECEIVED") return "Copy received";
-  if (status === "COPY NOT YET RECEIVED") return "Copy not yet received";
-  if (status === "NOT FOUND") return "No matching invoice row found in billing sheets";
-  return "";
-}
-
-function invoiceStatusClass(status: SubcontractorInvoiceStatus | null | undefined): string {
-  if (status === "COPY RECEIVED") return "text-emerald-700 bg-emerald-50 border-emerald-200";
-  if (status === "COPY NOT YET RECEIVED") return "text-amber-900 bg-amber-50 border-amber-200";
-  if (status === "NOT FOUND") return "text-muted-foreground bg-muted/40 border-border";
-  return "";
-}
-
 function applyInvoiceToSelection(
   scheme: SubcontractorPaymentScheme,
   milestone: string,
-  invoice: { status: SubcontractorInvoiceStatus; sheetName: string | null }
+  invoice: { status: SubcontractorInvoiceStatus; invoiceNumber: string | null }
 ): ProgressBillingSelection {
   return {
     payment_scheme: scheme,
     milestone,
     invoice_status: invoice.status,
-    invoice_sheet: invoice.sheetName,
+    invoice_number: invoice.invoiceNumber,
   };
 }
 
@@ -113,7 +99,7 @@ export function SubcontractorProgressBillingSection({
         payment_scheme: scheme,
         milestone,
         invoice_status: null,
-        invoice_sheet: null,
+        invoice_number: null,
       });
       setLookupError("Enter a P.O. number in the project reference section first.");
       return;
@@ -140,7 +126,7 @@ export function SubcontractorProgressBillingSection({
         payment_scheme: scheme,
         milestone,
         invoice_status: null,
-        invoice_sheet: null,
+        invoice_number: null,
       });
       if (error instanceof InvoiceLookupNotConfiguredError) {
         setLookupError(error.message);
@@ -164,7 +150,7 @@ export function SubcontractorProgressBillingSection({
         payment_scheme: scheme,
         milestone,
         invoice_status: null,
-        invoice_sheet: null,
+        invoice_number: null,
       });
       setLookupError("Enter a P.O. number in the project reference section first.");
       return;
@@ -200,7 +186,7 @@ export function SubcontractorProgressBillingSection({
       lastLookupKeyRef.current = lookupKey;
       if (
         selection.invoice_status !== cached.status ||
-        selection.invoice_sheet !== cached.sheetName
+        selection.invoice_number !== cached.invoiceNumber
       ) {
         onSelectionChange(
           applyInvoiceToSelection(
@@ -287,22 +273,24 @@ export function SubcontractorProgressBillingSection({
         <div
           className={cn(
             "rounded-md border px-3 py-2 text-sm",
-            invoiceStatusClass(selection.invoice_status)
+            subcontractorInvoiceStatusToneClass(selection.invoice_status)
           )}
         >
-          <span className="font-medium">{invoiceStatusLabel(selection.invoice_status)}</span>
-          {selection.invoice_sheet ? (
+          <span className="font-medium">
+            {formatSubcontractorInvoiceStatusLabel(selection.invoice_status)}
+          </span>
+          {selection.invoice_number ? (
             <Caption className="mt-0.5 block">
-              Source sheet: {selection.invoice_sheet}
+              Invoice Number: {selection.invoice_number}
             </Caption>
           ) : null}
         </div>
       ) : null}
 
-      <div className="space-y-1.5 border-t border-border/70 pt-3">
-        <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Billing line items
-        </Label>
+      <div className="space-y-1.5">
+        <h4 className="text-sm font-semibold border-b pb-2 mb-2">
+          BILLING DETAILS (OPTIONAL)
+        </h4>
         {details.map((row, i) => (
           <div
             key={i}
@@ -313,7 +301,6 @@ export function SubcontractorProgressBillingSection({
               value={row.description}
               onChange={(e) => updateDetail(i, "description", e.target.value)}
               className="min-w-0"
-              required
             />
             <div className="flex items-center gap-2 sm:contents">
               <Input
@@ -343,10 +330,6 @@ export function SubcontractorProgressBillingSection({
           Add item
         </Button>
       </div>
-
-      <BodySmall className="rounded-md border border-border/80 bg-muted/30 px-3 py-2 text-muted-foreground">
-        {SUBCONTRACTOR_RETENTION_REMARKS_NOTE}
-      </BodySmall>
     </div>
   );
 }

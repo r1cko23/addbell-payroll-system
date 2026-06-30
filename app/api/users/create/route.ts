@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
 import { verifyAdminAccess, clearUserRoleCache } from "@/lib/api-helpers";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

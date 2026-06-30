@@ -10,6 +10,8 @@ import {
 import { getCurrentUserRole } from "@/lib/api-helpers";
 import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 type UploadPaymentCheckPayload = {
   request_id?: string;
   document?: {

@@ -19,6 +19,8 @@ import { isSubcontractorPaymentPurpose } from "@/types/fund-request";
 import { validateSubcontractorPoAmountInput } from "@/lib/fund-request-subcontractor-po-amount";
 import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 type FundRequestContentPayload = {
   reference_mode: FundRequestReferenceMode;
   request_date: string;

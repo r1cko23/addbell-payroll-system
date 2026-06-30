@@ -8,6 +8,8 @@ import {
 import { recordBillingLookupRequest } from "@/lib/platform-runtime-metrics";
 import type { Database } from "@/types/database";
 
+export { dynamic } from "@/lib/api-route-segment";
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });

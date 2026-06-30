@@ -566,6 +566,13 @@ export function FundRequestApprovalDetail({
   const showSubcontractorFields =
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
+  const viewerRole = normalizeUserRole(profile?.role);
+  const showSubcontractorInvoiceTracking = Boolean(
+    showSubcontractorFields &&
+      (viewerRole === "purchasing_officer" ||
+        viewerRole === "upper_management" ||
+        viewerRole === "admin")
+  );
   const canUndoRejection = canUndoFundRequestRejection(
     profile?.role,
     profile?.id,
@@ -649,6 +656,7 @@ export function FundRequestApprovalDetail({
                 editableSubcontractorPoAmount={showPurchasingSubcontractorPoField}
                 subcontractorPoAmountInput={subcontractorPoAmount}
                 onSubcontractorPoAmountInputChange={setSubcontractorPoAmount}
+                showSubcontractorInvoiceTracking={showSubcontractorInvoiceTracking}
               />
             ) : null}
             <FundRequestDetailsSection

@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { buildPayrollRunTemplateTable } from "@/lib/payroll-export/build-payroll-run-template";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
+export { dynamic } from "@/lib/api-route-segment";
+
 
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

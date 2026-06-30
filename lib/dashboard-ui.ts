@@ -50,6 +50,26 @@ export const dbFilterSelect = "w-full min-w-0 sm:w-[180px]";
 export const dbDialogContent =
   "max-h-[min(90dvh,90vh)] w-[calc(100vw-2rem)] max-w-none gap-3 overflow-y-auto overscroll-contain p-4 sm:max-w-2xl sm:w-full sm:p-6";
 
+/** Wider dialog for multi-field forms (vendors, subcontractors). */
+export const dbDialogContentWide =
+  "max-h-[min(90dvh,90vh)] w-[min(100vw-2rem,48rem)] max-w-3xl gap-3 overflow-y-auto overscroll-contain p-4 sm:w-full sm:p-6";
+
+/**
+ * Tall form dialog — top-anchored, capped height, fixed header/footer, scrollable body.
+ * Overrides centered translate so the modal fits at 100% browser zoom.
+ */
+export const dbDialogTallForm =
+  "!top-[max(0.75rem,1.5dvh)] left-[50%] flex max-h-[min(85dvh,calc(100vh-1.5rem))] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 !translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:w-full";
+
+export const dbDialogTallFormHeader =
+  "shrink-0 space-y-1.5 border-b px-6 pb-4 pt-6 pr-12 text-left";
+
+export const dbDialogTallFormBody =
+  "max-h-[calc(100dvh-12.5rem)] space-y-4 overflow-y-auto overscroll-contain px-6 py-4 pr-4";
+
+export const dbDialogTallFormFooter =
+  "shrink-0 border-t bg-background px-6 py-4";
+
 /** Dialog footer — stacked full-width actions on mobile */
 export const dbDialogFooter =
   "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2 [&>button]:w-full sm:[&>button]:w-auto";

@@ -41,7 +41,7 @@ import {
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
-  dbDialogContent,
+  dbDialogContentWide,
   dbDialogFooter,
   dbHeaderActions,
   dbHeaderButton,
@@ -138,6 +138,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const [emails, setEmails] = useState<string[]>([]);
   const [accountName, setAccountName] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   const resetContactFields = () => {
     setPhones([]);
@@ -215,6 +216,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
 
     if (!name.trim()) {
       toast.error(config.nameRequired);
@@ -254,6 +256,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
     }
 
     try {
+      setSaving(true);
       const payload = {
         name: name.trim(),
         contact_person: contactPerson.trim(),
@@ -289,8 +292,17 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       handleCloseDialog();
       await invalidateVendors(queryClient);
     } catch (error: unknown) {
-      toast.error((error as Error).message || config.saveError);
+      const message = (error as Error).message || config.saveError;
+      if (message.includes("account_name")) {
+        toast.error(
+          "Account name column is missing. Run the vendors account_name migration in Supabase, then try again."
+        );
+      } else {
+        toast.error(message);
+      }
       console.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -533,21 +545,19 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
+        <DialogContent className={dbDialogContentWide}>
           <DialogHeader>
             <DialogTitle>
               {editingRecord ? config.dialogEditTitle : config.dialogAddTitle}
             </DialogTitle>
-            {(editingRecord ? config.dialogEditDescription : config.dialogAddDescription) ? (
-              <DialogDescription>
-                {editingRecord
-                  ? config.dialogEditDescription
-                  : config.dialogAddDescription}
-              </DialogDescription>
-            ) : null}
+            <DialogDescription>
+              {editingRecord
+                ? config.dialogEditDescription
+                : config.dialogAddDescription}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="name">{config.nameLabel} *</Label>
               <Input
                 id="name"
@@ -557,19 +567,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="tin">TIN *</Label>
-              <Input
-                id="tin"
-                value={tin}
-                onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
-                placeholder={TIN_PLACEHOLDER}
-                inputMode="numeric"
-                autoComplete="off"
-                required
-              />
-            </div>
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="address">Business Address *</Label>
               <Textarea
                 id="address"
@@ -580,18 +578,32 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact_person">Contact Person *</Label>
-              <Input
-                id="contact_person"
-                value={contactPerson}
-                onChange={(e) => setContactPerson(e.target.value)}
-                placeholder="Primary contact person"
-                required
-              />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="tin">TIN *</Label>
+                <Input
+                  id="tin"
+                  value={tin}
+                  onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
+                  placeholder={TIN_PLACEHOLDER}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="contact_person">Contact Person *</Label>
+                <Input
+                  id="contact_person"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  placeholder="Primary contact person"
+                  required
+                />
+              </div>
             </div>
             {vendorType === "subcontractor" ? (
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="account_name">Account Name</Label>
                 <Input
                   id="account_name"
@@ -599,77 +611,85 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                   onChange={(e) => setAccountName(e.target.value)}
                   placeholder="Bank account name for payments"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Auto-fills the payee account name on subcontractor payment requests.
-                  You can still change it per request.
-                </p>
               </div>
             ) : null}
-            <div className="space-y-2">
-              <Label>Phone</Label>
-              {phones.length > 0 ? (
-                <div className="space-y-2">
-                  {phones.map((entry, index) => (
-                    <div key={`phone-${index}`} className="flex gap-2">
-                      <Input
-                        value={entry}
-                        onChange={(e) => updatePhone(index, e.target.value)}
-                        onPaste={(e) => handlePhonePaste(index, e)}
-                        placeholder="09XXXXXXXXX or 02XXXXXXXX"
-                        inputMode="tel"
-                        autoComplete="tel"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removePhone(index)}
-                        aria-label="Remove phone"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No phone added yet.</p>
-              )}
-              <Button type="button" variant="outline" className={dbHeaderButton} onClick={addPhone}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add phone
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              {emails.length > 0 ? (
-                <div className="space-y-2">
-                  {emails.map((entry, index) => (
-                    <div key={`email-${index}`} className="flex gap-2">
-                      <Input
-                        type="email"
-                        value={entry}
-                        onChange={(e) => updateEmail(index, e.target.value)}
-                        placeholder="vendor@example.com"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeEmail(index)}
-                        aria-label="Remove email"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No email added yet.</p>
-              )}
-              <Button type="button" variant="outline" className={dbHeaderButton} onClick={addEmail}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add email
-              </Button>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label>Phone</Label>
+                {phones.length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {phones.map((entry, index) => (
+                      <div key={`phone-${index}`} className="flex gap-2">
+                        <Input
+                          value={entry}
+                          onChange={(e) => updatePhone(index, e.target.value)}
+                          onPaste={(e) => handlePhonePaste(index, e)}
+                          placeholder="09XXXXXXXXX or 02XXXXXXXX"
+                          inputMode="tel"
+                          autoComplete="tel"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removePhone(index)}
+                          aria-label="Remove phone"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">No phone added yet.</p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(dbHeaderButton, "mt-2")}
+                  onClick={addPhone}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add phone
+                </Button>
+              </div>
+              <div>
+                <Label>Email</Label>
+                {emails.length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {emails.map((entry, index) => (
+                      <div key={`email-${index}`} className="flex gap-2">
+                        <Input
+                          type="email"
+                          value={entry}
+                          onChange={(e) => updateEmail(index, e.target.value)}
+                          placeholder="vendor@example.com"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => removeEmail(index)}
+                          aria-label="Remove email"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">No email added yet.</p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(dbHeaderButton, "mt-2")}
+                  onClick={addEmail}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add email
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
@@ -682,10 +702,17 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
               </Label>
             </div>
             <DialogFooter className={dbDialogFooter}>
-              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseDialog}
+                disabled={saving}
+              >
                 Cancel
               </Button>
-              <Button type="submit">{editingRecord ? "Update" : "Create"}</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving..." : editingRecord ? "Update" : "Create"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

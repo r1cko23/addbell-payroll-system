@@ -80,7 +80,11 @@ async function main() {
     }
 
     const progressBilling = projectDetails.progress_billing;
-    if (!needsInvoiceBackfill(progressBilling)) {
+    if (
+      !progressBilling?.payment_scheme ||
+      !progressBilling.milestone ||
+      !needsInvoiceBackfill(progressBilling)
+    ) {
       skipped += 1;
       continue;
     }
@@ -94,8 +98,7 @@ async function main() {
 
     try {
       const lookup = await lookupBillingInvoiceStatus(poNumber);
-      const { invoice_sheet: _legacySheet, ...progressBillingRest } =
-        progressBilling ?? {};
+      const { invoice_sheet: _legacySheet, ...progressBillingRest } = progressBilling;
 
       const nextProjectDetails: StoredFundRequestProjectDetails = {
         ...projectDetails,

@@ -5,11 +5,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  fileToBase64,
   isAllowedRequestDocument,
   MAX_REQUEST_DOCUMENT_SIZE,
-  resolveRequestDocumentMimeType,
 } from "@/lib/request-supporting-document";
+import { uploadFundRequestDocumentFile } from "@/lib/fund-request-document-upload-client";
 import {
   requestFormCopy,
   requestSupportingDocLabel,
@@ -47,27 +46,14 @@ export function FundRequestAddDocument({
 
     setUploading(true);
     try {
-      const response = await fetch("/api/fund-requests/documents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          request_id: requestId,
-          requested_by: requestedBy,
-          document: {
-            file_name: selectedFile.name,
-            file_type: resolveRequestDocumentMimeType(selectedFile),
-            file_size: selectedFile.size,
-            file_base64: await fileToBase64(selectedFile),
-          },
-        }),
+      const result = await uploadFundRequestDocumentFile(selectedFile, {
+        requestId,
+        requestedBy,
+        documentType: "supporting",
       });
 
-      const result = (await response.json()) as {
-        error?: string;
-        document?: FundRequestDocumentSummary;
-      };
-      if (!response.ok) {
-        toast.error(result.error ?? "Unable to upload document");
+      if (result.error) {
+        toast.error(result.error);
         return;
       }
       if (!result.document) {
@@ -117,7 +103,8 @@ export function FundRequestAddDocument({
         className={epFileInput}
       />
       <p className="mt-1 text-xs text-muted-foreground">
-        {requestFormCopy.fundRequest.supportingDocHint}
+        {requestFormCopy.fundRequest.supportingDocHint} Files upload directly to
+        storage (up to 5MB).
       </p>
       {selectedFile && !docError ? (
         <p className="mt-2 text-sm text-emerald-700">

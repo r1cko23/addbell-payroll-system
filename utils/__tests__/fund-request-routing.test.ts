@@ -1,5 +1,6 @@
 import {
   getFundRequestSubmissionWorkflow,
+  isPurchasingOfficerSelfSubmitPath,
   requesterRequiresOperationsManagerApproval,
 } from "@/lib/fund-request-routing";
 
@@ -47,5 +48,31 @@ describe("getFundRequestSubmissionWorkflow", () => {
         requiresOperationsManagerApproval: true,
       }).status
     ).toBe("pending");
+  });
+});
+
+describe("isPurchasingOfficerSelfSubmitPath", () => {
+  test("requires bank details on dashboard self-submit only", () => {
+    expect(
+      isPurchasingOfficerSelfSubmitPath({
+        submitterRole: "purchasing_officer",
+        isPortal: false,
+        submitterUserId: "user-1",
+      })
+    ).toBe(true);
+    expect(
+      isPurchasingOfficerSelfSubmitPath({
+        submitterRole: "purchasing_officer",
+        isPortal: true,
+        submitterUserId: "user-1",
+      })
+    ).toBe(false);
+    expect(
+      isPurchasingOfficerSelfSubmitPath({
+        submitterRole: "hr",
+        isPortal: false,
+        submitterUserId: "user-1",
+      })
+    ).toBe(false);
   });
 });

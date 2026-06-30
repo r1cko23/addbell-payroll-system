@@ -1,5 +1,4 @@
 import {
-  fileToBase64,
   MAX_REQUEST_DOCUMENT_SIZE,
   resolveRequestDocumentMimeType,
 } from "@/lib/request-supporting-document";
@@ -7,6 +6,7 @@ import {
   compressImageForUpload,
   isCompressibleImageFile,
 } from "@/lib/compress-image-for-upload";
+import { uploadFundRequestDocumentFile } from "@/lib/fund-request-document-upload-client";
 import type { FundRequestDocumentSummary, FundRequestRow } from "@/types/fund-request";
 import { normalizeUserRole } from "@/lib/user-roles";
 
@@ -81,33 +81,10 @@ export async function uploadFundRequestPaymentCheck(
   file: File
 ): Promise<{ document?: FundRequestDocumentSummary; error?: string }> {
   const preparedFile = await preparePaymentCheckFile(file);
-  const response = await fetch("/api/fund-requests/payment-checks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      request_id: requestId,
-      document: {
-        file_name: preparedFile.name,
-        file_type: resolvePaymentCheckMimeType(preparedFile),
-        file_size: preparedFile.size,
-        file_base64: await fileToBase64(preparedFile),
-      },
-    }),
+  return uploadFundRequestDocumentFile(preparedFile, {
+    requestId,
+    documentType: "payment_check",
   });
-
-  const result = (await response.json()) as {
-    error?: string;
-    document?: FundRequestDocumentSummary;
-  };
-
-  if (!response.ok) {
-    return { error: result.error ?? "Unable to upload payment check" };
-  }
-  if (!result.document) {
-    return { error: "Unable to upload payment check" };
-  }
-
-  return { document: result.document };
 }
 
 export function validatePaymentCheckFile(file: File | null): string | null {

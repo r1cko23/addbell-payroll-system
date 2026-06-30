@@ -1,5 +1,6 @@
 import type { FundRequestRow } from "@/types/fund-request";
 import { isOfficeRelatedFundRequest } from "@/types/fund-request";
+import type { ProgressBillingSelection } from "@/lib/subcontractor-progress-billing";
 
 export type FundRequestProjectDetail = {
   po_number: string | null;
@@ -9,9 +10,10 @@ export type FundRequestProjectDetail = {
   completion_percentage: number | null;
 };
 
-type StoredFundRequestProjectDetails = {
+export type StoredFundRequestProjectDetails = {
   v: 1;
   projects: FundRequestProjectDetail[];
+  progress_billing?: ProgressBillingSelection | null;
 };
 
 export type FundRequestProjectDetailRow = {
@@ -76,10 +78,15 @@ export function formatFundRequestPoAmount(
 }
 
 export function serializeFundRequestProjectDetails(
-  projects: FundRequestProjectDetail[]
+  projects: FundRequestProjectDetail[],
+  progressBilling?: StoredFundRequestProjectDetails["progress_billing"]
 ): StoredFundRequestProjectDetails | null {
-  if (projects.length === 0) return null;
-  return { v: 1, projects };
+  if (projects.length === 0 && !progressBilling) return null;
+  return {
+    v: 1,
+    projects,
+    ...(progressBilling ? { progress_billing: progressBilling } : {}),
+  };
 }
 
 export function parseFundRequestProjectDetails(

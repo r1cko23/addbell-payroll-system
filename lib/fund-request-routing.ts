@@ -78,6 +78,19 @@ export async function resolveFundRequestRequesterRouting(
   };
 }
 
+/** Purchasing officers filing from the dashboard skip OM/PO approval and need bank details on the form. */
+export function isPurchasingOfficerSelfSubmitPath(options: {
+  submitterRole: string | null | undefined;
+  isPortal: boolean;
+  submitterUserId: string | null;
+}): boolean {
+  return (
+    !options.isPortal &&
+    normalizeUserRole(options.submitterRole) === "purchasing_officer" &&
+    Boolean(options.submitterUserId)
+  );
+}
+
 export function getFundRequestSubmissionWorkflow(options: {
   submitterRole: string | null | undefined;
   isPortal: boolean;
@@ -99,7 +112,13 @@ export function getFundRequestSubmissionWorkflow(options: {
     };
   }
 
-  if (!options.isPortal && submitterRole === "purchasing_officer" && options.submitterUserId) {
+  if (
+    isPurchasingOfficerSelfSubmitPath({
+      submitterRole: options.submitterRole,
+      isPortal: options.isPortal,
+      submitterUserId: options.submitterUserId,
+    })
+  ) {
     return {
       status: "purchasing_officer_approved",
       project_manager_approved_by: null,

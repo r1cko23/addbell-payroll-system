@@ -38,11 +38,10 @@ import {
   requestSupportingDocLabel,
 } from "@/lib/employee-portal-request-copy";
 import {
-  fileToBase64,
   isAllowedRequestDocument,
   MAX_REQUEST_DOCUMENT_SIZE,
-  resolveRequestDocumentMimeType,
 } from "@/lib/request-supporting-document";
+import { uploadFundRequestDocumentFile } from "@/lib/fund-request-document-upload-client";
 import { cn } from "@/lib/utils";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import {
@@ -59,10 +58,25 @@ import {
   type FundRequestProjectDetailRow,
 } from "@/lib/fund-request-project-details";
 import { FundRequestProjectDetailsFields } from "@/components/fund-request/FundRequestProjectDetailsFields";
+import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
+import { SubcontractorProgressBillingSection } from "@/components/fund-request/SubcontractorProgressBillingSection";
+import {
+  parseProgressBillingFromProjectDetails,
+  type ProgressBillingSelection,
+} from "@/lib/subcontractor-progress-billing";
 import {
   getFundRequestSubmissionWorkflow,
+  isPurchasingOfficerSelfSubmitPath,
   resolveFundRequestRequesterRouting,
 } from "@/lib/fund-request-routing";
+import {
+  emptyFundRequestBankDetails,
+  parseSupplierBankDetails,
+  serializeSupplierBankDetails,
+  validateFundRequestBankDetails,
+  type FundRequestBankDetailsForm,
+} from "@/lib/fund-request-bank-details";
+import { normalizeUserRole } from "@/lib/user-roles";
 import {
   canRequesterEditFundRequest,
 } from "@/lib/fund-request-approval";
@@ -156,7 +170,7 @@ function getPurposeFieldConfig(purpose: string): PurposeFieldConfig {
         referenceCardTitle: "Client / Project Reference",
         referenceCardDescription:
           "Client P.O., project reference, and vendor billing details.",
-        detailsSectionTitle: "Subcontractor billing",
+        detailsSectionTitle: "Progress Billing",
         detailsSectionDescription: "Milestones, scope, or invoice lines.",
         detailPlaceholderPrefix: "Billing item",
       };
@@ -266,6 +280,8 @@ export default function NewFundRequestPage() {
   const [details, setDetails] = useState<DetailRow[]>(() =>
     Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyDetailRow()),
   );
+  const [progressBillingSelection, setProgressBillingSelection] =
+    useState<ProgressBillingSelection | null>(null);
   const [dateNeeded, setDateNeeded] = useState("");
   const [remarks, setRemarks] = useState("");
   const [urgentReason, setUrgentReason] = useState("");
@@ -274,6 +290,9 @@ export default function NewFundRequestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(isEditMode);
   const [editForbidden, setEditForbidden] = useState(false);
+  const [editStatus, setEditStatus] = useState<FundRequestRow["status"] | null>(null);
+  const [supplierBankDetails, setSupplierBankDetails] =
+    useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails);
   const { data: subcontractors = [] } = useSubcontractorOptions();
   const purposeConfig = useMemo(
     () => getPurposeFieldConfig(purposeOption),
@@ -286,6 +305,26 @@ export default function NewFundRequestPage() {
     !isInternalStockReference && isSubcontractorPaymentPurpose(purposeOption);
   const allowMultipleProjects = allowsMultipleFundRequestProjects(purposeOption);
   const poPerProject = showClientPOField;
+  const subcontractorPoNumber =
+    poPerProject && projectRows[0]?.poNumber.trim()
+      ? projectRows[0].poNumber.trim()
+      : poNumber.trim();
+  const detailsSectionTitle = showVendorPaymentSection
+    ? "Progress Billing"
+    : purposeConfig.detailsSectionTitle.toUpperCase();
+  const showPurchasingOfficerBankDetails = useMemo(() => {
+    if (normalizeUserRole(user?.role) !== "purchasing_officer" || !user?.id) {
+      return false;
+    }
+    if (isEditMode) {
+      return editStatus === "purchasing_officer_approved";
+    }
+    return isPurchasingOfficerSelfSubmitPath({
+      submitterRole: user.role,
+      isPortal,
+      submitterUserId: user.id,
+    });
+  }, [user?.role, user?.id, isPortal, isEditMode, editStatus]);
 
   useEffect(() => {
     if (session?.employee?.full_name) {
@@ -351,6 +390,7 @@ export default function NewFundRequestPage() {
         return;
       }
 
+      setEditStatus(row.status);
       setLinkedEmployeeId(row.requested_by);
       setRequestDate(row.request_date);
       const purposeForm = fundRequestPurposeToForm(row.purpose);
@@ -367,9 +407,13 @@ export default function NewFundRequestPage() {
           : ""
       );
       setDetails(fundRequestDetailsToFormRows(row.details as FundRequestDetailItem[] | null));
+      setProgressBillingSelection(
+        parseProgressBillingFromProjectDetails(row.project_details)
+      );
       setDateNeeded(row.date_needed ?? "");
       setRemarks(row.remarks ?? "");
       setUrgentReason(row.urgent_reason ?? "");
+      setSupplierBankDetails(parseSupplierBankDetails(row.supplier_bank_details));
       setLoadingEdit(false);
     })();
 
@@ -434,6 +478,12 @@ export default function NewFundRequestPage() {
   }, [allowMultipleProjects]);
 
   useEffect(() => {
+    if (!showVendorPaymentSection) {
+      setProgressBillingSelection(null);
+    }
+  }, [showVendorPaymentSection]);
+
+  useEffect(() => {
     if (!poPerProject) return;
     setProjectRows((prev) => {
       const row = prev[0] ?? createEmptyFundRequestProjectRow();
@@ -494,6 +544,10 @@ export default function NewFundRequestPage() {
         return;
       }
     }
+    if (showVendorPaymentSection && !progressBillingSelection?.milestone) {
+      toast.error("Select a progress billing milestone.");
+      return;
+    }
     const detailValidationError = validateDetailRows(details);
     if (detailValidationError) {
       toast.error(detailValidationError);
@@ -502,6 +556,13 @@ export default function NewFundRequestPage() {
     if (dateNeeded && !urgentReason.trim()) {
       toast.error("Reason for urgency is required when a date is specified.");
       return;
+    }
+    if (showPurchasingOfficerBankDetails) {
+      const bankValidationError = validateFundRequestBankDetails(supplierBankDetails);
+      if (bankValidationError) {
+        toast.error(bankValidationError);
+        return;
+      }
     }
     const trimmedPoNumber = poNumber.trim();
     if (showClientPOField && !poPerProject && !trimmedPoNumber) {
@@ -588,31 +649,22 @@ export default function NewFundRequestPage() {
         po_amount: primaryProject?.po_amount ?? null,
         po_amount_percentage: null,
         current_project_percentage: primaryProject?.completion_percentage ?? null,
-        project_details: serializeFundRequestProjectDetails(normalizedProjects),
+        project_details: serializeFundRequestProjectDetails(
+          normalizedProjects,
+          showVendorPaymentSection ? progressBillingSelection : null
+        ),
         subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
         details: detailsPayload,
         total_requested_amount: totalRequested,
         date_needed: dateNeeded || null,
         remarks: remarks.trim() || null,
         urgent_reason: urgentReason.trim() || null,
+        ...(showPurchasingOfficerBankDetails
+          ? {
+              supplier_bank_details: serializeSupplierBankDetails(supplierBankDetails),
+            }
+          : {}),
       };
-
-      let documentPayload:
-        | {
-            file_name: string;
-            file_type: string;
-            file_size: number;
-            file_base64: string;
-          }
-        | null = null;
-      if (supportingDoc) {
-        documentPayload = {
-          file_name: supportingDoc.name,
-          file_type: resolveRequestDocumentMimeType(supportingDoc),
-          file_size: supportingDoc.size,
-          file_base64: await fileToBase64(supportingDoc),
-        };
-      }
 
       if (isEditMode && editId) {
         const updateResponse = await fetch("/api/fund-requests", {
@@ -622,13 +674,25 @@ export default function NewFundRequestPage() {
             request_id: editId,
             requested_by: employeeId,
             ...contentPayload,
-            document: documentPayload,
           }),
         });
         const updateResult = await updateResponse.json();
 
         if (!updateResponse.ok || !updateResult?.id) {
           throw new Error(updateResult?.error || "Failed to update request.");
+        }
+
+        if (supportingDoc) {
+          const uploadResult = await uploadFundRequestDocumentFile(supportingDoc, {
+            requestId: editId,
+            requestedBy: employeeId,
+            documentType: "supporting",
+          });
+          if (uploadResult.error) {
+            toast.warning(
+              `Fund request updated but document upload failed: ${uploadResult.error}`
+            );
+          }
         }
 
         if (updateResult?.warning) {
@@ -677,13 +741,25 @@ export default function NewFundRequestPage() {
         body: JSON.stringify({
           ...payload,
           is_portal_submission: isPortal,
-          document: documentPayload,
         }),
       });
       const createResult = await createResponse.json();
 
       if (!createResponse.ok || !createResult?.id) {
         throw new Error(createResult?.error || "Failed to submit.");
+      }
+
+      if (supportingDoc) {
+        const uploadResult = await uploadFundRequestDocumentFile(supportingDoc, {
+          requestId: createResult.id,
+          requestedBy: employeeId,
+          documentType: "supporting",
+        });
+        if (uploadResult.error) {
+          toast.warning(
+            `Fund request submitted but document upload failed: ${uploadResult.error}`
+          );
+        }
       }
 
       const successMessage =
@@ -931,58 +1007,87 @@ export default function NewFundRequestPage() {
               <div className="flex min-w-0 flex-col gap-4">
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-2">
-                    REQUEST DETAILS
+                    {detailsSectionTitle}
                   </summary>
                   <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-2">
-                    REQUEST DETAILS
+                    {detailsSectionTitle}
                   </h3>
-                  <div className="space-y-1.5">
-                    {details.map((row, i) => (
-                      <div
-                        key={i}
-                        className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] sm:items-center"
-                      >
-                        <Input
-                          placeholder={`${purposeConfig.detailPlaceholderPrefix} ${i + 1}`}
-                          value={row.description}
-                          onChange={(e) => updateDetail(i, "description", e.target.value)}
-                          className="min-w-0"
-                          required
-                        />
-                        <div className="flex items-center gap-2 sm:contents">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            placeholder="0"
-                            value={row.amount}
-                            onChange={(e) => updateDetail(i, "amount", e.target.value)}
-                            className="min-w-0 flex-1 px-2 sm:flex-none"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeDetailRow(i)}
-                            disabled={details.length <= 1}
-                            className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10"
-                            aria-label={`Remove item ${i + 1}`}
+                  {showVendorPaymentSection ? (
+                    <SubcontractorProgressBillingSection
+                      poNumber={subcontractorPoNumber}
+                      details={details}
+                      selection={progressBillingSelection}
+                      onSelectionChange={setProgressBillingSelection}
+                      onDetailsChange={setDetails}
+                      onAddDetailRow={addDetailRow}
+                      onRemoveDetailRow={removeDetailRow}
+                      detailPlaceholderPrefix={purposeConfig.detailPlaceholderPrefix}
+                    />
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        {details.map((row, i) => (
+                          <div
+                            key={i}
+                            className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] sm:items-center"
                           >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
+                            <Input
+                              placeholder={`${purposeConfig.detailPlaceholderPrefix} ${i + 1}`}
+                              value={row.description}
+                              onChange={(e) => updateDetail(i, "description", e.target.value)}
+                              className="min-w-0"
+                              required
+                            />
+                            <div className="flex items-center gap-2 sm:contents">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0"
+                                value={row.amount}
+                                onChange={(e) => updateDetail(i, "amount", e.target.value)}
+                                className="min-w-0 flex-1 px-2 sm:flex-none"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeDetailRow(i)}
+                                disabled={details.length <= 1}
+                                className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10"
+                                aria-label={`Remove item ${i + 1}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div className="mt-2">
-                    <Button type="button" variant="outline" onClick={addDetailRow}>
-                      Add item
-                    </Button>
-                  </div>
+                      <div className="mt-2">
+                        <Button type="button" variant="outline" onClick={addDetailRow}>
+                          Add item
+                        </Button>
+                      </div>
+                    </>
+                  )}
                   <p className="text-sm font-medium mt-2">
                     Total: PHP {totalRequested.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
                 </details>
+                {showPurchasingOfficerBankDetails ? (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Supplier Bank Details</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <FundRequestBankDetailsFields
+                        value={supplierBankDetails}
+                        onChange={setSupplierBankDetails}
+                        idPrefix="fund-request-supplier-bank"
+                      />
+                    </CardContent>
+                  </Card>
+                ) : null}
                 <div className="grid grid-cols-1 gap-3">
                   <div>
                     <Label htmlFor="remarks">Remarks</Label>

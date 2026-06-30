@@ -1,5 +1,11 @@
 export const MAX_REQUEST_DOCUMENT_SIZE = 5 * 1024 * 1024;
 
+/**
+ * Vercel Hobby caps serverless request bodies at 4.5 MB. Base64 adds ~33% overhead,
+ * so JSON uploads through API routes must stay below this raw size.
+ */
+export const MAX_REQUEST_DOCUMENT_API_BODY_SIZE = 3 * 1024 * 1024;
+
 export const ALLOWED_REQUEST_DOCUMENT_TYPES = [
   "application/pdf",
   "application/msword",

@@ -6,9 +6,15 @@ import type { FundRequestReferenceMode } from "@/types/fund-request";
 import type { Database } from "@/types/database";
 import {
   getFundRequestSubmissionWorkflow,
+  isPurchasingOfficerSelfSubmitPath,
   resolveFundRequestRequesterRouting,
 } from "@/lib/fund-request-routing";
+import {
+  parseSupplierBankDetails,
+  validateFundRequestBankDetails,
+} from "@/lib/fund-request-bank-details";
 import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
+import { normalizeUserRole } from "@/lib/user-roles";
 import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
 type FundRequestContentPayload = {
@@ -30,6 +36,7 @@ type FundRequestContentPayload = {
   date_needed: string | null;
   remarks: string | null;
   urgent_reason: string | null;
+  supplier_bank_details?: string | null;
   document?: {
     file_name: string;
     file_type: string;
@@ -57,6 +64,29 @@ type UpdateFundRequestPayload = FundRequestContentPayload & {
   requested_by: string;
 };
 
+function requiresSupplierBankDetailsFromRequester(options: {
+  submitterRole: string | null | undefined;
+  isPortal: boolean;
+  submitterUserId: string | null;
+  requestStatus: string;
+}): boolean {
+  if (options.requestStatus !== "purchasing_officer_approved") return false;
+  return (
+    isPurchasingOfficerSelfSubmitPath({
+      submitterRole: options.submitterRole,
+      isPortal: options.isPortal,
+      submitterUserId: options.submitterUserId,
+    }) ||
+    normalizeUserRole(options.submitterRole) === "purchasing_officer"
+  );
+}
+
+function validateSupplierBankDetailsPayload(
+  raw: string | null | undefined
+): string | null {
+  return validateFundRequestBankDetails(parseSupplierBankDetails(raw));
+}
+
 function buildFundRequestContentUpdate(body: FundRequestContentPayload) {
   return {
     reference_mode: body.reference_mode,
@@ -78,6 +108,9 @@ function buildFundRequestContentUpdate(body: FundRequestContentPayload) {
     date_needed: body.date_needed,
     remarks: body.remarks?.trim() || null,
     urgent_reason: body.urgent_reason?.trim() || null,
+    ...(body.supplier_bank_details !== undefined
+      ? { supplier_bank_details: body.supplier_bank_details?.trim() || null }
+      : {}),
     updated_at: new Date().toISOString(),
   };
 }
@@ -113,6 +146,32 @@ export async function PATCH(req: NextRequest) {
     );
     if ("error" in access) {
       return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    let submitterRole: string | null = null;
+    if (authUser?.id) {
+      const { data: submitterProfile } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", authUser.id)
+        .maybeSingle();
+      submitterRole = submitterProfile?.role ?? null;
+    }
+
+    if (
+      requiresSupplierBankDetailsFromRequester({
+        submitterRole,
+        isPortal: false,
+        submitterUserId: authUser?.id ?? null,
+        requestStatus: access.existing.status,
+      })
+    ) {
+      const bankValidationError = validateSupplierBankDetailsPayload(
+        body.supplier_bank_details
+      );
+      if (bankValidationError) {
+        return NextResponse.json({ error: bankValidationError }, { status: 400 });
+      }
     }
 
     const { error } = await admin
@@ -193,6 +252,22 @@ export async function POST(req: NextRequest) {
         requesterRouting.requiresOperationsManagerApproval,
     });
 
+    if (
+      requiresSupplierBankDetailsFromRequester({
+        submitterRole,
+        isPortal: body.is_portal_submission ?? true,
+        submitterUserId: authUser?.id ?? null,
+        requestStatus: workflow.status,
+      })
+    ) {
+      const bankValidationError = validateSupplierBankDetailsPayload(
+        body.supplier_bank_details
+      );
+      if (bankValidationError) {
+        return NextResponse.json({ error: bankValidationError }, { status: 400 });
+      }
+    }
+
     const { data: inserted, error } = await admin
       .from("fund_requests")
       .insert({
@@ -225,6 +300,7 @@ export async function POST(req: NextRequest) {
         purchasing_officer_approved_at: workflow.purchasing_officer_approved_at,
         management_approved_by: workflow.management_approved_by,
         management_approved_at: workflow.management_approved_at,
+        supplier_bank_details: body.supplier_bank_details?.trim() || null,
       })
       .select("id")
       .single();

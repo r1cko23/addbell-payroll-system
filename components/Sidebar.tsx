@@ -22,6 +22,7 @@ import {
   FileText,
   ArrowsClockwise,
   ClipboardText,
+  HardDrives,
 } from "phosphor-react";
 import { cn } from "@/lib/utils";
 import { isNavItemActive } from "@/lib/nav-match";
@@ -37,6 +38,7 @@ type NavItem = {
   icon: React.ElementType;
   permissionModule?: ModuleName;
   approverOnly?: boolean;
+  adminOnly?: boolean;
 };
 
 type NavGroup = {
@@ -136,7 +138,15 @@ const navGroups: NavGroup[] = [
   {
     label: "Settings",
     icon: Gear,
-    items: [{ name: "Settings", href: "/settings", icon: Gear, permissionModule: "settings" }],
+    items: [
+      { name: "Settings", href: "/settings", icon: Gear, permissionModule: "settings" },
+      {
+        name: "Storage Monitor",
+        href: "/admin/storage-monitor",
+        icon: HardDrives,
+        adminOnly: true,
+      },
+    ],
   },
 ];
 
@@ -185,6 +195,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
     isOperationsManager,
     isApprover,
     isViewer,
+    isAdmin,
     loading: roleLoading,
   } = useUserRole();
   const { canRead, loading: permissionsLoading } = usePermissions();
@@ -215,6 +226,10 @@ function SidebarInner({ className, onClose }: SidebarProps) {
         if (isOperationsManager && group.label === "People") return null;
 
         const filteredItems = group.items.filter((item) => {
+          if (item.adminOnly && !isAdmin) {
+            return false;
+          }
+
           if (item.approverOnly && !isFundRequestApproverRole(role)) {
             return false;
           }
@@ -251,6 +266,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
     isApprover,
     isViewer,
     isHR,
+    isAdmin,
     canRead,
     roleLoading,
     permissionsLoading,

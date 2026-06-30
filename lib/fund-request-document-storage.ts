@@ -47,6 +47,96 @@ async function removeStoredFundRequestDocument(
   await admin.storage.from(FUND_REQUEST_DOCUMENTS_BUCKET).remove([storagePath]);
 }
 
+export type FundRequestDocumentUploadSession = {
+  documentId: string;
+  storagePath: string;
+  token: string;
+};
+
+export async function createFundRequestDocumentUploadSession(
+  admin: SupabaseClient,
+  params: {
+    fundRequestId: string;
+    fileName: string;
+    fileSize: number;
+  }
+): Promise<
+  | { session: FundRequestDocumentUploadSession }
+  | { error: string; status: number }
+> {
+  if (params.fileSize > MAX_REQUEST_DOCUMENT_SIZE) {
+    return { error: "File too large. Max size is 5MB.", status: 400 };
+  }
+
+  const documentId = randomUUID();
+  const storagePath = `${params.fundRequestId}/${documentId}/${sanitizeFundRequestDocumentFileName(params.fileName)}`;
+
+  const { data, error } = await admin.storage
+    .from(FUND_REQUEST_DOCUMENTS_BUCKET)
+    .createSignedUploadUrl(storagePath);
+
+  if (error || !data?.token) {
+    return {
+      error: error?.message ?? "Unable to prepare document upload",
+      status: 500,
+    };
+  }
+
+  return {
+    session: {
+      documentId,
+      storagePath,
+      token: data.token,
+    },
+  };
+}
+
+export async function registerFundRequestDocument(
+  admin: SupabaseClient,
+  params: {
+    documentId: string;
+    fundRequestId: string;
+    employeeId: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    storagePath: string;
+    documentType?: FundRequestDocumentType;
+    uploadedBy?: string | null;
+  }
+): Promise<
+  | { document: Record<string, unknown> }
+  | { error: string; status: number }
+> {
+  const docInsert = await admin
+    .from("fund_request_documents")
+    .insert({
+      id: params.documentId,
+      fund_request_id: params.fundRequestId,
+      employee_id: params.employeeId,
+      file_name: params.fileName,
+      file_type: params.fileType,
+      file_size: params.fileSize,
+      storage_path: params.storagePath,
+      file_base64: null,
+      document_type: params.documentType ?? "supporting",
+      uploaded_by: params.uploadedBy ?? null,
+    })
+    .select(FUND_REQUEST_DOCUMENT_SELECT)
+    .single();
+
+  if (docInsert.error) {
+    await removeStoredFundRequestDocument(admin, params.storagePath);
+    return { error: docInsert.error.message, status: 500 };
+  }
+
+  return { document: docInsert.data as Record<string, unknown> };
+}
+
+function shouldUseLegacyBase64DocumentFallback(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 export async function insertFundRequestDocument(
   admin: SupabaseClient,
   params: InsertFundRequestDocumentParams
@@ -102,6 +192,20 @@ export async function insertFundRequestDocument(
         status: 500,
       };
     }
+  } else if (!shouldUseLegacyBase64DocumentFallback()) {
+    return {
+      error:
+        storageError.message ||
+        "Document storage upload failed. Check Supabase Storage configuration.",
+      status: 500,
+    };
+  }
+
+  if (!shouldUseLegacyBase64DocumentFallback()) {
+    return {
+      error: "Document storage is unavailable.",
+      status: 503,
+    };
   }
 
   const legacyInsert = await admin

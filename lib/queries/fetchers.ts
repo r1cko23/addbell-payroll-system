@@ -65,7 +65,7 @@ export async function fetchActiveSubcontractorOptions() {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("vendors")
-    .select("id, name")
+    .select("id, name, account_name")
     .eq("is_active", true)
     .eq("type", "subcontractor")
     .order("name");

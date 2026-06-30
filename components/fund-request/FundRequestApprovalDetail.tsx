@@ -53,6 +53,12 @@ import {
   type EditableFundRequestDetailsForm,
   type FundRequestDetailItem,
 } from "@/lib/fund-request-details";
+import {
+  canPurchasingOfficerEditSubcontractorPoAmount,
+  parseSubcontractorPoAmountInput,
+  shouldShowSubcontractorPoAmountToPurchasingOfficer,
+  validateSubcontractorPoAmountInput,
+} from "@/lib/fund-request-subcontractor-po-amount";
 import { normalizeUserRole } from "@/lib/user-roles";
 import { Label } from "@/components/ui/label";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
@@ -68,10 +74,12 @@ import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundReq
 import {
   emptyFundRequestBankDetails,
   hasFundRequestBankDetails,
+  parseSupplierBankDetails,
   serializeSupplierBankDetails,
   validateFundRequestBankDetails,
   type FundRequestBankDetailsForm,
 } from "@/lib/fund-request-bank-details";
+import { applySubcontractorAccountNameToBankDetails } from "@/lib/vendor-subcontractor-account";
 import { resolveFundRequestRequesterInfo } from "@/lib/fund-request-requester";
 import { fetchApproverNameMap } from "@/lib/load-approver-names";
 import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
@@ -120,6 +128,7 @@ export function FundRequestApprovalDetail({
   );
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails());
+  const [subcontractorPoAmount, setSubcontractorPoAmount] = useState("");
   const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
     new Set()
   );
@@ -162,6 +171,11 @@ export function FundRequestApprovalDetail({
       );
       setEditableDetails(form.items);
       setEditableDeductions(form.deductions);
+      setSubcontractorPoAmount(
+        row.subcontractor_po_amount != null
+          ? String(row.subcontractor_po_amount)
+          : ""
+      );
       const approverIds = [
         row.project_manager_approved_by,
         row.purchasing_officer_approved_by,
@@ -209,10 +223,25 @@ export function FundRequestApprovalDetail({
       if (row.vendor_id) {
         const { data: vendor } = await supabase
           .from("vendors")
-          .select("name")
+          .select("name, account_name")
           .eq("id", row.vendor_id)
           .single();
-        setVendorName((vendor as { name?: string } | null)?.name ?? "");
+        const vendorRow = vendor as { name?: string; account_name?: string | null } | null;
+        setVendorName(vendorRow?.name ?? "");
+
+        if (row.status === "project_manager_approved") {
+          setSupplierBankDetails(
+            applySubcontractorAccountNameToBankDetails(
+              parseSupplierBankDetails(row.supplier_bank_details),
+              vendorRow?.account_name,
+              { onlyWhenAccountNameEmpty: true }
+            )
+          );
+        }
+      } else if (row.status === "project_manager_approved") {
+        setSupplierBankDetails(
+          parseSupplierBankDetails(row.supplier_bank_details)
+        );
       }
 
       let docRows: FundRequestDocumentSummary[] | null = null;
@@ -261,6 +290,23 @@ export function FundRequestApprovalDetail({
   const showPurchasingBankField =
     normalizeUserRole(profile?.role) === "purchasing_officer" &&
     request?.status === "project_manager_approved";
+  const showPurchasingSubcontractorPoField = Boolean(
+    request &&
+      canPurchasingOfficerEditSubcontractorPoAmount(
+        profile?.role,
+        request.status,
+        request.purpose
+      )
+  );
+  const showSubcontractorPoAmountToPurchasing = Boolean(
+    request &&
+      shouldShowSubcontractorPoAmountToPurchasingOfficer(
+        profile?.role,
+        request.purpose,
+        request.status,
+        request.subcontractor_po_amount
+      )
+  );
   const approvalActionCopy = getFundRequestApprovalActionCopy(
     profile?.role,
     request?.status
@@ -312,10 +358,21 @@ export function FundRequestApprovalDetail({
       }
     }
 
+    let parsedSubcontractorPoAmount: number | null | undefined;
+    if (showPurchasingSubcontractorPoField) {
+      const subconPoError = validateSubcontractorPoAmountInput(subcontractorPoAmount);
+      if (subconPoError) {
+        toast.error(subconPoError);
+        return;
+      }
+      parsedSubcontractorPoAmount = parseSubcontractorPoAmountInput(subcontractorPoAmount);
+    }
+
     const updates = buildFundRequestApprovalUpdates(request.status, profile.id, {
       supplierBankDetails: showPurchasingBankField
         ? serializeSupplierBankDetails(supplierBankDetails)
         : null,
+      subcontractorPoAmount: parsedSubcontractorPoAmount,
     });
     if (!updates) return;
 
@@ -588,6 +645,10 @@ export function FundRequestApprovalDetail({
                 request={request}
                 vendorName={vendorName}
                 showSubcontractorFields={showSubcontractorFields}
+                showSubcontractorPoAmount={showSubcontractorPoAmountToPurchasing}
+                editableSubcontractorPoAmount={showPurchasingSubcontractorPoField}
+                subcontractorPoAmountInput={subcontractorPoAmount}
+                onSubcontractorPoAmountInputChange={setSubcontractorPoAmount}
               />
             ) : null}
             <FundRequestDetailsSection

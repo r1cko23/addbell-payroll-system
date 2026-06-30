@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import {
   type FundRequestReferenceMode,
+  FUND_REQUEST_FIELD_LABELS,
   FUND_REQUEST_REFERENCE_MODE_LABELS,
   isSubcontractorPaymentPurpose,
 } from "@/types/fund-request";
@@ -65,6 +66,10 @@ import {
   type ProgressBillingSelection,
 } from "@/lib/subcontractor-progress-billing";
 import {
+  parseSubcontractorPoAmountInput,
+  validateSubcontractorPoAmountInput,
+} from "@/lib/fund-request-subcontractor-po-amount";
+import {
   getFundRequestSubmissionWorkflow,
   isPurchasingOfficerSelfSubmitPath,
   resolveFundRequestRequesterRouting,
@@ -77,6 +82,7 @@ import {
   type FundRequestBankDetailsForm,
 } from "@/lib/fund-request-bank-details";
 import { normalizeUserRole } from "@/lib/user-roles";
+import { applySubcontractorAccountNameToBankDetails } from "@/lib/vendor-subcontractor-account";
 import {
   canRequesterEditFundRequest,
 } from "@/lib/fund-request-approval";
@@ -277,6 +283,7 @@ export default function NewFundRequestPage() {
   ]);
   const [vendorId, setVendorId] = useState("");
   const [subcontractorProgressCompletion, setSubcontractorProgressCompletion] = useState("");
+  const [subcontractorPoAmount, setSubcontractorPoAmount] = useState("");
   const [details, setDetails] = useState<DetailRow[]>(() =>
     Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyDetailRow()),
   );
@@ -325,6 +332,27 @@ export default function NewFundRequestPage() {
       submitterUserId: user.id,
     });
   }, [user?.role, user?.id, isPortal, isEditMode, editStatus]);
+  const showPurchasingOfficerSubcontractorPoAmount = useMemo(() => {
+    if (!showVendorPaymentSection) return false;
+    if (normalizeUserRole(user?.role) !== "purchasing_officer" || !user?.id) {
+      return false;
+    }
+    if (isEditMode) {
+      return editStatus === "purchasing_officer_approved";
+    }
+    return isPurchasingOfficerSelfSubmitPath({
+      submitterRole: user.role,
+      isPortal,
+      submitterUserId: user.id,
+    });
+  }, [
+    showVendorPaymentSection,
+    user?.role,
+    user?.id,
+    isPortal,
+    isEditMode,
+    editStatus,
+  ]);
 
   useEffect(() => {
     if (session?.employee?.full_name) {
@@ -406,6 +434,9 @@ export default function NewFundRequestPage() {
           ? String(row.subcontractor_progress_completion_percentage)
           : ""
       );
+      setSubcontractorPoAmount(
+        row.subcontractor_po_amount != null ? String(row.subcontractor_po_amount) : ""
+      );
       setDetails(fundRequestDetailsToFormRows(row.details as FundRequestDetailItem[] | null));
       setProgressBillingSelection(
         parseProgressBillingFromProjectDetails(row.project_details)
@@ -482,6 +513,36 @@ export default function NewFundRequestPage() {
       setProgressBillingSelection(null);
     }
   }, [showVendorPaymentSection]);
+
+  const handleSubcontractorChange = (nextVendorId: string) => {
+    setVendorId(nextVendorId);
+    if (!showPurchasingOfficerBankDetails) return;
+    const subcontractor = subcontractors.find((item) => item.id === nextVendorId);
+    setSupplierBankDetails((prev) =>
+      applySubcontractorAccountNameToBankDetails(
+        prev,
+        subcontractor?.account_name,
+        { onlyWhenAccountNameEmpty: false }
+      )
+    );
+  };
+
+  useEffect(() => {
+    if (!showPurchasingOfficerBankDetails || !vendorId || !showVendorPaymentSection) {
+      return;
+    }
+    const subcontractor = subcontractors.find((item) => item.id === vendorId);
+    setSupplierBankDetails((prev) =>
+      applySubcontractorAccountNameToBankDetails(prev, subcontractor?.account_name, {
+        onlyWhenAccountNameEmpty: true,
+      })
+    );
+  }, [
+    showPurchasingOfficerBankDetails,
+    vendorId,
+    showVendorPaymentSection,
+    subcontractors,
+  ]);
 
   useEffect(() => {
     if (!poPerProject) return;
@@ -564,6 +625,13 @@ export default function NewFundRequestPage() {
         return;
       }
     }
+    if (showPurchasingOfficerSubcontractorPoAmount) {
+      const subconPoError = validateSubcontractorPoAmountInput(subcontractorPoAmount);
+      if (subconPoError) {
+        toast.error(subconPoError);
+        return;
+      }
+    }
     const trimmedPoNumber = poNumber.trim();
     if (showClientPOField && !poPerProject && !trimmedPoNumber) {
       toast.error("P.O. Number is required in client-linked mode.");
@@ -595,6 +663,11 @@ export default function NewFundRequestPage() {
         toast.error("File too large. Max size is 5MB.");
         return;
       }
+    }
+
+    let parsedSubcontractorPoAmount: number | null = null;
+    if (showPurchasingOfficerSubcontractorPoAmount) {
+      parsedSubcontractorPoAmount = parseSubcontractorPoAmountInput(subcontractorPoAmount);
     }
 
     setSubmitting(true);
@@ -654,6 +727,7 @@ export default function NewFundRequestPage() {
           showVendorPaymentSection ? progressBillingSelection : null
         ),
         subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
+        subcontractor_po_amount: parsedSubcontractorPoAmount,
         details: detailsPayload,
         total_requested_amount: totalRequested,
         date_needed: dateNeeded || null,
@@ -964,7 +1038,7 @@ export default function NewFundRequestPage() {
                             <Label htmlFor="vendor_id" required>
                               Subcontractor Name
                             </Label>
-                            <Select value={vendorId} onValueChange={setVendorId}>
+                            <Select value={vendorId} onValueChange={handleSubcontractorChange}>
                               <SelectTrigger id="vendor_id">
                                 <SelectValue placeholder="Select subcontractor" />
                               </SelectTrigger>
@@ -977,23 +1051,52 @@ export default function NewFundRequestPage() {
                               </SelectContent>
                             </Select>
                           </div>
-                          <div className="sm:col-span-3">
-                            <Label htmlFor="subcontractor_progress_completion" required>
-                              Subcontractor Current Progress Percentage
-                            </Label>
-                            <Input
-                              id="subcontractor_progress_completion"
-                              type="text"
-                              inputMode="decimal"
-                              value={subcontractorProgressCompletion}
-                              onChange={(e) => setSubcontractorProgressCompletion(e.target.value)}
-                              placeholder="Enter percentage"
-                              required
-                            />
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Indicate the actual percentage of work completed by the subcontractor
-                              as of the request date.
-                            </p>
+                          <div
+                            className={cn(
+                              "sm:col-span-3 grid grid-cols-1 gap-3",
+                              showPurchasingOfficerSubcontractorPoAmount && "sm:grid-cols-2"
+                            )}
+                          >
+                            <div>
+                              <Label htmlFor="subcontractor_progress_completion" required>
+                                Subcontractor Current Progress Percentage
+                              </Label>
+                              <Input
+                                id="subcontractor_progress_completion"
+                                type="text"
+                                inputMode="decimal"
+                                value={subcontractorProgressCompletion}
+                                onChange={(e) =>
+                                  setSubcontractorProgressCompletion(e.target.value)
+                                }
+                                placeholder="Enter percentage"
+                                required
+                              />
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Indicate the actual percentage of work completed by the
+                                subcontractor as of the request date.
+                              </p>
+                            </div>
+                            {showPurchasingOfficerSubcontractorPoAmount ? (
+                              <div>
+                                <Label htmlFor="subcontractor_po_amount" required>
+                                  {FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
+                                </Label>
+                                <Input
+                                  id="subcontractor_po_amount"
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={subcontractorPoAmount}
+                                  onChange={(e) => setSubcontractorPoAmount(e.target.value)}
+                                  placeholder="0.00"
+                                  required
+                                />
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Enter the subcontract P.O. contract amount for this
+                                  subcontractor payment.
+                                </p>
+                              </div>
+                            ) : null}
                           </div>
                         </CardContent>
                       </Card>

@@ -49,6 +49,7 @@ export const FUND_REQUEST_FIELD_LABELS = {
   projectLocation: "Project Location",
   subcontractorName: "Subcontractor Name",
   subcontractorProgress: "Subcontractor Current Progress Percentage",
+  subcontractorPoAmount: "Subcontract P.O. Amount",
   projectCompletion: "Current Project Completion Percentage",
   poAmount: "P.O. Amount",
   supplierBankDetails: "Bank Details",
@@ -101,6 +102,7 @@ export type FundRequestRow = {
   po_amount_percentage: number | null;
   current_project_percentage: number | null;
   subcontractor_progress_completion_percentage: number | null;
+  subcontractor_po_amount: number | null;
   details: unknown;
   total_requested_amount: number;
   date_needed: string | null;

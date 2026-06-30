@@ -136,6 +136,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const [address, setAddress] = useState("");
   const [phones, setPhones] = useState<string[]>([]);
   const [emails, setEmails] = useState<string[]>([]);
+  const [accountName, setAccountName] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   const resetContactFields = () => {
@@ -192,6 +193,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
         partitionVendorContactDisplay(record);
       setPhones(existingPhones);
       setEmails(existingEmails);
+      setAccountName(record.account_name?.trim() ?? "");
       setIsActive(record.is_active);
     } else {
       setEditingRecord(null);
@@ -200,6 +202,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       setTin("");
       setAddress("");
       resetContactFields();
+      setAccountName("");
       setIsActive(true);
     }
     setIsDialogOpen(true);
@@ -260,6 +263,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
         emails: normalizedEmails,
         phone: primaryStoredPhone(normalizedPhones[0] ?? ""),
         email: normalizedEmails[0] ?? "",
+        ...(vendorType === "subcontractor"
+          ? { account_name: accountName.trim() || null }
+          : {}),
         type: vendorType,
         is_active: isActive,
         updated_at: new Date().toISOString(),
@@ -312,6 +318,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
     return (
       record.name.toLowerCase().includes(s) ||
       (record.contact_person && record.contact_person.toLowerCase().includes(s)) ||
+      (record.account_name && record.account_name.toLowerCase().includes(s)) ||
       (record.tin &&
         (record.tin.toLowerCase().includes(s) ||
           (sDigits.length > 0 && stripTinDigits(record.tin).includes(sDigits)))) ||
@@ -343,7 +350,7 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, contact, TIN, or email..."
+                  placeholder="Search by name, contact, TIN, account name, or email..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
@@ -411,6 +418,12 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                               partitionVendorContactDisplay(record).emails.join("\n") || "—"
                             }
                           />
+                          {vendorType === "subcontractor" ? (
+                            <DashboardMobileField
+                              label="Account Name"
+                              value={record.account_name?.trim() || "—"}
+                            />
+                          ) : null}
                         </div>
                         {canManageVendors ? (
                         <div className="mt-3 flex justify-end gap-2">
@@ -449,6 +462,9 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                         <TableHead>TIN</TableHead>
                         <TableHead>Phone</TableHead>
                         <TableHead>Email</TableHead>
+                        {vendorType === "subcontractor" ? (
+                          <TableHead>Account Name</TableHead>
+                        ) : null}
                         <TableHead>Status</TableHead>
                         {canManageVendors ? (
                         <TableHead className="w-24">Actions</TableHead>
@@ -471,6 +487,11 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                           <TableCell className="text-muted-foreground">
                             <VendorEmailList record={record} />
                           </TableCell>
+                          {vendorType === "subcontractor" ? (
+                            <TableCell className="text-muted-foreground">
+                              {record.account_name?.trim() || "—"}
+                            </TableCell>
+                          ) : null}
                           <TableCell>
                             <Badge variant={record.is_active ? "default" : "secondary"}>
                               {record.is_active ? "Active" : "Inactive"}
@@ -569,6 +590,21 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
                 required
               />
             </div>
+            {vendorType === "subcontractor" ? (
+              <div className="space-y-2">
+                <Label htmlFor="account_name">Account Name</Label>
+                <Input
+                  id="account_name"
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="Bank account name for payments"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Auto-fills the payee account name on subcontractor payment requests.
+                  You can still change it per request.
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <Label>Phone</Label>
               {phones.length > 0 ? (

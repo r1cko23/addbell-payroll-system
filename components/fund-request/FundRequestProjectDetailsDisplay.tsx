@@ -10,6 +10,8 @@ import {
 } from "@/lib/fund-request-project-details";
 import type { FundRequestRow } from "@/types/fund-request";
 import { FundRequestField } from "@/components/fund-request/FundRequestField";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type FundRequestProjectDetailsDisplayProps = {
@@ -22,10 +24,15 @@ type FundRequestProjectDetailsDisplayProps = {
     | "po_number"
     | "po_amount"
     | "subcontractor_progress_completion_percentage"
+    | "subcontractor_po_amount"
   >;
   showTopLevelPo?: boolean;
   vendorName?: string;
   showSubcontractorFields?: boolean;
+  showSubcontractorPoAmount?: boolean;
+  editableSubcontractorPoAmount?: boolean;
+  subcontractorPoAmountInput?: string;
+  onSubcontractorPoAmountInputChange?: (value: string) => void;
 };
 
 const tableShellClass = "overflow-x-auto rounded-md border border-border/80";
@@ -203,21 +210,65 @@ function MultiProjectFields({
 function SubcontractorReferenceCard({
   vendorName,
   subcontractorProgress,
+  subcontractorPoAmount,
+  showSubcontractorPoAmount = false,
+  editableSubcontractorPoAmount = false,
+  subcontractorPoAmountInput = "",
+  onSubcontractorPoAmountInputChange,
 }: {
   vendorName?: string;
   subcontractorProgress: number | string | null | undefined;
+  subcontractorPoAmount?: number | null;
+  showSubcontractorPoAmount?: boolean;
+  editableSubcontractorPoAmount?: boolean;
+  subcontractorPoAmountInput?: string;
+  onSubcontractorPoAmountInputChange?: (value: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-3 rounded-md border border-border/80 p-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 rounded-md border border-border/80 p-3">
       <FundRequestField
         label={FUND_REQUEST_FIELD_LABELS.subcontractorName}
         value={vendorName || "—"}
       />
-      <FundRequestField
-        label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
-        value={formatFundRequestPercentage(subcontractorProgress)}
-        uppercaseValue={false}
-      />
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-3",
+          showSubcontractorPoAmount ? "sm:grid-cols-2" : "sm:grid-cols-1"
+        )}
+      >
+        <FundRequestField
+          label={FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
+          value={formatFundRequestPercentage(subcontractorProgress)}
+          uppercaseValue={false}
+        />
+        {showSubcontractorPoAmount ? (
+          editableSubcontractorPoAmount ? (
+            <div className="space-y-1.5">
+              <Label
+                htmlFor="subcontractor_po_amount_display"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
+              </Label>
+              <Input
+                id="subcontractor_po_amount_display"
+                type="text"
+                inputMode="decimal"
+                value={subcontractorPoAmountInput}
+                onChange={(e) => onSubcontractorPoAmountInputChange?.(e.target.value)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+          ) : (
+            <FundRequestField
+              label={FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
+              value={formatFundRequestPoAmount(subcontractorPoAmount)}
+              uppercaseValue={false}
+            />
+          )
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -225,9 +276,19 @@ function SubcontractorReferenceCard({
 function SubcontractorReferenceTable({
   vendorName,
   subcontractorProgress,
+  subcontractorPoAmount,
+  showSubcontractorPoAmount = false,
+  editableSubcontractorPoAmount = false,
+  subcontractorPoAmountInput = "",
+  onSubcontractorPoAmountInputChange,
 }: {
   vendorName?: string;
   subcontractorProgress: number | string | null | undefined;
+  subcontractorPoAmount?: number | null;
+  showSubcontractorPoAmount?: boolean;
+  editableSubcontractorPoAmount?: boolean;
+  subcontractorPoAmountInput?: string;
+  onSubcontractorPoAmountInputChange?: (value: string) => void;
 }) {
   return (
     <div className={tableShellClass}>
@@ -240,6 +301,11 @@ function SubcontractorReferenceTable({
             <th className={cn(headCellClass, "whitespace-nowrap")}>
               {FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
             </th>
+            {showSubcontractorPoAmount ? (
+              <th className={cn(headCellClass, "whitespace-nowrap")}>
+                {FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -248,6 +314,24 @@ function SubcontractorReferenceTable({
             <td className={bodyCellClass}>
               {formatFundRequestPercentage(subcontractorProgress)}
             </td>
+            {showSubcontractorPoAmount ? (
+              <td className={bodyCellClass}>
+                {editableSubcontractorPoAmount ? (
+                  <Input
+                    id="subcontractor_po_amount_table"
+                    type="text"
+                    inputMode="decimal"
+                    value={subcontractorPoAmountInput}
+                    onChange={(e) => onSubcontractorPoAmountInputChange?.(e.target.value)}
+                    placeholder="0.00"
+                    required
+                    className="min-w-[10rem]"
+                  />
+                ) : (
+                  formatFundRequestPoAmount(subcontractorPoAmount)
+                )}
+              </td>
+            ) : null}
           </tr>
         </tbody>
       </table>
@@ -260,6 +344,10 @@ export function FundRequestProjectDetailsDisplay({
   showTopLevelPo = true,
   vendorName,
   showSubcontractorFields = false,
+  showSubcontractorPoAmount = false,
+  editableSubcontractorPoAmount = false,
+  subcontractorPoAmountInput = "",
+  onSubcontractorPoAmountInputChange,
 }: FundRequestProjectDetailsDisplayProps) {
   const projects = parseFundRequestProjectDetails(request);
   const perProjectPo = fundRequestUsesPerProjectPo(request);
@@ -291,12 +379,22 @@ export function FundRequestProjectDetailsDisplay({
               <SubcontractorReferenceTable
                 vendorName={vendorName}
                 subcontractorProgress={request.subcontractor_progress_completion_percentage}
+                subcontractorPoAmount={request.subcontractor_po_amount}
+                showSubcontractorPoAmount={showSubcontractorPoAmount}
+                editableSubcontractorPoAmount={editableSubcontractorPoAmount}
+                subcontractorPoAmountInput={subcontractorPoAmountInput}
+                onSubcontractorPoAmountInputChange={onSubcontractorPoAmountInputChange}
               />
             </div>
             <div className="md:hidden">
               <SubcontractorReferenceCard
                 vendorName={vendorName}
                 subcontractorProgress={request.subcontractor_progress_completion_percentage}
+                subcontractorPoAmount={request.subcontractor_po_amount}
+                showSubcontractorPoAmount={showSubcontractorPoAmount}
+                editableSubcontractorPoAmount={editableSubcontractorPoAmount}
+                subcontractorPoAmountInput={subcontractorPoAmountInput}
+                onSubcontractorPoAmountInputChange={onSubcontractorPoAmountInputChange}
               />
             </div>
           </>
@@ -319,12 +417,22 @@ export function FundRequestProjectDetailsDisplay({
             <SubcontractorReferenceTable
               vendorName={vendorName}
               subcontractorProgress={request.subcontractor_progress_completion_percentage}
+              subcontractorPoAmount={request.subcontractor_po_amount}
+              showSubcontractorPoAmount={showSubcontractorPoAmount}
+              editableSubcontractorPoAmount={editableSubcontractorPoAmount}
+              subcontractorPoAmountInput={subcontractorPoAmountInput}
+              onSubcontractorPoAmountInputChange={onSubcontractorPoAmountInputChange}
             />
           </div>
           <div className="md:hidden">
             <SubcontractorReferenceCard
               vendorName={vendorName}
               subcontractorProgress={request.subcontractor_progress_completion_percentage}
+              subcontractorPoAmount={request.subcontractor_po_amount}
+              showSubcontractorPoAmount={showSubcontractorPoAmount}
+              editableSubcontractorPoAmount={editableSubcontractorPoAmount}
+              subcontractorPoAmountInput={subcontractorPoAmountInput}
+              onSubcontractorPoAmountInputChange={onSubcontractorPoAmountInputChange}
             />
           </div>
         </>

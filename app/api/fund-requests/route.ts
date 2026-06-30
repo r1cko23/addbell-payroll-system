@@ -15,6 +15,8 @@ import {
 } from "@/lib/fund-request-bank-details";
 import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
 import { normalizeUserRole } from "@/lib/user-roles";
+import { isSubcontractorPaymentPurpose } from "@/types/fund-request";
+import { validateSubcontractorPoAmountInput } from "@/lib/fund-request-subcontractor-po-amount";
 import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
 type FundRequestContentPayload = {
@@ -31,6 +33,7 @@ type FundRequestContentPayload = {
   po_amount_percentage: number | null;
   current_project_percentage: number | null;
   subcontractor_progress_completion_percentage: number | null;
+  subcontractor_po_amount?: number | null;
   details: Array<{ description: string; amount: number }>;
   total_requested_amount: number;
   date_needed: string | null;
@@ -87,6 +90,33 @@ function validateSupplierBankDetailsPayload(
   return validateFundRequestBankDetails(parseSupplierBankDetails(raw));
 }
 
+function requiresSubcontractorPoAmountFromPurchasing(options: {
+  submitterRole: string | null | undefined;
+  isPortal: boolean;
+  submitterUserId: string | null;
+  requestStatus: string;
+  purpose: string;
+}): boolean {
+  if (!isSubcontractorPaymentPurpose(options.purpose)) return false;
+  if (options.requestStatus !== "purchasing_officer_approved") return false;
+  return (
+    isPurchasingOfficerSelfSubmitPath({
+      submitterRole: options.submitterRole,
+      isPortal: options.isPortal,
+      submitterUserId: options.submitterUserId,
+    }) || normalizeUserRole(options.submitterRole) === "purchasing_officer"
+  );
+}
+
+function validateSubcontractorPoAmountPayload(
+  value: number | null | undefined
+): string | null {
+  if (value == null) {
+    return validateSubcontractorPoAmountInput("");
+  }
+  return validateSubcontractorPoAmountInput(String(value));
+}
+
 function buildFundRequestContentUpdate(body: FundRequestContentPayload) {
   return {
     reference_mode: body.reference_mode,
@@ -102,6 +132,9 @@ function buildFundRequestContentUpdate(body: FundRequestContentPayload) {
     current_project_percentage: body.current_project_percentage,
     subcontractor_progress_completion_percentage:
       body.subcontractor_progress_completion_percentage,
+    ...(body.subcontractor_po_amount !== undefined
+      ? { subcontractor_po_amount: body.subcontractor_po_amount }
+      : {}),
     project_details: body.project_details ?? null,
     details: body.details,
     total_requested_amount: body.total_requested_amount,
@@ -171,6 +204,23 @@ export async function PATCH(req: NextRequest) {
       );
       if (bankValidationError) {
         return NextResponse.json({ error: bankValidationError }, { status: 400 });
+      }
+    }
+
+    if (
+      requiresSubcontractorPoAmountFromPurchasing({
+        submitterRole,
+        isPortal: false,
+        submitterUserId: authUser?.id ?? null,
+        requestStatus: access.existing.status,
+        purpose: body.purpose,
+      })
+    ) {
+      const subconPoError = validateSubcontractorPoAmountPayload(
+        body.subcontractor_po_amount
+      );
+      if (subconPoError) {
+        return NextResponse.json({ error: subconPoError }, { status: 400 });
       }
     }
 
@@ -268,6 +318,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (
+      requiresSubcontractorPoAmountFromPurchasing({
+        submitterRole,
+        isPortal: body.is_portal_submission ?? true,
+        submitterUserId: authUser?.id ?? null,
+        requestStatus: workflow.status,
+        purpose: body.purpose,
+      })
+    ) {
+      const subconPoError = validateSubcontractorPoAmountPayload(
+        body.subcontractor_po_amount
+      );
+      if (subconPoError) {
+        return NextResponse.json({ error: subconPoError }, { status: 400 });
+      }
+    }
+
     const { data: inserted, error } = await admin
       .from("fund_requests")
       .insert({
@@ -287,6 +354,7 @@ export async function POST(req: NextRequest) {
         current_project_percentage: body.current_project_percentage,
         subcontractor_progress_completion_percentage:
           body.subcontractor_progress_completion_percentage,
+        subcontractor_po_amount: body.subcontractor_po_amount ?? null,
         project_details: body.project_details ?? null,
         details: body.details,
         total_requested_amount: body.total_requested_amount,

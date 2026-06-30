@@ -44,7 +44,7 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
     addButtonLabel: "Add Subcontractor",
     dialogAddTitle: "Add Subcontractor",
     dialogEditTitle: "Edit Subcontractor",
-    dialogAddDescription: "Add a new subcontractor to the system.",
+    dialogAddDescription: "Subcontractor account names auto-fill bank details on subcontractor payment requests.",
     dialogEditDescription: "",
     namePlaceholder: "Subcontractor name",
     nameLabel: "Registered Name",
@@ -69,6 +69,7 @@ export interface VendorRecord {
   email: string | null;
   phones?: string[] | null;
   emails?: string[] | null;
+  account_name?: string | null;
   type: VendorType;
   is_active: boolean;
   created_at: string;

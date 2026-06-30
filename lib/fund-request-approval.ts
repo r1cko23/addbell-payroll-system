@@ -128,7 +128,10 @@ export function getFundRequestApprovalActionCopy(
 export function buildFundRequestApprovalUpdates(
   currentStatus: FundRequestRow["status"],
   currentUserId: string,
-  options?: { supplierBankDetails?: string | null }
+  options?: {
+    supplierBankDetails?: string | null;
+    subcontractorPoAmount?: number | null;
+  }
 ): Record<string, unknown> | null {
   const nextStatus = FUND_REQUEST_NEXT_STATUS[currentStatus];
   if (!nextStatus) return null;
@@ -145,6 +148,9 @@ export function buildFundRequestApprovalUpdates(
     updates.purchasing_officer_approved_by = currentUserId;
     updates.purchasing_officer_approved_at = new Date().toISOString();
     updates.supplier_bank_details = options?.supplierBankDetails?.trim() || null;
+    if (options?.subcontractorPoAmount !== undefined) {
+      updates.subcontractor_po_amount = options.subcontractorPoAmount;
+    }
   } else if (currentStatus === "purchasing_officer_approved") {
     updates.management_approved_by = currentUserId;
     updates.management_approved_at = new Date().toISOString();

@@ -8,6 +8,9 @@ export type ClientInvoiceLookupResult = {
 
 const clientInvoiceCache = new Map<string, ClientInvoiceLookupResult>();
 const inFlightLookups = new Map<string, Promise<ClientInvoiceLookupResult>>();
+const failedLookupCache = new Map<string, { at: number; message: string }>();
+
+const FAILED_LOOKUP_TTL_MS = 60_000;
 
 export function getClientCachedInvoiceLookup(
   poNumber: string
@@ -53,6 +56,11 @@ export async function fetchSubcontractorInvoiceStatus(
   const cached = clientInvoiceCache.get(key);
   if (cached) return cached;
 
+  const failed = failedLookupCache.get(key);
+  if (failed && Date.now() - failed.at < FAILED_LOOKUP_TTL_MS) {
+    throw new Error(failed.message);
+  }
+
   const pending = inFlightLookups.get(key);
   if (pending) return pending;
 
@@ -72,8 +80,12 @@ export async function fetchSubcontractorInvoiceStatus(
             "Billing sheet lookup is not configured yet. Your selection was saved locally."
         );
       }
-      throw new Error(payload.error || payload.message || "Lookup failed");
+      const message = payload.error || payload.message || "Lookup failed";
+      failedLookupCache.set(key, { at: Date.now(), message });
+      throw new Error(message);
     }
+
+    failedLookupCache.delete(key);
 
     const result: ClientInvoiceLookupResult = {
       status: payload.status ?? "NOT FOUND",

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "@/lib/hooks/use-debounce";
 import {
   SUBCONTRACTOR_PAYMENT_SCHEMES,
   SUBCONTRACTOR_RETENTION_REMARKS_NOTE,
@@ -34,6 +35,16 @@ type SubcontractorProgressBillingSectionProps = {
   onRemoveDetailRow: (index: number) => void;
   detailPlaceholderPrefix: string;
 };
+
+const PO_LOOKUP_DEBOUNCE_MS = 600;
+
+function makeInvoiceLookupKey(
+  scheme: SubcontractorPaymentScheme,
+  milestone: string,
+  poNumber: string
+): string {
+  return `${scheme}|${milestone}|${poNumber.trim().toUpperCase()}`;
+}
 
 function invoiceStatusLabel(status: SubcontractorInvoiceStatus | null | undefined): string {
   if (status === "COPY RECEIVED") return "Copy received";
@@ -74,6 +85,8 @@ export function SubcontractorProgressBillingSection({
 }: SubcontractorProgressBillingSectionProps) {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const debouncedPoNumber = useDebounce(poNumber, PO_LOOKUP_DEBOUNCE_MS);
+  const lastLookupKeyRef = useRef("");
 
   const selectedScheme = selection?.payment_scheme ?? null;
   const selectedMilestone = selection?.milestone ?? "";
@@ -110,9 +123,12 @@ export function SubcontractorProgressBillingSection({
     if (cached) {
       onSelectionChange(applyInvoiceToSelection(scheme, milestone, cached));
       setLookupError(null);
+      lastLookupKeyRef.current = makeInvoiceLookupKey(scheme, milestone, po);
       return;
     }
 
+    const lookupKey = makeInvoiceLookupKey(scheme, milestone, po);
+    lastLookupKeyRef.current = lookupKey;
     setLookupLoading(true);
     setLookupError(null);
 
@@ -158,20 +174,30 @@ export function SubcontractorProgressBillingSection({
     if (cached) {
       onSelectionChange(applyInvoiceToSelection(scheme, milestone, cached));
       setLookupError(null);
+      lastLookupKeyRef.current = makeInvoiceLookupKey(scheme, milestone, po);
       return;
     }
 
+    lastLookupKeyRef.current = makeInvoiceLookupKey(scheme, milestone, po);
     void runInvoiceLookup(scheme, milestone);
   };
 
   useEffect(() => {
     if (!selection?.payment_scheme || !selection.milestone) return;
 
-    const po = poNumber.trim();
+    const po = debouncedPoNumber.trim();
     if (!po || po.toUpperCase() === "N/A") return;
+
+    const lookupKey = makeInvoiceLookupKey(
+      selection.payment_scheme,
+      selection.milestone,
+      po
+    );
+    if (lastLookupKeyRef.current === lookupKey) return;
 
     const cached = getClientCachedInvoiceLookup(po);
     if (cached) {
+      lastLookupKeyRef.current = lookupKey;
       if (
         selection.invoice_status !== cached.status ||
         selection.invoice_sheet !== cached.sheetName
@@ -184,12 +210,13 @@ export function SubcontractorProgressBillingSection({
           )
         );
       }
+      setLookupError(null);
       return;
     }
 
-    if (selection.invoice_status != null && !lookupError) return;
+    lastLookupKeyRef.current = lookupKey;
     void runInvoiceLookup(selection.payment_scheme, selection.milestone);
-  }, [poNumber]);
+  }, [debouncedPoNumber, selection?.payment_scheme, selection?.milestone]);
 
   return (
     <div className="space-y-4">

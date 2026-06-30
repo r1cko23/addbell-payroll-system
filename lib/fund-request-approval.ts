@@ -32,7 +32,10 @@ export function getActionableFundRequestStatuses(
   const normalizedRole = normalizeUserRole(role);
   if (normalizedRole === "operations_manager") return ["pending"];
   if (normalizedRole === "purchasing_officer") return ["project_manager_approved"];
-  if (normalizedRole === "admin" || normalizedRole === "upper_management") {
+  if (normalizedRole === "admin") {
+    return ["pending", "project_manager_approved", "purchasing_officer_approved"];
+  }
+  if (normalizedRole === "upper_management") {
     return ["purchasing_officer_approved"];
   }
   return [];

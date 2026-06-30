@@ -372,10 +372,10 @@ export function FundRequestInbox({
   const approvedForPayment = counts.purchasing_officer_approved ?? 0;
   const approved = counts.management_approved ?? 0;
   const actionableStatuses = getActionableStatuses();
+  const isAdmin = normalizeUserRole(profile?.role) === "admin";
   const isUpperManagement =
     normalizeUserRole(profile?.role) === "upper_management";
-  const useClientGroupedView =
-    isUpperManagement || normalizeUserRole(profile?.role) === "admin";
+  const useClientGroupedView = isUpperManagement;
 
   const filteredRows = searchTerm
     ? rows.filter((r) => {
@@ -460,7 +460,9 @@ export function FundRequestInbox({
                   ? "No requests match your search."
                   : isUpperManagement
                     ? "No requests pending payment review."
-                    : "No requests waiting for your approval."}
+                    : isAdmin
+                      ? "No requests in the approval pipeline."
+                      : "No requests waiting for your approval."}
               </BodySmall>
             </VStack>
           </CardContent>

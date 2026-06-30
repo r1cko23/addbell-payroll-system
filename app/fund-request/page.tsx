@@ -63,8 +63,9 @@ function FundRequestListPageContent() {
   const isApprover = isFundRequestApproverRole(normalizedRole) && !isPortal;
   const isUpperManagement = normalizedRole === 'upper_management';
   const isPurchasingOfficer = normalizedRole === 'purchasing_officer';
-  const showAllRequestsTab = isPurchasingOfficer;
-  const showHistoryTab = isUpperManagement || isPurchasingOfficer;
+  const isAdmin = normalizedRole === 'admin';
+  const showAllRequestsTab = isPurchasingOfficer || isAdmin;
+  const showHistoryTab = isUpperManagement || isPurchasingOfficer || isAdmin;
   const showMyRequestsTab = isApprover && !isUpperManagement;
   const tabParam = searchParams.get('tab');
   const initialTab: FundRequestListTab =
@@ -227,7 +228,9 @@ function FundRequestListPageContent() {
         ? 'Review pending requests for final approval, or open History to see approved and returned requests by cutoff.'
         : isPurchasingOfficer
           ? 'Review pending requests, browse all statuses, or open History for approved and rejected requests by cutoff.'
-          : 'Review requests pending your approval.'
+          : isAdmin
+            ? 'Review all requests in the approval pipeline, browse every status, or open History for past cutoffs.'
+            : 'Review requests pending your approval.'
     : 'Materials, subcontractor, project funds, or liquidation.';
 
   const newRequestButton = canCreate ? (

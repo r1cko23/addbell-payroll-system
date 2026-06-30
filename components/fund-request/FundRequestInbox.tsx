@@ -604,18 +604,10 @@ export function FundRequestInbox({
                     ) : null}
                   </div>
 
-                  <div className={cn("mt-auto border-t pt-2", dbToolbarActions)}>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className={dbHeaderButton}
-                      asChild
-                    >
-                      <Link href={detailHref(r.id)}>View details</Link>
-                    </Button>
+                  <div className="mt-auto space-y-2 border-t pt-2">
                     {(canAct || showPurchasingDetailOnly) &&
                       (pendingDisposal?.id === r.id ? (
-                        <div className="w-full space-y-2 sm:col-span-full">
+                        <div className="w-full space-y-2">
                           <Label className="text-xs">
                             {pendingDisposal.action === "return"
                               ? "Return reason (optional)"
@@ -666,7 +658,7 @@ export function FundRequestInbox({
                           </div>
                         </div>
                       ) : canAct ? (
-                        <>
+                        <div className={dbToolbarActions}>
                           <Button
                             variant="destructive"
                             size="sm"
@@ -692,12 +684,24 @@ export function FundRequestInbox({
                             )}
                             {getApproveLabel(r.status)}
                           </Button>
-                        </>
-                      ) : showPurchasingDetailOnly ? (
-                        <Caption className="text-muted-foreground sm:col-span-full">
+                        </div>
+                      ) : null)}
+
+                    <div className="flex flex-col items-end gap-0.5">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className={cn(dbHeaderButton, "w-auto shrink-0")}
+                        asChild
+                      >
+                        <Link href={detailHref(r.id)}>View details</Link>
+                      </Button>
+                      {showPurchasingDetailOnly ? (
+                        <Caption className="text-right text-muted-foreground">
                           Open to review details and approve.
                         </Caption>
-                      ) : null)}
+                      ) : null}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

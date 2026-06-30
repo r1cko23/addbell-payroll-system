@@ -96,7 +96,7 @@ export function FundRequestPaymentCheckSection({
 
       {canUpload ? (
         <div className="space-y-2 border-t border-primary/10 pt-4">
-          <Label htmlFor="fund-request-payment-check">Upload payment check (optional)</Label>
+          <Label htmlFor="fund-request-payment-check">Upload Payment Check (Optional)</Label>
           <input
             ref={inputRef}
             id="fund-request-payment-check"

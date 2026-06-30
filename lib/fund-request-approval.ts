@@ -112,9 +112,10 @@ export function getFundRequestApprovalActionCopy(
     status === "purchasing_officer_approved"
   ) {
     return {
-      title: "Final approval required",
+      title: "Final approve required",
       description:
-        "Purchasing has approved these for payment. You may optionally upload a payment check for audit before or after approval. Return a line to purchasing for corrections, reject to decline it, or approve when your review is complete.",
+        "Purchasing has approved these for payment. You may optionally upload a payment check for audit before or after approval. Return to purchasing for corrections, reject to decline it, or approve when your review is complete.",
+      urgent: true,
     };
   }
 

@@ -804,6 +804,14 @@ export function FundRequestApprovalDetail({
                   <div className={dbToolbarActions}>
                     <Button
                       disabled={acting}
+                      variant="outline"
+                      className={dbHeaderButton}
+                      onClick={() => setDisposalForm("return")}
+                    >
+                      Return to Purchasing
+                    </Button>
+                    <Button
+                      disabled={acting}
                       className={dbHeaderButton}
                       onClick={handleApprove}
                     >
@@ -811,14 +819,6 @@ export function FundRequestApprovalDetail({
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
                       Approve
-                    </Button>
-                    <Button
-                      disabled={acting}
-                      variant="outline"
-                      className={dbHeaderButton}
-                      onClick={() => setDisposalForm("return")}
-                    >
-                      Return to purchasing
                     </Button>
                     <Button
                       disabled={acting}

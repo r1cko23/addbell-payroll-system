@@ -143,7 +143,7 @@ function GroupedInboxRequestActions({
           disabled={actingId === request.id}
           onClick={() => onStartReturn(request.id)}
         >
-          Return to purchasing
+          Return to Purchasing
         </Button>
         <Button
           type="button"

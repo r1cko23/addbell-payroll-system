@@ -34,6 +34,7 @@ type FundRequestAllRequestRow = FundRequestRow & {
 type FundRequestAllRequestsProps = {
   detailHrefBase: string;
   requesterEmployeeId: string | null;
+  requesterUserId?: string | null;
 };
 
 function sumAmount(rows: FundRequestAllRequestRow[]): number {
@@ -43,6 +44,7 @@ function sumAmount(rows: FundRequestAllRequestRow[]): number {
 export function FundRequestAllRequests({
   detailHrefBase,
   requesterEmployeeId,
+  requesterUserId,
 }: FundRequestAllRequestsProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -245,6 +247,7 @@ export function FundRequestAllRequests({
             statusFilter={statusFilter}
             base={detailHrefBase}
             requesterEmployeeId={requesterEmployeeId}
+            requesterUserId={requesterUserId}
             onRequestDeleted={handleRequestDeleted}
             emptyLabel="No fund requests filed in this cutoff."
             filteredEmptyLabel="No fund requests match your filters for this cutoff."

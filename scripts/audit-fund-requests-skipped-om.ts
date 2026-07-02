@@ -15,6 +15,7 @@
 import path from "path";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { isLikelyMislabeledReturnAsRejection } from "../lib/fund-request-action-audit";
 import { resolveFundRequestRequesterRouting } from "../lib/fund-request-routing";
 
 dotenv.config({ path: path.join(__dirname, "..", ".env.local") });
@@ -238,7 +239,9 @@ async function normalizeLegacyRejectedStatus(): Promise<number> {
 
   const { data, error } = await supabase
     .from("fund_requests")
-    .select("id, status, requested_by, rejected_at")
+    .select(
+      "id, status, requested_by, rejected_at, rejection_undo_snapshot, purchasing_officer_approved_at, rejection_reason, rejection_history"
+    )
     .not("rejected_at", "is", null)
     .neq("status", "rejected")
     .neq("status", "management_approved");
@@ -249,6 +252,13 @@ async function normalizeLegacyRejectedStatus(): Promise<number> {
 
   let updated = 0;
   for (const row of data ?? []) {
+    if (isLikelyMislabeledReturnAsRejection(row)) {
+      console.log(
+        `  Skipped ${row.id}: rejected_at present but row looks like a UM return, not a final rejection`
+      );
+      continue;
+    }
+
     const { error: updateError } = await supabase
       .from("fund_requests")
       .update({

@@ -227,6 +227,7 @@ function FundRequestListPageContent() {
               <FundRequestAllRequests
                 detailHrefBase={base}
                 requesterEmployeeId={employeeId}
+                requesterUserId={profile?.id ?? null}
               />
             </TabsContent>
           ) : null}
@@ -234,6 +235,7 @@ function FundRequestListPageContent() {
             <FundRequestMyRequests
               detailHrefBase={base}
               requesterEmployeeId={employeeId}
+              requesterUserId={profile?.id ?? null}
             />
           </TabsContent>
         </Tabs>
@@ -258,7 +260,11 @@ function FundRequestListPageContent() {
           <FundRequestInbox />
         )
       ) : (
-        <FundRequestMyRequests detailHrefBase={base} requesterEmployeeId={employeeId} />
+        <FundRequestMyRequests
+          detailHrefBase={base}
+          requesterEmployeeId={employeeId}
+          requesterUserId={profile?.id ?? null}
+        />
       )}
     </div>
   );

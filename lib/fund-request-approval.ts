@@ -5,6 +5,7 @@ import {
 } from "@/lib/approval-status-badge";
 import { fundRequestInOperationsManagerQueue } from "@/lib/fund-request-routing";
 import {
+  appendFundRequestActionHistory,
   appendFundRequestRejectionHistory,
   markLatestFundRequestRejectionUndone,
 } from "@/lib/fund-request-rejection-history";
@@ -313,8 +314,34 @@ export function buildFundRequestUpperManagementReturnUpdates(
   currentUserId: string,
   reason: string,
   undoSnapshot: FundRequestRejectionUndoSnapshot,
+  request: Pick<FundRequestRow, "rejection_history">,
   options?: { returnToOperationsManager?: boolean }
 ): Record<string, unknown> {
+  const actedAt = new Date().toISOString();
+  const trimmedReason = reason.trim() || null;
+  const action = options?.returnToOperationsManager
+    ? "return_to_operations_manager"
+    : "return_to_purchasing";
+
+  const historyEntry = appendFundRequestActionHistory(request.rejection_history, {
+    action,
+    actorId: currentUserId,
+    actedAt,
+    reason: trimmedReason,
+  });
+
+  const shared = {
+    returned_by: currentUserId,
+    returned_at: actedAt,
+    return_reason: trimmedReason,
+    rejected_by: null,
+    rejected_at: null,
+    rejection_reason: null,
+    rejection_undo_snapshot: undoSnapshot,
+    rejection_history: historyEntry,
+    updated_at: actedAt,
+  };
+
   if (options?.returnToOperationsManager) {
     return {
       status: "pending",
@@ -323,11 +350,7 @@ export function buildFundRequestUpperManagementReturnUpdates(
       supplier_bank_details: null,
       management_approved_by: null,
       management_approved_at: null,
-      rejection_reason: reason.trim() || null,
-      rejected_by: currentUserId,
-      rejected_at: new Date().toISOString(),
-      rejection_undo_snapshot: undoSnapshot,
-      updated_at: new Date().toISOString(),
+      ...shared,
     };
   }
 
@@ -336,11 +359,7 @@ export function buildFundRequestUpperManagementReturnUpdates(
     purchasing_officer_approved_by: null,
     purchasing_officer_approved_at: null,
     supplier_bank_details: null,
-    rejection_reason: reason.trim() || null,
-    rejected_by: currentUserId,
-    rejected_at: new Date().toISOString(),
-    rejection_undo_snapshot: undoSnapshot,
-    updated_at: new Date().toISOString(),
+    ...shared,
   };
 }
 
@@ -358,12 +377,14 @@ export function buildFundRequestRejectionUndoSnapshot(
 }
 
 export function isFundRequestReturnedToPurchasing(request: FundRequestRow): boolean {
-  return (
-    request.status === "project_manager_approved" &&
-    Boolean(request.rejected_at) &&
-    Boolean(request.rejection_undo_snapshot) &&
-    !request.purchasing_officer_approved_at
-  );
+  if (request.status !== "project_manager_approved") return false;
+  if (request.purchasing_officer_approved_at) return false;
+  if (!request.rejection_undo_snapshot) return false;
+
+  if (request.returned_at) return true;
+
+  // Legacy rows: return used rejected_at before return audit columns existed.
+  return Boolean(request.rejected_at);
 }
 
 export function isFundRequestRejectionUndoable(request: FundRequestRow): boolean {
@@ -448,7 +469,16 @@ export function buildFundRequestUndoRejectionUpdates(
   const snapshot = request.rejection_undo_snapshot;
   const undoneAt = new Date().toISOString();
   const rejectionHistory = undoneBy
-    ? markLatestFundRequestRejectionUndone(request.rejection_history, undoneBy, undoneAt)
+    ? markLatestFundRequestRejectionUndone(
+        request.rejection_history,
+        undoneBy,
+        undoneAt,
+        {
+          action: isFundRequestReturnedToPurchasing(request)
+            ? "return_to_purchasing"
+            : "reject",
+        }
+      )
     : request.rejection_history;
 
   if (snapshot) {
@@ -462,6 +492,9 @@ export function buildFundRequestUndoRejectionUpdates(
       rejected_by: null,
       rejected_at: null,
       rejection_reason: null,
+      returned_by: null,
+      returned_at: null,
+      return_reason: null,
       rejection_undo_snapshot: null,
       rejection_history: rejectionHistory,
       updated_at: undoneAt,
@@ -475,6 +508,9 @@ export function buildFundRequestUndoRejectionUpdates(
     rejected_by: null,
     rejected_at: null,
     rejection_reason: null,
+    returned_by: null,
+    returned_at: null,
+    return_reason: null,
     rejection_undo_snapshot: null,
     rejection_history: rejectionHistory,
     updated_at: undoneAt,
@@ -492,8 +528,12 @@ export function buildFundRequestRejectUpdates(
     rejected_by: currentUserId,
     rejected_at: rejectedAt,
     rejection_reason: reason.trim() || null,
+    returned_by: null,
+    returned_at: null,
+    return_reason: null,
     rejection_undo_snapshot: buildFundRequestRejectionUndoSnapshot(request),
     rejection_history: appendFundRequestRejectionHistory(request.rejection_history, {
+      action: "reject",
       rejected_by: currentUserId,
       rejected_at: rejectedAt,
       rejection_reason: reason.trim() || null,
@@ -526,19 +566,68 @@ export function getFundRequestStatusBadgeVariant(
 const REQUESTER_MANAGEABLE_STATUSES = new Set<FundRequestRow["status"]>([
   "pending",
   "project_manager_approved",
-  "purchasing_officer_approved",
 ]);
+
+export type FundRequestRequesterManageOptions = {
+  requesterUserId?: string | null;
+};
+
+/** PO dashboard self-file: skips OM/PO queue but requester may edit until UM acts. */
+export function isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
+  request: Pick<
+    FundRequestRow,
+    | "status"
+    | "project_manager_approved_by"
+    | "purchasing_officer_approved_by"
+    | "management_approved_by"
+  >,
+  requesterUserId: string | null | undefined
+): boolean {
+  return (
+    request.status === "purchasing_officer_approved" &&
+    !request.management_approved_by &&
+    !request.project_manager_approved_by &&
+    Boolean(requesterUserId) &&
+    request.purchasing_officer_approved_by === requesterUserId
+  );
+}
+
+function canRequesterManageFundRequestInternal(
+  request: FundRequestRequesterAccessFields &
+    Pick<
+      FundRequestRow,
+      | "status"
+      | "project_manager_approved_by"
+      | "purchasing_officer_approved_by"
+      | "management_approved_by"
+    >,
+  options?: FundRequestRequesterManageOptions
+): boolean {
+  if (isFundRequestRejected(request)) return false;
+  if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
+  if (REQUESTER_MANAGEABLE_STATUSES.has(request.status)) return true;
+  return isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
+    request,
+    options?.requesterUserId
+  );
+}
 
 export function canRequesterDeleteFundRequest(
   request:
-    | FundRequestRequesterAccessFields
+    | (FundRequestRequesterAccessFields &
+        Pick<
+          FundRequestRow,
+          | "status"
+          | "project_manager_approved_by"
+          | "purchasing_officer_approved_by"
+          | "management_approved_by"
+        >)
     | FundRequestRow["status"]
-    | string
+    | string,
+  options?: FundRequestRequesterManageOptions
 ): boolean {
   if (typeof request === "object" && request !== null) {
-    if (isFundRequestRejected(request)) return false;
-    if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
-    return REQUESTER_MANAGEABLE_STATUSES.has(request.status);
+    return canRequesterManageFundRequestInternal(request, options);
   }
   if (request === "rejected") return false;
   return REQUESTER_MANAGEABLE_STATUSES.has(request as FundRequestRow["status"]);
@@ -547,14 +636,20 @@ export function canRequesterDeleteFundRequest(
 /** Edit fields, delete, and add documents before the next approver acts. */
 export function canRequesterEditFundRequest(
   request:
-    | FundRequestRequesterAccessFields
+    | (FundRequestRequesterAccessFields &
+        Pick<
+          FundRequestRow,
+          | "status"
+          | "project_manager_approved_by"
+          | "purchasing_officer_approved_by"
+          | "management_approved_by"
+        >)
     | FundRequestRow["status"]
-    | string
+    | string,
+  options?: FundRequestRequesterManageOptions
 ): boolean {
   if (typeof request === "object" && request !== null) {
-    if (isFundRequestRejected(request)) return false;
-    if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
-    return REQUESTER_MANAGEABLE_STATUSES.has(request.status);
+    return canRequesterManageFundRequestInternal(request, options);
   }
   if (request === "rejected") return false;
   return REQUESTER_MANAGEABLE_STATUSES.has(request as FundRequestRow["status"]);

@@ -503,6 +503,7 @@ export function FundRequestApprovalDetail({
             profile.id,
             rejectReason,
             undoSnapshot,
+            request,
             { returnToOperationsManager }
           )
         : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
@@ -807,11 +808,11 @@ export function FundRequestApprovalDetail({
               requesterIsOperationsManager={requesterIsOperationsManager}
               approverNames={approverNames}
             />
-            {returnedToPurchasing && request.rejection_reason ? (
+            {returnedToPurchasing && (request.return_reason || request.rejection_reason) ? (
               <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-3">
                 <FundRequestField
                   label="Returned by upper management"
-                  value={request.rejection_reason}
+                  value={request.return_reason || request.rejection_reason || ""}
                 />
               </div>
             ) : null}

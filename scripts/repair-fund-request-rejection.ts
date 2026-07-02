@@ -58,6 +58,7 @@ async function main() {
     } as FundRequestRow);
 
   const history = appendFundRequestRejectionHistory(request.rejection_history, {
+    action: "reject",
     rejected_by: rejectedBy,
     rejected_at: rejectedAt,
     rejection_reason: reason,

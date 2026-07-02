@@ -417,7 +417,7 @@ export default function NewFundRequestPage() {
       }
 
       const row = data as FundRequestRow;
-      if (!canRequesterEditFundRequest(row)) {
+      if (!canRequesterEditFundRequest(row, { requesterUserId: user?.id ?? null })) {
         setEditForbiddenMessage(
           isFundRequestRejected(row)
             ? "This fund request was rejected and can no longer be edited or resubmitted. File a new request if you still need funds."

@@ -22,6 +22,10 @@ import { dbDialogFooter } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import type { FundRequestRow } from "@/types/fund-request";
 import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
+import {
+  getFundRequestDispositionLabel,
+  isLikelyMislabeledReturnAsRejection,
+} from "@/lib/fund-request-action-audit";
 import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
 import {
   canRequesterDeleteFundRequest,
@@ -42,6 +46,7 @@ export function FundRequestAllList({
   statusFilter,
   base,
   requesterEmployeeId,
+  requesterUserId,
   onRequestDeleted,
   emptyLabel = "No fund requests yet.",
   filteredEmptyLabel = "No fund requests match your filters.",
@@ -52,6 +57,7 @@ export function FundRequestAllList({
   statusFilter: string;
   base: string;
   requesterEmployeeId: string | null;
+  requesterUserId?: string | null;
   onRequestDeleted: (requestId: string) => void;
   emptyLabel?: string;
   filteredEmptyLabel?: string;
@@ -104,13 +110,15 @@ export function FundRequestAllList({
     return true;
   });
 
+  const manageOptions = { requesterUserId };
+
   const canDeleteRequest = (request: FundRequestListRow) =>
     Boolean(requesterEmployeeId) &&
     request.requested_by === requesterEmployeeId &&
-    canRequesterDeleteFundRequest(request);
+    canRequesterDeleteFundRequest(request, manageOptions);
 
   const canEditRequest = (request: FundRequestListRow) =>
-    canRequesterManageFundRequest(request, requesterEmployeeId);
+    canRequesterManageFundRequest(request, requesterEmployeeId, manageOptions);
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
@@ -142,6 +150,8 @@ export function FundRequestAllList({
           <tbody>
             {filteredRows.map((r) => {
               const requesterStatus = getFundRequestRequesterStatus(r);
+              const dispositionLabel = getFundRequestDispositionLabel(r);
+              const mislabeledReturn = isLikelyMislabeledReturnAsRejection(r);
               return (
               <tr key={r.id} className="border-b last:border-0 hover:bg-primary/5">
                 <td className="px-4 py-3 whitespace-nowrap">
@@ -158,15 +168,26 @@ export function FundRequestAllList({
                   {r.date_needed ? format(new Date(r.date_needed), "MMM d") : "—"}
                 </td>
                 <td className="px-4 py-3">
-                  <Badge
-                    variant={getFundRequestStatusBadgeVariant(requesterStatus)}
-                    className={cn(
-                      "whitespace-nowrap text-xs",
-                      getFundRequestStatusBadgeClass(requesterStatus)
-                    )}
-                  >
-                    {FUND_REQUEST_STATUS_LABELS[requesterStatus] ?? requesterStatus}
-                  </Badge>
+                  <div className="space-y-1">
+                    <Badge
+                      variant={getFundRequestStatusBadgeVariant(requesterStatus)}
+                      className={cn(
+                        "whitespace-nowrap text-xs",
+                        mislabeledReturn
+                          ? "bg-amber-100 text-amber-950 hover:bg-amber-100"
+                          : getFundRequestStatusBadgeClass(requesterStatus)
+                      )}
+                    >
+                      {mislabeledReturn
+                        ? "Returned (mislabeled)"
+                        : FUND_REQUEST_STATUS_LABELS[requesterStatus] ?? requesterStatus}
+                    </Badge>
+                    {dispositionLabel && mislabeledReturn ? (
+                      <p className="max-w-[220px] text-xs text-amber-900">
+                        {r.rejection_reason}
+                      </p>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
@@ -206,6 +227,7 @@ export function FundRequestAllList({
       <div className="md:hidden space-y-3 p-4">
         {filteredRows.map((r) => {
           const requesterStatus = getFundRequestRequesterStatus(r);
+          const mislabeledReturn = isLikelyMislabeledReturnAsRejection(r);
           return (
           <Card key={r.id}>
             <CardContent className="p-4">
@@ -225,10 +247,14 @@ export function FundRequestAllList({
                   variant={getFundRequestStatusBadgeVariant(requesterStatus)}
                   className={cn(
                     "max-w-[45%] shrink-0 whitespace-normal text-right text-xs leading-snug sm:max-w-none",
-                    getFundRequestStatusBadgeClass(requesterStatus)
+                    mislabeledReturn
+                      ? "bg-amber-100 text-amber-950 hover:bg-amber-100"
+                      : getFundRequestStatusBadgeClass(requesterStatus)
                   )}
                 >
-                  {FUND_REQUEST_STATUS_LABELS[requesterStatus] ?? requesterStatus}
+                  {mislabeledReturn
+                    ? "Returned (mislabeled)"
+                    : FUND_REQUEST_STATUS_LABELS[requesterStatus] ?? requesterStatus}
                 </Badge>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">

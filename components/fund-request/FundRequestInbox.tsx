@@ -400,6 +400,7 @@ export function FundRequestInbox({
             currentUserId,
             rejectReason,
             undoSnapshot,
+            requestRow,
             { returnToOperationsManager }
           )
         : buildFundRequestRejectUpdates(
@@ -694,7 +695,9 @@ export function FundRequestInbox({
                     {returnedToPurchasing ? (
                       <Caption className="text-amber-900">
                         Returned to purchasing officer for review again
-                        {r.rejection_reason ? `: ${r.rejection_reason}` : ""}
+                        {r.return_reason || r.rejection_reason
+                          ? `: ${r.return_reason || r.rejection_reason}`
+                          : ""}
                       </Caption>
                     ) : null}
                   </div>

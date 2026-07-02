@@ -122,13 +122,25 @@ export type FundRequestRow = {
   rejected_by: string | null;
   rejected_at: string | null;
   rejection_reason: string | null;
+  returned_by: string | null;
+  returned_at: string | null;
+  return_reason: string | null;
   rejection_undo_snapshot: FundRequestRejectionUndoSnapshot | null;
-  rejection_history?: FundRequestRejectionHistoryEntry[] | null;
+  rejection_history?: FundRequestActionHistoryEntry[] | null;
   created_at: string;
   updated_at: string;
 };
 
-export type FundRequestRejectionHistoryEntry = {
+export type FundRequestActionType =
+  | "reject"
+  | "return_to_purchasing"
+  | "return_to_operations_manager";
+
+/** @deprecated Use FundRequestActionHistoryEntry */
+export type FundRequestRejectionHistoryEntry = FundRequestActionHistoryEntry;
+
+export type FundRequestActionHistoryEntry = {
+  action: FundRequestActionType;
   rejected_by: string;
   rejected_at: string;
   rejection_reason: string | null;

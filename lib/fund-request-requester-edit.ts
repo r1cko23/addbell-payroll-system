@@ -15,13 +15,17 @@ export function canRequesterManageFundRequest(
     | "rejected_at"
     | "purchasing_officer_approved_at"
     | "rejection_undo_snapshot"
+    | "project_manager_approved_by"
+    | "purchasing_officer_approved_by"
+    | "management_approved_by"
   >,
-  requesterEmployeeId: string | null | undefined
+  requesterEmployeeId: string | null | undefined,
+  options?: { requesterUserId?: string | null }
 ): boolean {
   return (
     Boolean(requesterEmployeeId) &&
     request.requested_by === requesterEmployeeId &&
-    canRequesterEditFundRequest(request)
+    canRequesterEditFundRequest(request, options)
   );
 }
 

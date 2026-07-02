@@ -2,12 +2,14 @@ import type {
   FundRequestRejectionUndoSnapshot,
   FundRequestRow,
 } from "@/types/fund-request";
+import { getFundRequestActionHistoryActorIds } from "@/lib/fund-request-action-audit";
 import { parseTimestampInManila } from "@/utils/business-hours";
 
 const MANILA_TZ = "Asia/Manila";
 
 export type FundRequestHistoryInput = Pick<
   FundRequestRow,
+  | "status"
   | "request_date"
   | "created_at"
   | "project_manager_approved_by"
@@ -19,6 +21,10 @@ export type FundRequestHistoryInput = Pick<
   | "rejected_by"
   | "rejected_at"
   | "rejection_reason"
+  | "returned_by"
+  | "returned_at"
+  | "return_reason"
+  | "rejection_history"
 >;
 
 export type FundRequestApprovalTrailInput = FundRequestHistoryInput & {
@@ -66,6 +72,8 @@ export function getFundRequestApprovalTrailApproverIds(
     trail.purchasing_officer_approved_by,
     trail.management_approved_by,
     request.rejected_by,
+    request.returned_by,
+    ...getFundRequestActionHistoryActorIds(request),
   ].filter(Boolean) as string[];
 }
 

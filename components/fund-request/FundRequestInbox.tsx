@@ -10,6 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -68,7 +75,13 @@ import {
   fundRequestBelongsToApproverCutoff,
   getFundRequestHistoryCutoffs,
 } from "@/lib/fund-request-cutoff";
-import { summarizeFundRequestsForRoleCutoff } from "@/lib/fund-request-inbox-cutoff-summary";
+import {
+  getFundRequestRoleCutoffFilterOptions,
+  getFundRequestRoleCutoffMetricLabels,
+  matchesFundRequestRoleCutoffFilter,
+  summarizeFundRequestsForRoleCutoff,
+  type FundRequestRoleCutoffOutcomeFilter,
+} from "@/lib/fund-request-inbox-cutoff-summary";
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 import {
   getFundRequestPayeeAccountName,
@@ -128,8 +141,71 @@ function canQuickApproveFromInbox(
   return true;
 }
 
-const METRIC_ROW_SELECT =
-  "id, requested_by, request_date, status, total_requested_amount, created_at, project_manager_approved_by, project_manager_approved_at, purchasing_officer_approved_by, purchasing_officer_approved_at, management_approved_by, management_approved_at, rejected_by, rejected_at, rejection_reason, returned_by, returned_at, return_reason, rejection_undo_snapshot";
+function isFundRequestInApproverInboxQueue(
+  row: FundRequestInboxRow,
+  role: string | null | undefined,
+  managedRequesterIds: ReadonlySet<string>,
+  requesterRoutingById: Record<string, FundRequestRequesterRouting>
+): boolean {
+  const normalizedRole = normalizeUserRole(role);
+  const actionableStatuses = getActionableFundRequestStatuses(role);
+  if (!actionableStatuses.includes(row.status)) return false;
+
+  if (normalizedRole === "operations_manager") {
+    return fundRequestInOperationsManagerQueue(row, managedRequesterIds);
+  }
+
+  if (normalizedRole === "purchasing_officer") {
+    const routing = requesterRoutingById[row.requested_by];
+    if (
+      routing &&
+      fundRequestSkippedOperationsManagerApproval(
+        row,
+        routing.requiresOperationsManagerApproval
+      )
+    ) {
+      return false;
+    }
+    return row.status === "project_manager_approved";
+  }
+
+  if (normalizedRole === "upper_management") {
+    return row.status === "purchasing_officer_approved";
+  }
+
+  if (normalizedRole === "admin") {
+    return actionableStatuses.includes(row.status);
+  }
+
+  return false;
+}
+
+function matchesFundRequestInboxSearch(
+  row: FundRequestInboxRow,
+  searchTerm: string,
+  requesterInfoById: Record<string, FundRequestRequesterInfo>
+): boolean {
+  const term = searchTerm.toLowerCase();
+  const requesterInfo = requesterInfoById[row.requested_by];
+  const name = getRequesterDisplayName(row, requesterInfo).toLowerCase();
+  const purpose = (row.purpose || "").toLowerCase();
+  const projectTitle = (row.project_title || "").toLowerCase();
+  const projectLocation = (row.project_location || "").toLowerCase();
+  const clientName = (row.projects?.clients?.name || "").toLowerCase();
+  const payeeAccountName = (getFundRequestPayeeAccountName(row) || "").toLowerCase();
+
+  return (
+    name.includes(term) ||
+    purpose.includes(term) ||
+    projectTitle.includes(term) ||
+    projectLocation.includes(term) ||
+    clientName.includes(term) ||
+    payeeAccountName.includes(term)
+  );
+}
+
+const INBOX_ROW_SELECT =
+  `*, employees ( employee_id, first_name, last_name, full_name, profile_picture_url, user_id ), vendors ( name ), projects ( name, code, clients: client_id ( name ) )`;
 
 function formatCutoffMetricAmount(amount: number): string {
   return `₱${amount.toLocaleString()} total`;
@@ -147,8 +223,7 @@ export function FundRequestInbox({
 }) {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
-  const [rows, setRows] = useState<FundRequestInboxRow[]>([]);
-  const [metricRows, setMetricRows] = useState<FundRequestRow[]>([]);
+  const [allRows, setAllRows] = useState<FundRequestInboxRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [bulkApproving, setBulkApproving] = useState(false);
@@ -163,6 +238,8 @@ export function FundRequestInbox({
     | null
   >(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [outcomeFilter, setOutcomeFilter] =
+    useState<FundRequestRoleCutoffOutcomeFilter>("pending");
   const [requesterInfoById, setRequesterInfoById] = useState<
     Record<string, FundRequestRequesterInfo>
   >({});
@@ -176,41 +253,61 @@ export function FundRequestInbox({
     getInitialFundRequestCutoffs
   );
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
+  const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        setRefreshToken((value) => value + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
+  const summaryContext = useMemo(
+    () => ({
+      managedRequesterIds,
+      requesterRoutingById,
+    }),
+    [managedRequesterIds, requesterRoutingById]
+  );
 
-  const cutoffRows = useMemo(() => {
-    if (!selectedCutoff) return rows;
-    return rows.filter((row) =>
-      fundRequestBelongsToApproverCutoff(row, selectedCutoff, "upper_management")
+  const cutoffScopedRows = useMemo(() => {
+    if (!selectedCutoff) return [];
+    return allRows.filter(
+      (row) =>
+        fundRequestBelongsToApproverCutoff(row, selectedCutoff, "upper_management") &&
+        matchesFundRequestRoleCutoffFilter(row, "all", profile?.role, summaryContext)
     );
-  }, [rows, selectedCutoff]);
+  }, [allRows, selectedCutoff, profile?.role, summaryContext]);
 
   const filteredRows = useMemo(() => {
-    if (!searchTerm) return cutoffRows;
+    let list = cutoffScopedRows.filter((row) =>
+      matchesFundRequestRoleCutoffFilter(
+        row,
+        outcomeFilter,
+        profile?.role,
+        summaryContext
+      )
+    );
 
-    const term = searchTerm.toLowerCase();
-    return cutoffRows.filter((r) => {
-      const requesterInfo = requesterInfoById[r.requested_by];
-      const name = getRequesterDisplayName(r, requesterInfo).toLowerCase();
-      const purpose = (r.purpose || "").toLowerCase();
-      const projectTitle = (r.project_title || "").toLowerCase();
-      const projectLocation = (r.project_location || "").toLowerCase();
-      const clientName = (r.projects?.clients?.name || "").toLowerCase();
-      const payeeAccountName = (
-        getFundRequestPayeeAccountName(r) || ""
-      ).toLowerCase();
-
-      return (
-        name.includes(term) ||
-        purpose.includes(term) ||
-        projectTitle.includes(term) ||
-        projectLocation.includes(term) ||
-        clientName.includes(term) ||
-        payeeAccountName.includes(term)
+    if (searchTerm) {
+      list = list.filter((row) =>
+        matchesFundRequestInboxSearch(row, searchTerm, requesterInfoById)
       );
-    });
-  }, [cutoffRows, searchTerm, requesterInfoById]);
+    }
+
+    return list;
+  }, [
+    cutoffScopedRows,
+    outcomeFilter,
+    profile?.role,
+    summaryContext,
+    searchTerm,
+    requesterInfoById,
+  ]);
 
   const cutoffSummary = useMemo(() => {
     if (!selectedCutoff) {
@@ -223,21 +320,12 @@ export function FundRequestInbox({
       };
     }
     return summarizeFundRequestsForRoleCutoff(
-      metricRows,
+      cutoffScopedRows,
       selectedCutoff,
       profile?.role,
-      {
-        managedRequesterIds,
-        requesterRoutingById,
-      }
+      summaryContext
     );
-  }, [
-    metricRows,
-    selectedCutoff,
-    profile?.role,
-    managedRequesterIds,
-    requesterRoutingById,
-  ]);
+  }, [cutoffScopedRows, selectedCutoff, profile?.role, summaryContext]);
 
   const getActionableStatuses = (): FundRequestRow["status"][] =>
     getActionableFundRequestStatuses(profile?.role);
@@ -245,7 +333,6 @@ export function FundRequestInbox({
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const statuses = getActionableStatuses();
       const normalizedRole = normalizeUserRole(profile?.role);
       const currentUserId = profile?.id ?? null;
       const managedIds =
@@ -256,9 +343,9 @@ export function FundRequestInbox({
       const todayYmd = format(new Date(), "yyyy-MM-dd");
       const history = getFundRequestHistoryCutoffs(todayYmd);
 
-      let metricQuery = supabase
+      let query = supabase
         .from("fund_requests")
-        .select(METRIC_ROW_SELECT)
+        .select(INBOX_ROW_SELECT)
         .order("created_at", { ascending: false });
 
       if (history) {
@@ -266,89 +353,46 @@ export function FundRequestInbox({
           addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
           "yyyy-MM-dd"
         );
-        metricQuery = metricQuery
+        query = query
           .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
           .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
       }
 
-      const [actionableRes, metricRes] = await Promise.all([
-        statuses.length > 0
-          ? supabase
-              .from("fund_requests")
-              .select(
-                `*, employees ( employee_id, first_name, last_name, full_name, profile_picture_url, user_id ), vendors ( name ), projects ( name, code, clients: client_id ( name ) )`
-              )
-              .in("status", statuses)
-              .order("created_at", { ascending: false })
-          : Promise.resolve({ data: [], error: null }),
-        metricQuery,
-      ]);
+      const { data, error } = await query;
 
-      const loadedMetricRows = ((metricRes.data as FundRequestRow[] | null) ?? []).filter(
+      if (error) {
+        toast.error("Failed to load fund requests");
+        setAllRows([]);
+        setLoading(false);
+        return;
+      }
+
+      const loadedRows = ((data as FundRequestInboxRow[] | null) ?? []).filter(
         (row) =>
           !history?.cutoffs.length ||
           history.cutoffs.some((cutoff) =>
             fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
           )
       );
-      setMetricRows(loadedMetricRows);
 
-      if (actionableRes.error) {
-        toast.error("Failed to load fund requests");
-      } else {
-        const actionableRows =
-          (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
-        let scopedRows =
-          normalizedRole === "operations_manager"
-            ? actionableRows.filter((row) =>
-                fundRequestInOperationsManagerQueue(row, managedIds)
-              )
-            : actionableRows;
-
-        const requestedByIds = new Set<string>();
-        scopedRows.forEach((row) => requestedByIds.add(row.requested_by));
-        loadedMetricRows.forEach((row) => requestedByIds.add(row.requested_by));
-        const routingMap = await resolveFundRequestRequesterRoutingMap(
-          supabase,
-          [...requestedByIds]
-        );
-        const routingRecord = Object.fromEntries(routingMap);
-        setRequesterRoutingById(routingRecord);
-
-        if (normalizedRole === "purchasing_officer") {
-          scopedRows = scopedRows.filter((row) => {
-            const routing = routingMap.get(row.requested_by);
-            if (!routing) return true;
-            return !fundRequestSkippedOperationsManagerApproval(
-              row,
-              routing.requiresOperationsManagerApproval
-            );
-          });
-        }
-
-        setRows(scopedRows);
-      }
-      const actionableRows =
-        normalizedRole === "operations_manager"
-          ? ((actionableRes.data as FundRequestInboxRow[] | null) ?? []).filter(
-              (row) => fundRequestInOperationsManagerQueue(row, managedIds)
-            )
-          : (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
       const requestedByIds = new Set<string>();
+      loadedRows.forEach((row) => requestedByIds.add(row.requested_by));
+      const routingMap = await resolveFundRequestRequesterRoutingMap(
+        supabase,
+        [...requestedByIds]
+      );
+      setRequesterRoutingById(Object.fromEntries(routingMap));
 
-      actionableRows.forEach((r: FundRequestRow) => {
-        requestedByIds.add(r.requested_by);
-      });
-      loadedMetricRows.forEach((r) => requestedByIds.add(r.requested_by));
       const requesterMap = await resolveFundRequestRequesterMap(
         supabase,
         [...requestedByIds]
       );
       setRequesterInfoById(requesterMap);
+      setAllRows(loadedRows);
       setLoading(false);
     };
     fetchData();
-  }, [supabase, profile?.role, profile?.id]);
+  }, [supabase, profile?.role, profile?.id, refreshToken]);
 
   const currentUserId = profile?.id ?? null;
 
@@ -357,7 +401,7 @@ export function FundRequestInbox({
     currentStatus: FundRequestRow["status"]
   ) => {
     if (!currentUserId) return;
-    const row = rows.find((item) => item.id === id);
+    const row = allRows.find((item) => item.id === id);
     const normalizedRole = normalizeUserRole(profile?.role);
 
     let updates: Record<string, unknown>;
@@ -412,11 +456,10 @@ export function FundRequestInbox({
       toast.error("Failed to approve");
     } else {
       toast.success(successMessage);
-      setRows((prev) => prev.filter((r) => r.id !== id));
-      setMetricRows((prev) =>
+      setAllRows((prev) =>
         prev.map((metricRow) =>
           metricRow.id === id
-            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestRow)
+            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestInboxRow)
             : metricRow
         )
       );
@@ -455,8 +498,7 @@ export function FundRequestInbox({
         .filter((_, index) => !results[index]?.error)
         .map((request) => request.id)
     );
-    setRows((prev) => prev.filter((row) => !approvedIds.has(row.id)));
-    setMetricRows((prev) =>
+    setAllRows((prev) =>
       prev.map((row) =>
         approvedIds.has(row.id)
           ? {
@@ -496,7 +538,7 @@ export function FundRequestInbox({
       return;
     }
     if (!currentUserId) return;
-    const row = rows.find((item) => item.id === id);
+    const row = allRows.find((item) => item.id === id);
     const requestRow =
       row ?? ({ status: currentStatus } as FundRequestInboxRow);
     const undoSnapshot = buildFundRequestRejectionUndoSnapshot(requestRow);
@@ -545,11 +587,10 @@ export function FundRequestInbox({
             : "Returned to purchasing officer for review."
           : "Fund request rejected."
       );
-      setRows((prev) => prev.filter((r) => r.id !== id));
-      setMetricRows((prev) =>
+      setAllRows((prev) =>
         prev.map((metricRow) =>
           metricRow.id === id
-            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestRow)
+            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestInboxRow)
             : metricRow
         )
       );
@@ -569,11 +610,14 @@ export function FundRequestInbox({
   }
 
   const actionableStatuses = getActionableStatuses();
-  const isAdmin = normalizeUserRole(profile?.role) === "admin";
   const isUpperManagement =
     normalizeUserRole(profile?.role) === "upper_management";
   const useClientGroupedView = isUpperManagement;
   const summaryLoadingLabel = loading ? "Loading..." : undefined;
+  const metricLabels = getFundRequestRoleCutoffMetricLabels(profile?.role);
+  const filterOptions = getFundRequestRoleCutoffFilterOptions(profile?.role);
+  const selectedFilterLabel =
+    filterOptions.find((option) => option.value === outcomeFilter)?.label ?? "All";
 
   const detailHref = (id: string) =>
     `${detailHrefBase}/${id}${detailHrefBase === "/fund-request" ? "?tab=inbox" : ""}`;
@@ -589,42 +633,50 @@ export function FundRequestInbox({
 
       <div className={cn("w-full", dbKpiGrid)}>
         <MetricCard
-          label="Total"
+          label={metricLabels.total}
           value={loading ? "—" : String(cutoffSummary.total)}
           meta={
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.total)
           }
+          onClick={() => setOutcomeFilter("all")}
+          active={outcomeFilter === "all"}
         />
         <MetricCard
-          label="Approved"
+          label={metricLabels.approved}
           value={loading ? "—" : String(cutoffSummary.approved)}
           meta={
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.approved)
           }
+          onClick={() => setOutcomeFilter("approved")}
+          active={outcomeFilter === "approved"}
         />
         <MetricCard
-          label="Rejected"
+          label={metricLabels.rejected}
           value={loading ? "—" : String(cutoffSummary.rejected)}
           meta={
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.rejected)
           }
+          onClick={() => setOutcomeFilter("rejected")}
+          active={outcomeFilter === "rejected"}
         />
         <MetricCard
-          label="Pending"
+          label={metricLabels.pending}
           value={loading ? "—" : String(cutoffSummary.pending)}
           meta={
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.pending)
           }
+          onClick={() => setOutcomeFilter("pending")}
+          active={outcomeFilter === "pending"}
         />
       </div>
 
       <Card className="w-full">
-        <CardContent className="w-full p-4 sm:p-6">
-          <div className="relative w-full max-w-md">
+        <CardContent className="flex w-full flex-col gap-4 p-4 sm:flex-row sm:p-6">
+          <div className="relative w-full flex-1">
             <Icon
               name="MagnifyingGlass"
               size={IconSizes.sm}
@@ -638,6 +690,26 @@ export function FundRequestInbox({
               aria-label="Search fund requests for approval"
             />
           </div>
+          <Select
+            value={outcomeFilter}
+            onValueChange={(value) =>
+              setOutcomeFilter(value as FundRequestRoleCutoffOutcomeFilter)
+            }
+          >
+            <SelectTrigger
+              className="min-h-11 w-full sm:min-h-9 sm:w-[280px]"
+              aria-label="Filter fund requests by outcome"
+            >
+              <SelectValue placeholder="Filter by outcome" />
+            </SelectTrigger>
+            <SelectContent>
+              {filterOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -654,12 +726,8 @@ export function FundRequestInbox({
               />
               <BodySmall>
                 {searchTerm
-                  ? "No requests match your search for this cutoff."
-                  : isUpperManagement
-                    ? "No requests in this cutoff are pending payment review."
-                    : isAdmin
-                      ? "No requests in this cutoff are in the approval pipeline."
-                      : "No requests in this cutoff are waiting for your approval."}
+                  ? `No requests match your search for ${selectedFilterLabel.toLowerCase()} in this cutoff.`
+                  : `No ${selectedFilterLabel.toLowerCase()} requests in this cutoff.`}
               </BodySmall>
             </VStack>
           </CardContent>
@@ -686,7 +754,19 @@ export function FundRequestInbox({
           }}
           onConfirmDisposal={handleDisposal}
           bulkApproving={bulkApproving}
-          onApproveAll={() => setPendingApprove({ kind: "all", requests: filteredRows })}
+          onApproveAll={() =>
+            setPendingApprove({
+              kind: "all",
+              requests: filteredRows.filter((row) =>
+                isFundRequestInApproverInboxQueue(
+                  row,
+                  profile?.role,
+                  managedRequesterIds,
+                  requesterRoutingById
+                )
+              ),
+            })
+          }
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -699,11 +779,18 @@ export function FundRequestInbox({
             const isOfficeRelated = isOfficeRelatedFundRequest(r.reference_mode);
             const purpose = (r.purpose || "").trim() || "—";
             const showSubcontractorFields = isSubcontractorPaymentPurpose(r.purpose);
-            const canAct = canQuickApproveFromInbox(
-              r.status,
-              profile?.role,
-              actionableStatuses
-            );
+            const canAct =
+              isFundRequestInApproverInboxQueue(
+                r,
+                profile?.role,
+                managedRequesterIds,
+                requesterRoutingById
+              ) &&
+              canQuickApproveFromInbox(
+                r.status,
+                profile?.role,
+                actionableStatuses
+              );
             const showPurchasingDetailOnly =
               r.status === "project_manager_approved" &&
               normalizeUserRole(profile?.role) === "purchasing_officer" &&

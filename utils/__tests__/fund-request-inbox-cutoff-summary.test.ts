@@ -1,5 +1,7 @@
 import {
   getFundRequestRoleCutoffBucket,
+  getFundRequestRoleCutoffFilterOptions,
+  getFundRequestRoleCutoffMetricLabels,
   summarizeFundRequestsForRoleCutoff,
 } from "@/lib/fund-request-inbox-cutoff-summary";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -114,6 +116,27 @@ describe("getFundRequestRoleCutoffBucket", () => {
     ).toBe("rejected");
   });
 
+  it("classifies purchasing officer rejected requests without OM approval timestamp", () => {
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "rejected",
+          project_manager_approved_at: null,
+          rejected_at: "2026-06-27T05:00:00+08:00",
+          rejection_undo_snapshot: {
+            status: "project_manager_approved",
+            purchasing_officer_approved_by: null,
+            purchasing_officer_approved_at: null,
+            supplier_bank_details: null,
+            management_approved_by: null,
+            management_approved_at: null,
+          },
+        }),
+        "purchasing_officer"
+      )
+    ).toBe("rejected");
+  });
+
   it("classifies upper management pending and approved requests", () => {
     expect(
       getFundRequestRoleCutoffBucket(
@@ -168,5 +191,39 @@ describe("summarizeFundRequestsForRoleCutoff", () => {
     expect(summary.approved).toBe(1);
     expect(summary.rejected).toBe(1);
     expect(summary.amounts.total).toBe(6000);
+  });
+});
+
+describe("getFundRequestRoleCutoffMetricLabels", () => {
+  it("appends the stage suffix for each approver role", () => {
+    expect(getFundRequestRoleCutoffMetricLabels("operations_manager")).toEqual({
+      total: "Total",
+      approved: "Approved (Operations)",
+      rejected: "Rejected (Operations)",
+      pending: "Pending (Operations)",
+    });
+    expect(getFundRequestRoleCutoffMetricLabels("purchasing_officer")).toEqual({
+      total: "Total",
+      approved: "Approved (Purchasing)",
+      rejected: "Rejected (Purchasing)",
+      pending: "Pending (Purchasing)",
+    });
+    expect(getFundRequestRoleCutoffMetricLabels("upper_management")).toEqual({
+      total: "Total",
+      approved: "Approved (Upper Management)",
+      rejected: "Rejected (Upper Management)",
+      pending: "Pending (Upper Management)",
+    });
+  });
+});
+
+describe("getFundRequestRoleCutoffFilterOptions", () => {
+  it("returns role-specific outcome filter labels", () => {
+    expect(getFundRequestRoleCutoffFilterOptions("purchasing_officer")).toEqual([
+      { value: "all", label: "All" },
+      { value: "approved", label: "Approved (Purchasing)" },
+      { value: "rejected", label: "Rejected (Purchasing)" },
+      { value: "pending", label: "Pending (Purchasing)" },
+    ]);
   });
 });

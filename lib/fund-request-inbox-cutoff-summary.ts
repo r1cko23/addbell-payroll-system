@@ -17,6 +17,8 @@ import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 
 export type FundRequestRoleCutoffBucket = "approved" | "rejected" | "pending";
 
+export type FundRequestRoleCutoffOutcomeFilter = "all" | FundRequestRoleCutoffBucket;
+
 export type FundRequestRoleCutoffSummary = {
   total: number;
   approved: number;
@@ -104,6 +106,64 @@ function isInRoleCutoffScope(
   if (normalizedRole === "purchasing_officer") return isPoScopedRequest(request, ctx);
   if (normalizedRole === "upper_management") return isUmScopedRequest(request);
   return false;
+}
+
+export function matchesFundRequestRoleCutoffFilter(
+  request: FundRequestRow,
+  filter: FundRequestRoleCutoffOutcomeFilter,
+  role: string | null | undefined,
+  ctx: SummaryContext = {}
+): boolean {
+  if (!isInRoleCutoffScope(request, role, ctx)) return false;
+  if (filter === "all") return true;
+  return getFundRequestRoleCutoffBucket(request, role, ctx) === filter;
+}
+
+export function getFundRequestRoleCutoffMetricLabels(
+  role: string | null | undefined
+): {
+  total: string;
+  approved: string;
+  rejected: string;
+  pending: string;
+} {
+  const normalizedRole = normalizeUserRole(role);
+  const stageSuffix =
+    normalizedRole === "operations_manager"
+      ? "(Operations)"
+      : normalizedRole === "purchasing_officer"
+        ? "(Purchasing)"
+        : normalizedRole === "upper_management"
+          ? "(Upper Management)"
+          : null;
+
+  if (!stageSuffix) {
+    return {
+      total: "Total",
+      approved: "Approved",
+      rejected: "Rejected",
+      pending: "Pending",
+    };
+  }
+
+  return {
+    total: "Total",
+    approved: `Approved ${stageSuffix}`,
+    rejected: `Rejected ${stageSuffix}`,
+    pending: `Pending ${stageSuffix}`,
+  };
+}
+
+export function getFundRequestRoleCutoffFilterOptions(
+  role: string | null | undefined
+): Array<{ value: FundRequestRoleCutoffOutcomeFilter; label: string }> {
+  const labels = getFundRequestRoleCutoffMetricLabels(role);
+  return [
+    { value: "all", label: "All" },
+    { value: "approved", label: labels.approved },
+    { value: "rejected", label: labels.rejected },
+    { value: "pending", label: labels.pending },
+  ];
 }
 
 export function getFundRequestRoleCutoffBucket(

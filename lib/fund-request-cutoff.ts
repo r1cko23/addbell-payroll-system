@@ -233,12 +233,16 @@ export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | 
 }
 
 export function isPoFundRequestRejection(request: FundRequestRow): boolean {
-  return (
-    request.status === "rejected" &&
-    Boolean(request.project_manager_approved_at) &&
-    !request.purchasing_officer_approved_at &&
-    Boolean(request.rejected_at)
-  );
+  if (request.status !== "rejected" || !request.rejected_at) return false;
+  if (request.purchasing_officer_approved_at) return false;
+
+  const priorStatus = request.rejection_undo_snapshot?.status;
+  if (priorStatus === "pending") return false;
+  if (priorStatus === "purchasing_officer_approved") return false;
+  if (priorStatus === "project_manager_approved") return true;
+  if (Boolean(request.project_manager_approved_at)) return true;
+
+  return false;
 }
 
 export function getPoFundRequestDecisionDateYmd(request: FundRequestRow): string | null {

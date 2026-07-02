@@ -185,9 +185,7 @@ export function FundRequestAllRequests({
           </div>
           <p className="text-center text-xs text-muted-foreground">
             Cutoff period: Friday – Thursday
-            {isFundRequestCutoffDeadlineRollForwardActive()
-              ? ", 10:00 AM Manila"
-              : " (full week for the current cutoff)"}
+            {isFundRequestCutoffDeadlineRollForwardActive() ? ", 10:00 AM Manila" : null}
           </p>
         </div>
       ) : null}

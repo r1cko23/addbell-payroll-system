@@ -11,6 +11,8 @@ interface MetricCardProps {
   meta?: ReactNode;
   icon?: ReactNode;
   className?: string;
+  onClick?: () => void;
+  active?: boolean;
 }
 
 export function MetricCard({
@@ -19,11 +21,16 @@ export function MetricCard({
   meta,
   icon,
   className,
+  onClick,
+  active = false,
 }: MetricCardProps) {
   return (
     <Card
+      onClick={onClick}
       className={cn(
         "rounded-2xl border bg-card/90 shadow-sm transition-colors hover:bg-card",
+        onClick && "cursor-pointer",
+        active && "border-primary ring-2 ring-primary/30",
         className
       )}
     >

@@ -592,6 +592,16 @@ export function isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
   );
 }
 
+/** At PO queue: editable only before OM records approval (OM self-file / no-OM routing). */
+export function canRequesterEditAtPurchasingOfficerQueue(
+  request: Pick<FundRequestRow, "status" | "project_manager_approved_by">
+): boolean {
+  return (
+    request.status === "project_manager_approved" &&
+    !request.project_manager_approved_by
+  );
+}
+
 function canRequesterManageFundRequestInternal(
   request: FundRequestRequesterAccessFields &
     Pick<
@@ -605,7 +615,8 @@ function canRequesterManageFundRequestInternal(
 ): boolean {
   if (isFundRequestRejected(request)) return false;
   if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
-  if (REQUESTER_MANAGEABLE_STATUSES.has(request.status)) return true;
+  if (request.status === "pending") return true;
+  if (canRequesterEditAtPurchasingOfficerQueue(request)) return true;
   return isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
     request,
     options?.requesterUserId

@@ -23,7 +23,7 @@ export async function assertRequesterCanManageFundRequest(
   const { data: existing, error: loadError } = await admin
     .from("fund_requests")
     .select(
-      "id, requested_by, status, rejected_at, purchasing_officer_approved_at, rejection_undo_snapshot, project_manager_approved_by, purchasing_officer_approved_by, management_approved_by"
+      "id, requested_by, status, rejected_at, purchasing_officer_approved_at, rejection_undo_snapshot, project_manager_approved_by, project_manager_approved_at, purchasing_officer_approved_by, management_approved_by"
     )
     .eq("id", requestId)
     .maybeSingle();

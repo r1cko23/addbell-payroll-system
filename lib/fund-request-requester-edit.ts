@@ -16,6 +16,7 @@ export function canRequesterManageFundRequest(
     | "purchasing_officer_approved_at"
     | "rejection_undo_snapshot"
     | "project_manager_approved_by"
+    | "project_manager_approved_at"
     | "purchasing_officer_approved_by"
     | "management_approved_by"
   >,

@@ -53,6 +53,16 @@ export function isFundRequestCutoffDeadlineRollForwardActive(
   );
 }
 
+/** Whether the selected cutoff week uses the Thursday 10:00 AM Manila filing deadline. */
+export function shouldShowFundRequestCutoffDeadlineTimeForPeriod(
+  cutoffStartYmd: string,
+  anchor: Date = new Date()
+): boolean {
+  const start = parseYmd(cutoffStartYmd);
+  if (!start) return true;
+  return !shouldSkipFundRequestCutoffDeadlineRollForward(start, anchor);
+}
+
 function parseYmd(ymd: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return null;

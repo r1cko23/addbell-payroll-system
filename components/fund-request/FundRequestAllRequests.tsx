@@ -22,7 +22,7 @@ import {
   formatFundRequestCutoffPeriod,
   fundRequestBelongsToApproverCutoff,
   getFundRequestHistoryCutoffs,
-  isFundRequestCutoffDeadlineRollForwardActive,
+  shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 import { FundRequestAllList } from "@/components/fund-request/FundRequestAllList";
@@ -185,7 +185,10 @@ export function FundRequestAllRequests({
           </div>
           <p className="text-center text-xs text-muted-foreground">
             Cutoff period: Friday – Thursday
-            {isFundRequestCutoffDeadlineRollForwardActive() ? ", 10:00 AM Manila" : null}
+            {selectedCutoff &&
+            shouldShowFundRequestCutoffDeadlineTimeForPeriod(selectedCutoff.start_ymd)
+              ? ", 10:00 AM Manila"
+              : null}
           </p>
         </div>
       ) : null}

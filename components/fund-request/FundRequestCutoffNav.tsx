@@ -6,7 +6,7 @@ import { epPeriodNavButton } from "@/lib/employee-portal-ui";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import {
   formatFundRequestCutoffPeriod,
-  isFundRequestCutoffDeadlineRollForwardActive,
+  shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 
@@ -65,7 +65,9 @@ export function FundRequestCutoffNav({
       </div>
       <p className="text-center text-xs text-muted-foreground">
         Cutoff period: Friday – Thursday
-        {isFundRequestCutoffDeadlineRollForwardActive() ? ", 10:00 AM Manila" : null}
+        {shouldShowFundRequestCutoffDeadlineTimeForPeriod(selectedCutoff.start_ymd)
+          ? ", 10:00 AM Manila"
+          : null}
       </p>
     </div>
   );

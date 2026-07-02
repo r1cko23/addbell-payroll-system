@@ -100,6 +100,12 @@ import { applySubcontractorAccountNameToBankDetails } from "@/lib/vendor-subcont
 import { resolveFundRequestRequesterInfo } from "@/lib/fund-request-requester";
 import { fetchApproverNameMap } from "@/lib/load-approver-names";
 import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
+import {
+  fundRequestSkippedOperationsManagerApproval,
+  resolveFundRequestRequesterRouting,
+  shouldReturnFundRequestToOperationsManager,
+  type FundRequestRequesterRouting,
+} from "@/lib/fund-request-routing";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { dbPageWrapper, dbFormCard, dbToolbarActions, dbHeaderButton } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
@@ -152,6 +158,8 @@ export function FundRequestApprovalDetail({
   const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
     new Set()
   );
+  const [requesterRouting, setRequesterRouting] =
+    useState<FundRequestRequesterRouting | null>(null);
 
   useEffect(() => {
     if (!profile?.id || normalizeUserRole(profile.role) !== "operations_manager") {
@@ -198,11 +206,12 @@ export function FundRequestApprovalDetail({
       );
       const approverIds = getFundRequestApprovalTrailApproverIds(row);
 
-      const [requesterInfo, approverNameMap] = await Promise.all([
+      const [requesterInfo, approverNameMap, routing] = await Promise.all([
         resolveFundRequestRequesterInfo(supabase, row.requested_by),
         approverIds.length > 0
           ? fetchApproverNameMap(approverIds)
           : Promise.resolve({} as Record<string, string>),
+        resolveFundRequestRequesterRouting(supabase, row.requested_by),
       ]);
 
       const joinedEmployee = (
@@ -227,6 +236,7 @@ export function FundRequestApprovalDetail({
       setRequesterName(requesterInfo.name || joinedRequesterName || "Unknown requester");
       setRequesterUserId(requesterInfo.userId);
       setRequesterIsOperationsManager(requesterInfo.isOperationsManager);
+      setRequesterRouting(routing);
 
       setApproverNames(approverNameMap);
 
@@ -322,10 +332,28 @@ export function FundRequestApprovalDetail({
         request.subcontractor_po_amount
       )
   );
+  const blockedPendingOperationsManagerApproval = Boolean(
+    request &&
+      requesterRouting &&
+      fundRequestSkippedOperationsManagerApproval(
+        request,
+        requesterRouting.requiresOperationsManagerApproval
+      )
+  );
+  const canActEffective =
+    canAct &&
+    !(
+      normalizeUserRole(profile?.role) === "purchasing_officer" &&
+      blockedPendingOperationsManagerApproval
+    );
   const approvalActionCopy = getFundRequestApprovalActionCopy(
     profile?.role,
     request?.status,
-    request ?? undefined
+    request ?? undefined,
+    {
+      blockedPendingOperationsManagerApproval,
+      operationsManagerName: requesterRouting?.groupApproverName,
+    }
   );
   const isUpperManagementFinalReview = Boolean(
     request && canReturnFundRequestToPurchasing(profile?.role, request.status)
@@ -349,6 +377,12 @@ export function FundRequestApprovalDetail({
 
   const handleApprove = async () => {
     if (!request || !profile?.id) return;
+    if (blockedPendingOperationsManagerApproval) {
+      toast.error(
+        `${requesterRouting?.groupApproverName?.trim() || "Operations Manager"} must approve first.`
+      );
+      return;
+    }
 
     try {
       if (canPurchasingOfficerEditDetails(profile.role, request.status)) {
@@ -392,12 +426,22 @@ export function FundRequestApprovalDetail({
       parsedSubcontractorPoAmount = parseSubcontractorPoAmountInput(subcontractorPoAmount);
     }
 
-    const updates = buildFundRequestApprovalUpdates(request.status, profile.id, {
-      supplierBankDetails: showPurchasingBankField
-        ? serializeSupplierBankDetails(supplierBankDetails)
-        : null,
-      subcontractorPoAmount: parsedSubcontractorPoAmount,
-    });
+    const updates =
+      normalizeUserRole(profile.role) === "operations_manager" &&
+      !request.project_manager_approved_by &&
+      (request.status === "project_manager_approved" ||
+        request.status === "purchasing_officer_approved")
+        ? {
+            project_manager_approved_by: profile.id,
+            project_manager_approved_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+        : buildFundRequestApprovalUpdates(request.status, profile.id, {
+            supplierBankDetails: showPurchasingBankField
+              ? serializeSupplierBankDetails(supplierBankDetails)
+              : null,
+            subcontractorPoAmount: parsedSubcontractorPoAmount,
+          });
     if (!updates) return;
 
     setActing(true);
@@ -412,13 +456,16 @@ export function FundRequestApprovalDetail({
       return;
     }
 
-    const nextStatus = updates.status as FundRequestRow["status"];
+    const nextStatus = (updates.status as FundRequestRow["status"] | undefined) ?? request.status;
     toast.success(
       nextStatus === "management_approved"
         ? isUpperManagementFinalReview
           ? "Review completed."
           : "Fund request fully approved."
-        : "Approved. Moved to next step."
+        : normalizeUserRole(profile.role) === "operations_manager" &&
+            request.status === "purchasing_officer_approved"
+          ? "Operations Manager approval recorded."
+          : "Approved. Moved to next step."
     );
     setRequest({
       ...request,
@@ -442,12 +489,20 @@ export function FundRequestApprovalDetail({
 
     setRejecting(true);
     const undoSnapshot = buildFundRequestRejectionUndoSnapshot(request);
+    const returnToOperationsManager = Boolean(
+      requesterRouting &&
+        shouldReturnFundRequestToOperationsManager(
+          request,
+          requesterRouting.requiresOperationsManagerApproval
+        )
+    );
     const updates =
       action === "return"
         ? buildFundRequestUpperManagementReturnUpdates(
             profile.id,
             rejectReason,
-            undoSnapshot
+            undoSnapshot,
+            { returnToOperationsManager }
           )
         : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
 
@@ -468,7 +523,9 @@ export function FundRequestApprovalDetail({
 
     toast.success(
       action === "return"
-        ? "Returned to purchasing officer for review."
+        ? returnToOperationsManager
+          ? "Returned to operations manager for approval."
+          : "Returned to purchasing officer for review."
         : "Fund request rejected."
     );
     setRequest({
@@ -799,7 +856,25 @@ export function FundRequestApprovalDetail({
               </div>
             ) : null}
 
-            {canAct ? (
+            {!canActEffective && blockedPendingOperationsManagerApproval ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+                {approvalActionCopy.eyebrow ? (
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    {approvalActionCopy.eyebrow}
+                  </p>
+                ) : null}
+                <h4 className="font-semibold text-sm text-foreground">
+                  {approvalActionCopy.title}
+                </h4>
+                {approvalActionCopy.description ? (
+                  <p className="text-sm text-muted-foreground">
+                    {approvalActionCopy.description}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {canActEffective ? (
               <div
                 className={cn(
                   "rounded-lg border p-4 space-y-4",

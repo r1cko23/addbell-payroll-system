@@ -7,6 +7,7 @@ export type FundRequestRequesterRouting = {
   overtimeGroupName: string | null;
   groupApproverUserId: string | null;
   groupApproverRole: string | null;
+  groupApproverName: string | null;
   requiresOperationsManagerApproval: boolean;
 };
 
@@ -56,13 +57,15 @@ export async function resolveFundRequestRequesterRouting(
   }
 
   let groupApproverRole: string | null = null;
+  let groupApproverName: string | null = null;
   if (groupApproverUserId) {
     const { data: approverProfile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, full_name")
       .eq("id", groupApproverUserId)
       .maybeSingle();
     groupApproverRole = approverProfile?.role ?? null;
+    groupApproverName = approverProfile?.full_name?.trim() || null;
   }
 
   const routing = {
@@ -70,6 +73,7 @@ export async function resolveFundRequestRequesterRouting(
     overtimeGroupName,
     groupApproverUserId,
     groupApproverRole,
+    groupApproverName,
     requiresOperationsManagerApproval: false,
   };
 
@@ -155,20 +159,77 @@ export function getFundRequestSubmissionWorkflow(options: {
   };
 }
 
+export function fundRequestSkippedOperationsManagerApproval(
+  request: Pick<FundRequestRow, "status" | "project_manager_approved_by">,
+  requiresOperationsManagerApproval: boolean
+): boolean {
+  if (!requiresOperationsManagerApproval) return false;
+  if (request.project_manager_approved_by) return false;
+  return (
+    request.status === "project_manager_approved" ||
+    request.status === "purchasing_officer_approved"
+  );
+}
+
+export function shouldReturnFundRequestToOperationsManager(
+  request: Pick<
+    FundRequestRow,
+    "status" | "project_manager_approved_by" | "purchasing_officer_approved_at"
+  >,
+  requiresOperationsManagerApproval: boolean
+): boolean {
+  return (
+    request.status === "purchasing_officer_approved" &&
+    Boolean(request.purchasing_officer_approved_at) &&
+    fundRequestSkippedOperationsManagerApproval(request, requiresOperationsManagerApproval)
+  );
+}
+
+export async function resolveFundRequestRequesterRoutingMap(
+  supabase: SupabaseClient,
+  requesterEmployeeIds: readonly string[]
+): Promise<Map<string, FundRequestRequesterRouting>> {
+  const uniqueIds = [...new Set(requesterEmployeeIds.filter(Boolean))];
+  const entries = await Promise.all(
+    uniqueIds.map(async (employeeId) => [
+      employeeId,
+      await resolveFundRequestRequesterRouting(supabase, employeeId),
+    ] as const)
+  );
+  return new Map(entries);
+}
+
 export function fundRequestInOperationsManagerQueue(
-  request: Pick<FundRequestRow, "status" | "requested_by">,
+  request: Pick<
+    FundRequestRow,
+    "status" | "requested_by" | "project_manager_approved_by"
+  >,
   managedRequesterIds: ReadonlySet<string> | string[]
 ): boolean {
-  if (request.status !== "pending") return false;
+  if (request.status === "rejected" || request.status === "management_approved") {
+    return false;
+  }
   const managedIds =
     managedRequesterIds instanceof Set
       ? managedRequesterIds
       : new Set(managedRequesterIds);
-  return managedIds.has(request.requested_by);
+  if (!managedIds.has(request.requested_by)) return false;
+  if (request.status === "pending") return true;
+  if (
+    !request.project_manager_approved_by &&
+    (request.status === "project_manager_approved" ||
+      request.status === "purchasing_officer_approved")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function canOperationsManagerActOnFundRequest(
-  request: Pick<FundRequestRow, "status" | "requested_by">,
+  request: Pick<
+    FundRequestRow,
+    "status" | "requested_by" | "project_manager_approved_by"
+  >,
   managedRequesterIds: ReadonlySet<string> | string[]
 ): boolean {
   return fundRequestInOperationsManagerQueue(request, managedRequesterIds);

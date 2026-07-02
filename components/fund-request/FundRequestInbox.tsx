@@ -58,7 +58,13 @@ import {
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
 import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
-import { fundRequestInOperationsManagerQueue } from "@/lib/fund-request-routing";
+import {
+  fundRequestInOperationsManagerQueue,
+  fundRequestSkippedOperationsManagerApproval,
+  resolveFundRequestRequesterRoutingMap,
+  shouldReturnFundRequestToOperationsManager,
+  type FundRequestRequesterRouting,
+} from "@/lib/fund-request-routing";
 
 const NEXT_STATUS: Record<string, FundRequestRow["status"]> = {
   pending: "project_manager_approved",
@@ -126,6 +132,9 @@ export function FundRequestInbox({
   const [requesterInfoById, setRequesterInfoById] = useState<
     Record<string, FundRequestRequesterInfo>
   >({});
+  const [requesterRoutingById, setRequesterRoutingById] = useState<
+    Record<string, FundRequestRequesterRouting>
+  >({});
   const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
     new Set()
   );
@@ -161,12 +170,33 @@ export function FundRequestInbox({
       } else {
         const actionableRows =
           (actionableRes.data as FundRequestInboxRow[] | null) ?? [];
-        const scopedRows =
+        let scopedRows =
           normalizedRole === "operations_manager"
             ? actionableRows.filter((row) =>
                 fundRequestInOperationsManagerQueue(row, managedIds)
               )
             : actionableRows;
+
+        const requestedByIds = new Set<string>();
+        scopedRows.forEach((row) => requestedByIds.add(row.requested_by));
+        const routingMap = await resolveFundRequestRequesterRoutingMap(
+          supabase,
+          [...requestedByIds]
+        );
+        const routingRecord = Object.fromEntries(routingMap);
+        setRequesterRoutingById(routingRecord);
+
+        if (normalizedRole === "purchasing_officer") {
+          scopedRows = scopedRows.filter((row) => {
+            const routing = routingMap.get(row.requested_by);
+            if (!routing) return true;
+            return !fundRequestSkippedOperationsManagerApproval(
+              row,
+              routing.requiresOperationsManagerApproval
+            );
+          });
+        }
+
         setRows(scopedRows);
       }
       if (!allRes.error && allRes.data) {
@@ -214,24 +244,53 @@ export function FundRequestInbox({
     id: string,
     currentStatus: FundRequestRow["status"]
   ) => {
-    const nextStatus = NEXT_STATUS[currentStatus];
-    if (!nextStatus || !currentUserId) return;
+    if (!currentUserId) return;
+    const row = rows.find((item) => item.id === id);
+    const normalizedRole = normalizeUserRole(profile?.role);
+
+    let updates: Record<string, unknown>;
+    let successMessage = "Approved. Moved to next step.";
+
+    if (
+      normalizedRole === "operations_manager" &&
+      row &&
+      !row.project_manager_approved_by &&
+      (currentStatus === "project_manager_approved" ||
+        currentStatus === "purchasing_officer_approved")
+    ) {
+      updates = {
+        project_manager_approved_by: currentUserId,
+        project_manager_approved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      successMessage =
+        currentStatus === "purchasing_officer_approved"
+          ? "Operations Manager approval recorded."
+          : "Approved. Sent to Purchasing Officer.";
+    } else {
+      const nextStatus = NEXT_STATUS[currentStatus];
+      if (!nextStatus) return;
+
+      updates = {
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      };
+      if (currentStatus === "pending") {
+        updates.project_manager_approved_by = currentUserId;
+        updates.project_manager_approved_at = new Date().toISOString();
+      } else if (currentStatus === "project_manager_approved") {
+        updates.purchasing_officer_approved_by = currentUserId;
+        updates.purchasing_officer_approved_at = new Date().toISOString();
+      } else if (currentStatus === "purchasing_officer_approved") {
+        updates.management_approved_by = currentUserId;
+        updates.management_approved_at = new Date().toISOString();
+      }
+      if (nextStatus === "management_approved") {
+        successMessage = "Fund request fully approved.";
+      }
+    }
 
     setActingId(id);
-    const updates: Record<string, unknown> = {
-      status: nextStatus,
-      updated_at: new Date().toISOString(),
-    };
-    if (currentStatus === "pending") {
-      updates.project_manager_approved_by = currentUserId;
-      updates.project_manager_approved_at = new Date().toISOString();
-    } else if (currentStatus === "project_manager_approved") {
-      updates.purchasing_officer_approved_by = currentUserId;
-      updates.purchasing_officer_approved_at = new Date().toISOString();
-    } else if (currentStatus === "purchasing_officer_approved") {
-      updates.management_approved_by = currentUserId;
-      updates.management_approved_at = new Date().toISOString();
-    }
     const { error } = await supabase
       .from("fund_requests")
       .update(updates as never)
@@ -240,11 +299,7 @@ export function FundRequestInbox({
     if (error) {
       toast.error("Failed to approve");
     } else {
-      toast.success(
-        nextStatus === "management_approved"
-          ? "Fund request fully approved."
-          : "Approved. Moved to next step."
-      );
+      toast.success(successMessage);
       setRows((prev) => prev.filter((r) => r.id !== id));
       await refreshCounts();
     }
@@ -316,12 +371,21 @@ export function FundRequestInbox({
     const requestRow =
       row ?? ({ status: currentStatus } as FundRequestInboxRow);
     const undoSnapshot = buildFundRequestRejectionUndoSnapshot(requestRow);
+    const routing = requesterRoutingById[requestRow.requested_by];
+    const returnToOperationsManager = Boolean(
+      routing &&
+        shouldReturnFundRequestToOperationsManager(
+          requestRow,
+          routing.requiresOperationsManagerApproval
+        )
+    );
     const updates =
       action === "return"
         ? buildFundRequestUpperManagementReturnUpdates(
             currentUserId,
             rejectReason,
-            undoSnapshot
+            undoSnapshot,
+            { returnToOperationsManager }
           )
         : buildFundRequestRejectUpdates(
             currentUserId,
@@ -346,7 +410,9 @@ export function FundRequestInbox({
     } else {
       toast.success(
         action === "return"
-          ? "Returned to purchasing officer for review."
+          ? returnToOperationsManager
+            ? "Returned to operations manager for approval."
+            : "Returned to purchasing officer for review."
           : "Fund request rejected."
       );
       setRows((prev) => prev.filter((r) => r.id !== id));

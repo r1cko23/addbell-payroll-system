@@ -64,7 +64,7 @@ describe("resolveFundRequestRequesterRouting", () => {
             select: () => ({
               eq: () => ({
                 maybeSingle: async () => ({
-                  data: { role: "operations_manager" },
+                  data: { role: "operations_manager", full_name: "Constantino Milo" },
                 }),
               }),
             }),
@@ -81,6 +81,7 @@ describe("resolveFundRequestRequesterRouting", () => {
       overtimeGroupName: "Operations-Laguna",
       groupApproverUserId: "om-user",
       groupApproverRole: "operations_manager",
+      groupApproverName: "Constantino Milo",
       requiresOperationsManagerApproval: true,
     });
   });

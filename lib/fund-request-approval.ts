@@ -42,7 +42,9 @@ export function getActionableFundRequestStatuses(
   role: string | null | undefined
 ): FundRequestRow["status"][] {
   const normalizedRole = normalizeUserRole(role);
-  if (normalizedRole === "operations_manager") return ["pending"];
+  if (normalizedRole === "operations_manager") {
+    return ["pending", "project_manager_approved", "purchasing_officer_approved"];
+  }
   if (normalizedRole === "purchasing_officer") return ["project_manager_approved"];
   if (normalizedRole === "admin") {
     return ["pending", "project_manager_approved", "purchasing_officer_approved"];
@@ -56,8 +58,8 @@ export function getActionableFundRequestStatuses(
 export function canActOnFundRequest(
   role: string | null | undefined,
   status: string,
-  options?: {
-    request?: Pick<FundRequestRow, "requested_by">;
+    options?: {
+    request?: Pick<FundRequestRow, "requested_by" | "project_manager_approved_by">;
     managedRequesterIds?: ReadonlySet<string> | string[];
   }
 ): boolean {
@@ -78,6 +80,7 @@ export function canActOnFundRequest(
       {
         status: status as FundRequestRow["status"],
         requested_by: options.request.requested_by,
+        project_manager_approved_by: options.request.project_manager_approved_by,
       },
       options.managedRequesterIds
     );
@@ -103,9 +106,27 @@ export function getFundRequestApprovalActionCopy(
     | "rejection_undo_snapshot"
     | "purchasing_officer_approved_at"
     | "rejection_reason"
-  >
+  >,
+  options?: {
+    blockedPendingOperationsManagerApproval?: boolean;
+    operationsManagerName?: string | null;
+  }
 ): FundRequestApprovalActionCopy {
   const normalizedRole = normalizeUserRole(role);
+
+  if (
+    normalizedRole === "purchasing_officer" &&
+    status === "project_manager_approved" &&
+    options?.blockedPendingOperationsManagerApproval
+  ) {
+    const omName = options.operationsManagerName?.trim() || "Operations Manager";
+    return {
+      eyebrow: "FOR OPERATIONS MANAGER APPROVAL",
+      title: `${omName} must approve first`,
+      description:
+        "This request cannot move to Purchasing until the Operations Manager approves it.",
+    };
+  }
 
   if (
     normalizedRole === "purchasing_officer" &&
@@ -291,8 +312,25 @@ export function getFundRequestDisposalReasonPlaceholder(
 export function buildFundRequestUpperManagementReturnUpdates(
   currentUserId: string,
   reason: string,
-  undoSnapshot: FundRequestRejectionUndoSnapshot
+  undoSnapshot: FundRequestRejectionUndoSnapshot,
+  options?: { returnToOperationsManager?: boolean }
 ): Record<string, unknown> {
+  if (options?.returnToOperationsManager) {
+    return {
+      status: "pending",
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      supplier_bank_details: null,
+      management_approved_by: null,
+      management_approved_at: null,
+      rejection_reason: reason.trim() || null,
+      rejected_by: currentUserId,
+      rejected_at: new Date().toISOString(),
+      rejection_undo_snapshot: undoSnapshot,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
   return {
     status: "project_manager_approved",
     purchasing_officer_approved_by: null,

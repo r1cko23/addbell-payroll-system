@@ -73,7 +73,7 @@ import {
   canPurchasingOfficerEditSubcontractorPoAmount,
   isSubcontractorPoAmountReadyForPurchasingApproval,
   parseSubcontractorPoAmountInput,
-  shouldShowSubcontractorPoAmountToPurchasingOfficer,
+  shouldShowSubcontractorPoAmountOnReview,
   validateSubcontractorPoAmountInput,
 } from "@/lib/fund-request-subcontractor-po-amount";
 import { normalizeUserRole } from "@/lib/user-roles";
@@ -324,9 +324,9 @@ export function FundRequestApprovalDetail({
         request.purpose
       )
   );
-  const showSubcontractorPoAmountToPurchasing = Boolean(
+  const showSubcontractorPoAmountOnReview = Boolean(
     request &&
-      shouldShowSubcontractorPoAmountToPurchasingOfficer(
+      shouldShowSubcontractorPoAmountOnReview(
         profile?.role,
         request.purpose,
         request.status,
@@ -741,7 +741,7 @@ export function FundRequestApprovalDetail({
                 request={request}
                 vendorName={vendorName}
                 showSubcontractorFields={showSubcontractorFields}
-                showSubcontractorPoAmount={showSubcontractorPoAmountToPurchasing}
+                showSubcontractorPoAmount={showSubcontractorPoAmountOnReview}
                 editableSubcontractorPoAmount={showPurchasingSubcontractorPoField}
                 subcontractorPoAmountInput={subcontractorPoAmount}
                 onSubcontractorPoAmountInputChange={setSubcontractorPoAmount}
@@ -915,7 +915,7 @@ export function FundRequestApprovalDetail({
                   ) : null}
                   {approveBlockedBySubcontractorPoAmount ? (
                     <p className="mt-2 text-sm text-amber-900">
-                      Enter the Subcontract P.O. Amount above before you can approve
+                      Enter the Subcontractor P.O. Amount above before you can approve
                       this subcontractor payment request.
                     </p>
                   ) : null}

@@ -803,7 +803,7 @@ export function FundRequestInbox({
                         </div>
                         {purchasingSubcontractorDetailOnly ? (
                           <Caption className="text-right text-muted-foreground">
-                            Open to enter Subcontract P.O. Amount and approve.
+                            Open to enter Subcontractor P.O. Amount and approve.
                           </Caption>
                         ) : showPurchasingDetailOnly ? (
                           <Caption className="text-right text-muted-foreground">

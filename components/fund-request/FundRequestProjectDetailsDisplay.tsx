@@ -295,7 +295,7 @@ function SubcontractorReferenceTable({
 }) {
   return (
     <div className={tableShellClass}>
-      <table className={cn(tableClass, "min-w-[480px]")}>
+      <table className={cn(tableClass, "min-w-[640px]")}>
         <thead>
           <tr>
             <th className={headCellClass}>
@@ -305,7 +305,7 @@ function SubcontractorReferenceTable({
               {FUND_REQUEST_FIELD_LABELS.subcontractorProgress}
             </th>
             {showSubcontractorPoAmount ? (
-              <th className={cn(headCellClass, "whitespace-nowrap")}>
+              <th className={cn(headCellClass, "min-w-[11rem]")}>
                 {FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
                 {editableSubcontractorPoAmount ? (
                   <span className="ml-0.5 text-destructive" aria-hidden="true">

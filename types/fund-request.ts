@@ -49,7 +49,7 @@ export const FUND_REQUEST_FIELD_LABELS = {
   projectLocation: "Project Location",
   subcontractorName: "Subcontractor Name",
   subcontractorProgress: "Subcontractor Current Progress Percentage",
-  subcontractorPoAmount: "Subcontract P.O. Amount",
+  subcontractorPoAmount: "Subcontractor P.O. Amount",
   progressBillingMilestone: "Progress Billing Milestone",
   billingInvoiceNumber: "Invoice Number",
   billingInvoiceStatus: "Invoice Status",

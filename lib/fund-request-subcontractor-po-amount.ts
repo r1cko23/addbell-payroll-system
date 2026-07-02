@@ -12,10 +12,10 @@ export function parseSubcontractorPoAmountInput(value: string): number | null {
 export function validateSubcontractorPoAmountInput(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) {
-    return "Subcontract P.O. Amount is required.";
+    return "Subcontractor P.O. Amount is required.";
   }
   if (parseSubcontractorPoAmountInput(trimmed) == null) {
-    return "Enter a valid Subcontract P.O. Amount.";
+    return "Enter a valid Subcontractor P.O. Amount.";
   }
   return null;
 }
@@ -48,4 +48,31 @@ export function shouldShowSubcontractorPoAmountToPurchasingOfficer(
   if (!isSubcontractorPaymentPurpose(purpose)) return false;
   if (status === "project_manager_approved") return true;
   return currentAmount != null;
+}
+
+export function shouldShowSubcontractorPoAmountOnReview(
+  role: string | null | undefined,
+  purpose: string | null | undefined,
+  status: string | null | undefined,
+  currentAmount: number | null | undefined
+): boolean {
+  if (!isSubcontractorPaymentPurpose(purpose)) return false;
+
+  const normalizedRole = normalizeUserRole(role);
+
+  if (normalizedRole === "purchasing_officer") {
+    return shouldShowSubcontractorPoAmountToPurchasingOfficer(
+      role,
+      purpose,
+      status,
+      currentAmount
+    );
+  }
+
+  if (normalizedRole === "upper_management" || normalizedRole === "admin") {
+    if (status === "purchasing_officer_approved") return true;
+    if (status === "management_approved" && currentAmount != null) return true;
+  }
+
+  return false;
 }

@@ -1,6 +1,6 @@
 export const SUBCONTRACTOR_PAYMENT_SCHEMES = {
   option_1: {
-    label: "Payment Option 1",
+    label: "Payment Terms 1",
     milestones: [
       "30% Down Payment",
       "60% Progress Billing",
@@ -9,7 +9,7 @@ export const SUBCONTRACTOR_PAYMENT_SCHEMES = {
     ],
   },
   option_2: {
-    label: "Payment Option 2",
+    label: "Payment Terms 2",
     milestones: ["50% Down Payment", "40% Progress Billing", "10% Retention"],
   },
 } as const;

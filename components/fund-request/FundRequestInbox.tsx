@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useProfile } from "@/lib/hooks/useProfile";
@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { addDays, format, parse } from "date-fns";
 import { formatFundRequestFiledAtCompact } from "@/lib/fund-request-history";
 import { Loader2 } from "lucide-react";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -63,6 +63,13 @@ import {
 } from "@/types/fund-request";
 import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
+import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutoffNav";
+import {
+  fundRequestBelongsToApproverCutoff,
+  getFundRequestHistoryCutoffs,
+} from "@/lib/fund-request-cutoff";
+import { summarizeFundRequestsForRoleCutoff } from "@/lib/fund-request-inbox-cutoff-summary";
+import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 import {
   getFundRequestPayeeAccountName,
   type FundRequestInboxRow,
@@ -121,6 +128,18 @@ function canQuickApproveFromInbox(
   return true;
 }
 
+const METRIC_ROW_SELECT =
+  "id, requested_by, request_date, status, total_requested_amount, created_at, project_manager_approved_by, project_manager_approved_at, purchasing_officer_approved_by, purchasing_officer_approved_at, management_approved_by, management_approved_at, rejected_by, rejected_at, rejection_reason, returned_by, returned_at, return_reason, rejection_undo_snapshot";
+
+function formatCutoffMetricAmount(amount: number): string {
+  return `₱${amount.toLocaleString()} total`;
+}
+
+function getInitialFundRequestCutoffs(): WeeklyCutoffPeriod[] {
+  const history = getFundRequestHistoryCutoffs(format(new Date(), "yyyy-MM-dd"));
+  return history?.cutoffs ?? [];
+}
+
 export function FundRequestInbox({
   detailHrefBase = "/fund-request",
 }: {
@@ -129,7 +148,7 @@ export function FundRequestInbox({
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
   const [rows, setRows] = useState<FundRequestInboxRow[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [metricRows, setMetricRows] = useState<FundRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [bulkApproving, setBulkApproving] = useState(false);
@@ -153,6 +172,72 @@ export function FundRequestInbox({
   const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
     new Set()
   );
+  const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>(
+    getInitialFundRequestCutoffs
+  );
+  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
+
+  const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
+
+  const cutoffRows = useMemo(() => {
+    if (!selectedCutoff) return rows;
+    return rows.filter((row) =>
+      fundRequestBelongsToApproverCutoff(row, selectedCutoff, "upper_management")
+    );
+  }, [rows, selectedCutoff]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchTerm) return cutoffRows;
+
+    const term = searchTerm.toLowerCase();
+    return cutoffRows.filter((r) => {
+      const requesterInfo = requesterInfoById[r.requested_by];
+      const name = getRequesterDisplayName(r, requesterInfo).toLowerCase();
+      const purpose = (r.purpose || "").toLowerCase();
+      const projectTitle = (r.project_title || "").toLowerCase();
+      const projectLocation = (r.project_location || "").toLowerCase();
+      const clientName = (r.projects?.clients?.name || "").toLowerCase();
+      const payeeAccountName = (
+        getFundRequestPayeeAccountName(r) || ""
+      ).toLowerCase();
+
+      return (
+        name.includes(term) ||
+        purpose.includes(term) ||
+        projectTitle.includes(term) ||
+        projectLocation.includes(term) ||
+        clientName.includes(term) ||
+        payeeAccountName.includes(term)
+      );
+    });
+  }, [cutoffRows, searchTerm, requesterInfoById]);
+
+  const cutoffSummary = useMemo(() => {
+    if (!selectedCutoff) {
+      return {
+        total: 0,
+        approved: 0,
+        rejected: 0,
+        pending: 0,
+        amounts: { total: 0, approved: 0, rejected: 0, pending: 0 },
+      };
+    }
+    return summarizeFundRequestsForRoleCutoff(
+      metricRows,
+      selectedCutoff,
+      profile?.role,
+      {
+        managedRequesterIds,
+        requesterRoutingById,
+      }
+    );
+  }, [
+    metricRows,
+    selectedCutoff,
+    profile?.role,
+    managedRequesterIds,
+    requesterRoutingById,
+  ]);
 
   const getActionableStatuses = (): FundRequestRow["status"][] =>
     getActionableFundRequestStatuses(profile?.role);
@@ -168,7 +253,25 @@ export function FundRequestInbox({
           ? new Set(await fetchManagedEmployeeIdsForApprover(supabase, currentUserId))
           : new Set<string>();
       setManagedRequesterIds(managedIds);
-      const [actionableRes, allRes] = await Promise.all([
+      const todayYmd = format(new Date(), "yyyy-MM-dd");
+      const history = getFundRequestHistoryCutoffs(todayYmd);
+
+      let metricQuery = supabase
+        .from("fund_requests")
+        .select(METRIC_ROW_SELECT)
+        .order("created_at", { ascending: false });
+
+      if (history) {
+        const fetchToExtended = format(
+          addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
+          "yyyy-MM-dd"
+        );
+        metricQuery = metricQuery
+          .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
+          .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
+      }
+
+      const [actionableRes, metricRes] = await Promise.all([
         statuses.length > 0
           ? supabase
               .from("fund_requests")
@@ -177,9 +280,19 @@ export function FundRequestInbox({
               )
               .in("status", statuses)
               .order("created_at", { ascending: false })
-          : { data: [], error: null },
-        supabase.from("fund_requests").select("id, status"),
+          : Promise.resolve({ data: [], error: null }),
+        metricQuery,
       ]);
+
+      const loadedMetricRows = ((metricRes.data as FundRequestRow[] | null) ?? []).filter(
+        (row) =>
+          !history?.cutoffs.length ||
+          history.cutoffs.some((cutoff) =>
+            fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
+          )
+      );
+      setMetricRows(loadedMetricRows);
+
       if (actionableRes.error) {
         toast.error("Failed to load fund requests");
       } else {
@@ -194,6 +307,7 @@ export function FundRequestInbox({
 
         const requestedByIds = new Set<string>();
         scopedRows.forEach((row) => requestedByIds.add(row.requested_by));
+        loadedMetricRows.forEach((row) => requestedByIds.add(row.requested_by));
         const routingMap = await resolveFundRequestRequesterRoutingMap(
           supabase,
           [...requestedByIds]
@@ -214,13 +328,6 @@ export function FundRequestInbox({
 
         setRows(scopedRows);
       }
-      if (!allRes.error && allRes.data) {
-        const c: Record<string, number> = {};
-        allRes.data.forEach((r: { status: string }) => {
-          c[r.status] = (c[r.status] || 0) + 1;
-        });
-        setCounts(c);
-      }
       const actionableRows =
         normalizedRole === "operations_manager"
           ? ((actionableRes.data as FundRequestInboxRow[] | null) ?? []).filter(
@@ -232,6 +339,7 @@ export function FundRequestInbox({
       actionableRows.forEach((r: FundRequestRow) => {
         requestedByIds.add(r.requested_by);
       });
+      loadedMetricRows.forEach((r) => requestedByIds.add(r.requested_by));
       const requesterMap = await resolveFundRequestRequesterMap(
         supabase,
         [...requestedByIds]
@@ -243,17 +351,6 @@ export function FundRequestInbox({
   }, [supabase, profile?.role, profile?.id]);
 
   const currentUserId = profile?.id ?? null;
-
-  const refreshCounts = async () => {
-    const { data: all } = await supabase.from("fund_requests").select("id, status");
-    if (all) {
-      const c: Record<string, number> = {};
-      all.forEach((r: { status: string }) => {
-        c[r.status] = (c[r.status] || 0) + 1;
-      });
-      setCounts(c);
-    }
-  };
 
   const handleApprove = async (
     id: string,
@@ -316,7 +413,13 @@ export function FundRequestInbox({
     } else {
       toast.success(successMessage);
       setRows((prev) => prev.filter((r) => r.id !== id));
-      await refreshCounts();
+      setMetricRows((prev) =>
+        prev.map((metricRow) =>
+          metricRow.id === id
+            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestRow)
+            : metricRow
+        )
+      );
     }
   };
 
@@ -353,7 +456,18 @@ export function FundRequestInbox({
         .map((request) => request.id)
     );
     setRows((prev) => prev.filter((row) => !approvedIds.has(row.id)));
-    await refreshCounts();
+    setMetricRows((prev) =>
+      prev.map((row) =>
+        approvedIds.has(row.id)
+          ? {
+              ...row,
+              status: "management_approved",
+              management_approved_by: currentUserId,
+              management_approved_at: timestamp,
+            }
+          : row
+      )
+    );
 
     if (failed > 0) {
       toast.warning(
@@ -432,7 +546,13 @@ export function FundRequestInbox({
           : "Fund request rejected."
       );
       setRows((prev) => prev.filter((r) => r.id !== id));
-      await refreshCounts();
+      setMetricRows((prev) =>
+        prev.map((metricRow) =>
+          metricRow.id === id
+            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestRow)
+            : metricRow
+        )
+      );
     }
   };
 
@@ -448,65 +568,58 @@ export function FundRequestInbox({
     );
   }
 
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  const pendingPm = counts.pending ?? 0;
-  const pendingPo = counts.project_manager_approved ?? 0;
-  const pendingMgmt = counts.purchasing_officer_approved ?? 0;
-  const rejected = counts.rejected ?? 0;
-  const approvedForPayment = counts.purchasing_officer_approved ?? 0;
-  const approved = counts.management_approved ?? 0;
   const actionableStatuses = getActionableStatuses();
   const isAdmin = normalizeUserRole(profile?.role) === "admin";
   const isUpperManagement =
     normalizeUserRole(profile?.role) === "upper_management";
   const useClientGroupedView = isUpperManagement;
-
-  const filteredRows = searchTerm
-    ? rows.filter((r) => {
-        const requesterInfo = requesterInfoById[r.requested_by];
-        const name = getRequesterDisplayName(r, requesterInfo).toLowerCase();
-        const purpose = (r.purpose || "").toLowerCase();
-        const projectTitle = (r.project_title || "").toLowerCase();
-        const projectLocation = (r.project_location || "").toLowerCase();
-        const clientName = (r.projects?.clients?.name || "").toLowerCase();
-        const payeeAccountName = (
-          getFundRequestPayeeAccountName(r) || ""
-        ).toLowerCase();
-        const term = searchTerm.toLowerCase();
-        return (
-          name.includes(term) ||
-          purpose.includes(term) ||
-          projectTitle.includes(term) ||
-          projectLocation.includes(term) ||
-          clientName.includes(term) ||
-          payeeAccountName.includes(term)
-        );
-      })
-    : rows;
+  const summaryLoadingLabel = loading ? "Loading..." : undefined;
 
   const detailHref = (id: string) =>
     `${detailHrefBase}/${id}${detailHrefBase === "/fund-request" ? "?tab=inbox" : ""}`;
 
   return (
     <div className="space-y-4">
-      <div
-        className={cn(
-          "w-full",
-          isUpperManagement ? "grid max-w-xs grid-cols-1 gap-2 sm:gap-4" : dbKpiGrid
-        )}
-      >
-        {isUpperManagement ? (
-          <MetricCard label="Pending final approval" value={approvedForPayment} />
-        ) : (
-          <>
-            <MetricCard label="Total" value={total} />
-            <MetricCard label="Pending (Operations)" value={pendingPm} />
-            <MetricCard label="Pending (Purchasing)" value={pendingPo} />
-            <MetricCard label="Pending (U.M.)" value={pendingMgmt} />
-            <MetricCard label="Approved" value={approved} />
-            <MetricCard label="Rejected" value={rejected} />
-          </>
-        )}
+      <FundRequestCutoffNav
+        cutoffs={historyCutoffs}
+        selectedIndex={selectedCutoffIndex}
+        onSelectedIndexChange={setSelectedCutoffIndex}
+        loading={loading}
+      />
+
+      <div className={cn("w-full", dbKpiGrid)}>
+        <MetricCard
+          label="Total"
+          value={loading ? "—" : String(cutoffSummary.total)}
+          meta={
+            summaryLoadingLabel ??
+            formatCutoffMetricAmount(cutoffSummary.amounts.total)
+          }
+        />
+        <MetricCard
+          label="Approved"
+          value={loading ? "—" : String(cutoffSummary.approved)}
+          meta={
+            summaryLoadingLabel ??
+            formatCutoffMetricAmount(cutoffSummary.amounts.approved)
+          }
+        />
+        <MetricCard
+          label="Rejected"
+          value={loading ? "—" : String(cutoffSummary.rejected)}
+          meta={
+            summaryLoadingLabel ??
+            formatCutoffMetricAmount(cutoffSummary.amounts.rejected)
+          }
+        />
+        <MetricCard
+          label="Pending"
+          value={loading ? "—" : String(cutoffSummary.pending)}
+          meta={
+            summaryLoadingLabel ??
+            formatCutoffMetricAmount(cutoffSummary.amounts.pending)
+          }
+        />
       </div>
 
       <Card className="w-full">
@@ -541,12 +654,12 @@ export function FundRequestInbox({
               />
               <BodySmall>
                 {searchTerm
-                  ? "No requests match your search."
+                  ? "No requests match your search for this cutoff."
                   : isUpperManagement
-                    ? "No requests pending payment review."
+                    ? "No requests in this cutoff are pending payment review."
                     : isAdmin
-                      ? "No requests in the approval pipeline."
-                      : "No requests waiting for your approval."}
+                      ? "No requests in this cutoff are in the approval pipeline."
+                      : "No requests in this cutoff are waiting for your approval."}
               </BodySmall>
             </VStack>
           </CardContent>

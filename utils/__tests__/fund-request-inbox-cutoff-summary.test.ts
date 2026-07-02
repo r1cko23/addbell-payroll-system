@@ -137,6 +137,25 @@ describe("getFundRequestRoleCutoffBucket", () => {
     ).toBe("rejected");
   });
 
+  it("excludes purchasing officer own requests from purchasing pending queue", () => {
+    const ctx = {
+      approverUserId: "po-user",
+      requesterUserIdByEmployeeId: {
+        "employee-1": "po-user",
+      },
+    };
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "project_manager_approved",
+          requested_by: "employee-1",
+        }),
+        "purchasing_officer",
+        ctx
+      )
+    ).toBeNull();
+  });
+
   it("classifies upper management pending and approved requests", () => {
     expect(
       getFundRequestRoleCutoffBucket(

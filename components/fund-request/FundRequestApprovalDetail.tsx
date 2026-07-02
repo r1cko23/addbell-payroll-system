@@ -307,6 +307,8 @@ export function FundRequestApprovalDetail({
       profile?.id &&
       canActOnFundRequest(profile.role, request.status, {
         request,
+        approverUserId: profile.id,
+        requesterUserId,
         managedRequesterIds:
           normalizeUserRole(profile.role) === "operations_manager"
             ? managedRequesterIds

@@ -271,6 +271,20 @@ export default function NewFundRequestPage() {
     linkedEmployeeId ??
     selectedRequesterEmployeeId ??
     null;
+  const isOwnEmployeeRequest = useMemo(() => {
+    if (!user?.id || !employeeId) return false;
+    return (
+      session?.employee?.id === employeeId ||
+      linkedEmployeeId === employeeId ||
+      selectedRequesterEmployeeId === employeeId
+    );
+  }, [
+    user?.id,
+    employeeId,
+    session?.employee?.id,
+    linkedEmployeeId,
+    selectedRequesterEmployeeId,
+  ]);
   const isPortal = (pathname?.startsWith("/app") || pathname?.startsWith("/employee-portal")) ?? false;
   const base = pathname?.startsWith("/employee-portal") ? "/employee-portal/fund-request" : isPortal ? "/app/fund-request" : "/fund-request";
 
@@ -335,8 +349,9 @@ export default function NewFundRequestPage() {
       submitterRole: user.role,
       isPortal,
       submitterUserId: user.id,
+      isOwnEmployeeRequest,
     });
-  }, [user?.role, user?.id, isPortal, isEditMode, editStatus]);
+  }, [user?.role, user?.id, isPortal, isEditMode, editStatus, isOwnEmployeeRequest]);
   const showPurchasingOfficerSubcontractorPoAmount = useMemo(() => {
     if (!showVendorPaymentSection) return false;
     if (normalizeUserRole(user?.role) !== "purchasing_officer" || !user?.id) {
@@ -349,6 +364,7 @@ export default function NewFundRequestPage() {
       submitterRole: user.role,
       isPortal,
       submitterUserId: user.id,
+      isOwnEmployeeRequest,
     });
   }, [
     showVendorPaymentSection,
@@ -357,6 +373,7 @@ export default function NewFundRequestPage() {
     isPortal,
     isEditMode,
     editStatus,
+    isOwnEmployeeRequest,
   ]);
 
   useEffect(() => {
@@ -625,13 +642,7 @@ export default function NewFundRequestPage() {
       toast.error("Select a progress billing milestone.");
       return;
     }
-    const hasAnyDetailContent = details.some(
-      (row) => row.description.trim() || row.amount.trim()
-    );
-    const detailValidationError =
-      hasAnyDetailContent || !showVendorPaymentSection
-        ? validateDetailRows(details)
-        : null;
+    const detailValidationError = validateDetailRows(details);
     if (detailValidationError) {
       toast.error(detailValidationError);
       return;
@@ -815,6 +826,7 @@ export default function NewFundRequestPage() {
         submitterUserId: user?.id ?? null,
         requiresOperationsManagerApproval:
           requesterRouting.requiresOperationsManagerApproval,
+        isOwnEmployeeRequest,
       });
 
       const payload = {
@@ -872,7 +884,10 @@ export default function NewFundRequestPage() {
       }
       setSupportingDoc(null);
       setDocError(null);
-      router.push(base);
+      const isPoSelfSubmit =
+        workflow.status === "purchasing_officer_approved" &&
+        workflow.purchasing_officer_approved_by === user?.id;
+      router.push(isPoSelfSubmit ? `${base}?tab=my-requests` : base);
       router.refresh();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to submit.");

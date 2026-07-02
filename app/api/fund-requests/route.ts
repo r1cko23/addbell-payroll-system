@@ -296,18 +296,47 @@ export async function POST(req: NextRequest) {
       admin,
       body.requested_by.trim()
     );
+
+    let isOwnEmployeeRequest = false;
+    if (authUser?.id) {
+      const [{ data: requesterEmployee }, { data: submitterProfile }] =
+        await Promise.all([
+          admin
+            .from("employees")
+            .select("user_id, email")
+            .eq("id", body.requested_by.trim())
+            .maybeSingle(),
+          admin
+            .from("profiles")
+            .select("email")
+            .eq("id", authUser.id)
+            .maybeSingle(),
+        ]);
+      if (requesterEmployee?.user_id === authUser.id) {
+        isOwnEmployeeRequest = true;
+      } else {
+        const submitterEmail = submitterProfile?.email?.trim().toLowerCase();
+        const requesterEmail = requesterEmployee?.email?.trim().toLowerCase();
+        if (submitterEmail && requesterEmail && submitterEmail === requesterEmail) {
+          isOwnEmployeeRequest = true;
+        }
+      }
+    }
+
+    const isPortalSubmission = body.is_portal_submission === true;
     const workflow = getFundRequestSubmissionWorkflow({
       submitterRole,
-      isPortal: body.is_portal_submission ?? true,
+      isPortal: isPortalSubmission,
       submitterUserId: authUser?.id ?? null,
       requiresOperationsManagerApproval:
         requesterRouting.requiresOperationsManagerApproval,
+      isOwnEmployeeRequest,
     });
 
     if (
       requiresSupplierBankDetailsFromRequester({
         submitterRole,
-        isPortal: body.is_portal_submission ?? true,
+        isPortal: isPortalSubmission,
         submitterUserId: authUser?.id ?? null,
         requestStatus: workflow.status,
       })
@@ -323,7 +352,7 @@ export async function POST(req: NextRequest) {
     if (
       requiresSubcontractorPoAmountFromPurchasing({
         submitterRole,
-        isPortal: body.is_portal_submission ?? true,
+        isPortal: isPortalSubmission,
         submitterUserId: authUser?.id ?? null,
         requestStatus: workflow.status,
         purpose: body.purpose,

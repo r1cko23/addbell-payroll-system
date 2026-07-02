@@ -42,6 +42,13 @@ function sumAmount(rows: FundRequestAllRequestRow[]): number {
   return rows.reduce((total, row) => total + Number(row.total_requested_amount ?? 0), 0);
 }
 
+function isActiveFundRequestInCutoff(row: FundRequestRow): boolean {
+  if (row.rejected_at || row.status === "rejected") return false;
+  return ["pending", "project_manager_approved", "purchasing_officer_approved"].includes(
+    row.status
+  );
+}
+
 export function FundRequestAllRequests({
   detailHrefBase,
   requesterEmployeeId,
@@ -130,14 +137,8 @@ export function FundRequestAllRequests({
     );
   }, [rows, selectedCutoff]);
 
-  const pendingCount = useMemo(
-    () =>
-      cutoffRows.filter(
-        (row) =>
-          ["pending", "project_manager_approved", "purchasing_officer_approved"].includes(
-            row.status
-          ) && !row.rejected_at
-      ).length,
+  const activeRows = useMemo(
+    () => cutoffRows.filter(isActiveFundRequestInCutoff),
     [cutoffRows]
   );
 
@@ -193,24 +194,19 @@ export function FundRequestAllRequests({
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <MetricCard
-          label="Requests this cutoff"
-          value={loading ? "—" : String(cutoffRows.length)}
-          meta={loading ? "Loading..." : `₱${sumAmount(cutoffRows).toLocaleString()} total`}
-        />
-        <MetricCard
-          label="Pending approval"
-          value={loading ? "—" : String(pendingCount)}
-          meta={
-            loading
-              ? "Loading..."
-              : pendingCount === 1
-                ? "1 request in progress"
-                : `${pendingCount} requests in progress`
-          }
-        />
-      </div>
+      <MetricCard
+        label="Active requests this cutoff"
+        value={loading ? "—" : String(activeRows.length)}
+        meta={
+          loading
+            ? "Loading..."
+            : activeRows.length === 0
+              ? "No active requests"
+              : activeRows.length === 1
+                ? `₱${sumAmount(activeRows).toLocaleString()} total · 1 request in progress`
+                : `₱${sumAmount(activeRows).toLocaleString()} total · ${activeRows.length} requests in progress`
+        }
+      />
 
       <Card className="border-border/80 bg-card/95">
         <div className="flex flex-col gap-4 border-b px-4 py-4 sm:flex-row">

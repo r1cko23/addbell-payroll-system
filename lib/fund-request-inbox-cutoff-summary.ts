@@ -1,5 +1,6 @@
 import {
   isFundRequestReturnedToPurchasing,
+  isPurchasingOfficerOwnFundRequest,
 } from "@/lib/fund-request-approval";
 import {
   fundRequestBelongsToApproverCutoff,
@@ -35,6 +36,8 @@ export type FundRequestRoleCutoffSummary = {
 type SummaryContext = {
   managedRequesterIds?: ReadonlySet<string>;
   requesterRoutingById?: Record<string, FundRequestRequesterRouting>;
+  approverUserId?: string | null;
+  requesterUserIdByEmployeeId?: Record<string, string | null | undefined>;
 };
 
 function emptySummary(): FundRequestRoleCutoffSummary {
@@ -68,6 +71,15 @@ function isPoScopedRequest(
   request: FundRequestRow,
   ctx: SummaryContext
 ): boolean {
+  if (
+    isPurchasingOfficerOwnFundRequest(request, {
+      approverUserId: ctx.approverUserId,
+      requesterUserIdByEmployeeId: ctx.requesterUserIdByEmployeeId,
+    })
+  ) {
+    return false;
+  }
+
   const routing = getRouting(request, ctx);
   if (
     routing &&
@@ -190,6 +202,14 @@ export function getFundRequestRoleCutoffBucket(
     if (!isPoScopedRequest(request, ctx)) return null;
     if (isPoFundRequestRejection(request)) return "rejected";
     if (request.purchasing_officer_approved_at) return "approved";
+    if (
+      isPurchasingOfficerOwnFundRequest(request, {
+        approverUserId: ctx.approverUserId,
+        requesterUserIdByEmployeeId: ctx.requesterUserIdByEmployeeId,
+      })
+    ) {
+      return null;
+    }
     if (
       request.status === "project_manager_approved" ||
       isFundRequestReturnedToPurchasing(request)

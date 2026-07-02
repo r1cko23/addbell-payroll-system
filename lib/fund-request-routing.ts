@@ -84,17 +84,18 @@ export async function resolveFundRequestRequesterRouting(
   };
 }
 
-/** Purchasing officers filing from the dashboard skip OM/PO approval and need bank details on the form. */
+/** Purchasing officers filing their own request skip OM/PO approval and need bank details on the form. */
 export function isPurchasingOfficerSelfSubmitPath(options: {
   submitterRole: string | null | undefined;
   isPortal: boolean;
   submitterUserId: string | null;
+  /** PO filed for their linked employee record (dashboard or portal). */
+  isOwnEmployeeRequest?: boolean;
 }): boolean {
-  return (
-    !options.isPortal &&
-    normalizeUserRole(options.submitterRole) === "purchasing_officer" &&
-    Boolean(options.submitterUserId)
-  );
+  if (normalizeUserRole(options.submitterRole) !== "purchasing_officer") return false;
+  if (!options.submitterUserId) return false;
+  if (options.isOwnEmployeeRequest) return true;
+  return !options.isPortal;
 }
 
 export function getFundRequestSubmissionWorkflow(options: {
@@ -102,6 +103,7 @@ export function getFundRequestSubmissionWorkflow(options: {
   isPortal: boolean;
   submitterUserId: string | null;
   requiresOperationsManagerApproval: boolean;
+  isOwnEmployeeRequest?: boolean;
 }): FundRequestSubmissionWorkflow {
   const timestamp = new Date().toISOString();
   const submitterRole = normalizeUserRole(options.submitterRole);
@@ -123,6 +125,7 @@ export function getFundRequestSubmissionWorkflow(options: {
       submitterRole: options.submitterRole,
       isPortal: options.isPortal,
       submitterUserId: options.submitterUserId,
+      isOwnEmployeeRequest: options.isOwnEmployeeRequest,
     })
   ) {
     return {

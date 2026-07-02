@@ -60,14 +60,36 @@ export function canActOnFundRequest(
   role: string | null | undefined,
   status: string,
     options?: {
-    request?: Pick<FundRequestRow, "requested_by" | "project_manager_approved_by">;
+    request?: Pick<
+      FundRequestRow,
+      | "requested_by"
+      | "project_manager_approved_by"
+      | "status"
+      | "purchasing_officer_approved_by"
+    >;
     managedRequesterIds?: ReadonlySet<string> | string[];
+    approverUserId?: string | null;
+    requesterUserId?: string | null;
   }
 ): boolean {
   if (
     !getActionableFundRequestStatuses(role).includes(
       status as FundRequestRow["status"]
     )
+  ) {
+    return false;
+  }
+
+  if (
+    normalizeUserRole(role) === "purchasing_officer" &&
+    options?.request &&
+    isPurchasingOfficerOwnFundRequest(options.request, {
+      approverUserId: options.approverUserId,
+      requesterUserIdByEmployeeId:
+        options.requesterUserId != null
+          ? { [options.request.requested_by]: options.requesterUserId }
+          : undefined,
+    })
   ) {
     return false;
   }
@@ -572,6 +594,31 @@ export type FundRequestRequesterManageOptions = {
   requesterUserId?: string | null;
   requesterIsOperationsManager?: boolean;
 };
+
+/** PO must not approve their own fund request in the purchasing queue. */
+export function isPurchasingOfficerOwnFundRequest(
+  request: Pick<
+    FundRequestRow,
+    | "requested_by"
+    | "status"
+    | "purchasing_officer_approved_by"
+  >,
+  options: {
+    approverUserId?: string | null;
+    requesterUserIdByEmployeeId?: Record<string, string | null | undefined>;
+  }
+): boolean {
+  const approverUserId = options.approverUserId;
+  if (!approverUserId) return false;
+
+  const requesterUserId = options.requesterUserIdByEmployeeId?.[request.requested_by];
+  if (requesterUserId && requesterUserId === approverUserId) return true;
+
+  return (
+    request.status === "purchasing_officer_approved" &&
+    request.purchasing_officer_approved_by === approverUserId
+  );
+}
 
 /** PO dashboard self-file: skips OM/PO queue but requester may edit until UM acts. */
 export function isPurchasingOfficerSelfSubmitAwaitingUpperManagement(

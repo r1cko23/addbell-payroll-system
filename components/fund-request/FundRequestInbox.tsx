@@ -58,6 +58,7 @@ import {
   getFundRequestStatusBadgeVariant,
   getActionableFundRequestStatuses,
   isFundRequestReturnedToPurchasing,
+  isPurchasingOfficerOwnFundRequest,
   validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
@@ -145,7 +146,11 @@ function isFundRequestInApproverInboxQueue(
   row: FundRequestInboxRow,
   role: string | null | undefined,
   managedRequesterIds: ReadonlySet<string>,
-  requesterRoutingById: Record<string, FundRequestRequesterRouting>
+  requesterRoutingById: Record<string, FundRequestRequesterRouting>,
+  options?: {
+    approverUserId?: string | null;
+    requesterUserIdByEmployeeId?: Record<string, string | null | undefined>;
+  }
 ): boolean {
   const normalizedRole = normalizeUserRole(role);
   const actionableStatuses = getActionableFundRequestStatuses(role);
@@ -156,6 +161,14 @@ function isFundRequestInApproverInboxQueue(
   }
 
   if (normalizedRole === "purchasing_officer") {
+    if (
+      isPurchasingOfficerOwnFundRequest(row, {
+        approverUserId: options?.approverUserId,
+        requesterUserIdByEmployeeId: options?.requesterUserIdByEmployeeId,
+      })
+    ) {
+      return false;
+    }
     const routing = requesterRoutingById[row.requested_by];
     if (
       routing &&
@@ -266,12 +279,35 @@ export function FundRequestInbox({
   }, []);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
+  const requesterUserIdByEmployeeId = useMemo(() => {
+    const map: Record<string, string | null | undefined> = {};
+    for (const [employeeId, info] of Object.entries(requesterInfoById)) {
+      map[employeeId] = info.userId;
+    }
+    for (const row of allRows) {
+      if (row.employees?.user_id) {
+        map[row.requested_by] = row.employees.user_id;
+      }
+    }
+    return map;
+  }, [allRows, requesterInfoById]);
+
+  const inboxQueueOptions = useMemo(
+    () => ({
+      approverUserId: profile?.id ?? null,
+      requesterUserIdByEmployeeId,
+    }),
+    [profile?.id, requesterUserIdByEmployeeId]
+  );
+
   const summaryContext = useMemo(
     () => ({
       managedRequesterIds,
       requesterRoutingById,
+      approverUserId: profile?.id ?? null,
+      requesterUserIdByEmployeeId,
     }),
-    [managedRequesterIds, requesterRoutingById]
+    [managedRequesterIds, requesterRoutingById, profile?.id, requesterUserIdByEmployeeId]
   );
 
   const cutoffScopedRows = useMemo(() => {
@@ -762,7 +798,8 @@ export function FundRequestInbox({
                   row,
                   profile?.role,
                   managedRequesterIds,
-                  requesterRoutingById
+                  requesterRoutingById,
+                  inboxQueueOptions
                 )
               ),
             })
@@ -784,7 +821,8 @@ export function FundRequestInbox({
                 r,
                 profile?.role,
                 managedRequesterIds,
-                requesterRoutingById
+                requesterRoutingById,
+                inboxQueueOptions
               ) &&
               canQuickApproveFromInbox(
                 r.status,

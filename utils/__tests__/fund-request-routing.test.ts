@@ -129,10 +129,33 @@ describe("isPurchasingOfficerSelfSubmitPath", () => {
     ).toBe(false);
     expect(
       isPurchasingOfficerSelfSubmitPath({
+        submitterRole: "purchasing_officer",
+        isPortal: true,
+        submitterUserId: "user-1",
+        isOwnEmployeeRequest: true,
+      })
+    ).toBe(true);
+    expect(
+      isPurchasingOfficerSelfSubmitPath({
         submitterRole: "hr",
         isPortal: false,
         submitterUserId: "user-1",
       })
     ).toBe(false);
+  });
+});
+
+describe("getFundRequestSubmissionWorkflow purchasing officer self-submit", () => {
+  test("skips PO queue for PO filing own request from portal", () => {
+    const workflow = getFundRequestSubmissionWorkflow({
+      submitterRole: "purchasing_officer",
+      isPortal: true,
+      submitterUserId: "po-user",
+      requiresOperationsManagerApproval: false,
+      isOwnEmployeeRequest: true,
+    });
+    expect(workflow.status).toBe("purchasing_officer_approved");
+    expect(workflow.purchasing_officer_approved_by).toBe("po-user");
+    expect(workflow.purchasing_officer_approved_at).toBeTruthy();
   });
 });

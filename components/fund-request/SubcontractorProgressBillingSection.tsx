@@ -289,7 +289,7 @@ export function SubcontractorProgressBillingSection({
 
       <div className="space-y-1.5">
         <h4 className="text-sm font-semibold border-b pb-2 mb-2">
-          BILLING DETAILS (OPTIONAL)
+          BILLING DETAILS
         </h4>
         {details.map((row, i) => (
           <div
@@ -301,6 +301,7 @@ export function SubcontractorProgressBillingSection({
               value={row.description}
               onChange={(e) => updateDetail(i, "description", e.target.value)}
               className="min-w-0"
+              required
             />
             <div className="flex items-center gap-2 sm:contents">
               <Input

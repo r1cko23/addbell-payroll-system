@@ -58,7 +58,7 @@ describe("canRequesterEditFundRequest", () => {
     ).toBe(false);
   });
 
-  test("still allows OM self-file edit while waiting on purchasing officer", () => {
+  test("blocks OM requester once request is in purchasing officer queue", () => {
     const request = {
       ...omRequestAfterPoApproval(),
       status: "project_manager_approved" as const,
@@ -66,7 +66,23 @@ describe("canRequesterEditFundRequest", () => {
       purchasing_officer_approved_at: null,
     };
     expect(
-      canRequesterEditFundRequest(request, { requesterUserId: "joel-user" })
+      canRequesterEditFundRequest(request, {
+        requesterUserId: "joel-user",
+        requesterIsOperationsManager: true,
+      })
+    ).toBe(false);
+  });
+
+  test("still allows non-OM requester edit while waiting on purchasing officer", () => {
+    const request = {
+      ...omRequestAfterPoApproval(),
+      status: "project_manager_approved" as const,
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      requested_by: "employee-not-under-om",
+    };
+    expect(
+      canRequesterEditFundRequest(request, { requesterIsOperationsManager: false })
     ).toBe(true);
   });
 

@@ -47,6 +47,7 @@ export function FundRequestAllList({
   base,
   requesterEmployeeId,
   requesterUserId,
+  requesterIsOperationsManager = false,
   onRequestDeleted,
   emptyLabel = "No fund requests yet.",
   filteredEmptyLabel = "No fund requests match your filters.",
@@ -58,6 +59,7 @@ export function FundRequestAllList({
   base: string;
   requesterEmployeeId: string | null;
   requesterUserId?: string | null;
+  requesterIsOperationsManager?: boolean;
   onRequestDeleted: (requestId: string) => void;
   emptyLabel?: string;
   filteredEmptyLabel?: string;
@@ -110,7 +112,10 @@ export function FundRequestAllList({
     return true;
   });
 
-  const manageOptions = { requesterUserId };
+  const manageOptions = {
+    requesterUserId,
+    requesterIsOperationsManager,
+  };
 
   const canDeleteRequest = (request: FundRequestListRow) =>
     Boolean(requesterEmployeeId) &&

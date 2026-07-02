@@ -21,7 +21,10 @@ export function canRequesterManageFundRequest(
     | "management_approved_by"
   >,
   requesterEmployeeId: string | null | undefined,
-  options?: { requesterUserId?: string | null }
+  options?: {
+    requesterUserId?: string | null;
+    requesterIsOperationsManager?: boolean;
+  }
 ): boolean {
   return (
     Boolean(requesterEmployeeId) &&

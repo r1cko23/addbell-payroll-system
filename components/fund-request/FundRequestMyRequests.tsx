@@ -35,6 +35,7 @@ type FundRequestMyRequestsProps = {
   detailHrefBase: string;
   requesterEmployeeId: string | null;
   requesterUserId?: string | null;
+  requesterIsOperationsManager?: boolean;
 };
 
 function sumAmount(rows: FundRequestMyRequestRow[]): number {
@@ -45,6 +46,7 @@ export function FundRequestMyRequests({
   detailHrefBase,
   requesterEmployeeId,
   requesterUserId,
+  requesterIsOperationsManager = false,
 }: FundRequestMyRequestsProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -266,6 +268,7 @@ export function FundRequestMyRequests({
             base={detailHrefBase}
             requesterEmployeeId={requesterEmployeeId}
             requesterUserId={requesterUserId}
+            requesterIsOperationsManager={requesterIsOperationsManager}
             onRequestDeleted={handleRequestDeleted}
             emptyLabel="No fund requests filed in this cutoff."
             filteredEmptyLabel="No fund requests match your filters for this cutoff."

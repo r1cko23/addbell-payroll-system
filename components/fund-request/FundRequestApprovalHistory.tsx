@@ -38,8 +38,13 @@ export function FundRequestApprovalHistory({
     requesterIsOperationsManager,
   });
   const actionHistory = getFundRequestActionHistory(request);
-  const mislabeledReturn = isLikelyMislabeledReturnAsRejection(request);
-  const dispositionLabel = getFundRequestDispositionLabel(request);
+  const auditRequest = {
+    ...request,
+    rejection_undo_snapshot: request.rejection_undo_snapshot ?? null,
+    rejection_history: request.rejection_history ?? null,
+  };
+  const mislabeledReturn = isLikelyMislabeledReturnAsRejection(auditRequest);
+  const dispositionLabel = getFundRequestDispositionLabel(auditRequest);
 
   return (
     <div className={className ?? "rounded-lg border bg-muted/20 p-4"}>

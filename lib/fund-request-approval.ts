@@ -570,6 +570,7 @@ const REQUESTER_MANAGEABLE_STATUSES = new Set<FundRequestRow["status"]>([
 
 export type FundRequestRequesterManageOptions = {
   requesterUserId?: string | null;
+  requesterIsOperationsManager?: boolean;
 };
 
 /** PO dashboard self-file: skips OM/PO queue but requester may edit until UM acts. */
@@ -592,10 +593,12 @@ export function isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
   );
 }
 
-/** At PO queue: editable only before OM records approval (OM self-file / no-OM routing). */
+/** At PO queue: editable only for non-OM requesters before OM records approval. */
 export function canRequesterEditAtPurchasingOfficerQueue(
-  request: Pick<FundRequestRow, "status" | "project_manager_approved_by">
+  request: Pick<FundRequestRow, "status" | "project_manager_approved_by">,
+  options?: Pick<FundRequestRequesterManageOptions, "requesterIsOperationsManager">
 ): boolean {
+  if (options?.requesterIsOperationsManager) return false;
   return (
     request.status === "project_manager_approved" &&
     !request.project_manager_approved_by
@@ -616,7 +619,7 @@ function canRequesterManageFundRequestInternal(
   if (isFundRequestRejected(request)) return false;
   if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
   if (request.status === "pending") return true;
-  if (canRequesterEditAtPurchasingOfficerQueue(request)) return true;
+  if (canRequesterEditAtPurchasingOfficerQueue(request, options)) return true;
   return isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
     request,
     options?.requesterUserId

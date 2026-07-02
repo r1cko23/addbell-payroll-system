@@ -17,6 +17,7 @@ import { DashboardPageHeader } from '@/components/dashboard/DashboardPageHeader'
 import { cn } from '@/lib/utils';
 import { resolveLinkedEmployee } from '@/lib/resolveLinkedEmployee';
 import { isFundRequestApproverRole } from '@/lib/fund-request-approval';
+import { isOperationsManagerRole } from '@/lib/user-roles';
 import { FundRequestInbox } from '@/components/fund-request/FundRequestInbox';
 import { FundRequestCutoffHistory } from '@/components/fund-request/FundRequestCutoffHistory';
 import { FundRequestAllRequests } from '@/components/fund-request/FundRequestAllRequests';
@@ -67,6 +68,7 @@ function FundRequestListPageContent() {
   const [resolvingLinkedEmployee, setResolvingLinkedEmployee] = useState(false);
   const supabase = createClient();
   const employeeId = session?.employee?.id ?? linkedEmployeeId;
+  const requesterIsOperationsManager = isOperationsManagerRole(normalizedRole);
   const canViewAllFromDashboard =
     !isPortal &&
     (normalizedRole === 'operations_manager' ||
@@ -228,6 +230,7 @@ function FundRequestListPageContent() {
                 detailHrefBase={base}
                 requesterEmployeeId={employeeId}
                 requesterUserId={profile?.id ?? null}
+                requesterIsOperationsManager={requesterIsOperationsManager}
               />
             </TabsContent>
           ) : null}
@@ -236,6 +239,7 @@ function FundRequestListPageContent() {
               detailHrefBase={base}
               requesterEmployeeId={employeeId}
               requesterUserId={profile?.id ?? null}
+              requesterIsOperationsManager={requesterIsOperationsManager}
             />
           </TabsContent>
         </Tabs>
@@ -264,6 +268,7 @@ function FundRequestListPageContent() {
           detailHrefBase={base}
           requesterEmployeeId={employeeId}
           requesterUserId={profile?.id ?? null}
+          requesterIsOperationsManager={requesterIsOperationsManager}
         />
       )}
     </div>

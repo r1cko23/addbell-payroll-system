@@ -40,13 +40,6 @@ export async function assertRequesterCanManageFundRequest(
       status: 403 as const,
     };
   }
-  if (!canRequesterEditFundRequest(existing, { requesterUserId: employee.user_id })) {
-    return {
-      error:
-        "This request can no longer be changed because it was approved by the next approver.",
-      status: 403 as const,
-    };
-  }
 
   const { data: employee, error: employeeError } = await admin
     .from("employees")
@@ -64,6 +57,30 @@ export async function assertRequesterCanManageFundRequest(
   // Dashboard users authenticate via Supabase; employee portal uses localStorage only.
   if (authUserId && employee.user_id !== authUserId) {
     return { error: "You can only change your own fund requests.", status: 403 as const };
+  }
+
+  let requesterIsOperationsManager = false;
+  if (employee.user_id) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", employee.user_id)
+      .maybeSingle();
+    requesterIsOperationsManager =
+      (profile?.role || "").trim().toLowerCase() === "operations_manager";
+  }
+
+  if (
+    !canRequesterEditFundRequest(existing, {
+      requesterUserId: employee.user_id,
+      requesterIsOperationsManager,
+    })
+  ) {
+    return {
+      error:
+        "This request can no longer be changed because it was approved by the next approver.",
+      status: 403 as const,
+    };
   }
 
   return { existing };

@@ -86,6 +86,7 @@ import { normalizeUserRole } from "@/lib/user-roles";
 import { applySubcontractorAccountNameToBankDetails } from "@/lib/vendor-subcontractor-account";
 import {
   canRequesterEditFundRequest,
+  isFundRequestRejected,
 } from "@/lib/fund-request-approval";
 import {
   fundRequestDetailsToFormRows,
@@ -298,6 +299,9 @@ export default function NewFundRequestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(isEditMode);
   const [editForbidden, setEditForbidden] = useState(false);
+  const [editForbiddenMessage, setEditForbiddenMessage] = useState(
+    "This fund request cannot be edited because it was already approved by the next approver."
+  );
   const [editStatus, setEditStatus] = useState<FundRequestRow["status"] | null>(null);
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails);
@@ -413,7 +417,12 @@ export default function NewFundRequestPage() {
       }
 
       const row = data as FundRequestRow;
-      if (!canRequesterEditFundRequest(row.status)) {
+      if (!canRequesterEditFundRequest(row)) {
+        setEditForbiddenMessage(
+          isFundRequestRejected(row)
+            ? "This fund request was rejected and can no longer be edited or resubmitted. File a new request if you still need funds."
+            : "This fund request cannot be edited because it was already approved by the next approver."
+        );
         setEditForbidden(true);
         setLoadingEdit(false);
         return;
@@ -884,9 +893,7 @@ export default function NewFundRequestPage() {
           <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">
             ← Back to Fund Requests
           </Link>
-          <p className="text-destructive">
-            This fund request cannot be edited because it was already approved by the next approver.
-          </p>
+          <p className="text-destructive">{editForbiddenMessage}</p>
         </div>
       </DashboardLayout>
     );

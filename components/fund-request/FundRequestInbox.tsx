@@ -30,14 +30,18 @@ import {
   type FundRequestRequesterInfo,
 } from "@/lib/fund-request-requester";
 import {
-  canReturnFundRequestToPurchasing,
-  buildFundRequestUpperManagementReturnUpdates,
-  type FundRequestDisposalAction,
   buildFundRequestRejectUpdates,
+  buildFundRequestUpperManagementReturnUpdates,
   buildFundRequestRejectionUndoSnapshot,
+  canReturnFundRequestToPurchasing,
+  type FundRequestDisposalAction,
+  getFundRequestDisposalReasonLabel,
+  getFundRequestDisposalReasonPlaceholder,
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
   getActionableFundRequestStatuses,
+  isFundRequestReturnedToPurchasing,
+  validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -83,13 +87,6 @@ function getRequesterDisplayName(
     emp.employee_id ||
     "Unknown"
   );
-}
-
-function getApproveLabel(status: FundRequestRow["status"]): string {
-  if (status === "pending") return "Approve (Operations Manager)";
-  if (status === "project_manager_approved") return "Approve (Purchasing Officer)";
-  if (status === "purchasing_officer_approved") return "Approve (Upper Management)";
-  return "Approve";
 }
 
 function canQuickApproveFromInbox(
@@ -305,8 +302,13 @@ export function FundRequestInbox({
     currentStatus: FundRequestRow["status"],
     action: FundRequestDisposalAction
   ) => {
-    if (action === "reject" && !rejectReason.trim()) {
-      toast.error("Please enter a rejection reason.");
+    const validation = validateFundRequestDisposalReason(
+      currentStatus,
+      action,
+      rejectReason
+    );
+    if (!validation.ok) {
+      toast.error(validation.message);
       return;
     }
     if (!currentUserId) return;
@@ -511,6 +513,10 @@ export function FundRequestInbox({
               r.status === "project_manager_approved" &&
               normalizeUserRole(profile?.role) === "purchasing_officer" &&
               actionableStatuses.includes(r.status);
+            const purchasingSubcontractorDetailOnly =
+              showPurchasingDetailOnly && showSubcontractorFields;
+
+            const returnedToPurchasing = isFundRequestReturnedToPurchasing(r);
 
             return (
               <Card
@@ -604,6 +610,12 @@ export function FundRequestInbox({
                           : null}
                       </Caption>
                     ) : null}
+                    {returnedToPurchasing ? (
+                      <Caption className="text-amber-900">
+                        Returned to purchasing officer for review again
+                        {r.rejection_reason ? `: ${r.rejection_reason}` : ""}
+                      </Caption>
+                    ) : null}
                   </div>
 
                   <div className="mt-auto space-y-2 border-t pt-2">
@@ -611,18 +623,18 @@ export function FundRequestInbox({
                       (pendingDisposal?.id === r.id ? (
                         <div className="w-full space-y-2">
                           <Label className="text-xs">
-                            {pendingDisposal.action === "return"
-                              ? "Return reason (optional)"
-                              : "Rejection reason"}
+                            {getFundRequestDisposalReasonLabel(
+                              r.status,
+                              pendingDisposal.action
+                            )}
                           </Label>
                           <Input
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value)}
-                            placeholder={
-                              pendingDisposal.action === "return"
-                                ? "What needs to be corrected?"
-                                : "Reason"
-                            }
+                            placeholder={getFundRequestDisposalReasonPlaceholder(
+                              r.status,
+                              pendingDisposal.action
+                            )}
                           />
                           <div className={dbToolbarActions}>
                             <Button
@@ -684,7 +696,7 @@ export function FundRequestInbox({
                             ) : (
                               <Icon name="Check" size={IconSizes.sm} />
                             )}
-                            {getApproveLabel(r.status)}
+                            Approve
                           </Button>
                         </div>
                       ) : null)}
@@ -698,7 +710,11 @@ export function FundRequestInbox({
                       >
                         <Link href={detailHref(r.id)}>View details</Link>
                       </Button>
-                      {showPurchasingDetailOnly ? (
+                      {purchasingSubcontractorDetailOnly ? (
+                        <Caption className="text-right text-muted-foreground">
+                          Open to enter Subcontract P.O. Amount and approve.
+                        </Caption>
+                      ) : showPurchasingDetailOnly ? (
                         <Caption className="text-right text-muted-foreground">
                           Open to review details and approve.
                         </Caption>

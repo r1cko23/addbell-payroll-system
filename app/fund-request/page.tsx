@@ -224,13 +224,9 @@ function FundRequestListPageContent() {
   const fundRequestSubtitle = isApprover
     ? showMyRequestsTab
       ? 'Review requests pending your approval or view your submitted requests.'
-      : isUpperManagement
-        ? 'Review pending requests for final approval, or open History to see approved and returned requests by cutoff.'
-        : isPurchasingOfficer
-          ? 'Review pending requests, browse all statuses, or open History for approved and rejected requests by cutoff.'
-          : isAdmin
-            ? 'Review all requests in the approval pipeline, browse every status, or open History for past cutoffs.'
-            : 'Review requests pending your approval.'
+      : showHistoryTab
+        ? 'Review pending requests, or open History for upper management final approvals and rejections by cutoff.'
+        : 'Review requests pending your approval.'
     : 'Materials, subcontractor, project funds, or liquidation.';
 
   const newRequestButton = canCreate ? (
@@ -287,10 +283,7 @@ function FundRequestListPageContent() {
           </TabsContent>
           {showHistoryTab ? (
             <TabsContent value="history" className="mt-0">
-              <FundRequestCutoffHistory
-                detailHrefBase={base}
-                role={isPurchasingOfficer ? 'purchasing_officer' : 'upper_management'}
-              />
+              <FundRequestCutoffHistory detailHrefBase={base} />
             </TabsContent>
           ) : null}
           {showAllRequestsTab ? (
@@ -334,7 +327,7 @@ function FundRequestListPageContent() {
               <FundRequestInbox />
             </TabsContent>
             <TabsContent value="history" className="mt-0">
-              <FundRequestCutoffHistory detailHrefBase={base} role="upper_management" />
+              <FundRequestCutoffHistory detailHrefBase={base} />
             </TabsContent>
           </Tabs>
         ) : (

@@ -1,5 +1,5 @@
 import type { FundRequestRow } from "@/types/fund-request";
-import { canRequesterEditFundRequest } from "@/lib/fund-request-approval";
+import { canRequesterEditFundRequest, isFundRequestRejected } from "@/lib/fund-request-approval";
 import {
   createEmptyFundRequestProjectRow,
   parseFundRequestProjectDetails,
@@ -8,13 +8,20 @@ import {
 import type { FundRequestDetailItem } from "@/lib/fund-request-details";
 
 export function canRequesterManageFundRequest(
-  request: Pick<FundRequestRow, "requested_by" | "status">,
+  request: Pick<
+    FundRequestRow,
+    | "requested_by"
+    | "status"
+    | "rejected_at"
+    | "purchasing_officer_approved_at"
+    | "rejection_undo_snapshot"
+  >,
   requesterEmployeeId: string | null | undefined
 ): boolean {
   return (
     Boolean(requesterEmployeeId) &&
     request.requested_by === requesterEmployeeId &&
-    canRequesterEditFundRequest(request.status)
+    canRequesterEditFundRequest(request)
   );
 }
 

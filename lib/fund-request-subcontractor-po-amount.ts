@@ -32,6 +32,12 @@ export function canPurchasingOfficerEditSubcontractorPoAmount(
   );
 }
 
+export function isSubcontractorPoAmountReadyForPurchasingApproval(
+  value: string
+): boolean {
+  return validateSubcontractorPoAmountInput(value) == null;
+}
+
 export function shouldShowSubcontractorPoAmountToPurchasingOfficer(
   role: string | null | undefined,
   purpose: string | null | undefined,

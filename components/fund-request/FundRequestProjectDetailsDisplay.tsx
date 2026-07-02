@@ -248,6 +248,7 @@ function SubcontractorReferenceCard({
             <div className="space-y-1.5">
               <Label
                 htmlFor="subcontractor_po_amount_display"
+                required
                 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
               >
                 {FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
@@ -306,6 +307,11 @@ function SubcontractorReferenceTable({
             {showSubcontractorPoAmount ? (
               <th className={cn(headCellClass, "whitespace-nowrap")}>
                 {FUND_REQUEST_FIELD_LABELS.subcontractorPoAmount}
+                {editableSubcontractorPoAmount ? (
+                  <span className="ml-0.5 text-destructive" aria-hidden="true">
+                    *
+                  </span>
+                ) : null}
               </th>
             ) : null}
           </tr>

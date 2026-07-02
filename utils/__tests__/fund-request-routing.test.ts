@@ -2,7 +2,9 @@ import {
   getFundRequestSubmissionWorkflow,
   isPurchasingOfficerSelfSubmitPath,
   requesterRequiresOperationsManagerApproval,
+  resolveFundRequestRequesterRouting,
 } from "@/lib/fund-request-routing";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 describe("requesterRequiresOperationsManagerApproval", () => {
   test("requires OM approval only when group approver is operations manager", () => {
@@ -24,6 +26,63 @@ describe("requesterRequiresOperationsManagerApproval", () => {
         groupApproverRole: "operations_manager",
       })
     ).toBe(false);
+  });
+});
+
+describe("resolveFundRequestRequesterRouting", () => {
+  test("loads group approver via separate queries (no PostgREST embed)", async () => {
+    const supabase = {
+      from: (table: string) => {
+        if (table === "employees") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { overtime_group_id: "group-1" },
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "overtime_groups") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: {
+                    id: "group-1",
+                    name: "Operations-Laguna",
+                    approver_id: "om-user",
+                  },
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "profiles") {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { role: "operations_manager" },
+                }),
+              }),
+            }),
+          };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      },
+    } as unknown as SupabaseClient;
+
+    await expect(
+      resolveFundRequestRequesterRouting(supabase, "employee-1")
+    ).resolves.toEqual({
+      overtimeGroupId: "group-1",
+      overtimeGroupName: "Operations-Laguna",
+      groupApproverUserId: "om-user",
+      groupApproverRole: "operations_manager",
+      requiresOperationsManagerApproval: true,
+    });
   });
 });
 

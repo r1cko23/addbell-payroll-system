@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-import { canRequesterEditFundRequest } from "@/lib/fund-request-approval";
+import {
+  canRequesterEditFundRequest,
+  isFundRequestRejected,
+} from "@/lib/fund-request-approval";
 
 export function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -19,7 +22,7 @@ export async function assertRequesterCanManageFundRequest(
 ) {
   const { data: existing, error: loadError } = await admin
     .from("fund_requests")
-    .select("id, requested_by, status")
+    .select("id, requested_by, status, rejected_at, purchasing_officer_approved_at, rejection_undo_snapshot")
     .eq("id", requestId)
     .maybeSingle();
 
@@ -29,7 +32,13 @@ export async function assertRequesterCanManageFundRequest(
   if (!existing || existing.requested_by !== requesterEmployeeId) {
     return { error: "Request not found", status: 404 as const };
   }
-  if (!canRequesterEditFundRequest(existing.status)) {
+  if (isFundRequestRejected(existing)) {
+    return {
+      error: "This request was rejected and can no longer be changed.",
+      status: 403 as const,
+    };
+  }
+  if (!canRequesterEditFundRequest(existing)) {
     return {
       error:
         "This request can no longer be changed because it was approved by the next approver.",

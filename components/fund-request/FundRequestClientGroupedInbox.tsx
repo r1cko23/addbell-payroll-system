@@ -18,7 +18,11 @@ import {
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
 import type { FundRequestRow } from "@/types/fund-request";
-import type { FundRequestDisposalAction } from "@/lib/fund-request-approval";
+import {
+  getFundRequestDisposalReasonLabel,
+  getFundRequestDisposalReasonPlaceholder,
+  type FundRequestDisposalAction,
+} from "@/lib/fund-request-approval";
 
 type PendingFundRequestDisposal = {
   id: string;
@@ -86,14 +90,15 @@ function GroupedInboxRequestActions({
     return (
       <VStack gap="2" className="w-full max-w-md">
         <Label className="text-xs">
-          {isReturn ? "Return reason (optional)" : "Rejection reason"}
+          {getFundRequestDisposalReasonLabel(request.status, pendingDisposal.action)}
         </Label>
         <Input
           value={rejectReason}
           onChange={(e) => onRejectReasonChange(e.target.value)}
-          placeholder={
-            isReturn ? "Reason for returning to purchasing (optional)" : "Reason"
-          }
+          placeholder={getFundRequestDisposalReasonPlaceholder(
+            request.status,
+            pendingDisposal.action
+          )}
           className="h-9 text-sm"
         />
         <HStack gap="2" className="flex-wrap">

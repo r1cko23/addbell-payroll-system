@@ -3,13 +3,14 @@
 import { format } from "date-fns";
 import {
   formatFundRequestSubmittedAtLabel,
+  getFundRequestApprovalTrailFields,
   getFundRequestRequesterLabel,
   shouldShowOperationsManagerApproval,
-  type FundRequestHistoryInput,
+  type FundRequestApprovalTrailInput,
 } from "@/lib/fund-request-history";
 
 type FundRequestApprovalHistoryProps = {
-  request: FundRequestHistoryInput;
+  request: FundRequestApprovalTrailInput;
   requesterName: string;
   requesterUserId?: string | null;
   requesterIsOperationsManager?: boolean;
@@ -25,7 +26,8 @@ export function FundRequestApprovalHistory({
   approverNames,
   className,
 }: FundRequestApprovalHistoryProps) {
-  const showOperationsManagerApproval = shouldShowOperationsManagerApproval(request, {
+  const trail = getFundRequestApprovalTrailFields(request);
+  const showOperationsManagerApproval = shouldShowOperationsManagerApproval(trail, {
     requesterUserId,
     requesterIsOperationsManager,
   });
@@ -46,30 +48,30 @@ export function FundRequestApprovalHistory({
         {showOperationsManagerApproval ? (
           <li>
             <span className="font-medium">Approved by Operations Manager:</span>{" "}
-            {approverNames[request.project_manager_approved_by ?? ""] ?? "—"} on{" "}
-            {format(new Date(request.project_manager_approved_at!), "MMM d, yyyy")}{" "}
-            at {format(new Date(request.project_manager_approved_at!), "h:mm a")}
+            {approverNames[trail.project_manager_approved_by ?? ""] ?? "—"} on{" "}
+            {format(new Date(trail.project_manager_approved_at!), "MMM d, yyyy")}{" "}
+            at {format(new Date(trail.project_manager_approved_at!), "h:mm a")}
           </li>
         ) : null}
 
-        {request.purchasing_officer_approved_at ? (
+        {trail.purchasing_officer_approved_at ? (
           <li>
             <span className="font-medium">Approved by Purchasing Officer:</span>{" "}
-            {approverNames[request.purchasing_officer_approved_by ?? ""] ?? "—"} on{" "}
+            {approverNames[trail.purchasing_officer_approved_by ?? ""] ?? "—"} on{" "}
             {format(
-              new Date(request.purchasing_officer_approved_at),
+              new Date(trail.purchasing_officer_approved_at),
               "MMM d, yyyy"
             )}{" "}
-            at {format(new Date(request.purchasing_officer_approved_at), "h:mm a")}
+            at {format(new Date(trail.purchasing_officer_approved_at), "h:mm a")}
           </li>
         ) : null}
 
-        {request.management_approved_at ? (
+        {trail.management_approved_at ? (
           <li>
             <span className="font-medium">Approved by Upper Management:</span>{" "}
-            {approverNames[request.management_approved_by ?? ""] ?? "—"} on{" "}
-            {format(new Date(request.management_approved_at), "MMM d, yyyy")} at{" "}
-            {format(new Date(request.management_approved_at), "h:mm a")}
+            {approverNames[trail.management_approved_by ?? ""] ?? "—"} on{" "}
+            {format(new Date(trail.management_approved_at), "MMM d, yyyy")} at{" "}
+            {format(new Date(trail.management_approved_at), "h:mm a")}
           </li>
         ) : null}
 

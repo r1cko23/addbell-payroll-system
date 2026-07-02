@@ -22,7 +22,7 @@ import { FundRequestDetailsSection } from '@/components/fund-request/FundRequest
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
 import { FundRequestAddDocument } from '@/components/fund-request/FundRequestAddDocument';
-import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterEditFundRequest } from '@/lib/fund-request-approval';
+import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterEditFundRequest, getFundRequestRequesterStatus, isFundRequestRejected } from '@/lib/fund-request-approval';
 import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { Button } from '@/components/ui/button';
@@ -138,8 +138,9 @@ export function FundRequestEmployeeDetail({
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
   const canEdit =
-    canRequesterEditFundRequest(request.status) &&
+    canRequesterEditFundRequest(request) &&
     request.requested_by === session?.employee?.id;
+  const requesterStatus = getFundRequestRequesterStatus(request);
 
   return (
     <div className={cn('w-full max-w-3xl', epPageWrapper)}>
@@ -157,10 +158,10 @@ export function FundRequestEmployeeDetail({
                   {formatFundRequestSubmittedAtLabel(request)}
                 </p>
                 <Badge
-                  variant={getFundRequestStatusBadgeVariant(request.status)}
-                  className={cn('w-fit', getFundRequestStatusBadgeClass(request.status))}
+                  variant={getFundRequestStatusBadgeVariant(requesterStatus)}
+                  className={cn('w-fit', getFundRequestStatusBadgeClass(requesterStatus))}
                 >
-                  {STATUS_LABELS[request.status] ?? request.status}
+                  {STATUS_LABELS[requesterStatus] ?? requesterStatus}
                 </Badge>
               </div>
             </div>
@@ -247,12 +248,24 @@ export function FundRequestEmployeeDetail({
             />
           ) : null}
 
-          {request.status === 'rejected' && request.rejection_reason && (
+          {isFundRequestRejected(request) && request.rejection_reason && (
             <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3">
               <h4 className="text-xs font-medium uppercase tracking-wide text-destructive">
                 Rejection reason
               </h4>
               <p className="mt-1 text-sm">{request.rejection_reason}</p>
+              <p className="mt-2 text-sm text-destructive">
+                This request cannot be edited or resubmitted. File a new request in the current
+                cutoff if you still need funds.
+              </p>
+            </div>
+          )}
+          {isFundRequestRejected(request) && !request.rejection_reason && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">
+                This request was rejected and can no longer be edited or resubmitted. File a new
+                request in the current cutoff if you still need funds.
+              </p>
             </div>
           )}
         </CardContent>

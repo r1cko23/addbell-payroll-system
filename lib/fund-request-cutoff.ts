@@ -60,10 +60,78 @@ export function formatFundRequestCutoffPeriod(
   return `${startFormatted} – ${endFormatted}`;
 }
 
+export type FundRequestHistoryOutcome = "approved" | "rejected";
+
+/** @deprecated Use FundRequestHistoryOutcome */
 export type UmHistoryOutcome = "approved" | "returned" | "rejected";
+/** @deprecated Use FundRequestHistoryOutcome */
 export type PoHistoryOutcome = "approved" | "rejected";
-export type ApproverHistoryOutcome = UmHistoryOutcome | PoHistoryOutcome;
+/** @deprecated History is no longer role-specific */
+export type ApproverHistoryOutcome = FundRequestHistoryOutcome;
+/** @deprecated History is no longer role-specific */
 export type FundRequestApproverHistoryRole = "upper_management" | "purchasing_officer";
+
+/** Upper management rejected after purchasing had approved (final decision). */
+export function isFundRequestUpperManagementFinalRejection(
+  request: FundRequestRow
+): boolean {
+  if (request.status !== "rejected" || !request.rejected_at) return false;
+  if (isFundRequestReturnedToPurchasing(request)) return false;
+  if (request.purchasing_officer_approved_at) return true;
+  const snapshot = request.rejection_undo_snapshot;
+  return snapshot?.status === "purchasing_officer_approved";
+}
+
+/** History includes only upper management final approve or final reject. */
+export function isFundRequestFinalDecisionHistoryEntry(
+  request: FundRequestRow
+): boolean {
+  if (request.status === "management_approved" && request.management_approved_at) {
+    return true;
+  }
+  return isFundRequestUpperManagementFinalRejection(request);
+}
+
+export function getFundRequestHistoryOutcome(
+  request: FundRequestRow
+): FundRequestHistoryOutcome | null {
+  if (!isFundRequestFinalDecisionHistoryEntry(request)) return null;
+  if (request.status === "management_approved") return "approved";
+  return "rejected";
+}
+
+export function getFundRequestFinalDecisionDateYmd(
+  request: FundRequestRow
+): string | null {
+  if (request.status === "management_approved" && request.management_approved_at) {
+    return getManilaDateKeyFromIso(request.management_approved_at);
+  }
+  if (isFundRequestUpperManagementFinalRejection(request) && request.rejected_at) {
+    return getManilaDateKeyFromIso(request.rejected_at);
+  }
+  return null;
+}
+
+export function fundRequestBelongsToHistoryCutoff(
+  request: FundRequestRow,
+  cutoff: WeeklyCutoffPeriod
+): boolean {
+  const decisionYmd = getFundRequestFinalDecisionDateYmd(request);
+  if (!decisionYmd) return false;
+  return decisionYmd >= cutoff.start_ymd && decisionYmd <= cutoff.end_ymd;
+}
+
+export const FUND_REQUEST_HISTORY_FETCH_OR =
+  "status.eq.management_approved,and(status.eq.rejected,purchasing_officer_approved_at.not.is.null)";
+
+export function getUmFundRequestDecisionDateYmd(request: FundRequestRow): string | null {
+  return getFundRequestFinalDecisionDateYmd(request);
+}
+
+/** @deprecated Use getFundRequestFinalDecisionDateYmd */
+export function getFundRequestDecisionDateYmd(request: FundRequestRow): string | null {
+  return getFundRequestFinalDecisionDateYmd(request);
+}
 
 export function getFundRequestFiledDateYmd(request: FundRequestRow): string | null {
   const raw = request.request_date?.trim();
@@ -123,21 +191,6 @@ export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | 
   const anchorDate = parseYmd(ymd);
   if (!anchorDate) return null;
   return format(getFundRequestCutoffPeriodStart(anchorDate), "yyyy-MM-dd");
-}
-
-export function getUmFundRequestDecisionDateYmd(request: FundRequestRow): string | null {
-  if (request.status === "management_approved" && request.management_approved_at) {
-    return getManilaDateKeyFromIso(request.management_approved_at);
-  }
-  if (request.rejected_at) {
-    return getManilaDateKeyFromIso(request.rejected_at);
-  }
-  return null;
-}
-
-/** @deprecated Use getUmFundRequestDecisionDateYmd or getFundRequestApproverDecisionDateYmd */
-export function getFundRequestDecisionDateYmd(request: FundRequestRow): string | null {
-  return getUmFundRequestDecisionDateYmd(request);
 }
 
 export function isPoFundRequestRejection(request: FundRequestRow): boolean {
@@ -202,22 +255,16 @@ export function getPoHistoryOutcome(request: FundRequestRow): PoHistoryOutcome |
 
 export function isFundRequestApproverHistoryEntry(
   request: FundRequestRow,
-  role: FundRequestApproverHistoryRole
+  _role?: FundRequestApproverHistoryRole
 ): boolean {
-  if (role === "purchasing_officer") {
-    return isFundRequestPoHistoryEntry(request);
-  }
-  return isFundRequestUmHistoryEntry(request);
+  return isFundRequestFinalDecisionHistoryEntry(request);
 }
 
 export function getApproverHistoryOutcome(
   request: FundRequestRow,
-  role: FundRequestApproverHistoryRole
+  _role?: FundRequestApproverHistoryRole
 ): ApproverHistoryOutcome | null {
-  if (role === "purchasing_officer") {
-    return getPoHistoryOutcome(request);
-  }
-  return getUmHistoryOutcome(request);
+  return getFundRequestHistoryOutcome(request);
 }
 
 export function getFundRequestHistoryCutoffs(anchorYmd: string): {

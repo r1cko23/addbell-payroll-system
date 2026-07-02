@@ -123,8 +123,17 @@ export type FundRequestRow = {
   rejected_at: string | null;
   rejection_reason: string | null;
   rejection_undo_snapshot: FundRequestRejectionUndoSnapshot | null;
+  rejection_history?: FundRequestRejectionHistoryEntry[] | null;
   created_at: string;
   updated_at: string;
+};
+
+export type FundRequestRejectionHistoryEntry = {
+  rejected_by: string;
+  rejected_at: string;
+  rejection_reason: string | null;
+  undone_at: string | null;
+  undone_by: string | null;
 };
 
 export type FundRequestRejectionUndoSnapshot = {

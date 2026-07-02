@@ -7,6 +7,16 @@ import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
@@ -15,63 +25,37 @@ import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-detai
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useProfile } from "@/lib/hooks/useProfile";
-import { formatFundRequestFiledAtCompact } from "@/lib/fund-request-history";
+import { parseTimestampInManila } from "@/utils/business-hours";
 import {
   buildFundRequestUndoManagementApprovalUpdates,
   buildFundRequestUndoRejectionUpdates,
   canUndoFundRequestManagementApproval,
   canUndoFundRequestRejection,
-  isFundRequestReturnedToPurchasing,
 } from "@/lib/fund-request-approval";
 import {
-  fundRequestBelongsToApproverCutoff,
+  FUND_REQUEST_HISTORY_FETCH_OR,
+  fundRequestBelongsToHistoryCutoff,
   formatFundRequestCutoffPeriod,
+  getFundRequestFinalDecisionDateYmd,
   getFundRequestHistoryCutoffs,
-  getApproverHistoryOutcome,
-  isFundRequestApproverHistoryEntry,
-  type ApproverHistoryOutcome,
-  type FundRequestApproverHistoryRole,
+  getFundRequestHistoryOutcome,
+  isFundRequestFinalDecisionHistoryEntry,
+  type FundRequestHistoryOutcome,
 } from "@/lib/fund-request-cutoff";
+import { normalizeUserRole } from "@/lib/user-roles";
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 
 type FundRequestHistoryRow = FundRequestRow & {
   projects?: { name: string | null; code: string | null } | null;
 };
 
-const OUTCOME_LABELS: Record<ApproverHistoryOutcome, string> = {
+const OUTCOME_LABELS: Record<FundRequestHistoryOutcome, string> = {
   approved: "Approved",
-  returned: "Returned to purchasing",
   rejected: "Rejected",
 };
 
-const ROLE_CONFIG: Record<
-  FundRequestApproverHistoryRole,
-  {
-    fetchOr: string;
-    negativeMetricLabel: string;
-    negativeSectionTitle: string;
-    negativeEmptyLabel: string;
-  }
-> = {
-  upper_management: {
-    fetchOr:
-      "status.eq.management_approved,status.eq.rejected,and(status.eq.project_manager_approved,rejected_at.not.is.null)",
-    negativeMetricLabel: "Returned / Rejected",
-    negativeSectionTitle: "Returned / rejected requests",
-    negativeEmptyLabel: "No returned or rejected requests for this cutoff.",
-  },
-  purchasing_officer: {
-    fetchOr:
-      "purchasing_officer_approved_at.not.is.null,and(status.eq.rejected,project_manager_approved_at.not.is.null,purchasing_officer_approved_at.is.null)",
-    negativeMetricLabel: "Rejected",
-    negativeSectionTitle: "Rejected requests",
-    negativeEmptyLabel: "No rejected requests for this cutoff.",
-  },
-};
-
-function outcomeBadgeClass(outcome: ApproverHistoryOutcome): string {
+function outcomeBadgeClass(outcome: FundRequestHistoryOutcome): string {
   if (outcome === "approved") return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  if (outcome === "returned") return "bg-amber-100 text-amber-900 border-amber-200";
   return "bg-red-100 text-red-800 border-red-200";
 }
 
@@ -79,16 +63,29 @@ function sumAmount(rows: FundRequestHistoryRow[]): number {
   return rows.reduce((total, row) => total + Number(row.total_requested_amount ?? 0), 0);
 }
 
+function formatFundRequestDecisionAtCompact(request: FundRequestHistoryRow): string {
+  const iso =
+    request.status === "management_approved"
+      ? request.management_approved_at
+      : request.rejected_at;
+  if (!iso) return "—";
+  const date = parseTimestampInManila(iso);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
 type FundRequestCutoffHistoryProps = {
   detailHrefBase: string;
-  role: FundRequestApproverHistoryRole;
 };
 
-export function FundRequestCutoffHistory({
-  detailHrefBase,
-  role,
-}: FundRequestCutoffHistoryProps) {
-  const config = ROLE_CONFIG[role];
+export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHistoryProps) {
   const { profile } = useProfile();
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -96,7 +93,13 @@ export function FundRequestCutoffHistory({
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
   const [undoingId, setUndoingId] = useState<string | null>(null);
-  const canUndoApproved = role === "upper_management";
+  const [pendingUndo, setPendingUndo] = useState<{
+    row: FundRequestHistoryRow;
+    kind: "approval" | "rejection";
+  } | null>(null);
+  const canUndoApproved =
+    normalizeUserRole(profile?.role) === "upper_management" ||
+    normalizeUserRole(profile?.role) === "admin";
 
   useEffect(() => {
     let active = true;
@@ -114,7 +117,7 @@ export function FundRequestCutoffHistory({
       let query = supabase
         .from("fund_requests")
         .select("*, projects ( name, code )")
-        .or(config.fetchOr)
+        .or(FUND_REQUEST_HISTORY_FETCH_OR)
         .order("created_at", { ascending: false });
 
       if (history) {
@@ -139,9 +142,11 @@ export function FundRequestCutoffHistory({
       }
 
       const filtered = ((data as FundRequestHistoryRow[]) ?? []).filter((row) => {
-        if (!isFundRequestApproverHistoryEntry(row, role)) return false;
-        if (!history || cutoffs.length === 0) return true;
-        return cutoffs.some((cutoff) => fundRequestBelongsToApproverCutoff(row, cutoff, role));
+        if (!isFundRequestFinalDecisionHistoryEntry(row)) return false;
+        if (!history) return true;
+        const decisionYmd = getFundRequestFinalDecisionDateYmd(row);
+        if (!decisionYmd) return false;
+        return decisionYmd >= history.fetch_from && decisionYmd <= history.fetch_to;
       });
 
       setRows(filtered);
@@ -152,7 +157,7 @@ export function FundRequestCutoffHistory({
     return () => {
       active = false;
     };
-  }, [config.fetchOr, role, supabase]);
+  }, [supabase]);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
@@ -165,28 +170,21 @@ export function FundRequestCutoffHistory({
 
   const cutoffRows = useMemo(() => {
     if (!selectedCutoff) return [];
-    return rows.filter((row) => fundRequestBelongsToApproverCutoff(row, selectedCutoff, role));
-  }, [rows, selectedCutoff, role]);
+    return rows.filter((row) => fundRequestBelongsToHistoryCutoff(row, selectedCutoff));
+  }, [rows, selectedCutoff]);
 
   const approvedRows = useMemo(
-    () => cutoffRows.filter((row) => getApproverHistoryOutcome(row, role) === "approved"),
-    [cutoffRows, role]
+    () => cutoffRows.filter((row) => getFundRequestHistoryOutcome(row) === "approved"),
+    [cutoffRows]
   );
 
-  const negativeRows = useMemo(
-    () =>
-      cutoffRows.filter((row) => {
-        const outcome = getApproverHistoryOutcome(row, role);
-        return outcome === "returned" || outcome === "rejected";
-      }),
-    [cutoffRows, role]
+  const rejectedRows = useMemo(
+    () => cutoffRows.filter((row) => getFundRequestHistoryOutcome(row) === "rejected"),
+    [cutoffRows]
   );
 
   const canGoToOlderCutoff = selectedCutoffIndex < historyCutoffs.length - 1;
   const canGoToNewerCutoff = selectedCutoffIndex > 0;
-
-  const formatFiledAt = (request: FundRequestHistoryRow): string =>
-    formatFundRequestFiledAtCompact(request);
 
   const handleUndoApproval = async (row: FundRequestHistoryRow) => {
     if (!profile?.id || !canUndoFundRequestManagementApproval(profile.role, profile.id, row)) {
@@ -220,7 +218,7 @@ export function FundRequestCutoffHistory({
       return;
     }
 
-    const updates = buildFundRequestUndoRejectionUpdates(row);
+    const updates = buildFundRequestUndoRejectionUpdates(row, profile.id);
     if (!updates) {
       toast.error("This request cannot be restored.");
       return;
@@ -238,11 +236,7 @@ export function FundRequestCutoffHistory({
       return;
     }
 
-    toast.success(
-      isFundRequestReturnedToPurchasing(row)
-        ? "Return undone. Request restored to pending final approval."
-        : "Rejection undone. Request restored to its previous step."
-    );
+    toast.success("Rejection undone. Request restored to pending final approval.");
     setRows((current) => current.filter((item) => item.id !== row.id));
   };
 
@@ -267,10 +261,17 @@ export function FundRequestCutoffHistory({
     return null;
   };
 
-  const handleRowUndo = async (
+  const handleRowUndo = (
     row: FundRequestHistoryRow,
     kind: "approval" | "rejection"
   ) => {
+    setPendingUndo({ row, kind });
+  };
+
+  const confirmPendingUndo = async () => {
+    if (!pendingUndo) return;
+    const { row, kind } = pendingUndo;
+    setPendingUndo(null);
     if (kind === "approval") {
       await handleUndoApproval(row);
       return;
@@ -295,7 +296,7 @@ export function FundRequestCutoffHistory({
           <table className="w-full text-left text-sm">
             <thead className="border-b bg-muted/40">
               <tr>
-                <th className="px-4 py-3 font-medium">Filed</th>
+                <th className="px-4 py-3 font-medium">Decided</th>
                 <th className="px-4 py-3 font-medium">Project</th>
                 <th className="px-4 py-3 font-medium">Purpose</th>
                 <th className="px-4 py-3 font-medium text-right">Total (PHP)</th>
@@ -305,12 +306,14 @@ export function FundRequestCutoffHistory({
             </thead>
             <tbody>
               {sectionRows.map((row) => {
-                const outcome = getApproverHistoryOutcome(row, role);
+                const outcome = getFundRequestHistoryOutcome(row);
                 if (!outcome) return null;
                 const undoKind = getRowUndoKind(row, options);
                 return (
                   <tr key={row.id} className="border-b last:border-0 hover:bg-primary/5">
-                    <td className="px-4 py-3 whitespace-nowrap">{formatFiledAt(row)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {formatFundRequestDecisionAtCompact(row)}
+                    </td>
                     <td className="px-4 py-3 max-w-[180px] truncate">
                       {getFundRequestListProjectLabel(row)}
                     </td>
@@ -341,7 +344,7 @@ export function FundRequestCutoffHistory({
                             size="sm"
                             className="h-7 text-xs"
                             disabled={undoingId === row.id}
-                            onClick={() => void handleRowUndo(row, undoKind)}
+                            onClick={() => handleRowUndo(row, undoKind)}
                           >
                             {undoingId === row.id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -361,7 +364,7 @@ export function FundRequestCutoffHistory({
 
         <div className="md:hidden space-y-3 p-4">
           {sectionRows.map((row) => {
-            const outcome = getApproverHistoryOutcome(row, role);
+            const outcome = getFundRequestHistoryOutcome(row);
             if (!outcome) return null;
             const undoKind = getRowUndoKind(row, options);
             return (
@@ -369,7 +372,9 @@ export function FundRequestCutoffHistory({
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold">{formatFiledAt(row)}</div>
+                      <div className="text-sm font-semibold">
+                        {formatFundRequestDecisionAtCompact(row)}
+                      </div>
                       <div className="text-xs text-muted-foreground mt-1 truncate">
                         {getFundRequestListProjectLabel(row)}
                       </div>
@@ -402,7 +407,7 @@ export function FundRequestCutoffHistory({
                           size="sm"
                           className="h-7 text-xs"
                           disabled={undoingId === row.id}
-                          onClick={() => void handleRowUndo(row, undoKind)}
+                          onClick={() => handleRowUndo(row, undoKind)}
                         >
                           {undoingId === row.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -423,6 +428,7 @@ export function FundRequestCutoffHistory({
   };
 
   return (
+    <>
     <div className="space-y-4">
       {historyCutoffs.length > 0 ? (
         <div className="flex items-center gap-2 rounded-lg border bg-card px-2 py-2 sm:px-3">
@@ -465,10 +471,10 @@ export function FundRequestCutoffHistory({
           }
         />
         <MetricCard
-          label={config.negativeMetricLabel}
-          value={loading ? "—" : String(negativeRows.length)}
+          label="Rejected"
+          value={loading ? "—" : String(rejectedRows.length)}
           meta={
-            loading ? "Loading..." : `₱${sumAmount(negativeRows).toLocaleString()} total`
+            loading ? "Loading..." : `₱${sumAmount(rejectedRows).toLocaleString()} total`
           }
         />
       </div>
@@ -490,18 +496,39 @@ export function FundRequestCutoffHistory({
 
       <Card className="border-border/80 bg-card/95">
         <CardHeader className="border-b py-4">
-          <CardTitle className="text-base">{config.negativeSectionTitle}</CardTitle>
+          <CardTitle className="text-base">Rejected requests</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">Loading...</p>
           ) : (
-            renderTable(negativeRows, config.negativeEmptyLabel, {
+            renderTable(rejectedRows, "No rejected requests for this cutoff.", {
               showUndoRejection: true,
             })
           )}
         </CardContent>
       </Card>
     </div>
+    <AlertDialog open={Boolean(pendingUndo)} onOpenChange={(open) => !open && setPendingUndo(null)}>
+      <AlertDialogContent className="max-w-sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {pendingUndo?.kind === "approval" ? "Undo approval?" : "Undo rejection?"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingUndo?.kind === "approval"
+              ? "This will move the request back to pending final approval."
+              : "Are you sure you want to undo this rejection? The request will return to the previous approval step."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={() => void confirmPendingUndo()}>
+            Undo
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

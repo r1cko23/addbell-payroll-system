@@ -135,10 +135,11 @@ export function FundRequestMyRequests({
 
   const pendingCount = useMemo(
     () =>
-      cutoffRows.filter((row) =>
-        ["pending", "project_manager_approved", "purchasing_officer_approved"].includes(
-          row.status
-        )
+      cutoffRows.filter(
+        (row) =>
+          ["pending", "project_manager_approved", "purchasing_officer_approved"].includes(
+            row.status
+          ) && !row.rejected_at
       ).length,
     [cutoffRows]
   );

@@ -36,22 +36,24 @@ export async function resolveFundRequestRequesterRouting(
 ): Promise<FundRequestRequesterRouting> {
   const { data: employee } = await supabase
     .from("employees")
-    .select("overtime_group_id, overtime_groups:overtime_group_id ( id, name, approver_id )")
+    .select("overtime_group_id")
     .eq("id", requesterEmployeeId)
     .maybeSingle();
 
-  const group = Array.isArray(employee?.overtime_groups)
-    ? employee?.overtime_groups[0]
-    : employee?.overtime_groups;
+  const overtimeGroupId = employee?.overtime_group_id ?? null;
 
-  const overtimeGroupId =
-    (group as { id?: string } | null | undefined)?.id ??
-    employee?.overtime_group_id ??
-    null;
-  const overtimeGroupName =
-    (group as { name?: string } | null | undefined)?.name?.trim() || null;
-  const groupApproverUserId =
-    (group as { approver_id?: string } | null | undefined)?.approver_id ?? null;
+  let overtimeGroupName: string | null = null;
+  let groupApproverUserId: string | null = null;
+  if (overtimeGroupId) {
+    const { data: group } = await supabase
+      .from("overtime_groups")
+      .select("id, name, approver_id")
+      .eq("id", overtimeGroupId)
+      .maybeSingle();
+
+    overtimeGroupName = group?.name?.trim() || null;
+    groupApproverUserId = group?.approver_id ?? null;
+  }
 
   let groupApproverRole: string | null = null;
   if (groupApproverUserId) {

@@ -25,6 +25,7 @@ import { FUND_REQUEST_STATUS_LABELS } from "@/types/fund-request";
 import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
 import {
   canRequesterDeleteFundRequest,
+  getFundRequestRequesterStatus,
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
 } from "@/lib/fund-request-approval";
@@ -89,7 +90,9 @@ export function FundRequestAllList({
   };
 
   const filteredRows = rows.filter((r) => {
-    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (statusFilter !== "all" && getFundRequestRequesterStatus(r) !== statusFilter) {
+      return false;
+    }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       const matchPurpose = (r.purpose || "").toLowerCase().includes(term);
@@ -104,7 +107,7 @@ export function FundRequestAllList({
   const canDeleteRequest = (request: FundRequestListRow) =>
     Boolean(requesterEmployeeId) &&
     request.requested_by === requesterEmployeeId &&
-    canRequesterDeleteFundRequest(request.status);
+    canRequesterDeleteFundRequest(request);
 
   const canEditRequest = (request: FundRequestListRow) =>
     canRequesterManageFundRequest(request, requesterEmployeeId);
@@ -137,7 +140,9 @@ export function FundRequestAllList({
             </tr>
           </thead>
           <tbody>
-            {filteredRows.map((r) => (
+            {filteredRows.map((r) => {
+              const requesterStatus = getFundRequestRequesterStatus(r);
+              return (
               <tr key={r.id} className="border-b last:border-0 hover:bg-primary/5">
                 <td className="px-4 py-3 whitespace-nowrap">
                   {format(new Date(r.request_date), "MMM d, yyyy")}
@@ -154,13 +159,13 @@ export function FundRequestAllList({
                 </td>
                 <td className="px-4 py-3">
                   <Badge
-                    variant={getFundRequestStatusBadgeVariant(r.status)}
+                    variant={getFundRequestStatusBadgeVariant(requesterStatus)}
                     className={cn(
                       "whitespace-nowrap text-xs",
-                      getFundRequestStatusBadgeClass(r.status)
+                      getFundRequestStatusBadgeClass(requesterStatus)
                     )}
                   >
-                    {FUND_REQUEST_STATUS_LABELS[r.status] ?? r.status}
+                    {FUND_REQUEST_STATUS_LABELS[requesterStatus] ?? requesterStatus}
                   </Badge>
                 </td>
                 <td className="px-4 py-3">
@@ -192,13 +197,16 @@ export function FundRequestAllList({
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
 
       <div className="md:hidden space-y-3 p-4">
-        {filteredRows.map((r) => (
+        {filteredRows.map((r) => {
+          const requesterStatus = getFundRequestRequesterStatus(r);
+          return (
           <Card key={r.id}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3">
@@ -214,13 +222,13 @@ export function FundRequestAllList({
                   </div>
                 </div>
                 <Badge
-                  variant={getFundRequestStatusBadgeVariant(r.status)}
+                  variant={getFundRequestStatusBadgeVariant(requesterStatus)}
                   className={cn(
                     "max-w-[45%] shrink-0 whitespace-normal text-right text-xs leading-snug sm:max-w-none",
-                    getFundRequestStatusBadgeClass(r.status)
+                    getFundRequestStatusBadgeClass(requesterStatus)
                   )}
                 >
-                  {FUND_REQUEST_STATUS_LABELS[r.status] ?? r.status}
+                  {FUND_REQUEST_STATUS_LABELS[requesterStatus] ?? requesterStatus}
                 </Badge>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
@@ -256,7 +264,8 @@ export function FundRequestAllList({
               </div>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       <AlertDialog open={Boolean(deleteId)} onOpenChange={(open) => !open && setDeleteId(null)}>

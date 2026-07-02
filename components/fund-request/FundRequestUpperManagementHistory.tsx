@@ -7,5 +7,5 @@ type FundRequestUpperManagementHistoryProps = {
 export function FundRequestUpperManagementHistory({
   detailHrefBase,
 }: FundRequestUpperManagementHistoryProps) {
-  return <FundRequestCutoffHistory detailHrefBase={detailHrefBase} role="upper_management" />;
+  return <FundRequestCutoffHistory detailHrefBase={detailHrefBase} />;
 }

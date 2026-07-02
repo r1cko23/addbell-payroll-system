@@ -1,4 +1,7 @@
-import type { FundRequestRow } from "@/types/fund-request";
+import type {
+  FundRequestRejectionUndoSnapshot,
+  FundRequestRow,
+} from "@/types/fund-request";
 import { parseTimestampInManila } from "@/utils/business-hours";
 
 const MANILA_TZ = "Asia/Manila";
@@ -17,6 +20,54 @@ export type FundRequestHistoryInput = Pick<
   | "rejected_at"
   | "rejection_reason"
 >;
+
+export type FundRequestApprovalTrailInput = FundRequestHistoryInput & {
+  rejection_undo_snapshot?: FundRequestRejectionUndoSnapshot | null;
+};
+
+/** Merge live approval fields with rejection snapshot so rejected requests still show prior steps. */
+export function getFundRequestApprovalTrailFields(
+  request: FundRequestApprovalTrailInput
+): FundRequestHistoryInput {
+  const snap = request.rejection_undo_snapshot;
+  if (!snap) return request;
+
+  const useSnapshotPo =
+    !request.purchasing_officer_approved_at &&
+    Boolean(snap.purchasing_officer_approved_at);
+  const useSnapshotMgmt =
+    !request.management_approved_at && Boolean(snap.management_approved_at);
+
+  if (!useSnapshotPo && !useSnapshotMgmt) return request;
+
+  return {
+    ...request,
+    purchasing_officer_approved_by: useSnapshotPo
+      ? snap.purchasing_officer_approved_by
+      : request.purchasing_officer_approved_by,
+    purchasing_officer_approved_at: useSnapshotPo
+      ? snap.purchasing_officer_approved_at
+      : request.purchasing_officer_approved_at,
+    management_approved_by: useSnapshotMgmt
+      ? snap.management_approved_by
+      : request.management_approved_by,
+    management_approved_at: useSnapshotMgmt
+      ? snap.management_approved_at
+      : request.management_approved_at,
+  };
+}
+
+export function getFundRequestApprovalTrailApproverIds(
+  request: FundRequestApprovalTrailInput
+): string[] {
+  const trail = getFundRequestApprovalTrailFields(request);
+  return [
+    trail.project_manager_approved_by,
+    trail.purchasing_officer_approved_by,
+    trail.management_approved_by,
+    request.rejected_by,
+  ].filter(Boolean) as string[];
+}
 
 export function isOperationsManagerSelfSubmission(
   projectManagerApprovedBy: string | null | undefined,

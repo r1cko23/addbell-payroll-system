@@ -6,12 +6,23 @@ import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import {
   formatFundRequestSubmittedAtLabel,
+  getFundRequestApprovalTrailApproverIds,
 } from "@/lib/fund-request-history";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { useProfile } from "@/lib/hooks/useProfile";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -38,9 +49,14 @@ import {
   canUndoFundRequestManagementApproval,
   canUndoFundRequestRejection,
   getFundRequestApprovalActionCopy,
+  getFundRequestDisposalReasonLabel,
+  getFundRequestDisposalReasonPlaceholder,
   getFundRequestUndoRejectionLabel,
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
+  isFundRequestRejected,
+  isFundRequestReturnedToPurchasing,
+  validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
 import {
   canPurchasingOfficerEditDetails,
@@ -55,6 +71,7 @@ import {
 } from "@/lib/fund-request-details";
 import {
   canPurchasingOfficerEditSubcontractorPoAmount,
+  isSubcontractorPoAmountReadyForPurchasingApproval,
   parseSubcontractorPoAmountInput,
   shouldShowSubcontractorPoAmountToPurchasingOfficer,
   validateSubcontractorPoAmountInput,
@@ -126,6 +143,9 @@ export function FundRequestApprovalDetail({
   const [disposalForm, setDisposalForm] = useState<FundRequestDisposalAction | null>(
     null
   );
+  const [pendingUndoKind, setPendingUndoKind] = useState<"approval" | "rejection" | null>(
+    null
+  );
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails());
   const [subcontractorPoAmount, setSubcontractorPoAmount] = useState("");
@@ -176,12 +196,7 @@ export function FundRequestApprovalDetail({
           ? String(row.subcontractor_po_amount)
           : ""
       );
-      const approverIds = [
-        row.project_manager_approved_by,
-        row.purchasing_officer_approved_by,
-        row.management_approved_by,
-        row.rejected_by,
-      ].filter(Boolean) as string[];
+      const approverIds = getFundRequestApprovalTrailApproverIds(row);
 
       const [requesterInfo, approverNameMap] = await Promise.all([
         resolveFundRequestRequesterInfo(supabase, row.requested_by),
@@ -309,11 +324,14 @@ export function FundRequestApprovalDetail({
   );
   const approvalActionCopy = getFundRequestApprovalActionCopy(
     profile?.role,
-    request?.status
+    request?.status,
+    request ?? undefined
   );
   const isUpperManagementFinalReview = Boolean(
-    request &&
-      canReturnFundRequestToPurchasing(profile?.role, request.status)
+    request && canReturnFundRequestToPurchasing(profile?.role, request.status)
+  );
+  const returnedToPurchasing = Boolean(
+    request && isFundRequestReturnedToPurchasing(request)
   );
   const canUploadPaymentCheck = Boolean(
     request && canUploadFundRequestPaymentCheck(profile?.role, request.status)
@@ -322,6 +340,12 @@ export function FundRequestApprovalDetail({
     splitFundRequestDocuments(documents);
   const showPaymentCheckSection =
     canUploadPaymentCheck || paymentCheckDocuments.length > 0;
+  const subcontractorPoAmountRequired = showPurchasingSubcontractorPoField;
+  const subcontractorPoAmountReady =
+    !subcontractorPoAmountRequired ||
+    isSubcontractorPoAmountReadyForPurchasingApproval(subcontractorPoAmount);
+  const approveBlockedBySubcontractorPoAmount =
+    subcontractorPoAmountRequired && !subcontractorPoAmountReady;
 
   const handleApprove = async () => {
     if (!request || !profile?.id) return;
@@ -359,7 +383,7 @@ export function FundRequestApprovalDetail({
     }
 
     let parsedSubcontractorPoAmount: number | null | undefined;
-    if (showPurchasingSubcontractorPoField) {
+    if (subcontractorPoAmountRequired) {
       const subconPoError = validateSubcontractorPoAmountInput(subcontractorPoAmount);
       if (subconPoError) {
         toast.error(subconPoError);
@@ -405,8 +429,14 @@ export function FundRequestApprovalDetail({
 
   const handleDisposal = async (action: FundRequestDisposalAction) => {
     if (!request || !profile?.id) return;
-    if (action === "reject" && !rejectReason.trim()) {
-      toast.error("Please enter a rejection reason.");
+
+    const validation = validateFundRequestDisposalReason(
+      request.status,
+      action,
+      rejectReason
+    );
+    if (!validation.ok) {
+      toast.error(validation.message);
       return;
     }
 
@@ -480,7 +510,7 @@ export function FundRequestApprovalDetail({
   const handleUndoRejection = async () => {
     if (!request || !profile?.id) return;
 
-    const updates = buildFundRequestUndoRejectionUpdates(request);
+    const updates = buildFundRequestUndoRejectionUpdates(request, profile.id);
     if (!updates) {
       toast.error("This request cannot be restored.");
       return;
@@ -719,32 +749,16 @@ export function FundRequestApprovalDetail({
               requesterIsOperationsManager={requesterIsOperationsManager}
               approverNames={approverNames}
             />
-            {request.status === "project_manager_approved" &&
-              request.rejection_reason &&
-              request.rejected_at && (
-                <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-3 space-y-3">
-                  <FundRequestField
-                    label="Returned by upper management"
-                    value={request.rejection_reason}
-                  />
-                  {canUndoRejection ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={undoing}
-                      onClick={handleUndoRejection}
-                    >
-                      {undoing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      {undoRejectionLabel}
-                    </Button>
-                  ) : null}
-                </div>
-              )}
+            {returnedToPurchasing && request.rejection_reason ? (
+              <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-3">
+                <FundRequestField
+                  label="Returned by upper management"
+                  value={request.rejection_reason}
+                />
+              </div>
+            ) : null}
 
-            {request.status === "rejected" && request.rejection_reason && (
+            {isFundRequestRejected(request) && request.rejection_reason && (
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 space-y-3">
                 <FundRequestField
                   label="Rejection Reason"
@@ -757,7 +771,7 @@ export function FundRequestApprovalDetail({
                     variant="outline"
                     size="sm"
                     disabled={undoing}
-                    onClick={handleUndoRejection}
+                    onClick={() => setPendingUndoKind("rejection")}
                   >
                     {undoing ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -775,7 +789,7 @@ export function FundRequestApprovalDetail({
                   variant="outline"
                   size="sm"
                   disabled={undoing}
-                  onClick={handleUndoManagementApproval}
+                  onClick={() => setPendingUndoKind("approval")}
                 >
                   {undoing ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -822,22 +836,31 @@ export function FundRequestApprovalDetail({
                       {approvalActionCopy.description}
                     </p>
                   ) : null}
+                  {approveBlockedBySubcontractorPoAmount ? (
+                    <p className="mt-2 text-sm text-amber-900">
+                      Enter the Subcontract P.O. Amount above before you can approve
+                      this subcontractor payment request.
+                    </p>
+                  ) : null}
                 </div>
 
                 {disposalForm ? (
                   <div className="space-y-2">
                     <Label htmlFor="reject_reason">
-                      {disposalForm === "return"
-                        ? "Reason for returning to purchasing (optional)"
-                        : "Rejection reason"}
+                      {request
+                        ? getFundRequestDisposalReasonLabel(request.status, disposalForm)
+                        : "Reason"}
                     </Label>
                     <Input
                       id="reject_reason"
                       value={rejectReason}
                       onChange={(e) => setRejectReason(e.target.value)}
                       placeholder={
-                        disposalForm === "return"
-                          ? "What needs to be corrected?"
+                        request
+                          ? getFundRequestDisposalReasonPlaceholder(
+                              request.status,
+                              disposalForm
+                            )
                           : "Reason"
                       }
                     />
@@ -880,7 +903,7 @@ export function FundRequestApprovalDetail({
                       Return to Purchasing
                     </Button>
                     <Button
-                      disabled={acting}
+                      disabled={acting || approveBlockedBySubcontractorPoAmount}
                       className={dbHeaderButton}
                       onClick={handleApprove}
                     >
@@ -900,7 +923,7 @@ export function FundRequestApprovalDetail({
                   </div>
                 ) : (
                   <div className={dbToolbarActions}>
-                    <Button disabled={acting} className={dbHeaderButton} onClick={handleApprove}>
+                    <Button disabled={acting || approveBlockedBySubcontractorPoAmount} className={dbHeaderButton} onClick={handleApprove}>
                       {acting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
@@ -920,6 +943,41 @@ export function FundRequestApprovalDetail({
             ) : null}
           </CardContent>
       </Card>
+      <AlertDialog
+        open={Boolean(pendingUndoKind)}
+        onOpenChange={(open) => !open && setPendingUndoKind(null)}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingUndoKind === "approval" ? "Undo approval?" : "Undo rejection?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingUndoKind === "approval"
+                ? "This will move the request back to pending final approval."
+                : "Are you sure you want to undo this rejection? The request will return to the previous approval step."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const kind = pendingUndoKind;
+                setPendingUndoKind(null);
+                if (kind === "approval") {
+                  void handleUndoManagementApproval();
+                  return;
+                }
+                if (kind === "rejection") {
+                  void handleUndoRejection();
+                }
+              }}
+            >
+              Undo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

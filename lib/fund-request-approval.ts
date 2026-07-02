@@ -4,8 +4,20 @@ import {
   approvalRejectedStatusBadgeClass,
 } from "@/lib/approval-status-badge";
 import { fundRequestInOperationsManagerQueue } from "@/lib/fund-request-routing";
+import {
+  appendFundRequestRejectionHistory,
+  markLatestFundRequestRejectionUndone,
+} from "@/lib/fund-request-rejection-history";
 import { normalizeUserRole } from "@/lib/user-roles";
 
+/**
+ * Fund request approval workflow:
+ * 1. Requester → Operations Manager: approve → Purchasing Officer; reject (optional reason) → final for requester.
+ * 2. Purchasing Officer: approve → Upper Management; reject (optional reason) → final for requester.
+ * 3. Upper Management: approve → recorded in history; reject (optional reason) → recorded in history, final for requester;
+ *    return to purchasing → back to PO for review (not final, not in history).
+ * Rejected requests cannot be edited or resubmitted; requesters must file a new request.
+ */
 export const FUND_REQUEST_NEXT_STATUS: Partial<
   Record<FundRequestRow["status"], FundRequestRow["status"]>
 > = {
@@ -83,9 +95,34 @@ export type FundRequestApprovalActionCopy = {
 
 export function getFundRequestApprovalActionCopy(
   role: string | null | undefined,
-  status: string | null | undefined
+  status: string | null | undefined,
+  request?: Pick<
+    FundRequestRow,
+    | "status"
+    | "rejected_at"
+    | "rejection_undo_snapshot"
+    | "purchasing_officer_approved_at"
+    | "rejection_reason"
+  >
 ): FundRequestApprovalActionCopy {
   const normalizedRole = normalizeUserRole(role);
+
+  if (
+    normalizedRole === "purchasing_officer" &&
+    status === "project_manager_approved" &&
+    request &&
+    isFundRequestReturnedToPurchasing(request as FundRequestRow)
+  ) {
+    const reason = request.rejection_reason?.trim();
+    return {
+      eyebrow: "Purchasing Officer",
+      title: "Returned for purchasing officer review",
+      description: reason
+        ? `Upper management returned this request for your review again. Note: ${reason}`
+        : "Upper management returned this request to the purchasing officer for review again.",
+      urgent: true,
+    };
+  }
 
   if (
     normalizedRole === "purchasing_officer" &&
@@ -94,7 +131,8 @@ export function getFundRequestApprovalActionCopy(
     return {
       eyebrow: "Purchasing Officer",
       title: "Review and approval required",
-      description: "",
+      description:
+        "Approve to send this request to Upper Management, or reject to decline it. A rejection reason is required; rejections are final and the requester must file again.",
       urgent: true,
     };
   }
@@ -103,7 +141,7 @@ export function getFundRequestApprovalActionCopy(
     return {
       title: "Operations Manager approval required",
       description:
-        "This request is waiting for your approval before it can move to the Purchasing Officer.",
+        "Approve to send this request to the Purchasing Officer, or reject to decline it. A rejection reason is required; rejections are final and the requester must file again.",
     };
   }
 
@@ -114,14 +152,15 @@ export function getFundRequestApprovalActionCopy(
     return {
       title: "Final approve required",
       description:
-        "Purchasing has approved these for payment. You may optionally upload a payment check for audit before or after approval. Return to purchasing for corrections, reject to decline it, or approve when your review is complete.",
+        "Purchasing has approved these for payment. Return to purchasing requires a reason; reject is optional. Approve to record in history.",
       urgent: true,
     };
   }
 
   return {
     title: "Your approval is required",
-    description: "Review the details above, then approve or reject this request.",
+    description:
+      "Review the details above, then approve or reject. A rejection reason is required unless you are at final upper management review.",
   };
 }
 
@@ -168,7 +207,86 @@ export function canReturnFundRequestToPurchasing(
   return normalizedRole === "upper_management" || normalizedRole === "admin";
 }
 
+export type FundRequestRequesterAccessFields = Pick<
+  FundRequestRow,
+  "status" | "rejected_at" | "rejection_undo_snapshot" | "purchasing_officer_approved_at"
+>;
+
+export function isFundRequestRejected(
+  request: FundRequestRequesterAccessFields
+): boolean {
+  return request.status === "rejected";
+}
+
+export function getFundRequestRequesterStatus(
+  request: FundRequestRequesterAccessFields
+): FundRequestRow["status"] {
+  if (isFundRequestRejected(request)) return "rejected";
+  return request.status;
+}
+
 export type FundRequestDisposalAction = "return" | "reject";
+
+/** OM and PO rejections require a reason; UM reject is optional; UM return requires a reason. */
+export function isFundRequestDisposalReasonRequired(
+  status: FundRequestRow["status"],
+  action: FundRequestDisposalAction
+): boolean {
+  if (action === "return") {
+    return status === "purchasing_officer_approved";
+  }
+  if (status === "pending" || status === "project_manager_approved") {
+    return true;
+  }
+  return false;
+}
+
+export function validateFundRequestDisposalReason(
+  status: FundRequestRow["status"],
+  action: FundRequestDisposalAction,
+  reason: string
+): { ok: true } | { ok: false; message: string } {
+  if (!isFundRequestDisposalReasonRequired(status, action)) {
+    return { ok: true };
+  }
+  if (!reason.trim()) {
+    return {
+      ok: false,
+      message:
+        action === "return"
+          ? "Please enter a reason for returning to purchasing."
+          : "Please enter a rejection reason.",
+    };
+  }
+  return { ok: true };
+}
+
+export function getFundRequestDisposalReasonLabel(
+  status: FundRequestRow["status"],
+  action: FundRequestDisposalAction
+): string {
+  const required = isFundRequestDisposalReasonRequired(status, action);
+  if (action === "return") {
+    return required
+      ? "Reason for returning to purchasing"
+      : "Reason for returning to purchasing (optional)";
+  }
+  return required ? "Rejection reason" : "Rejection reason (optional)";
+}
+
+export function getFundRequestDisposalReasonPlaceholder(
+  status: FundRequestRow["status"],
+  action: FundRequestDisposalAction
+): string {
+  if (action === "return") {
+    return isFundRequestDisposalReasonRequired(status, action)
+      ? "What needs to be corrected?"
+      : "What needs to be corrected? (optional)";
+  }
+  return isFundRequestDisposalReasonRequired(status, action)
+    ? "Reason"
+    : "Reason (optional)";
+}
 
 export function buildFundRequestUpperManagementReturnUpdates(
   currentUserId: string,
@@ -286,9 +404,14 @@ function inferFundRequestStatusBeforeRejection(
 }
 
 export function buildFundRequestUndoRejectionUpdates(
-  request: FundRequestRow
+  request: FundRequestRow,
+  undoneBy?: string | null
 ): Record<string, unknown> | null {
   const snapshot = request.rejection_undo_snapshot;
+  const undoneAt = new Date().toISOString();
+  const rejectionHistory = undoneBy
+    ? markLatestFundRequestRejectionUndone(request.rejection_history, undoneBy, undoneAt)
+    : request.rejection_history;
 
   if (snapshot) {
     return {
@@ -302,7 +425,8 @@ export function buildFundRequestUndoRejectionUpdates(
       rejected_at: null,
       rejection_reason: null,
       rejection_undo_snapshot: null,
-      updated_at: new Date().toISOString(),
+      rejection_history: rejectionHistory,
+      updated_at: undoneAt,
     };
   }
 
@@ -314,7 +438,8 @@ export function buildFundRequestUndoRejectionUpdates(
     rejected_at: null,
     rejection_reason: null,
     rejection_undo_snapshot: null,
-    updated_at: new Date().toISOString(),
+    rejection_history: rejectionHistory,
+    updated_at: undoneAt,
   };
 }
 
@@ -323,13 +448,19 @@ export function buildFundRequestRejectUpdates(
   reason: string,
   request: FundRequestRow
 ): Record<string, unknown> {
+  const rejectedAt = new Date().toISOString();
   return {
     status: "rejected",
     rejected_by: currentUserId,
-    rejected_at: new Date().toISOString(),
-    rejection_reason: reason.trim(),
+    rejected_at: rejectedAt,
+    rejection_reason: reason.trim() || null,
     rejection_undo_snapshot: buildFundRequestRejectionUndoSnapshot(request),
-    updated_at: new Date().toISOString(),
+    rejection_history: appendFundRequestRejectionHistory(request.rejection_history, {
+      rejected_by: currentUserId,
+      rejected_at: rejectedAt,
+      rejection_reason: reason.trim() || null,
+    }),
+    updated_at: rejectedAt,
   };
 }
 
@@ -361,14 +492,32 @@ const REQUESTER_MANAGEABLE_STATUSES = new Set<FundRequestRow["status"]>([
 ]);
 
 export function canRequesterDeleteFundRequest(
-  status: FundRequestRow["status"] | string
+  request:
+    | FundRequestRequesterAccessFields
+    | FundRequestRow["status"]
+    | string
 ): boolean {
-  return REQUESTER_MANAGEABLE_STATUSES.has(status as FundRequestRow["status"]);
+  if (typeof request === "object" && request !== null) {
+    if (isFundRequestRejected(request)) return false;
+    if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
+    return REQUESTER_MANAGEABLE_STATUSES.has(request.status);
+  }
+  if (request === "rejected") return false;
+  return REQUESTER_MANAGEABLE_STATUSES.has(request as FundRequestRow["status"]);
 }
 
 /** Edit fields, delete, and add documents before the next approver acts. */
 export function canRequesterEditFundRequest(
-  status: FundRequestRow["status"] | string
+  request:
+    | FundRequestRequesterAccessFields
+    | FundRequestRow["status"]
+    | string
 ): boolean {
-  return REQUESTER_MANAGEABLE_STATUSES.has(status as FundRequestRow["status"]);
+  if (typeof request === "object" && request !== null) {
+    if (isFundRequestRejected(request)) return false;
+    if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
+    return REQUESTER_MANAGEABLE_STATUSES.has(request.status);
+  }
+  if (request === "rejected") return false;
+  return REQUESTER_MANAGEABLE_STATUSES.has(request as FundRequestRow["status"]);
 }

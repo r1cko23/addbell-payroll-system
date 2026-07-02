@@ -27,39 +27,32 @@ import {
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 import { FundRequestAllList } from "@/components/fund-request/FundRequestAllList";
 
-type FundRequestMyRequestRow = FundRequestRow & {
+type FundRequestAllRequestRow = FundRequestRow & {
   projects: { name: string; code: string } | null;
 };
 
-type FundRequestMyRequestsProps = {
+type FundRequestAllRequestsProps = {
   detailHrefBase: string;
   requesterEmployeeId: string | null;
 };
 
-function sumAmount(rows: FundRequestMyRequestRow[]): number {
+function sumAmount(rows: FundRequestAllRequestRow[]): number {
   return rows.reduce((total, row) => total + Number(row.total_requested_amount ?? 0), 0);
 }
 
-export function FundRequestMyRequests({
+export function FundRequestAllRequests({
   detailHrefBase,
   requesterEmployeeId,
-}: FundRequestMyRequestsProps) {
+}: FundRequestAllRequestsProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<FundRequestMyRequestRow[]>([]);
+  const [rows, setRows] = useState<FundRequestAllRequestRow[]>([]);
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    if (!requesterEmployeeId) {
-      setRows([]);
-      setHistoryCutoffs([]);
-      setLoading(false);
-      return;
-    }
-
     let active = true;
 
     const load = async () => {
@@ -76,7 +69,6 @@ export function FundRequestMyRequests({
       let query = supabase
         .from("fund_requests")
         .select("*, projects ( name, code )")
-        .eq("requested_by", requesterEmployeeId)
         .order("created_at", { ascending: false });
 
       if (history) {
@@ -94,10 +86,10 @@ export function FundRequestMyRequests({
       if (!active) return;
 
       if (error) {
-        console.error("Failed to load my fund requests", error);
+        console.error("Failed to load all fund requests", error);
         setRows([]);
       } else {
-        const loaded = (data as FundRequestMyRequestRow[]) ?? [];
+        const loaded = (data as FundRequestAllRequestRow[]) ?? [];
         const filtered =
           history && cutoffs.length > 0
             ? loaded.filter((row) =>
@@ -116,7 +108,7 @@ export function FundRequestMyRequests({
     return () => {
       active = false;
     };
-  }, [requesterEmployeeId, supabase]);
+  }, [supabase]);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
@@ -151,16 +143,6 @@ export function FundRequestMyRequests({
   const handleRequestDeleted = (requestId: string) => {
     setRows((current) => current.filter((row) => row.id !== requestId));
   };
-
-  if (!requesterEmployeeId) {
-    return (
-      <Card className="border-border/80 bg-card/95">
-        <CardContent className="p-8 text-center text-muted-foreground">
-          Link your account to an employee record to view your fund requests.
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -234,7 +216,7 @@ export function FundRequestMyRequests({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
-              aria-label="Search my fund requests"
+              aria-label="Search all fund requests"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>

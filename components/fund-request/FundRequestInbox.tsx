@@ -9,6 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { formatFundRequestFiledAtCompact } from "@/lib/fund-request-history";
@@ -23,7 +33,7 @@ import {
   approvalQueueCardHeaderRow,
   approvalQueueStatusBadge,
 } from "@/lib/approval-queue-card-ui";
-import { dbHeaderButton, dbKpiGrid, dbToolbarActions } from "@/lib/dashboard-ui";
+import { dbHeaderButton, dbKpiGrid } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 import {
   resolveFundRequestRequesterMap,
@@ -128,6 +138,11 @@ export function FundRequestInbox({
     id: string;
     action: FundRequestDisposalAction;
   } | null>(null);
+  const [pendingApprove, setPendingApprove] = useState<
+    | { kind: "single"; id: string; status: FundRequestRow["status"] }
+    | { kind: "all"; requests: FundRequestInboxRow[] }
+    | null
+  >(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [requesterInfoById, setRequesterInfoById] = useState<
     Record<string, FundRequestRequesterInfo>
@@ -557,7 +572,7 @@ export function FundRequestInbox({
           }}
           onConfirmDisposal={handleDisposal}
           bulkApproving={bulkApproving}
-          onApproveAll={() => handleApproveAll(filteredRows)}
+          onApproveAll={() => setPendingApprove({ kind: "all", requests: filteredRows })}
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -685,107 +700,115 @@ export function FundRequestInbox({
                   </div>
 
                   <div className="mt-auto space-y-2 border-t pt-2">
-                    {(canAct || showPurchasingDetailOnly) &&
-                      (pendingDisposal?.id === r.id ? (
-                        <div className="w-full space-y-2">
-                          <Label className="text-xs">
-                            {getFundRequestDisposalReasonLabel(
-                              r.status,
-                              pendingDisposal.action
-                            )}
-                          </Label>
-                          <Input
-                            value={rejectReason}
-                            onChange={(e) => setRejectReason(e.target.value)}
-                            placeholder={getFundRequestDisposalReasonPlaceholder(
-                              r.status,
-                              pendingDisposal.action
-                            )}
-                          />
-                          <div className={dbToolbarActions}>
-                            <Button
-                              size="sm"
-                              variant={
-                                pendingDisposal.action === "return"
-                                  ? "default"
-                                  : "destructive"
-                              }
-                              className={dbHeaderButton}
-                              disabled={actingId === r.id}
-                              onClick={() =>
-                                handleDisposal(r.id, r.status, pendingDisposal.action)
-                              }
-                            >
-                              {actingId === r.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : pendingDisposal.action === "return" ? (
-                                "Confirm return"
-                              ) : (
-                                "Confirm reject"
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className={dbHeaderButton}
-                              onClick={() => {
-                                setPendingDisposal(null);
-                                setRejectReason("");
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : canAct ? (
-                        <div className={dbToolbarActions}>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            className={dbHeaderButton}
-                            onClick={() => {
-                              setPendingDisposal({ id: r.id, action: "reject" });
-                              setRejectReason("");
-                            }}
-                          >
-                            <Icon name="X" size={IconSizes.sm} />
-                            Reject
-                          </Button>
+                    {pendingDisposal?.id === r.id ? (
+                      <div className="w-full space-y-2">
+                        <Label className="text-xs">
+                          {getFundRequestDisposalReasonLabel(
+                            r.status,
+                            pendingDisposal.action
+                          )}
+                        </Label>
+                        <Input
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder={getFundRequestDisposalReasonPlaceholder(
+                            r.status,
+                            pendingDisposal.action
+                          )}
+                        />
+                        <div className="flex flex-row flex-wrap items-center justify-end gap-2">
                           <Button
                             size="sm"
+                            variant={
+                              pendingDisposal.action === "return"
+                                ? "default"
+                                : "destructive"
+                            }
                             className={dbHeaderButton}
                             disabled={actingId === r.id}
-                            onClick={() => handleApprove(r.id, r.status)}
+                            onClick={() =>
+                              handleDisposal(r.id, r.status, pendingDisposal.action)
+                            }
                           >
                             {actingId === r.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : pendingDisposal.action === "return" ? (
+                              "Confirm return"
                             ) : (
-                              <Icon name="Check" size={IconSizes.sm} />
+                              "Confirm reject"
                             )}
-                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className={dbHeaderButton}
+                            onClick={() => {
+                              setPendingDisposal(null);
+                              setRejectReason("");
+                            }}
+                          >
+                            Cancel
                           </Button>
                         </div>
-                      ) : null)}
-
-                    <div className="flex flex-col items-end gap-0.5">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className={cn(dbHeaderButton, "w-auto shrink-0")}
-                        asChild
-                      >
-                        <Link href={detailHref(r.id)}>View details</Link>
-                      </Button>
-                      {purchasingSubcontractorDetailOnly ? (
-                        <Caption className="text-right text-muted-foreground">
-                          Open to enter Subcontract P.O. Amount and approve.
-                        </Caption>
-                      ) : showPurchasingDetailOnly ? (
-                        <Caption className="text-right text-muted-foreground">
-                          Open to review details and approve.
-                        </Caption>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-row flex-wrap items-center justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className={cn(dbHeaderButton, "shrink-0")}
+                            asChild
+                          >
+                            <Link href={detailHref(r.id)}>View details</Link>
+                          </Button>
+                          {canAct ? (
+                            <>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className={dbHeaderButton}
+                                onClick={() => {
+                                  setPendingDisposal({ id: r.id, action: "reject" });
+                                  setRejectReason("");
+                                }}
+                              >
+                                <Icon name="X" size={IconSizes.sm} />
+                                Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                className={dbHeaderButton}
+                                disabled={actingId === r.id}
+                                onClick={() =>
+                                  setPendingApprove({
+                                    kind: "single",
+                                    id: r.id,
+                                    status: r.status,
+                                  })
+                                }
+                              >
+                                {actingId === r.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Icon name="Check" size={IconSizes.sm} />
+                                )}
+                                Approve
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
+                        {purchasingSubcontractorDetailOnly ? (
+                          <Caption className="text-right text-muted-foreground">
+                            Open to enter Subcontract P.O. Amount and approve.
+                          </Caption>
+                        ) : showPurchasingDetailOnly ? (
+                          <Caption className="text-right text-muted-foreground">
+                            Open to review details and approve.
+                          </Caption>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -793,6 +816,42 @@ export function FundRequestInbox({
           })}
         </div>
       )}
+      <AlertDialog
+        open={Boolean(pendingApprove)}
+        onOpenChange={(open) => !open && setPendingApprove(null)}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingApprove?.kind === "all" ? "Approve all requests?" : "Approve request?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingApprove?.kind === "all"
+                ? `This will approve ${pendingApprove.requests.length} fund request${
+                    pendingApprove.requests.length === 1 ? "" : "s"
+                  } and move each to the next step.`
+                : "This will approve the fund request and move it to the next step."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const pending = pendingApprove;
+                setPendingApprove(null);
+                if (!pending) return;
+                if (pending.kind === "all") {
+                  void handleApproveAll(pending.requests);
+                  return;
+                }
+                void handleApprove(pending.id, pending.status);
+              }}
+            >
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -17,6 +17,42 @@ const FUND_REQUEST_CUTOFF_START_DOW = 5; // Friday
 const FUND_REQUEST_CUTOFF_DEADLINE_DOW = 4; // Thursday
 const FUND_REQUEST_CUTOFF_DEADLINE_HOUR = 10; // 10:00 AM Manila
 
+/** Active Fri–Thu cutoff start (yyyy-MM-dd) containing the anchor date. */
+export function getActiveFundRequestCutoffStartYmd(
+  anchor: Date = new Date()
+): string {
+  return format(getFundRequestCutoffPeriodStart(anchor), "yyyy-MM-dd");
+}
+
+/** Cutoff week(s) where Thu 10:00 AM roll-forward is disabled (plain Fri–Thu). */
+export function getFundRequestCutoffGraceWeekStartYmds(
+  anchor: Date = new Date()
+): Set<string> {
+  return new Set([getActiveFundRequestCutoffStartYmd(anchor)]);
+}
+
+/**
+ * Skip Thu 10:00 AM roll-forward when the filing's calendar cutoff is the active
+ * grace week (the Fri–Thu period containing today). Used during workflow recovery.
+ */
+export function shouldSkipFundRequestCutoffDeadlineRollForward(
+  calendarCutoffStart: Date,
+  anchor: Date = new Date()
+): boolean {
+  return getFundRequestCutoffGraceWeekStartYmds(anchor).has(
+    format(calendarCutoffStart, "yyyy-MM-dd")
+  );
+}
+
+export function isFundRequestCutoffDeadlineRollForwardActive(
+  anchor: Date = new Date()
+): boolean {
+  return !shouldSkipFundRequestCutoffDeadlineRollForward(
+    getFundRequestCutoffPeriodStart(anchor),
+    anchor
+  );
+}
+
 function parseYmd(ymd: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
   if (!m) return null;
@@ -170,7 +206,10 @@ export function getFundRequestCutoffStartYmdForFiling(
   if (!anchorDate) return null;
 
   let cutoffStart = getFundRequestCutoffPeriodStart(anchorDate);
-  if (isAfterFundRequestCutoffDeadline(manilaYmd, filingIso)) {
+  if (
+    !shouldSkipFundRequestCutoffDeadlineRollForward(cutoffStart) &&
+    isAfterFundRequestCutoffDeadline(manilaYmd, filingIso)
+  ) {
     cutoffStart = addDays(cutoffStart, 7);
   }
 

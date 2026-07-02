@@ -152,6 +152,7 @@ export function FundRequestApprovalDetail({
   const [pendingUndoKind, setPendingUndoKind] = useState<"approval" | "rejection" | null>(
     null
   );
+  const [pendingApproveConfirm, setPendingApproveConfirm] = useState(false);
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails());
   const [subcontractorPoAmount, setSubcontractorPoAmount] = useState("");
@@ -980,7 +981,7 @@ export function FundRequestApprovalDetail({
                     <Button
                       disabled={acting || approveBlockedBySubcontractorPoAmount}
                       className={dbHeaderButton}
-                      onClick={handleApprove}
+                      onClick={() => setPendingApproveConfirm(true)}
                     >
                       {acting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -998,7 +999,7 @@ export function FundRequestApprovalDetail({
                   </div>
                 ) : (
                   <div className={dbToolbarActions}>
-                    <Button disabled={acting || approveBlockedBySubcontractorPoAmount} className={dbHeaderButton} onClick={handleApprove}>
+                    <Button disabled={acting || approveBlockedBySubcontractorPoAmount} className={dbHeaderButton} onClick={() => setPendingApproveConfirm(true)}>
                       {acting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
@@ -1018,6 +1019,30 @@ export function FundRequestApprovalDetail({
             ) : null}
           </CardContent>
       </Card>
+      <AlertDialog
+        open={pendingApproveConfirm}
+        onOpenChange={(open) => !open && setPendingApproveConfirm(false)}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will approve the fund request and move it to the next step.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingApproveConfirm(false);
+                void handleApprove();
+              }}
+            >
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog
         open={Boolean(pendingUndoKind)}
         onOpenChange={(open) => !open && setPendingUndoKind(null)}

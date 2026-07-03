@@ -156,7 +156,48 @@ describe("getFundRequestRoleCutoffBucket", () => {
     ).toBeNull();
   });
 
-  it("classifies upper management pending and approved requests", () => {
+  it("counts purchasing officer approved requests that skipped OM and moved to UM queue", () => {
+    const ctx = {
+      requesterRoutingById: {
+        "employee-1": {
+          overtimeGroupId: "group-1",
+          overtimeGroupName: "Group 1",
+          groupApproverUserId: "om-1",
+          groupApproverRole: "operations_manager",
+          groupApproverName: "OM",
+          requiresOperationsManagerApproval: true,
+        },
+      },
+    };
+
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "purchasing_officer_approved",
+          project_manager_approved_by: null,
+          purchasing_officer_approved_by: "po-1",
+          purchasing_officer_approved_at: "2026-07-02T04:00:00+08:00",
+        }),
+        "purchasing_officer",
+        ctx
+      )
+    ).toBe("approved");
+  });
+
+  it("keeps UM-approved requests in purchasing approved totals when PO already acted", () => {
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "management_approved",
+          purchasing_officer_approved_by: "po-1",
+          purchasing_officer_approved_at: "2026-07-02T04:00:00+08:00",
+          management_approved_by: "um-1",
+          management_approved_at: "2026-07-03T04:00:00+08:00",
+        }),
+        "purchasing_officer"
+      )
+    ).toBe("approved");
+  });
     expect(
       getFundRequestRoleCutoffBucket(
         baseRequest({
@@ -210,6 +251,55 @@ describe("summarizeFundRequestsForRoleCutoff", () => {
     expect(summary.approved).toBe(1);
     expect(summary.rejected).toBe(1);
     expect(summary.amounts.total).toBe(6000);
+  });
+
+  it("includes PO-approved requests in total even when they are now in the UM queue", () => {
+    const ctx = {
+      requesterRoutingById: {
+        "employee-1": {
+          overtimeGroupId: "group-1",
+          overtimeGroupName: "Group 1",
+          groupApproverUserId: "om-1",
+          groupApproverRole: "operations_manager",
+          groupApproverName: "OM",
+          requiresOperationsManagerApproval: true,
+        },
+      },
+    };
+
+    const summary = summarizeFundRequestsForRoleCutoff(
+      [
+        baseRequest({
+          id: "pending",
+          status: "project_manager_approved",
+          total_requested_amount: 1000,
+        }),
+        baseRequest({
+          id: "approved",
+          status: "purchasing_officer_approved",
+          project_manager_approved_by: null,
+          purchasing_officer_approved_by: "po-1",
+          purchasing_officer_approved_at: "2026-06-27T04:00:00+08:00",
+          total_requested_amount: 2000,
+        }),
+        baseRequest({
+          id: "rejected",
+          status: "rejected",
+          project_manager_approved_at: "2026-06-27T03:00:00+08:00",
+          rejected_at: "2026-06-27T05:00:00+08:00",
+          total_requested_amount: 3000,
+        }),
+      ],
+      cutoff,
+      "purchasing_officer",
+      ctx
+    );
+
+    expect(summary.total).toBe(3);
+    expect(summary.pending).toBe(1);
+    expect(summary.approved).toBe(1);
+    expect(summary.rejected).toBe(1);
+    expect(summary.amounts.approved).toBe(2000);
   });
 });
 

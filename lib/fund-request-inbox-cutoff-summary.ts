@@ -80,6 +80,11 @@ function isPoScopedRequest(
     return false;
   }
 
+  // Keep requests in purchasing metrics after PO acts, even when UM is next.
+  if (request.purchasing_officer_approved_at) return true;
+  if (isPoFundRequestRejection(request)) return true;
+  if (request.status === "management_approved") return true;
+
   const routing = getRouting(request, ctx);
   if (
     routing &&
@@ -91,11 +96,8 @@ function isPoScopedRequest(
     return false;
   }
 
-  if (request.purchasing_officer_approved_at) return true;
-  if (isPoFundRequestRejection(request)) return true;
   if (request.status === "project_manager_approved") return true;
   if (request.status === "purchasing_officer_approved") return true;
-  if (request.status === "management_approved") return true;
   return false;
 }
 

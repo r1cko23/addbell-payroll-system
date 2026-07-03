@@ -34,9 +34,9 @@ import {
 } from "@/lib/fund-request-approval";
 import {
   FUND_REQUEST_HISTORY_FETCH_OR,
+  fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
   formatFundRequestCutoffPeriod,
-  getFundRequestFinalDecisionDateYmd,
   getFundRequestHistoryCutoffs,
   getFundRequestHistoryOutcome,
   isFundRequestFinalDecisionHistoryEntry,
@@ -143,10 +143,10 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
 
       const filtered = ((data as FundRequestHistoryRow[]) ?? []).filter((row) => {
         if (!isFundRequestFinalDecisionHistoryEntry(row)) return false;
-        if (!history) return true;
-        const decisionYmd = getFundRequestFinalDecisionDateYmd(row);
-        if (!decisionYmd) return false;
-        return decisionYmd >= history.fetch_from && decisionYmd <= history.fetch_to;
+        if (!history || cutoffs.length === 0) return true;
+        return cutoffs.some((cutoff) =>
+          fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
+        );
       });
 
       setRows(filtered);

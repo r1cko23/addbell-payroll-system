@@ -17,6 +17,11 @@ const FUND_REQUEST_CUTOFF_START_DOW = 5; // Friday
 const FUND_REQUEST_CUTOFF_DEADLINE_DOW = 4; // Thursday
 const FUND_REQUEST_CUTOFF_DEADLINE_HOUR = 10; // 10:00 AM Manila
 
+/** Fri-start weeks with no Thu 10:00 AM roll-forward (plain Fri–Thu filing window). */
+const FUND_REQUEST_CUTOFF_NO_DEADLINE_ROLLFORWARD_WEEK_START_YMDS = [
+  "2026-06-26", // Jun 26 – Jul 2, 2026 recovery week
+] as const;
+
 /** Active Fri–Thu cutoff start (yyyy-MM-dd) containing the anchor date. */
 export function getActiveFundRequestCutoffStartYmd(
   anchor: Date = new Date()
@@ -24,16 +29,16 @@ export function getActiveFundRequestCutoffStartYmd(
   return format(getFundRequestCutoffPeriodStart(anchor), "yyyy-MM-dd");
 }
 
-/** Cutoff week(s) where Thu 10:00 AM roll-forward is disabled (plain Fri–Thu). */
+/** Cutoff weeks where Thu 10:00 AM roll-forward is disabled (plain Fri–Thu only). */
 export function getFundRequestCutoffGraceWeekStartYmds(
-  anchor: Date = new Date()
+  _anchor: Date = new Date()
 ): Set<string> {
-  return new Set([getActiveFundRequestCutoffStartYmd(anchor)]);
+  return new Set(FUND_REQUEST_CUTOFF_NO_DEADLINE_ROLLFORWARD_WEEK_START_YMDS);
 }
 
 /**
- * Skip Thu 10:00 AM roll-forward when the filing's calendar cutoff is the active
- * grace week (the Fri–Thu period containing today). Used during workflow recovery.
+ * Skip Thu 10:00 AM roll-forward for explicitly exempt cutoff weeks only
+ * (e.g. Jun 26 – Jul 2, 2026 recovery week).
  */
 export function shouldSkipFundRequestCutoffDeadlineRollForward(
   calendarCutoffStart: Date,
@@ -158,13 +163,12 @@ export function getFundRequestFinalDecisionDateYmd(
   return null;
 }
 
+/** History, inbox, and requester views share the same filing-date cutoff bucket. */
 export function fundRequestBelongsToHistoryCutoff(
   request: FundRequestRow,
   cutoff: WeeklyCutoffPeriod
 ): boolean {
-  const decisionYmd = getFundRequestFinalDecisionDateYmd(request);
-  if (!decisionYmd) return false;
-  return decisionYmd >= cutoff.start_ymd && decisionYmd <= cutoff.end_ymd;
+  return fundRequestBelongsToApproverCutoff(request, cutoff, "upper_management");
 }
 
 export const FUND_REQUEST_HISTORY_FETCH_OR =
@@ -209,16 +213,21 @@ export function getFundRequestCutoffStartYmdForFiling(
   filingIso: string,
   fallbackRequestDateYmd?: string | null
 ): string | null {
-  const manilaYmd = getManilaDateKeyFromIso(filingIso) || fallbackRequestDateYmd?.trim() || null;
-  if (!manilaYmd) return null;
+  const requestDateYmd = fallbackRequestDateYmd?.trim() || null;
+  const submittedYmd = getManilaDateKeyFromIso(filingIso);
+  // Cutoff week follows the requestor's filing date; submission time only affects Thu 10 AM roll-forward.
+  const filingCalendarYmd = requestDateYmd || submittedYmd || null;
+  if (!filingCalendarYmd) return null;
 
-  const anchorDate = parseYmd(manilaYmd);
+  const anchorDate = parseYmd(filingCalendarYmd);
   if (!anchorDate) return null;
 
   let cutoffStart = getFundRequestCutoffPeriodStart(anchorDate);
+  const cutoffEndYmd = format(getFundRequestCutoffPeriodEnd(cutoffStart), "yyyy-MM-dd");
   if (
     !shouldSkipFundRequestCutoffDeadlineRollForward(cutoffStart) &&
-    isAfterFundRequestCutoffDeadline(manilaYmd, filingIso)
+    submittedYmd === cutoffEndYmd &&
+    isAfterFundRequestCutoffDeadline(submittedYmd, filingIso)
   ) {
     cutoffStart = addDays(cutoffStart, 7);
   }

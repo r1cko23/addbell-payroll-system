@@ -58,13 +58,31 @@ function getRouting(
 }
 
 function isOmScopedRequest(
-  request: Pick<FundRequestRow, "requested_by">,
+  request: FundRequestRow,
   ctx: SummaryContext
 ): boolean {
   const managedIds = ctx.managedRequesterIds;
   if (!managedIds?.has(request.requested_by)) return false;
   const routing = getRouting(request, ctx);
-  return Boolean(routing?.requiresOperationsManagerApproval);
+  if (!routing?.requiresOperationsManagerApproval) return false;
+
+  // Keep in operations metrics after OM acts, even when PO or UM is next.
+  if (request.project_manager_approved_by) return true;
+  if (request.status === "rejected" && !request.project_manager_approved_by) {
+    return true;
+  }
+  if (request.status === "pending") return true;
+
+  if (
+    fundRequestSkippedOperationsManagerApproval(
+      request,
+      routing.requiresOperationsManagerApproval
+    )
+  ) {
+    return false;
+  }
+
+  return fundRequestInOperationsManagerQueue(request, managedIds);
 }
 
 function isPoScopedRequest(
@@ -102,9 +120,11 @@ function isPoScopedRequest(
 }
 
 function isUmScopedRequest(request: FundRequestRow): boolean {
-  if (request.purchasing_officer_approved_at) return true;
+  // Keep in upper management metrics after UM acts or while UM is next.
+  if (request.management_approved_at) return true;
   if (request.status === "management_approved") return true;
   if (isFundRequestUpperManagementFinalRejection(request)) return true;
+  if (request.purchasing_officer_approved_at) return true;
   if (request.status === "purchasing_officer_approved") return true;
   return false;
 }
@@ -189,14 +209,13 @@ export function getFundRequestRoleCutoffBucket(
 
   if (normalizedRole === "operations_manager") {
     if (!isOmScopedRequest(request, ctx)) return null;
-    if (fundRequestInOperationsManagerQueue(request, ctx.managedRequesterIds ?? [])) {
-      return "pending";
-    }
     if (request.status === "rejected" && !request.project_manager_approved_by) {
       return "rejected";
     }
     if (request.project_manager_approved_by) return "approved";
-    if (request.status !== "pending") return "approved";
+    if (fundRequestInOperationsManagerQueue(request, ctx.managedRequesterIds ?? [])) {
+      return "pending";
+    }
     return null;
   }
 
@@ -223,9 +242,16 @@ export function getFundRequestRoleCutoffBucket(
 
   if (normalizedRole === "upper_management") {
     if (!isUmScopedRequest(request)) return null;
-    if (request.status === "management_approved") return "approved";
+    if (request.management_approved_at || request.status === "management_approved") {
+      return "approved";
+    }
     if (isFundRequestUpperManagementFinalRejection(request)) return "rejected";
-    if (request.status === "purchasing_officer_approved") return "pending";
+    if (
+      request.purchasing_officer_approved_at ||
+      request.status === "purchasing_officer_approved"
+    ) {
+      return "pending";
+    }
     return null;
   }
 

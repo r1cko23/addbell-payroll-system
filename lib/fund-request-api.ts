@@ -127,6 +127,16 @@ export async function assertApproverCanUploadPaymentCheck(
   return { existing };
 }
 
+/** Upper Management / admin payment check delete (same access as upload). */
+export async function assertApproverCanDeletePaymentCheck(
+  admin: ReturnType<typeof getAdminClient>,
+  authUserId: string | null,
+  requestId: string,
+  role: string | null | undefined
+) {
+  return assertApproverCanUploadPaymentCheck(admin, authUserId, requestId, role);
+}
+
 const FUND_REQUEST_DOCUMENT_VIEWER_ROLES = new Set([
   "hr",
   "admin",

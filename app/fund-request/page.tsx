@@ -123,7 +123,8 @@ function FundRequestListPageContent() {
     };
   }, [isPortal, profile?.email, profile?.full_name, profile?.id, session?.employee?.id, supabase]);
 
-  const loadingState = (profileLoading || resolvingLinkedEmployee) && !session?.employee?.id;
+  const loadingState =
+    ((profileLoading && !profile) || resolvingLinkedEmployee) && !session?.employee?.id;
   if (loadingState) return <DashboardLayout><div className="h-8 w-48 animate-pulse rounded bg-muted" /></DashboardLayout>;
 
   const canCreateFromDashboard =

@@ -12,6 +12,7 @@ type UploadFundRequestDocumentOptions = {
   requestId: string;
   requestedBy?: string;
   documentType?: FundRequestDocumentType;
+  linkedRequestIds?: string[];
 };
 
 type UploadUrlResponse = {
@@ -24,7 +25,11 @@ type UploadUrlResponse = {
 export async function uploadFundRequestDocumentFile(
   file: File,
   options: UploadFundRequestDocumentOptions
-): Promise<{ document?: FundRequestDocumentSummary; error?: string }> {
+): Promise<{
+  document?: FundRequestDocumentSummary;
+  linkedDocuments?: FundRequestDocumentSummary[];
+  error?: string;
+}> {
   if (file.size > MAX_REQUEST_DOCUMENT_SIZE) {
     return { error: "File too large. Max size is 5MB." };
   }
@@ -72,12 +77,14 @@ export async function uploadFundRequestDocumentFile(
       file_name: file.name,
       file_type: file.type || "application/octet-stream",
       file_size: file.size,
+      linked_request_ids: options.linkedRequestIds,
     }),
   });
 
   const confirmPayload = (await confirmResponse.json()) as {
     error?: string;
     document?: FundRequestDocumentSummary;
+    linked_documents?: FundRequestDocumentSummary[];
   };
 
   if (!confirmResponse.ok) {
@@ -87,5 +94,8 @@ export async function uploadFundRequestDocumentFile(
     return { error: "Unable to save document" };
   }
 
-  return { document: confirmPayload.document };
+  return {
+    document: confirmPayload.document,
+    linkedDocuments: confirmPayload.linked_documents ?? [],
+  };
 }

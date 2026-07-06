@@ -9,7 +9,10 @@ import {
   getAdminClient,
 } from "@/lib/fund-request-api";
 import { getCurrentUserRole } from "@/lib/api-helpers";
-import { registerFundRequestDocument } from "@/lib/fund-request-document-storage";
+import {
+  linkFundRequestDocumentToRequests,
+  registerFundRequestDocument,
+} from "@/lib/fund-request-document-storage";
 import { recordFundRequestDirectUpload } from "@/lib/platform-runtime-metrics";
 import type { FundRequestDocumentType } from "@/types/fund-request";
 
@@ -24,6 +27,7 @@ type ConfirmUploadPayload = {
   file_name?: string;
   file_type?: string;
   file_size?: number;
+  linked_request_ids?: string[];
 };
 
 export async function POST(req: NextRequest) {
@@ -119,9 +123,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
+    let linkedDocuments: Record<string, unknown>[] = [];
+    if (
+      documentType === "payment_check" &&
+      Array.isArray(body.linked_request_ids) &&
+      body.linked_request_ids.length > 0
+    ) {
+      const role = await getCurrentUserRole();
+      const uniqueLinkedIds = [
+        ...new Set(
+          body.linked_request_ids
+            .map((id) => id.trim())
+            .filter((id) => id && id !== requestId)
+        ),
+      ];
+
+      const linkedRequests: Array<{ fundRequestId: string; employeeId: string }> = [];
+      for (const linkedId of uniqueLinkedIds) {
+        const linkedAccess = await assertApproverCanUploadPaymentCheck(
+          admin,
+          authUser?.id ?? null,
+          linkedId,
+          role
+        );
+        if ("error" in linkedAccess) {
+          return NextResponse.json(
+            { error: linkedAccess.error },
+            { status: linkedAccess.status }
+          );
+        }
+        linkedRequests.push({
+          fundRequestId: linkedId,
+          employeeId: linkedAccess.existing.requested_by,
+        });
+      }
+
+      const linkResult = await linkFundRequestDocumentToRequests(admin, {
+        sourceDocumentId: documentId,
+        storagePath,
+        fileName,
+        fileType,
+        fileSize,
+        documentType,
+        uploadedBy: authUser?.id ?? null,
+        linkedRequests,
+      });
+
+      if ("error" in linkResult) {
+        return NextResponse.json(
+          { error: linkResult.error },
+          { status: linkResult.status }
+        );
+      }
+      linkedDocuments = linkResult.documents;
+    }
+
     recordFundRequestDirectUpload(fileSize);
 
-    return NextResponse.json({ document: result.document });
+    return NextResponse.json({
+      document: result.document,
+      linked_documents: linkedDocuments,
+    });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },

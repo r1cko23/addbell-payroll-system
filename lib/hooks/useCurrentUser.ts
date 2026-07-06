@@ -104,13 +104,15 @@ export function useCurrentUser(): UseCurrentUserData {
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
-  const fetchUser = useCallback(async (force = false) => {
+  const fetchUser = useCallback(async (force = false, silent = false) => {
     // Prevent duplicate fetches
     if (fetchedRef.current && !force) return;
     fetchedRef.current = true;
 
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
 
       const userData = await fetchCurrentUser(force);
@@ -120,7 +122,9 @@ export function useCurrentUser(): UseCurrentUserData {
       setError(errorMessage);
       console.error("Error in useCurrentUser:", err);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
       fetchedRef.current = false;
     }
   }, []);
@@ -138,10 +142,15 @@ export function useCurrentUser(): UseCurrentUserData {
       if (event === "SIGNED_OUT") {
         clearCurrentUserCache();
         setUser(null);
+        setLoading(false);
+        return;
       }
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
         clearCurrentUserCache();
-        fetchUser(true);
+        // Another tab opening the app syncs auth here — refresh in the background
+        // so list pages (filters, scroll) are not torn down and reset.
+        const silent = cachedUser !== null;
+        void fetchUser(true, silent);
       }
     });
     return () => subscription.unsubscribe();

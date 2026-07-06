@@ -17,12 +17,13 @@ import {
   sumFundRequestNetAmount,
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
-import type { FundRequestRow } from "@/types/fund-request";
+import type { FundRequestRow, FundRequestDocumentSummary } from "@/types/fund-request";
 import {
   getFundRequestDisposalReasonLabel,
   getFundRequestDisposalReasonPlaceholder,
   type FundRequestDisposalAction,
 } from "@/lib/fund-request-approval";
+import { FundRequestPaymentCheckSection } from "@/components/fund-request/FundRequestPaymentCheckSection";
 
 type PendingFundRequestDisposal = {
   id: string;
@@ -48,6 +49,12 @@ type FundRequestClientGroupedInboxProps = {
   ) => void;
   bulkApproving: boolean;
   onApproveAll: () => void;
+  canUploadPaymentCheck?: (row: FundRequestInboxRow) => boolean;
+  paymentCheckDocumentsByRequestId?: Record<string, FundRequestDocumentSummary[]>;
+  onPaymentCheckDocumentsChangeForGroup?: (
+    requestIds: string[],
+    documents: FundRequestDocumentSummary[]
+  ) => void;
 };
 
 function formatPhp(amount: number): string {
@@ -207,6 +214,54 @@ function GroupedInboxPaymentLines({ summary }: GroupedInboxPaymentLinesProps) {
   );
 }
 
+function GroupedInboxPaymentCheck({
+  group,
+  canUploadPaymentCheck,
+  paymentCheckDocumentsByRequestId,
+  onPaymentCheckDocumentsChangeForGroup,
+}: {
+  group: ReturnType<typeof groupFundRequestsByClient>[number];
+  canUploadPaymentCheck?: (row: FundRequestInboxRow) => boolean;
+  paymentCheckDocumentsByRequestId: Record<string, FundRequestDocumentSummary[]>;
+  onPaymentCheckDocumentsChangeForGroup?: (
+    requestIds: string[],
+    documents: FundRequestDocumentSummary[]
+  ) => void;
+}) {
+  const requestIds = useMemo(
+    () => group.requests.map((request) => request.id),
+    [group.requests]
+  );
+  const groupDocuments = useMemo(
+    () => requestIds.flatMap((requestId) => paymentCheckDocumentsByRequestId[requestId] ?? []),
+    [paymentCheckDocumentsByRequestId, requestIds]
+  );
+  const canUpload = Boolean(
+    canUploadPaymentCheck?.(group.requests[0]!) &&
+      group.requests.some((request) => canUploadPaymentCheck?.(request))
+  );
+  const canDelete = canUpload;
+  const primaryRequestId = group.requests[0]?.id;
+
+  if (!primaryRequestId || (!canUpload && groupDocuments.length === 0)) {
+    return null;
+  }
+
+  return (
+    <FundRequestPaymentCheckSection
+      requestId={primaryRequestId}
+      documents={groupDocuments}
+      canUpload={canUpload}
+      canDelete={canDelete}
+      linkedRequestIds={requestIds}
+      compact
+      onDocumentsChange={(documents) => {
+        onPaymentCheckDocumentsChangeForGroup?.(requestIds, documents);
+      }}
+    />
+  );
+}
+
 export function FundRequestClientGroupedInbox({
   rows,
   detailHref,
@@ -222,6 +277,9 @@ export function FundRequestClientGroupedInbox({
   onConfirmDisposal,
   bulkApproving,
   onApproveAll,
+  canUploadPaymentCheck,
+  paymentCheckDocumentsByRequestId = {},
+  onPaymentCheckDocumentsChangeForGroup,
 }: FundRequestClientGroupedInboxProps) {
   const groups = useMemo(() => groupFundRequestsByClient(rows), [rows]);
   const grandTotal = useMemo(() => sumFundRequestNetAmount(rows), [rows]);
@@ -273,6 +331,23 @@ export function FundRequestClientGroupedInbox({
                       {formatPhp(group.subtotalNet)}
                     </td>
                   </tr>
+
+                  {group.requests.length > 0 ? (
+                    <tr className="bg-background">
+                      <td colSpan={4} className="px-4 py-3">
+                        <GroupedInboxPaymentCheck
+                          group={group}
+                          canUploadPaymentCheck={canUploadPaymentCheck}
+                          paymentCheckDocumentsByRequestId={
+                            paymentCheckDocumentsByRequestId
+                          }
+                          onPaymentCheckDocumentsChangeForGroup={
+                            onPaymentCheckDocumentsChangeForGroup
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ) : null}
 
                   {group.requests.map((request, index) => {
                     const summary = summarizeFundRequestPayment(request);
@@ -402,6 +477,15 @@ export function FundRequestClientGroupedInbox({
                   </p>
                 </div>
               </div>
+
+              <GroupedInboxPaymentCheck
+                group={group}
+                canUploadPaymentCheck={canUploadPaymentCheck}
+                paymentCheckDocumentsByRequestId={paymentCheckDocumentsByRequestId}
+                onPaymentCheckDocumentsChangeForGroup={
+                  onPaymentCheckDocumentsChangeForGroup
+                }
+              />
 
               <div className="space-y-3">
                 {group.requests.map((request, index) => {

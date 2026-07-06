@@ -62,7 +62,7 @@ import {
   validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
-import type { FundRequestRow } from "@/types/fund-request";
+import type { FundRequestRow, FundRequestDocumentSummary } from "@/types/fund-request";
 import {
   FUND_REQUEST_STATUS_LABELS,
   formatFundRequestPercentage,
@@ -71,11 +71,14 @@ import {
 } from "@/types/fund-request";
 import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
+import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
 import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutoffNav";
 import {
   fundRequestBelongsToApproverCutoff,
+  formatFundRequestCutoffPeriod,
   getFundRequestHistoryCutoffs,
 } from "@/lib/fund-request-cutoff";
+import { FundRequestApprovedExportDialog } from "@/components/fund-request/FundRequestApprovedExportDialog";
 import {
   getFundRequestRoleCutoffFilterOptions,
   getFundRequestRoleCutoffMetricLabels,
@@ -266,17 +269,9 @@ export function FundRequestInbox({
     getInitialFundRequestCutoffs
   );
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
-  const [refreshToken, setRefreshToken] = useState(0);
-
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        setRefreshToken((value) => value + 1);
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, []);
+  const [paymentCheckDocumentsByRequestId, setPaymentCheckDocumentsByRequestId] =
+    useState<Record<string, FundRequestDocumentSummary[]>>({});
+  const [approvedExportOpen, setApprovedExportOpen] = useState(false);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
   const requesterUserIdByEmployeeId = useMemo(() => {
@@ -363,6 +358,26 @@ export function FundRequestInbox({
     );
   }, [cutoffScopedRows, selectedCutoff, profile?.role, summaryContext]);
 
+  const approvedExportRows = useMemo(
+    () =>
+      cutoffScopedRows.filter((row) =>
+        matchesFundRequestRoleCutoffFilter(
+          row,
+          "approved",
+          profile?.role,
+          summaryContext
+        )
+      ),
+    [cutoffScopedRows, profile?.role, summaryContext]
+  );
+
+  const cutoffExportLabel = useMemo(() => {
+    if (!selectedCutoff) return "";
+    const start = parse(selectedCutoff.start_ymd, "yyyy-MM-dd", new Date());
+    const end = parse(selectedCutoff.end_ymd, "yyyy-MM-dd", new Date());
+    return formatFundRequestCutoffPeriod(start, end);
+  }, [selectedCutoff]);
+
   const getActionableStatuses = (): FundRequestRow["status"][] =>
     getActionableFundRequestStatuses(profile?.role);
 
@@ -428,7 +443,50 @@ export function FundRequestInbox({
       setLoading(false);
     };
     fetchData();
-  }, [supabase, profile?.role, profile?.id, refreshToken]);
+  }, [supabase, profile?.role, profile?.id]);
+
+  const isUpperManagementRole =
+    normalizeUserRole(profile?.role) === "upper_management";
+
+  useEffect(() => {
+    if (!isUpperManagementRole || allRows.length === 0) {
+      setPaymentCheckDocumentsByRequestId({});
+      return;
+    }
+
+    const requestIds = allRows.map((row) => row.id);
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("fund_request_documents")
+        .select(
+          "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path"
+        )
+        .in("fund_request_id", requestIds)
+        .eq("document_type", "payment_check")
+        .order("created_at", { ascending: true });
+
+      if (cancelled) return;
+
+      if (error) {
+        setPaymentCheckDocumentsByRequestId({});
+        return;
+      }
+
+      const grouped: Record<string, FundRequestDocumentSummary[]> = {};
+      for (const row of (data as FundRequestDocumentSummary[]) ?? []) {
+        const bucket = grouped[row.fund_request_id] ?? [];
+        bucket.push(row);
+        grouped[row.fund_request_id] = bucket;
+      }
+      setPaymentCheckDocumentsByRequestId(grouped);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allRows, isUpperManagementRole, supabase]);
 
   const currentUserId = profile?.id ?? null;
 
@@ -726,26 +784,39 @@ export function FundRequestInbox({
               aria-label="Search fund requests for approval"
             />
           </div>
-          <Select
-            value={outcomeFilter}
-            onValueChange={(value) =>
-              setOutcomeFilter(value as FundRequestRoleCutoffOutcomeFilter)
-            }
-          >
-            <SelectTrigger
-              className="min-h-11 w-full sm:min-h-9 sm:w-[280px]"
-              aria-label="Filter fund requests by outcome"
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Select
+              value={outcomeFilter}
+              onValueChange={(value) =>
+                setOutcomeFilter(value as FundRequestRoleCutoffOutcomeFilter)
+              }
             >
-              <SelectValue placeholder="Filter by outcome" />
-            </SelectTrigger>
-            <SelectContent>
-              {filterOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                className="min-h-11 w-full sm:min-h-9 sm:w-[280px]"
+                aria-label="Filter fund requests by outcome"
+              >
+                <SelectValue placeholder="Filter by outcome" />
+              </SelectTrigger>
+              <SelectContent>
+                {filterOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isUpperManagement && approvedExportRows.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                className={cn(dbHeaderButton, "w-full shrink-0 sm:w-auto")}
+                onClick={() => setApprovedExportOpen(true)}
+              >
+                <Icon name="Download" size={IconSizes.sm} className="mr-2" />
+                Export approved summary
+              </Button>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -772,6 +843,21 @@ export function FundRequestInbox({
         <FundRequestClientGroupedInbox
           rows={filteredRows}
           detailHref={detailHref}
+          canUploadPaymentCheck={(row) =>
+            canUploadFundRequestPaymentCheck(profile?.role, row.status)
+          }
+          paymentCheckDocumentsByRequestId={paymentCheckDocumentsByRequestId}
+          onPaymentCheckDocumentsChangeForGroup={(requestIds, documents) => {
+            setPaymentCheckDocumentsByRequestId((current) => {
+              const next = { ...current };
+              for (const requestId of requestIds) {
+                next[requestId] = documents.filter(
+                  (doc) => doc.fund_request_id === requestId
+                );
+              }
+              return next;
+            });
+          }}
           getRequesterName={(row) =>
             getRequesterDisplayName(row, requesterInfoById[row.requested_by])
           }
@@ -1093,6 +1179,16 @@ export function FundRequestInbox({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <FundRequestApprovedExportDialog
+        open={approvedExportOpen}
+        onOpenChange={setApprovedExportOpen}
+        rows={approvedExportRows}
+        cutoffLabel={cutoffExportLabel}
+        getRequesterName={(row) =>
+          getRequesterDisplayName(row, requesterInfoById[row.requested_by])
+        }
+      />
     </div>
   );
 }

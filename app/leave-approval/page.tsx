@@ -38,9 +38,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { CardSection } from "@/components/ui/card-section";
-import { H3, BodySmall, Caption } from "@/components/ui/typography";
+import { BodySmall, Caption } from "@/components/ui/typography";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow, dbHeaderButton, dbToolbarActions, dbDialogContent, dbDialogFooter } from "@/lib/dashboard-ui";
+import { dbPageWrapper, dbPeriodNavButton, dbPeriodNavRow, dbHeaderButton, dbToolbarActions, dbDialogContentWide, dbDialogFooter } from "@/lib/dashboard-ui";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
@@ -1387,288 +1387,271 @@ export default function LeaveApprovalPage() {
             if (!open) closeRequestModal();
           }}
         >
-          <DialogContent className={dbDialogContent}>
+          <DialogContent className={cn(dbDialogContentWide, "gap-3")}>
             {selectedRequest && (
               <>
-                <DialogHeader>
+                <DialogHeader className="space-y-1 pb-0">
                   <DialogTitle>Leave Request Details</DialogTitle>
                 </DialogHeader>
-                <VStack gap="4" className="py-2 w-full">
-                  <div className="space-y-1 w-full">
-                    <p className="text-sm text-muted-foreground">Workflow</p>
-                    <HStack gap="2" align="center" className="flex-wrap">
-                      {[
-                        "Operations Manager Review",
-                        "HR Review",
-                        "Final Decision",
-                      ].map((label, index) => {
-                        const step = getWorkflowStep(selectedRequest);
-                        const isDone = step > index + 1;
-                        const isCurrent = step === index + 1;
-                        return (
-                          <Badge
-                            key={label}
-                            variant="outline"
-                            className={
-                              isDone
-                                ? "bg-emerald-600 text-white border-emerald-600"
-                                : isCurrent
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-slate-50 text-slate-500 border-slate-200"
-                            }
-                          >
-                            {index + 1}. {label}
-                          </Badge>
-                        );
-                      })}
-                    </HStack>
-                  </div>
-                  <VStack gap="1" align="start">
-                    <BodySmall>Employee</BodySmall>
-                    <HStack gap="3" align="center">
-                      <EmployeeAvatar
-                        profilePictureUrl={
-                          selectedRequest.employees?.profile_picture_url
-                        }
-                        fullName={
-                          selectedRequest.employees?.full_name || "Unknown"
-                        }
-                        size="lg"
-                      />
-                      <H3>
-                        {selectedRequest.employees?.full_name} (
-                        {selectedRequest.employees?.employee_id})
-                      </H3>
-                    </HStack>
-                  </VStack>
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1 sm:col-span-2">
+                      <p className="text-xs text-muted-foreground">Workflow</p>
+                      <HStack gap="2" align="center" className="flex-wrap">
+                        {[
+                          "Operations Manager Review",
+                          "HR Review",
+                          "Final Decision",
+                        ].map((label, index) => {
+                          const step = getWorkflowStep(selectedRequest);
+                          const isDone = step > index + 1;
+                          const isCurrent = step === index + 1;
+                          return (
+                            <Badge
+                              key={label}
+                              variant="outline"
+                              className={cn(
+                                "text-xs",
+                                isDone
+                                  ? "bg-emerald-600 text-white border-emerald-600"
+                                  : isCurrent
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-slate-50 text-slate-500 border-slate-200"
+                              )}
+                            >
+                              {index + 1}. {label}
+                            </Badge>
+                          );
+                        })}
+                      </HStack>
+                    </div>
 
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        Leave Type
-                      </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <p className="text-xs text-muted-foreground">Employee</p>
+                      <HStack gap="2" align="center">
+                        <EmployeeAvatar
+                          profilePictureUrl={
+                            selectedRequest.employees?.profile_picture_url
+                          }
+                          fullName={
+                            selectedRequest.employees?.full_name || "Unknown"
+                          }
+                          size="md"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {selectedRequest.employees?.full_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedRequest.employees?.employee_id}
+                          </p>
+                        </div>
+                      </HStack>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Leave Type</p>
                       <div
-                        className={`font-semibold px-2 py-1 rounded inline-block ${
+                        className={cn(
+                          "inline-block rounded px-2 py-0.5 text-sm font-semibold",
                           normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-orange-100 text-orange-800"
-                        }`}
+                        )}
                       >
                         {normalizeLeaveTypeLabel(selectedRequest.leave_type)}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        Leave Sub-Type
-                      </div>
-                      <div className="font-semibold">
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Leave Sub-Type</p>
+                      <p className="text-sm font-semibold">
                         {leaveSubtypeLabel(selectedRequest.leave_subtype)}
-                      </div>
+                      </p>
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        Total Days
-                      </div>
-                      <div className="font-semibold text-emerald-600">
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Total Days</p>
+                      <p className="text-sm font-semibold text-emerald-600">
                         {selectedRequest.total_days}{" "}
                         {selectedRequest.total_days === 1 ? "day" : "days"}
-                      </div>
+                      </p>
                     </div>
-                  </div>
 
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Date Range
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Date Range</p>
+                      <p className="text-sm font-semibold">
+                        {format(new Date(selectedRequest.start_date), "MMM d, yyyy")}
+                        {" – "}
+                        {format(new Date(selectedRequest.end_date), "MMM d, yyyy")}
+                      </p>
                     </div>
-                    <div className="font-semibold">
-                      {format(
-                        new Date(selectedRequest.start_date),
-                        "MMMM dd, yyyy"
-                      )}{" "}
-                      -{" "}
-                      {format(
-                        new Date(selectedRequest.end_date),
-                        "MMMM dd, yyyy"
+
+                    {normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL" &&
+                      selectedRequest.employees && (
+                        <>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              Allotted SIL Credits
+                            </p>
+                            <p className="text-sm font-semibold">5 credits</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                              Available SIL Credits
+                            </p>
+                            <p
+                              className={cn(
+                                "text-sm font-semibold",
+                                selectedRequest.employees.sil_credits >=
+                                  selectedRequest.total_days
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              )}
+                            >
+                              {selectedRequest.employees.sil_credits} credits
+                              {selectedRequest.employees.sil_credits <
+                                selectedRequest.total_days && (
+                                <span className="ml-1">(Insufficient)</span>
+                              )}
+                            </p>
+                          </div>
+                        </>
                       )}
-                    </div>
-                  </div>
 
-                  {normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL" &&
-                    selectedRequest.employees && (
-                      <div className="space-y-2">
-                        <div>
-                          <div className="text-sm text-muted-foreground">
-                            Allotted SIL Credits
-                          </div>
-                          <div className="font-semibold text-gray-900">
-                            5 credits
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">
-                            Available SIL Credits
-                          </div>
-                          <div
-                            className={`font-semibold ${
-                              selectedRequest.employees.sil_credits >=
-                              selectedRequest.total_days
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {selectedRequest.employees.sil_credits} credits
-                            {selectedRequest.employees.sil_credits <
-                              selectedRequest.total_days && (
-                              <span className="text-red-600 ml-2">
-                                (Insufficient)
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Submitted</p>
+                      <p className="text-sm">
+                        {format(
+                          new Date(selectedRequest.created_at),
+                          "MMM d, yyyy h:mm a"
+                        )}
+                      </p>
+                    </div>
+
+                    {(selectedRequest.project_manager_id ||
+                      selectedRequest.account_manager_id ||
+                      selectedRequest.hr_approver_id ||
+                      selectedRequest.hr_approved_by ||
+                      selectedRequest.rejected_by) && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
+                          Approval / Rejection
+                        </p>
+                        <RequestApprovalLabels
+                          fields={leaveToApprovalFields(selectedRequest)}
+                          names={approverNames}
+                          className="text-xs text-muted-foreground"
+                        />
                       </div>
                     )}
-
+                  </div>
 
                   {selectedRequest.reason && (
-                    <div className="space-y-2">
-                      <Label className="text-sm">Reason</Label>
-                      <p className="rounded-md border border-dashed border-muted bg-muted/40 p-3 text-sm text-muted-foreground">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Reason</Label>
+                      <p className="rounded-md border border-dashed border-muted bg-muted/40 p-2.5 text-sm text-muted-foreground">
                         {selectedRequest.reason}
                       </p>
                     </div>
                   )}
 
                   {normalizeLeaveTypeLabel(selectedRequest.leave_type) === "SIL" && (
-                    <VStack gap="2" align="start">
+                    <div className="space-y-1">
                       <HStack gap="2" align="center">
                         <Icon name="Receipt" size={IconSizes.sm} />
-                        <BodySmall>Supporting Document</BodySmall>
+                        <Label className="text-xs">Supporting Document</Label>
                       </HStack>
                       {selectedRequest.leave_request_documents &&
                       selectedRequest.leave_request_documents.length > 0 ? (
-                        <VStack gap="2">
-                          {selectedRequest.leave_request_documents.map(
-                            (doc) => (
-                              <HStack
-                                key={doc.id}
-                                gap="2"
-                                align="center"
-                                className="text-sm"
+                        <div className="space-y-1.5">
+                          {selectedRequest.leave_request_documents.map((doc) => (
+                            <HStack
+                              key={doc.id}
+                              gap="2"
+                              align="center"
+                              className="text-sm"
+                            >
+                              <Icon
+                                name="Receipt"
+                                size={IconSizes.sm}
+                                className="shrink-0 text-muted-foreground"
+                              />
+                              <div className="min-w-0 flex-1 truncate">
+                                {doc.file_name}
+                              </div>
+                              <Caption className="shrink-0">
+                                {(doc.file_size / 1024).toFixed(1)} KB
+                              </Caption>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0"
+                                onClick={() => downloadDocument(doc.id)}
+                                disabled={downloadingDocId === doc.id}
                               >
-                                <Icon
-                                  name="Receipt"
-                                  size={IconSizes.sm}
-                                  className="text-muted-foreground"
-                                />
-                                <div className="flex-1 truncate">
-                                  {doc.file_name}
-                                </div>
-                                <Caption>
-                                  {(doc.file_size / 1024).toFixed(1)} KB
-                                </Caption>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => downloadDocument(doc.id)}
-                                  disabled={downloadingDocId === doc.id}
-                                >
-                                  <Icon
-                                    name="ArrowsClockwise"
-                                    size={IconSizes.sm}
-                                  />
-                                  View
-                                </Button>
-                              </HStack>
-                            )
-                          )}
-                        </VStack>
+                                <Icon name="ArrowsClockwise" size={IconSizes.sm} />
+                                View
+                              </Button>
+                            </HStack>
+                          ))}
+                        </div>
                       ) : (
                         <BodySmall>No supporting document attached.</BodySmall>
                       )}
-                    </VStack>
+                    </div>
                   )}
 
-                  {(selectedRequest.project_manager_notes || selectedRequest.account_manager_notes) && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        Manager Notes
-                      </div>
-                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-md">
-                        {selectedRequest.project_manager_notes || selectedRequest.account_manager_notes}
+                  {(selectedRequest.project_manager_notes ||
+                    selectedRequest.account_manager_notes) && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Manager Notes</p>
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2.5 text-sm">
+                        {selectedRequest.project_manager_notes ||
+                          selectedRequest.account_manager_notes}
                       </div>
                     </div>
                   )}
 
                   {selectedRequest.hr_notes && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        HR Notes
-                      </div>
-                      <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">HR Notes</p>
+                      <div className="rounded-md border border-green-200 bg-green-50 p-2.5 text-sm">
                         {selectedRequest.hr_notes}
                       </div>
                     </div>
                   )}
 
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Submitted
-                    </div>
-                    <div className="text-sm">
-                      {format(
-                        new Date(selectedRequest.created_at),
-                        "MMMM dd, yyyy h:mm a"
-                      )}
-                    </div>
-                  </div>
-
-                  {(selectedRequest.project_manager_id ||
-                    selectedRequest.account_manager_id ||
-                    selectedRequest.hr_approver_id ||
-                    selectedRequest.hr_approved_by ||
-                    selectedRequest.rejected_by) && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">
-                        Approval / Rejection
-                      </div>
-                      <RequestApprovalLabels
-                        fields={leaveToApprovalFields(selectedRequest)}
-                        names={approverNames}
-                        className="text-sm text-muted-foreground"
-                      />
-                    </div>
-                  )}
-
                   {selectedRequest.status === "rejected" &&
                     selectedRequest.rejection_reason && (
-                      <div>
-                        <div className="text-sm text-muted-foreground">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">
                           Rejection Reason
-                        </div>
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-900">
+                        </p>
+                        <div className="rounded-md border border-red-200 bg-red-50 p-2.5 text-sm text-red-900">
                           {selectedRequest.rejection_reason}
                         </div>
                       </div>
                     )}
 
-                  {/* Actions */}
                   {canApprove(selectedRequest) ? (
-                    <div className="space-y-6 pt-4 border-t w-full">
-                      <div className="space-y-4 w-full">
-                        <div className="space-y-2 w-full">
-                          <Label htmlFor="notes">Notes (optional)</Label>
+                    <div className="space-y-3 border-t pt-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="notes" className="text-xs">
+                            Notes (optional)
+                          </Label>
                           <Textarea
                             id="notes"
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder="Add notes about this approval..."
-                            rows={3}
-                            className="w-full"
+                            rows={2}
+                            className="min-h-[4.5rem] resize-y"
                           />
                         </div>
-
-                        <div className="space-y-2 w-full">
-                          <Label htmlFor="rejection-reason">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="rejection-reason" className="text-xs">
                             Rejection Reason (if rejecting)
                           </Label>
                           <Textarea
@@ -1676,14 +1659,18 @@ export default function LeaveApprovalPage() {
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
                             placeholder="Provide reason for rejection..."
-                            rows={3}
-                            className="w-full"
+                            rows={2}
+                            className="min-h-[4.5rem] resize-y"
                           />
                         </div>
                       </div>
 
-                      <DialogFooter className={cn(dbDialogFooter, "pt-4")}>
-                        <Button variant="secondary" className={dbHeaderButton} onClick={closeRequestModal}>
+                      <DialogFooter className={cn(dbDialogFooter, "pt-1")}>
+                        <Button
+                          variant="secondary"
+                          className={dbHeaderButton}
+                          onClick={closeRequestModal}
+                        >
                           Close
                         </Button>
                         <Button
@@ -1711,7 +1698,7 @@ export default function LeaveApprovalPage() {
                       </DialogFooter>
                     </div>
                   ) : (
-                    <DialogFooter className={cn(dbDialogFooter, "pt-2")}>
+                    <DialogFooter className={cn(dbDialogFooter, "pt-1")}>
                       <Button
                         variant="secondary"
                         className={dbHeaderButton}
@@ -1721,7 +1708,7 @@ export default function LeaveApprovalPage() {
                       </Button>
                     </DialogFooter>
                   )}
-                </VStack>
+                </div>
               </>
             )}
           </DialogContent>

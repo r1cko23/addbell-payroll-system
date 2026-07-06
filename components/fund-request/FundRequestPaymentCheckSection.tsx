@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { epFileInput } from "@/lib/employee-portal-ui";
 import { dbHeaderButton } from "@/lib/dashboard-ui";
 import {
+  dedupeFundRequestPaymentCheckDocuments,
+  deleteFundRequestPaymentCheck,
   isFundRequestPaymentCheckDocument,
   preparePaymentCheckFile,
   uploadFundRequestPaymentCheck,
@@ -20,24 +22,35 @@ type FundRequestPaymentCheckSectionProps = {
   requestId: string;
   documents: FundRequestDocumentSummary[];
   canUpload: boolean;
+  canDelete?: boolean;
+  linkedRequestIds?: string[];
   onDocumentsChange: (documents: FundRequestDocumentSummary[]) => void;
   className?: string;
+  compact?: boolean;
 };
 
 export function FundRequestPaymentCheckSection({
   requestId,
   documents,
   canUpload,
+  canDelete = false,
+  linkedRequestIds = [],
   onDocumentsChange,
   className,
+  compact = false,
 }: FundRequestPaymentCheckSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
 
-  const paymentChecks = documents.filter(isFundRequestPaymentCheckDocument);
+  const paymentChecks = useMemo(
+    () => dedupeFundRequestPaymentCheckDocuments(documents),
+    [documents]
+  );
+  const appliesToMultiple = linkedRequestIds.length > 1;
 
   function resetInput() {
     setSelectedFile(null);
@@ -65,17 +78,54 @@ export function FundRequestPaymentCheckSection({
     }
 
     setUploading(true);
-    const result = await uploadFundRequestPaymentCheck(requestId, fileToUpload);
+    const result = await uploadFundRequestPaymentCheck(requestId, fileToUpload, {
+      linkedRequestIds,
+    });
     setUploading(false);
 
-    if (result.error || !result.document) {
+    if (result.error || result.documents.length === 0) {
       toast.error(result.error ?? "Unable to upload payment check");
       return;
     }
 
-    onDocumentsChange([...documents, result.document]);
-    toast.success("Payment check uploaded");
+    onDocumentsChange([...documents, ...result.documents]);
+    toast.success(
+      appliesToMultiple
+        ? `Payment check uploaded for ${linkedRequestIds.length} requests`
+        : "Payment check uploaded"
+    );
     resetInput();
+  }
+
+  async function handleDelete(documentId: string) {
+    setDeletingDocId(documentId);
+    const result = await deleteFundRequestPaymentCheck(documentId);
+    setDeletingDocId(null);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    const deletedDoc = documents.find((doc) => doc.id === documentId);
+    const storagePath = deletedDoc?.storage_path?.trim();
+    const nextDocuments = documents.filter((doc) => {
+      if (doc.id === documentId) return false;
+      if (
+        storagePath &&
+        doc.document_type === "payment_check" &&
+        doc.storage_path?.trim() === storagePath
+      ) {
+        return false;
+      }
+      return true;
+    });
+    onDocumentsChange(nextDocuments);
+    toast.success(
+      appliesToMultiple
+        ? "Payment check removed from all requests for this payee"
+        : "Payment check deleted"
+    );
   }
 
   if (!canUpload && paymentChecks.length === 0) {
@@ -83,23 +133,41 @@ export function FundRequestPaymentCheckSection({
   }
 
   return (
-    <div className={cn("rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-4", className)}>
-      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Payment check (optional audit)
-      </h4>
+    <div
+      className={cn(
+        "rounded-lg border border-primary/20 bg-primary/5 space-y-4",
+        compact ? "p-3" : "p-4",
+        className
+      )}
+    >
+      <div>
+        <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Payment check (optional audit)
+        </h4>
+        {appliesToMultiple ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            One check covers all {linkedRequestIds.length} requests for this payee.
+          </p>
+        ) : null}
+      </div>
 
       <FundRequestSupportingDocuments
         documents={paymentChecks}
         title="Uploaded payment check"
         emptyLabel="No payment check uploaded."
+        canDelete={canDelete}
+        deletingDocId={deletingDocId}
+        onDelete={(docId) => void handleDelete(docId)}
       />
 
       {canUpload ? (
         <div className="space-y-2 border-t border-primary/10 pt-4">
-          <Label htmlFor="fund-request-payment-check">Upload Payment Check (Optional)</Label>
+          <Label htmlFor={`fund-request-payment-check-${requestId}`}>
+            Upload Payment Check (Optional)
+          </Label>
           <input
             ref={inputRef}
-            id="fund-request-payment-check"
+            id={`fund-request-payment-check-${requestId}`}
             type="file"
             accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
             disabled={uploading}

@@ -42,11 +42,17 @@ export function FundRequestSupportingDocuments({
   title,
   emptyLabel,
   requestedBy,
+  canDelete,
+  deletingDocId,
+  onDelete,
 }: {
   documents: FundRequestDocumentSummary[];
   title?: string;
   emptyLabel?: string;
   requestedBy?: string;
+  canDelete?: boolean;
+  deletingDocId?: string | null;
+  onDelete?: (docId: string) => void;
 }) {
   const [loadingDocId, setLoadingDocId] = useState<string | null>(null);
   const [preview, setPreview] = useState<DocumentPreview | null>(null);
@@ -171,6 +177,18 @@ export function FundRequestSupportingDocuments({
               >
                 {loadingDocId === doc.id ? "Loading..." : "View"}
               </Button>
+              {canDelete && onDelete ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onDelete(doc.id)}
+                  disabled={deletingDocId === doc.id}
+                >
+                  {deletingDocId === doc.id ? "Deleting..." : "Delete"}
+                </Button>
+              ) : null}
             </div>
           ))}
         </div>

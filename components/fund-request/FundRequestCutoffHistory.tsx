@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parse, addDays } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
@@ -22,6 +22,7 @@ import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
 import type { FundRequestRow } from "@/types/fund-request";
 import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
+import { groupFundRequestsByClient } from "@/lib/fund-request-inbox-grouping";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useProfile } from "@/lib/hooks/useProfile";
@@ -53,6 +54,10 @@ const OUTCOME_LABELS: Record<FundRequestHistoryOutcome, string> = {
   approved: "Approved",
   rejected: "Rejected",
 };
+
+function formatPhp(amount: number): string {
+  return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+}
 
 function outcomeBadgeClass(outcome: FundRequestHistoryOutcome): string {
   if (outcome === "approved") return "bg-emerald-100 text-emerald-800 border-emerald-200";
@@ -290,6 +295,38 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
       );
     }
 
+    const groups = groupFundRequestsByClient(sectionRows);
+
+    const renderRowActions = (row: FundRequestHistoryRow) => {
+      const undoKind = getRowUndoKind(row, options);
+      return (
+        <div className="flex items-center gap-3">
+          <Link
+            href={`${detailHrefBase}/${row.id}`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            View
+          </Link>
+          {undoKind ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={undoingId === row.id}
+              onClick={() => handleRowUndo(row, undoKind)}
+            >
+              {undoingId === row.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                "Undo"
+              )}
+            </Button>
+          ) : null}
+        </div>
+      );
+    };
+
     return (
       <>
         <div className="hidden md:block overflow-x-auto">
@@ -305,123 +342,131 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
               </tr>
             </thead>
             <tbody>
-              {sectionRows.map((row) => {
-                const outcome = getFundRequestHistoryOutcome(row);
-                if (!outcome) return null;
-                const undoKind = getRowUndoKind(row, options);
-                return (
-                  <tr key={row.id} className="border-b last:border-0 hover:bg-primary/5">
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      {formatFundRequestDecisionAtCompact(row)}
+              {groups.map((group, groupIndex) => (
+                <Fragment key={group.key}>
+                  {groupIndex > 0 ? (
+                    <tr aria-hidden>
+                      <td
+                        colSpan={6}
+                        className="h-0 border-t-4 border-double border-emerald-700/50 bg-muted/25 p-0"
+                      />
+                    </tr>
+                  ) : null}
+                  <tr className="border-y-2 border-emerald-700/70 bg-emerald-50/90">
+                    <td
+                      colSpan={3}
+                      className="border-l-4 border-emerald-700 px-4 py-3 text-sm font-bold uppercase tracking-wide text-emerald-950"
+                    >
+                      {group.clientName}
+                      <span className="ml-2 text-xs font-semibold normal-case text-emerald-800/70">
+                        ({group.requests.length} request
+                        {group.requests.length === 1 ? "" : "s"})
+                      </span>
                     </td>
-                    <td className="px-4 py-3 max-w-[180px] truncate">
-                      {getFundRequestListProjectLabel(row)}
+                    <td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-emerald-950">
+                      {formatPhp(group.subtotalNet)}
                     </td>
-                    <td className="px-4 py-3 max-w-[200px] truncate">{row.purpose}</td>
-                    <td className="px-4 py-3 font-medium text-right tabular-nums">
-                      ₱{Number(row.total_requested_amount).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge
-                        variant="outline"
-                        className={cn("whitespace-nowrap text-xs", outcomeBadgeClass(outcome))}
-                      >
-                        {OUTCOME_LABELS[outcome]}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`${detailHrefBase}/${row.id}`}
-                          className="text-primary font-medium hover:underline text-sm"
-                        >
-                          View
-                        </Link>
-                        {undoKind ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            disabled={undoingId === row.id}
-                            onClick={() => handleRowUndo(row, undoKind)}
-                          >
-                            {undoingId === row.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              "Undo"
-                            )}
-                          </Button>
-                        ) : null}
-                      </div>
-                    </td>
+                    <td colSpan={2} />
                   </tr>
-                );
-              })}
+                  {group.requests.map((row) => {
+                    const outcome = getFundRequestHistoryOutcome(row);
+                    if (!outcome) return null;
+                    return (
+                      <tr key={row.id} className="border-b last:border-0 hover:bg-primary/5">
+                        <td className="whitespace-nowrap px-4 py-3">
+                          {formatFundRequestDecisionAtCompact(row)}
+                        </td>
+                        <td className="max-w-[180px] truncate px-4 py-3">
+                          {getFundRequestListProjectLabel(row)}
+                        </td>
+                        <td className="max-w-[200px] truncate px-4 py-3">{row.purpose}</td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums">
+                          {formatPhp(Number(row.total_requested_amount) || 0)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "whitespace-nowrap text-xs",
+                              outcomeBadgeClass(outcome)
+                            )}
+                          >
+                            {OUTCOME_LABELS[outcome]}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">{renderRowActions(row)}</td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>
 
-        <div className="md:hidden space-y-3 p-4">
-          {sectionRows.map((row) => {
-            const outcome = getFundRequestHistoryOutcome(row);
-            if (!outcome) return null;
-            const undoKind = getRowUndoKind(row, options);
-            return (
-              <Card key={row.id} className="border-border/80">
-                <CardContent className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold">
-                        {formatFundRequestDecisionAtCompact(row)}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1 truncate">
-                        {getFundRequestListProjectLabel(row)}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1 truncate">
-                        {row.purpose}
-                      </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={cn("shrink-0 text-xs", outcomeBadgeClass(outcome))}
-                    >
-                      {OUTCOME_LABELS[outcome]}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 pt-1">
-                    <span className="text-sm font-medium tabular-nums">
-                      ₱{Number(row.total_requested_amount).toLocaleString()}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={`${detailHrefBase}/${row.id}`}
-                        className="text-primary text-sm font-medium hover:underline"
-                      >
-                        View
-                      </Link>
-                      {undoKind ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={undoingId === row.id}
-                          onClick={() => handleRowUndo(row, undoKind)}
-                        >
-                          {undoingId === row.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            "Undo"
-                          )}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        <div className="space-y-4 p-4 md:hidden">
+          {groups.map((group, groupIndex) => (
+            <div
+              key={group.key}
+              className={cn(
+                "space-y-3",
+                groupIndex > 0 && "border-t-4 border-double border-emerald-700/50 pt-4"
+              )}
+            >
+              <div className="rounded-lg border-2 border-emerald-700/70 bg-emerald-50/90 px-4 py-3">
+                <p className="text-sm font-bold uppercase tracking-wide text-emerald-950">
+                  {group.clientName}
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="text-xs text-emerald-800/80">
+                    {group.requests.length} request
+                    {group.requests.length === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-sm font-bold tabular-nums text-emerald-950">
+                    {formatPhp(group.subtotalNet)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {group.requests.map((row) => {
+                  const outcome = getFundRequestHistoryOutcome(row);
+                  if (!outcome) return null;
+                  return (
+                    <Card key={row.id} className="border-border/80">
+                      <CardContent className="space-y-2 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold">
+                              {formatFundRequestDecisionAtCompact(row)}
+                            </div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">
+                              {getFundRequestListProjectLabel(row)}
+                            </div>
+                            <div className="mt-1 truncate text-xs text-muted-foreground">
+                              {row.purpose}
+                            </div>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={cn("shrink-0 text-xs", outcomeBadgeClass(outcome))}
+                          >
+                            {OUTCOME_LABELS[outcome]}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between gap-3 pt-1">
+                          <span className="text-sm font-medium tabular-nums">
+                            {formatPhp(Number(row.total_requested_amount) || 0)}
+                          </span>
+                          {renderRowActions(row)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </>
     );

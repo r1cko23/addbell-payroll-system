@@ -85,6 +85,7 @@ import {
   splitFundRequestDocuments,
 } from "@/components/fund-request/FundRequestPaymentCheckSection";
 import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
+import { getFundRequestPayeeAccountName } from "@/lib/fund-request-inbox-grouping";
 import { FundRequestApprovalHistory } from "@/components/fund-request/FundRequestApprovalHistory";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundRequestBankDetailsDisplay";
@@ -161,6 +162,9 @@ export function FundRequestApprovalDetail({
   );
   const [requesterRouting, setRequesterRouting] =
     useState<FundRequestRequesterRouting | null>(null);
+  const [linkedPaymentCheckRequestIds, setLinkedPaymentCheckRequestIds] = useState<
+    string[]
+  >([]);
 
   useEffect(() => {
     if (!profile?.id || normalizeUserRole(profile.role) !== "operations_manager") {
@@ -273,6 +277,35 @@ export function FundRequestApprovalDetail({
       let docRows: FundRequestDocumentSummary[] | null = null;
       const extendedDocSelect =
         "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path";
+
+      let paymentCheckGroupIds = [row.id];
+      const payeeAccountName = getFundRequestPayeeAccountName(row);
+      if (
+        payeeAccountName &&
+        (row.status === "purchasing_officer_approved" ||
+          row.status === "management_approved")
+      ) {
+        const { data: paymentCheckPeers } = await supabase
+          .from("fund_requests")
+          .select("id, supplier_bank_details, status")
+          .in("status", ["purchasing_officer_approved", "management_approved"]);
+        const siblingIds = (paymentCheckPeers ?? [])
+          .filter((peer) => {
+            const peerAccountName = getFundRequestPayeeAccountName(peer);
+            if (!peerAccountName) return false;
+            return (
+              peerAccountName.localeCompare(payeeAccountName, undefined, {
+                sensitivity: "base",
+              }) === 0
+            );
+          })
+          .map((peer) => (peer as { id: string }).id);
+        if (siblingIds.length > 0) {
+          paymentCheckGroupIds = siblingIds;
+        }
+      }
+      setLinkedPaymentCheckRequestIds(paymentCheckGroupIds);
+
       const { data: extendedDocs, error: extendedDocsError } = await supabase
         .from("fund_request_documents")
         .select(extendedDocSelect)
@@ -294,6 +327,26 @@ export function FundRequestApprovalDetail({
       } else {
         docRows = (extendedDocs as FundRequestDocumentSummary[]) ?? [];
       }
+
+      if (paymentCheckGroupIds.length > 1) {
+        const { data: groupPaymentChecks, error: groupPaymentChecksError } =
+          await supabase
+            .from("fund_request_documents")
+            .select(extendedDocSelect)
+            .in("fund_request_id", paymentCheckGroupIds)
+            .eq("document_type", "payment_check")
+            .order("created_at", { ascending: true });
+        if (!groupPaymentChecksError) {
+          const supportingOnly = (docRows ?? []).filter(
+            (doc) => doc.document_type !== "payment_check"
+          );
+          docRows = [
+            ...supportingOnly,
+            ...((groupPaymentChecks as FundRequestDocumentSummary[]) ?? []),
+          ];
+        }
+      }
+
       if (docRows) {
         setDocuments(docRows);
       }
@@ -800,6 +853,8 @@ export function FundRequestApprovalDetail({
                 requestId={request.id}
                 documents={documents}
                 canUpload={canUploadPaymentCheck}
+                canDelete={canUploadPaymentCheck}
+                linkedRequestIds={linkedPaymentCheckRequestIds}
                 onDocumentsChange={setDocuments}
               />
             ) : null}

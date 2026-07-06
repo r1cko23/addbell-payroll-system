@@ -247,6 +247,106 @@ export async function createFundRequestDocumentSignedUrl(
   return data.signedUrl;
 }
 
+export async function linkFundRequestDocumentToRequests(
+  admin: SupabaseClient,
+  params: {
+    sourceDocumentId: string;
+    storagePath: string;
+    fileName: string;
+    fileType: string;
+    fileSize: number;
+    documentType: FundRequestDocumentType;
+    uploadedBy?: string | null;
+    linkedRequests: Array<{ fundRequestId: string; employeeId: string }>;
+  }
+): Promise<
+  | { documents: Record<string, unknown>[] }
+  | { error: string; status: number }
+> {
+  if (params.linkedRequests.length === 0) {
+    return { documents: [] };
+  }
+
+  const rows = params.linkedRequests.map((linked) => ({
+    id: randomUUID(),
+    fund_request_id: linked.fundRequestId,
+    employee_id: linked.employeeId,
+    file_name: params.fileName,
+    file_type: params.fileType,
+    file_size: params.fileSize,
+    storage_path: params.storagePath,
+    file_base64: null,
+    document_type: params.documentType,
+    uploaded_by: params.uploadedBy ?? null,
+  }));
+
+  const { data, error } = await admin
+    .from("fund_request_documents")
+    .insert(rows)
+    .select(FUND_REQUEST_DOCUMENT_SELECT);
+
+  if (error) {
+    return { error: error.message, status: 500 };
+  }
+
+  return { documents: (data ?? []) as Record<string, unknown>[] };
+}
+
+export async function deleteFundRequestDocumentById(
+  admin: SupabaseClient,
+  documentId: string
+): Promise<{ error?: string; status?: number }> {
+  const { data: document, error: loadError } = await admin
+    .from("fund_request_documents")
+    .select("id, storage_path, document_type")
+    .eq("id", documentId)
+    .maybeSingle();
+
+  if (loadError) {
+    return { error: loadError.message, status: 500 };
+  }
+  if (!document) {
+    return { error: "Document not found", status: 404 };
+  }
+
+  const storagePath = (document as { storage_path?: string | null }).storage_path;
+  const documentType = (document as { document_type?: string | null }).document_type;
+
+  if (documentType === "payment_check" && storagePath) {
+    const { error: linkedDeleteError } = await admin
+      .from("fund_request_documents")
+      .delete()
+      .eq("storage_path", storagePath)
+      .eq("document_type", "payment_check");
+
+    if (linkedDeleteError) {
+      return { error: linkedDeleteError.message, status: 500 };
+    }
+  } else {
+    const { error: deleteError } = await admin
+      .from("fund_request_documents")
+      .delete()
+      .eq("id", documentId);
+
+    if (deleteError) {
+      return { error: deleteError.message, status: 500 };
+    }
+  }
+
+  if (storagePath) {
+    const { count, error: countError } = await admin
+      .from("fund_request_documents")
+      .select("id", { count: "exact", head: true })
+      .eq("storage_path", storagePath);
+
+    if (!countError && (count ?? 0) === 0) {
+      await removeStoredFundRequestDocument(admin, storagePath);
+    }
+  }
+
+  return {};
+}
+
 export async function deleteFundRequestDocumentFiles(
   admin: SupabaseClient,
   fundRequestIds: string[]

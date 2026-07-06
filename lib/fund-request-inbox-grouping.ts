@@ -7,6 +7,14 @@ import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-detai
 import { isOfficeRelatedFundRequest } from "@/types/fund-request";
 import type { FundRequestRow } from "@/types/fund-request";
 
+export type FundRequestPayeeGroupableRow = Pick<FundRequestRow, "supplier_bank_details"> &
+  Partial<
+    Pick<
+      FundRequestRow,
+      "reference_mode" | "total_requested_amount" | "id" | "purpose" | "po_number" | "details"
+    >
+  >;
+
 export type FundRequestInboxRow = FundRequestRow & {
   employees: {
     employee_id: string;
@@ -109,7 +117,7 @@ export function summarizeFundRequestPayment(
 }
 
 export function getFundRequestPayeeAccountName(
-  request: FundRequestInboxRow
+  request: FundRequestPayeeGroupableRow
 ): string | null {
   const accountName = parseSupplierBankDetails(
     request.supplier_bank_details
@@ -117,11 +125,13 @@ export function getFundRequestPayeeAccountName(
   return accountName || null;
 }
 
-export function getFundRequestClientLabel(request: FundRequestInboxRow): string {
+export function getFundRequestClientLabel(
+  request: FundRequestPayeeGroupableRow
+): string {
   const accountName = getFundRequestPayeeAccountName(request);
   if (accountName) return accountName;
 
-  if (isOfficeRelatedFundRequest(request.reference_mode)) {
+  if (isOfficeRelatedFundRequest(request.reference_mode ?? null)) {
     return "Office-Related Requests";
   }
 
@@ -129,20 +139,21 @@ export function getFundRequestClientLabel(request: FundRequestInboxRow): string 
 }
 
 export function groupFundRequestsByClient(
-  rows: FundRequestInboxRow[]
+  rows: FundRequestPayeeGroupableRow[]
 ): FundRequestClientGroup[] {
   const groups = new Map<string, FundRequestClientGroup>();
 
   rows.forEach((request) => {
     const clientName = getFundRequestClientLabel(request);
     const key = clientName.toLowerCase().replace(/\s+/g, " ");
+    const inboxRow = request as FundRequestInboxRow;
     const existing = groups.get(key) ?? {
       key,
       clientName,
       requests: [],
       subtotalNet: 0,
     };
-    existing.requests.push(request);
+    existing.requests.push(inboxRow);
     existing.subtotalNet = roundCurrency(
       existing.subtotalNet + (Number(request.total_requested_amount) || 0)
     );

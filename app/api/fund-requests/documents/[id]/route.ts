@@ -3,11 +3,16 @@ import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
+import { getCurrentUserRole } from "@/lib/api-helpers";
 import {
+  assertApproverCanDeletePaymentCheck,
   assertCanViewFundRequestDocument,
   getAdminClient,
 } from "@/lib/fund-request-api";
-import { createFundRequestDocumentSignedUrl } from "@/lib/fund-request-document-storage";
+import {
+  createFundRequestDocumentSignedUrl,
+  deleteFundRequestDocumentById,
+} from "@/lib/fund-request-document-storage";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -84,6 +89,80 @@ export async function GET(
       );
     }
 
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+type FundRequestDocumentDeleteRow = {
+  id: string;
+  fund_request_id: string;
+  document_type: string | null;
+};
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const documentId = params.id?.trim();
+    if (!documentId) {
+      return NextResponse.json({ error: "Document id is required" }, { status: 400 });
+    }
+
+    const admin = getAdminClient();
+    const cookieSupabase = createServerComponentClient<Database>({ cookies });
+    const {
+      data: { user: authUser },
+    } = await cookieSupabase.auth.getUser();
+
+    const { data: document, error: loadError } = await admin
+      .from("fund_request_documents")
+      .select("id, fund_request_id, document_type")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (loadError) {
+      return NextResponse.json({ error: loadError.message }, { status: 500 });
+    }
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    const row = document as FundRequestDocumentDeleteRow;
+    if (row.document_type !== "payment_check") {
+      return NextResponse.json(
+        { error: "Only payment checks can be deleted from this screen." },
+        { status: 403 }
+      );
+    }
+
+    const role = await getCurrentUserRole();
+    const access = await assertApproverCanDeletePaymentCheck(
+      admin,
+      authUser?.id ?? null,
+      row.fund_request_id,
+      role
+    );
+    if ("error" in access) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    const result = await deleteFundRequestDocumentById(admin, documentId);
+    if (result.error) {
+      if (isSchemaMissingTableOrRelationError({ message: result.error })) {
+        return NextResponse.json(
+          { error: "Document storage is not available. Apply database migrations." },
+          { status: 503 }
+        );
+      }
+      return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },
       { status: 500 }

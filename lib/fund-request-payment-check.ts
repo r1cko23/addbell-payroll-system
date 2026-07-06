@@ -10,6 +10,11 @@ import { uploadFundRequestDocumentFile } from "@/lib/fund-request-document-uploa
 import type { FundRequestDocumentSummary, FundRequestRow } from "@/types/fund-request";
 import { normalizeUserRole } from "@/lib/user-roles";
 
+export type FundRequestPaymentCheckUploadResult = {
+  documents: FundRequestDocumentSummary[];
+  error?: string;
+};
+
 export const ALLOWED_PAYMENT_CHECK_MIME_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -61,6 +66,37 @@ export function isFundRequestPaymentCheckDocument(
   return document.document_type === "payment_check";
 }
 
+export function dedupeFundRequestPaymentCheckDocuments(
+  documents: FundRequestDocumentSummary[]
+): FundRequestDocumentSummary[] {
+  const seen = new Set<string>();
+  const deduped: FundRequestDocumentSummary[] = [];
+
+  for (const document of documents.filter(isFundRequestPaymentCheckDocument)) {
+    const key =
+      document.storage_path?.trim() ||
+      `${document.file_name ?? ""}:${document.created_at ?? ""}:${document.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(document);
+  }
+
+  return deduped;
+}
+
+export async function deleteFundRequestPaymentCheck(
+  documentId: string
+): Promise<{ error?: string }> {
+  const response = await fetch(`/api/fund-requests/documents/${documentId}`, {
+    method: "DELETE",
+  });
+  const payload = (await response.json()) as { error?: string };
+  if (!response.ok) {
+    return { error: payload.error ?? "Unable to delete payment check" };
+  }
+  return {};
+}
+
 export async function preparePaymentCheckFile(file: File): Promise<File> {
   if (!isAllowedPaymentCheckFile(file) || !isCompressibleImageFile(file)) {
     return file;
@@ -78,13 +114,26 @@ export async function preparePaymentCheckFile(file: File): Promise<File> {
 
 export async function uploadFundRequestPaymentCheck(
   requestId: string,
-  file: File
-): Promise<{ document?: FundRequestDocumentSummary; error?: string }> {
+  file: File,
+  options?: { linkedRequestIds?: string[] }
+): Promise<FundRequestPaymentCheckUploadResult> {
   const preparedFile = await preparePaymentCheckFile(file);
-  return uploadFundRequestDocumentFile(preparedFile, {
+  const linkedRequestIds = (options?.linkedRequestIds ?? []).filter(
+    (id) => id && id !== requestId
+  );
+  const result = await uploadFundRequestDocumentFile(preparedFile, {
     requestId,
     documentType: "payment_check",
+    linkedRequestIds: linkedRequestIds.length > 0 ? linkedRequestIds : undefined,
   });
+
+  if (result.error || !result.document) {
+    return { documents: [], error: result.error ?? "Unable to upload payment check" };
+  }
+
+  return {
+    documents: [result.document, ...(result.linkedDocuments ?? [])],
+  };
 }
 
 export function validatePaymentCheckFile(file: File | null): string | null {

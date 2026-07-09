@@ -6,9 +6,81 @@ import {
   compressImageForUpload,
   isCompressibleImageFile,
 } from "@/lib/compress-image-for-upload";
+import { getFundRequestCutoffStartYmd } from "@/lib/fund-request-cutoff";
+import { getFundRequestPayeeAccountName } from "@/lib/fund-request-inbox-grouping";
 import { uploadFundRequestDocumentFile } from "@/lib/fund-request-document-upload-client";
 import type { FundRequestDocumentSummary, FundRequestRow } from "@/types/fund-request";
 import { normalizeUserRole } from "@/lib/user-roles";
+
+export const FUND_REQUEST_PAYMENT_CHECK_PEER_STATUSES = [
+  "purchasing_officer_approved",
+  "management_approved",
+] as const;
+
+export type FundRequestPaymentCheckPeerRow = Pick<
+  FundRequestRow,
+  "id" | "supplier_bank_details" | "status" | "created_at" | "request_date"
+>;
+
+export function isFundRequestPaymentCheckPeerStatus(
+  status: string | null | undefined
+): boolean {
+  return (FUND_REQUEST_PAYMENT_CHECK_PEER_STATUSES as readonly string[]).includes(
+    status ?? ""
+  );
+}
+
+export function hasSameFundRequestPayeeAccountName(
+  a: FundRequestPaymentCheckPeerRow,
+  b: FundRequestPaymentCheckPeerRow
+): boolean {
+  const accountNameA = getFundRequestPayeeAccountName(a);
+  const accountNameB = getFundRequestPayeeAccountName(b);
+  if (!accountNameA || !accountNameB) return false;
+  return (
+    accountNameA.localeCompare(accountNameB, undefined, { sensitivity: "base" }) === 0
+  );
+}
+
+export function hasSameFundRequestCutoff(
+  a: FundRequestPaymentCheckPeerRow,
+  b: FundRequestPaymentCheckPeerRow
+): boolean {
+  const cutoffA = getFundRequestCutoffStartYmd(a as FundRequestRow);
+  const cutoffB = getFundRequestCutoffStartYmd(b as FundRequestRow);
+  if (!cutoffA || !cutoffB) return false;
+  return cutoffA === cutoffB;
+}
+
+/** Same payee and cutoff; eligible for sharing one payment check. */
+export function isFundRequestPaymentCheckPeer(
+  source: FundRequestPaymentCheckPeerRow,
+  candidate: FundRequestPaymentCheckPeerRow
+): boolean {
+  if (source.id === candidate.id) return true;
+  if (!isFundRequestPaymentCheckPeerStatus(candidate.status)) return false;
+  if (!hasSameFundRequestPayeeAccountName(source, candidate)) return false;
+  return hasSameFundRequestCutoff(source, candidate);
+}
+
+export function getFundRequestPaymentCheckPeerIds(
+  source: FundRequestPaymentCheckPeerRow,
+  candidates: FundRequestPaymentCheckPeerRow[]
+): string[] {
+  const payeeAccountName = getFundRequestPayeeAccountName(source);
+  if (!payeeAccountName || !isFundRequestPaymentCheckPeerStatus(source.status)) {
+    return [source.id];
+  }
+  if (!getFundRequestCutoffStartYmd(source as FundRequestRow)) {
+    return [source.id];
+  }
+
+  const peerIds = candidates
+    .filter((candidate) => isFundRequestPaymentCheckPeer(source, candidate))
+    .map((candidate) => candidate.id);
+
+  return peerIds.length > 0 ? peerIds : [source.id];
+}
 
 export type FundRequestPaymentCheckUploadResult = {
   documents: FundRequestDocumentSummary[];

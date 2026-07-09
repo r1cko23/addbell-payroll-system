@@ -84,8 +84,11 @@ import {
   FundRequestPaymentCheckSection,
   splitFundRequestDocuments,
 } from "@/components/fund-request/FundRequestPaymentCheckSection";
-import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
-import { getFundRequestPayeeAccountName } from "@/lib/fund-request-inbox-grouping";
+import {
+  canUploadFundRequestPaymentCheck,
+  getFundRequestPaymentCheckPeerIds,
+  type FundRequestPaymentCheckPeerRow,
+} from "@/lib/fund-request-payment-check";
 import { FundRequestApprovalHistory } from "@/components/fund-request/FundRequestApprovalHistory";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundRequestBankDetailsDisplay";
@@ -278,32 +281,14 @@ export function FundRequestApprovalDetail({
       const extendedDocSelect =
         "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path";
 
-      let paymentCheckGroupIds = [row.id];
-      const payeeAccountName = getFundRequestPayeeAccountName(row);
-      if (
-        payeeAccountName &&
-        (row.status === "purchasing_officer_approved" ||
-          row.status === "management_approved")
-      ) {
-        const { data: paymentCheckPeers } = await supabase
-          .from("fund_requests")
-          .select("id, supplier_bank_details, status")
-          .in("status", ["purchasing_officer_approved", "management_approved"]);
-        const siblingIds = (paymentCheckPeers ?? [])
-          .filter((peer) => {
-            const peerAccountName = getFundRequestPayeeAccountName(peer);
-            if (!peerAccountName) return false;
-            return (
-              peerAccountName.localeCompare(payeeAccountName, undefined, {
-                sensitivity: "base",
-              }) === 0
-            );
-          })
-          .map((peer) => (peer as { id: string }).id);
-        if (siblingIds.length > 0) {
-          paymentCheckGroupIds = siblingIds;
-        }
-      }
+      const { data: paymentCheckPeers } = await supabase
+        .from("fund_requests")
+        .select("id, supplier_bank_details, status, created_at, request_date")
+        .in("status", ["purchasing_officer_approved", "management_approved"]);
+      const paymentCheckGroupIds = getFundRequestPaymentCheckPeerIds(
+        row,
+        (paymentCheckPeers ?? []) as FundRequestPaymentCheckPeerRow[]
+      );
       setLinkedPaymentCheckRequestIds(paymentCheckGroupIds);
 
       const { data: extendedDocs, error: extendedDocsError } = await supabase

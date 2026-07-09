@@ -13,6 +13,7 @@ import {
   linkFundRequestDocumentToRequests,
   registerFundRequestDocument,
 } from "@/lib/fund-request-document-storage";
+import { isFundRequestPaymentCheckPeer } from "@/lib/fund-request-payment-check";
 import { recordFundRequestDirectUpload } from "@/lib/platform-runtime-metrics";
 import type { FundRequestDocumentType } from "@/types/fund-request";
 
@@ -138,6 +139,19 @@ export async function POST(req: NextRequest) {
         ),
       ];
 
+      const { data: sourcePeerRow, error: sourcePeerError } = await admin
+        .from("fund_requests")
+        .select("id, supplier_bank_details, status, created_at, request_date")
+        .eq("id", requestId)
+        .maybeSingle();
+
+      if (sourcePeerError) {
+        return NextResponse.json({ error: sourcePeerError.message }, { status: 500 });
+      }
+      if (!sourcePeerRow) {
+        return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      }
+
       const linkedRequests: Array<{ fundRequestId: string; employeeId: string }> = [];
       for (const linkedId of uniqueLinkedIds) {
         const linkedAccess = await assertApproverCanUploadPaymentCheck(
@@ -152,6 +166,29 @@ export async function POST(req: NextRequest) {
             { status: linkedAccess.status }
           );
         }
+
+        const { data: linkedPeerRow, error: linkedPeerError } = await admin
+          .from("fund_requests")
+          .select("id, supplier_bank_details, status, created_at, request_date")
+          .eq("id", linkedId)
+          .maybeSingle();
+
+        if (linkedPeerError) {
+          return NextResponse.json({ error: linkedPeerError.message }, { status: 500 });
+        }
+        if (!linkedPeerRow) {
+          return NextResponse.json({ error: "Linked request not found" }, { status: 404 });
+        }
+        if (!isFundRequestPaymentCheckPeer(sourcePeerRow, linkedPeerRow)) {
+          return NextResponse.json(
+            {
+              error:
+                "Payment checks can only be linked to requests for the same payee in the same cutoff week.",
+            },
+            { status: 400 }
+          );
+        }
+
         linkedRequests.push({
           fundRequestId: linkedId,
           employeeId: linkedAccess.existing.requested_by,

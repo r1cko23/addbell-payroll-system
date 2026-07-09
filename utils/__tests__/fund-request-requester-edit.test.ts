@@ -59,7 +59,7 @@ describe("canRequesterEditFundRequest", () => {
     ).toBe(false);
   });
 
-  test("blocks OM requester once request is in purchasing officer queue", () => {
+  test("allows OM requester to edit while waiting on purchasing officer", () => {
     const request = {
       ...omRequestAfterPoApproval(),
       status: "project_manager_approved" as const,
@@ -71,7 +71,7 @@ describe("canRequesterEditFundRequest", () => {
         requesterUserId: "joel-user",
         requesterIsOperationsManager: true,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   test("still allows non-OM requester edit while waiting on purchasing officer", () => {
@@ -133,7 +133,7 @@ describe("canRequesterAddDocumentToFundRequest", () => {
         requesterUserId: "joel-user",
         requesterIsOperationsManager: true,
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   test("blocks OM document upload after purchasing officer approved", () => {

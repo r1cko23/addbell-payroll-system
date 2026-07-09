@@ -659,6 +659,7 @@ function canRequesterManageFundRequestInternal(
       | "status"
       | "project_manager_approved_by"
       | "purchasing_officer_approved_by"
+      | "purchasing_officer_approved_at"
       | "management_approved_by"
     >,
   options?: FundRequestRequesterManageOptions
@@ -667,6 +668,7 @@ function canRequesterManageFundRequestInternal(
   if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
   if (request.status === "pending") return true;
   if (canRequesterEditAtPurchasingOfficerQueue(request, options)) return true;
+  if (canOperationsManagerManageAtPurchasingQueue(request, options)) return true;
   return isPurchasingOfficerSelfSubmitAwaitingUpperManagement(
     request,
     options?.requesterUserId
@@ -716,8 +718,8 @@ export function canRequesterEditFundRequest(
   return REQUESTER_MANAGEABLE_STATUSES.has(request as FundRequestRow["status"]);
 }
 
-/** OM self-filed requests skip the OM queue; allow supporting docs until PO acts. */
-export function canOperationsManagerAddDocumentAtPurchasingQueue(
+/** OM self-filed requests skip the OM queue; editable until PO acts. */
+export function canOperationsManagerManageAtPurchasingQueue(
   request: Pick<
     FundRequestRow,
     | "status"
@@ -733,6 +735,10 @@ export function canOperationsManagerAddDocumentAtPurchasingQueue(
     !request.purchasing_officer_approved_at
   );
 }
+
+/** @deprecated Use canOperationsManagerManageAtPurchasingQueue */
+export const canOperationsManagerAddDocumentAtPurchasingQueue =
+  canOperationsManagerManageAtPurchasingQueue;
 
 /** Add supporting documents before the next approver acts (looser than field edit for OM). */
 export function canRequesterAddDocumentToFundRequest(
@@ -754,5 +760,5 @@ export function canRequesterAddDocumentToFundRequest(
   if (typeof request !== "object" || request === null) return false;
   if (isFundRequestRejected(request)) return false;
   if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
-  return canOperationsManagerAddDocumentAtPurchasingQueue(request, options);
+  return canOperationsManagerManageAtPurchasingQueue(request, options);
 }

@@ -1,4 +1,5 @@
 import {
+  canRequesterAddDocumentToFundRequest,
   canRequesterEditFundRequest,
   isPurchasingOfficerSelfSubmitAwaitingUpperManagement,
 } from "@/lib/fund-request-approval";
@@ -110,5 +111,38 @@ describe("canRequesterEditFundRequest", () => {
     expect(
       canRequesterEditFundRequest(request, { requesterUserId: "phen-user" })
     ).toBe(true);
+  });
+});
+
+describe("canRequesterAddDocumentToFundRequest", () => {
+  test("allows OM requester to add documents while waiting on purchasing officer", () => {
+    const request = {
+      ...omRequestAfterPoApproval(),
+      status: "project_manager_approved" as const,
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+    };
+    expect(
+      canRequesterAddDocumentToFundRequest(request, {
+        requesterUserId: "joel-user",
+        requesterIsOperationsManager: true,
+      })
+    ).toBe(true);
+    expect(
+      canRequesterEditFundRequest(request, {
+        requesterUserId: "joel-user",
+        requesterIsOperationsManager: true,
+      })
+    ).toBe(false);
+  });
+
+  test("blocks OM document upload after purchasing officer approved", () => {
+    const request = omRequestAfterPoApproval();
+    expect(
+      canRequesterAddDocumentToFundRequest(request, {
+        requesterUserId: "joel-user",
+        requesterIsOperationsManager: true,
+      })
+    ).toBe(false);
   });
 });

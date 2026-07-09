@@ -5,7 +5,7 @@ import type { Database } from "@/types/database";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import {
   assertApproverCanUploadPaymentCheck,
-  assertRequesterCanManageFundRequest,
+  assertRequesterCanAddDocumentToFundRequest,
   getAdminClient,
 } from "@/lib/fund-request-api";
 import { getCurrentUserRole } from "@/lib/api-helpers";
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const access = await assertRequesterCanManageFundRequest(
+      const access = await assertRequesterCanAddDocumentToFundRequest(
         admin,
         authUser?.id ?? null,
         requestId,

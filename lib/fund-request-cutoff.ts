@@ -329,7 +329,10 @@ export function getApproverHistoryOutcome(
   return getFundRequestHistoryOutcome(request);
 }
 
-export function getFundRequestHistoryCutoffs(anchorYmd: string): {
+export function getFundRequestHistoryCutoffs(
+  anchorYmd: string,
+  options?: { forwardWeeks?: number }
+): {
   fetch_from: string;
   fetch_to: string;
   span_label: string;
@@ -338,9 +341,10 @@ export function getFundRequestHistoryCutoffs(anchorYmd: string): {
   const anchor = parseYmd(anchorYmd);
   if (!anchor) return null;
 
+  const forwardWeeks = Math.max(0, options?.forwardWeeks ?? 0);
   const rangeStart = subDays(anchor, FUND_REQUEST_HISTORY_LOOKBACK_DAYS - 1);
   let weekStart = getFundRequestCutoffPeriodStart(anchor);
-  const fetchTo = format(getFundRequestCutoffPeriodEnd(weekStart), "yyyy-MM-dd");
+  let fetchTo = format(getFundRequestCutoffPeriodEnd(weekStart), "yyyy-MM-dd");
 
   const cutoffsNewestFirst: WeeklyCutoffPeriod[] = [];
   for (let i = 0; i < FUND_REQUEST_HISTORY_MAX_WEEKS; i++) {
@@ -356,6 +360,20 @@ export function getFundRequestHistoryCutoffs(anchorYmd: string): {
     weekStart = getPreviousFundRequestCutoffPeriod(weekStart);
   }
 
+  if (forwardWeeks > 0) {
+    let futureStart = addDays(getFundRequestCutoffPeriodStart(anchor), 7);
+    for (let i = 0; i < forwardWeeks; i++) {
+      const weekEnd = getFundRequestCutoffPeriodEnd(futureStart);
+      cutoffsNewestFirst.unshift({
+        start_ymd: format(futureStart, "yyyy-MM-dd"),
+        end_ymd: format(weekEnd, "yyyy-MM-dd"),
+        label: formatWeeklyPeriod(futureStart, weekEnd),
+      });
+      fetchTo = format(weekEnd, "yyyy-MM-dd");
+      futureStart = addDays(futureStart, 7);
+    }
+  }
+
   const oldestStart =
     cutoffsNewestFirst[cutoffsNewestFirst.length - 1]?.start_ymd ??
     format(rangeStart, "yyyy-MM-dd");
@@ -366,6 +384,16 @@ export function getFundRequestHistoryCutoffs(anchorYmd: string): {
     span_label: `${format(rangeStart, "MMM d")} – ${format(anchor, "MMM d, yyyy")}`,
     cutoffs: cutoffsNewestFirst,
   };
+}
+
+/** Index of the active Fri–Thu cutoff in a newest-first cutoff list. */
+export function getActiveFundRequestCutoffIndex(
+  cutoffs: readonly WeeklyCutoffPeriod[],
+  anchor: Date = new Date()
+): number {
+  const activeStart = getActiveFundRequestCutoffStartYmd(anchor);
+  const index = cutoffs.findIndex((cutoff) => cutoff.start_ymd === activeStart);
+  return index >= 0 ? index : 0;
 }
 
 export function cutoffKeyForFundRequestFiledDate(

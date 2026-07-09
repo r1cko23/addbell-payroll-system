@@ -1,8 +1,10 @@
 import {
   fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
+  getActiveFundRequestCutoffIndex,
   getFundRequestCutoffStartYmd,
   getFundRequestCutoffStartYmdForFiling,
+  getFundRequestHistoryCutoffs,
   shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -125,5 +127,15 @@ describe("shouldShowFundRequestCutoffDeadlineTimeForPeriod", () => {
         new Date(2026, 6, 3)
       )
     ).toBe(true);
+  });
+});
+
+describe("getFundRequestHistoryCutoffs forward weeks", () => {
+  it("prepends one future cutoff and selects the active week by default", () => {
+    const history = getFundRequestHistoryCutoffs("2026-07-09", { forwardWeeks: 1 });
+    expect(history).not.toBeNull();
+    expect(history?.cutoffs[0]?.start_ymd).toBe("2026-07-10");
+    expect(history?.cutoffs[1]?.start_ymd).toBe("2026-07-03");
+    expect(getActiveFundRequestCutoffIndex(history?.cutoffs ?? [])).toBe(1);
   });
 });

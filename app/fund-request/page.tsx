@@ -55,6 +55,8 @@ function FundRequestListPageContent() {
   const showHistoryTab = isUpperManagement || isPurchasingOfficer || isAdmin;
   const showMyRequestsTab = isApprover && !isUpperManagement;
   const tabParam = searchParams.get('tab');
+  const defaultApproverTab: FundRequestListTab =
+    showHistoryTab && !showMyRequestsTab ? 'inbox' : 'my-requests';
   const initialTab: FundRequestListTab =
     tabParam === 'inbox' && isApprover
       ? 'inbox'
@@ -62,7 +64,7 @@ function FundRequestListPageContent() {
         ? 'history'
         : tabParam === 'all-requests' && showAllRequestsTab
           ? 'all-requests'
-          : 'my-requests';
+          : defaultApproverTab;
   const [activeTab, setActiveTab] = useState<FundRequestListTab>(initialTab);
   const [linkedEmployeeId, setLinkedEmployeeId] = useState<string | null>(null);
   const [resolvingLinkedEmployee, setResolvingLinkedEmployee] = useState(false);

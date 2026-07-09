@@ -22,7 +22,7 @@ import { FundRequestDetailsSection } from '@/components/fund-request/FundRequest
 import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
 import { FundRequestAddDocument } from '@/components/fund-request/FundRequestAddDocument';
-import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterEditFundRequest, getFundRequestRequesterStatus, isFundRequestRejected } from '@/lib/fund-request-approval';
+import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterAddDocumentToFundRequest, canRequesterEditFundRequest, getFundRequestRequesterStatus, isFundRequestRejected } from '@/lib/fund-request-approval';
 import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { Button } from '@/components/ui/button';
@@ -140,6 +140,9 @@ export function FundRequestEmployeeDetail({
   const canEdit =
     canRequesterEditFundRequest(request) &&
     request.requested_by === session?.employee?.id;
+  const canAddDocument =
+    canRequesterAddDocumentToFundRequest(request) &&
+    request.requested_by === session?.employee?.id;
   const requesterStatus = getFundRequestRequesterStatus(request);
 
   return (
@@ -238,7 +241,7 @@ export function FundRequestEmployeeDetail({
             requestedBy={request.requested_by}
           />
 
-          {canEdit ? (
+          {canAddDocument ? (
             <FundRequestAddDocument
               requestId={fundRequestId}
               requestedBy={request.requested_by}

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import {
+  canRequesterAddDocumentToFundRequest,
   canRequesterEditFundRequest,
   isFundRequestRejected,
 } from "@/lib/fund-request-approval";
@@ -72,6 +73,78 @@ export async function assertRequesterCanManageFundRequest(
 
   if (
     !canRequesterEditFundRequest(existing, {
+      requesterUserId: employee.user_id,
+      requesterIsOperationsManager,
+    })
+  ) {
+    return {
+      error:
+        "This request can no longer be changed because it was approved by the next approver.",
+      status: 403 as const,
+    };
+  }
+
+  return { existing };
+}
+
+/** Supporting document upload before the next approver acts (includes OM self-file at PO queue). */
+export async function assertRequesterCanAddDocumentToFundRequest(
+  admin: ReturnType<typeof getAdminClient>,
+  authUserId: string | null,
+  requestId: string,
+  requesterEmployeeId: string
+) {
+  const { data: existing, error: loadError } = await admin
+    .from("fund_requests")
+    .select(
+      "id, requested_by, status, rejected_at, purchasing_officer_approved_at, rejection_undo_snapshot, project_manager_approved_by, project_manager_approved_at, purchasing_officer_approved_by, management_approved_by"
+    )
+    .eq("id", requestId)
+    .maybeSingle();
+
+  if (loadError) {
+    return { error: loadError.message, status: 500 as const };
+  }
+  if (!existing || existing.requested_by !== requesterEmployeeId) {
+    return { error: "Request not found", status: 404 as const };
+  }
+  if (isFundRequestRejected(existing)) {
+    return {
+      error: "This request was rejected and can no longer be changed.",
+      status: 403 as const,
+    };
+  }
+
+  const { data: employee, error: employeeError } = await admin
+    .from("employees")
+    .select("id, user_id, is_active")
+    .eq("id", requesterEmployeeId)
+    .maybeSingle();
+
+  if (employeeError) {
+    return { error: employeeError.message, status: 500 as const };
+  }
+  if (!employee?.is_active) {
+    return { error: "Request not found", status: 404 as const };
+  }
+
+  if (authUserId && employee.user_id !== authUserId) {
+    return { error: "You can only change your own fund requests.", status: 403 as const };
+  }
+
+  let requesterIsOperationsManager = false;
+  if (employee.user_id) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", employee.user_id)
+      .maybeSingle();
+    requesterIsOperationsManager =
+      (profile?.role || "").trim().toLowerCase() === "operations_manager";
+  }
+
+  if (
+    !canRequesterAddDocumentToFundRequest(existing, {
       requesterUserId: employee.user_id,
       requesterIsOperationsManager,
     })

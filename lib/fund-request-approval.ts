@@ -715,3 +715,44 @@ export function canRequesterEditFundRequest(
   if (request === "rejected") return false;
   return REQUESTER_MANAGEABLE_STATUSES.has(request as FundRequestRow["status"]);
 }
+
+/** OM self-filed requests skip the OM queue; allow supporting docs until PO acts. */
+export function canOperationsManagerAddDocumentAtPurchasingQueue(
+  request: Pick<
+    FundRequestRow,
+    | "status"
+    | "purchasing_officer_approved_by"
+    | "purchasing_officer_approved_at"
+  >,
+  options?: Pick<FundRequestRequesterManageOptions, "requesterIsOperationsManager">
+): boolean {
+  if (!options?.requesterIsOperationsManager) return false;
+  return (
+    request.status === "project_manager_approved" &&
+    !request.purchasing_officer_approved_by &&
+    !request.purchasing_officer_approved_at
+  );
+}
+
+/** Add supporting documents before the next approver acts (looser than field edit for OM). */
+export function canRequesterAddDocumentToFundRequest(
+  request:
+    | (FundRequestRequesterAccessFields &
+        Pick<
+          FundRequestRow,
+          | "status"
+          | "project_manager_approved_by"
+          | "purchasing_officer_approved_by"
+          | "purchasing_officer_approved_at"
+          | "management_approved_by"
+        >)
+    | FundRequestRow["status"]
+    | string,
+  options?: FundRequestRequesterManageOptions
+): boolean {
+  if (canRequesterEditFundRequest(request, options)) return true;
+  if (typeof request !== "object" || request === null) return false;
+  if (isFundRequestRejected(request)) return false;
+  if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
+  return canOperationsManagerAddDocumentAtPurchasingQueue(request, options);
+}

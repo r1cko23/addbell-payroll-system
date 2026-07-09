@@ -76,6 +76,7 @@ import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutof
 import {
   fundRequestBelongsToApproverCutoff,
   formatFundRequestCutoffPeriod,
+  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
 } from "@/lib/fund-request-cutoff";
 import { FundRequestApprovedExportDialog } from "@/components/fund-request/FundRequestApprovedExportDialog";
@@ -227,9 +228,17 @@ function formatCutoffMetricAmount(amount: number): string {
   return `₱${amount.toLocaleString()} total`;
 }
 
+const FUND_REQUEST_INBOX_FORWARD_WEEKS = 1;
+
 function getInitialFundRequestCutoffs(): WeeklyCutoffPeriod[] {
-  const history = getFundRequestHistoryCutoffs(format(new Date(), "yyyy-MM-dd"));
+  const history = getFundRequestHistoryCutoffs(format(new Date(), "yyyy-MM-dd"), {
+    forwardWeeks: FUND_REQUEST_INBOX_FORWARD_WEEKS,
+  });
   return history?.cutoffs ?? [];
+}
+
+function getInitialFundRequestCutoffIndex(cutoffs: WeeklyCutoffPeriod[]): number {
+  return getActiveFundRequestCutoffIndex(cutoffs);
 }
 
 export function FundRequestInbox({
@@ -268,7 +277,9 @@ export function FundRequestInbox({
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>(
     getInitialFundRequestCutoffs
   );
-  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
+  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(() =>
+    getInitialFundRequestCutoffIndex(getInitialFundRequestCutoffs())
+  );
   const [paymentCheckDocumentsByRequestId, setPaymentCheckDocumentsByRequestId] =
     useState<Record<string, FundRequestDocumentSummary[]>>({});
   const [approvedExportOpen, setApprovedExportOpen] = useState(false);
@@ -392,7 +403,18 @@ export function FundRequestInbox({
           : new Set<string>();
       setManagedRequesterIds(managedIds);
       const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd);
+      const history = getFundRequestHistoryCutoffs(todayYmd, {
+        forwardWeeks: FUND_REQUEST_INBOX_FORWARD_WEEKS,
+      });
+      if (history?.cutoffs.length) {
+        setHistoryCutoffs(history.cutoffs);
+        setSelectedCutoffIndex((current) => {
+          if (current >= history.cutoffs.length) {
+            return getActiveFundRequestCutoffIndex(history.cutoffs);
+          }
+          return current;
+        });
+      }
 
       let query = supabase
         .from("fund_requests")

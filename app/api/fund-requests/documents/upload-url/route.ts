@@ -4,7 +4,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/database";
 import {
   assertApproverCanUploadPaymentCheck,
-  assertRequesterCanManageFundRequest,
+  assertRequesterCanAddDocumentToFundRequest,
   getAdminClient,
 } from "@/lib/fund-request-api";
 import { getCurrentUserRole } from "@/lib/api-helpers";
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const access = await assertRequesterCanManageFundRequest(
+      const access = await assertRequesterCanAddDocumentToFundRequest(
         admin,
         authUser?.id ?? null,
         requestId,

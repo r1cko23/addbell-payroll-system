@@ -185,7 +185,9 @@ export function getFundRequestDecisionDateYmd(request: FundRequestRow): string |
   return getFundRequestFinalDecisionDateYmd(request);
 }
 
-export function getFundRequestFiledDateYmd(request: FundRequestRow): string | null {
+export function getFundRequestFiledDateYmd(
+  request: Pick<FundRequestRow, "request_date">
+): string | null {
   const raw = request.request_date?.trim();
   if (!raw) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;

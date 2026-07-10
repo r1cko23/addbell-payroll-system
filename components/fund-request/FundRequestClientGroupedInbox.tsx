@@ -24,6 +24,8 @@ import {
   type FundRequestDisposalAction,
 } from "@/lib/fund-request-approval";
 import { FundRequestPaymentCheckSection } from "@/components/fund-request/FundRequestPaymentCheckSection";
+import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
+import type { FundRequestCutoffAdjustmentEntry } from "@/types/fund-request";
 
 type PendingFundRequestDisposal = {
   id: string;
@@ -55,6 +57,10 @@ type FundRequestClientGroupedInboxProps = {
     requestIds: string[],
     documents: FundRequestDocumentSummary[]
   ) => void;
+  onRequestMovedToCurrentCutoff?: (
+    request: FundRequestInboxRow,
+    adjustment: FundRequestCutoffAdjustmentEntry
+  ) => void;
 };
 
 function formatPhp(amount: number): string {
@@ -77,6 +83,10 @@ type GroupedInboxRequestActionsProps = {
     status: FundRequestRow["status"],
     action: FundRequestDisposalAction
   ) => void;
+  onRequestMovedToCurrentCutoff?: (
+    request: FundRequestInboxRow,
+    adjustment: FundRequestCutoffAdjustmentEntry
+  ) => void;
 };
 
 function GroupedInboxRequestActions({
@@ -91,6 +101,7 @@ function GroupedInboxRequestActions({
   onStartReject,
   onCancelDisposal,
   onConfirmDisposal,
+  onRequestMovedToCurrentCutoff,
 }: GroupedInboxRequestActionsProps) {
   if (canReturn && pendingDisposal?.id === request.id) {
     const isReturn = pendingDisposal.action === "return";
@@ -147,6 +158,15 @@ function GroupedInboxRequestActions({
         <Button type="button" size="sm" variant="outline" className="min-h-10" asChild>
           <Link href={detailHref(request.id)}>Review</Link>
         </Button>
+        <FundRequestCutoffAdjustmentActions
+          request={request}
+          onChanged={(updated, adjustment) =>
+            onRequestMovedToCurrentCutoff?.(
+              { ...request, ...updated } as FundRequestInboxRow,
+              adjustment
+            )
+          }
+        />
         <Button
           type="button"
           size="sm"
@@ -172,9 +192,20 @@ function GroupedInboxRequestActions({
   }
 
   return (
-    <Button type="button" size="sm" variant="outline" className="min-h-10" asChild>
-      <Link href={detailHref(request.id)}>Review</Link>
-    </Button>
+    <HStack gap="2" className="flex-wrap">
+      <Button type="button" size="sm" variant="outline" className="min-h-10" asChild>
+        <Link href={detailHref(request.id)}>Review</Link>
+      </Button>
+      <FundRequestCutoffAdjustmentActions
+        request={request}
+        onChanged={(updated, adjustment) =>
+          onRequestMovedToCurrentCutoff?.(
+            { ...request, ...updated } as FundRequestInboxRow,
+            adjustment
+          )
+        }
+      />
+    </HStack>
   );
 }
 
@@ -280,6 +311,7 @@ export function FundRequestClientGroupedInbox({
   canUploadPaymentCheck,
   paymentCheckDocumentsByRequestId = {},
   onPaymentCheckDocumentsChangeForGroup,
+  onRequestMovedToCurrentCutoff,
 }: FundRequestClientGroupedInboxProps) {
   const groups = useMemo(() => groupFundRequestsByClient(rows), [rows]);
   const grandTotal = useMemo(() => sumFundRequestNetAmount(rows), [rows]);
@@ -442,6 +474,7 @@ export function FundRequestClientGroupedInbox({
                               onStartReject={onStartReject}
                               onCancelDisposal={onCancelDisposal}
                               onConfirmDisposal={onConfirmDisposal}
+                              onRequestMovedToCurrentCutoff={onRequestMovedToCurrentCutoff}
                             />
                           </td>
                         </tr>
@@ -529,6 +562,7 @@ export function FundRequestClientGroupedInbox({
                           onStartReject={onStartReject}
                           onCancelDisposal={onCancelDisposal}
                           onConfirmDisposal={onConfirmDisposal}
+                          onRequestMovedToCurrentCutoff={onRequestMovedToCurrentCutoff}
                         />
                       </CardContent>
                     </Card>

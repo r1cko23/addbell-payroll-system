@@ -90,6 +90,7 @@ import {
   type FundRequestPaymentCheckPeerRow,
 } from "@/lib/fund-request-payment-check";
 import { FundRequestApprovalHistory } from "@/components/fund-request/FundRequestApprovalHistory";
+import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundRequestBankDetailsDisplay";
 import {
@@ -850,6 +851,12 @@ export function FundRequestApprovalDetail({
               requesterIsOperationsManager={requesterIsOperationsManager}
               approverNames={approverNames}
             />
+            {request ? (
+              <FundRequestCutoffAdjustmentActions
+                request={request}
+                onChanged={(updated) => setRequest(updated)}
+              />
+            ) : null}
             {returnedToPurchasing && (request.return_reason || request.rejection_reason) ? (
               <div className="rounded-lg border border-amber-300/60 bg-amber-50 p-3">
                 <FundRequestField

@@ -7,6 +7,8 @@ import {
   getFundRequestDispositionLabel,
   isLikelyMislabeledReturnAsRejection,
 } from "@/lib/fund-request-action-audit";
+import { getFundRequestCutoffAdjustmentHistory } from "@/lib/fund-request-cutoff-adjustment-history";
+import { formatFundRequestCutoffAdjustmentEntry } from "@/lib/fund-request-cutoff-move";
 import {
   formatFundRequestSubmittedAtLabel,
   getFundRequestApprovalTrailFields,
@@ -38,6 +40,7 @@ export function FundRequestApprovalHistory({
     requesterIsOperationsManager,
   });
   const actionHistory = getFundRequestActionHistory(request);
+  const cutoffAdjustments = getFundRequestCutoffAdjustmentHistory(request);
   const auditRequest = {
     ...request,
     rejection_undo_snapshot: request.rejection_undo_snapshot ?? null,
@@ -86,6 +89,23 @@ export function FundRequestApprovalHistory({
             {approverNames[trail.management_approved_by ?? ""] ?? "—"} on{" "}
             {format(new Date(trail.management_approved_at), "MMM d, yyyy")} at{" "}
             {format(new Date(trail.management_approved_at), "h:mm a")}
+          </li>
+        ) : null}
+
+        {cutoffAdjustments.length > 0 ? (
+          <li>
+            <span className="font-medium">Cutoff adjustments:</span>
+            <ul className="mt-1 space-y-1 pl-4">
+              {cutoffAdjustments.map((entry, index) => (
+                <li key={`${entry.moved_at}-${index}`} className="text-amber-900">
+                  {formatFundRequestCutoffAdjustmentEntry(
+                    entry,
+                    approverNames[entry.moved_by] ?? "Unknown user",
+                    approverNames
+                  )}
+                </li>
+              ))}
+            </ul>
           </li>
         ) : null}
 

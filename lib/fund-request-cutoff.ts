@@ -237,6 +237,34 @@ export function getFundRequestCutoffStartYmdForFiling(
   return format(cutoffStart, "yyyy-MM-dd");
 }
 
+/** Fri–Thu cutoff start from request_date only (ignores Thu 10 AM roll-forward). */
+export function getFundRequestCalendarCutoffStartYmd(
+  request: Pick<FundRequestRow, "request_date" | "created_at">
+): string | null {
+  const ymd = getFundRequestFiledDateYmd(request);
+  if (!ymd) return null;
+  const anchorDate = parseYmd(ymd);
+  if (!anchorDate) return null;
+  return format(getFundRequestCutoffPeriodStart(anchorDate), "yyyy-MM-dd");
+}
+
+/**
+ * True when a request was filed after the Thu 10:00 AM deadline and assigned to the next cutoff.
+ */
+export function isFundRequestInSucceedingCutoff(
+  request: Pick<FundRequestRow, "request_date" | "created_at">
+): boolean {
+  const assignedCutoffStartYmd = getFundRequestCutoffStartYmd(request as FundRequestRow);
+  const calendarCutoffStartYmd = getFundRequestCalendarCutoffStartYmd(request);
+  if (!assignedCutoffStartYmd || !calendarCutoffStartYmd) return false;
+
+  const calendarStart = parseYmd(calendarCutoffStartYmd);
+  if (!calendarStart) return false;
+
+  const succeedingCutoffStartYmd = format(addDays(calendarStart, 7), "yyyy-MM-dd");
+  return assignedCutoffStartYmd === succeedingCutoffStartYmd;
+}
+
 /** Cutoff period start for a fund request (uses created_at when available). */
 export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | null {
   if (request.created_at) {

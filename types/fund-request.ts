@@ -127,6 +127,7 @@ export type FundRequestRow = {
   return_reason: string | null;
   rejection_undo_snapshot: FundRequestRejectionUndoSnapshot | null;
   rejection_history?: FundRequestActionHistoryEntry[] | null;
+  cutoff_adjustment_history?: FundRequestCutoffAdjustmentEntry[] | null;
   created_at: string;
   updated_at: string;
 };
@@ -146,6 +147,17 @@ export type FundRequestActionHistoryEntry = {
   rejection_reason: string | null;
   undone_at: string | null;
   undone_by: string | null;
+};
+
+export type FundRequestCutoffAdjustmentEntry = {
+  moved_by: string;
+  moved_at: string;
+  from_cutoff_start_ymd: string;
+  to_cutoff_start_ymd: string;
+  from_created_at: string;
+  to_created_at: string;
+  undone_at?: string | null;
+  undone_by?: string | null;
 };
 
 export type FundRequestRejectionUndoSnapshot = {

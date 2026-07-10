@@ -62,7 +62,11 @@ import {
   validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
 import { normalizeUserRole } from "@/lib/user-roles";
-import type { FundRequestRow, FundRequestDocumentSummary } from "@/types/fund-request";
+import type {
+  FundRequestCutoffAdjustmentEntry,
+  FundRequestRow,
+  FundRequestDocumentSummary,
+} from "@/types/fund-request";
 import {
   FUND_REQUEST_STATUS_LABELS,
   formatFundRequestPercentage,
@@ -712,6 +716,17 @@ export function FundRequestInbox({
     }
   };
 
+  const handleRequestMovedToCurrentCutoff = (
+    request: FundRequestInboxRow,
+    _adjustment: FundRequestCutoffAdjustmentEntry
+  ) => {
+    setAllRows((current) =>
+      current.map((row) =>
+        row.id === request.id ? ({ ...row, ...request } as FundRequestInboxRow) : row
+      )
+    );
+  };
+
   if (profileLoading) {
     return <div className="p-6 text-muted-foreground text-sm">Loading…</div>;
   }
@@ -896,6 +911,7 @@ export function FundRequestInbox({
             setRejectReason("");
           }}
           onConfirmDisposal={handleDisposal}
+          onRequestMovedToCurrentCutoff={handleRequestMovedToCurrentCutoff}
           bulkApproving={bulkApproving}
           onApproveAll={() =>
             setPendingApprove({

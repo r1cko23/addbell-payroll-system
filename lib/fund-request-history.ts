@@ -25,6 +25,7 @@ export type FundRequestHistoryInput = Pick<
   | "returned_at"
   | "return_reason"
   | "rejection_history"
+  | "cutoff_adjustment_history"
 >;
 
 export type FundRequestApprovalTrailInput = FundRequestHistoryInput & {

@@ -199,6 +199,28 @@ describe("getFundRequestRoleCutoffBucket", () => {
     ).toBe("approved");
   });
 
+  it("counts requests PO approved for other requesters as approved (Purchasing)", () => {
+    const ctx = {
+      approverUserId: "po-user",
+      requesterUserIdByEmployeeId: {
+        "employee-1": "requester-user",
+      },
+    };
+
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          requested_by: "employee-1",
+          status: "purchasing_officer_approved",
+          purchasing_officer_approved_by: "po-user",
+          purchasing_officer_approved_at: "2026-07-02T04:00:00+08:00",
+        }),
+        "purchasing_officer",
+        ctx
+      )
+    ).toBe("approved");
+  });
+
   it("keeps OM-approved requests in operations approved totals when PO or UM is next", () => {
     const ctx = {
       managedRequesterIds: new Set(["employee-1"]),
@@ -243,6 +265,7 @@ describe("getFundRequestRoleCutoffBucket", () => {
   });
 
   it("classifies upper management pending and approved requests", () => {
+    expect(
       getFundRequestRoleCutoffBucket(
         baseRequest({
           status: "purchasing_officer_approved",

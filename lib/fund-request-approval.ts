@@ -597,12 +597,7 @@ export type FundRequestRequesterManageOptions = {
 
 /** PO must not approve their own fund request in the purchasing queue. */
 export function isPurchasingOfficerOwnFundRequest(
-  request: Pick<
-    FundRequestRow,
-    | "requested_by"
-    | "status"
-    | "purchasing_officer_approved_by"
-  >,
+  request: Pick<FundRequestRow, "requested_by">,
   options: {
     approverUserId?: string | null;
     requesterUserIdByEmployeeId?: Record<string, string | null | undefined>;
@@ -612,12 +607,7 @@ export function isPurchasingOfficerOwnFundRequest(
   if (!approverUserId) return false;
 
   const requesterUserId = options.requesterUserIdByEmployeeId?.[request.requested_by];
-  if (requesterUserId && requesterUserId === approverUserId) return true;
-
-  return (
-    request.status === "purchasing_officer_approved" &&
-    request.purchasing_officer_approved_by === approverUserId
-  );
+  return Boolean(requesterUserId && requesterUserId === approverUserId);
 }
 
 /** PO dashboard self-file: skips OM/PO queue but requester may edit until UM acts. */

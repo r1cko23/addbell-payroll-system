@@ -1,4 +1,5 @@
 import {
+  FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
   getActiveFundRequestCutoffIndex,
@@ -132,7 +133,9 @@ describe("shouldShowFundRequestCutoffDeadlineTimeForPeriod", () => {
 
 describe("getFundRequestHistoryCutoffs forward weeks", () => {
   it("prepends one future cutoff and selects the active week by default", () => {
-    const history = getFundRequestHistoryCutoffs("2026-07-09", { forwardWeeks: 1 });
+    const history = getFundRequestHistoryCutoffs("2026-07-09", {
+      forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+    });
     expect(history).not.toBeNull();
     expect(history?.cutoffs[0]?.start_ymd).toBe("2026-07-10");
     expect(history?.cutoffs[1]?.start_ymd).toBe("2026-07-03");

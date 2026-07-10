@@ -74,6 +74,7 @@ import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundReq
 import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
 import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutoffNav";
 import {
+  FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   fundRequestBelongsToApproverCutoff,
   formatFundRequestCutoffPeriod,
   getActiveFundRequestCutoffIndex,
@@ -228,11 +229,9 @@ function formatCutoffMetricAmount(amount: number): string {
   return `₱${amount.toLocaleString()} total`;
 }
 
-const FUND_REQUEST_INBOX_FORWARD_WEEKS = 1;
-
 function getInitialFundRequestCutoffs(): WeeklyCutoffPeriod[] {
   const history = getFundRequestHistoryCutoffs(format(new Date(), "yyyy-MM-dd"), {
-    forwardWeeks: FUND_REQUEST_INBOX_FORWARD_WEEKS,
+    forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   });
   return history?.cutoffs ?? [];
 }
@@ -404,7 +403,7 @@ export function FundRequestInbox({
       setManagedRequesterIds(managedIds);
       const todayYmd = format(new Date(), "yyyy-MM-dd");
       const history = getFundRequestHistoryCutoffs(todayYmd, {
-        forwardWeeks: FUND_REQUEST_INBOX_FORWARD_WEEKS,
+        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
       });
       if (history?.cutoffs.length) {
         setHistoryCutoffs(history.cutoffs);

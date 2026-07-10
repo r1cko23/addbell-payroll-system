@@ -34,10 +34,12 @@ import {
   canUndoFundRequestRejection,
 } from "@/lib/fund-request-approval";
 import {
+  FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   FUND_REQUEST_HISTORY_FETCH_OR,
   fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
   formatFundRequestCutoffPeriod,
+  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
   getFundRequestHistoryOutcome,
   isFundRequestFinalDecisionHistoryEntry,
@@ -112,11 +114,13 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
     const load = async () => {
       setLoading(true);
       const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd);
+      const history = getFundRequestHistoryCutoffs(todayYmd, {
+        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+      });
       const cutoffs = history?.cutoffs ?? [];
       if (active) {
         setHistoryCutoffs(cutoffs);
-        setSelectedCutoffIndex(0);
+        setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
       }
 
       let query = supabase

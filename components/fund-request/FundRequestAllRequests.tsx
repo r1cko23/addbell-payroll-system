@@ -19,8 +19,10 @@ import { epPeriodNavButton } from "@/lib/employee-portal-ui";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import type { FundRequestRow } from "@/types/fund-request";
 import {
+  FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   formatFundRequestCutoffPeriod,
   fundRequestBelongsToApproverCutoff,
+  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
   shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
@@ -69,12 +71,14 @@ export function FundRequestAllRequests({
     const load = async () => {
       setLoading(true);
       const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd);
+      const history = getFundRequestHistoryCutoffs(todayYmd, {
+        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+      });
       const cutoffs = history?.cutoffs ?? [];
 
       if (active) {
         setHistoryCutoffs(cutoffs);
-        setSelectedCutoffIndex(0);
+        setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
       }
 
       let query = supabase

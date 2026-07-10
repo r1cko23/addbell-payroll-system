@@ -13,6 +13,8 @@ import { addDays, subDays, format } from "date-fns";
 
 const FUND_REQUEST_HISTORY_LOOKBACK_DAYS = 180;
 const FUND_REQUEST_HISTORY_MAX_WEEKS = 30;
+/** How many Fri–Thu cutoffs ahead of today tabs may navigate to (e.g. rolled-forward filings). */
+export const FUND_REQUEST_FORWARD_CUTOFF_WEEKS = 1;
 const FUND_REQUEST_CUTOFF_START_DOW = 5; // Friday
 const FUND_REQUEST_CUTOFF_DEADLINE_DOW = 4; // Thursday
 const FUND_REQUEST_CUTOFF_DEADLINE_HOUR = 10; // 10:00 AM Manila

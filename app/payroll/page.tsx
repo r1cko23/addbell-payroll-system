@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PayslipPrint } from "@/components/PayslipPrint";
+import type { AllowanceLine } from "@/lib/payslip-allowances";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,6 +156,8 @@ export default function PayrollPage() {
     net_pay: number;
     adjustment_amount: number;
     adjustment_reason: string | null;
+    allowance_amount: number;
+    allowance_lines: AllowanceLine[] | null;
     deductions: any;
   } | null>(null);
 
@@ -1019,6 +1022,8 @@ export default function PayrollPage() {
                 deductions={printPayload.deductions}
                 adjustment={printPayload.adjustment_amount}
                 adjustmentReason={printPayload.adjustment_reason}
+                allowanceAmount={printPayload.allowance_amount}
+                allowanceLines={printPayload.allowance_lines}
                 netPay={printPayload.net_pay}
                 summaryGrossPay={printPayload.gross_pay}
                 summaryNetPay={printPayload.net_pay}

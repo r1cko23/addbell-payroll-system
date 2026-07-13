@@ -20,9 +20,10 @@ import {
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
 import {
-  copyFundRequestExportImageToClipboard,
+  canShareFundRequestExportFiles,
   downloadFundRequestExportImages,
   downloadFundRequestExportPng,
+  shareOrCopyFundRequestExportImage,
 } from "@/lib/fund-request-approved-export-image";
 import {
   FundRequestApprovedExportPayeeSheet,
@@ -57,6 +58,7 @@ export function FundRequestApprovedExportDialog({
   const grandTotal = useMemo(() => sumFundRequestNetAmount(rows), [rows]);
   const generatedAt = format(new Date(), "MMM d, yyyy h:mm a");
   const exportDate = format(new Date(), "yyyy-MM-dd");
+  const prefersShare = canShareFundRequestExportFiles();
 
   function payeeFilename(clientName: string, index: number): string {
     return `fund-requests-${exportDate}-${String(index + 1).padStart(2, "0")}-${slugifyFundRequestPayeeFilename(clientName)}.png`;
@@ -69,9 +71,22 @@ export function FundRequestApprovedExportDialog({
 
     setDownloadingIndex(index);
     try {
+      if (prefersShare) {
+        const result = await shareOrCopyFundRequestExportImage(element, {
+          filename: payeeFilename(group.clientName, index),
+          title: `${group.clientName} — approved fund requests`,
+        });
+        if (result === "shared") {
+          toast.success(`Share sheet opened for ${group.clientName}`);
+          return;
+        }
+      }
       await downloadFundRequestExportPng(element, payeeFilename(group.clientName, index));
       toast.success(`Downloaded ${group.clientName}`);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
       toast.error(
         error instanceof Error ? error.message : "Unable to download screenshot"
       );
@@ -80,18 +95,32 @@ export function FundRequestApprovedExportDialog({
     }
   }
 
-  async function handleCopyPayee(index: number) {
+  async function handleShareOrCopyPayee(index: number) {
     const element = captureRefs.current[index];
     const group = groups[index];
     if (!element || !group) return;
 
     setCopyingIndex(index);
     try {
-      await copyFundRequestExportImageToClipboard(element);
-      toast.success(`Copied ${group.clientName} — paste in your group chat`);
+      const result = await shareOrCopyFundRequestExportImage(element, {
+        filename: payeeFilename(group.clientName, index),
+        title: `${group.clientName} — approved fund requests`,
+      });
+      if (result === "shared") {
+        toast.success(`Share sheet opened for ${group.clientName}`);
+      } else if (result === "copied") {
+        toast.success(`Copied ${group.clientName} — paste in your group chat`);
+      } else {
+        toast.success(
+          `Saved ${group.clientName} screenshot — attach it in your group chat`
+        );
+      }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
       toast.error(
-        error instanceof Error ? error.message : "Unable to copy screenshot"
+        error instanceof Error ? error.message : "Unable to share screenshot"
       );
     } finally {
       setCopyingIndex(null);
@@ -142,8 +171,10 @@ export function FundRequestApprovedExportDialog({
         <DialogHeader>
           <DialogTitle>Approved requests summary</DialogTitle>
           <DialogDescription>
-            One screenshot per payee so each image fits in group chat. Copy individually,
-            or download all payees as a ZIP.
+            One screenshot per payee so each image fits in group chat.{" "}
+            {prefersShare
+              ? "Tap Share on mobile to send to Viber, Messenger, or WhatsApp."
+              : "Copy individually, or download all payees as a ZIP."}
           </DialogDescription>
         </DialogHeader>
 
@@ -199,10 +230,12 @@ export function FundRequestApprovedExportDialog({
                     variant="outline"
                     className={dbHeaderButton}
                     disabled={busy}
-                    onClick={() => void handleCopyPayee(index)}
+                    onClick={() => void handleShareOrCopyPayee(index)}
                   >
                     {copyingIndex === index ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : prefersShare ? (
+                      "Share"
                     ) : (
                       "Copy"
                     )}

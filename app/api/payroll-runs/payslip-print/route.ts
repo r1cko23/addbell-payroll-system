@@ -4,6 +4,8 @@ import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import { enrichPayslipAttendanceFromClock } from "@/lib/enrich-payslip-attendance";
 import {
   mapPayslipDeductionsForPrint,
+  resolveAllowanceForPayslipDisplay,
+  resolveAdjustmentForPayslipDisplay,
   resolveEmployeePosition,
 } from "@/lib/payslip-display";
 
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
     const { data: ps, error } = await admin
       .from("payslips")
       .select(
-        "id, employee_id, period_start, period_end, gross_pay, net_pay, total_deductions, adjustment_amount, adjustment_reason, earnings_breakdown, deductions_breakdown, employees:employee_id ( first_name, last_name, company_id_no, salary_basis, base_rate, position, employment_type, job_level, positions:position_id ( name ) )"
+        "id, employee_id, period_start, period_end, gross_pay, net_pay, total_deductions, adjustment_amount, adjustment_reason, allowance_amount, earnings_breakdown, deductions_breakdown, employees:employee_id ( first_name, last_name, company_id_no, salary_basis, base_rate, position, employment_type, job_level, positions:position_id ( name ) )"
       )
       .eq("id", payslipId)
       .single();
@@ -58,6 +60,10 @@ export async function GET(req: NextRequest) {
     });
 
     const deductions = mapPayslipDeductionsForPrint(ps as any);
+    const { amount: allowanceAmount, lines: allowanceLines } =
+      resolveAllowanceForPayslipDisplay(ps as any);
+    const { amount: adjustmentAmount, reason: adjustmentReason } =
+      resolveAdjustmentForPayslipDisplay(ps as any);
     const grossPay = Number(ps.gross_pay ?? enriched.gross_pay);
     const displayGross =
       Math.abs(grossPay - enriched.gross_pay) > 0.01
@@ -87,8 +93,10 @@ export async function GET(req: NextRequest) {
       },
       gross_pay: displayGross,
       net_pay: Number(ps.net_pay ?? 0),
-      adjustment_amount: Number(ps.adjustment_amount ?? 0),
-      adjustment_reason: ps.adjustment_reason,
+      adjustment_amount: adjustmentAmount,
+      adjustment_reason: adjustmentReason,
+      allowance_amount: allowanceAmount,
+      allowance_lines: allowanceLines,
       deductions,
     });
   } catch (err: unknown) {

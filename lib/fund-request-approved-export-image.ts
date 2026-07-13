@@ -60,16 +60,23 @@ export async function captureFundRequestExportPngBlob(
   return blob;
 }
 
-export async function downloadFundRequestExportPng(
-  element: HTMLElement,
+export async function downloadFundRequestExportBlob(
+  blob: Blob,
   filename: string
 ): Promise<void> {
-  const blob = await captureFundRequestExportPngBlob(element);
   const link = document.createElement("a");
   link.download = filename;
   link.href = URL.createObjectURL(blob);
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
+export async function downloadFundRequestExportPng(
+  element: HTMLElement,
+  filename: string
+): Promise<void> {
+  const blob = await captureFundRequestExportPngBlob(element);
+  await downloadFundRequestExportBlob(blob, filename);
 }
 
 export async function downloadFundRequestExportZip(
@@ -118,24 +125,65 @@ export async function downloadFundRequestExportImages(
   await downloadFundRequestExportZip(files, zipFilename);
 }
 
+export type FundRequestExportShareResult = "shared" | "copied" | "downloaded";
+
+/** Mobile browsers (iOS Safari, etc.) support sharing image files but not image clipboard. */
+export function canShareFundRequestExportFiles(): boolean {
+  if (typeof navigator === "undefined" || !navigator.share || !navigator.canShare) {
+    return false;
+  }
+  try {
+    const probe = new File([new Blob([""], { type: "image/png" })], "probe.png", {
+      type: "image/png",
+    });
+    return navigator.canShare({ files: [probe] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Share to group chat on mobile, copy image on desktop, or download as last resort.
+ * Clipboard image writes often fail on mobile after async html2canvas capture.
+ */
+export async function shareOrCopyFundRequestExportImage(
+  element: HTMLElement,
+  options: { filename: string; title?: string }
+): Promise<FundRequestExportShareResult> {
+  const blob = await captureFundRequestExportPngBlob(element);
+  const file = new File([blob], options.filename, { type: "image/png" });
+  const title = options.title?.trim() || "Approved fund requests";
+
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title });
+    return "shared";
+  }
+
+  if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "image/png": blob,
+        }),
+      ]);
+      return "copied";
+    } catch {
+      // Fall through to download when clipboard is blocked (common on mobile).
+    }
+  }
+
+  await downloadFundRequestExportBlob(blob, options.filename);
+  return "downloaded";
+}
+
 export async function copyFundRequestExportImageToClipboard(
-  element: HTMLElement
-): Promise<void> {
-  const canvas = await captureFundRequestExportImage(element);
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob((value) => resolve(value), "image/png")
-  );
-  if (!blob) {
-    throw new Error("Unable to create image");
-  }
-
-  if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
-    throw new Error("Copy to clipboard is not supported in this browser");
-  }
-
-  await navigator.clipboard.write([
-    new ClipboardItem({
-      "image/png": blob,
-    }),
-  ]);
+  element: HTMLElement,
+  options?: { filename?: string; title?: string }
+): Promise<FundRequestExportShareResult> {
+  const filename =
+    options?.filename?.trim() || `fund-request-export-${Date.now()}.png`;
+  return shareOrCopyFundRequestExportImage(element, {
+    filename,
+    title: options?.title,
+  });
 }

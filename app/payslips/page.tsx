@@ -109,7 +109,7 @@ import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, mergeBundyAndFtlClockSessions } from "@/lib/timeEntries";
-import { resolveAllowanceInputAmount } from "@/lib/payslip-allowances";
+import { resolveAllowanceInputAmount, allowanceLinesFromBreakdown } from "@/lib/payslip-allowances";
 import { computePayslipNetPay } from "@/lib/payslip-net";
 
 const normalizeValue = (value: unknown) => String(value || "").trim().toLowerCase();
@@ -3065,6 +3065,12 @@ export default function PayslipsPage() {
     isLocked && savedPayslip
       ? Number(savedPayslip.allowance_amount ?? 0)
       : parseFloat(allowanceAmountInput) || 0;
+  const displayAllowanceLines = useMemo(() => {
+    if (isLocked && savedPayslip) {
+      return allowanceLinesFromBreakdown(savedPayslip.deductions_breakdown);
+    }
+    return null;
+  }, [isLocked, savedPayslip]);
   const displayNetPay = computePayslipNetPay({
     grossPay: earningsBaseForPeriod,
     adjustmentAmount: adjustment,
@@ -4070,6 +4076,8 @@ export default function PayslipsPage() {
                       }}
                       adjustment={adjustment}
                       adjustmentReason={adjustmentReasonForPrint}
+                      allowanceAmount={displayAllowance}
+                      allowanceLines={displayAllowanceLines}
                       netPay={displayNetPay}
                       summaryGrossPay={displayGrossPay}
                       summaryNetPay={displayNetPay}

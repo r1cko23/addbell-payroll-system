@@ -87,6 +87,34 @@ describe("getFundRequestRoleCutoffBucket", () => {
     ).toBe("approved");
   });
 
+  it("classifies operations manager rejected requests at OM stage", () => {
+    const ctx = {
+      managedRequesterIds: new Set(["employee-1"]),
+      requesterRoutingById: {
+        "employee-1": {
+          overtimeGroupId: "group-1",
+          overtimeGroupName: "Group 1",
+          groupApproverUserId: "om-1",
+          groupApproverRole: "operations_manager",
+          groupApproverName: "OM",
+          requiresOperationsManagerApproval: true,
+        },
+      },
+    };
+
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "rejected",
+          rejected_at: "2026-06-27T05:00:00+08:00",
+          project_manager_approved_by: null,
+        }),
+        "operations_manager",
+        ctx
+      )
+    ).toBe("rejected");
+  });
+
   it("classifies purchasing officer pending, approved, and rejected requests", () => {
     expect(
       getFundRequestRoleCutoffBucket(
@@ -154,6 +182,31 @@ describe("getFundRequestRoleCutoffBucket", () => {
         ctx
       )
     ).toBeNull();
+  });
+
+  it("classifies purchasing officer approved when status advanced but timestamp is missing", () => {
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "purchasing_officer_approved",
+          purchasing_officer_approved_by: "po-1",
+          purchasing_officer_approved_at: null,
+        }),
+        "purchasing_officer"
+      )
+    ).toBe("approved");
+    expect(
+      getFundRequestRoleCutoffBucket(
+        baseRequest({
+          status: "management_approved",
+          purchasing_officer_approved_by: "po-1",
+          purchasing_officer_approved_at: null,
+          management_approved_by: "um-1",
+          management_approved_at: "2026-07-03T04:00:00+08:00",
+        }),
+        "purchasing_officer"
+      )
+    ).toBe("approved");
   });
 
   it("counts purchasing officer approved requests that skipped OM and moved to UM queue", () => {

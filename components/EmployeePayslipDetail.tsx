@@ -14,6 +14,8 @@ import {
   getAttendanceDataFromEarningsBreakdown,
   mapAttendanceDaysForBreakdown,
   mapPayslipDeductionsForPrint,
+  resolveAllowanceForPayslipDisplay,
+  resolveAdjustmentForPayslipDisplay,
   type EmployeeProfileForPayslip,
   type PayslipRowForDisplay,
 } from "@/lib/payslip-display";
@@ -71,7 +73,14 @@ export function EmployeePayslipDetail({
   const hasAttendance = attendanceDays.length > 0;
   const grossPay = Number(payslip.gross_pay ?? 0);
   const netPay = Number(payslip.net_pay ?? 0);
-  const adjustment = Number(payslip.adjustment_amount ?? 0);
+  const { amount: adjustment, reason: adjustmentReason } = useMemo(
+    () => resolveAdjustmentForPayslipDisplay(payslip),
+    [payslip]
+  );
+  const { amount: allowanceAmount, lines: allowanceLines } = useMemo(
+    () => resolveAllowanceForPayslipDisplay(payslip),
+    [payslip]
+  );
   const [printEarningsSync, setPrintEarningsSync] =
     useState<PayslipPrintEarningsSync | null>(null);
   const canRunDetailedBreakdown =
@@ -254,9 +263,7 @@ export function EmployeePayslipDetail({
                   <HStack justify="between">
                     <BodySmall>
                       Adjustment
-                      {payslip.adjustment_reason
-                        ? ` (${payslip.adjustment_reason})`
-                        : ""}
+                      {adjustmentReason ? ` (${adjustmentReason})` : ""}
                     </BodySmall>
                     <BodySmall
                       className={
@@ -267,6 +274,42 @@ export function EmployeePayslipDetail({
                       {formatCurrency(adjustment)}
                     </BodySmall>
                   </HStack>
+                )}
+                {allowanceAmount > 0 && (
+                  <VStack gap="1">
+                    {allowanceLines
+                      ?.filter((line) => line.amount > 0)
+                      .map((line) => (
+                        <HStack key={line.type} justify="between">
+                          <BodySmall>{line.type} allowance</BodySmall>
+                          <BodySmall className="font-semibold">
+                            +{formatCurrency(line.amount)}
+                          </BodySmall>
+                        </HStack>
+                      ))}
+                    {(!allowanceLines ||
+                      allowanceLines.filter((line) => line.amount > 0).length ===
+                        0) && (
+                      <HStack justify="between">
+                        <BodySmall>Allowance</BodySmall>
+                        <BodySmall className="font-semibold">
+                          +{formatCurrency(allowanceAmount)}
+                        </BodySmall>
+                      </HStack>
+                    )}
+                    {allowanceLines &&
+                      allowanceLines.filter((line) => line.amount > 0).length >
+                        1 && (
+                        <HStack justify="between" className="border-t pt-1">
+                          <BodySmall className="font-semibold">
+                            Total allowance
+                          </BodySmall>
+                          <BodySmall className="font-semibold">
+                            +{formatCurrency(allowanceAmount)}
+                          </BodySmall>
+                        </HStack>
+                      )}
+                  </VStack>
                 )}
                 <HStack justify="between">
                   <BodySmall>Total deductions</BodySmall>
@@ -285,8 +328,9 @@ export function EmployeePayslipDetail({
                 <Caption className="text-muted-foreground">
                   Period {format(periodStart, "MMM d")} –{" "}
                   {format(periodEnd, "MMM d, yyyy")}. Net pay = gross pay
-                  {adjustment !== 0 ? " (including adjustments)" : ""} minus
-                  all deductions listed on your printed payslip.
+                  {adjustment !== 0 ? " + adjustments" : ""}
+                  {allowanceAmount > 0 ? " + allowances" : ""} minus all
+                  deductions listed on your printed payslip.
                 </Caption>
               </VStack>
             </CardContent>
@@ -328,7 +372,9 @@ export function EmployeePayslipDetail({
             }}
             deductions={deductions}
             adjustment={adjustment}
-            adjustmentReason={payslip.adjustment_reason}
+            adjustmentReason={adjustmentReason}
+            allowanceAmount={allowanceAmount}
+            allowanceLines={allowanceLines}
             netPay={netPay}
             summaryGrossPay={grossPay}
             summaryNetPay={netPay}

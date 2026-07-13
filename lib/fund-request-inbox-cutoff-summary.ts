@@ -222,7 +222,13 @@ export function getFundRequestRoleCutoffBucket(
   if (normalizedRole === "purchasing_officer") {
     if (!isPoScopedRequest(request, ctx)) return null;
     if (isPoFundRequestRejection(request)) return "rejected";
-    if (request.purchasing_officer_approved_at) return "approved";
+    if (
+      request.purchasing_officer_approved_at ||
+      request.status === "purchasing_officer_approved" ||
+      request.status === "management_approved"
+    ) {
+      return "approved";
+    }
     if (
       isPurchasingOfficerOwnFundRequest(request, {
         approverUserId: ctx.approverUserId,

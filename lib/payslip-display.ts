@@ -4,6 +4,11 @@ import {
 } from "@/lib/payroll-earnings-breakdown";
 import { mapPayslipAttendanceDays } from "@/lib/map-payslip-attendance-days";
 import type { ClockEntryForPayslipMap } from "@/lib/map-payslip-attendance-days";
+import {
+  allowanceLinesFromBreakdown,
+  resolvePayslipAllowanceAmount,
+  type AllowanceLine,
+} from "@/lib/payslip-allowances";
 
 export { regularHoursBasicGross };
 
@@ -111,6 +116,42 @@ export function sssPartsFromPayslip(p: PayslipRowForDisplay): {
     regular: Math.max(0, totalSss - (Number.isFinite(wisp) ? wisp : 0)),
     wisp: Number.isFinite(wisp) ? wisp : 0,
   };
+}
+
+export function resolveAllowanceForPayslipDisplay(p: PayslipRowForDisplay): {
+  amount: number;
+  lines: AllowanceLine[] | null;
+} {
+  return {
+    amount: resolvePayslipAllowanceAmount(p),
+    lines: allowanceLinesFromBreakdown(p.deductions_breakdown),
+  };
+}
+
+function sumAdjustmentLines(lines: unknown): number {
+  if (!Array.isArray(lines)) return 0;
+  return lines.reduce((sum, line) => {
+    const row = line as { amount?: unknown };
+    return sum + Number(row?.amount ?? 0);
+  }, 0);
+}
+
+/** Prefer payslip.adjustment_amount; fall back to deductions_breakdown.adjustment_lines. */
+export function resolveAdjustmentForPayslipDisplay(p: PayslipRowForDisplay): {
+  amount: number;
+  reason: string | null;
+} {
+  const fromColumn = Number(p.adjustment_amount ?? 0);
+  if (fromColumn !== 0) {
+    return { amount: fromColumn, reason: p.adjustment_reason ?? null };
+  }
+  const fromLines = sumAdjustmentLines(
+    p.deductions_breakdown?.adjustment_lines
+  );
+  if (fromLines !== 0) {
+    return { amount: fromLines, reason: p.adjustment_reason ?? null };
+  }
+  return { amount: 0, reason: p.adjustment_reason ?? null };
 }
 
 export function mapPayslipDeductionsForPrint(p: PayslipRowForDisplay) {

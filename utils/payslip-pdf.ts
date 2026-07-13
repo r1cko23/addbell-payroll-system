@@ -3,6 +3,8 @@ import autoTable from "jspdf-autotable";
 import { formatCurrency } from "@/utils/format";
 import {
   getAttendanceDataFromEarningsBreakdown,
+  resolveAllowanceForPayslipDisplay,
+  resolveAdjustmentForPayslipDisplay,
   type PayslipRowForDisplay,
   type EmployeeProfileForPayslip,
 } from "@/lib/payslip-display";
@@ -78,6 +80,10 @@ export function generatePayslipPdfBytes(input: PayslipPdfInput): ArrayBuffer {
   }
 
   const ded = input.payslip.deductions_breakdown || {};
+  const { amount: adjustment, reason: adjustmentReason } =
+    resolveAdjustmentForPayslipDisplay(input.payslip);
+  const { amount: allowanceAmount, lines: allowanceLines } =
+    resolveAllowanceForPayslipDisplay(input.payslip);
   const deductionRows: [string, string][] = [
     ["SSS", money(Number(input.payslip.sss_amount || ded.sss || 0))],
     ["PhilHealth", money(Number(input.payslip.philhealth_amount || ded.philhealth || 0))],
@@ -88,15 +94,40 @@ export function generatePayslipPdfBytes(input: PayslipPdfInput): ArrayBuffer {
     ],
   ];
 
+  const summaryRows: [string, string][] = [
+    ["Gross Pay", money(input.payslip.gross_pay)],
+  ];
+
+  if (adjustment !== 0) {
+    summaryRows.push([
+      adjustmentReason
+        ? `Adjustment (${adjustmentReason})`
+        : "Adjustment",
+      `${adjustment >= 0 ? "+" : ""}${money(adjustment)}`,
+    ]);
+  }
+
+  if (allowanceAmount > 0) {
+    const visibleLines = allowanceLines?.filter((line) => line.amount > 0) ?? [];
+    if (visibleLines.length > 0) {
+      for (const line of visibleLines) {
+        summaryRows.push([`${line.type} Allowance`, `+${money(line.amount)}`]);
+      }
+    } else {
+      summaryRows.push(["Allowance", `+${money(allowanceAmount)}`]);
+    }
+  }
+
+  summaryRows.push(
+    ...deductionRows,
+    ["Total Deductions", money(input.payslip.total_deductions)],
+    ["Net Pay", money(input.payslip.net_pay)]
+  );
+
   autoTable(doc, {
     startY: y,
     head: [["Summary", "Amount"]],
-    body: [
-      ["Gross Pay", money(input.payslip.gross_pay)],
-      ...deductionRows,
-      ["Total Deductions", money(input.payslip.total_deductions)],
-      ["Net Pay", money(input.payslip.net_pay)],
-    ],
+    body: summaryRows,
     styles: { fontSize: 9 },
     headStyles: { fillColor: [30, 64, 120] },
     margin: { left: 14, right: 14 },

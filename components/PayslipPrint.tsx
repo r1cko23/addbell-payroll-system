@@ -27,6 +27,7 @@ import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime"
 import type { PayslipPrintEarningsSync } from "@/lib/payslip-print-sync";
 import { PAYSLIP_PRINT_INLINE_STYLES } from "@/lib/payslip-print-document";
 import { applyPayslipTableLayoutFixes } from "@/lib/payslip-table-layout";
+import type { AllowanceLine } from "@/lib/payslip-allowances";
 
 interface PayslipPrintProps {
   employee: {
@@ -79,6 +80,9 @@ interface PayslipPrintProps {
   };
   adjustment: number;
   adjustmentReason?: string | null;
+  /** Cutoff allowances (transpo, load, etc.) — added to net pay, not gross. */
+  allowanceAmount?: number;
+  allowanceLines?: AllowanceLine[] | null;
   netPay: number;
   /** When set, print summary uses these instead of recalculated totals (matches payslip page). */
   summaryGrossPay?: number;
@@ -99,6 +103,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
     deductions,
     adjustment = 0,
     adjustmentReason,
+    allowanceAmount = 0,
+    allowanceLines,
     netPay: netPayProp,
     summaryGrossPay,
     summaryNetPay,
@@ -653,9 +659,19 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
   totalGrossPay = totalSalary;
   totalSalary = totalGrossPay;
 
-  // Net Pay = Gross Pay - Deductions + Adjustment (adjustment can be + or -)
+  const allowance =
+    typeof allowanceAmount === "number" && Number.isFinite(allowanceAmount)
+      ? allowanceAmount
+      : 0;
+  const visibleAllowanceLines =
+    allowanceLines?.filter((line) => line.amount > 0) ?? [];
+
+  // Net Pay = Gross Pay - Deductions + Adjustment + Allowance
   let netPay =
-    totalGrossPay - totalDeductions + (typeof adjustment === "number" ? adjustment : 0);
+    totalGrossPay -
+    totalDeductions +
+    (typeof adjustment === "number" ? adjustment : 0) +
+    allowance;
 
   // When parent passes summary totals (live payslip screen), keep print in sync.
   if (
@@ -670,7 +686,8 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         ? summaryNetPay
         : summaryGrossPay -
             totalDeductions +
-            (typeof adjustment === "number" ? adjustment : 0);
+            (typeof adjustment === "number" ? adjustment : 0) +
+            allowance;
   }
 
   const printGrossPay =
@@ -1907,6 +1924,32 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
                       </div>
                     )}
                   </div>
+                </>
+              )}
+              {allowance > 0 && (
+                <>
+                  <div className="payslip-summary-label payslip-summary-label-spaced">
+                    Allowance:
+                  </div>
+                  {visibleAllowanceLines.length > 0 ? (
+                    <div className="payslip-summary-adjustment">
+                      {visibleAllowanceLines.map((line) => (
+                        <div key={line.type}>
+                          {line.type}: +{formatCurrency(line.amount)}
+                        </div>
+                      ))}
+                      <div style={{ fontWeight: "bold", marginTop: "2px" }}>
+                        +{formatCurrency(allowance)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="payslip-summary-adjustment"
+                      style={{ color: "#166534" }}
+                    >
+                      +{formatCurrency(allowance)}
+                    </div>
+                  )}
                 </>
               )}
               <div className="payslip-summary-label payslip-summary-label-spaced">

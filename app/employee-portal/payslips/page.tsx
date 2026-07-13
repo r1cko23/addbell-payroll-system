@@ -40,7 +40,11 @@ import {
   PayslipPreviewDocument,
 } from "@/components/employee-portal/PayslipPreviewDialog";
 import { toast } from "sonner";
-import type { EmployeeProfileForPayslip } from "@/lib/payslip-display";
+import {
+  resolveAdjustmentForPayslipDisplay,
+  resolveAllowanceForPayslipDisplay,
+  type EmployeeProfileForPayslip,
+} from "@/lib/payslip-display";
 import { buildPayslipPrintDocumentHtml } from "@/lib/payslip-print-document";
 import { downloadPayslipPdfFromDom } from "@/utils/payslip-download-from-dom";
 
@@ -423,6 +427,34 @@ export default function EmployeePayslipsPage() {
                             </BodySmall>
                           </VStack>
                         </div>
+                        {(() => {
+                          const { amount: adjustment } =
+                            resolveAdjustmentForPayslipDisplay(payslip);
+                          const { amount: allowance } =
+                            resolveAllowanceForPayslipDisplay(payslip);
+                          if (adjustment === 0 && allowance === 0) return null;
+                          return (
+                            <div className="grid w-full grid-cols-1 gap-1.5 rounded-md border border-dashed border-border/80 bg-muted/30 px-2.5 py-2 sm:grid-cols-2">
+                              {adjustment !== 0 ? (
+                                <BodySmall className="text-[11px] text-muted-foreground sm:text-xs">
+                                  Adjustment:{" "}
+                                  <span className="font-semibold text-foreground">
+                                    {adjustment >= 0 ? "+" : ""}
+                                    {formatCurrency(adjustment)}
+                                  </span>
+                                </BodySmall>
+                              ) : null}
+                              {allowance > 0 ? (
+                                <BodySmall className="text-[11px] text-muted-foreground sm:text-xs">
+                                  Allowance:{" "}
+                                  <span className="font-semibold text-foreground">
+                                    +{formatCurrency(allowance)}
+                                  </span>
+                                </BodySmall>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
 
                         <Button
                           variant="default"
@@ -470,7 +502,8 @@ export default function EmployeePayslipsPage() {
                     payslip={selectedPayslip}
                     profile={payslipProfile}
                     holidays={holidays}
-                    variant="print"
+                    variant="both"
+                    inlinePrint
                     onPrintPreviewReady={setPrintPreviewReady}
                   />
                 </PayslipPreviewDocument>

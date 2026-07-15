@@ -61,7 +61,7 @@ export function PayslipPreviewDialogBody({
   return (
     <div
       className={cn(
-        "min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-contain bg-muted/20 px-2 py-2 sm:px-4 sm:py-3",
+        "min-h-0 flex-1 overflow-y-auto overflow-x-auto overscroll-contain bg-muted/20 px-2 py-2 pb-6 sm:px-4 sm:py-3 sm:pb-8",
         className
       )}
       {...props}

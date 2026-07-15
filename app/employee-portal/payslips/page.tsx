@@ -502,8 +502,7 @@ export default function EmployeePayslipsPage() {
                     payslip={selectedPayslip}
                     profile={payslipProfile}
                     holidays={holidays}
-                    variant="both"
-                    inlinePrint
+                    variant="print"
                     onPrintPreviewReady={setPrintPreviewReady}
                   />
                 </PayslipPreviewDocument>

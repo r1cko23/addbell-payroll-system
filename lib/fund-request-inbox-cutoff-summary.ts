@@ -93,7 +93,8 @@ function isPoScopedRequest(
     isPurchasingOfficerOwnFundRequest(request, {
       approverUserId: ctx.approverUserId,
       requesterUserIdByEmployeeId: ctx.requesterUserIdByEmployeeId,
-    })
+    }) &&
+    !isFundRequestReturnedToPurchasing(request)
   ) {
     return false;
   }
@@ -233,7 +234,8 @@ export function getFundRequestRoleCutoffBucket(
       isPurchasingOfficerOwnFundRequest(request, {
         approverUserId: ctx.approverUserId,
         requesterUserIdByEmployeeId: ctx.requesterUserIdByEmployeeId,
-      })
+      }) &&
+      !isFundRequestReturnedToPurchasing(request)
     ) {
       return null;
     }

@@ -174,7 +174,8 @@ function isFundRequestInApproverInboxQueue(
       isPurchasingOfficerOwnFundRequest(row, {
         approverUserId: options?.approverUserId,
         requesterUserIdByEmployeeId: options?.requesterUserIdByEmployeeId,
-      })
+      }) &&
+      !isFundRequestReturnedToPurchasing(row)
     ) {
       return false;
     }

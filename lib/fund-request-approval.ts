@@ -59,13 +59,17 @@ export function getActionableFundRequestStatuses(
 export function canActOnFundRequest(
   role: string | null | undefined,
   status: string,
-    options?: {
+  options?: {
     request?: Pick<
       FundRequestRow,
       | "requested_by"
       | "project_manager_approved_by"
       | "status"
       | "purchasing_officer_approved_by"
+      | "purchasing_officer_approved_at"
+      | "rejection_undo_snapshot"
+      | "returned_at"
+      | "rejected_at"
     >;
     managedRequesterIds?: ReadonlySet<string> | string[];
     approverUserId?: string | null;
@@ -89,7 +93,9 @@ export function canActOnFundRequest(
         options.requesterUserId != null
           ? { [options.request.requested_by]: options.requesterUserId }
           : undefined,
-    })
+    }) &&
+    // UM return puts the PO's own request back in their queue for re-approval.
+    !isFundRequestReturnedToPurchasing(options.request as FundRequestRow)
   ) {
     return false;
   }
@@ -129,6 +135,7 @@ export function getFundRequestApprovalActionCopy(
     | "rejection_undo_snapshot"
     | "purchasing_officer_approved_at"
     | "rejection_reason"
+    | "return_reason"
   >,
   options?: {
     blockedPendingOperationsManagerApproval?: boolean;
@@ -157,13 +164,13 @@ export function getFundRequestApprovalActionCopy(
     request &&
     isFundRequestReturnedToPurchasing(request as FundRequestRow)
   ) {
-    const reason = request.rejection_reason?.trim();
+    const reason = request.rejection_reason?.trim() || request.return_reason?.trim();
     return {
       eyebrow: "Purchasing Officer",
       title: "Returned for purchasing officer review",
       description: reason
-        ? `Upper management returned this request for your review again. Note: ${reason}`
-        : "Upper management returned this request to the purchasing officer for review again.",
+        ? `Upper management returned this request for your review again. Fix the issue, then click Resubmit to Upper Management. Note: ${reason}`
+        : "Upper management returned this request. Fix the issue, then click Resubmit to Upper Management.",
       urgent: true,
     };
   }

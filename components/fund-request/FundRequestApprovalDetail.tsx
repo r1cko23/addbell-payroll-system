@@ -1053,7 +1053,9 @@ export function FundRequestApprovalDetail({
                       {acting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
-                      Approve
+                      {returnedToPurchasing
+                        ? "Resubmit to Upper Management"
+                        : "Approve"}
                     </Button>
                     <Button
                       variant="destructive"
@@ -1075,9 +1077,15 @@ export function FundRequestApprovalDetail({
       >
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>Approve request?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {returnedToPurchasing
+                ? "Resubmit to Upper Management?"
+                : "Approve request?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will approve the fund request and move it to the next step.
+              {returnedToPurchasing
+                ? "This will send the corrected request back to Upper Management for final approval."
+                : "This will approve the fund request and move it to the next step."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1088,7 +1096,7 @@ export function FundRequestApprovalDetail({
                 void handleApprove();
               }}
             >
-              Approve
+              {returnedToPurchasing ? "Resubmit" : "Approve"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

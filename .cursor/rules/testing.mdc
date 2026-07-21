@@ -1,0 +1,20 @@
+---
+description: Testing standards for Playwright, API tests, and fixtures in this repo
+globs: tests/**/*,**/__tests__/**/*,**/*.{spec,test}.{ts,tsx,js,jsx},playwright.config.ts
+alwaysApply: false
+---
+
+# Testing
+
+- Prefer Page Object Model for browser tests
+- Use stable test IDs or semantic selectors
+- Avoid hard-coded waits
+- Keep tests isolated and independent
+- Generate factories for reusable test data
+- Cover unhappy paths, not only happy paths
+
+## Stack notes (Addbell)
+
+- Browser E2E: Playwright (`playwright.config.ts`, `tests/`)
+- Prefer Playwright over Cypress for new work
+- Pair with skills: `playwright-e2e`, `api-testing-rest`, `test-data-factory`

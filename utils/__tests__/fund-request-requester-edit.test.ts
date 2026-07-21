@@ -3,6 +3,7 @@ import {
   canRequesterEditFundRequest,
   isPurchasingOfficerSelfSubmitAwaitingUpperManagement,
 } from "@/lib/fund-request-approval";
+import { canPurchasingOfficerSetVatEwtOnRequesterForm } from "@/lib/fund-request-details";
 import type { FundRequestRow } from "@/types/fund-request";
 
 function omRequestAfterPoApproval(): FundRequestRow {
@@ -110,6 +111,17 @@ describe("canRequesterEditFundRequest", () => {
     ).toBe(true);
     expect(
       canRequesterEditFundRequest(request, { requesterUserId: "phen-user" })
+    ).toBe(true);
+  });
+
+  test("PO self-submit awaiting UM is the status where requester form shows VAT/EWT", () => {
+    expect(
+      canPurchasingOfficerSetVatEwtOnRequesterForm({
+        role: "purchasing_officer",
+        isSelfSubmitPath: true,
+        isEditMode: true,
+        editStatus: "purchasing_officer_approved",
+      })
     ).toBe(true);
   });
 });

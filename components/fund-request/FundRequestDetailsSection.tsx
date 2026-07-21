@@ -33,6 +33,8 @@ interface FundRequestDetailsSectionProps {
   onEditableDetailsChange?: (rows: EditableFundRequestDetail[]) => void;
   onEditableDeductionsChange?: (rows: EditableFundRequestDeduction[]) => void;
   onSave?: (form: EditableFundRequestDetailsForm) => void | Promise<void>;
+  /** Override the default VAT/EWT hint under the totals. */
+  adjustmentHint?: string;
 }
 
 function VatOptionCheckbox({
@@ -73,6 +75,7 @@ export function FundRequestDetailsSection({
   onEditableDetailsChange,
   onEditableDeductionsChange,
   onSave,
+  adjustmentHint,
 }: FundRequestDetailsSectionProps) {
   const { items: readOnlyItems, deductions: readOnlyDeductions } =
     splitFundRequestDetails(details);
@@ -383,9 +386,8 @@ export function FundRequestDetailsSection({
             </p>
           ) : (
             <p className="text-xs text-muted-foreground">
-              If applicable: For each line item, select VAT Inc or VAT Ex and the
-              EWT rate (1% or 2%). Add deductions before forwarding to Upper
-              Management.
+              {adjustmentHint ??
+                "If applicable: For each line item, select VAT Inc or VAT Ex and the EWT rate (1% or 2%). Add deductions before forwarding to Upper Management."}
             </p>
           )}
 

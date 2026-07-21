@@ -60,6 +60,7 @@ import {
 } from "@/lib/fund-request-project-details";
 import { FundRequestProjectDetailsFields } from "@/components/fund-request/FundRequestProjectDetailsFields";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
+import { FundRequestDetailsSection } from "@/components/fund-request/FundRequestDetailsSection";
 import { SubcontractorProgressBillingSection } from "@/components/fund-request/SubcontractorProgressBillingSection";
 import {
   parseProgressBillingFromProjectDetails,
@@ -94,7 +95,15 @@ import {
   fundRequestPurposeToForm,
 } from "@/lib/fund-request-requester-edit";
 import type { FundRequestRow } from "@/types/fund-request";
-import type { FundRequestDetailItem } from "@/lib/fund-request-details";
+import {
+  canPurchasingOfficerSetVatEwtOnRequesterForm,
+  cleanFundRequestDetails,
+  createEmptyFundRequestDetail,
+  toEditableFundRequestDetailsForm,
+  type EditableFundRequestDeduction,
+  type EditableFundRequestDetail,
+  type FundRequestDetailItem,
+} from "@/lib/fund-request-details";
 import { parseFundRequestProjectDetails } from "@/lib/fund-request-project-details";
 
 const PURPOSE_OPTIONS = [
@@ -303,6 +312,12 @@ export default function NewFundRequestPage() {
   const [details, setDetails] = useState<DetailRow[]>(() =>
     Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyDetailRow()),
   );
+  const [editableDetails, setEditableDetails] = useState<EditableFundRequestDetail[]>(
+    () => Array.from({ length: INITIAL_DETAIL_ROWS }, () => createEmptyFundRequestDetail())
+  );
+  const [editableDeductions, setEditableDeductions] = useState<
+    EditableFundRequestDeduction[]
+  >([]);
   const [progressBillingSelection, setProgressBillingSelection] =
     useState<ProgressBillingSelection | null>(null);
   const [dateNeeded, setDateNeeded] = useState("");
@@ -350,6 +365,20 @@ export default function NewFundRequestPage() {
       isPortal,
       submitterUserId: user.id,
       isOwnEmployeeRequest,
+    });
+  }, [user?.role, user?.id, isPortal, isEditMode, editStatus, isOwnEmployeeRequest]);
+  const showPurchasingOfficerVatEwt = useMemo(() => {
+    if (!user?.id) return false;
+    return canPurchasingOfficerSetVatEwtOnRequesterForm({
+      role: user.role,
+      isEditMode,
+      editStatus,
+      isSelfSubmitPath: isPurchasingOfficerSelfSubmitPath({
+        submitterRole: user.role,
+        isPortal,
+        submitterUserId: user.id,
+        isOwnEmployeeRequest,
+      }),
     });
   }, [user?.role, user?.id, isPortal, isEditMode, editStatus, isOwnEmployeeRequest]);
   const showPurchasingOfficerSubcontractorPoAmount = useMemo(() => {
@@ -471,6 +500,11 @@ export default function NewFundRequestPage() {
         row.subcontractor_po_amount != null ? String(row.subcontractor_po_amount) : ""
       );
       setDetails(fundRequestDetailsToFormRows(row.details as FundRequestDetailItem[] | null));
+      const taxableForm = toEditableFundRequestDetailsForm(
+        row.details as FundRequestDetailItem[] | null
+      );
+      setEditableDetails(taxableForm.items);
+      setEditableDeductions(taxableForm.deductions);
       setProgressBillingSelection(
         parseProgressBillingFromProjectDetails(row.project_details)
       );
@@ -596,7 +630,13 @@ export default function NewFundRequestPage() {
   }, [showVendorPaymentSection]);
 
   const detailAmounts = details.map((d) => (d.amount ? Number(d.amount) : 0));
-  const totalRequested = detailAmounts.reduce((a, b) => a + b, 0);
+  const cleanedTaxableDetails = useMemo(
+    () => cleanFundRequestDetails(editableDetails, editableDeductions),
+    [editableDetails, editableDeductions]
+  );
+  const totalRequested = showPurchasingOfficerVatEwt
+    ? cleanedTaxableDetails?.total ?? 0
+    : detailAmounts.reduce((a, b) => a + b, 0);
 
   const updateDetail = (index: number, field: "description" | "amount", value: string) => {
     setDetails((prev) => {
@@ -642,10 +682,19 @@ export default function NewFundRequestPage() {
       toast.error("Select a progress billing milestone.");
       return;
     }
-    const detailValidationError = validateDetailRows(details);
-    if (detailValidationError) {
-      toast.error(detailValidationError);
-      return;
+    if (showPurchasingOfficerVatEwt) {
+      if (!cleanedTaxableDetails) {
+        toast.error(
+          "Add at least one valid line item. Deductions must be less than the line item total."
+        );
+        return;
+      }
+    } else {
+      const detailValidationError = validateDetailRows(details);
+      if (detailValidationError) {
+        toast.error(detailValidationError);
+        return;
+      }
     }
     if (dateNeeded && !urgentReason.trim()) {
       toast.error("Reason for urgency is required when a date is specified.");
@@ -705,12 +754,18 @@ export default function NewFundRequestPage() {
 
     setSubmitting(true);
     try {
-      const detailsPayload = details
-        .filter((d) => d.description.trim())
-        .map((d) => ({
-          description: d.description.trim(),
-          amount: d.amount.trim() ? Number(d.amount) : 0,
-        }));
+      const detailsPayload = showPurchasingOfficerVatEwt
+        ? cleanedTaxableDetails!.details
+        : details
+            .filter((d) => d.description.trim())
+            .map((d) => ({
+              description: d.description.trim(),
+              amount: d.amount.trim() ? Number(d.amount) : 0,
+            }));
+
+      const resolvedTotal = showPurchasingOfficerVatEwt
+        ? cleanedTaxableDetails!.total
+        : totalRequested;
 
       if (!session?.employee?.id && !linkedEmployeeId && selectedRequesterEmployeeId && user?.id) {
         await supabase
@@ -762,7 +817,7 @@ export default function NewFundRequestPage() {
         subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
         subcontractor_po_amount: parsedSubcontractorPoAmount,
         details: detailsPayload,
-        total_requested_amount: totalRequested,
+        total_requested_amount: resolvedTotal,
         date_needed: dateNeeded || null,
         remarks: remarks.trim() || null,
         urgent_reason: urgentReason.trim() || null,
@@ -1160,8 +1215,23 @@ export default function NewFundRequestPage() {
                       onAddDetailRow={addDetailRow}
                       onRemoveDetailRow={removeDetailRow}
                       detailPlaceholderPrefix={purposeConfig.detailPlaceholderPrefix}
+                      hideBillingDetailRows={showPurchasingOfficerVatEwt}
                     />
-                  ) : (
+                  ) : null}
+                  {showPurchasingOfficerVatEwt ? (
+                    <div className={showVendorPaymentSection ? "mt-4" : undefined}>
+                      <FundRequestDetailsSection
+                        details={cleanedTaxableDetails?.details ?? []}
+                        totalRequestedAmount={totalRequested}
+                        editable
+                        editableDetails={editableDetails}
+                        editableDeductions={editableDeductions}
+                        onEditableDetailsChange={setEditableDetails}
+                        onEditableDeductionsChange={setEditableDeductions}
+                        adjustmentHint="If applicable: For each line item, select VAT Inc or VAT Ex and the EWT rate (1% or 2%). Add deductions before submitting to Upper Management."
+                      />
+                    </div>
+                  ) : showVendorPaymentSection ? null : (
                     <>
                       <div className="space-y-1.5">
                         {details.map((row, i) => (
@@ -1208,9 +1278,11 @@ export default function NewFundRequestPage() {
                       </div>
                     </>
                   )}
+                  {showPurchasingOfficerVatEwt ? null : (
                   <p className="text-sm font-medium mt-2">
                     Total: PHP {totalRequested.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
                   </p>
+                  )}
                 </details>
                 {showPurchasingOfficerBankDetails ? (
                   <Card>

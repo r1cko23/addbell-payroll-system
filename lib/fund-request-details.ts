@@ -173,6 +173,23 @@ export function canPurchasingOfficerEditDetails(
   );
 }
 
+/**
+ * PO self-submit create/edit: VAT/EWT must be set on the requester form because
+ * that path skips `project_manager_approved` (the normal PO approval edit gate).
+ */
+export function canPurchasingOfficerSetVatEwtOnRequesterForm(options: {
+  role: string | null | undefined;
+  isSelfSubmitPath: boolean;
+  isEditMode: boolean;
+  editStatus: string | null | undefined;
+}): boolean {
+  if (normalizeUserRole(options.role) !== "purchasing_officer") return false;
+  if (options.isEditMode) {
+    return options.editStatus === "purchasing_officer_approved";
+  }
+  return options.isSelfSubmitPath;
+}
+
 export function cleanFundRequestDetails(
   items: EditableFundRequestDetail[],
   deductions: EditableFundRequestDeduction[] = []

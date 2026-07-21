@@ -36,7 +36,14 @@ type FundRequestContentPayload = {
   current_project_percentage: number | null;
   subcontractor_progress_completion_percentage: number | null;
   subcontractor_po_amount?: number | null;
-  details: Array<{ description: string; amount: number }>;
+  details: Array<{
+    description: string;
+    amount: number;
+    kind?: "item" | "deduction";
+    base_amount?: number;
+    vat_mode?: "inclusive" | "exclusive" | null;
+    ewt_rate?: 1 | 2 | null;
+  }>;
   total_requested_amount: number;
   date_needed: string | null;
   remarks: string | null;

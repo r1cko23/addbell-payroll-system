@@ -34,6 +34,8 @@ type SubcontractorProgressBillingSectionProps = {
   onAddDetailRow: () => void;
   onRemoveDetailRow: (index: number) => void;
   detailPlaceholderPrefix: string;
+  /** When true, milestone/invoice UI only — line items rendered elsewhere (e.g. VAT/EWT editor). */
+  hideBillingDetailRows?: boolean;
 };
 
 const PO_LOOKUP_DEBOUNCE_MS = 600;
@@ -68,6 +70,7 @@ export function SubcontractorProgressBillingSection({
   onAddDetailRow,
   onRemoveDetailRow,
   detailPlaceholderPrefix,
+  hideBillingDetailRows = false,
 }: SubcontractorProgressBillingSectionProps) {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -287,50 +290,52 @@ export function SubcontractorProgressBillingSection({
         </div>
       ) : null}
 
-      <div className="space-y-1.5">
-        <h4 className="text-sm font-semibold border-b pb-2 mb-2">
-          BILLING DETAILS
-        </h4>
-        {details.map((row, i) => (
-          <div
-            key={i}
-            className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] sm:items-center"
-          >
-            <Input
-              placeholder={`${detailPlaceholderPrefix} ${i + 1}`}
-              value={row.description}
-              onChange={(e) => updateDetail(i, "description", e.target.value)}
-              className="min-w-0"
-              required
-            />
-            <div className="flex items-center gap-2 sm:contents">
+      {hideBillingDetailRows ? null : (
+        <div className="space-y-1.5">
+          <h4 className="text-sm font-semibold border-b pb-2 mb-2">
+            BILLING DETAILS
+          </h4>
+          {details.map((row, i) => (
+            <div
+              key={i}
+              className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] sm:items-center"
+            >
               <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0"
-                value={row.amount}
-                onChange={(e) => updateDetail(i, "amount", e.target.value)}
-                className="min-w-0 flex-1 px-2 sm:flex-none"
+                placeholder={`${detailPlaceholderPrefix} ${i + 1}`}
+                value={row.description}
+                onChange={(e) => updateDetail(i, "description", e.target.value)}
+                className="min-w-0"
+                required
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => onRemoveDetailRow(i)}
-                disabled={details.length <= 1}
-                className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10"
-                aria-label={`Remove item ${i + 1}`}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2 sm:contents">
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  value={row.amount}
+                  onChange={(e) => updateDetail(i, "amount", e.target.value)}
+                  className="min-w-0 flex-1 px-2 sm:flex-none"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onRemoveDetailRow(i)}
+                  disabled={details.length <= 1}
+                  className="h-11 w-11 shrink-0 text-muted-foreground hover:text-destructive sm:h-10 sm:w-10"
+                  aria-label={`Remove item ${i + 1}`}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
-        <Button type="button" variant="outline" onClick={onAddDetailRow}>
-          Add item
-        </Button>
-      </div>
+          ))}
+          <Button type="button" variant="outline" onClick={onAddDetailRow}>
+            Add item
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

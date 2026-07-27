@@ -4,6 +4,7 @@ import type {
   FundRequestRow,
 } from "@/types/fund-request";
 import { getFundRequestRejectionHistory } from "@/lib/fund-request-rejection-history";
+import { isFundRequestCutoffExpirySystemActor } from "@/lib/fund-request-cutoff";
 
 export const FUND_REQUEST_ACTION_LABELS: Record<FundRequestActionType, string> = {
   reject: "Rejected",
@@ -104,7 +105,9 @@ export function formatFundRequestActionHistoryEntry(
   approverNames: Record<string, string>
 ): string {
   const action = normalizeFundRequestActionType(entry.action);
-  const actor = approverNames[entry.rejected_by] ?? "Unknown user";
+  const actor = isFundRequestCutoffExpirySystemActor(entry.rejected_by)
+    ? "System"
+    : approverNames[entry.rejected_by] ?? "Unknown user";
   const reason = entry.rejection_reason?.trim();
   const undone = entry.undone_at
     ? ` (undone by ${approverNames[entry.undone_by ?? ""] ?? "admin"})`

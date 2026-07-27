@@ -38,12 +38,10 @@ export function Header({ onMenuClick }: HeaderProps) {
   useEffect(() => {
     let userSubscription: ReturnType<typeof supabase.channel> | null = null;
     let isMounted = true;
+    let currentUserId: string | null = null;
 
     async function getUser() {
       try {
-        // Use optimized hook that uses /api/auth/me endpoint
-        const { useCurrentUser } = await import("@/lib/hooks/useCurrentUser");
-        // Note: We can't use hooks conditionally, so we'll fetch directly
         const response = await fetch("/api/auth/me", {
           method: "GET",
           headers: {
@@ -56,6 +54,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         if (!response.ok) {
           // 401 or other error = not authenticated, clear state
+          currentUserId = null;
           setUser(null);
           setUserRole("");
           setUserFullName("");
@@ -67,6 +66,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         const userData = data.user;
 
         if (!userData && isMounted) {
+          currentUserId = null;
           setUser(null);
           setUserRole("");
           setUserFullName("");
@@ -75,6 +75,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         }
 
         if (userData && isMounted) {
+          currentUserId = userData.id;
           // Set auth user for compatibility
           setUser({
             id: userData.id,
@@ -127,14 +128,25 @@ export function Header({ onMenuClick }: HeaderProps) {
     // Initial fetch
     getUser();
 
-    // Listen for auth state changes to refresh user data
-    // Only refresh on SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED events
-    // This prevents excessive calls on every auth state change
+    // Auth sync from other tabs fires TOKEN_REFRESHED / SIGNED_IN here.
+    // Skip no-op refreshes so we don't churn header state on every new tab.
     const {
       data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      // Only refresh on meaningful auth events
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        currentUserId = null;
+        getUser();
+        return;
+      }
+      if (event === "TOKEN_REFRESHED") {
+        return;
+      }
+      if (event === "SIGNED_IN") {
+        const nextId = session?.user?.id ?? null;
+        // Same session already shown — ignore cross-tab sync.
+        if (currentUserId && nextId && currentUserId === nextId) {
+          return;
+        }
         getUser();
       }
     });

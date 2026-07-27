@@ -399,6 +399,12 @@ export function FundRequestInbox({
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      // Auto-cancel OM/PO requests whose filing cutoff already ended.
+      try {
+        await fetch("/api/fund-requests/expire-past-cutoff", { method: "POST" });
+      } catch {
+        // Non-blocking — inbox still loads; cron also runs this job.
+      }
       const normalizedRole = normalizeUserRole(profile?.role);
       const currentUserId = profile?.id ?? null;
       const managedIds =

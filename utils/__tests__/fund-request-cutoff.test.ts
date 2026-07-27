@@ -5,9 +5,12 @@ import {
   getActiveFundRequestCutoffIndex,
   getFundRequestCutoffStartYmd,
   getFundRequestCutoffStartYmdForFiling,
+  getFundRequestFilingCutoffStartYmd,
   getFundRequestHistoryCutoffs,
+  isFundRequestPastCutoffForOmPoExpiry,
   shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
+import { buildFundRequestCutoffExpiryUpdates } from "@/lib/fund-request-cutoff-expiry";
 import type { FundRequestRow } from "@/types/fund-request";
 
 function baseRequest(overrides: Partial<FundRequestRow> = {}): FundRequestRow {
@@ -70,8 +73,9 @@ const jul3Cutoff = {
 };
 
 describe("getFundRequestCutoffStartYmd", () => {
-  it("uses request_date for cutoff week even when approvals happen next week", () => {
+  it("uses filing/created date for history even when approved in a later week", () => {
     expect(getFundRequestCutoffStartYmd(baseRequest())).toBe("2026-06-26");
+    expect(getFundRequestFilingCutoffStartYmd(baseRequest())).toBe("2026-06-26");
   });
 
   it("keeps Jul 2 recovery-week filings in Jun 26 cutoff after Thu 10 AM when viewed later", () => {
@@ -94,8 +98,20 @@ describe("getFundRequestCutoffStartYmd", () => {
 });
 
 describe("fundRequestBelongsToApproverCutoff", () => {
-  it("keeps a Jul 1 filing in Jun 26 cutoff when PO and UM approve Jul 3", () => {
+  it("keeps final approvals on the filing cutoff for audit/history", () => {
     const request = baseRequest();
+    expect(fundRequestBelongsToHistoryCutoff(request, jun26Cutoff)).toBe(true);
+    expect(fundRequestBelongsToHistoryCutoff(request, jul3Cutoff)).toBe(false);
+  });
+
+  it("keeps an in-pipeline OM/PO request on its filing cutoff", () => {
+    const request = baseRequest({
+      status: "project_manager_approved",
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      management_approved_by: null,
+      management_approved_at: null,
+    });
     expect(
       fundRequestBelongsToApproverCutoff(request, jun26Cutoff, "upper_management")
     ).toBe(true);
@@ -104,10 +120,63 @@ describe("fundRequestBelongsToApproverCutoff", () => {
     ).toBe(false);
   });
 
-  it("matches history cutoff grouping to filing cutoff", () => {
-    const request = baseRequest();
-    expect(fundRequestBelongsToHistoryCutoff(request, jun26Cutoff)).toBe(true);
-    expect(fundRequestBelongsToHistoryCutoff(request, jul3Cutoff)).toBe(false);
+  it("keeps UM-stage requests on the filing cutoff and the active cutoff", () => {
+    const request = baseRequest({
+      status: "purchasing_officer_approved",
+      management_approved_by: null,
+      management_approved_at: null,
+      created_at: "2026-07-01T06:00:00+08:00",
+      request_date: "2026-07-01",
+    });
+    const now = new Date(2026, 6, 8); // Jul 8 → active Jul 3 cutoff
+    expect(
+      fundRequestBelongsToApproverCutoff(request, jul3Cutoff, "upper_management", now)
+    ).toBe(true);
+    expect(
+      fundRequestBelongsToApproverCutoff(request, jun26Cutoff, "upper_management", now)
+    ).toBe(true);
+  });
+});
+
+describe("cutoff expiry for OM/PO", () => {
+  it("expires OM/PO requests after their filing week ends", () => {
+    const pending = baseRequest({
+      status: "pending",
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      management_approved_by: null,
+      management_approved_at: null,
+    });
+    const now = new Date(2026, 6, 8); // Jul 8 → Jul 3 active, Jun 26 filing is past
+    expect(isFundRequestPastCutoffForOmPoExpiry(pending, now)).toBe(true);
+    expect(buildFundRequestCutoffExpiryUpdates(pending)).toMatchObject({
+      status: "rejected",
+    });
+  });
+
+  it("does not expire UM-stage requests after the filing week ends", () => {
+    const umPending = baseRequest({
+      status: "purchasing_officer_approved",
+      management_approved_by: null,
+      management_approved_at: null,
+    });
+    const now = new Date(2026, 6, 8);
+    expect(isFundRequestPastCutoffForOmPoExpiry(umPending, now)).toBe(false);
+    expect(buildFundRequestCutoffExpiryUpdates(umPending)).toBeNull();
+  });
+
+  it("does not expire OM/PO requests still inside their filing week", () => {
+    const pending = baseRequest({
+      status: "pending",
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      management_approved_by: null,
+      management_approved_at: null,
+      request_date: "2026-07-06",
+      created_at: "2026-07-06T06:00:00+08:00",
+    });
+    const now = new Date(2026, 6, 8); // still Jul 3 cutoff
+    expect(isFundRequestPastCutoffForOmPoExpiry(pending, now)).toBe(false);
   });
 });
 
@@ -139,6 +208,6 @@ describe("getFundRequestHistoryCutoffs forward weeks", () => {
     expect(history).not.toBeNull();
     expect(history?.cutoffs[0]?.start_ymd).toBe("2026-07-10");
     expect(history?.cutoffs[1]?.start_ymd).toBe("2026-07-03");
-    expect(getActiveFundRequestCutoffIndex(history?.cutoffs ?? [])).toBe(1);
+    expect(getActiveFundRequestCutoffIndex(history?.cutoffs ?? [], new Date(2026, 6, 9))).toBe(1);
   });
 });

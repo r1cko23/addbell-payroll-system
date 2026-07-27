@@ -9,7 +9,7 @@ import {
   formatFundRequestCutoffPeriod,
   getFundRequestCalendarCutoffStartYmd,
   getFundRequestCutoffPeriodEnd,
-  getFundRequestCutoffStartYmd,
+  getFundRequestFilingCutoffStartYmd,
   getFundRequestFiledDateYmd,
   isFundRequestInSucceedingCutoff,
 } from "@/lib/fund-request-cutoff";
@@ -97,7 +97,7 @@ export function buildFundRequestMoveToCurrentCutoffUpdates(
     return null;
   }
 
-  const fromCutoffStartYmd = getFundRequestCutoffStartYmd(request);
+  const fromCutoffStartYmd = getFundRequestFilingCutoffStartYmd(request);
   const toCutoffStartYmd = getFundRequestProcessingCutoffStartYmd(request);
   const toCreatedAt = buildFundRequestCreatedAtForCalendarCutoff(request);
 

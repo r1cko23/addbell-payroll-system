@@ -133,24 +133,37 @@ export function useCurrentUser(): UseCurrentUserData {
     fetchUser();
   }, [fetchUser]);
 
-  // Clear cache and refetch on auth changes (e.g. logout, account switch)
+  // Auth changes (logout / account switch). Opening another app tab syncs the
+  // Supabase session via storage and fires TOKEN_REFRESHED / SIGNED_IN in every
+  // existing tab — must not flip `loading` or refetch the same profile, or pages
+  // that gate on useCurrentUser/useProfile/useUserRole unmount and look "refreshed".
   useEffect(() => {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         clearCurrentUserCache();
         setUser(null);
         setLoading(false);
         return;
       }
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        clearCurrentUserCache();
-        // Another tab opening the app syncs auth here — refresh in the background
-        // so list pages (filters, scroll) are not torn down and reset.
-        const silent = cachedUser !== null;
-        void fetchUser(true, silent);
+      if (event === "TOKEN_REFRESHED") {
+        // Token only — profile unchanged.
+        return;
+      }
+      if (event === "SIGNED_IN") {
+        const sessionUserId = session?.user?.id ?? null;
+        // Same user already loaded (typical cross-tab sync) — do nothing.
+        if (cachedUser && sessionUserId && cachedUser.id === sessionUserId) {
+          return;
+        }
+        const alreadyHaveUser = cachedUser !== null;
+        if (!alreadyHaveUser) {
+          clearCurrentUserCache();
+        }
+        // Account switch or first sign-in: silent if UI already has a profile.
+        void fetchUser(true, alreadyHaveUser);
       }
     });
     return () => subscription.unsubscribe();

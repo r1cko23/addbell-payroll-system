@@ -392,6 +392,8 @@ describe("summarizeFundRequestsForRoleCutoff", () => {
         baseRequest({
           id: "pending",
           status: "project_manager_approved",
+          project_manager_approved_by: "om-1",
+          project_manager_approved_at: "2026-06-27T03:00:00+08:00",
           total_requested_amount: 1000,
         }),
         baseRequest({

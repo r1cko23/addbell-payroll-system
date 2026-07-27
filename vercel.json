@@ -1,5 +1,11 @@
 {
   "version": 2,
   "regions": ["sin1"],
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/fund-requests/expire-past-cutoff",
+      "schedule": "10 16 * * *"
+    }
+  ]
 }

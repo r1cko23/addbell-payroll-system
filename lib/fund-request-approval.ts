@@ -3,6 +3,7 @@ import {
   approvalApprovedStatusBadgeClass,
   approvalRejectedStatusBadgeClass,
 } from "@/lib/approval-status-badge";
+import { isFundRequestCutoffExpirySystemActor } from "@/lib/fund-request-cutoff";
 import { fundRequestInOperationsManagerQueue } from "@/lib/fund-request-routing";
 import {
   appendFundRequestActionHistory,
@@ -430,6 +431,11 @@ export function canUndoFundRequestRejection(
   request: FundRequestRow
 ): boolean {
   if (!userId || !isFundRequestRejectionUndoable(request)) return false;
+
+  // Cutoff auto-cancels are final for requesters/approvers; admin may still undo.
+  if (isFundRequestCutoffExpirySystemActor(request.rejected_by)) {
+    return normalizeUserRole(role) === "admin";
+  }
 
   const normalizedRole = normalizeUserRole(role);
   if (normalizedRole === "admin") return true;

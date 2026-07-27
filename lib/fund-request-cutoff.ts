@@ -165,12 +165,12 @@ export function getFundRequestFinalDecisionDateYmd(
   return null;
 }
 
-/** History, inbox, and requester views share the same filing-date cutoff bucket. */
+/** History and requester views use the filing-date cutoff bucket. */
 export function fundRequestBelongsToHistoryCutoff(
   request: FundRequestRow,
   cutoff: WeeklyCutoffPeriod
 ): boolean {
-  return fundRequestBelongsToApproverCutoff(request, cutoff, "upper_management");
+  return getFundRequestFilingCutoffStartYmd(request) === cutoff.start_ymd;
 }
 
 export const FUND_REQUEST_HISTORY_FETCH_OR =
@@ -252,11 +252,14 @@ export function getFundRequestCalendarCutoffStartYmd(
 
 /**
  * True when a request was filed after the Thu 10:00 AM deadline and assigned to the next cutoff.
+ * Uses filing time only (ignores later approval/rejection).
  */
 export function isFundRequestInSucceedingCutoff(
   request: Pick<FundRequestRow, "request_date" | "created_at">
 ): boolean {
-  const assignedCutoffStartYmd = getFundRequestCutoffStartYmd(request as FundRequestRow);
+  const assignedCutoffStartYmd = getFundRequestFilingCutoffStartYmd(
+    request as FundRequestRow
+  );
   const calendarCutoffStartYmd = getFundRequestCalendarCutoffStartYmd(request);
   if (!assignedCutoffStartYmd || !calendarCutoffStartYmd) return false;
 
@@ -267,8 +270,13 @@ export function isFundRequestInSucceedingCutoff(
   return assignedCutoffStartYmd === succeedingCutoffStartYmd;
 }
 
-/** Cutoff period start for a fund request (uses created_at when available). */
-export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | null {
+/**
+ * Fri–Thu cutoff for when the request was filed (created_at + request_date roll-forward).
+ * Cutoff moves and “succeeding cutoff” checks use this.
+ */
+export function getFundRequestFilingCutoffStartYmd(
+  request: Pick<FundRequestRow, "request_date" | "created_at">
+): string | null {
   if (request.created_at) {
     return getFundRequestCutoffStartYmdForFiling(
       request.created_at,
@@ -281,6 +289,59 @@ export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | 
   const anchorDate = parseYmd(ymd);
   if (!anchorDate) return null;
   return format(getFundRequestCutoffPeriodStart(anchorDate), "yyyy-MM-dd");
+}
+
+/**
+ * Cutoff period for inbox / history / list bucketing — always the filing week
+ * (created_at / request_date), including after final approval for audit.
+ */
+export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | null {
+  return getFundRequestFilingCutoffStartYmd(request);
+}
+
+/** Statuses auto-cancelled when their filing cutoff week has ended. */
+export const FUND_REQUEST_CUTOFF_EXPIRABLE_STATUSES = [
+  "pending",
+  "project_manager_approved",
+] as const;
+
+export type FundRequestCutoffExpirableStatus =
+  (typeof FUND_REQUEST_CUTOFF_EXPIRABLE_STATUSES)[number];
+
+export function isFundRequestCutoffExpirableStatus(
+  status: FundRequestRow["status"] | string | null | undefined
+): status is FundRequestCutoffExpirableStatus {
+  return (
+    status === "pending" || status === "project_manager_approved"
+  );
+}
+
+/**
+ * True when an OM/PO-stage request's filing cutoff is already over
+ * (active Fri–Thu week is newer than the filing week).
+ * UM-stage (`purchasing_officer_approved`) never expires this way.
+ */
+export function isFundRequestPastCutoffForOmPoExpiry(
+  request: Pick<FundRequestRow, "request_date" | "created_at" | "status">,
+  now: Date = new Date()
+): boolean {
+  if (!isFundRequestCutoffExpirableStatus(request.status)) return false;
+  const filingStart = getFundRequestFilingCutoffStartYmd(request);
+  if (!filingStart) return false;
+  return filingStart < getActiveFundRequestCutoffStartYmd(now);
+}
+
+/** Stable actor id for cutoff auto-cancellations (not a real auth user). */
+export const FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID =
+  "00000000-0000-4000-8000-0000000000f1";
+
+export const FUND_REQUEST_CUTOFF_EXPIRY_REASON =
+  "Auto-cancelled: the weekly cutoff ended before Operations/Purchasing approval. Please file a new request.";
+
+export function isFundRequestCutoffExpirySystemActor(
+  userId: string | null | undefined
+): boolean {
+  return userId === FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID;
 }
 
 export function isPoFundRequestRejection(request: FundRequestRow): boolean {
@@ -451,9 +512,17 @@ export function cutoffKeyForFundRequestDecision(
 export function fundRequestBelongsToApproverCutoff(
   request: FundRequestRow,
   cutoff: WeeklyCutoffPeriod,
-  _role: FundRequestApproverHistoryRole
+  _role: FundRequestApproverHistoryRole,
+  now: Date = new Date()
 ): boolean {
-  return getFundRequestCutoffStartYmd(request) === cutoff.start_ymd;
+  const filingStart = getFundRequestFilingCutoffStartYmd(request);
+  if (request.status === "purchasing_officer_approved") {
+    // Stay on the filing week for audit/metrics, and also on the active week
+    // so Upper Management can keep acting after the cutoff rolls.
+    const activeStart = getActiveFundRequestCutoffStartYmd(now);
+    return cutoff.start_ymd === filingStart || cutoff.start_ymd === activeStart;
+  }
+  return filingStart === cutoff.start_ymd;
 }
 
 /** @deprecated Use fundRequestBelongsToApproverCutoff */

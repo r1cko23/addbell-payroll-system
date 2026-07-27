@@ -8,7 +8,7 @@ import {
 } from "@/lib/fund-request-cutoff-move";
 import {
   getFundRequestCalendarCutoffStartYmd,
-  getFundRequestCutoffStartYmd,
+  getFundRequestFilingCutoffStartYmd,
   isFundRequestInSucceedingCutoff,
 } from "@/lib/fund-request-cutoff";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -66,7 +66,7 @@ describe("fund request cutoff move", () => {
     const request = baseRequest();
     expect(isFundRequestInSucceedingCutoff(request)).toBe(true);
     expect(getFundRequestCalendarCutoffStartYmd(request)).toBe("2026-07-03");
-    expect(getFundRequestCutoffStartYmd(request)).toBe("2026-07-10");
+    expect(getFundRequestFilingCutoffStartYmd(request)).toBe("2026-07-10");
   });
 
   it("allows upper management to move rolled-forward pending requests", () => {
@@ -102,7 +102,7 @@ describe("fund request cutoff move", () => {
     expect(result?.adjustment.from_cutoff_start_ymd).toBe("2026-07-10");
     expect(result?.adjustment.to_cutoff_start_ymd).toBe("2026-07-03");
     expect(result?.adjustment.moved_by).toBe("um-user-1");
-    expect(getFundRequestCutoffStartYmd({
+    expect(getFundRequestFilingCutoffStartYmd({
       ...request,
       created_at: result!.updates.created_at as string,
     })).toBe("2026-07-03");
@@ -138,7 +138,7 @@ describe("fund request cutoff move", () => {
       }),
     ]);
     expect(
-      getFundRequestCutoffStartYmd({
+      getFundRequestFilingCutoffStartYmd({
         ...movedRequest,
         created_at: undoResult!.updates.created_at as string,
       })

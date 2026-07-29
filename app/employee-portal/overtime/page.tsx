@@ -335,7 +335,10 @@ export default function OvertimePage() {
         setFormData((prev) => ({
           ...prev,
           ot_date: workDate,
-          end_date: prev.end_date || workDate,
+          // Leave End Date blank. Overnight clock sessions (e.g. Jul 29 7AM →
+          // Jul 30 6AM) must not force end_date to the clock-in day — that
+          // makes past-midnight OT look outside the linked span and blocks submit.
+          end_date: "",
         }));
       }
     }

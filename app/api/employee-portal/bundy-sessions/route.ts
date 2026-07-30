@@ -122,12 +122,16 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = getAdminClient();
-    const { data: punches } = await admin
+    // Match GET listing: include device_info so 23h auto clock-outs pair correctly.
+    const { data: punchesDesc } = await admin
       .from("time_entries")
-      .select("id, employee_id, punch_type, punched_at, lat, lng")
+      .select(
+        "id, employee_id, punch_type, punched_at, lat, lng, device_info, source"
+      )
       .eq("employee_id", body.employee_id)
-      .order("punched_at", { ascending: true })
-      .limit(200);
+      .order("punched_at", { ascending: false })
+      .limit(500);
+    const punches = [...(punchesDesc || [])].reverse();
 
     const { data: otRows } = await admin
       .from("overtime_requests")
@@ -137,7 +141,7 @@ export async function POST(req: NextRequest) {
 
     const usedPairKeys = buildUsedOtPairKeys(otRows || []);
     const validated = validateBundyOtSessionPair({
-      punches: (punches || []) as TimeEntryPunch[],
+      punches: punches as TimeEntryPunch[],
       inPunchId: body.in_punch_id,
       outPunchId: body.out_punch_id,
       usedPairKeys,

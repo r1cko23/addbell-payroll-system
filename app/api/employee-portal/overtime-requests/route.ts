@@ -212,12 +212,16 @@ export async function POST(req: NextRequest) {
     creditedHours = creditOvertimeHours(body.total_hours);
 
     if (bundyInId && bundyOutId) {
-      const { data: punches } = await admin
+      // device_info/source required so 23h auto clock-outs pair (MAX_PAIR_GAP is 20h otherwise).
+      const { data: punchesDesc } = await admin
         .from("time_entries")
-        .select("id, employee_id, punch_type, punched_at, lat, lng")
+        .select(
+          "id, employee_id, punch_type, punched_at, lat, lng, device_info, source"
+        )
         .eq("employee_id", body.employee_id)
-        .order("punched_at", { ascending: true })
-        .limit(200);
+        .order("punched_at", { ascending: false })
+        .limit(500);
+      const punches = [...(punchesDesc || [])].reverse();
 
       const { data: otRows } = await admin
         .from("overtime_requests")
@@ -226,7 +230,7 @@ export async function POST(req: NextRequest) {
         .not("bundy_in_punch_id", "is", null);
 
       const validated = validateBundyOtSessionPair({
-        punches: (punches || []) as TimeEntryPunch[],
+        punches: punches as TimeEntryPunch[],
         inPunchId: bundyInId,
         outPunchId: bundyOutId,
         usedPairKeys: buildUsedOtPairKeys(otRows || []),

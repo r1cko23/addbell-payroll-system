@@ -12,6 +12,7 @@ import {
 } from "@/lib/ot-claimed-range";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
+import { cachedJson } from "@/lib/cache";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -43,117 +44,131 @@ export async function GET(req: NextRequest) {
     const otDateTo = req.nextUrl.searchParams.get("ot_date_to");
 
     const admin = getAdminClient();
-    let query = admin
-      .from("overtime_requests")
-      .select(
-        "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, project_manager_id, account_manager_id, project_manager_approved_at, approved_by, hr_approved_by, approved_at, created_at, bundy_in_punch_id, bundy_out_punch_id"
-      )
-      .eq("employee_id", employeeId);
+    const { data: cached, cache } = await cachedJson(
+      ["ep", "ot-requests", employeeId, otDateFrom ?? "all", otDateTo ?? "all"],
+      async () => {
+        let query = admin
+          .from("overtime_requests")
+          .select(
+            "id, employee_id, ot_date, end_date, start_time, end_time, total_hours, reason, status, project_manager_id, account_manager_id, project_manager_approved_at, approved_by, hr_approved_by, approved_at, created_at, bundy_in_punch_id, bundy_out_punch_id"
+          )
+          .eq("employee_id", employeeId);
 
-    if (otDateFrom) {
-      query = query.gte("ot_date", otDateFrom);
-    }
-    if (otDateTo) {
-      query = query.lte("ot_date", otDateTo);
-    }
-
-    const { data, error } = await query
-      .order("ot_date", { ascending: false })
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const rows: any[] = data || [];
-    const requestIds = rows.map((r) => r.id);
-    const docsByRequest: Record<
-      string,
-      { id: string; overtime_request_id: string; file_name: string }[]
-    > = {};
-
-    if (requestIds.length > 0) {
-      const { data: docs, error: docsError } = await admin
-        .from("overtime_documents")
-        .select("id, overtime_request_id, file_name")
-        .in("overtime_request_id", requestIds);
-
-      if (!docsError && docs) {
-        for (const d of docs as {
-          id: string;
-          overtime_request_id: string;
-          file_name: string;
-        }[]) {
-          const rid = d.overtime_request_id;
-          if (!docsByRequest[rid]) docsByRequest[rid] = [];
-          docsByRequest[rid].push(d);
+        if (otDateFrom) {
+          query = query.gte("ot_date", otDateFrom);
         }
-      } else if (
-        docsError &&
-        !isSchemaMissingTableOrRelationError(docsError)
-      ) {
-        console.error("overtime_documents load:", docsError);
-      }
-    }
+        if (otDateTo) {
+          query = query.lte("ot_date", otDateTo);
+        }
 
-    const approverNameMap = await loadApproverNameMap(
-      admin as any,
-      rows.flatMap((r) => [
-        r.project_manager_id,
-        r.account_manager_id,
-        r.approved_by,
-        r.hr_approved_by,
-      ])
+        const { data: rows, error } = await query
+          .order("ot_date", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        const list: any[] = rows || [];
+        const requestIds = list.map((r) => r.id);
+        const docsByRequest: Record<
+          string,
+          { id: string; overtime_request_id: string; file_name: string }[]
+        > = {};
+
+        if (requestIds.length > 0) {
+          const { data: docs, error: docsError } = await admin
+            .from("overtime_documents")
+            .select("id, overtime_request_id, file_name")
+            .in("overtime_request_id", requestIds);
+
+          if (!docsError && docs) {
+            for (const d of docs as {
+              id: string;
+              overtime_request_id: string;
+              file_name: string;
+            }[]) {
+              const rid = d.overtime_request_id;
+              if (!docsByRequest[rid]) docsByRequest[rid] = [];
+              docsByRequest[rid].push(d);
+            }
+          } else if (
+            docsError &&
+            !isSchemaMissingTableOrRelationError(docsError)
+          ) {
+            console.error("overtime_documents load:", docsError);
+          }
+        }
+
+        const approverNameMap = await loadApproverNameMap(
+          admin as any,
+          list.flatMap((r) => [
+            r.project_manager_id,
+            r.account_manager_id,
+            r.approved_by,
+            r.hr_approved_by,
+          ])
+        );
+
+        const punchIds = new Set<string>();
+        list.forEach((r) => {
+          if (r.bundy_in_punch_id) punchIds.add(r.bundy_in_punch_id);
+          if (r.bundy_out_punch_id) punchIds.add(r.bundy_out_punch_id);
+        });
+        const punchById: Record<
+          string,
+          {
+            id: string;
+            punched_at: string;
+            lat: number | null;
+            lng: number | null;
+            punch_type: string;
+          }
+        > = {};
+        if (punchIds.size > 0) {
+          const { data: punchRows } = await admin
+            .from("time_entries")
+            .select("id, punched_at, lat, lng, punch_type")
+            .in("id", Array.from(punchIds));
+          (punchRows || []).forEach((p: any) => {
+            punchById[p.id] = p;
+          });
+        }
+
+        const requests = list.map((r: any) => {
+          const inP = r.bundy_in_punch_id ? punchById[r.bundy_in_punch_id] : null;
+          const outP = r.bundy_out_punch_id ? punchById[r.bundy_out_punch_id] : null;
+          return {
+            ...r,
+            overtime_documents: docsByRequest[r.id] || [],
+            bundy_session:
+              inP && outP
+                ? {
+                    clock_in_time: inP.punched_at,
+                    clock_out_time: outP.punched_at,
+                    clock_in_lat: inP.lat,
+                    clock_in_lng: inP.lng,
+                    clock_out_lat: outP.lat,
+                    clock_out_lng: outP.lng,
+                  }
+                : null,
+            manager_approval_name:
+              (r.project_manager_id && approverNameMap[r.project_manager_id]) ||
+              (r.account_manager_id && approverNameMap[r.account_manager_id]) ||
+              null,
+            final_approval_name:
+              (r.hr_approved_by && approverNameMap[r.hr_approved_by]) ||
+              (r.approved_by && approverNameMap[r.approved_by]) ||
+              null,
+          };
+        });
+
+        return { requests };
+      },
+      120
     );
 
-    const punchIds = new Set<string>();
-    rows.forEach((r) => {
-      if (r.bundy_in_punch_id) punchIds.add(r.bundy_in_punch_id);
-      if (r.bundy_out_punch_id) punchIds.add(r.bundy_out_punch_id);
-    });
-    const punchById: Record<
-      string,
-      { id: string; punched_at: string; lat: number | null; lng: number | null; punch_type: string }
-    > = {};
-    if (punchIds.size > 0) {
-      const { data: punchRows } = await admin
-        .from("time_entries")
-        .select("id, punched_at, lat, lng, punch_type")
-        .in("id", Array.from(punchIds));
-      (punchRows || []).forEach((p: any) => {
-        punchById[p.id] = p;
-      });
-    }
-
-    const requests = rows.map((r: any) => {
-      const inP = r.bundy_in_punch_id ? punchById[r.bundy_in_punch_id] : null;
-      const outP = r.bundy_out_punch_id ? punchById[r.bundy_out_punch_id] : null;
-      return {
-        ...r,
-        overtime_documents: docsByRequest[r.id] || [],
-        bundy_session:
-          inP && outP
-            ? {
-                clock_in_time: inP.punched_at,
-                clock_out_time: outP.punched_at,
-                clock_in_lat: inP.lat,
-                clock_in_lng: inP.lng,
-                clock_out_lat: outP.lat,
-                clock_out_lng: outP.lng,
-              }
-            : null,
-        manager_approval_name:
-          (r.project_manager_id && approverNameMap[r.project_manager_id]) ||
-          (r.account_manager_id && approverNameMap[r.account_manager_id]) ||
-          null,
-        final_approval_name:
-          (r.hr_approved_by && approverNameMap[r.hr_approved_by]) ||
-          (r.approved_by && approverNameMap[r.approved_by]) ||
-          null,
-      };
-    });
-
-    return NextResponse.json({ requests });
+    return NextResponse.json(cached, { headers: { "X-Cache": cache } });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || "Internal server error" },

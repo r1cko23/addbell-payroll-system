@@ -155,6 +155,8 @@ export default function EmployeePortalLayout({
     }
 
     localStorage.removeItem("employee_session");
+    const { invalidateSessionCache } = await import("@/lib/session-cache");
+    invalidateSessionCache();
     router.replace("/login?mode=employee");
   };
 

@@ -21,6 +21,7 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import { format, parseISO } from "date-fns";
 import {
   Select,
@@ -84,11 +85,32 @@ function formatMonthLabel(monthKey: string): string {
 
 export default function EmployeePayslipsPage() {
   const { employee } = useEmployeeSession();
-  const [payslips, setPayslips] = useState<Payslip[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<EmployeeProfileForPayslip | null>(
-    null
-  );
+  const payslipsCacheKey = employee?.id ? `payslips:${employee.id}` : null;
+  const payslipsUrl = employee?.id
+    ? `/api/employee-portal/payslips?employee_id=${encodeURIComponent(employee.id)}`
+    : null;
+  const profileCacheKey = employee?.id ? `employee-profile:${employee.id}` : null;
+  const profileUrl = employee?.id
+    ? `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employee.id)}`
+    : null;
+
+  const {
+    data: payslipsData,
+    loading: payslipsLoading,
+    error: payslipsError,
+    refresh: refreshPayslips,
+  } = useSessionQuery<{ payslips: Payslip[] }>(payslipsCacheKey, payslipsUrl, {
+    enabled: !!employee?.id,
+  });
+
+  const { data: profileData } = useSessionQuery<
+    EmployeeProfileForPayslip & { full_name?: string | null }
+  >(profileCacheKey, profileUrl, {
+    enabled: !!employee?.id,
+  });
+
+  const payslips = payslipsData?.payslips ?? [];
+  const loading = payslipsLoading;
   const [holidays, setHolidays] = useState<Array<{ holiday_date: string }>>([]);
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null);
   const [showPayslipModal, setShowPayslipModal] = useState(false);
@@ -117,82 +139,34 @@ export default function EmployeePayslipsPage() {
     );
   }, [monthOptions]);
 
-  const payslipProfile = useMemo((): EmployeeProfileForPayslip | null => {
-    if (!profile) return null;
+  const profile = useMemo((): EmployeeProfileForPayslip | null => {
+    if (!profileData) return null;
     return {
       employee_id: employee.employee_id,
-      full_name: profile.full_name || employee.full_name,
-      position: profile.position ?? null,
-      employment_type: profile.employment_type ?? null,
-      job_level: profile.job_level ?? null,
-      salary_basis: profile.salary_basis ?? null,
-      base_rate: profile.base_rate ?? null,
-      hire_date: profile.hire_date ?? null,
+      full_name: profileData.full_name || employee.full_name,
+      position: profileData.position ?? null,
+      employment_type: profileData.employment_type ?? null,
+      job_level: profileData.job_level ?? null,
+      salary_basis: profileData.salary_basis ?? null,
+      base_rate: profileData.base_rate ?? null,
+      hire_date: profileData.hire_date ?? null,
     };
-  }, [profile, employee]);
+  }, [profileData, employee]);
 
   useEffect(() => {
-    loadPayslips();
-    loadProfile();
-  }, [employee.id]);
-
-  async function loadPayslips() {
-    try {
-      setLoading(true);
-      const response = await fetch(
-        `/api/employee-portal/payslips?employee_id=${encodeURIComponent(
-          employee.id
-        )}`
-      );
-      const payload = await response.json();
-
-      if (!response.ok) {
-        console.error("Error loading payslips:", payload);
-        toast.error("Failed to load payslips");
-        return;
-      }
-
-      const payslipData = (payload.payslips as Payslip[]) || [];
-      setPayslips(payslipData);
-      if (payslipData.length > 0) {
-        const starts = payslipData.map((p) => p.period_start).sort();
-        const ends = payslipData.map((p) => p.period_end).sort();
-        await loadHolidays(starts[0], ends[ends.length - 1]);
-      }
-    } catch (err) {
-      console.error("Exception loading payslips:", err);
+    if (payslipsError) {
       toast.error("Failed to load payslips");
-    } finally {
-      setLoading(false);
     }
-  }
+  }, [payslipsError]);
 
-  async function loadProfile() {
-    try {
-      const response = await fetch(
-        `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
-          employee.id
-        )}`
-      );
-      const payload = await response.json();
-      if (!response.ok) return;
-      setProfile({
-        employee_id: employee.employee_id,
-        full_name: payload.full_name || employee.full_name,
-        position: payload.position ?? null,
-        employment_type: payload.employment_type ?? null,
-        job_level: payload.job_level ?? null,
-        salary_basis: payload.salary_basis ?? null,
-        base_rate: payload.base_rate ?? null,
-        hire_date: payload.hire_date ?? null,
-      });
-    } catch {
-      setProfile({
-        employee_id: employee.employee_id,
-        full_name: employee.full_name,
-      });
-    }
-  }
+  useEffect(() => {
+    if (payslips.length === 0) return;
+    const starts = payslips.map((p) => p.period_start).sort();
+    const ends = payslips.map((p) => p.period_end).sort();
+    void loadHolidays(starts[0], ends[ends.length - 1]);
+  }, [payslips]);
+
+  const payslipProfile = profile;
 
   async function loadHolidays(start: string, end: string) {
     try {

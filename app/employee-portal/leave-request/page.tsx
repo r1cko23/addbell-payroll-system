@@ -44,6 +44,8 @@ import {
 } from "@/components/employee-portal/RequestHistoryCard";
 import { cn } from "@/lib/utils";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { formatSilCreditsAvailable } from "@/lib/employee-sil-display";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
 import { getBiMonthlyPeriodStart } from "@/utils/bimonthly";
@@ -183,7 +185,21 @@ export default function LeaveRequestPage() {
   const router = useRouter();
   const supabase = createClient();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
-  const [requests, setRequests] = useState<LeaveRequest[]>([]);
+  const leaveCacheKey = employee?.id ? `leave-requests:${employee.id}` : null;
+  const leaveUrl = employee?.id
+    ? `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(employee.id)}`
+    : null;
+
+  const {
+    data: leaveData,
+    loading: leaveLoading,
+    error: leaveQueryError,
+    refresh: refreshLeaveRequests,
+  } = useSessionQuery<{ requests: LeaveRequest[] }>(leaveCacheKey, leaveUrl, {
+    enabled: !!employee?.id,
+  });
+
+  const requests = leaveData?.requests ?? [];
   const {
     silCredits,
     silAnnualAllotment,
@@ -193,7 +209,7 @@ export default function LeaveRequestPage() {
     enabled: Boolean(employee?.id),
   });
   const [requestsFetchError, setRequestsFetchError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const pageLoading = !employee || leaveLoading;
   const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
@@ -275,16 +291,20 @@ export default function LeaveRequestPage() {
     if (!emp?.id) {
       console.error("Employee session missing id (UUID). Re-login may fix this.");
       setRequestsFetchError("Session invalid. Please sign out and sign in again.");
-      setLoading(false);
       return;
     }
 
     setRequestsFetchError(null);
-    // Batch initial data fetching in parallel
-    Promise.all([fetchLeaveRequests(emp.id), fetchHolidayDates()]).catch((err) => {
+    void fetchHolidayDates().catch((err) => {
       console.error("Error loading initial data:", err);
     });
   }, [router]);
+
+  useEffect(() => {
+    if (leaveQueryError) {
+      setRequestsFetchError("Unable to load leave requests. Please try again.");
+    }
+  }, [leaveQueryError]);
 
   // Auto-switch to LWOP if SIL credits are zero
   useEffect(() => {
@@ -373,37 +393,6 @@ export default function LeaveRequestPage() {
       console.warn("Error loading holidays for leave request (exception):", e);
       setHolidayDates(new Set<string>());
     }
-  }
-
-  async function fetchLeaveRequests(employeeId: string | undefined) {
-    if (!employeeId) {
-      setRequestsFetchError("Cannot load leave requests: missing employee id.");
-      setRequests([]);
-      return;
-    }
-    setRequestsFetchError(null);
-    setLoading(true);
-
-    // Load requests directly from table (new schema without get_my_leave_requests RPC)
-    const response = await fetch(
-      `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
-        employeeId
-      )}`
-    );
-    const payload = await response.json();
-
-    if (!response.ok) {
-      console.error("Error fetching leave requests:", payload);
-      setRequestsFetchError("Unable to load leave requests. Please try again.");
-      setRequests([]);
-      toast.error("Failed to load leave requests");
-      setLoading(false);
-      return;
-    }
-
-    setRequestsFetchError(null);
-    setRequests((payload.requests || []) as LeaveRequest[]);
-    setLoading(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -594,7 +583,8 @@ export default function LeaveRequestPage() {
     setEndTime("");
     setSupportingDoc(null);
     setDocError(null);
-    fetchLeaveRequests(employee.id);
+    await bustCache();
+    await refreshLeaveRequests({ force: true });
     refetchSilCredits();
   }
 
@@ -642,7 +632,7 @@ export default function LeaveRequestPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (loading || !employee) {
+  if (pageLoading) {
     return (
       <div className={cn("w-full", epPageWrapper)}>
         <div className="space-y-4">
@@ -1055,7 +1045,9 @@ export default function LeaveRequestPage() {
                     onClick={() => {
                       if (employee?.id) {
                         setRequestsFetchError(null);
-                        fetchLeaveRequests(employee.id);
+                        void bustCache().then(() =>
+                          refreshLeaveRequests({ force: true })
+                        );
                       }
                     }}
                   >

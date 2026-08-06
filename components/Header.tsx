@@ -161,6 +161,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, [supabase]);
 
   const handleLogout = async () => {
+    const { invalidateSessionCache } = await import("@/lib/session-cache");
+    invalidateSessionCache();
     // Clear all auth caches before signOut so no stale data when switching accounts
     const { clearSessionCache } = await import("@/lib/session-utils");
     clearSessionCache();

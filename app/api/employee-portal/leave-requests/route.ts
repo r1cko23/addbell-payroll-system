@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
+import { cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -104,10 +105,13 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getAdminClient();
-    const { data: requests, error } = await admin
-      .from("leave_requests")
-      .select(
-        `
+    const { data: cached, cache } = await cachedJson(
+      ["ep", "leave-requests", employeeId],
+      async () => {
+        const { data: requests, error } = await admin
+          .from("leave_requests")
+          .select(
+            `
         id,
         leave_type,
         leave_subtype,
@@ -125,56 +129,61 @@ export async function GET(req: NextRequest) {
         hr_approved_at,
         created_at
       `
-      )
-      .eq("employee_id", employeeId)
-      .order("created_at", { ascending: false });
+          )
+          .eq("employee_id", employeeId)
+          .order("created_at", { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+        if (error) {
+          throw new Error(error.message);
+        }
 
-    const rows: any[] = requests || [];
-    const requestIds = rows.map((r) => r.id);
-    let docsByRequest: Record<string, any[]> = {};
+        const rows: any[] = requests || [];
+        const requestIds = rows.map((r) => r.id);
+        let docsByRequest: Record<string, any[]> = {};
 
-    if (requestIds.length > 0) {
-      const { data: docs, error: docsError } = await admin
-        .from("leave_request_documents")
-        .select("id, leave_request_id, file_name, file_type, file_size")
-        .in("leave_request_id", requestIds);
+        if (requestIds.length > 0) {
+          const { data: docs, error: docsError } = await admin
+            .from("leave_request_documents")
+            .select("id, leave_request_id, file_name, file_type, file_size")
+            .in("leave_request_id", requestIds);
 
-      if (!docsError && docs) {
-        docsByRequest = docs.reduce((acc: Record<string, any[]>, doc: any) => {
-          if (!acc[doc.leave_request_id]) acc[doc.leave_request_id] = [];
-          acc[doc.leave_request_id].push(doc);
-          return acc;
-        }, {});
-      } else if (
-        docsError &&
-        !isSchemaMissingTableOrRelationError(docsError)
-      ) {
-        console.error("leave_request_documents load:", docsError);
-      }
-    }
+          if (!docsError && docs) {
+            docsByRequest = docs.reduce((acc: Record<string, any[]>, doc: any) => {
+              if (!acc[doc.leave_request_id]) acc[doc.leave_request_id] = [];
+              acc[doc.leave_request_id].push(doc);
+              return acc;
+            }, {});
+          } else if (
+            docsError &&
+            !isSchemaMissingTableOrRelationError(docsError)
+          ) {
+            console.error("leave_request_documents load:", docsError);
+          }
+        }
 
-    const approverNameMap = await loadApproverNameMap(
-      admin as any,
-      rows.flatMap((r) => [r.project_manager_id, r.hr_approved_by])
+        const approverNameMap = await loadApproverNameMap(
+          admin as any,
+          rows.flatMap((r) => [r.project_manager_id, r.hr_approved_by])
+        );
+
+        const payload = rows.map((r: any) => ({
+          ...r,
+          leave_type: normalizeLeaveTypeForUi(r.leave_type || ""),
+          leave_request_documents: docsByRequest[r.id] || [],
+          manager_approval_name: r.project_manager_id
+            ? approverNameMap[r.project_manager_id] || null
+            : null,
+          hr_approval_name: r.hr_approved_by
+            ? approverNameMap[r.hr_approved_by] || null
+            : null,
+        }));
+
+        return { requests: payload };
+      },
+      120
     );
 
-    const payload = rows.map((r: any) => ({
-      ...r,
-      leave_type: normalizeLeaveTypeForUi(r.leave_type || ""),
-      leave_request_documents: docsByRequest[r.id] || [],
-      manager_approval_name: r.project_manager_id
-        ? approverNameMap[r.project_manager_id] || null
-        : null,
-      hr_approval_name: r.hr_approved_by
-        ? approverNameMap[r.hr_approved_by] || null
-        : null,
-    }));
-
-    return NextResponse.json({ requests: payload });
+    return NextResponse.json(cached, { headers: { "X-Cache": cache } });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || "Internal server error" },

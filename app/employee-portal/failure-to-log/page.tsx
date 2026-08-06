@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,14 +49,8 @@ import {
 } from "@/components/employee-portal/RequestHistoryCard";
 import { cn } from "@/lib/utils";
 import { getManilaTodayYmd, addCalendarDaysYmd } from "@/lib/bundy-business-day";
-
-const FTL_PAGE_CACHE_MS = 2 * 60 * 1000;
-
-type FtlPageCache = {
-  employeeId: string;
-  at: number;
-  requests: FailureToLog[];
-};
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 
 interface EmployeeSession {
   id: string;
@@ -87,8 +81,6 @@ interface FailureToLog {
 export default function FailureToLogPage() {
   const router = useRouter();
   const [employee, setEmployee] = useState<EmployeeSession | null>(null);
-  const [requests, setRequests] = useState<FailureToLog[]>([]);
-  const [loading, setLoading] = useState(true);
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
 
@@ -99,64 +91,29 @@ export default function FailureToLogPage() {
   const [timeOutDate, setTimeOutDate] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const ftlCacheRef = useRef<FtlPageCache | null>(null);
 
-  const todayManila = useMemo(() => getManilaTodayYmd(), []);
+  const ftlCacheKey = employee?.id ? `ftl-requests:${employee.id}` : null;
+  const ftlUrl = employee?.id
+    ? `/api/employee-portal/failure-to-log?employee_id=${encodeURIComponent(employee.id)}`
+    : null;
 
-  const loadFtlPageData = useCallback(
-    async (employeeId: string, opts?: { force?: boolean; silent?: boolean }) => {
-      const now = Date.now();
-      const cached = ftlCacheRef.current;
-      if (
-        !opts?.force &&
-        cached?.employeeId === employeeId &&
-        now - cached.at < FTL_PAGE_CACHE_MS
-      ) {
-        setRequests(cached.requests);
-        return;
-      }
+  const {
+    data: ftlData,
+    loading: ftlLoading,
+    error: ftlLoadError,
+    refresh: refreshFtlRequests,
+  } = useSessionQuery<{ requests: FailureToLog[] }>(ftlCacheKey, ftlUrl, {
+    enabled: !!employee?.id,
+  });
 
-      if (!opts?.silent) {
-        setLoading(true);
-      }
+  const requests = ftlData?.requests ?? [];
+  const pageLoading = !employee || ftlLoading;
 
-      try {
-        const response = await fetch(
-          `/api/employee-portal/failure-to-log?employee_id=${encodeURIComponent(
-            employeeId
-          )}`
-        );
-        const payload = await response.json();
-
-        if (!response.ok) {
-          console.error("Error loading failure to log page:", payload);
-          if (!opts?.silent) {
-            toast.error("Failed to load requests");
-          }
-          return;
-        }
-
-        const nextRequests = (payload.requests || []) as FailureToLog[];
-
-        setRequests(nextRequests);
-        ftlCacheRef.current = {
-          employeeId,
-          at: now,
-          requests: nextRequests,
-        };
-      } catch (err) {
-        console.error("Error loading failure to log page:", err);
-        if (!opts?.silent) {
-          toast.error("Failed to load requests");
-        }
-      } finally {
-        if (!opts?.silent) {
-          setLoading(false);
-        }
-      }
-    },
-    []
-  );
+  useEffect(() => {
+    if (ftlLoadError) {
+      toast.error("Failed to load requests");
+    }
+  }, [ftlLoadError]);
 
   useEffect(() => {
     const sessionData = localStorage.getItem("employee_session");
@@ -167,8 +124,9 @@ export default function FailureToLogPage() {
 
     const emp = JSON.parse(sessionData) as EmployeeSession;
     setEmployee(emp);
-    void loadFtlPageData(emp.id);
-  }, [router, loadFtlPageData]);
+  }, [router]);
+
+  const todayManila = useMemo(() => getManilaTodayYmd(), []);
 
   useEffect(() => {
     if (!missedDate) {
@@ -219,7 +177,8 @@ export default function FailureToLogPage() {
     });
     setCancelId(null);
     if (employee) {
-      void loadFtlPageData(employee.id, { force: true, silent: true });
+      await bustCache();
+      await refreshFtlRequests({ force: true });
     }
   }
 
@@ -299,10 +258,11 @@ export default function FailureToLogPage() {
     setTimeOut("");
     setTimeOutDate("");
     setReason("");
-    void loadFtlPageData(employee.id, { force: true, silent: true });
+    await bustCache();
+    await refreshFtlRequests({ force: true });
   }
 
-  if (loading || !employee) {
+  if (pageLoading) {
     return (
       <div className={cn("w-full", epPageWrapper)}>
         <div className="space-y-4">

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { formatPHTime, formatTimeRange12h } from "@/utils/format";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,8 +105,6 @@ type OvertimeRequest = {
 
 export default function OvertimePage() {
   const { employee } = useEmployeeSession();
-  const [requests, setRequests] = useState<OvertimeRequest[]>([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     ot_date: "",
@@ -129,6 +129,48 @@ export default function OvertimePage() {
   const [historySpanLabel, setHistorySpanLabel] = useState<string | null>(null);
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
+
+  const todayYmd = format(new Date(), "yyyy-MM-dd");
+  const otHistory = useMemo(() => getOtHistoryCutoffs(todayYmd), [todayYmd]);
+
+  const otCacheKey =
+    employee?.id && otHistory
+      ? `ot-requests:${employee.id}:${otHistory.fetch_from}:${otHistory.fetch_to}`
+      : null;
+  const otUrl =
+    employee?.id && otHistory
+      ? `/api/employee-portal/overtime-requests?${new URLSearchParams({
+          employee_id: employee.id,
+          ot_date_from: otHistory.fetch_from,
+          ot_date_to: otHistory.fetch_to,
+        }).toString()}`
+      : null;
+
+  const {
+    data: otData,
+    loading,
+    error: otLoadError,
+    refresh: refreshOtRequests,
+  } = useSessionQuery<{ requests: OvertimeRequest[] }>(otCacheKey, otUrl, {
+    enabled: !!employee?.id,
+  });
+
+  const requests = otData?.requests ?? [];
+
+  useEffect(() => {
+    if (otHistory) {
+      setHistorySpanLabel(otHistory.span_label ?? null);
+      setHistoryCutoffs(otHistory.cutoffs ?? []);
+      setSelectedCutoffIndex(0);
+    }
+  }, [otHistory]);
+
+  useEffect(() => {
+    if (otLoadError) {
+      toast.error("Failed to load OT requests");
+    }
+  }, [otLoadError]);
+
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const ALLOWED_TYPES = [
     "application/pdf",
@@ -242,40 +284,6 @@ export default function OvertimePage() {
   const canGoToOlderCutoff =
     selectedCutoffIndex < historyCutoffs.length - 1;
   const canGoToNewerCutoff = selectedCutoffIndex > 0;
-
-  const loadRequests = async () => {
-    setLoading(true);
-    const todayYmd = format(new Date(), "yyyy-MM-dd");
-    const history = getOtHistoryCutoffs(todayYmd);
-    setHistorySpanLabel(history?.span_label ?? null);
-    setHistoryCutoffs(history?.cutoffs ?? []);
-    setSelectedCutoffIndex(0);
-
-    const params = new URLSearchParams({ employee_id: employee.id });
-    if (history) {
-      params.set("ot_date_from", history.fetch_from);
-      params.set("ot_date_to", history.fetch_to);
-    }
-
-    const response = await fetch(
-      `/api/employee-portal/overtime-requests?${params.toString()}`
-    );
-    const payload = await response.json();
-
-    if (!response.ok) {
-      console.error("Error loading OT requests", payload);
-      toast.error("Failed to load OT requests");
-      setLoading(false);
-      return;
-    }
-
-    setRequests((payload.requests || []) as OvertimeRequest[]);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadRequests();
-  }, [employee.id]);
 
   useEffect(() => {
     if (!bundySelection) {
@@ -476,7 +484,8 @@ export default function OvertimePage() {
       });
       setBundySelection(null);
       setSupportingDoc(null);
-      await loadRequests();
+      await bustCache();
+      await refreshOtRequests({ force: true });
     }
     setSubmitting(false);
   };
@@ -1066,7 +1075,8 @@ export default function OvertimePage() {
                                       ...prev,
                                       [req.id]: null,
                                     }));
-                                    await loadRequests();
+                                    await bustCache();
+                                    await refreshOtRequests({ force: true });
                                   }
                                 } catch (err) {
                                   console.error(err);

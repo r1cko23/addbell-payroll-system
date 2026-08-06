@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { enrichPayslipAttendanceFromClock } from "@/lib/enrich-payslip-attendance";
+import { cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = getAdminClient();
+    const { data: cached, cache } = await cachedJson(
+      ["ep", "payslips", employeeId],
+      async () => {
     const { data, error } = await admin
       .from("payslips")
       .select("*")
@@ -31,7 +35,7 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      throw new Error(error.message);
     }
 
     const { data: empRow } = await admin
@@ -92,7 +96,12 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    return NextResponse.json({ payslips: normalized });
+    return { payslips: normalized };
+      },
+      120
+    );
+
+    return NextResponse.json(cached, { headers: { "X-Cache": cache } });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || "Internal server error" },

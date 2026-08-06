@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
+import { cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -25,33 +26,41 @@ export async function GET(req: NextRequest) {
 
     const admin = getAdminClient();
 
-    const { data, error } = await admin
-      .from("failure_to_log")
-      .select("*")
-      .eq("employee_id", employeeId)
-      .order("created_at", { ascending: false });
+    const { data: cached, cache } = await cachedJson(
+      ["ep", "ftl-requests", employeeId],
+      async () => {
+        const { data: rows, error } = await admin
+          .from("failure_to_log")
+          .select("*")
+          .eq("employee_id", employeeId)
+          .order("created_at", { ascending: false });
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+        if (error) {
+          throw new Error(error.message);
+        }
 
-    const rows: any[] = data || [];
-    const approverNameMap = await loadApproverNameMap(
-      admin as any,
-      rows.flatMap((r) => [r.account_manager_id, r.approved_by])
+        const list: any[] = rows || [];
+        const approverNameMap = await loadApproverNameMap(
+          admin as any,
+          list.flatMap((r) => [r.account_manager_id, r.approved_by])
+        );
+
+        return {
+          requests: list.map((r: any) => ({
+            ...r,
+            manager_approval_name: r.account_manager_id
+              ? approverNameMap[r.account_manager_id] || null
+              : null,
+            final_approval_name: r.approved_by
+              ? approverNameMap[r.approved_by] || null
+              : null,
+          })),
+        };
+      },
+      120
     );
 
-    return NextResponse.json({
-      requests: rows.map((r: any) => ({
-        ...r,
-        manager_approval_name: r.account_manager_id
-          ? approverNameMap[r.account_manager_id] || null
-          : null,
-        final_approval_name: r.approved_by
-          ? approverNameMap[r.approved_by] || null
-          : null,
-      })),
-    });
+    return NextResponse.json(cached, { headers: { "X-Cache": cache } });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || "Internal server error" },

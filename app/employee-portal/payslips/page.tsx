@@ -262,7 +262,7 @@ export default function EmployeePayslipsPage() {
     printWindow.document.close();
   }
 
-  if (loading) {
+  if (loading && !payslipsData) {
     return (
       <div className={cn("w-full", epPageWrapper)}>
         <div className="space-y-4">

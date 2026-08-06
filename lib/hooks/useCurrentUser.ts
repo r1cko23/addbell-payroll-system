@@ -148,8 +148,11 @@ export function useCurrentUser(): UseCurrentUserData {
         setLoading(false);
         return;
       }
+      // Session already hydrated — opening another tab must not refetch profile.
+      if (event === "INITIAL_SESSION") {
+        return;
+      }
       if (event === "TOKEN_REFRESHED") {
-        // Token only — profile unchanged.
         return;
       }
       if (event === "SIGNED_IN") {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CardSection } from "@/components/ui/card-section";
 import { Card, CardContent } from "@/components/ui/card";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
@@ -9,6 +9,8 @@ import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { format } from "date-fns";
 import { epPageWrapper } from "@/lib/employee-portal-ui";
 import { cn } from "@/lib/utils";
@@ -35,9 +37,28 @@ interface EmployeeInfo {
 
 export default function EmployeeInfoPage() {
   const { employee } = useEmployeeSession();
-  const [info, setInfo] = useState<EmployeeInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const profileKey = `employee-profile:${employee.id}`;
+  const profileUrl = `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+    employee.id
+  )}`;
+
+  const { data: profileData, loading, error, refresh } = useSessionQuery<{
+    error?: string;
+    company_id_no?: string | null;
+    employee_code?: string | null;
+    full_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    middle_name?: string | null;
+    address?: string | null;
+    date_of_birth?: string | null;
+    tin?: string | null;
+    sss_number?: string | null;
+    philhealth_number?: string | null;
+    pagibig_number?: string | null;
+    is_active?: boolean | null;
+    created_at?: string | null;
+  }>(profileKey, profileUrl, { enabled: !!employee?.id });
 
   const fallbackInfo = useMemo<EmployeeInfo>(
     () => ({
@@ -62,71 +83,47 @@ export default function EmployeeInfoPage() {
     [employee.employee_id, employee.full_name, employee.loginTime]
   );
 
-  useEffect(() => {
-    const fetchInfo = async () => {
-      try {
-        const res = await fetch(
-          `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employee.id)}`
-        );
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          company_id_no?: string | null;
-          employee_code?: string | null;
-          full_name?: string | null;
-          first_name?: string | null;
-          last_name?: string | null;
-          middle_name?: string | null;
-          address?: string | null;
-          date_of_birth?: string | null;
-          tin?: string | null;
-          sss_number?: string | null;
-          philhealth_number?: string | null;
-          pagibig_number?: string | null;
-          is_active?: boolean | null;
-          created_at?: string | null;
-        };
+  const info = useMemo((): EmployeeInfo | null => {
+    if (loading && !profileData) return null;
+    if (error) return fallbackInfo;
+    if (
+      profileData &&
+      (profileData.full_name || profileData.company_id_no || profileData.employee_code)
+    ) {
+      return {
+        employee_id:
+          profileData.company_id_no ??
+          profileData.employee_code ??
+          employee.employee_id,
+        full_name: profileData.full_name ?? employee.full_name,
+        first_name: profileData.first_name ?? null,
+        last_name: profileData.last_name ?? null,
+        middle_initial: profileData.middle_name
+          ? profileData.middle_name.charAt(0).toUpperCase()
+          : null,
+        assigned_hotel: null,
+        assigned_locations: [],
+        address: profileData.address ?? null,
+        birth_date: profileData.date_of_birth ?? null,
+        tin_number: profileData.tin ?? null,
+        sss_number: profileData.sss_number ?? null,
+        philhealth_number: profileData.philhealth_number ?? null,
+        pagibig_number: profileData.pagibig_number ?? null,
+        hmo_provider: null,
+        profile_picture_url: null,
+        is_active: profileData.is_active ?? true,
+        created_at: profileData.created_at ?? employee.loginTime,
+      };
+    }
+    return fallbackInfo;
+  }, [loading, profileData, error, fallbackInfo, employee]);
 
-        if (!res.ok) throw new Error(data.error || "Failed to load profile");
-
-        if (data && (data.full_name || data.company_id_no || data.employee_code)) {
-          setInfo({
-            employee_id: data.company_id_no ?? data.employee_code ?? employee.employee_id,
-            full_name: data.full_name ?? employee.full_name,
-            first_name: data.first_name ?? null,
-            last_name: data.last_name ?? null,
-            middle_initial: data.middle_name ? data.middle_name.charAt(0).toUpperCase() : null,
-            assigned_hotel: null,
-            assigned_locations: [],
-            address: data.address ?? null,
-            birth_date: data.date_of_birth ?? null,
-            tin_number: data.tin ?? null,
-            sss_number: data.sss_number ?? null,
-            philhealth_number: data.philhealth_number ?? null,
-            pagibig_number: data.pagibig_number ?? null,
-            hmo_provider: null,
-            profile_picture_url: null,
-            is_active: data.is_active ?? true,
-            created_at: data.created_at ?? employee.loginTime,
-          });
-        } else {
-          setInfo(fallbackInfo);
-          setErrorMessage(
-            "We could not find your HR profile, so we are showing the basic information from your session."
-          );
-        }
-      } catch (err) {
-        console.error("Failed to load employee info:", err);
-        setInfo(fallbackInfo);
-        setErrorMessage(
-          "Unable to load the HR record right now. Showing the information we have on file."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInfo();
-  }, [employee.id, employee.employee_id, employee.full_name, employee.loginTime, fallbackInfo]);
+  const errorMessage = error
+    ? "Unable to load the HR record right now. Showing the information we have on file."
+    : profileData &&
+        !(profileData.full_name || profileData.company_id_no || profileData.employee_code)
+      ? "We could not find your HR profile, so we are showing the basic information from your session."
+      : null;
 
   if (loading || !info) {
     return (
@@ -195,51 +192,8 @@ export default function EmployeeInfoPage() {
               userName={info?.full_name || employee.full_name}
               userType="employee"
               onUploadComplete={async () => {
-                // Reload employee info
-                try {
-                  const res = await fetch(
-                    `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employee.id)}`
-                  );
-                  const data = (await res.json().catch(() => ({}))) as {
-                    company_id_no?: string | null;
-                    employee_code?: string | null;
-                    full_name?: string | null;
-                    first_name?: string | null;
-                    last_name?: string | null;
-                    middle_name?: string | null;
-                    address?: string | null;
-                    date_of_birth?: string | null;
-                    tin?: string | null;
-                    sss_number?: string | null;
-                    philhealth_number?: string | null;
-                    pagibig_number?: string | null;
-                    is_active?: boolean | null;
-                    created_at?: string | null;
-                  };
-                  if (res.ok && data) {
-                    setInfo({
-                      employee_id: data.company_id_no ?? data.employee_code ?? employee.employee_id,
-                      full_name: data.full_name ?? employee.full_name,
-                      first_name: data.first_name ?? null,
-                      last_name: data.last_name ?? null,
-                      middle_initial: data.middle_name ? data.middle_name.charAt(0).toUpperCase() : null,
-                      assigned_hotel: null,
-                      assigned_locations: [],
-                      address: data.address ?? null,
-                      birth_date: data.date_of_birth ?? null,
-                      tin_number: data.tin ?? null,
-                      sss_number: data.sss_number ?? null,
-                      philhealth_number: data.philhealth_number ?? null,
-                      pagibig_number: data.pagibig_number ?? null,
-                      hmo_provider: null,
-                      profile_picture_url: null,
-                      is_active: data.is_active ?? true,
-                      created_at: data.created_at ?? employee.loginTime,
-                    });
-                  }
-                } catch (err) {
-                  console.error("Failed to reload employee info:", err);
-                }
+                await bustCache();
+                await refresh({ force: true });
               }}
               size="lg"
             />

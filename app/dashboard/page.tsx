@@ -52,7 +52,7 @@ function DashboardContent() {
     setInitialized(true);
   }, [searchParams, loading, permissionsLoading, initialized, router, canRead, role]);
 
-  if (loading || permissionsLoading) {
+  if ((loading || permissionsLoading) && !permissions) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">

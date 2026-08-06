@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -33,6 +33,7 @@ import {
   epCardInteractive,
 } from "@/lib/employee-portal-ui";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import {
   getWednesdayWeekStart,
   getWeeklyCutoffEnd,
@@ -72,36 +73,28 @@ const statusBadge: Record<string, string> = {
 export default function EmployeeMyTimesheetPage() {
   const { employee } = useEmployeeSession();
   const [weekStart, setWeekStart] = useState(() => getWednesdayWeekStart(new Date()));
-  const [data, setData] = useState<TimesheetPayload | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const weekEnd = useMemo(() => getWeeklyCutoffEnd(weekStart), [weekStart]);
   const periodStartStr = format(weekStart, "yyyy-MM-dd");
   const periodEndStr = format(weekEnd, "yyyy-MM-dd");
   const periodLabel = formatWeeklyCutoffPeriod(weekStart, weekEnd);
 
-  const loadTimesheet = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/employee-portal/my-timesheet?employee_id=${encodeURIComponent(
-          employee.id
-        )}&period_start=${periodStartStr}&period_end=${periodEndStr}`
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to load timesheet");
-      setData(json as TimesheetPayload);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load timesheet");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [employee.id, periodStartStr, periodEndStr]);
+  const timesheetKey = `my-timesheet:${employee.id}:${periodStartStr}:${periodEndStr}`;
+  const timesheetUrl = `/api/employee-portal/my-timesheet?employee_id=${encodeURIComponent(
+    employee.id
+  )}&period_start=${periodStartStr}&period_end=${periodEndStr}`;
+
+  const { data, loading, error } = useSessionQuery<TimesheetPayload>(
+    timesheetKey,
+    timesheetUrl,
+    { enabled: !!employee?.id }
+  );
 
   useEffect(() => {
-    loadTimesheet();
-  }, [loadTimesheet]);
+    if (error) {
+      toast.error(error || "Failed to load timesheet");
+    }
+  }, [error]);
 
   const statusKey = data?.timesheet_status || "preview";
   const statusLabel =

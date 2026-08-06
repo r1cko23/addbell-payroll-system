@@ -5,7 +5,7 @@
  * Types, defaults, and merge helpers live in @/lib/permissions (server-safe).
  */
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "./useCurrentUser";
 import {
@@ -43,6 +43,8 @@ export function usePermissions(): UsePermissionsReturn {
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const permissionsRef = useRef<UserPermissions | null>(null);
+  permissionsRef.current = permissions;
 
   const fetchPermissions = useCallback(async () => {
     if (!user) {
@@ -62,7 +64,9 @@ export function usePermissions(): UsePermissionsReturn {
     }
 
     try {
-      setLoading(true);
+      if (!permissionsRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
       const supabase = createClient();

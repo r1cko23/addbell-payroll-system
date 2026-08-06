@@ -151,6 +151,45 @@ export async function verifyEmployeeRecordEditAccess(): Promise<{
   return { userId: user.id, role };
 }
 
+/**
+ * Verify current user may load the workforce (HR) dashboard.
+ */
+export async function verifyHrDashboardAccess(): Promise<{
+  userId: string;
+  role: string;
+} | null> {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("role, permissions")
+    .eq("id", user.id)
+    .eq("is_active", true)
+    .single();
+
+  if (profileError || !profileData) {
+    return null;
+  }
+
+  const permissions = mergePermissions(
+    profileData.role,
+    profileData.permissions as Parameters<typeof mergePermissions>[1]
+  );
+
+  if (!permissions.dashboard.read) {
+    return null;
+  }
+
+  return { userId: user.id, role: profileData.role };
+}
+
 const CLOCK_SITE_MANAGEMENT_ROLES = new Set(["admin", "upper_management"]);
 
 export async function verifyProjectDeleteAccess(): Promise<{

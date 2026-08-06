@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { sessionFetchJson } from "@/lib/session-cache";
+import { bustCache } from "@/lib/cache-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
@@ -395,21 +397,15 @@ export default function BundyClockPage() {
     const fetchEmployeeInfo = async () => {
       if (!employee?.id) return;
       try {
-        const res = await fetch(
-          `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
-            employee.id
-          )}`
-        );
-        const json = (await res.json().catch(() => ({}))) as {
+        const url = `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+          employee.id
+        )}`;
+        const json = await sessionFetchJson<{
           position?: string | null;
           employment_type?: string | null;
           job_level?: string | null;
           error?: string;
-        };
-        if (!res.ok) {
-          console.error("Failed to fetch employee info:", json.error || res.statusText);
-          return;
-        }
+        }>(`employee-profile:${employee.id}`, url);
 
         if (json.employment_type !== undefined || json.position !== undefined) {
           setEmployeePosition(json.position ?? null);
@@ -572,14 +568,11 @@ export default function BundyClockPage() {
       end: periodEnd.toISOString(),
       limit: "500",
     });
-    const res = await fetch(`/api/employee-portal/time-entries?${params}`);
-    const json = (await res.json().catch(() => ({}))) as {
-      punches?: TimeEntryPunch[];
-      error?: string;
-    };
-    if (!res.ok) {
-      console.error("fetchEntries:", json.error || res.statusText);
-    }
+    const url = `/api/employee-portal/time-entries?${params}`;
+    const json = await sessionFetchJson<{ punches?: TimeEntryPunch[] }>(
+      `time-entries:period:${employee.id}:${periodStart.toISOString()}:${periodEnd.toISOString()}`,
+      url
+    );
     const list = (json.punches || []) as TimeEntryPunch[];
     const sessions = filterOfficialBundySessions(
       punchesToSessions(list, (iso) => getDateInManilaTimezone(iso)),
@@ -628,35 +621,22 @@ export default function BundyClockPage() {
         end: endRange,
         limit: "500",
       });
-      const [timeRes, leaveRes] = await Promise.all([
-        fetch(`/api/employee-portal/time-entries?${timeParams}`),
-        fetch(
-          `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
-            employee.id
-          )}`
-        ),
+      const timeUrl = `/api/employee-portal/time-entries?${timeParams}`;
+      const leaveUrl = `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
+        employee.id
+      )}`;
+      const calendarKey = `time-entries:calendar:${employee.id}:${startRange}:${endRange}`;
+      const [timeJson, leaveJson] = await Promise.all([
+        sessionFetchJson<{ punches?: TimeEntryPunch[] }>(calendarKey, timeUrl),
+        sessionFetchJson<{
+          requests?: Array<{
+            leave_type: string;
+            start_date: string;
+            end_date: string;
+            status: string;
+          }>;
+        }>(`leave-requests:${employee.id}`, leaveUrl),
       ]);
-      const timeJson = (await timeRes.json().catch(() => ({}))) as {
-        punches?: TimeEntryPunch[];
-        error?: string;
-      };
-      const leaveJson = (await leaveRes.json().catch(() => ({}))) as {
-        requests?: Array<{
-          leave_type: string;
-          start_date: string;
-          end_date: string;
-          status: string;
-        }>;
-        error?: string;
-      };
-
-      if (!timeRes.ok) {
-        console.error(
-          "Failed to load calendar time entries",
-          timeJson.error || timeRes.statusText
-        );
-        return;
-      }
 
       const timeData = timeJson.punches || [];
       const leaveData = (leaveJson.requests || []).filter((r) =>
@@ -876,72 +856,51 @@ export default function BundyClockPage() {
         end: periodEndDate.toISOString(),
         limit: "500",
       });
-      const [
-        clockRes,
-        leaveRes,
-        otRes,
-        empProfileRes,
-      ] = await Promise.all([
-        fetch(`/api/employee-portal/time-entries?${clockParams}`),
-        fetch(
-          `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
-            employee.id
-          )}`
+      const clockUrl = `/api/employee-portal/time-entries?${clockParams}`;
+      const leaveUrl = `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
+        employee.id
+      )}`;
+      const otUrl = `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
+        employee.id
+      )}`;
+      const profileUrl = `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
+        employee.id
+      )}`;
+      const attendanceClockKey = `time-entries:attendance:${employee.id}:${periodStartDate.toISOString()}:${periodEndDate.toISOString()}`;
+
+      const [clockJson, leaveJson, otJson, empProfileJson] = await Promise.all([
+        sessionFetchJson<{ punches?: TimeEntryPunch[] }>(
+          attendanceClockKey,
+          clockUrl
         ),
-        fetch(
-          `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
-            employee.id
-          )}`
-        ),
-        fetch(
-          `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
-            employee.id
-          )}`
-        ),
+        sessionFetchJson<{
+          requests?: Array<{
+            id: string;
+            leave_type: string;
+            start_date: string;
+            end_date: string;
+            status: string;
+            half_day_dates?: string[] | null;
+          }>;
+        }>(`leave-requests:${employee.id}`, leaveUrl),
+        sessionFetchJson<{
+          requests?: Array<{
+            id: string;
+            ot_date: string;
+            start_time: string;
+            end_time: string;
+            total_hours: number;
+            status: string;
+          }>;
+        }>(`ot-requests:${employee.id}`, otUrl),
+        sessionFetchJson<{
+          employment_type?: string | null;
+          shift_start_time?: string | null;
+          shift_end_time?: string | null;
+        }>(`employee-profile:${employee.id}`, profileUrl),
       ]);
 
-      const clockJson = (await clockRes.json().catch(() => ({}))) as {
-        punches?: TimeEntryPunch[];
-        error?: string;
-      };
-      const leaveJson = (await leaveRes.json().catch(() => ({}))) as {
-        requests?: Array<{
-          id: string;
-          leave_type: string;
-          start_date: string;
-          end_date: string;
-          status: string;
-          half_day_dates?: string[] | null;
-        }>;
-        error?: string;
-      };
-      const otJson = (await otRes.json().catch(() => ({}))) as {
-        requests?: Array<{
-          id: string;
-          ot_date: string;
-          start_time: string;
-          end_time: string;
-          total_hours: number;
-          status: string;
-        }>;
-        error?: string;
-      };
-      const empProfileJson = (await empProfileRes.json().catch(() => ({}))) as {
-        employment_type?: string | null;
-        shift_start_time?: string | null;
-        shift_end_time?: string | null;
-        error?: string;
-      };
-
-      const clockErrorMsg = !clockRes.ok
-        ? clockJson.error || clockRes.statusText
-        : null;
-      if (!leaveRes.ok) {
-        console.warn("leave-requests load:", leaveJson.error || leaveRes.statusText);
-      }
-      if (!otRes.ok) {
-        console.warn("overtime-requests load:", otJson.error || otRes.statusText);
-      }
+      const clockErrorMsg = null;
 
       const clockPunches = (clockJson.punches || []) as TimeEntryPunch[];
       const clockData = filterOfficialBundySessions(
@@ -1902,16 +1861,16 @@ export default function BundyClockPage() {
         setCurrentEntry(clockInEntry as any);
         toast.success("Clocked in successfully!");
 
-        // Don't await these - let them run in background to avoid blocking
-        fetchEntries().catch((err) =>
-          console.error("Error fetching entries:", err)
-        );
+        void bustCache().then(() => {
+          fetchEntries().catch((err) =>
+            console.error("Error fetching entries:", err)
+          );
+          loadAttendanceData().catch((err) =>
+            console.error("Error refreshing attendance:", err)
+          );
+        });
         checkClockStatus().catch((err) =>
           console.error("Error checking clock status:", err)
-        );
-        // Refresh attendance data
-        loadAttendanceData().catch((err) =>
-          console.error("Error refreshing attendance:", err)
         );
 
         // Close modal after successful operation
@@ -1959,16 +1918,14 @@ export default function BundyClockPage() {
       toast.success("Clocked out successfully!");
       setCurrentEntry(null);
 
-      // Refresh table and attendance only. Do NOT call checkClockStatus() here:
-      // it can race with the insert and, if it runs before the new "out" punch
-      // is visible, it may set currentEntry back to the open "in", leaving TIME OUT active.
-      fetchEntries().catch((err) =>
-        console.error("Error fetching entries:", err)
-      );
-      // Refresh attendance data
-      loadAttendanceData().catch((err) =>
-        console.error("Error refreshing attendance:", err)
-      );
+      void bustCache().then(() => {
+        fetchEntries().catch((err) =>
+          console.error("Error fetching entries:", err)
+        );
+        loadAttendanceData().catch((err) =>
+          console.error("Error refreshing attendance:", err)
+        );
+      });
 
       // Close modal after successful operation
       setShowLocationModal(false);

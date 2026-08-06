@@ -5,6 +5,7 @@ import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { fetchSessionsForEmployee } from "@/lib/timeEntries";
 import { HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS } from "@/utils/holidays";
 import { subDays, format } from "date-fns";
+import { cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 
@@ -45,6 +46,9 @@ export async function GET(req: NextRequest) {
 
     const admin = getAdminClient();
 
+    const { data: cached, cache } = await cachedJson(
+      ["ep", "my-timesheet", employeeId, periodStart, periodEnd],
+      async () => {
     const { data: emp, error: empErr } = await admin
       .from("employees")
       .select("id, full_name, employment_type, position, eligible_for_ot")
@@ -53,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     if (empErr) throw empErr;
     if (!emp) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+      throw new Error("Employee not found");
     }
 
     const { data: saved } = await admin
@@ -125,7 +129,7 @@ export async function GET(req: NextRequest) {
         ? saved.attendance_data
         : live.attendance_data;
 
-    return NextResponse.json({
+    return {
       period_start: periodStart,
       period_end: periodEnd,
       source,
@@ -141,7 +145,12 @@ export async function GET(req: NextRequest) {
         ? Number(saved.total_night_diff_hours || 0)
         : live.total_night_diff_hours,
       days,
-    });
+    };
+      },
+      120
+    );
+
+    return NextResponse.json(cached, { headers: { "X-Cache": cache } });
   } catch (error: any) {
     console.error("employee my-timesheet error:", error);
     return NextResponse.json(

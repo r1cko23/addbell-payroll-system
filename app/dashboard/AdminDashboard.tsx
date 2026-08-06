@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from "@/components/ui/card";
@@ -24,6 +23,9 @@ import { dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
+import type { AdminDashboardPayload } from "@/lib/fetch-admin-dashboard";
 import {
   approvalApprovedStatusBadgeClass,
   approvalPendingStatusBadgeClass,
@@ -81,94 +83,39 @@ const statusStyles: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
-  const supabase = createClient();
   const { canCreate, canRead } = usePermissions();
   const { profile } = useProfile();
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentFR, setRecentFR] = useState<RecentFundRequest[]>([]);
-  const [recentPO, setRecentPO] = useState<RecentPO[]>([]);
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [pendingLeaveApprovals, setPendingLeaveApprovals] = useState(0);
-  const [pendingOvertimeApprovals, setPendingOvertimeApprovals] = useState(0);
-  const [pendingFailureToLogApprovals, setPendingFailureToLogApprovals] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const {
+    data,
+    loading,
+    validating,
+    refresh,
+  } = useSessionQuery<AdminDashboardPayload>(
+    "admin-dashboard",
+    "/api/dashboard/admin"
+  );
+
+  const stats = data?.stats ?? null;
+  const recentFR = (data?.recentFR ?? []) as RecentFundRequest[];
+  const recentPO = (data?.recentPO ?? []) as RecentPO[];
+  const projects = data?.projects ?? [];
+  const pendingLeaveApprovals = data?.pendingLeaveApprovals ?? 0;
+  const pendingOvertimeApprovals = data?.pendingOvertimeApprovals ?? 0;
+  const pendingFailureToLogApprovals = data?.pendingFailureToLogApprovals ?? 0;
+  const refreshing = validating;
+  const lastUpdatedAt = data ? new Date() : null;
   const canReadPurchaseOrders = canRead("purchase_orders");
   const canCreatePurchaseOrders = canCreate("purchase_orders");
   const canReadPayslips = canRead("payslips");
   const canReadEmployees = canRead("employees");
   const showFundRequestActions = Boolean(profile);
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  async function fetchDashboard() {
-    const initialLoad = !lastUpdatedAt;
-    if (initialLoad) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-    try {
-      const [
-        { count: totalEmp },
-        { count: activeEmp },
-        { count: totalProj },
-        { count: activeProj },
-        { count: pendingFR },
-        { count: pendingPO },
-        { count: pendingLeave },
-        { count: pendingOT },
-        { count: pendingFTL },
-        projData,
-        frData,
-        poData,
-        contractData,
-      ] = await Promise.all([
-        supabase.from("employees").select("*", { count: "exact", head: true }),
-        supabase.from("employees").select("*", { count: "exact", head: true }).eq("employment_status", "active"),
-        supabase.from("projects").select("*", { count: "exact", head: true }),
-        supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
-        supabase.from("fund_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("purchase_orders").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("overtime_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("failure_to_log").select("*", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("projects").select("id, code, name, status, contract_value, progress_percentage").order("created_at", { ascending: false }).limit(5),
-        supabase.from("fund_requests").select("id, purpose, total_requested_amount, status, request_date, projects:project_id ( name )").order("created_at", { ascending: false }).limit(5),
-        supabase.from("purchase_orders").select("id, po_number, total_amount, status, created_at, vendors:vendor_id ( name ), projects:project_id ( name )").order("created_at", { ascending: false }).limit(5),
-        supabase.from("projects").select("contract_value"),
-      ]);
-
-      const totalProjectValue = (contractData.data || []).reduce((s: number, p: any) => s + (Number(p.contract_value) || 0), 0);
-
-      setStats({
-        totalEmployees: totalEmp || 0,
-        activeEmployees: activeEmp || 0,
-        totalProjects: totalProj || 0,
-        activeProjects: activeProj || 0,
-        pendingFundRequests: pendingFR || 0,
-        pendingPOs: pendingPO || 0,
-        totalProjectValue,
-      });
-      setProjects((projData.data || []) as ProjectSummary[]);
-      setRecentFR((frData.data || []) as unknown as RecentFundRequest[]);
-      setRecentPO((poData.data || []) as unknown as RecentPO[]);
-      setPendingLeaveApprovals(pendingLeave || 0);
-      setPendingOvertimeApprovals(pendingOT || 0);
-      setPendingFailureToLogApprovals(pendingFTL || 0);
-      setLastUpdatedAt(new Date());
-    } catch (error: any) {
-      console.error("Dashboard fetch error:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  async function fetchDashboard(force = false) {
+    await bustCache();
+    await refresh({ force: true });
   }
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center h-64">
         <Icon name="ArrowsClockwise" size={IconSizes.lg} className="animate-spin text-muted-foreground" />

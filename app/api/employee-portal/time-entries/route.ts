@@ -9,6 +9,7 @@ import {
   BUNDY_OPEN_SESSION_PUNCH_LIMIT,
   resolveOpenBundySessionAfterAutoClose,
 } from "@/lib/bundy-auto-clock-out";
+import { cachedJson } from "@/lib/cache";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -41,37 +42,52 @@ export async function GET(req: NextRequest) {
 
     const admin = getAdminClient();
 
-    try {
-      await resolveOpenBundySessionAfterAutoClose(admin, employeeId);
-    } catch (autoErr) {
-      console.error("Bundy auto clock-out:", autoErr);
+    const loadPunches = async () => {
+      try {
+        await resolveOpenBundySessionAfterAutoClose(admin, employeeId);
+      } catch (autoErr) {
+        console.error("Bundy auto clock-out:", autoErr);
+      }
+
+      const fetchLimit = Math.max(limit, BUNDY_OPEN_SESSION_PUNCH_LIMIT);
+
+      let q = admin
+        .from("time_entries")
+        .select(
+          "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id, source"
+        )
+        .eq("employee_id", employeeId)
+        .order("punched_at", { ascending: false })
+        .limit(fetchLimit);
+
+      if (start) {
+        q = q.gte("punched_at", start);
+      }
+      if (end) {
+        q = q.lte("punched_at", end);
+      }
+
+      const { data, error } = await q;
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return { punches: data || [] };
+    };
+
+    // Period/range reads can be cached. Open-session checks (no start/end) stay live.
+    if (start && end) {
+      const { data: cached, cache } = await cachedJson(
+        ["ep", "time-entries", employeeId, start, end, limit],
+        loadPunches,
+        60
+      );
+      return NextResponse.json(cached, { headers: { "X-Cache": cache } });
     }
 
-    const fetchLimit = Math.max(limit, BUNDY_OPEN_SESSION_PUNCH_LIMIT);
-
-    let q = admin
-      .from("time_entries")
-      .select(
-        "id, employee_id, punch_type, punched_at, lat, lng, device_info, office_location_id, source"
-      )
-      .eq("employee_id", employeeId)
-      .order("punched_at", { ascending: false })
-      .limit(fetchLimit);
-
-    if (start) {
-      q = q.gte("punched_at", start);
-    }
-    if (end) {
-      q = q.lte("punched_at", end);
-    }
-
-    const { data, error } = await q;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ punches: data || [] });
+    const payload = await loadPunches();
+    return NextResponse.json(payload, { headers: { "X-Cache": "BYPASS" } });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ error: message }, { status: 500 });

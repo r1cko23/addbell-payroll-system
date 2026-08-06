@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import { format } from "date-fns";
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from "@/components/ui/card";
 import { CardSection } from "@/components/ui/card-section";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
-import { format } from "date-fns";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,141 +20,15 @@ import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader"
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import {
   buildManagerQueueUrl,
-  fetchApproverOvertimeGroupIds,
-  fetchApproverOvertimeGroupNames,
-  fetchManagedEmployeeIdsForApprover,
   formatApproverGroupHeading,
 } from "@/lib/manager-approval-queue";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  fetchDashboardApprovalQueueItems,
-  type DashboardQueueItem,
-} from "@/lib/fetch-dashboard-approval-queue";
+import type { CurrentlyClockedInEmployee, HrDashboardPayload } from "@/lib/fetch-hr-dashboard";
 import { DashboardApprovalQueueCards } from "@/components/DashboardApprovalQueueCards";
 import { cn } from "@/lib/utils";
-
-const NO_SCOPE_MATCH_EMPLOYEE_ID = "00000000-0000-0000-0000-000000000000";
-
-/** Resolves employee_id filter for ops-manager scoped counts (avoids deep Supabase generics). */
-function employeeScopeFilter(
-  scopedEmployeeIds: string[] | null
-): string[] | null {
-  if (scopedEmployeeIds === null) return null;
-  if (scopedEmployeeIds.length === 0) return [NO_SCOPE_MATCH_EMPLOYEE_ID];
-  return scopedEmployeeIds;
-}
-
-interface DepartmentStat { name: string; count: number; }
-interface ActiveEmployeeLite {
-  id: string;
-  company_id_no: string;
-  employee_code: string;
-  first_name: string;
-  last_name: string;
-  employment_type: string;
-  employment_status: string;
-  departments: { name: string } | { name: string }[] | null;
-}
-interface CurrentlyClockedInEmployee {
-  id: string;
-  company_id_no: string;
-  employee_code: string;
-  first_name: string;
-  last_name: string;
-  department_name: string | null;
-  clocked_in_at: string;
-}
-
-function getDepartmentName(
-  relation: { name: string } | { name: string }[] | null | undefined
-): string | null {
-  if (!relation) return null;
-  if (Array.isArray(relation)) {
-    return relation[0]?.name ?? null;
-  }
-  return relation.name ?? null;
-}
-
-function normalizeEmploymentTypeLabel(value: string | null | undefined) {
-  const normalized = (value || "").trim().toLowerCase();
-  if (!normalized) return "Unspecified";
-  if (normalized === "regular") return "Regular";
-  return normalized
-    .split(/\s+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function getManilaDayStartIso(): string {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const year = parts.find((p) => p.type === "year")?.value || "1970";
-  const month = parts.find((p) => p.type === "month")?.value || "01";
-  const day = parts.find((p) => p.type === "day")?.value || "01";
-  return new Date(`${year}-${month}-${day}T00:00:00+08:00`).toISOString();
-}
-
-async function fetchCurrentlyClockedInForEmployees(
-  supabase: SupabaseClient,
-  activeEmployeesList: ActiveEmployeeLite[]
-): Promise<CurrentlyClockedInEmployee[]> {
-  const activeEmployeeIds = activeEmployeesList.map((emp) => emp.id);
-  if (activeEmployeeIds.length === 0) return [];
-
-  const { data: todayPunches, error: punchesError } = await supabase
-    .from("time_entries")
-    .select("employee_id, punch_type, punched_at")
-    .in("employee_id", activeEmployeeIds)
-    .gte("punched_at", getManilaDayStartIso())
-    .order("punched_at", { ascending: true });
-
-  if (punchesError) {
-    console.error("Failed to load current clock-ins:", punchesError);
-    return [];
-  }
-
-  const latestPunchByEmployee = new Map<
-    string,
-    { punch_type: string; punched_at: string }
-  >();
-  (todayPunches || []).forEach((p) => {
-    latestPunchByEmployee.set(p.employee_id, {
-      punch_type: p.punch_type,
-      punched_at: p.punched_at,
-    });
-  });
-
-  const activeById = new Map(activeEmployeesList.map((emp) => [emp.id, emp]));
-  const clockedInRows: CurrentlyClockedInEmployee[] = [];
-
-  latestPunchByEmployee.forEach((latest, employeeId) => {
-    if (latest.punch_type !== "in") return;
-    const emp = activeById.get(employeeId);
-    if (!emp) return;
-    clockedInRows.push({
-      id: emp.id,
-      company_id_no: emp.company_id_no,
-      employee_code: emp.employee_code,
-      first_name: emp.first_name,
-      last_name: emp.last_name,
-      department_name: getDepartmentName(emp.departments),
-      clocked_in_at: latest.punched_at,
-    });
-  });
-
-  clockedInRows.sort(
-    (a, b) =>
-      new Date(a.clocked_in_at).getTime() - new Date(b.clocked_in_at).getTime()
-  );
-  return clockedInRows;
-}
 
 function CurrentlyClockedInSection({
   employees,
@@ -260,299 +132,50 @@ function CurrentlyClockedInSection({
 }
 
 export default function HRDashboard() {
-  const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
-  const [totalEmployees, setTotalEmployees] = useState(0);
-  const [activeEmployees, setActiveEmployees] = useState(0);
-  const [pendingLeaveApprovals, setPendingLeaveApprovals] = useState(0);
-  const [pendingOvertimeApprovals, setPendingOvertimeApprovals] = useState(0);
-  const [pendingFailureToLogApprovals, setPendingFailureToLogApprovals] = useState(0);
-  // Manager-stage pending counts (items still waiting for first-step approval).
-  const [managerPendingLeaveCount, setManagerPendingLeaveCount] = useState(0);
-  const [managerPendingOvertimeCount, setManagerPendingOvertimeCount] = useState(0);
-  const [managerPendingFailureToLogCount, setManagerPendingFailureToLogCount] = useState(0);
-  const [companyPendingLeaveCount, setCompanyPendingLeaveCount] = useState(0);
-  const [companyPendingOvertimeCount, setCompanyPendingOvertimeCount] = useState(0);
-  const [companyPendingFtlCount, setCompanyPendingFtlCount] = useState(0);
-  const [deptStats, setDeptStats] = useState<DepartmentStat[]>([]);
-  const [unassignedActiveEmployees, setUnassignedActiveEmployees] = useState(0);
-  const [currentlyClockedIn, setCurrentlyClockedIn] = useState<
-    CurrentlyClockedInEmployee[]
-  >([]);
-  const [typeBreakdown, setTypeBreakdown] = useState<{ type: string; count: number }[]>([]);
-  const [queueItems, setQueueItems] = useState<DashboardQueueItem[]>([]);
-  const [approverGroupNames, setApproverGroupNames] = useState<string[]>([]);
-
-  const { isHR, isOperationsManager, isOvertimeGroupQueueApprover, isManagement, isAdmin, loading: roleLoading } = useUserRole();
+  const { isHR, isOvertimeGroupQueueApprover, isManagement, loading: roleLoading } =
+    useUserRole();
   const showAllCompanyPending =
     isManagement && !isHR && !isOvertimeGroupQueueApprover;
   const usesManagerApprovalQueue =
     isOvertimeGroupQueueApprover || isHR || showAllCompanyPending;
 
-  useEffect(() => {
-    if (!roleLoading) loadData();
-  }, [roleLoading, isOvertimeGroupQueueApprover, isHR, isManagement]);
+  const {
+    data,
+    loading,
+    validating,
+    refresh,
+  } = useSessionQuery<HrDashboardPayload>(
+    "hr-dashboard",
+    "/api/dashboard/hr",
+    { enabled: !roleLoading }
+  );
+
+  const totalEmployees = data?.totalEmployees ?? 0;
+  const activeEmployees = data?.activeEmployees ?? 0;
+  const pendingLeaveApprovals = data?.pendingLeaveApprovals ?? 0;
+  const pendingOvertimeApprovals = data?.pendingOvertimeApprovals ?? 0;
+  const pendingFailureToLogApprovals = data?.pendingFailureToLogApprovals ?? 0;
+  const managerPendingLeaveCount = data?.managerPendingLeaveCount ?? 0;
+  const managerPendingOvertimeCount = data?.managerPendingOvertimeCount ?? 0;
+  const managerPendingFailureToLogCount =
+    data?.managerPendingFailureToLogCount ?? 0;
+  const companyPendingLeaveCount = data?.companyPendingLeaveCount ?? 0;
+  const companyPendingOvertimeCount = data?.companyPendingOvertimeCount ?? 0;
+  const companyPendingFtlCount = data?.companyPendingFtlCount ?? 0;
+  const deptStats = data?.deptStats ?? [];
+  const unassignedActiveEmployees = data?.unassignedActiveEmployees ?? 0;
+  const currentlyClockedIn = data?.currentlyClockedIn ?? [];
+  const typeBreakdown = data?.typeBreakdown ?? [];
+  const queueItems = data?.queueItems ?? [];
+  const approverGroupNames = data?.approverGroupNames ?? [];
+  const refreshing = validating;
 
   async function loadData() {
-    const initialLoad = !lastUpdatedAt;
-    if (initialLoad) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-    try {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-
-      // Group approvers only see/act on requests for employees in their OT groups.
-      let scopedEmployeeIds: string[] | null = null;
-      let approverGroupIds: string[] = [];
-      if (isOvertimeGroupQueueApprover) {
-        if (authUser?.id) {
-          const [managedIds, groupNames, groupIds] = await Promise.all([
-            fetchManagedEmployeeIdsForApprover(supabase, authUser.id),
-            fetchApproverOvertimeGroupNames(supabase, authUser.id),
-            fetchApproverOvertimeGroupIds(supabase, authUser.id),
-          ]);
-          scopedEmployeeIds = managedIds;
-          setApproverGroupNames(groupNames);
-          approverGroupIds = groupIds;
-        } else {
-          scopedEmployeeIds = [];
-          setApproverGroupNames([]);
-          approverGroupIds = [];
-        }
-      } else {
-        setApproverGroupNames([]);
-      }
-
-      const employeeScope = employeeScopeFilter(scopedEmployeeIds);
-
-      if (isOvertimeGroupQueueApprover) {
-        const teamCount = scopedEmployeeIds?.length ?? 0;
-        setTotalEmployees(teamCount);
-        setActiveEmployees(teamCount);
-        setDeptStats([]);
-        setUnassignedActiveEmployees(0);
-        setTypeBreakdown([]);
-        setPendingLeaveApprovals(0);
-        setPendingOvertimeApprovals(0);
-        setPendingFailureToLogApprovals(0);
-
-        if (approverGroupIds.length > 0) {
-          const { data: teamEmps, error: teamEmpsError } = await supabase
-            .from("employees")
-            .select(
-              "id, company_id_no, employee_code, first_name, last_name, employment_type, employment_status, departments:department_id ( name )"
-            )
-            .eq("employment_status", "active")
-            .in("overtime_group_id", approverGroupIds);
-
-          if (teamEmpsError) {
-            console.error("Failed to load team employees:", teamEmpsError);
-            setCurrentlyClockedIn([]);
-          } else {
-            setCurrentlyClockedIn(
-              await fetchCurrentlyClockedInForEmployees(
-                supabase,
-                (teamEmps || []) as ActiveEmployeeLite[]
-              )
-            );
-          }
-        } else {
-          setCurrentlyClockedIn([]);
-        }
-      } else {
-        const [{ count: total }, { count: active }, { data: allEmps }] =
-          await Promise.all([
-            supabase.from("employees").select("*", { count: "exact", head: true }),
-            supabase
-              .from("employees")
-              .select("*", { count: "exact", head: true })
-              .eq("employment_status", "active"),
-            supabase
-              .from("employees")
-              .select(
-                "id, company_id_no, employee_code, first_name, last_name, employment_type, employment_status, departments:department_id ( name )"
-              )
-              .eq("employment_status", "active"),
-          ]);
-
-        setTotalEmployees(total || 0);
-        setActiveEmployees(active || 0);
-
-        const [{ count: pendingLeave }] = await Promise.all([
-          supabase
-            .from("leave_requests")
-            .select("id", { count: "exact", head: true })
-            .in("status", ["approved_by_pm", "approved_by_manager"]),
-        ]);
-
-        const [
-          { count: pendingOTProjectManagerId },
-          { count: pendingOTAccountManagerId },
-          { count: pendingOTBothIds },
-        ] = await Promise.all([
-          supabase
-            .from("overtime_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending")
-            .not("project_manager_id", "is", null),
-          supabase
-            .from("overtime_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending")
-            .not("account_manager_id", "is", null),
-          supabase
-            .from("overtime_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending")
-            .not("project_manager_id", "is", null)
-            .not("account_manager_id", "is", null),
-        ]);
-
-        const pendingOT =
-          (pendingOTProjectManagerId ?? 0) +
-          (pendingOTAccountManagerId ?? 0) -
-          (pendingOTBothIds ?? 0);
-
-        const [{ count: pendingFTL }] = await Promise.all([
-          supabase
-            .from("failure_to_log")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending")
-            .not("account_manager_id", "is", null),
-        ]);
-
-        setPendingLeaveApprovals(pendingLeave || 0);
-        setPendingOvertimeApprovals(pendingOT || 0);
-        setPendingFailureToLogApprovals(pendingFTL || 0);
-
-        const [
-          { count: allPendingLeave },
-          { count: allPendingOt },
-          { count: allPendingFtl },
-        ] = await Promise.all([
-          supabase
-            .from("leave_requests")
-            .select("id", { count: "exact", head: true })
-            .in("status", ["pending", "approved_by_pm", "approved_by_manager"]),
-          supabase
-            .from("overtime_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending"),
-          supabase
-            .from("failure_to_log")
-            .select("id", { count: "exact", head: true })
-            .eq("status", "pending"),
-        ]);
-        setCompanyPendingLeaveCount(allPendingLeave || 0);
-        setCompanyPendingOvertimeCount(allPendingOt || 0);
-        setCompanyPendingFtlCount(allPendingFtl || 0);
-
-        const deptMap = new Map<string, number>();
-        const typeMap = new Map<string, number>();
-        let unassignedCount = 0;
-        const activeEmployeesList = (allEmps || []) as ActiveEmployeeLite[];
-        activeEmployeesList.forEach((emp) => {
-          const dept = getDepartmentName(emp.departments);
-          if (dept) {
-            deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
-          } else {
-            unassignedCount += 1;
-          }
-          const type = normalizeEmploymentTypeLabel(emp.employment_type);
-          typeMap.set(type, (typeMap.get(type) || 0) + 1);
-        });
-
-        setCurrentlyClockedIn(
-          await fetchCurrentlyClockedInForEmployees(
-            supabase,
-            activeEmployeesList
-          )
-        );
-
-        setDeptStats(
-          Array.from(deptMap.entries())
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-        );
-        setUnassignedActiveEmployees(unassignedCount);
-        setTypeBreakdown(
-          Array.from(typeMap.entries())
-            .map(([type, count]) => ({ type, count }))
-            .sort((a, b) => b.count - a.count)
-        );
-      }
-
-      // Manager-stage pending counts (first-step approval items).
-      let leaveManagerCountQuery = supabase
-        .from("leave_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .is("project_manager_id", null);
-      let otManagerCountQuery = supabase
-        .from("overtime_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .is("project_manager_id", null)
-        .is("account_manager_id", null);
-      let ftlManagerCountQuery = supabase
-        .from("failure_to_log")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pending")
-        .is("account_manager_id", null);
-
-      if (employeeScope) {
-        leaveManagerCountQuery = leaveManagerCountQuery.in("employee_id", employeeScope);
-        otManagerCountQuery = otManagerCountQuery.in("employee_id", employeeScope);
-        ftlManagerCountQuery = ftlManagerCountQuery.in("employee_id", employeeScope);
-      }
-
-      const [
-        { count: managerLeavePending },
-        { count: managerOTProjectManagerNullAccountManagerNull },
-        { count: managerFTLPending },
-      ] = await Promise.all([
-        leaveManagerCountQuery,
-        otManagerCountQuery,
-        ftlManagerCountQuery,
-      ]);
-
-      setManagerPendingLeaveCount(managerLeavePending || 0);
-      setManagerPendingOvertimeCount(managerOTProjectManagerNullAccountManagerNull || 0);
-      setManagerPendingFailureToLogCount(managerFTLPending || 0);
-
-      const isManagerFocus = !isHR;
-      if (authUser?.id && (usesManagerApprovalQueue || isManagerFocus)) {
-        const items = await fetchDashboardApprovalQueueItems(supabase, {
-          userId: authUser.id,
-          isHR,
-          isOperationsManager,
-          isOvertimeGroupQueueApprover,
-          isAdmin,
-          showAllCompanyPending,
-          isManagerFocus,
-          scopedEmployeeIds,
-        });
-        setQueueItems(items);
-      } else {
-        setQueueItems([]);
-      }
-
-      setLastUpdatedAt(new Date());
-    } catch (error: any) {
-      console.error("HR Dashboard error:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+    await bustCache();
+    await refresh({ force: true });
   }
 
-  if (loading) {
+  if ((loading && !data) || roleLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Icon name="ArrowsClockwise" size={IconSizes.lg} className="animate-spin text-muted-foreground" />

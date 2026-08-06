@@ -138,7 +138,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         getUser();
         return;
       }
-      if (event === "TOKEN_REFRESHED") {
+      if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
         return;
       }
       if (event === "SIGNED_IN") {

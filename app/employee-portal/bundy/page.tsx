@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
-import { sessionFetchJson } from "@/lib/session-cache";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { sessionCacheGet } from "@/lib/session-cache";
 import { bustCache } from "@/lib/cache-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -333,6 +334,7 @@ function mergeCalendarWithAttendanceTable(
 export default function BundyClockPage() {
   const { employee } = useEmployeeSession();
   const supabase = createClient();
+  const employeeId = employee?.id ?? null;
 
   const [currentEntry, setCurrentEntry] = useState<TimeEntry | null>(null);
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -350,9 +352,173 @@ export default function BundyClockPage() {
     () => getWeeklyCutoffEnd(periodStart),
     [periodStart]
   );
-  const [loading, setLoading] = useState(true);
-  const [initialFetchComplete, setInitialFetchComplete] = useState(false);
+  const periodStartIso = periodStart.toISOString();
+  const periodEndIso = periodEnd.toISOString();
+  const periodStartStr = useMemo(
+    () => getManilaDateStringFromLocalDate(periodStart),
+    [periodStart]
+  );
+  const periodEndStr = useMemo(
+    () => getManilaDateStringFromLocalDate(periodEnd),
+    [periodEnd]
+  );
+
+  const profileKey = employeeId ? `employee-profile:${employeeId}` : null;
+  const profileUrl = employeeId
+    ? `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(employeeId)}`
+    : null;
+  const { data: profileQueryData, refresh: refreshProfile } = useSessionQuery<{
+    position?: string | null;
+    employment_type?: string | null;
+    job_level?: string | null;
+    shift_start_time?: string | null;
+    shift_end_time?: string | null;
+    error?: string;
+  }>(profileKey, profileUrl, { enabled: !!employeeId });
+
+  const clockStatusKey = employeeId ? `clock-status:${employeeId}` : null;
+  const clockStatusUrl = employeeId
+    ? `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(employeeId)}&limit=500`
+    : null;
+  const {
+    data: clockStatusData,
+    loading: clockStatusLoading,
+    refresh: refreshClockStatus,
+  } = useSessionQuery<{ punches?: TimeEntryPunch[] }>(
+    clockStatusKey,
+    clockStatusUrl,
+    { enabled: !!employeeId }
+  );
+
+  const periodEntriesKey = employeeId
+    ? `time-entries:period:${employeeId}:${periodStartIso}:${periodEndIso}`
+    : null;
+  const periodEntriesUrl = employeeId
+    ? `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(employeeId)}&start=${encodeURIComponent(periodStartIso)}&end=${encodeURIComponent(periodEndIso)}&limit=500`
+    : null;
+  const {
+    data: periodEntriesData,
+    loading: periodEntriesLoading,
+    refresh: refreshPeriodEntries,
+  } = useSessionQuery<{ punches?: TimeEntryPunch[] }>(
+    periodEntriesKey,
+    periodEntriesUrl,
+    { enabled: !!employeeId }
+  );
+
+  const leaveKey = employeeId ? `leave-requests:${employeeId}` : null;
+  const leaveUrl = employeeId
+    ? `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(employeeId)}`
+    : null;
+  const { data: leaveQueryData, refresh: refreshLeaveRequests } =
+    useSessionQuery<{
+      requests?: Array<{
+        id: string;
+        leave_type: string;
+        start_date: string;
+        end_date: string;
+        status: string;
+        half_day_dates?: string[] | null;
+      }>;
+    }>(leaveKey, leaveUrl, { enabled: !!employeeId });
+
+  const otKey = employeeId ? `ot-requests:${employeeId}` : null;
+  const otUrl = employeeId
+    ? `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(employeeId)}`
+    : null;
+  const { data: otQueryData, refresh: refreshOtRequests } = useSessionQuery<{
+    requests?: Array<{
+      id: string;
+      ot_date: string;
+      start_time: string;
+      end_time: string;
+      total_hours: number;
+      status: string;
+    }>;
+  }>(otKey, otUrl, { enabled: !!employeeId });
+
+  const attendanceWideRange = useMemo(() => {
+    const periodStartDate = new Date(periodStart);
+    periodStartDate.setHours(0, 0, 0, 0);
+    periodStartDate.setDate(periodStartDate.getDate() - 7);
+    const periodEndDate = new Date(periodEnd);
+    periodEndDate.setHours(23, 59, 59, 999);
+    periodEndDate.setDate(periodEndDate.getDate() + 1);
+    return {
+      startIso: periodStartDate.toISOString(),
+      endIso: periodEndDate.toISOString(),
+    };
+  }, [periodStart, periodEnd]);
+
+  const attendanceClockKey = employeeId
+    ? `time-entries:attendance:${employeeId}:${attendanceWideRange.startIso}:${attendanceWideRange.endIso}`
+    : null;
+  const attendanceClockUrl = employeeId
+    ? `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(employeeId)}&start=${encodeURIComponent(attendanceWideRange.startIso)}&end=${encodeURIComponent(attendanceWideRange.endIso)}&limit=500`
+    : null;
+  const {
+    data: attendanceClockData,
+    refresh: refreshAttendanceClock,
+  } = useSessionQuery<{ punches?: TimeEntryPunch[] }>(
+    attendanceClockKey,
+    attendanceClockUrl,
+    { enabled: !!employeeId }
+  );
+
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
+  const calendarDateKey = useMemo(
+    () => formatDate(calendarDate, "yyyy-MM"),
+    [calendarDate]
+  );
+  const calendarGridRange = useMemo(() => {
+    const gridStart = startOfWeek(startOfMonth(calendarDate), {
+      weekStartsOn: 0,
+    });
+    const gridEnd = endOfWeek(endOfMonth(calendarDate), { weekStartsOn: 0 });
+    return {
+      gridStart,
+      gridEnd,
+      startRange: gridStart.toISOString(),
+      endRange: gridEnd.toISOString(),
+    };
+  }, [calendarDateKey, calendarDate]);
+  const calendarTimeKey = employeeId
+    ? `time-entries:calendar:${employeeId}:${calendarGridRange.startRange}:${calendarGridRange.endRange}`
+    : null;
+  const calendarTimeUrl = employeeId
+    ? `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(employeeId)}&start=${encodeURIComponent(calendarGridRange.startRange)}&end=${encodeURIComponent(calendarGridRange.endRange)}&limit=500`
+    : null;
+  const { data: calendarTimeData, refresh: refreshCalendarTime } =
+    useSessionQuery<{ punches?: TimeEntryPunch[] }>(
+      calendarTimeKey,
+      calendarTimeUrl,
+      { enabled: !!employeeId }
+    );
+
+  const loading = clockStatusLoading || periodEntriesLoading;
+  const initialFetchComplete = !loading && !!employeeId;
+
+  const refreshBundyData = useCallback(async () => {
+    await bustCache();
+    await Promise.all([
+      refreshProfile({ force: true }),
+      refreshClockStatus({ force: true }),
+      refreshPeriodEntries({ force: true }),
+      refreshLeaveRequests({ force: true }),
+      refreshOtRequests({ force: true }),
+      refreshAttendanceClock({ force: true }),
+      refreshCalendarTime({ force: true }),
+    ]);
+  }, [
+    refreshProfile,
+    refreshClockStatus,
+    refreshPeriodEntries,
+    refreshLeaveRequests,
+    refreshOtRequests,
+    refreshAttendanceClock,
+    refreshCalendarTime,
+  ]);
+
   const [calendarHolidays, setCalendarHolidays] = useState<CalendarHoliday[]>(
     []
   );
@@ -392,45 +558,61 @@ export default function BundyClockPage() {
   const [employeeType, setEmployeeType] = useState<string | null>(null);
   const [employeeJobLevel, setEmployeeJobLevel] = useState<string | null>(null);
 
-  // Fetch employee position and type, and check if today is a rest day
+  // Sync employee profile from session cache
   useEffect(() => {
-    const fetchEmployeeInfo = async () => {
-      if (!employee?.id) return;
-      try {
-        const url = `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
-          employee.id
-        )}`;
-        const json = await sessionFetchJson<{
-          position?: string | null;
-          employment_type?: string | null;
-          job_level?: string | null;
-          error?: string;
-        }>(`employee-profile:${employee.id}`, url);
+    if (!profileQueryData) return;
+    if (
+      profileQueryData.employment_type === undefined &&
+      profileQueryData.position === undefined
+    ) {
+      return;
+    }
 
-        if (json.employment_type !== undefined || json.position !== undefined) {
-          setEmployeePosition(json.position ?? null);
-          setEmployeeType(json.employment_type ?? null);
-          setEmployeeJobLevel(json.job_level ?? null);
+    setEmployeePosition(profileQueryData.position ?? null);
+    setEmployeeType(profileQueryData.employment_type ?? null);
+    setEmployeeJobLevel(profileQueryData.job_level ?? null);
 
-          // Check if today is a rest day
-          const today = new Date();
-          const todayStr = getDateInManilaTimezone(today);
+    if (profileQueryData.employment_type === "client-based") {
+      setIsRestDayToday(false);
+    } else {
+      const dayOfWeek = getDay(new Date());
+      setIsRestDayToday(dayOfWeek === 0);
+    }
+  }, [profileQueryData]);
 
-          if (json.employment_type === "client-based") {
-            // Schema does not include employee_week_schedules — no rest-day from schedule
-            setIsRestDayToday(false);
-          } else {
-            // For office-based: Sunday is the fixed rest day
-            const dayOfWeek = getDay(today);
-            setIsRestDayToday(dayOfWeek === 0); // 0 = Sunday
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch employee info:", err);
-      }
-    };
-    fetchEmployeeInfo();
-  }, [employee?.id]);
+  // Sync open clock session from session cache
+  useEffect(() => {
+    if (!clockStatusData?.punches) return;
+    const open = getOpenEntryFromPunches(clockStatusData.punches, (iso) =>
+      getDateInManilaTimezone(iso)
+    );
+    setCurrentEntry(open ? (open as TimeEntry) : null);
+  }, [clockStatusData]);
+
+  // Sync period entries from session cache
+  useEffect(() => {
+    if (!periodEntriesData?.punches) return;
+    const list = periodEntriesData.punches;
+    const sessions = filterOfficialBundySessions(
+      punchesToSessions(list, (iso) => getDateInManilaTimezone(iso)),
+      (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, list)
+    ).reverse();
+    setEntries(sessions as TimeEntry[]);
+  }, [periodEntriesData]);
+
+  const checkClockStatus = useCallback(async (): Promise<TimeEntrySession | null> => {
+    await refreshClockStatus({ force: true });
+    if (!clockStatusKey) return null;
+    const cached = sessionCacheGet<{ punches?: TimeEntryPunch[] }>(
+      clockStatusKey
+    );
+    const punches = cached?.data.punches ?? [];
+    const open = getOpenEntryFromPunches(punches, (iso) =>
+      getDateInManilaTimezone(iso)
+    );
+    setCurrentEntry(open ? (open as TimeEntry) : null);
+    return open;
+  }, [refreshClockStatus, clockStatusKey]);
 
   // Fetch client IP once for logging
   useEffect(() => {
@@ -540,47 +722,6 @@ export default function BundyClockPage() {
     [employee.id, supabase]
   );
 
-  const checkClockStatus = useCallback(async (): Promise<TimeEntrySession | null> => {
-    const res = await fetch(
-      `/api/employee-portal/time-entries?employee_id=${encodeURIComponent(
-        employee.id
-      )}&limit=500`
-    );
-    const json = (await res.json().catch(() => ({}))) as {
-      punches?: TimeEntryPunch[];
-      error?: string;
-    };
-    if (!res.ok) {
-      console.error("checkClockStatus:", json.error || res.statusText);
-    }
-    const list = (json.punches || []) as TimeEntryPunch[];
-    const open = getOpenEntryFromPunches(list, (iso) =>
-      getDateInManilaTimezone(iso)
-    );
-    setCurrentEntry(open ? (open as any) : null);
-    return open;
-  }, [employee.id]);
-
-  const fetchEntries = useCallback(async () => {
-    const params = new URLSearchParams({
-      employee_id: employee.id,
-      start: periodStart.toISOString(),
-      end: periodEnd.toISOString(),
-      limit: "500",
-    });
-    const url = `/api/employee-portal/time-entries?${params}`;
-    const json = await sessionFetchJson<{ punches?: TimeEntryPunch[] }>(
-      `time-entries:period:${employee.id}:${periodStart.toISOString()}:${periodEnd.toISOString()}`,
-      url
-    );
-    const list = (json.punches || []) as TimeEntryPunch[];
-    const sessions = filterOfficialBundySessions(
-      punchesToSessions(list, (iso) => getDateInManilaTimezone(iso)),
-      (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, list)
-    ).reverse();
-    setEntries(sessions as any[]);
-  }, [employee.id, periodEnd, periodStart, supabase]);
-
   const fetchCalendarHolidays = useCallback(
     async (targetDate: Date) => {
       const gridStart = startOfWeek(startOfMonth(targetDate), {
@@ -607,114 +748,66 @@ export default function BundyClockPage() {
     [supabase]
   );
 
-  const fetchCalendarEntries = useCallback(
-    async (targetDate: Date) => {
-      const gridStart = startOfWeek(startOfMonth(targetDate), {
-        weekStartsOn: 0,
-      });
-      const gridEnd = endOfWeek(endOfMonth(targetDate), { weekStartsOn: 0 });
-      const startRange = gridStart.toISOString();
-      const endRange = gridEnd.toISOString();
-      const timeParams = new URLSearchParams({
-        employee_id: employee.id,
-        start: startRange,
-        end: endRange,
-        limit: "500",
-      });
-      const timeUrl = `/api/employee-portal/time-entries?${timeParams}`;
-      const leaveUrl = `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
-        employee.id
-      )}`;
-      const calendarKey = `time-entries:calendar:${employee.id}:${startRange}:${endRange}`;
-      const [timeJson, leaveJson] = await Promise.all([
-        sessionFetchJson<{ punches?: TimeEntryPunch[] }>(calendarKey, timeUrl),
-        sessionFetchJson<{
-          requests?: Array<{
-            leave_type: string;
-            start_date: string;
-            end_date: string;
-            status: string;
-          }>;
-        }>(`leave-requests:${employee.id}`, leaveUrl),
-      ]);
-
-      const timeData = timeJson.punches || [];
-      const leaveData = (leaveJson.requests || []).filter((r) =>
-        ["approved_by_manager", "approved_by_hr"].includes(r.status)
-      );
-
-      const entries: CalendarEntry[] = [];
-
-      // Convert punch rows to sessions, then map to calendar days
-      const punchesList = (timeData || []) as TimeEntryPunch[];
-      const timeSessions = filterOfficialBundySessions(
-        punchesToSessions(punchesList, (iso) => getDateInManilaTimezone(iso)),
-        (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, punchesList)
-      );
-      timeSessions.forEach((entry) => {
-        const dateIso =
-          entry.clock_in_date_ph ||
-          getDateInManilaTimezone(entry.clock_in_time);
-        entries.push({
-          date: dateIso,
-          type: entry.clock_out_time ? "time" : "inc",
-          label: entry.clock_out_time ? "Present" : "Incomplete",
-          clock_in_time: entry.clock_in_time,
-          clock_out_time: entry.clock_out_time,
-        });
-      });
-
-      // Leave entries: schema has no selected_dates — use start_date/end_date only
-      const leaveEntries = leaveData as Array<{
-        leave_type: string;
-        start_date: string;
-        end_date: string;
-        status: string;
-      }> | null;
-
-      (leaveEntries || []).forEach((leave) => {
-        const start = new Date(leave.start_date);
-        const end = new Date(leave.end_date);
-        const datesToProcess = eachDayOfInterval({ start, end });
-
-        datesToProcess.forEach((d) => {
-          const iso = getManilaDateStringFromLocalDate(d);
-          // Only include days inside the grid range
-          if (d >= gridStart && d <= gridEnd) {
-            entries.push({
-              date: iso,
-              type: "leave",
-              label: leave.leave_type,
-            });
-          }
-        });
-      });
-
-      // Absent / present / inc badges come from attendanceDays (table rules), not punch-only logic.
-      setCalendarBaseEntries(entries);
-    },
-    [employee.id]
-  );
-
   useEffect(() => {
-    const fetchInitialData = async () => {
-      await Promise.all([checkClockStatus(), fetchEntries()]);
-      setLoading(false);
-      setInitialFetchComplete(true);
-    };
-    fetchInitialData();
-  }, [checkClockStatus, fetchEntries]);
+    if (!calendarTimeData?.punches && !leaveQueryData?.requests) return;
+
+    const { gridStart, gridEnd } = calendarGridRange;
+    const timeData = calendarTimeData?.punches || [];
+    const leaveData = (leaveQueryData?.requests || []).filter((r) =>
+      ["approved_by_manager", "approved_by_hr"].includes(r.status)
+    );
+
+    const entries: CalendarEntry[] = [];
+    const punchesList = timeData as TimeEntryPunch[];
+    const timeSessions = filterOfficialBundySessions(
+      punchesToSessions(punchesList, (iso) => getDateInManilaTimezone(iso)),
+      (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, punchesList)
+    );
+    timeSessions.forEach((entry) => {
+      const dateIso =
+        entry.clock_in_date_ph ||
+        getDateInManilaTimezone(entry.clock_in_time);
+      entries.push({
+        date: dateIso,
+        type: entry.clock_out_time ? "time" : "inc",
+        label: entry.clock_out_time ? "Present" : "Incomplete",
+        clock_in_time: entry.clock_in_time,
+        clock_out_time: entry.clock_out_time,
+      });
+    });
+
+    leaveData.forEach((leave) => {
+      const start = new Date(leave.start_date);
+      const end = new Date(leave.end_date);
+      const datesToProcess = eachDayOfInterval({ start, end });
+
+      datesToProcess.forEach((d) => {
+        const iso = getManilaDateStringFromLocalDate(d);
+        if (d >= gridStart && d <= gridEnd) {
+          entries.push({
+            date: iso,
+            type: "leave",
+            label: leave.leave_type,
+          });
+        }
+      });
+    });
+
+    setCalendarBaseEntries(entries);
+  }, [calendarTimeData, leaveQueryData, calendarGridRange]);
 
   // Refresh clock status periodically and on window focus to handle stale state
   useEffect(() => {
-    // Refresh every 30 seconds to catch status changes
     const interval = setInterval(() => {
-      checkClockStatus().catch((err) => console.error("Error refreshing clock status:", err));
-    }, 30000); // 30 seconds
+      void refreshClockStatus().catch((err) =>
+        console.error("Error refreshing clock status:", err)
+      );
+    }, 30000);
 
-    // Refresh when window regains focus (user switches tabs/apps)
     const handleFocus = () => {
-      checkClockStatus().catch((err) => console.error("Error refreshing clock status on focus:", err));
+      void refreshClockStatus().catch((err) =>
+        console.error("Error refreshing clock status on focus:", err)
+      );
     };
     window.addEventListener("focus", handleFocus);
 
@@ -722,7 +815,7 @@ export default function BundyClockPage() {
       clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
     };
-  }, [checkClockStatus, employee?.id]);
+  }, [refreshClockStatus, employeeId]);
 
   // Function to get fresh location
   const getFreshLocation = useCallback(async (): Promise<{
@@ -801,340 +894,9 @@ export default function BundyClockPage() {
     };
   }, [initialFetchComplete, getFreshLocation, validateLocation]);
 
-  // Memoize calendar date string to avoid unnecessary re-fetches
-  const calendarDateKey = useMemo(
-    () => formatDate(calendarDate, "yyyy-MM"),
-    [calendarDate]
-  );
-
   useEffect(() => {
     fetchCalendarHolidays(calendarDate);
   }, [calendarDateKey, fetchCalendarHolidays]);
-
-  useEffect(() => {
-    // Only fetch entries when holidays are loaded to avoid race conditions
-    if (calendarHolidays.length > 0 || calendarDateKey) {
-      fetchCalendarEntries(calendarDate);
-    }
-  }, [calendarDate, calendarHolidays.length, fetchCalendarEntries]);
-
-  const loadAttendanceData = useCallback(async () => {
-    if (!employee) return;
-
-    try {
-      const periodStartStr = getManilaDateStringFromLocalDate(periodStart);
-      const periodEndStr = getManilaDateStringFromLocalDate(periodEnd);
-
-      // Batch all queries in parallel for better performance
-      // Wider fetch: 7 days before cutoff so holiday eligibility can see prior regular workdays.
-      const periodStartDate = new Date(periodStart);
-      periodStartDate.setHours(0, 0, 0, 0);
-      periodStartDate.setDate(periodStartDate.getDate() - 7);
-      const periodEndDate = new Date(periodEnd);
-      periodEndDate.setHours(23, 59, 59, 999);
-      periodEndDate.setDate(periodEndDate.getDate() + 1);
-
-      // Debug: Log query parameters
-      console.log("🔍 Employee Portal - Loading attendance data:", {
-        employeeId: employee.id,
-        employeeIdString: employee.employee_id,
-        periodStart: periodStartStr,
-        periodEnd: periodEndStr,
-        queryStart: periodStartDate.toISOString(),
-        queryEnd: periodEndDate.toISOString(),
-      });
-
-      // Schema: no holidays table, no employee_week_schedules, no selected_dates on leave_requests
-      const year = new Date(periodStartStr).getFullYear();
-      const holidaysData = (PHILIPPINE_HOLIDAYS[year] || []).filter(
-        (h) => h.date >= periodStartStr && h.date <= periodEndStr
-      ).map((h) => ({ holiday_date: h.date, name: h.name, is_regular: h.type === "regular" }));
-
-      const clockParams = new URLSearchParams({
-        employee_id: employee.id,
-        start: periodStartDate.toISOString(),
-        end: periodEndDate.toISOString(),
-        limit: "500",
-      });
-      const clockUrl = `/api/employee-portal/time-entries?${clockParams}`;
-      const leaveUrl = `/api/employee-portal/leave-requests?employee_id=${encodeURIComponent(
-        employee.id
-      )}`;
-      const otUrl = `/api/employee-portal/overtime-requests?employee_id=${encodeURIComponent(
-        employee.id
-      )}`;
-      const profileUrl = `/api/employee-portal/employee-profile?employee_id=${encodeURIComponent(
-        employee.id
-      )}`;
-      const attendanceClockKey = `time-entries:attendance:${employee.id}:${periodStartDate.toISOString()}:${periodEndDate.toISOString()}`;
-
-      const [clockJson, leaveJson, otJson, empProfileJson] = await Promise.all([
-        sessionFetchJson<{ punches?: TimeEntryPunch[] }>(
-          attendanceClockKey,
-          clockUrl
-        ),
-        sessionFetchJson<{
-          requests?: Array<{
-            id: string;
-            leave_type: string;
-            start_date: string;
-            end_date: string;
-            status: string;
-            half_day_dates?: string[] | null;
-          }>;
-        }>(`leave-requests:${employee.id}`, leaveUrl),
-        sessionFetchJson<{
-          requests?: Array<{
-            id: string;
-            ot_date: string;
-            start_time: string;
-            end_time: string;
-            total_hours: number;
-            status: string;
-          }>;
-        }>(`ot-requests:${employee.id}`, otUrl),
-        sessionFetchJson<{
-          employment_type?: string | null;
-          shift_start_time?: string | null;
-          shift_end_time?: string | null;
-        }>(`employee-profile:${employee.id}`, profileUrl),
-      ]);
-
-      const clockErrorMsg = null;
-
-      const clockPunches = (clockJson.punches || []) as TimeEntryPunch[];
-      const clockData = filterOfficialBundySessions(
-        punchesToSessions(clockPunches, (iso) => getDateInManilaTimezone(iso)),
-        (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, clockPunches)
-      );
-      const leaveData = (leaveJson.requests || []).filter(
-        (r) =>
-          ["approved_by_manager", "approved_by_hr"].includes(r.status) &&
-          r.start_date <= periodEndStr &&
-          r.end_date >= periodStartStr
-      );
-      const otData = (otJson.requests || []).filter(
-        (r) =>
-          ["approved", "approved_by_manager", "approved_by_hr"].includes(
-            r.status
-          ) &&
-          r.ot_date >= periodStartStr &&
-          r.ot_date <= periodEndStr
-      );
-      const scheduleData: Array<{
-        schedule_date: string;
-        day_off: boolean;
-        start_time: string;
-        end_time: string;
-      }> = [];
-      const shiftStartTime =
-        typeof empProfileJson.shift_start_time === "string"
-          ? empProfileJson.shift_start_time
-          : null;
-      const shiftEndTime =
-        typeof empProfileJson.shift_end_time === "string"
-          ? empProfileJson.shift_end_time
-          : null;
-      if (shiftStartTime && shiftEndTime) {
-        getWeeklyCutoffDays(periodStart).forEach((day) => {
-          const policy = getBusinessDayPolicyByDay(getDay(day));
-          if (!policy.requiresOffice) return;
-          scheduleData.push({
-            schedule_date: getManilaDateStringFromLocalDate(day),
-            day_off: false,
-            start_time: shiftStartTime,
-            end_time: shiftEndTime,
-          });
-        });
-      }
-      const isClientBasedFromDb =
-        empProfileJson.employment_type === "client-based";
-      const isClientBasedFromDbOrSchedule = isClientBasedFromDb;
-
-      // Debug: Check auth session
-      const { data: authSession } = await supabase.auth.getSession();
-      console.log("🔐 Employee Portal - Auth session:", {
-        hasSession: !!authSession?.session,
-        userId: authSession?.session?.user?.id || null,
-        role: authSession?.session?.user?.role || "anon",
-      });
-
-      // Debug: Log query errors
-      if (clockErrorMsg) {
-        console.error("❌ Employee Portal - Clock entries query error:", {
-          errorMessage: clockErrorMsg,
-          employeeId: employee.id,
-          employeeIdString: employee.employee_id,
-          queryStart: periodStartDate.toISOString(),
-          queryEnd: periodEndDate.toISOString(),
-        });
-      }
-
-      // Debug: Log query results
-      console.log("📊 Employee Portal - Query results:", {
-        employeeId: employee.id,
-        employeeIdString: employee.employee_id,
-        clockEntriesCount: clockData?.length || 0,
-        clockError: clockErrorMsg,
-        holidaysCount: holidaysData?.length || 0,
-        leaveCount: leaveData?.length || 0,
-        otCount: otData?.length || 0,
-        scheduleCount: scheduleData?.length || 0,
-      });
-
-      // Debug: Log loaded entries for employee 23376
-      if (employee?.id && clockData && clockData.length > 0) {
-        console.log(
-          `✅ Employee ${employee.id} - Loaded ${clockData.length} clock entries for period ${periodStartStr} to ${periodEndStr}:`,
-          clockData.map((e: any) => {
-            const entryDateStr = getDateInManilaTimezone(e.clock_in_time);
-            return {
-              id: e.id,
-              clock_in: e.clock_in_time,
-              clock_out: e.clock_out_time,
-              status: e.status,
-              date_in_manila: entryDateStr,
-              in_period:
-                entryDateStr >= periodStartStr && entryDateStr <= periodEndStr,
-            };
-          })
-        );
-      } else if (employee?.id && (!clockData || clockData.length === 0)) {
-        console.warn(
-          `⚠️ Employee ${employee.id} - No clock entries found for period ${periodStartStr} to ${periodEndStr}`,
-          {
-            clockData: clockData,
-            clockError: clockErrorMsg,
-            queryStart: periodStartDate.toISOString(),
-            queryEnd: periodEndDate.toISOString(),
-          }
-        );
-      }
-
-      const formattedHolidays: Holiday[] = (holidaysData || []).map(
-        (h: any) => ({
-          date: h.holiday_date,
-          name: h.name,
-          type: h.is_regular ? "regular" : "non-working",
-        })
-      );
-      setHolidays(formattedHolidays);
-
-      // Filter by date in Asia/Manila timezone
-      type ClockEntry = {
-        id: string;
-        clock_in_time: string;
-        clock_out_time: string | null;
-        regular_hours: number | null;
-        total_hours: number | null;
-        total_night_diff_hours: number | null;
-        status: string;
-      };
-      const filteredClockData = ((clockData || []) as ClockEntry[]).filter(
-        (entry) => {
-          const entryDateStr = getDateInManilaTimezone(entry.clock_in_time);
-          return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
-        }
-      );
-
-      // Filter to only include entries with valid status (exclude rejected and pending)
-      // Include all statuses that indicate the entry is valid: auto_approved, approved, clocked_out, clocked_in
-      // This matches the admin/HR page logic
-      const statusOk = (e: ClockEntry) =>
-        e.status !== "rejected" &&
-        e.status !== "pending" &&
-        (e.status === "auto_approved" ||
-          e.status === "approved" ||
-          e.status === "clocked_out" ||
-          e.status === "clocked_in");
-
-      const validEntriesInPeriod = filteredClockData.filter(statusOk);
-      // Keep sessions up to 7 days before the week for holiday pay eligibility (not shown in the grid).
-      const validEntriesLookback = ((clockData || []) as ClockEntry[]).filter(
-        statusOk
-      );
-
-      setClockEntriesForAttendance(validEntriesInPeriod || []);
-
-      // Debug: Log filtered entries for employee 23376
-      if (
-        employee?.id &&
-        filteredClockData.length !== validEntriesInPeriod.length
-      ) {
-        console.log(
-          `Employee ${employee.id} - Filtered out ${
-            filteredClockData.length - validEntriesInPeriod.length
-          } entries:`,
-          filteredClockData
-            .filter((e) => !statusOk(e))
-            .map((e) => ({
-              id: e.id,
-              clock_in: e.clock_in_time,
-              status: e.status,
-            }))
-        );
-      }
-
-      const completeEntries = validEntriesLookback.filter(
-        (e) => e.clock_out_time !== null
-      );
-      const incompleteEntries = validEntriesLookback.filter(
-        (e) => e.clock_out_time === null
-      );
-
-      // Debug: Log summary of filtering
-      if (employee?.id) {
-        console.log(`Employee ${employee.id} - Entry filtering summary:`, {
-          totalLoaded: (clockData || []).length,
-          afterDateFilter: filteredClockData.length,
-          afterStatusFilter: validEntriesInPeriod.length,
-          lookbackSessions: validEntriesLookback.length,
-          completeEntries: completeEntries.length,
-          incompleteEntries: incompleteEntries.length,
-          period: `${periodStartStr} to ${periodEndStr}`,
-        });
-      }
-
-      setLeaveRequests(leaveData || []);
-      setOtRequests(otData || []);
-
-      const scheduleMap = new Map<string, Schedule>();
-      (scheduleData || []).forEach((s: any) => {
-        const key =
-          typeof s.schedule_date === "string" && s.schedule_date.includes("T")
-            ? s.schedule_date.split("T")[0]
-            : s.schedule_date;
-        scheduleMap.set(key, {
-          schedule_date: s.schedule_date,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          day_off: s.day_off || false,
-        });
-      });
-      setSchedules(scheduleMap);
-
-      const isClientBased = isClientBasedFromDbOrSchedule;
-
-      generateAttendanceDays(
-        completeEntries,
-        incompleteEntries,
-        leaveData || [],
-        otData || [],
-        scheduleMap,
-        formattedHolidays,
-        isClientBased
-      );
-    } catch (error) {
-      console.error("Error loading attendance data:", error);
-    }
-  }, [employee, periodStart, periodEnd, supabase, employeeType]);
-
-  // Load attendance data for timesheet table
-  useEffect(() => {
-    if (employee && initialFetchComplete) {
-      loadAttendanceData();
-    }
-  }, [employee, periodStart, initialFetchComplete, loadAttendanceData]);
 
   // Memoize attendance days generation to avoid recalculation
   const generateAttendanceDays = useCallback(
@@ -1755,6 +1517,163 @@ export default function BundyClockPage() {
     [employee, periodStart, employeePosition, employeeType, employeeJobLevel]
   );
 
+  useEffect(() => {
+    if (!employee || !initialFetchComplete) return;
+    if (
+      attendanceClockData == null &&
+      leaveQueryData == null &&
+      otQueryData == null &&
+      profileQueryData == null
+    ) {
+      return;
+    }
+
+    try {
+      const year = new Date(periodStartStr).getFullYear();
+      const holidaysData = (PHILIPPINE_HOLIDAYS[year] || []).filter(
+        (h) => h.date >= periodStartStr && h.date <= periodEndStr
+      ).map((h) => ({
+        holiday_date: h.date,
+        name: h.name,
+        is_regular: h.type === "regular",
+      }));
+
+      const clockPunches = (attendanceClockData?.punches || []) as TimeEntryPunch[];
+      const clockData = filterOfficialBundySessions(
+        punchesToSessions(clockPunches, (iso) => getDateInManilaTimezone(iso)),
+        (s) => getBundyBusinessDayKeyForInPunch(s.id, s.clock_in_time, clockPunches)
+      );
+      const leaveData = (leaveQueryData?.requests || []).filter(
+        (r) =>
+          ["approved_by_manager", "approved_by_hr"].includes(r.status) &&
+          r.start_date <= periodEndStr &&
+          r.end_date >= periodStartStr
+      );
+      const otData = (otQueryData?.requests || []).filter(
+        (r) =>
+          ["approved", "approved_by_manager", "approved_by_hr"].includes(
+            r.status
+          ) &&
+          r.ot_date >= periodStartStr &&
+          r.ot_date <= periodEndStr
+      );
+      const scheduleData: Array<{
+        schedule_date: string;
+        day_off: boolean;
+        start_time: string;
+        end_time: string;
+      }> = [];
+      const shiftStartTime =
+        typeof profileQueryData?.shift_start_time === "string"
+          ? profileQueryData.shift_start_time
+          : null;
+      const shiftEndTime =
+        typeof profileQueryData?.shift_end_time === "string"
+          ? profileQueryData.shift_end_time
+          : null;
+      if (shiftStartTime && shiftEndTime) {
+        getWeeklyCutoffDays(periodStart).forEach((day) => {
+          const policy = getBusinessDayPolicyByDay(getDay(day));
+          if (!policy.requiresOffice) return;
+          scheduleData.push({
+            schedule_date: getManilaDateStringFromLocalDate(day),
+            day_off: false,
+            start_time: shiftStartTime,
+            end_time: shiftEndTime,
+          });
+        });
+      }
+      const isClientBasedFromDbOrSchedule =
+        profileQueryData?.employment_type === "client-based";
+
+      const formattedHolidays: Holiday[] = (holidaysData || []).map((h) => ({
+        date: h.holiday_date,
+        name: h.name,
+        type: h.is_regular ? "regular" : ("non-working" as const),
+      }));
+      setHolidays(formattedHolidays);
+
+      type AttendanceClockEntry = {
+        id: string;
+        clock_in_time: string;
+        clock_out_time: string | null;
+        regular_hours: number | null;
+        total_hours: number | null;
+        total_night_diff_hours: number | null;
+        status: string;
+      };
+      const filteredClockData = ((clockData || []) as AttendanceClockEntry[]).filter(
+        (entry) => {
+          const entryDateStr = getDateInManilaTimezone(entry.clock_in_time);
+          return entryDateStr >= periodStartStr && entryDateStr <= periodEndStr;
+        }
+      );
+
+      const statusOk = (e: AttendanceClockEntry) =>
+        e.status !== "rejected" &&
+        e.status !== "pending" &&
+        (e.status === "auto_approved" ||
+          e.status === "approved" ||
+          e.status === "clocked_out" ||
+          e.status === "clocked_in");
+
+      const validEntriesInPeriod = filteredClockData.filter(statusOk);
+      const validEntriesLookback = ((clockData || []) as AttendanceClockEntry[]).filter(
+        statusOk
+      );
+
+      setClockEntriesForAttendance(validEntriesInPeriod || []);
+
+      const completeEntries = validEntriesLookback.filter(
+        (e) => e.clock_out_time !== null
+      );
+      const incompleteEntries = validEntriesLookback.filter(
+        (e) => e.clock_out_time === null
+      );
+
+      setLeaveRequests(leaveData || []);
+      setOtRequests(otData || []);
+
+      const scheduleMap = new Map<string, Schedule>();
+      (scheduleData || []).forEach((s) => {
+        const key =
+          typeof s.schedule_date === "string" && s.schedule_date.includes("T")
+            ? s.schedule_date.split("T")[0]
+            : s.schedule_date;
+        scheduleMap.set(key, {
+          schedule_date: s.schedule_date,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          day_off: s.day_off || false,
+        });
+      });
+      setSchedules(scheduleMap);
+
+      generateAttendanceDays(
+        completeEntries,
+        incompleteEntries,
+        leaveData || [],
+        otData || [],
+        scheduleMap,
+        formattedHolidays,
+        isClientBasedFromDbOrSchedule
+      );
+    } catch (error) {
+      console.error("Error loading attendance data:", error);
+    }
+  }, [
+    employee,
+    initialFetchComplete,
+    attendanceClockData,
+    leaveQueryData,
+    otQueryData,
+    profileQueryData,
+    periodStart,
+    periodStartStr,
+    periodEndStr,
+    generateAttendanceDays,
+  ]);
+
   // Show modal when time in/out is clicked
   async function handleClock(event: "in" | "out") {
     // Prevent clock in/out on rest days
@@ -1861,16 +1780,8 @@ export default function BundyClockPage() {
         setCurrentEntry(clockInEntry as any);
         toast.success("Clocked in successfully!");
 
-        void bustCache().then(() => {
-          fetchEntries().catch((err) =>
-            console.error("Error fetching entries:", err)
-          );
-          loadAttendanceData().catch((err) =>
-            console.error("Error refreshing attendance:", err)
-          );
-        });
-        checkClockStatus().catch((err) =>
-          console.error("Error checking clock status:", err)
+        void refreshBundyData().catch((err) =>
+          console.error("Error refreshing bundy data:", err)
         );
 
         // Close modal after successful operation
@@ -1918,14 +1829,9 @@ export default function BundyClockPage() {
       toast.success("Clocked out successfully!");
       setCurrentEntry(null);
 
-      void bustCache().then(() => {
-        fetchEntries().catch((err) =>
-          console.error("Error fetching entries:", err)
-        );
-        loadAttendanceData().catch((err) =>
-          console.error("Error refreshing attendance:", err)
-        );
-      });
+      void refreshBundyData().catch((err) =>
+        console.error("Error refreshing bundy data:", err)
+      );
 
       // Close modal after successful operation
       setShowLocationModal(false);

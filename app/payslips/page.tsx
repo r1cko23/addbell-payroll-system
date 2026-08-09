@@ -107,6 +107,7 @@ import {
 } from "@/lib/ph-payroll";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { bustCache } from "@/lib/cache-client";
 import { getSessionSafe, refreshSessionSafe } from "@/lib/session-utils";
 import { fetchSessionsForEmployee, fetchProjectTimeSessionsForEmployee, mergeBundyAndFtlClockSessions } from "@/lib/timeEntries";
 import { resolveAllowanceInputAmount, allowanceLinesFromBreakdown } from "@/lib/payslip-allowances";
@@ -2494,6 +2495,7 @@ export default function PayslipsPage() {
         // Update loan balances and terms after payslip is saved
         await updateLoanBalancesAndTerms(periodStart, periodEnd);
 
+        await bustCache();
         // Reload attendance and loans to refresh UI with updated balances
         await loadAttendanceAndDeductions();
 
@@ -2563,6 +2565,7 @@ export default function PayslipsPage() {
         // Update loan balances and terms after payslip is saved
         await updateLoanBalancesAndTerms(periodStart, periodEnd);
 
+        await bustCache();
         // Reload attendance and loans to refresh UI with updated balances
         await loadAttendanceAndDeductions();
 

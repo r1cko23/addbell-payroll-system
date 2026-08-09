@@ -6,6 +6,9 @@ import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { useProjectsForPO } from "@/lib/hooks/useProjects";
 import { useSuppliersForPO } from "@/lib/hooks/useVendors";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { bustCache } from "@/lib/cache-client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
@@ -84,31 +87,39 @@ const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive"> = {
 
 export default function PurchaseOrderPage() {
   const supabase = createClient();
+  const { profile, loading: profileLoading } = useProfile();
   const { canCreate, canRead, loading: permissionsLoading } = usePermissions();
   const [view, setView] = useState<"list" | "create">("list");
   const canReadPurchaseOrders = canRead("purchase_orders");
   const canCreatePurchaseOrders = canCreate("purchase_orders");
 
   // ----- LIST STATE -----
-  const [poList, setPoList] = useState<PORow[]>([]);
-  const [listLoading, setListLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const userId = profile?.id ?? null;
+  const poListCacheKey =
+    userId && canReadPurchaseOrders && !permissionsLoading
+      ? `purchase-orders:${userId}`
+      : null;
 
-  const fetchPOList = useCallback(async () => {
-    setListLoading(true);
+  const loadPOList = useCallback(async () => {
     const { data, error } = await supabase
       .from("purchase_orders")
       .select("id, po_number, po_date, status, subtotal, total_amount, vendor_id, project_id, project_title, created_at, vendors ( name ), projects ( name, code )")
       .order("created_at", { ascending: false });
-    if (!error) setPoList((data as unknown as PORow[]) ?? []);
-    setListLoading(false);
+    if (error) throw error;
+    return (data as unknown as PORow[]) ?? [];
   }, [supabase]);
 
-  useEffect(() => {
-    if (permissionsLoading || !canReadPurchaseOrders) return;
-    fetchPOList();
-  }, [canReadPurchaseOrders, fetchPOList, permissionsLoading]);
+  const {
+    data: poListData,
+    loading: poListLoading,
+    refresh: refreshPOList,
+  } = useSessionLoader(poListCacheKey, loadPOList, {
+    enabled: !!poListCacheKey,
+  });
+  const poList = poListData ?? [];
+  const listLoading = profileLoading || permissionsLoading || poListLoading;
 
   useEffect(() => {
     if (!canCreatePurchaseOrders && view === "create") {
@@ -247,7 +258,8 @@ export default function PurchaseOrderPage() {
 
       toast.success("Purchase order saved.");
       setView("list");
-      fetchPOList();
+      await bustCache();
+      await refreshPOList({ force: true });
     } catch (err: unknown) {
       const msg =
         err instanceof Error
@@ -259,7 +271,7 @@ export default function PurchaseOrderPage() {
     } finally {
       setIsSavingPO(false);
     }
-  }, [canCreatePurchaseOrders, poData, poNumber, selectedProjectId, selectedVendorId, supabase, fetchPOList]);
+  }, [canCreatePurchaseOrders, poData, poNumber, selectedProjectId, selectedVendorId, supabase, refreshPOList]);
 
   const handlePrint = useCallback(() => {
     if (!printRef.current) { toast.error("Print content not ready."); return; }

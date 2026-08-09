@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { format, parse, addDays } from "date-fns";
 import { Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { bustCache } from "@/lib/cache-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,11 @@ function sumAmount(rows: FundRequestMyRequestRow[]): number {
   return rows.reduce((total, row) => total + Number(row.total_requested_amount ?? 0), 0);
 }
 
+type MyRequestsLoadResult = {
+  rows: FundRequestMyRequestRow[];
+  cutoffs: WeeklyCutoffPeriod[];
+};
+
 export function FundRequestMyRequests({
   detailHrefBase,
   requesterEmployeeId,
@@ -51,80 +58,83 @@ export function FundRequestMyRequests({
   requesterIsOperationsManager = false,
 }: FundRequestMyRequestsProps) {
   const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<FundRequestMyRequestRow[]>([]);
-  const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  useEffect(() => {
+  const listCacheKey = useMemo(() => {
+    if (!requesterEmployeeId) return null;
+    const todayYmd = format(new Date(), "yyyy-MM-dd");
+    const history = getFundRequestHistoryCutoffs(todayYmd, {
+      forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+    });
+    if (!history) return null;
+    return `fund-requests:my:${requesterEmployeeId}:${history.fetch_from}:${history.fetch_to}`;
+  }, [requesterEmployeeId]);
+
+  const loadMyRequests = useCallback(async (): Promise<MyRequestsLoadResult> => {
     if (!requesterEmployeeId) {
-      setRows([]);
-      setHistoryCutoffs([]);
-      setLoading(false);
-      return;
+      return { rows: [], cutoffs: [] };
     }
 
-    let active = true;
+    const todayYmd = format(new Date(), "yyyy-MM-dd");
+    const history = getFundRequestHistoryCutoffs(todayYmd, {
+      forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+    });
+    const cutoffs = history?.cutoffs ?? [];
 
-    const load = async () => {
-      setLoading(true);
-      const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd, {
-        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
-      });
-      const cutoffs = history?.cutoffs ?? [];
+    let query = supabase
+      .from("fund_requests")
+      .select("*, projects ( name, code )")
+      .eq("requested_by", requesterEmployeeId)
+      .order("created_at", { ascending: false });
 
-      if (active) {
-        setHistoryCutoffs(cutoffs);
-        setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
-      }
+    if (history) {
+      const fetchToExtended = format(
+        addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
+        "yyyy-MM-dd"
+      );
+      query = query
+        .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
+        .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
+    }
 
-      let query = supabase
-        .from("fund_requests")
-        .select("*, projects ( name, code )")
-        .eq("requested_by", requesterEmployeeId)
-        .order("created_at", { ascending: false });
+    const { data, error } = await query;
 
-      if (history) {
-        const fetchToExtended = format(
-          addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
-          "yyyy-MM-dd"
-        );
-        query = query
-          .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
-          .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
-      }
+    if (error) {
+      console.error("Failed to load my fund requests", error);
+      return { rows: [], cutoffs };
+    }
 
-      const { data, error } = await query;
+    const loaded = (data as FundRequestMyRequestRow[]) ?? [];
+    const filtered =
+      history && cutoffs.length > 0
+        ? loaded.filter((row) =>
+            cutoffs.some((cutoff) =>
+              fundRequestBelongsToApproverCutoff(row, cutoff, "admin")
+            )
+          )
+        : loaded;
 
-      if (!active) return;
-
-      if (error) {
-        console.error("Failed to load my fund requests", error);
-        setRows([]);
-      } else {
-        const loaded = (data as FundRequestMyRequestRow[]) ?? [];
-        const filtered =
-          history && cutoffs.length > 0
-            ? loaded.filter((row) =>
-                cutoffs.some((cutoff) =>
-                  fundRequestBelongsToApproverCutoff(row, cutoff, "admin")
-                )
-              )
-            : loaded;
-        setRows(filtered);
-      }
-
-      setLoading(false);
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
+    return { rows: filtered, cutoffs };
   }, [requesterEmployeeId, supabase]);
+
+  const {
+    data: loadResult,
+    loading: listLoading,
+    refresh,
+  } = useSessionLoader<MyRequestsLoadResult>(listCacheKey, loadMyRequests, {
+    enabled: !!requesterEmployeeId,
+  });
+  const loading = listLoading && !loadResult;
+
+  const rows = loadResult?.rows ?? [];
+  const historyCutoffs = loadResult?.cutoffs ?? [];
+
+  useEffect(() => {
+    if (historyCutoffs.length === 0) return;
+    setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(historyCutoffs));
+  }, [historyCutoffs]);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
@@ -156,9 +166,14 @@ export function FundRequestMyRequests({
   const canGoToOlderCutoff = selectedCutoffIndex < historyCutoffs.length - 1;
   const canGoToNewerCutoff = selectedCutoffIndex > 0;
 
-  const handleRequestDeleted = (requestId: string) => {
-    setRows((current) => current.filter((row) => row.id !== requestId));
-  };
+  const handleRequestDeleted = useCallback(
+    async (requestId: string) => {
+      void requestId;
+      await bustCache();
+      await refresh({ force: true });
+    },
+    [refresh]
+  );
 
   if (!requesterEmployeeId) {
     return (

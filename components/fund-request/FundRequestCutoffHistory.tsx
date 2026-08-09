@@ -1,9 +1,11 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { format, parse, addDays } from "date-fns";
+import { format, parse } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +37,6 @@ import {
 } from "@/lib/fund-request-approval";
 import {
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
-  FUND_REQUEST_HISTORY_FETCH_OR,
   fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
   formatFundRequestCutoffPeriod,
@@ -50,6 +51,12 @@ import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 
 type FundRequestHistoryRow = FundRequestRow & {
   projects?: { name: string | null; code: string | null } | null;
+};
+
+type FundRequestListResponse = {
+  rows: FundRequestHistoryRow[];
+  tab: string;
+  cutoff_start: string;
 };
 
 const OUTCOME_LABELS: Record<FundRequestHistoryOutcome, string> = {
@@ -95,8 +102,7 @@ type FundRequestCutoffHistoryProps = {
 export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHistoryProps) {
   const { profile } = useProfile();
   const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<FundRequestHistoryRow[]>([]);
+  const userId = profile?.id ?? null;
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
   const [undoingId, setUndoingId] = useState<string | null>(null);
@@ -108,65 +114,54 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
     normalizeUserRole(profile?.role) === "upper_management" ||
     normalizeUserRole(profile?.role) === "admin";
 
+  const listCache = useMemo(() => {
+    if (!userId) return null;
+    const todayYmd = format(new Date(), "yyyy-MM-dd");
+    const history = getFundRequestHistoryCutoffs(todayYmd, {
+      forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+    });
+    if (!history) return null;
+    const params = new URLSearchParams({
+      tab: "history",
+      fetch_from: history.fetch_from,
+      fetch_to: history.fetch_to,
+      cutoff_start: "",
+    });
+    return {
+      key: `fund-requests:history:${userId}:${history.fetch_from}:${history.fetch_to}`,
+      url: `/api/fund-requests/list?${params.toString()}`,
+      history,
+    };
+  }, [userId]);
+
+  const {
+    data: listData,
+    loading: listLoading,
+    refresh,
+  } = useSessionQuery<FundRequestListResponse>(
+    listCache?.key ?? null,
+    listCache?.url ?? null,
+    { enabled: !!listCache }
+  );
+  const loading = listLoading && !listData;
+
   useEffect(() => {
-    let active = true;
+    const cutoffs = listCache?.history.cutoffs ?? [];
+    if (cutoffs.length === 0) return;
+    setHistoryCutoffs(cutoffs);
+    setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
+  }, [listCache?.history.cutoffs]);
 
-    const load = async () => {
-      setLoading(true);
-      const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd, {
-        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
-      });
-      const cutoffs = history?.cutoffs ?? [];
-      if (active) {
-        setHistoryCutoffs(cutoffs);
-        setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
-      }
-
-      let query = supabase
-        .from("fund_requests")
-        .select("*, projects ( name, code )")
-        .or(FUND_REQUEST_HISTORY_FETCH_OR)
-        .order("created_at", { ascending: false });
-
-      if (history) {
-        const fetchToExtended = format(
-          addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
-          "yyyy-MM-dd"
-        );
-        query = query
-          .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
-          .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
-      }
-
-      const { data, error } = await query;
-
-      if (!active) return;
-
-      if (error) {
-        console.error("Failed to load fund request history", error);
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
-      const filtered = ((data as FundRequestHistoryRow[]) ?? []).filter((row) => {
-        if (!isFundRequestFinalDecisionHistoryEntry(row)) return false;
-        if (!history || cutoffs.length === 0) return true;
-        return cutoffs.some((cutoff) =>
-          fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
-        );
-      });
-
-      setRows(filtered);
-      setLoading(false);
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
+  const rows = useMemo(() => {
+    const cutoffs = listCache?.history.cutoffs ?? [];
+    return ((listData?.rows ?? []) as FundRequestHistoryRow[]).filter((row) => {
+      if (!isFundRequestFinalDecisionHistoryEntry(row)) return false;
+      if (cutoffs.length === 0) return true;
+      return cutoffs.some((cutoff) =>
+        fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
+      );
+    });
+  }, [listData?.rows, listCache?.history.cutoffs]);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
@@ -219,7 +214,8 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
     }
 
     toast.success("Approval undone. Request returned to pending final approval.");
-    setRows((current) => current.filter((item) => item.id !== row.id));
+    await bustCache();
+    await refresh({ force: true });
   };
 
   const handleUndoRejection = async (row: FundRequestHistoryRow) => {
@@ -246,7 +242,8 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
     }
 
     toast.success("Rejection undone. Request restored to pending final approval.");
-    setRows((current) => current.filter((item) => item.id !== row.id));
+    await bustCache();
+    await refresh({ force: true });
   };
 
   const getRowUndoKind = (

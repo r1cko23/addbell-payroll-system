@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
 import { Clock, MapPin } from "lucide-react";
 import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
 import { epCardInteractive, epPageWrapper, epTouchButton } from "@/lib/employee-portal-ui";
@@ -27,40 +28,42 @@ export default function EmployeePortalProjectTimePage() {
   const supabase = createClient();
   const session = useEmployeeSession();
   const employeeId = session?.employee?.id ?? null;
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const assignmentsCacheKey = employeeId
+    ? `project-assignments:${employeeId}`
+    : null;
+
+  const loadAssignments = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("project_assignments")
+      .select("id, project_id, role, start_date, end_date, is_active, projects:project_id ( id, code, name, status )")
+      .eq("employee_id", employeeId)
+      .eq("is_active", true)
+      .order("start_date", { ascending: false });
+
+    if (error) throw error;
+    const rows = data ?? [];
+    return rows.map((row) => {
+      const p = row.projects;
+      const project = Array.isArray(p) ? p[0] ?? null : p;
+      return { ...row, projects: project } as Assignment;
+    });
+  }, [employeeId, supabase]);
+
+  const {
+    data: assignmentsData,
+    loading,
+    error: assignmentsError,
+  } = useSessionLoader(assignmentsCacheKey, loadAssignments, {
+    enabled: !!assignmentsCacheKey,
+  });
+  const assignments = assignmentsData ?? [];
 
   useEffect(() => {
-    if (!employeeId) return;
-    fetchAssignments();
-  }, [employeeId]);
-
-  const fetchAssignments = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("project_assignments")
-        .select("id, project_id, role, start_date, end_date, is_active, projects:project_id ( id, code, name, status )")
-        .eq("employee_id", employeeId)
-        .eq("is_active", true)
-        .order("start_date", { ascending: false });
-
-      if (error) throw error;
-      const rows = data ?? [];
-      setAssignments(
-        rows.map((row) => {
-          const p = row.projects;
-          const project = Array.isArray(p) ? p[0] ?? null : p;
-          return { ...row, projects: project } as Assignment;
-        })
-      );
-    } catch (e) {
+    if (assignmentsError) {
       toast.error("Failed to load projects");
-      console.error(e);
-    } finally {
-      setLoading(false);
+      console.error(assignmentsError);
     }
-  };
+  }, [assignmentsError]);
 
   if (!employeeId) {
     return (

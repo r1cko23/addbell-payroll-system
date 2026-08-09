@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useActiveClients } from "@/lib/hooks/useClients";
 import { useProjects } from "@/lib/hooks/useProjects";
-import { invalidateProjects } from "@/lib/queries/invalidate";
+import { bustCache } from "@/lib/cache-client";
 import { deleteProject } from "@/lib/delete-project-client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -74,7 +73,6 @@ interface Client { id: string; name: string }
 
 export default function ProjectsPage() {
   const supabase = createClient();
-  const queryClient = useQueryClient();
   const router = useRouter();
   const { isHR, loading: roleLoading } = useUserRole();
   const { profile, loading: profileLoading } = useProfile();
@@ -83,6 +81,7 @@ export default function ProjectsPage() {
     data: projects = [],
     isLoading: loading,
     isError: projectsError,
+    refresh,
   } = useProjects();
   const { data: clients = [] } = useActiveClients();
   const [searchTerm, setSearchTerm] = useState("");
@@ -150,7 +149,8 @@ export default function ProjectsPage() {
     toast.success("Project created.");
     setIsDialogOpen(false);
     resetForm();
-    await invalidateProjects(queryClient);
+    await bustCache();
+    await refresh({ force: true });
   };
 
   const handleDelete = async () => {
@@ -161,7 +161,8 @@ export default function ProjectsPage() {
       await deleteProject(projectToDelete.id);
       toast.success("Project deleted successfully");
       setProjectToDelete(null);
-      await invalidateProjects(queryClient);
+      await bustCache();
+      await refresh({ force: true });
     } catch (error: unknown) {
       toast.error(
         error instanceof Error

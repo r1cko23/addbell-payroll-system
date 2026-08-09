@@ -4,6 +4,7 @@
 
 export { useDebounce } from "./use-debounce";
 export { useSessionQuery } from "./useSessionQuery";
+export { useSessionLoader } from "./useSessionLoader";
 export { useToast, toast } from "./use-toast";
 export { useSelectionState } from "./useSelectionState";
 export { useUserRole, clearUserRoleCache } from "./useUserRole";

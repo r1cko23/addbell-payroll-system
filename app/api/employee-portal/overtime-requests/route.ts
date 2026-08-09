@@ -12,7 +12,7 @@ import {
 } from "@/lib/ot-claimed-range";
 import { creditOvertimeHours, OT_MIN_HOURS } from "@/utils/overtime";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 
 export { dynamic } from "@/lib/api-route-segment";
 

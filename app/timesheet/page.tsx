@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { creditNightDiffHours, creditOvertimeHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { bustCache } from "@/lib/cache-client";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { CardSection } from "@/components/ui/card-section";
 import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
@@ -247,6 +250,19 @@ interface AttendanceDay {
   clockEntryIds?: string[]; // ids from time_entries (in + out punch ids for this day, for admin/HR remove)
 }
 
+type TimesheetAttendanceCachePayload = {
+  employeeId: string;
+  periodStart: string;
+  periodEnd: string;
+  clockEntries: ClockEntry[];
+  leaveRequests: LeaveRequest[];
+  otRequests: OvertimeRequest[];
+  failureToLogRequests: FailureToLogRequest[];
+  holidays: Holiday[];
+  schedules: [string, Schedule][];
+  attendanceDays: AttendanceDay[];
+};
+
 export default function TimesheetPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
@@ -338,6 +354,7 @@ export default function TimesheetPage() {
   const [loading, setLoading] = useState(true);
 
   const supabase = createClient();
+  const { user } = useCurrentUser();
   const { isAdmin, isHR, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
 
@@ -348,6 +365,21 @@ export default function TimesheetPage() {
     d.setDate(d.getDate() + 6); // Wed + 6 = Tue
     return d;
   })();
+  const periodStartStr = format(periodStart, "yyyy-MM-dd");
+  const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+  const timesheetCacheKey =
+    user?.id && selectedEmployee?.id
+      ? `timesheet:${user.id}:${selectedEmployee.id}:${periodStartStr}:${periodEndStr}`
+      : null;
+
+  const {
+    data: attendanceCacheData,
+    refresh: refreshAttendanceCache,
+  } = useSessionLoader<TimesheetAttendanceCachePayload>(
+    timesheetCacheKey,
+    async () => loadAttendanceData(),
+    { enabled: Boolean(timesheetCacheKey) }
+  );
 
   useEffect(() => {
     if (!groupsLoading && !roleLoading) {
@@ -356,14 +388,37 @@ export default function TimesheetPage() {
   }, [assignedGroupIds, groupsLoading, roleLoading, isAdmin]);
 
   useEffect(() => {
-    if (selectedEmployee) {
-      // First ensure timesheet exists, then load data
-      // Don't wait for holidays - they're not critical for attendance display
-      ensureTimesheetExists().then(() => {
-        loadAttendanceData();
-      });
+    if (!timesheetCacheKey || !selectedEmployee) {
+      setAttendanceDays([]);
+      setClockEntries([]);
+      setLeaveRequests([]);
+      setOtRequests([]);
+      setFailureToLogRequests([]);
+      setSchedules(new Map());
+      return;
     }
-  }, [selectedEmployee, selectedWeekStart, filterMonth]);
+    if (
+      !attendanceCacheData ||
+      attendanceCacheData.employeeId !== selectedEmployee.id ||
+      attendanceCacheData.periodStart !== periodStartStr ||
+      attendanceCacheData.periodEnd !== periodEndStr
+    ) {
+      return;
+    }
+    setClockEntries(attendanceCacheData.clockEntries);
+    setLeaveRequests(attendanceCacheData.leaveRequests);
+    setOtRequests(attendanceCacheData.otRequests);
+    setFailureToLogRequests(attendanceCacheData.failureToLogRequests);
+    setHolidays(attendanceCacheData.holidays);
+    setSchedules(new Map(attendanceCacheData.schedules));
+    setAttendanceDays(attendanceCacheData.attendanceDays);
+  }, [
+    timesheetCacheKey,
+    selectedEmployee,
+    periodStartStr,
+    periodEndStr,
+    attendanceCacheData,
+  ]);
 
   async function ensureTimesheetExists() {
     if (!selectedEmployee) return;
@@ -435,15 +490,14 @@ export default function TimesheetPage() {
     }
   }
 
-  async function loadAttendanceData() {
+  async function loadAttendanceData(): Promise<TimesheetAttendanceCachePayload> {
     if (!selectedEmployee) {
       console.log("No employee selected");
-      return;
+      throw new Error("No employee selected");
     }
 
     try {
-      const periodStartStr = format(periodStart, "yyyy-MM-dd");
-      const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+      await ensureTimesheetExists();
 
       await fetch("/api/time-entries/auto-close-stale", {
         method: "POST",
@@ -515,7 +569,6 @@ export default function TimesheetPage() {
         console.warn("Error loading approved failure-to-log requests:", ftlError);
       }
       const approvedFtlData = (ftlData || []) as FailureToLogRequest[];
-      setFailureToLogRequests(approvedFtlData);
 
       const transferredFromId = selectedEmployee?.transferred_from_employee_id ?? null;
       const employeeIdsToLoad = transferredFromId
@@ -537,7 +590,6 @@ export default function TimesheetPage() {
       } else {
         otData = otRequests || [];
       }
-      setOtRequests(otData);
 
       const ftlAsSessions = buildClockEntriesFromApprovedFtl(
         approvedFtlData,
@@ -679,12 +731,10 @@ export default function TimesheetPage() {
       if (leaveData && leaveData.length > 0) {
         console.log("Sample leave request:", leaveData[0]);
       }
-      setLeaveRequests(leaveData || []);
 
       const validClockEntries = (validEntries as TimeEntrySession[]).map(
         clockEntryFromSession
       );
-      setClockEntries(validClockEntries);
 
       const completeEntries = validClockEntries.filter(
         (entry) => entry.clock_out_time !== null
@@ -701,8 +751,6 @@ export default function TimesheetPage() {
         end: periodEndStr,
         lookbackDays: 7,
       });
-      setHolidays(formattedHolidays);
-      const holidaysForCalc = formattedHolidays;
 
       const scheduleMap = new Map<string, Schedule>();
       if (selectedEmployee?.shift_start_time && selectedEmployee?.shift_end_time) {
@@ -725,8 +773,7 @@ export default function TimesheetPage() {
         }
       }
 
-      setSchedules(scheduleMap);
-      generateAttendanceDays(
+      const attendanceDaysPayload = generateAttendanceDays(
         completeEntries,
         incompleteEntries,
         leaveData || [],
@@ -736,6 +783,19 @@ export default function TimesheetPage() {
         selectedEmployee?.employee_type,
         formattedHolidays
       );
+
+      return {
+        employeeId: selectedEmployee.id,
+        periodStart: periodStartStr,
+        periodEnd: periodEndStr,
+        clockEntries: validClockEntries,
+        leaveRequests: (leaveData || []) as LeaveRequest[],
+        otRequests: otData || [],
+        failureToLogRequests: approvedFtlData,
+        holidays: formattedHolidays,
+        schedules: Array.from(scheduleMap.entries()),
+        attendanceDays: attendanceDaysPayload,
+      };
     } catch (error: any) {
       console.error("Error loading attendance data:", error);
       console.error("Error details:", {
@@ -747,12 +807,7 @@ export default function TimesheetPage() {
       toast.error(
         `Failed to load attendance data: ${error?.message || "Unknown error"}`
       );
-      // Set empty arrays so UI doesn't break
-      setClockEntries([]);
-      setLeaveRequests([]);
-      setOtRequests([]);
-      setFailureToLogRequests([]);
-      setAttendanceDays([]);
+      throw error;
     }
   }
 
@@ -765,7 +820,7 @@ export default function TimesheetPage() {
     scheduleMap: Map<string, Schedule>,
     employeeType?: "office-based" | "client-based" | null,
     holidaysForCalc?: Holiday[]
-  ) {
+  ): AttendanceDay[] {
     // Check if employee is account supervisor (for ND eligibility)
     const isAccountSupervisor = selectedEmployee?.position
       ?.toUpperCase()
@@ -1572,7 +1627,7 @@ export default function TimesheetPage() {
       );
     }
 
-    setAttendanceDays(days);
+    return days;
   }
 
   function handlePrint() {
@@ -1595,7 +1650,8 @@ export default function TimesheetPage() {
       }
     }
     toast.success("Time entry removed");
-    loadAttendanceData();
+    await bustCache();
+    await refreshAttendanceCache({ force: true });
   }
 
   const cutoffLabel = `Weekly Cutoff ${format(periodStart, "MMM d")} to ${format(

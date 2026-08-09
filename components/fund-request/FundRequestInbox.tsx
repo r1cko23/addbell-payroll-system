@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useProfile } from "@/lib/hooks/useProfile";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { addDays, format, parse } from "date-fns";
+import { format, parse } from "date-fns";
 import { formatFundRequestFiledAtCompact } from "@/lib/fund-request-history";
 import { Loader2 } from "lucide-react";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -227,8 +229,12 @@ function matchesFundRequestInboxSearch(
   );
 }
 
-const INBOX_ROW_SELECT =
-  `*, employees ( employee_id, first_name, last_name, full_name, profile_picture_url, user_id ), vendors ( name ), projects ( name, code, clients: client_id ( name ) )`;
+
+type FundRequestListResponse = {
+  rows: FundRequestInboxRow[];
+  tab: string;
+  cutoff_start: string;
+};
 
 function formatCutoffMetricAmount(amount: number): string {
   return `₱${amount.toLocaleString()} total`;
@@ -252,8 +258,8 @@ export function FundRequestInbox({
 }) {
   const supabase = createClient();
   const { profile, loading: profileLoading } = useProfile();
+  const userId = profile?.id ?? null;
   const [allRows, setAllRows] = useState<FundRequestInboxRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [actingId, setActingId] = useState<string | null>(null);
   const [bulkApproving, setBulkApproving] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -287,6 +293,115 @@ export function FundRequestInbox({
   const [paymentCheckDocumentsByRequestId, setPaymentCheckDocumentsByRequestId] =
     useState<Record<string, FundRequestDocumentSummary[]>>({});
   const [approvedExportOpen, setApprovedExportOpen] = useState(false);
+
+  const listCache = useMemo(() => {
+    if (!userId || profileLoading) return null;
+    const todayYmd = format(new Date(), "yyyy-MM-dd");
+    const history = getFundRequestHistoryCutoffs(todayYmd, {
+      forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+    });
+    if (!history) return null;
+    const params = new URLSearchParams({
+      tab: "inbox",
+      fetch_from: history.fetch_from,
+      fetch_to: history.fetch_to,
+      cutoff_start: "",
+    });
+    return {
+      key: `fund-requests:inbox:${userId}:${history.fetch_from}:${history.fetch_to}`,
+      url: `/api/fund-requests/list?${params.toString()}`,
+      history,
+    };
+  }, [userId, profileLoading]);
+
+  const {
+    data: listData,
+    loading: listLoading,
+    refresh: refreshList,
+  } = useSessionQuery<FundRequestListResponse>(
+    listCache?.key ?? null,
+    listCache?.url ?? null,
+    { enabled: !!listCache }
+  );
+
+  const loading = listLoading && !listData;
+
+  useEffect(() => {
+    const history = listCache?.history;
+    if (history?.cutoffs.length) {
+      setHistoryCutoffs(history.cutoffs);
+      setSelectedCutoffIndex((current) => {
+        if (current >= history.cutoffs.length) {
+          return getActiveFundRequestCutoffIndex(history.cutoffs);
+        }
+        return current;
+      });
+    }
+  }, [listCache?.history]);
+
+  useEffect(() => {
+    if (!listData || profileLoading) return;
+
+    let cancelled = false;
+
+    const loadMetadata = async () => {
+      const history = listCache?.history;
+      const loadedRows = ((listData.rows as FundRequestInboxRow[]) ?? []).filter(
+        (row) =>
+          !history?.cutoffs.length ||
+          history.cutoffs.some((cutoff) =>
+            fundRequestBelongsToApproverCutoff(row, cutoff, profile?.role)
+          )
+      );
+
+      const normalizedRole = normalizeUserRole(profile?.role);
+      const currentUserId = profile?.id ?? null;
+      const managedIds =
+        normalizedRole === "operations_manager" && currentUserId
+          ? new Set(await fetchManagedEmployeeIdsForApprover(supabase, currentUserId))
+          : new Set<string>();
+
+      if (cancelled) return;
+      setManagedRequesterIds(managedIds);
+
+      const requestedByIds = new Set<string>();
+      loadedRows.forEach((row) => requestedByIds.add(row.requested_by));
+      const routingMap = await resolveFundRequestRequesterRoutingMap(
+        supabase,
+        [...requestedByIds]
+      );
+      if (cancelled) return;
+      setRequesterRoutingById(Object.fromEntries(routingMap));
+
+      const requesterMap = await resolveFundRequestRequesterMap(
+        supabase,
+        [...requestedByIds]
+      );
+      if (cancelled) return;
+      setRequesterInfoById(requesterMap);
+      setAllRows(loadedRows);
+    };
+
+    void loadMetadata();
+    return () => {
+      cancelled = true;
+    };
+  }, [listData, listCache?.history, profile?.id, profile?.role, profileLoading, supabase]);
+
+  useEffect(() => {
+    if (!listCache) return;
+    void fetch("/api/fund-requests/expire-past-cutoff", { method: "POST" }).catch(() => {
+      // Non-blocking — inbox still loads; cron also runs this job.
+    });
+  }, [listCache?.key]);
+
+  const refreshInbox = useCallback(
+    async (opts?: { force?: boolean }) => {
+      await bustCache();
+      await refreshList(opts);
+    },
+    [refreshList]
+  );
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
   const requesterUserIdByEmployeeId = useMemo(() => {
@@ -400,87 +515,6 @@ export function FundRequestInbox({
   const getActionableStatuses = (): FundRequestRow["status"][] =>
     getActionableFundRequestStatuses(profile?.role);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      // Auto-cancel OM/PO requests whose filing cutoff already ended.
-      try {
-        await fetch("/api/fund-requests/expire-past-cutoff", { method: "POST" });
-      } catch {
-        // Non-blocking — inbox still loads; cron also runs this job.
-      }
-      const normalizedRole = normalizeUserRole(profile?.role);
-      const currentUserId = profile?.id ?? null;
-      const managedIds =
-        normalizedRole === "operations_manager" && currentUserId
-          ? new Set(await fetchManagedEmployeeIdsForApprover(supabase, currentUserId))
-          : new Set<string>();
-      setManagedRequesterIds(managedIds);
-      const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd, {
-        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
-      });
-      if (history?.cutoffs.length) {
-        setHistoryCutoffs(history.cutoffs);
-        setSelectedCutoffIndex((current) => {
-          if (current >= history.cutoffs.length) {
-            return getActiveFundRequestCutoffIndex(history.cutoffs);
-          }
-          return current;
-        });
-      }
-
-      let query = supabase
-        .from("fund_requests")
-        .select(INBOX_ROW_SELECT)
-        .order("created_at", { ascending: false });
-
-      if (history) {
-        const fetchToExtended = format(
-          addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
-          "yyyy-MM-dd"
-        );
-        query = query
-          .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
-          .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        toast.error("Failed to load fund requests");
-        setAllRows([]);
-        setLoading(false);
-        return;
-      }
-
-      const loadedRows = ((data as FundRequestInboxRow[] | null) ?? []).filter(
-        (row) =>
-          !history?.cutoffs.length ||
-          history.cutoffs.some((cutoff) =>
-            fundRequestBelongsToApproverCutoff(row, cutoff, profile?.role)
-          )
-      );
-
-      const requestedByIds = new Set<string>();
-      loadedRows.forEach((row) => requestedByIds.add(row.requested_by));
-      const routingMap = await resolveFundRequestRequesterRoutingMap(
-        supabase,
-        [...requestedByIds]
-      );
-      setRequesterRoutingById(Object.fromEntries(routingMap));
-
-      const requesterMap = await resolveFundRequestRequesterMap(
-        supabase,
-        [...requestedByIds]
-      );
-      setRequesterInfoById(requesterMap);
-      setAllRows(loadedRows);
-      setLoading(false);
-    };
-    fetchData();
-  }, [supabase, profile?.role, profile?.id]);
-
   const isUpperManagementRole =
     normalizeUserRole(profile?.role) === "upper_management";
 
@@ -586,13 +620,7 @@ export function FundRequestInbox({
       toast.error("Failed to approve");
     } else {
       toast.success(successMessage);
-      setAllRows((prev) =>
-        prev.map((metricRow) =>
-          metricRow.id === id
-            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestInboxRow)
-            : metricRow
-        )
-      );
+      await refreshInbox({ force: true });
     }
   };
 
@@ -623,34 +651,18 @@ export function FundRequestInbox({
       return;
     }
 
-    const approvedIds = new Set(
-      requests
-        .filter((_, index) => !results[index]?.error)
-        .map((request) => request.id)
-    );
-    setAllRows((prev) =>
-      prev.map((row) =>
-        approvedIds.has(row.id)
-          ? {
-              ...row,
-              status: "management_approved",
-              management_approved_by: currentUserId,
-              management_approved_at: timestamp,
-            }
-          : row
-      )
-    );
-
     if (failed > 0) {
       toast.warning(
         `Approved ${requests.length - failed} of ${requests.length} requests.`
       );
+      await refreshInbox({ force: true });
       return;
     }
 
     toast.success(
       `Approved ${requests.length} fund request${requests.length === 1 ? "" : "s"}.`
     );
+    await refreshInbox({ force: true });
   };
 
   const handleDisposal = async (
@@ -717,25 +729,17 @@ export function FundRequestInbox({
             : "Returned to purchasing officer for review."
           : "Fund request rejected."
       );
-      setAllRows((prev) =>
-        prev.map((metricRow) =>
-          metricRow.id === id
-            ? ({ ...metricRow, ...(updates as Partial<FundRequestRow>) } as FundRequestInboxRow)
-            : metricRow
-        )
-      );
+      await refreshInbox({ force: true });
     }
   };
 
-  const handleRequestMovedToCurrentCutoff = (
+  const handleRequestMovedToCurrentCutoff = async (
     request: FundRequestInboxRow,
     _adjustment: FundRequestCutoffAdjustmentEntry
   ) => {
-    setAllRows((current) =>
-      current.map((row) =>
-        row.id === request.id ? ({ ...row, ...request } as FundRequestInboxRow) : row
-      )
-    );
+    void request;
+    void _adjustment;
+    await refreshInbox({ force: true });
   };
 
   if (profileLoading) {

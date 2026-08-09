@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 import { verifyAdminAccess } from "@/lib/api-helpers";
 import { loadAdminDashboardPayload } from "@/lib/fetch-admin-dashboard";
 
@@ -12,10 +12,11 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Shared across admins — payload is not user-specific.
   const { data, cache } = await cachedJson(
-    ["dashboard", "admin", auth.userId],
+    ["dashboard", "admin"],
     loadAdminDashboardPayload,
-    60
+    CACHE_TTL.dashboard
   );
 
   return NextResponse.json(data, { headers: { "X-Cache": cache } });

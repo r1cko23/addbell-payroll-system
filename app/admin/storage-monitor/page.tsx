@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ArrowsClockwise, ChartBar, Cloud, HardDrives } from "phosphor-react";
@@ -12,6 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BodySmall, Caption } from "@/components/ui/typography";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import {
   formatStorageBytes,
   formatStoragePercent,
@@ -89,39 +92,34 @@ function StatRow({ label, value }: { label: string; value: ReactNode }) {
 
 export default function AdminStorageMonitorPage() {
   const router = useRouter();
+  const { profile } = useProfile();
   const { isAdmin, loading: roleLoading } = useUserRole();
-  const [snapshot, setSnapshot] = useState<MonitorSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const userId = profile?.id ?? null;
+  const monitorEnabled = !roleLoading && isAdmin && !!userId;
+  const cacheKey = monitorEnabled ? `storage-monitor:${userId}` : null;
 
-  const loadSnapshot = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/admin/storage-monitor");
-      const payload = (await response.json()) as MonitorSnapshot & {
-        error?: string;
-      };
-      if (!response.ok) {
-        throw new Error(payload.error || "Unable to load storage monitor");
-      }
-      setSnapshot(payload);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unable to load storage monitor");
-      setSnapshot(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    data: snapshot,
+    loading,
+    error,
+    refresh,
+  } = useSessionQuery<MonitorSnapshot>(
+    cacheKey,
+    monitorEnabled ? "/api/admin/storage-monitor" : null,
+    { enabled: monitorEnabled }
+  );
 
   useEffect(() => {
     if (roleLoading) return;
     if (!isAdmin) {
       router.replace("/dashboard");
-      return;
     }
-    void loadSnapshot();
-  }, [isAdmin, roleLoading, loadSnapshot, router]);
+  }, [isAdmin, roleLoading, router]);
+
+  async function loadSnapshot() {
+    await bustCache();
+    await refresh({ force: true });
+  }
 
   if (roleLoading || (!isAdmin && !error)) {
     return (

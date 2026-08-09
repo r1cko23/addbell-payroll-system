@@ -27,6 +27,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { H1, BodySmall, Caption, PageSubtitle } from "@/components/ui/typography";
@@ -180,9 +183,17 @@ function formatTypeDisplay(value: string | null | undefined): string {
   return (value ?? "").replace(/_/g, " ").toUpperCase();
 }
 
+type EmployeesPageCachePayload = {
+  employees: Employee[];
+  departments: Department[];
+  positions: Position[];
+  overtimeGroups: OvertimeGroup[];
+};
+
 export default function EmployeesPage() {
   const supabase = createClient();
   const router = useRouter();
+  const { user } = useCurrentUser();
   const {
     role,
     isAdmin,
@@ -197,7 +208,6 @@ export default function EmployeesPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
@@ -209,6 +219,24 @@ export default function EmployeesPage() {
 
   const canAssignClockSites = canManageClockAccess;
   const modalFormKey = editingEmployee?.id ?? "new";
+  const canReadEmployees = canRead("employees");
+  const employeesCacheKey = user?.id ? `employees:${user.id}` : null;
+
+  const {
+    data: employeesCacheData,
+    loading: employeesQueryLoading,
+    error: employeesCacheError,
+    refresh: refreshEmployeesCache,
+  } = useSessionQuery<EmployeesPageCachePayload>(
+    employeesCacheKey,
+    "/api/employees/list",
+    {
+      enabled:
+        Boolean(employeesCacheKey) && !permissionsLoading && canReadEmployees,
+    }
+  );
+
+  const loading = employeesQueryLoading && !employeesCacheData;
 
   const [modalClockOffices, setModalClockOffices] = useState<ModalClockOffice[]>([]);
   const [modalClockSelectedIds, setModalClockSelectedIds] = useState<string[]>([]);
@@ -260,18 +288,28 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     if (permissionsLoading) return;
-    if (!canRead("employees")) {
+    if (!canReadEmployees) {
       router.replace("/");
     }
-  }, [canRead, permissionsLoading, router]);
+  }, [canReadEmployees, permissionsLoading, router]);
 
   useEffect(() => {
-    if (permissionsLoading || !canRead("employees")) return;
-    fetchEmployees();
-    fetchDepartments();
-    fetchPositions();
-    fetchOvertimeGroups();
-  }, [permissionsLoading, canRead]);
+    if (!employeesCacheData) return;
+    setEmployees(employeesCacheData.employees);
+    setDepartments(employeesCacheData.departments);
+    setPositions(employeesCacheData.positions);
+    setOvertimeGroups(employeesCacheData.overtimeGroups);
+  }, [employeesCacheData]);
+
+  useEffect(() => {
+    if (!employeesCacheError) return;
+    toast.error(`Failed to load employees: ${employeesCacheError}`);
+  }, [employeesCacheError]);
+
+  async function reloadEmployees() {
+    await bustCache();
+    await refreshEmployeesCache({ force: true });
+  }
 
   const overtimeGroupNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -281,59 +319,12 @@ export default function EmployeesPage() {
     return map;
   }, [overtimeGroups]);
 
-  if (!permissionsLoading && !canRead("employees")) {
+  if (!permissionsLoading && !canReadEmployees) {
     return (
       <DashboardLayout>
         <VStack gap="4" className="w-full"><BodySmall>Redirecting…</BodySmall></VStack>
       </DashboardLayout>
     );
-  }
-
-  async function fetchEmployees() {
-    try {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*, departments:department_id ( name ), positions:position_id ( name, job_grade )")
-        .order("last_name", { ascending: true })
-        .order("first_name", { ascending: true });
-      if (error) throw error;
-      setEmployees((data || []) as Employee[]);
-    } catch (error: any) {
-      console.error("Error fetching employees:", error);
-      toast.error(`Failed to load employees: ${error.message || "Unknown error"}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchDepartments() {
-    try {
-      const { data, error } = await supabase.from("departments").select("id, name").eq("is_active", true).order("name");
-      if (error) throw error;
-      setDepartments(data || []);
-    } catch { setDepartments([]); }
-  }
-
-  async function fetchPositions() {
-    try {
-      const { data, error } = await supabase.from("positions").select("id, name, job_grade").order("name");
-      if (error) throw error;
-      setPositions(data || []);
-    } catch { setPositions([]); }
-  }
-
-  async function fetchOvertimeGroups() {
-    try {
-      const { data, error } = await supabase
-        .from("overtime_groups")
-        .select("id, name")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      setOvertimeGroups((data || []) as OvertimeGroup[]);
-    } catch {
-      setOvertimeGroups([]);
-    }
   }
 
   async function openAddModal() {
@@ -562,7 +553,7 @@ export default function EmployeesPage() {
       }
 
       setShowModal(false);
-      fetchEmployees();
+      await reloadEmployees();
     } catch (error: any) {
       console.error("Error saving employee:", error);
       toast.error(error.message || "Failed to save employee");
@@ -579,7 +570,7 @@ export default function EmployeesPage() {
       toast.success(`Employee ${newStatus === "active" ? "activated" : "deactivated"} successfully!`, {
         description: `${fullName(employee)} · ${employee.company_id_no}`,
       });
-      fetchEmployees();
+      await reloadEmployees();
     } catch (error: any) {
       console.error("Error toggling employee status:", error);
       toast.error("Failed to update employee status");

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { format, parse, addDays } from "date-fns";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { format, parse } from "date-fns";
 import { Search } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
@@ -51,80 +53,73 @@ function isActiveFundRequestInCutoff(row: FundRequestRow): boolean {
   );
 }
 
+type FundRequestListResponse = {
+  rows: FundRequestAllRequestRow[];
+  tab: string;
+  cutoff_start: string;
+};
+
 export function FundRequestAllRequests({
   detailHrefBase,
   requesterEmployeeId,
   requesterUserId,
   requesterIsOperationsManager = false,
 }: FundRequestAllRequestsProps) {
-  const supabase = createClient();
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<FundRequestAllRequestRow[]>([]);
+  const { profile } = useProfile();
+  const userId = profile?.id ?? null;
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const listCache = useMemo(() => {
+    if (!userId) return null;
+    const todayYmd = format(new Date(), "yyyy-MM-dd");
+    const history = getFundRequestHistoryCutoffs(todayYmd, {
+      forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
+    });
+    if (!history) return null;
+    const params = new URLSearchParams({
+      tab: "all-requests",
+      fetch_from: history.fetch_from,
+      fetch_to: history.fetch_to,
+      cutoff_start: "",
+    });
+    return {
+      key: `fund-requests:all-requests:${userId}:${history.fetch_from}:${history.fetch_to}`,
+      url: `/api/fund-requests/list?${params.toString()}`,
+      history,
+    };
+  }, [userId]);
+
+  const {
+    data: listData,
+    loading: listLoading,
+    refresh,
+  } = useSessionQuery<FundRequestListResponse>(
+    listCache?.key ?? null,
+    listCache?.url ?? null,
+    { enabled: !!listCache }
+  );
+  const loading = listLoading && !listData;
+
   useEffect(() => {
-    let active = true;
+    const cutoffs = listCache?.history.cutoffs ?? [];
+    if (cutoffs.length === 0) return;
+    setHistoryCutoffs(cutoffs);
+    setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
+  }, [listCache?.history.cutoffs]);
 
-    const load = async () => {
-      setLoading(true);
-      const todayYmd = format(new Date(), "yyyy-MM-dd");
-      const history = getFundRequestHistoryCutoffs(todayYmd, {
-        forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
-      });
-      const cutoffs = history?.cutoffs ?? [];
-
-      if (active) {
-        setHistoryCutoffs(cutoffs);
-        setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
-      }
-
-      let query = supabase
-        .from("fund_requests")
-        .select("*, projects ( name, code )")
-        .order("created_at", { ascending: false });
-
-      if (history) {
-        const fetchToExtended = format(
-          addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7),
-          "yyyy-MM-dd"
-        );
-        query = query
-          .gte("created_at", `${history.fetch_from}T00:00:00+08:00`)
-          .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
-      }
-
-      const { data, error } = await query;
-
-      if (!active) return;
-
-      if (error) {
-        console.error("Failed to load all fund requests", error);
-        setRows([]);
-      } else {
-        const loaded = (data as FundRequestAllRequestRow[]) ?? [];
-        const filtered =
-          history && cutoffs.length > 0
-            ? loaded.filter((row) =>
-                cutoffs.some((cutoff) =>
-                  // Filing-week only — All Requests must not double-count UM carryover.
-                  fundRequestBelongsToApproverCutoff(row, cutoff, "admin")
-                )
-              )
-            : loaded;
-        setRows(filtered);
-      }
-
-      setLoading(false);
-    };
-
-    void load();
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
+  const rows = useMemo(() => {
+    const loaded = listData?.rows ?? [];
+    const cutoffs = listCache?.history.cutoffs ?? [];
+    if (cutoffs.length === 0) return loaded;
+    return loaded.filter((row) =>
+      cutoffs.some((cutoff) =>
+        fundRequestBelongsToApproverCutoff(row, cutoff, "admin")
+      )
+    );
+  }, [listData?.rows, listCache?.history.cutoffs]);
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
@@ -150,9 +145,14 @@ export function FundRequestAllRequests({
   const canGoToOlderCutoff = selectedCutoffIndex < historyCutoffs.length - 1;
   const canGoToNewerCutoff = selectedCutoffIndex > 0;
 
-  const handleRequestDeleted = (requestId: string) => {
-    setRows((current) => current.filter((row) => row.id !== requestId));
-  };
+  const handleRequestDeleted = useCallback(
+    async (requestId: string) => {
+      void requestId;
+      await bustCache();
+      await refresh({ force: true });
+    },
+    [refresh]
+  );
 
   return (
     <div className="space-y-4">

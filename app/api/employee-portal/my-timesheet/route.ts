@@ -5,7 +5,7 @@ import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 import { fetchSessionsForEmployee } from "@/lib/timeEntries";
 import { HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS } from "@/utils/holidays";
 import { subDays, format } from "date-fns";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 

@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { bustCache } from "@/lib/cache-client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { CardSection } from "@/components/ui/card-section";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,11 +90,66 @@ interface Holiday {
   year: number;
 }
 
+type SettingsPayload = {
+  currentUser: any;
+  users: User[];
+};
+
 export default function SettingsPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { profile, loading: profileLoading } = useProfile();
+  const supabase = createClient();
+  const userId = profile?.id ?? null;
+  const settingsCacheKey = userId ? `settings-users:${userId}` : null;
+
+  const loadSettingsData = useCallback(async (): Promise<SettingsPayload> => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    let currentUserData: any = null;
+    if (user) {
+      const { data: userData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+      currentUserData = userData;
+    }
+
+    const { data: usersData, error: usersError } = await supabase
+      .from("profiles")
+      .select(
+        "id, email, full_name, role, is_active, avatar_url, permissions, can_access_salary, can_manage_clock_access, created_at, updated_at"
+      )
+      .order("full_name", { ascending: true });
+
+    if (usersError) throw usersError;
+
+    const usersWithEmptyGroups = (usersData || []).map((user: any) => ({
+      ...user,
+      assigned_ot_groups: [] as any[],
+      employee_specific_assignments: [] as any[],
+    }));
+
+    return {
+      currentUser: currentUserData,
+      users: usersWithEmptyGroups,
+    };
+  }, [supabase]);
+
+  const {
+    data: settingsData,
+    loading: settingsLoading,
+    error: settingsError,
+    refresh: refreshSettings,
+  } = useSessionLoader(settingsCacheKey, loadSettingsData, {
+    enabled: !!settingsCacheKey,
+  });
+
+  const currentUser = settingsData?.currentUser ?? null;
+  const users = settingsData?.users ?? [];
+  const loading = profileLoading || settingsLoading;
+  const [holidays] = useState<Holiday[]>([]);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedOTGroups, setSelectedOTGroups] = useState<string[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -121,80 +179,16 @@ export default function SettingsPage() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
 
-  const supabase = createClient();
-
   useEffect(() => {
-    loadData();
-  }, []);
+    if (settingsError) {
+      console.error("Error loading settings:", settingsError);
+      toast.error("Failed to load settings");
+    }
+  }, [settingsError]);
 
   async function loadData() {
-    try {
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        const { data: userData } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-
-        setCurrentUser(userData);
-      }
-
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      console.log("Current auth user:", authUser?.id, authUser?.email);
-
-      const { data: usersData, error: usersError } = await supabase
-        .from("profiles")
-        .select(
-          "id, email, full_name, role, is_active, avatar_url, permissions, can_access_salary, can_manage_clock_access, created_at, updated_at"
-        )
-        .order("full_name", { ascending: true });
-
-      if (usersError) {
-        console.error("Error loading users:", usersError);
-        console.error("Error details:", {
-          message: usersError.message,
-          details: usersError.details,
-          hint: usersError.hint,
-          code: usersError.code,
-        });
-        throw usersError;
-      }
-
-      console.log(`Loaded ${usersData?.length || 0} users`);
-      console.log("Users data sample:", usersData?.slice(0, 3));
-      console.log("Full users data:", usersData);
-
-      if (!usersData || usersData.length === 0) {
-        console.warn("No users returned from query - checking RLS policies");
-        setUsers([]);
-      }
-
-      // Schema does not include holidays or overtime_groups tables
-      setHolidays([]);
-      // Load users (OT group assignment UI will show empty)
-      // IMPORTANT: Set users immediately, even if group loading fails
-      if (!usersData || usersData.length === 0) {
-        console.warn("No users data available - setting empty array");
-        setUsers([]);
-      } else {
-        const usersWithEmptyGroups = usersData.map((user: any) => ({
-          ...user,
-          assigned_ot_groups: [] as any[],
-          employee_specific_assignments: [] as any[],
-        }));
-        setUsers(usersWithEmptyGroups);
-      }
-    } catch (error) {
-      console.error("Error loading settings:", error);
-      toast.error("Failed to load settings");
-    } finally {
-      setLoading(false);
-    }
+    await bustCache();
+    await refreshSettings({ force: true });
   }
 
   const isAdmin = currentUser?.role === "admin";

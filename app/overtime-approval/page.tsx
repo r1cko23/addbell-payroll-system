@@ -22,6 +22,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { creditOvertimeHours } from "@/utils/overtime";
@@ -127,6 +129,13 @@ type OTRequest = {
   };
 };
 
+type OtApprovalListResponse = {
+  requests: OTRequest[];
+  punch_status_by_request: Record<string, OtPunchStatus>;
+  week_start: string;
+  week_end: string;
+};
+
 type ViewerOtStatus =
   | "pending"
   | "approved_by_manager"
@@ -195,7 +204,6 @@ export default function OvertimeApprovalPage() {
   const canActOnPendingOvertime = canManageOvertime;
 
   // All hooks must be declared before any conditional returns
-  const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<OTRequest[]>([]);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [employees, setEmployees] = useState<
@@ -397,6 +405,44 @@ export default function OvertimeApprovalPage() {
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
+  const weekStartStr = format(weekStart, "yyyy-MM-dd");
+  const weekEndStr = format(weekEnd, "yyyy-MM-dd");
+
+  const canLoadOtRequests = Boolean(
+    role &&
+      (role === "admin" ||
+        role === "upper_management" ||
+        role === "hr" ||
+        isOvertimeGroupQueueApproverRole(role))
+  );
+
+  const otServerStatus = shouldApplyServerStatusFilter(statusFilter, {
+    isHR,
+    isFirstApproverDashboardView,
+    queueKind: "ot",
+  })
+    ? statusFilter
+    : "all";
+
+  const otListKey =
+    currentUserId && canLoadOtRequests
+      ? `ot-approval:${currentUserId}:${weekStartStr}:${weekEndStr}:${otServerStatus}:${selectedEmployee}`
+      : null;
+  const otListUrl = otListKey
+    ? `/api/overtime-approval?week_start=${weekStartStr}&week_end=${weekEndStr}&status=${encodeURIComponent(
+        otServerStatus
+      )}&employee_id=${encodeURIComponent(selectedEmployee)}`
+    : null;
+
+  const {
+    data: otListData,
+    loading: otQueryLoading,
+    refresh: refreshOtList,
+  } = useSessionQuery<OtApprovalListResponse>(otListKey, otListUrl, {
+    enabled: Boolean(otListKey),
+  });
+
+  const loading = otQueryLoading && !otListData;
 
   useEffect(() => {
     void (async () => {
@@ -461,154 +507,21 @@ export default function OvertimeApprovalPage() {
     URL.revokeObjectURL(url);
   }
 
-  const loadRequests = async () => {
-    setLoading(true);
-
-    // Ensure weekEnd includes the full day
-    const weekEndInclusive = new Date(weekEnd);
-    weekEndInclusive.setHours(23, 59, 59, 999);
-
-    const weekStartStr = format(weekStart, "yyyy-MM-dd");
-    const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
-
-    let query = supabase.from("overtime_requests").select(
-      `
-        *,
-        employees (
-          id,
-          full_name,
-          employee_id,
-          overtime_group_id,
-          profile_picture_url,
-          requires_ot_punch
-        )
-      `
-    );
-
-    query = query
-      .gte("ot_date", weekStartStr)
-      .lte("ot_date", weekEndStr)
-      .order("created_at", { ascending: false });
-
-    if (
-      shouldApplyServerStatusFilter(statusFilter, {
-        isHR,
-        isFirstApproverDashboardView,
-        queueKind: "ot",
-      })
-    ) {
-      query = query.eq("status", statusFilter);
-    }
-
-    if (selectedEmployee !== "all") {
-      query = query.eq("employee_id", selectedEmployee);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error loading OT requests", error);
-      toast.error("Failed to load OT requests");
-      setLoading(false);
+  useEffect(() => {
+    if (!otListData) {
+      if (!otQueryLoading) {
+        setRequests([]);
+        setOtPunchStatusByRequestId({});
+      }
       return;
     }
 
-    let dataWithDocs = (data || []) as OTRequest[];
-    if (dataWithDocs.length > 0) {
-      const requestIds = dataWithDocs.map((r) => r.id);
-      const { data: docsRows, error: docsError } = await supabase
-        .from("overtime_documents")
-        .select("id, overtime_request_id, file_name, file_type, file_size")
-        .in("overtime_request_id", requestIds);
-
-      if (docsError) {
-        if (!isSchemaMissingTableOrRelationError(docsError)) {
-          console.error("Error loading OT documents", docsError);
-        }
-      } else {
-        const byRequest: Record<string, OvertimeDocument[]> = {};
-        for (const d of docsRows || []) {
-          const row = d as {
-            id: string;
-            overtime_request_id: string;
-            file_name: string | null;
-            file_type: string | null;
-            file_size: number | null;
-          };
-          const rid = row.overtime_request_id;
-          if (!byRequest[rid]) byRequest[rid] = [];
-          byRequest[rid].push({
-            id: row.id,
-            file_name: row.file_name || "",
-            file_type: row.file_type,
-            file_size: row.file_size,
-          });
-        }
-        dataWithDocs = dataWithDocs.map((r) => ({
-          ...r,
-          overtime_documents: byRequest[r.id] || [],
-        }));
-      }
-
-      const bundyPunchIds = new Set<string>();
-      dataWithDocs.forEach((r) => {
-        if (r.bundy_in_punch_id) bundyPunchIds.add(r.bundy_in_punch_id);
-        if (r.bundy_out_punch_id) bundyPunchIds.add(r.bundy_out_punch_id);
-      });
-      const punchById: Record<
-        string,
-        { id: string; punched_at: string; lat: number | null; lng: number | null }
-      > = {};
-      if (bundyPunchIds.size > 0) {
-        const { data: punchRows, error: punchError } = await supabase
-          .from("time_entries")
-          .select("id, punched_at, lat, lng")
-          .in("id", Array.from(bundyPunchIds));
-        if (punchError) {
-          console.error("Error loading Bundy punches for OT", punchError);
-        } else {
-          (punchRows || []).forEach((p: any) => {
-            punchById[p.id] = p;
-          });
-        }
-      }
-
-      const statusMap: Record<string, OtPunchStatus> = {};
-      dataWithDocs = dataWithDocs.map((r) => {
-        const inP = r.bundy_in_punch_id ? punchById[r.bundy_in_punch_id] : null;
-        const outP = r.bundy_out_punch_id ? punchById[r.bundy_out_punch_id] : null;
-        const hasPair = Boolean(inP && outP);
-        if (r.employees?.requires_ot_punch === true) {
-          statusMap[r.id] = {
-            hasCompletedPair: hasPair,
-            isOpen: false,
-            lastPunchedAt: outP?.punched_at || inP?.punched_at || null,
-            lastPunchType: hasPair ? "out" : inP ? "in" : null,
-            lastLat: outP?.lat ?? inP?.lat ?? null,
-            lastLng: outP?.lng ?? inP?.lng ?? null,
-          };
-        }
-        return {
-          ...r,
-          bundy_session:
-            inP && outP
-              ? {
-                  clock_in_time: inP.punched_at,
-                  clock_out_time: outP.punched_at,
-                  clock_in_lat: inP.lat,
-                  clock_in_lng: inP.lng,
-                  clock_out_lat: outP.lat,
-                  clock_out_lng: outP.lng,
-                }
-              : null,
-        };
-      });
-      setOtPunchStatusByRequestId(statusMap);
-    }
+    const dataWithDocs = otListData.requests || [];
+    setOtPunchStatusByRequestId(otListData.punch_status_by_request || {});
 
     // Role-based visibility: show requests the user is allowed to view.
     // Stage checks (manager vs HR pending) are kept for Approve/Reject permissions only.
-    let filteredData: OTRequest[] | null = dataWithDocs;
+    let filteredData: OTRequest[] = dataWithDocs;
     if (!isManagement) {
       filteredData = dataWithDocs.filter((request) => {
         if (!currentUserId) return false;
@@ -647,18 +560,13 @@ export default function OvertimeApprovalPage() {
         )
       );
     }
-    const requestsData = filteredData as Array<{
-      status: string;
-      account_manager_id?: string | null;
-      approved_by?: string | null;
-    }> | null;
 
     // Filter out cancelled requests to avoid flooding the UI
-    const cleaned = (requestsData || []).filter(
-      (r) => r.status !== "cancelled"
+    const cleaned = filteredData.filter(
+      (r) => (r.status as string) !== "cancelled"
     );
     const statusFiltered = filterOtRequestsByStatus(
-      cleaned as OTRequest[],
+      cleaned,
       statusFilter,
       isFirstApproverDashboardView,
       getViewerStatus
@@ -682,8 +590,20 @@ export default function OvertimeApprovalPage() {
     if (approverIds.length > 0) {
       loadApproverNames(approverIds);
     }
-    setLoading(false);
-  };
+  }, [
+    otListData,
+    otQueryLoading,
+    isManagement,
+    isAdmin,
+    isHR,
+    currentUserId,
+    normalizedRole,
+    statusFilter,
+    isFirstApproverDashboardView,
+    employeeGroupNameByEmployeeId,
+    overtimeGroupFirstApproverIdById,
+    overtimeGroupNameById,
+  ]);
 
   useEffect(() => {
     if (canManageOvertime) {
@@ -809,29 +729,6 @@ export default function OvertimeApprovalPage() {
     }
     if (isOperationsManager || isOvertimeGroupQueueApprover || isHR) setStatusFilter("pending");
   }, [searchParams, isOperationsManager, isOvertimeGroupQueueApprover, isHR]);
-
-  useEffect(() => {
-    const canLoadOtRequests =
-      role &&
-      (role === "admin" ||
-        role === "upper_management" ||
-        role === "hr" ||
-        isOvertimeGroupQueueApproverRole(role));
-
-    if (canLoadOtRequests) {
-      loadRequests();
-    }
-  }, [
-    selectedWeek,
-    statusFilter,
-    selectedEmployee,
-    role,
-    isAdmin,
-    isHR,
-    normalizedRole,
-    currentUserId,
-    employeeGroupNameByEmployeeId,
-  ]);
 
   useEffect(() => {
     if (loading) return;
@@ -993,7 +890,8 @@ export default function OvertimeApprovalPage() {
           description: `${employeeName}'s overtime request has been approved successfully`,
         });
       }
-      loadRequests();
+      await bustCache();
+      await refreshOtList({ force: true });
       closeRequestModal();
     }
     setActioningId(null);
@@ -1068,7 +966,8 @@ export default function OvertimeApprovalPage() {
       toast.success("Overtime request rejected", {
         description: `${employeeName}'s overtime request has been declined`,
       });
-      loadRequests();
+      await bustCache();
+      await refreshOtList({ force: true });
       closeRequestModal();
     }
     setActioningId(null);

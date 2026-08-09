@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import {
   Card,
@@ -114,6 +116,12 @@ interface FailureToLog {
   };
 }
 
+type FtlApprovalListResponse = {
+  requests: FailureToLog[];
+  date_from: string;
+  date_to: string;
+};
+
 type ViewerFtlStatus = "pending" | "approved" | "rejected";
 
 type EmployeeFilterOption = {
@@ -165,7 +173,6 @@ export default function FailureToLogApprovalPage() {
   // All hooks must be declared before any conditional returns
   const [requests, setRequests] = useState<FailureToLog[]>([]);
   const [employees, setEmployees] = useState<EmployeeFilterOption[]>([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -267,8 +274,38 @@ export default function FailureToLogApprovalPage() {
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
+  const weekStartStr = format(weekStart, "yyyy-MM-dd");
+  const weekEndStr = format(weekEnd, "yyyy-MM-dd");
   const safeFormat = (value: string | null | undefined, fmt: string) =>
     value ? formatPHTime(value, fmt) : "—";
+
+  const ftlServerStatus = shouldApplyServerStatusFilter(statusFilter, {
+    isHR,
+    isFirstApproverDashboardView,
+    queueKind: "ftl",
+  })
+    ? statusFilter
+    : "all";
+
+  const ftlListKey =
+    currentUserId && canManageFailureToLog
+      ? `ftl-approval:${currentUserId}:${weekStartStr}:${weekEndStr}:${ftlServerStatus}:${selectedEmployee}`
+      : null;
+  const ftlListUrl = ftlListKey
+    ? `/api/failure-to-log-approval?date_from=${weekStartStr}&date_to=${weekEndStr}&status=${encodeURIComponent(
+        ftlServerStatus
+      )}&employee_id=${encodeURIComponent(selectedEmployee)}`
+    : null;
+
+  const {
+    data: ftlListData,
+    loading: ftlQueryLoading,
+    refresh: refreshFtlList,
+  } = useSessionQuery<FtlApprovalListResponse>(ftlListKey, ftlListUrl, {
+    enabled: Boolean(ftlListKey),
+  });
+
+  const loading = ftlQueryLoading && !ftlListData;
 
   useEffect(() => {
     void (async () => {
@@ -432,22 +469,6 @@ export default function FailureToLogApprovalPage() {
   }, [searchParams, isOvertimeGroupQueueApprover, isHR]);
 
   useEffect(() => {
-    if (canManageFailureToLog) {
-      fetchRequests();
-    }
-  }, [
-    statusFilter,
-    selectedWeek,
-    selectedEmployee,
-    canManageFailureToLog,
-    isAdmin,
-    isHR,
-    normalizedRole,
-    currentUserId,
-    employeeGroupNameByEmployeeId,
-  ]);
-
-  useEffect(() => {
     if (loading) return;
     if (
       !isFirstApproverDashboardView &&
@@ -512,95 +533,19 @@ export default function FailureToLogApprovalPage() {
     employeeGroupNameByEmployeeId,
   ]);
 
-  async function fetchRequests() {
-    setLoading(true);
-
-    // Ensure weekEnd includes the full day
-    const weekEndInclusive = new Date(weekEnd);
-    weekEndInclusive.setHours(23, 59, 59, 999);
-
-    const weekStartStr = format(weekStart, "yyyy-MM-dd");
-    const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
-
-    const applyFilters = <T extends { eq: Function }>(query: T): T => {
-      let filtered = query;
-      if (
-        shouldApplyServerStatusFilter(statusFilter, {
-          isHR,
-          isFirstApproverDashboardView,
-          queueKind: "ftl",
-        })
-      ) {
-        filtered = filtered.eq("status", statusFilter);
+  useEffect(() => {
+    if (!ftlListData) {
+      if (!ftlQueryLoading) {
+        setRequests([]);
       }
-      if (selectedEmployee !== "all") {
-        filtered = filtered.eq("employee_id", selectedEmployee);
-      }
-      return filtered;
-    };
-
-    let ftlQuery = supabase
-      .from("failure_to_log")
-      .select("*")
-      .gte("missed_date", weekStartStr)
-      .lte("missed_date", weekEndStr);
-    const plainQuery = applyFilters(ftlQuery.order("created_at", { ascending: false }));
-
-    const { data, error } = await plainQuery;
-
-    setLoading(false);
-
-    if (error) {
-      console.error("Error fetching failure to log requests:", error);
-      toast.error("Failed to load requests");
       return;
     }
 
-    const rawRequests = (data || []) as any[];
+    const rawRequests = (ftlListData.requests || []) as any[];
 
-    // Load employee display info separately to avoid PostgREST relation 400s.
-    const employeeIds = Array.from(
-      new Set(
-        rawRequests
-          .map((r) => r.employee_id)
-          .filter((id): id is string => typeof id === "string" && id.length > 0)
-      )
-    );
-    let employeeById: Record<
-      string,
-      { employee_id?: string; full_name?: string; profile_picture_url?: string | null }
-    > = {};
-    if (employeeIds.length > 0) {
-      const { data: employeeRows, error: employeeRowsError } = await supabase
-        .from("employees")
-        .select("id, employee_id, full_name, profile_picture_url")
-        .in("id", employeeIds);
-      if (!employeeRowsError && employeeRows) {
-        employeeById = (employeeRows as any[]).reduce((acc, row) => {
-          acc[row.id] = {
-            employee_id: row.employee_id,
-            full_name: row.full_name,
-            profile_picture_url: row.profile_picture_url ?? null,
-          };
-          return acc;
-        }, {} as Record<string, { employee_id?: string; full_name?: string; profile_picture_url?: string | null }>);
-      }
-    }
-
-    const dataWithEmployees = rawRequests.map((r) => ({
-      ...r,
-      employees:
-        employeeById[r.employee_id] ||
-        {
-          employee_id: null,
-          full_name: "Unknown Employee",
-          profile_picture_url: null,
-        },
-    }));
-
-    let filteredData = dataWithEmployees;
+    let filteredData = rawRequests;
     if (!isManagement) {
-      filteredData = dataWithEmployees.filter((request: any) => {
+      filteredData = rawRequests.filter((request: any) => {
         if (!currentUserId) return false;
         const groupName =
           employeeGroupNameByEmployeeId[request.employee_id] || null;
@@ -625,7 +570,7 @@ export default function FailureToLogApprovalPage() {
         return false;
       });
     } else {
-      filteredData = dataWithEmployees.filter((request: any) =>
+      filteredData = rawRequests.filter((request: any) =>
         passesDedicatedApproverRequestFilter(
           currentUserId,
           isAdmin,
@@ -634,16 +579,7 @@ export default function FailureToLogApprovalPage() {
       );
     }
 
-    const requestsData = filteredData as Array<{
-      status: string;
-      approved_by?: string | null;
-      rejected_by?: string | null;
-      account_manager_id?: string | null;
-    }> | null;
-
-    const cleaned = (requestsData || []).filter(
-      (r) => r.status !== "cancelled"
-    );
+    const cleaned = filteredData.filter((r: any) => r.status !== "cancelled");
     const statusFiltered = filterFtlRequestsByStatus(
       cleaned as FailureToLog[],
       statusFilter,
@@ -664,7 +600,19 @@ export default function FailureToLogApprovalPage() {
     if (approverIds.length > 0) {
       loadApproverNames(approverIds);
     }
-  }
+  }, [
+    ftlListData,
+    ftlQueryLoading,
+    isManagement,
+    isAdmin,
+    isHR,
+    currentUserId,
+    normalizedRole,
+    statusFilter,
+    isFirstApproverDashboardView,
+    employeeGroupNameByEmployeeId,
+    groupApproverIdByGroupName,
+  ]);
 
   async function loadApproverNames(ids: string[]) {
     const next = await fetchApproverNameMap(ids);
@@ -910,7 +858,8 @@ export default function FailureToLogApprovalPage() {
         description: `${employeeName}'s time entry has been updated successfully`,
       });
     }
-    fetchRequests();
+    await bustCache();
+    await refreshFtlList({ force: true });
     closeRequestModal();
     setApproveLoading(false);
   }
@@ -992,7 +941,8 @@ export default function FailureToLogApprovalPage() {
     toast.success("Failure to log request rejected", {
       description: `${employeeName}'s request has been declined`,
     });
-    fetchRequests();
+    await bustCache();
+    await refreshFtlList({ force: true });
     closeRequestModal();
   }
 

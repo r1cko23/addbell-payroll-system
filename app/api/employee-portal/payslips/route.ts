@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { enrichPayslipAttendanceFromClock } from "@/lib/enrich-payslip-attendance";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 

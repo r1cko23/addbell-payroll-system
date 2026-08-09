@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useClients } from "@/lib/hooks/useClients";
-import { invalidateClients, invalidateProjects } from "@/lib/queries/invalidate";
+import { bustCache } from "@/lib/cache-client";
 import { formatTinWithDashes, TIN_PLACEHOLDER } from "@/lib/tin-format";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,13 +65,13 @@ interface Client {
 
 export default function ClientsPage() {
   const supabase = createClient();
-  const queryClient = useQueryClient();
   const { profile, loading: profileLoading } = useProfile();
   const { canCreate, canUpdate, canDelete } = usePermissions();
   const {
     data: clients = [],
     isLoading: loading,
     isError,
+    refresh,
   } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -175,10 +174,8 @@ export default function ClientsPage() {
       }
 
       handleCloseDialog();
-      await Promise.all([
-        invalidateClients(queryClient),
-        invalidateProjects(queryClient),
-      ]);
+      await bustCache();
+      await refresh({ force: true });
     } catch (error: any) {
       toast.error(error.message || "Failed to save client");
       console.error(error);
@@ -198,10 +195,8 @@ export default function ClientsPage() {
 
       if (error) throw error;
       toast.success("Client deleted successfully");
-      await Promise.all([
-        invalidateClients(queryClient),
-        invalidateProjects(queryClient),
-      ]);
+      await bustCache();
+      await refresh({ force: true });
     } catch (error: any) {
       toast.error(error.message || "Failed to delete client");
       console.error(error);

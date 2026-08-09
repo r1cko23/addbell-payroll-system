@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { bustCache } from "@/lib/cache-client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbDialogContent, dbDialogFooter, dbFilterSelect, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
@@ -86,10 +89,39 @@ interface EmployeeLoan {
 
 export default function LoansPage() {
   const { isHR, isManagement, loading: roleLoading } = useUserRole();
+  const { profile, loading: profileLoading } = useProfile();
   const supabase = createClient();
-  const [loans, setLoans] = useState<EmployeeLoan[]>([]);
+  const userId = profile?.id ?? null;
+  const loansCacheKey = userId ? `loans:${userId}` : null;
+
+  const loadLoansList = useCallback(async () => {
+    const { data, error } = await supabase
+      // @ts-ignore - employee_loans table type may not be in generated types
+      .from("employee_loans")
+      .select(
+        `
+          *,
+          employee:employees(id, employee_id, full_name)
+        `
+      )
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as EmployeeLoan[];
+  }, [supabase]);
+
+  const {
+    data: loansData,
+    loading: loansLoading,
+    error: loansError,
+    refresh: refreshLoans,
+  } = useSessionLoader(loansCacheKey, loadLoansList, {
+    enabled: !!loansCacheKey,
+  });
+  const loans = loansData ?? [];
+  const loading = profileLoading || loansLoading;
+
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingLoan, setEditingLoan] = useState<EmployeeLoan | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -132,8 +164,14 @@ export default function LoansPage() {
 
   useEffect(() => {
     loadEmployees();
-    loadLoans();
   }, []);
+
+  useEffect(() => {
+    if (loansError) {
+      console.error("Error loading loans:", loansError);
+      toast.error("Failed to load loans");
+    }
+  }, [loansError]);
 
   // Auto-calculate weekly deduction when original balance or total terms change (e.g. 4 weeks per month)
   useEffect(() => {
@@ -168,27 +206,8 @@ export default function LoansPage() {
   }
 
   async function loadLoans() {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        // @ts-ignore - employee_loans table type may not be in generated types
-        .from("employee_loans")
-        .select(
-          `
-          *,
-          employee:employees(id, employee_id, full_name)
-        `
-        )
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setLoans(data || []);
-    } catch (error: any) {
-      console.error("Error loading loans:", error);
-      toast.error("Failed to load loans");
-    } finally {
-      setLoading(false);
-    }
+    await bustCache();
+    await refreshLoans({ force: true });
   }
 
   function openAddModal() {

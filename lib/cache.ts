@@ -1,10 +1,38 @@
 import { getRedis } from "@/lib/redis";
 
+/**
+ * Upstash free tier (as of 2025+): 500K commands / month, 256 MB, 10 GB bandwidth.
+ *
+ * Budget for ~50–100 users (session-cache-first):
+ * - Browser sessionStorage absorbs most back/forth (0 Redis).
+ * - Redis is a short shared CDN for cold/stale API hits only.
+ * - Shared keys (no per-userId) for admin list payloads that are identical after auth.
+ * - Coalesced epoch bumps so bursts of approve/reject don't multiply INCR traffic.
+ *
+ * Rough ceiling if every active user hits 30 cold API reads/day × ~2 cmds:
+ * 100 users × 22 workdays × 30 × 2 ≈ 132K cmds/month — well under 500K.
+ */
 const EPOCH_KEY = "addbell:cache:epoch";
-const DEFAULT_TTL_SECONDS = 120;
+const INVALIDATE_LOCK_KEY = "addbell:cache:invalidate-lock";
+
+/** Match session stale window so warm Redis usually serves revalidation. */
+const DEFAULT_TTL_SECONDS = 600;
+
+/** Skip repeated epoch GETs on a warm serverless instance. */
+const EPOCH_MEMO_MS = 60_000;
+
+/** At most one global epoch bump per this window (commands + correctness tradeoff). */
+const INVALIDATE_COALESCE_MS = 10_000;
 
 let epochMemo: { value: number; at: number } | null = null;
-const EPOCH_MEMO_MS = 10_000;
+let lastInvalidateAt = 0;
+
+function configuredTtl(fallback: number): number {
+  const raw = process.env.UPSTASH_CACHE_TTL_SECONDS;
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 30 ? Math.floor(n) : fallback;
+}
 
 async function currentEpoch(): Promise<number> {
   const redis = getRedis();
@@ -24,29 +52,83 @@ export async function cacheKey(parts: Array<string | number>): Promise<string> {
   return ["addbell", `e${epoch}`, ...parts.map(String)].join(":");
 }
 
+export type CachedJsonOptions = {
+  /** When false, run loader only (session cache still applies client-side). Default true. */
+  useRedis?: boolean;
+};
+
 export async function cachedJson<T>(
   keyParts: Array<string | number>,
   loader: () => Promise<T>,
-  ttlSeconds = DEFAULT_TTL_SECONDS
+  ttlSeconds = DEFAULT_TTL_SECONDS,
+  options: CachedJsonOptions = {}
 ): Promise<{ data: T; cache: "HIT" | "MISS" | "BYPASS" }> {
-  const redis = getRedis();
+  const useRedis = options.useRedis !== false;
+  const redis = useRedis ? getRedis() : null;
   if (!redis) {
     return { data: await loader(), cache: "BYPASS" };
   }
+
+  const ttl = configuredTtl(ttlSeconds);
   const key = await cacheKey(keyParts);
-  const hit = await redis.get<T>(key);
-  if (hit !== null && hit !== undefined) {
-    return { data: hit, cache: "HIT" };
+  try {
+    const hit = await redis.get<T>(key);
+    if (hit !== null && hit !== undefined) {
+      return { data: hit, cache: "HIT" };
+    }
+    const data = await loader();
+    await redis.set(key, data, { ex: ttl });
+    return { data, cache: "MISS" };
+  } catch (err) {
+    // Free-tier throttling / transient errors must not break pages.
+    console.error("cachedJson redis error — falling back to loader:", err);
+    return { data: await loader(), cache: "BYPASS" };
   }
-  const data = await loader();
-  await redis.set(key, data, { ex: ttlSeconds });
-  return { data, cache: "MISS" };
 }
 
+/**
+ * Bump global cache epoch. Coalesced so approve/reject bursts cost ~1 INCR / 10s.
+ */
 export async function invalidateAppCache(): Promise<boolean> {
   const redis = getRedis();
   if (!redis) return false;
-  const next = await redis.incr(EPOCH_KEY);
-  epochMemo = { value: next, at: Date.now() };
-  return true;
+
+  const now = Date.now();
+  if (now - lastInvalidateAt < INVALIDATE_COALESCE_MS && epochMemo) {
+    return true;
+  }
+
+  try {
+    // Cross-instance coalesce: only one INCR wins the lock window.
+    const locked = await redis.set(INVALIDATE_LOCK_KEY, "1", {
+      ex: Math.ceil(INVALIDATE_COALESCE_MS / 1000),
+      nx: true,
+    });
+    if (locked === null) {
+      lastInvalidateAt = now;
+      // Refresh local epoch memo from Redis without INCR.
+      epochMemo = null;
+      await currentEpoch();
+      return true;
+    }
+
+    const next = await redis.incr(EPOCH_KEY);
+    epochMemo = { value: next, at: Date.now() };
+    lastInvalidateAt = now;
+    return true;
+  } catch (err) {
+    console.error("invalidateAppCache redis error:", err);
+    return false;
+  }
 }
+
+export const CACHE_TTL = {
+  /** Shared admin/HR list payloads (OT / leave / FTL / employees / FR). */
+  list: DEFAULT_TTL_SECONDS,
+  /** Dashboards — shared per role where possible. */
+  dashboard: DEFAULT_TTL_SECONDS,
+  /** Employee-portal reads (per employee). */
+  employeePortal: 300,
+  /** High-churn punches — prefer session; keep Redis short if used. */
+  timeEntries: 180,
+} as const;

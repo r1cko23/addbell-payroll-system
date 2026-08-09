@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isSchemaMissingTableOrRelationError } from "@/lib/postgrestSchema";
 import { loadApproverNameMap } from "@/lib/load-approver-names";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 export { dynamic } from "@/lib/api-route-segment";
 
 

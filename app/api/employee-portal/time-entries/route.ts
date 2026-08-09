@@ -9,7 +9,7 @@ import {
   BUNDY_OPEN_SESSION_PUNCH_LIMIT,
   resolveOpenBundySessionAfterAutoClose,
 } from "@/lib/bundy-auto-clock-out";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -78,10 +78,11 @@ export async function GET(req: NextRequest) {
 
     // Period/range reads can be cached. Open-session checks (no start/end) stay live.
     if (start && end) {
+      // Prefer browser session for bundy back/forth; Redis is a short shared layer only.
       const { data: cached, cache } = await cachedJson(
         ["ep", "time-entries", employeeId, start, end, limit],
         loadPunches,
-        60
+        CACHE_TTL.timeEntries
       );
       return NextResponse.json(cached, { headers: { "X-Cache": cache } });
     }

@@ -229,6 +229,36 @@ export async function verifyProjectDeleteAccess(): Promise<{
 }
 
 /**
+ * Any authenticated active dashboard user (admin/HR/approvers/etc.).
+ */
+export async function verifyDashboardUser(): Promise<{
+  userId: string;
+  role: string;
+} | null> {
+  const supabase = createServerComponentClient<Database>({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return null;
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (profileError || !profileData?.role) {
+    return null;
+  }
+
+  return { userId: user.id, role: profileData.role };
+}
+
+/**
  * Admin/upper management always; HR and others need profiles.can_manage_clock_access.
  */
 export async function verifyClockSiteManagementAccess(): Promise<{

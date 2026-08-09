@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useVendors } from "@/lib/hooks/useVendors";
-import { invalidateVendors } from "@/lib/queries/invalidate";
+import { bustCache } from "@/lib/cache-client";
 import { formatTinWithDashes, stripTinDigits, TIN_PLACEHOLDER } from "@/lib/tin-format";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -119,11 +118,11 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const canManageVendors =
     canCreateVendors || canUpdateVendors || canDeleteVendors;
   const supabase = createClient();
-  const queryClient = useQueryClient();
   const {
     data: records = [],
     isLoading: loading,
     isError,
+    refresh,
   } = useVendors(vendorType);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -290,7 +289,8 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
       }
 
       handleCloseDialog();
-      await invalidateVendors(queryClient);
+      await bustCache();
+      await refresh({ force: true });
     } catch (error: unknown) {
       const message = (error as Error).message || config.saveError;
       if (message.includes("account_name")) {
@@ -314,7 +314,8 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
 
       if (error) throw error;
       toast.success(config.deleteSuccess);
-      await invalidateVendors(queryClient);
+      await bustCache();
+      await refresh({ force: true });
     } catch (error: unknown) {
       toast.error((error as Error).message || config.saveError);
       console.error(error);

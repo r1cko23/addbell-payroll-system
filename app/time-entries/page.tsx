@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useState, useEffect, useMemo, Fragment } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { bustCache } from "@/lib/cache-client";
 import {
   Card,
   CardContent,
@@ -115,8 +118,20 @@ interface FailureToLogEntry {
 // Alias for compatibility
 type Holiday = HolidayEntry;
 
+type TimeEntriesCachePayload = {
+  periodStart: string;
+  periodEnd: string;
+  statusFilter: string;
+  selectedEmployee: string;
+  entries: TimeEntry[];
+  holidays: HolidayEntry[];
+  halfDayLeaveKeys: string[];
+  approvedOtByEmployeeDate: [string, number][];
+};
+
 export default function TimeEntriesPage() {
   const supabase = createClient();
+  const { user, loading: userLoading } = useCurrentUser();
   const { isAdmin, isManagement, isHR, loading: roleLoading } = useUserRole();
   const { groupIds: assignedGroupIds, loading: groupsLoading } = useAssignedGroups();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
@@ -124,7 +139,6 @@ export default function TimeEntriesPage() {
     { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
   >([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
-  const [loading, setLoading] = useState(true);
   const today = new Date();
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => {
     const d = new Date();
@@ -176,6 +190,56 @@ export default function TimeEntriesPage() {
     d.setDate(d.getDate() + 6);
     return d;
   })();
+  const periodStartStr = format(periodStart, "yyyy-MM-dd");
+  const periodEndStr = format(periodEnd, "yyyy-MM-dd");
+  const groupsKey = assignedGroupIds.slice().sort().join(",") || "all";
+  const timeEntriesCacheKey = user?.id
+    ? `time-entries:${user.id}:${periodStartStr}:${periodEndStr}:${statusFilter}:${selectedEmployee}:${groupsKey}`
+    : null;
+
+  const {
+    data: timeEntriesCacheData,
+    loading: entriesLoading,
+    refresh: refreshTimeEntriesCache,
+  } = useSessionLoader<TimeEntriesCachePayload>(
+    timeEntriesCacheKey,
+    async () => fetchTimeEntries(),
+    { enabled: Boolean(timeEntriesCacheKey) && !groupsLoading && !roleLoading }
+  );
+
+  const loading = userLoading || groupsLoading || roleLoading || entriesLoading;
+
+  useEffect(() => {
+    if (
+      !timeEntriesCacheData ||
+      timeEntriesCacheData.periodStart !== periodStartStr ||
+      timeEntriesCacheData.periodEnd !== periodEndStr ||
+      timeEntriesCacheData.statusFilter !== statusFilter ||
+      timeEntriesCacheData.selectedEmployee !== selectedEmployee
+    ) {
+      return;
+    }
+    setHolidays(timeEntriesCacheData.holidays);
+    setHalfDayLeaveKeys(new Set(timeEntriesCacheData.halfDayLeaveKeys));
+    setApprovedOtByEmployeeDate(new Map(timeEntriesCacheData.approvedOtByEmployeeDate));
+    setEntries(timeEntriesCacheData.entries);
+    if (timeEntriesCacheData.entries.length > 0) {
+      void fetchEmployeeInfoAndSchedules(timeEntriesCacheData.entries);
+    } else {
+      setEmployeeInfoMap(new Map());
+    }
+  }, [
+    timeEntriesCacheData,
+    periodStartStr,
+    periodEndStr,
+    statusFilter,
+    selectedEmployee,
+  ]);
+
+  async function reloadTimeEntries() {
+    await bustCache();
+    await refreshTimeEntriesCache({ force: true });
+  }
 
   /** Regular BH from Manila business windows (matches timesheet / punch sessions; not capped at 8). */
   const calculateBusinessRegularHours = (
@@ -185,12 +249,6 @@ export default function TimeEntriesPage() {
     if (!clockOutISO) return 0;
     return regularHoursFromBundyClockPair(clockInISO, clockOutISO);
   };
-
-  useEffect(() => {
-    if (!groupsLoading) {
-      fetchTimeEntries();
-    }
-  }, [selectedWeekStart, statusFilter, selectedEmployee, assignedGroupIds, groupsLoading, isManagement, isHR]);
 
   useEffect(() => {
     async function loadEmployees() {
@@ -467,9 +525,7 @@ export default function TimeEntriesPage() {
     });
   };
 
-  async function fetchTimeEntries() {
-    setLoading(true);
-
+  async function fetchTimeEntries(): Promise<TimeEntriesCachePayload> {
     try {
       // Ensure periodEnd includes the full day
       const periodEndInclusive = new Date(periodEnd);
@@ -548,9 +604,6 @@ export default function TimeEntriesPage() {
 
       // Filter entries by date in Asia/Manila timezone (same as Timesheet and Payslip pages)
       // This ensures entries appear on the correct dates
-      const periodStartStr = format(periodStart, "yyyy-MM-dd");
-      const periodEndStr = format(periodEnd, "yyyy-MM-dd");
-
       const dateFilteredData = (filteredData || []).filter((entry: any) => {
         if (!entry.clock_in_time) return false;
 
@@ -819,17 +872,6 @@ export default function TimeEntriesPage() {
         }
       }
 
-      setHolidays(formattedHolidays);
-      setHalfDayLeaveKeys(halfDayKeys);
-      setApprovedOtByEmployeeDate(approvedOtByDate);
-      setEntries(transformedEntries);
-
-      // Fetch employee info and schedules for rest day determination
-      if (transformedEntries.length > 0) {
-        await fetchEmployeeInfoAndSchedules(transformedEntries);
-      }
-
-        // Log if no entries found to help debug
       if (transformedEntries.length === 0) {
         console.warn("No time entries found for the selected period:", {
           periodStart: periodStart.toISOString(),
@@ -838,48 +880,25 @@ export default function TimeEntriesPage() {
           selectedEmployee,
           assignedGroups: assignedGroupIds,
         });
-
-        // Test query: Check if there are ANY punches in the database (for debugging)
-        const { data: testData, error: testError } = await supabase
-          .from("time_entries")
-          .select("id, punched_at, employee_id, punch_type")
-          .limit(5);
-
-        const testEntries = testData as Array<{
-          id: string;
-          punched_at: string;
-          employee_id: string;
-          punch_type: string;
-        }> | null;
-
-        if (!testError && testEntries && testEntries.length > 0) {
-          console.log(
-            "Found punches in database (sample):",
-            testEntries.map((e) => ({
-              id: e.id,
-              punched_at: e.punched_at,
-              employee_id: e.employee_id,
-              punch_type: e.punch_type,
-            }))
-          );
-          console.log("But none match the filter criteria.");
-        } else if (!testError) {
-          console.log("No punches found in database at all.");
-        } else {
-          console.error("Error testing database:", testError);
-        }
       }
+
+      return {
+        periodStart: periodStartStr,
+        periodEnd: periodEndStr,
+        statusFilter,
+        selectedEmployee,
+        entries: transformedEntries,
+        holidays: formattedHolidays,
+        halfDayLeaveKeys: Array.from(halfDayKeys),
+        approvedOtByEmployeeDate: Array.from(approvedOtByDate.entries()),
+      };
     } catch (error: any) {
       console.error("Unexpected error in fetchTimeEntries:", error);
       toast.error(
         error?.message ||
           "Failed to load time entries. Please refresh the page."
       );
-      setHalfDayLeaveKeys(new Set());
-      setApprovedOtByEmployeeDate(new Map());
-      setEntries([]); // Clear entries on error
-    } finally {
-      setLoading(false);
+      throw error;
     }
   }
 
@@ -930,7 +949,7 @@ export default function TimeEntriesPage() {
     toast.success("Time entry approved", {
       description: "Approval is tracked in attendance records",
     });
-    fetchTimeEntries();
+    await reloadTimeEntries();
     setSelectedEntry(null);
     setHrNotes("");
   }
@@ -944,7 +963,7 @@ export default function TimeEntriesPage() {
     toast.success("Time entry rejected", {
       description: "The entry has been declined",
     });
-    fetchTimeEntries();
+    await reloadTimeEntries();
     setSelectedEntry(null);
     setHrNotes("");
   }
@@ -970,7 +989,7 @@ export default function TimeEntriesPage() {
     toast.success("Time entry deleted", {
       description: "The entry has been permanently removed",
     });
-    fetchTimeEntries();
+    await reloadTimeEntries();
     setSelectedEntry(null);
     setHrNotes("");
   }
@@ -1025,7 +1044,7 @@ export default function TimeEntriesPage() {
       toast.success("Time entry updated successfully", {
         description: "Clock in/out times have been updated",
       });
-      await fetchTimeEntries();
+      await reloadTimeEntries();
       setSelectedEntry(null);
       setIsEditingTime(false);
       setEditedClockIn("");
@@ -1072,7 +1091,7 @@ export default function TimeEntriesPage() {
       toast.success("Time entry created successfully", {
         description: "New time entry has been added",
       });
-      await fetchTimeEntries();
+      await reloadTimeEntries();
       setShowAddEntryDialog(false);
       setNewEntryEmployee("");
       setNewEntryClockIn("");
@@ -1154,7 +1173,7 @@ export default function TimeEntriesPage() {
       }
 
       // Refresh entries and close dialog
-      await fetchTimeEntries();
+      await reloadTimeEntries();
       setShowBulkEntryDialog(false);
       setBulkEntryEmployee("");
       setBulkEntries([{ date: "", timeIn: "", timeOut: "", notes: "" }]);
@@ -2271,7 +2290,9 @@ export default function TimeEntriesPage() {
             open={showManualPunchDialog}
             onOpenChange={setShowManualPunchDialog}
             employees={employees}
-            onSuccess={fetchTimeEntries}
+            onSuccess={() => {
+              void reloadTimeEntries();
+            }}
           />
         )}
 

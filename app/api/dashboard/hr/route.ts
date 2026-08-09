@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
-import { cachedJson } from "@/lib/cache";
+import { CACHE_TTL, cachedJson } from "@/lib/cache";
 import { verifyHrDashboardAccess } from "@/lib/api-helpers";
 import { loadHrDashboardPayload } from "@/lib/fetch-hr-dashboard";
 
@@ -17,10 +17,11 @@ export async function GET() {
 
   const supabase = createServerComponentClient<Database>({ cookies });
 
+  // Keep userId — HR payload is scoped to the viewer's managed groups.
   const { data, cache } = await cachedJson(
     ["dashboard", "hr", auth.userId],
     () => loadHrDashboardPayload(supabase, auth.userId, auth.role),
-    60
+    CACHE_TTL.dashboard
   );
 
   return NextResponse.json(data, { headers: { "X-Cache": cache } });

@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { useProfile } from "@/lib/hooks/useProfile";
+import { bustCache } from "@/lib/cache-client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PayslipPrint } from "@/components/PayslipPrint";
 import type { AllowanceLine } from "@/lib/payslip-allowances";
@@ -121,12 +124,51 @@ const statusStyles: Record<string, string> = {
 
 export default function PayrollPage() {
   const supabase = createClient();
+  const { profile, loading: profileLoading } = useProfile();
   const { isManagement, isHR, isAdmin, canAccessSalaryInfo } = useUserRole();
   const searchParams = useSearchParams();
   const runIdFromQuery = searchParams.get("run_id");
+  const userId = profile?.id ?? null;
+  const payrollRunsCacheKey = userId ? `payroll-runs:${userId}` : null;
 
-  const [payrollRuns, setPayrollRuns] = useState<PayrollRun[]>([]);
-  const [loading, setLoading] = useState(true);
+  const loadPayrollRuns = useCallback(async () => {
+    const { data: runs, error } = await supabase
+      .from("payroll_runs")
+      .select("*")
+      .order("cutoff_start", { ascending: false });
+    if (error) throw error;
+
+    const runsWithCounts = await Promise.all(
+      (runs || [])
+        .filter((run: PayrollRun) => String(run.status) !== "cancelled")
+        .map(async (run: PayrollRun) => {
+          const { data: slips } = await supabase
+            .from("payslips")
+            .select("gross_pay, net_pay")
+            .eq("payroll_run_id", run.id);
+          return {
+            ...run,
+            payslip_count: slips?.length || 0,
+            total_gross: slips?.reduce((s, p) => s + Number(p.gross_pay), 0) || 0,
+            total_net: slips?.reduce((s, p) => s + Number(p.net_pay), 0) || 0,
+          };
+        })
+    );
+
+    return runsWithCounts;
+  }, [supabase]);
+
+  const {
+    data: payrollRunsData,
+    loading: payrollRunsLoading,
+    error: payrollRunsError,
+    refresh: refreshPayrollRuns,
+  } = useSessionLoader(payrollRunsCacheKey, loadPayrollRuns, {
+    enabled: !!payrollRunsCacheKey,
+  });
+  const payrollRuns = payrollRunsData ?? [];
+  const loading = profileLoading || payrollRunsLoading;
+
   const [showNewRunDialog, setShowNewRunDialog] = useState(false);
   const [newRunForm, setNewRunForm] = useState(() =>
     buildPayrollRunFormFromWeekStart(getDefaultPayrollRunWeek().weekStart)
@@ -237,9 +279,14 @@ export default function PayrollPage() {
   }
 
   useEffect(() => {
-    fetchPayrollRuns();
     loadActiveEmployeesForRun();
   }, []);
+
+  useEffect(() => {
+    if (payrollRunsError) {
+      toast.error(payrollRunsError);
+    }
+  }, [payrollRunsError]);
 
   // If navigated back from payslip editing, auto-open the payroll run.
   useEffect(() => {
@@ -393,38 +440,9 @@ export default function PayrollPage() {
     applyPayrollWeekStart(nextStart);
   }
 
-  async function fetchPayrollRuns() {
-    setLoading(true);
-    try {
-      const { data: runs, error } = await supabase
-        .from("payroll_runs")
-        .select("*")
-        .order("cutoff_start", { ascending: false });
-      if (error) throw error;
-
-      const runsWithCounts = await Promise.all(
-        (runs || [])
-          .filter((run: PayrollRun) => String(run.status) !== "cancelled")
-          .map(async (run: PayrollRun) => {
-          const { data: slips } = await supabase
-            .from("payslips")
-            .select("gross_pay, net_pay")
-            .eq("payroll_run_id", run.id);
-          return {
-            ...run,
-            payslip_count: slips?.length || 0,
-            total_gross: slips?.reduce((s, p) => s + Number(p.gross_pay), 0) || 0,
-            total_net: slips?.reduce((s, p) => s + Number(p.net_pay), 0) || 0,
-          };
-        })
-      );
-
-      setPayrollRuns(runsWithCounts);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load payroll runs");
-    } finally {
-      setLoading(false);
-    }
+  async function reloadPayrollRuns() {
+    await bustCache();
+    await refreshPayrollRuns({ force: true });
   }
 
   async function handleCreateRun(e: React.FormEvent) {
@@ -476,7 +494,7 @@ export default function PayrollPage() {
       setNewRunForm({ cutoff_start: "", cutoff_end: "", pay_date: "" });
       setSelectedEmployeeIdsForRun([]);
       setEmployeeScopeQuery("");
-      fetchPayrollRuns();
+      await reloadPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to create payroll run");
     } finally {
@@ -568,7 +586,7 @@ export default function PayrollPage() {
 
       openRunDetail({ ...selectedRun, status: "processing" });
       void loadPayrollValidation({ ...selectedRun, status: "processing" });
-      fetchPayrollRuns();
+      await reloadPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to generate payslips");
     } finally {
@@ -583,7 +601,7 @@ export default function PayrollPage() {
       if (error) throw error;
       toast.success("Payroll run finalized.");
       setSelectedRun({ ...selectedRun, status: "finalized" });
-      fetchPayrollRuns();
+      await reloadPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to finalize");
     }
@@ -596,7 +614,7 @@ export default function PayrollPage() {
       if (error) throw error;
       toast.success("Payroll run cancelled.");
       setSelectedRun({ ...selectedRun, status: "cancelled" });
-      fetchPayrollRuns();
+      await reloadPayrollRuns();
     } catch (error: any) {
       toast.error(error.message || "Failed to cancel");
     }

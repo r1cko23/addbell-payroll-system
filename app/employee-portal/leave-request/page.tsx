@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
 import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
 import { bustCache } from "@/lib/cache-client";
 import { formatSilCreditsAvailable } from "@/lib/employee-sil-display";
 import { MultiDatePicker } from "@/components/MultiDatePicker";
@@ -200,6 +201,39 @@ export default function LeaveRequestPage() {
   });
 
   const requests = leaveData?.requests ?? [];
+  const holidayYear = new Date().getFullYear();
+  const holidaysCacheKey = `leave-holidays:${holidayYear}`;
+
+  const loadHolidayDates = useCallback(async (): Promise<string[]> => {
+    const start = `${holidayYear}-01-01`;
+    const end = `${holidayYear}-12-31`;
+
+    const { data, error } = await supabase
+      .from("holidays")
+      .select("holiday_date")
+      .gte("holiday_date", start)
+      .lte("holiday_date", end);
+
+    if (error) {
+      console.warn("Error loading holidays for leave request:", error);
+      return [];
+    }
+
+    return (data || []).map((h: { holiday_date: string }) =>
+      String(h.holiday_date)
+    );
+  }, [holidayYear, supabase]);
+
+  const { data: holidayDatesList } = useSessionLoader<string[]>(
+    holidaysCacheKey,
+    loadHolidayDates
+  );
+
+  const holidayDates = useMemo(
+    () => new Set<string>(holidayDatesList ?? []),
+    [holidayDatesList]
+  );
+
   const {
     silCredits,
     silAnnualAllotment,
@@ -210,7 +244,6 @@ export default function LeaveRequestPage() {
   });
   const [requestsFetchError, setRequestsFetchError] = useState<string | null>(null);
   const pageLoading = !employee || leaveLoading;
-  const [holidayDates, setHolidayDates] = useState<Set<string>>(new Set());
   const [supportingDoc, setSupportingDoc] = useState<File | null>(null);
   const [docError, setDocError] = useState<string | null>(null);
   const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
@@ -295,9 +328,6 @@ export default function LeaveRequestPage() {
     }
 
     setRequestsFetchError(null);
-    void fetchHolidayDates().catch((err) => {
-      console.error("Error loading initial data:", err);
-    });
   }, [router]);
 
   useEffect(() => {
@@ -367,33 +397,6 @@ export default function LeaveRequestPage() {
     }
     setCalculatedHours(0);
   }, [selectedDates, halfDayDates, holidayDates]);
-
-  async function fetchHolidayDates() {
-    try {
-      const year = new Date().getFullYear();
-      const start = `${year}-01-01`;
-      const end = `${year}-12-31`;
-
-      const { data, error } = await supabase
-        .from("holidays")
-        .select("holiday_date")
-        .gte("holiday_date", start)
-        .lte("holiday_date", end);
-
-      if (error) {
-        console.warn("Error loading holidays for leave request:", error);
-        setHolidayDates(new Set<string>());
-        return;
-      }
-
-      setHolidayDates(
-        new Set<string>((data || []).map((h: any) => String(h.holiday_date)))
-      );
-    } catch (e) {
-      console.warn("Error loading holidays for leave request (exception):", e);
-      setHolidayDates(new Set<string>());
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

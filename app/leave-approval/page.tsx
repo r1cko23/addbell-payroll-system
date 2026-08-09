@@ -5,6 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
+import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
+import { bustCache } from "@/lib/cache-client";
 import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import {
   Card,
@@ -150,6 +152,12 @@ interface LeaveRequest {
   leave_request_documents?: LeaveDocument[];
 }
 
+type LeaveApprovalListResponse = {
+  requests: LeaveRequest[];
+  date_from: string;
+  date_to: string;
+};
+
 function normalizeLeaveTypeLabel(value: string): "SIL" | "LWOP" | "Maternity Leave" | "Paternity Leave" {
   const normalized = value.trim().toLowerCase();
   if (["sil", "sick leave", "service incentive leave"].includes(normalized)) {
@@ -243,7 +251,6 @@ export default function LeaveApprovalPage() {
   const [employees, setEmployees] = useState<
     { id: string; employee_id: string; full_name: string; last_name?: string | null; first_name?: string | null }[]
   >([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedEmployee, setSelectedEmployee] = useState<string>("all");
   const [selectedWeek, setSelectedWeek] = useState(new Date());
@@ -356,6 +363,36 @@ export default function LeaveApprovalPage() {
 
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 }); // Sunday
+  const weekStartStr = format(weekStart, "yyyy-MM-dd");
+  const weekEndStr = format(weekEnd, "yyyy-MM-dd");
+
+  const leaveServerStatus = shouldApplyServerStatusFilter(statusFilter, {
+    isHR,
+    isFirstApproverDashboardView,
+    queueKind: "leave",
+  })
+    ? statusFilter
+    : "all";
+
+  const leaveListKey =
+    currentUserId && normalizedRole && canManageLeave
+      ? `leave-approval:${currentUserId}:${weekStartStr}:${weekEndStr}:${leaveServerStatus}:${selectedEmployee}`
+      : null;
+  const leaveListUrl = leaveListKey
+    ? `/api/leave-approval?date_from=${weekStartStr}&date_to=${weekEndStr}&status=${encodeURIComponent(
+        leaveServerStatus
+      )}&employee_id=${encodeURIComponent(selectedEmployee)}`
+    : null;
+
+  const {
+    data: leaveListData,
+    loading: leaveQueryLoading,
+    refresh: refreshLeaveList,
+  } = useSessionQuery<LeaveApprovalListResponse>(leaveListKey, leaveListUrl, {
+    enabled: Boolean(leaveListKey),
+  });
+
+  const loading = leaveQueryLoading && !leaveListData;
 
   const base64ToBlob = (base64: string, type: string) => {
     const byteCharacters = atob(base64);
@@ -505,114 +542,20 @@ export default function LeaveApprovalPage() {
     }
   }
 
-  async function fetchRequests() {
-    if (!normalizedRole) {
+  useEffect(() => {
+    if (!normalizedRole || !canManageLeave) return;
+    if (!leaveListData) {
+      if (!leaveQueryLoading) {
+        setRequests([]);
+      }
       return;
     }
 
-    setLoading(true);
+    const rawRequests = (leaveListData.requests || []) as any[];
 
-    // Ensure weekEnd includes the full day
-    const weekEndInclusive = new Date(weekEnd);
-    weekEndInclusive.setHours(23, 59, 59, 999);
-
-    const weekStartStr = format(weekStart, "yyyy-MM-dd");
-    const weekEndStr = format(weekEndInclusive, "yyyy-MM-dd");
-
-    let query = supabase
-      .from("leave_requests")
-      .select("*")
-      // Leave overlaps selected week when start_date <= weekEnd AND end_date >= weekStart
-      .lte("start_date", weekEndStr)
-      .gte("end_date", weekStartStr)
-      .order("created_at", { ascending: false });
-
-    // HR can see all requests (pending, approved_by_manager, approved_by_hr, rejected)
-    // Admin can see all requests (no filtering)
-    if (
-      shouldApplyServerStatusFilter(statusFilter, {
-        isHR,
-        isFirstApproverDashboardView,
-        queueKind: "leave",
-      })
-    ) {
-      if (statusFilter === "approved_by_pm") {
-        query = query.in("status", ["approved_by_pm", "approved_by_manager"]);
-      } else {
-        query = query.eq("status", statusFilter);
-      }
-    }
-    // Admin and HR see all requests regardless of status (no filtering)
-
-    if (selectedEmployee !== "all") {
-      query = query.eq("employee_id", selectedEmployee);
-    }
-
-    const { data, error } = await query;
-
-    setLoading(false);
-
-    if (error) {
-      console.error("Error fetching leave requests:", error);
-      toast.error("Failed to load requests");
-      return;
-    }
-
-    if (!data) {
-      setRequests([]);
-      return;
-    }
-
-    const rawRequests = (data || []) as any[];
-    const employeeIds = Array.from(
-      new Set(
-        rawRequests
-          .map((r) => r.employee_id)
-          .filter((id): id is string => typeof id === "string" && id.length > 0)
-      )
-    );
-    let employeeById: Record<
-      string,
-      {
-        employee_id?: string;
-        full_name?: string;
-        profile_picture_url?: string | null;
-        sil_credits?: number | null;
-      }
-    > = {};
-    if (employeeIds.length > 0) {
-      const { data: employeeRows, error: employeeRowsError } = await supabase
-        .from("employees")
-        .select("id, employee_id, full_name, profile_picture_url, sil_credits")
-        .in("id", employeeIds);
-      if (!employeeRowsError && employeeRows) {
-        employeeById = (employeeRows as any[]).reduce((acc, row) => {
-          acc[row.id] = {
-            employee_id: row.employee_id,
-            full_name: row.full_name,
-            profile_picture_url: row.profile_picture_url ?? null,
-            sil_credits: row.sil_credits ?? null,
-          };
-          return acc;
-        }, {} as Record<string, { employee_id?: string; full_name?: string; profile_picture_url?: string | null; sil_credits?: number | null }>);
-      }
-    }
-
-    const dataWithEmployees = rawRequests.map((r) => ({
-      ...r,
-      employees:
-        employeeById[r.employee_id] ||
-        {
-          employee_id: null,
-          full_name: "Unknown Employee",
-          profile_picture_url: null,
-          sil_credits: 0,
-        },
-    }));
-
-    let filteredData = dataWithEmployees;
+    let filteredData = rawRequests;
     if (!isManagement) {
-      filteredData = dataWithEmployees.filter((request: any) => {
+      filteredData = rawRequests.filter((request: any) => {
         const groupName =
           employeeGroupNameByEmployeeId[request.employee_id] || null;
         if (isOvertimeGroupQueueApproverRole(normalizedRole)) {
@@ -636,7 +579,7 @@ export default function LeaveApprovalPage() {
         return false;
       });
     } else {
-      filteredData = dataWithEmployees.filter((request: any) =>
+      filteredData = rawRequests.filter((request: any) =>
         passesDedicatedApproverRequestFilter(
           currentUserId,
           isAdmin,
@@ -645,45 +588,13 @@ export default function LeaveApprovalPage() {
       );
     }
 
-    const requestsData = filteredData as any[];
-
-    // Load supporting documents separately to avoid relying on DB FK metadata
-    // for nested selects (which may be missing in schema cache).
-    let docsByRequestId: Record<string, LeaveDocument[]> = {};
-    if (requestsData.length > 0) {
-      const requestIds = requestsData.map((r) => r.id);
-      const { data: docs, error: docsError } = await supabase
-        .from("leave_request_documents")
-        .select("id, leave_request_id, file_name, file_type, file_size")
-        .in("leave_request_id", requestIds);
-
-      if (!docsError && docs) {
-        docsByRequestId = (docs as LeaveDocument[]).reduce(
-          (acc, doc) => {
-            if (!acc[doc.leave_request_id]) acc[doc.leave_request_id] = [];
-            acc[doc.leave_request_id].push(doc);
-            return acc;
-          },
-          {} as Record<string, LeaveDocument[]>
-        );
-      } else if (
-        docsError &&
-        !isSchemaMissingTableOrRelationError(docsError)
-      ) {
-        console.error("Error fetching leave request documents:", docsError);
-      }
-    }
-
-    const cleaned = (requestsData || []).filter(
-      (r) => r.status !== "cancelled"
-    );
-    const withDocs = cleaned.map((r: any) => ({
+    const cleaned = filteredData.filter((r: any) => r.status !== "cancelled");
+    const normalized = cleaned.map((r: any) => ({
       ...r,
       leave_type: normalizeLeaveTypeLabel(r.leave_type || ""),
-      leave_request_documents: docsByRequestId[r.id] || [],
     }));
     const statusFiltered = filterLeaveRequestsByStatus(
-      withDocs as LeaveRequest[],
+      normalized as LeaveRequest[],
       statusFilter,
       isFirstApproverDashboardView,
       getViewerStatus
@@ -706,7 +617,19 @@ export default function LeaveApprovalPage() {
     if (allApproverIds.length > 0) {
       void loadApproverNames(allApproverIds);
     }
-  }
+  }, [
+    leaveListData,
+    leaveQueryLoading,
+    normalizedRole,
+    canManageLeave,
+    isManagement,
+    isAdmin,
+    currentUserId,
+    statusFilter,
+    isFirstApproverDashboardView,
+    employeeGroupNameByEmployeeId,
+    groupApproverIdByGroupName,
+  ]);
 
   async function loadApproverNames(ids: string[]) {
     const next = await fetchApproverNameMap(ids);
@@ -875,7 +798,8 @@ export default function LeaveApprovalPage() {
         }`,
       }
     );
-    fetchRequests();
+    await bustCache();
+    await refreshLeaveList({ force: true });
     closeRequestModal();
   }
 
@@ -918,7 +842,8 @@ export default function LeaveApprovalPage() {
     toast.success("Leave request rejected", {
       description: `${employeeName}'s ${normalizeLeaveTypeLabel(request?.leave_type || "LWOP")} request has been declined`,
     });
-    fetchRequests();
+    await bustCache();
+    await refreshLeaveList({ force: true });
     closeRequestModal();
   }
 
@@ -930,22 +855,6 @@ export default function LeaveApprovalPage() {
     }
     if (isOvertimeGroupQueueApprover || isHR) setStatusFilter("pending");
   }, [searchParams, isOvertimeGroupQueueApprover, isHR]);
-
-  // This useEffect must be called before any conditional returns (React hooks rule)
-  useEffect(() => {
-    if (!normalizedRole || !canManageLeave) return;
-    fetchRequests();
-  }, [
-    statusFilter,
-    normalizedRole,
-    selectedWeek,
-    selectedEmployee,
-    canManageLeave,
-    isAdmin,
-    isHR,
-    currentUserId,
-    employeeGroupNameByEmployeeId,
-  ]);
 
   useEffect(() => {
     if (loading) return;

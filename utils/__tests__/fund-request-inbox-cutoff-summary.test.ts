@@ -490,6 +490,12 @@ describe("getFundRequestRoleCutoffMetricLabels", () => {
       rejected: "Rejected (Upper Management)",
       pending: "Pending (Upper Management)",
     });
+    expect(getFundRequestRoleCutoffMetricLabels("admin")).toEqual({
+      total: "Total",
+      approved: "Approved (Final)",
+      rejected: "Rejected (Final)",
+      pending: "Pending (All Stages)",
+    });
   });
 });
 

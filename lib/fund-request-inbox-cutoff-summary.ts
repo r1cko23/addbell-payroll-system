@@ -175,9 +175,9 @@ export function getFundRequestRoleCutoffMetricLabels(
   if (!stageSuffix) {
     return {
       total: "Total",
-      approved: "Approved",
-      rejected: "Rejected",
-      pending: "Pending",
+      approved: "Approved (Final)",
+      rejected: "Rejected (Final)",
+      pending: "Pending (All Stages)",
     };
   }
 
@@ -290,7 +290,7 @@ export function summarizeFundRequestsForRoleCutoff(
   const summary = emptySummary();
 
   for (const row of requests) {
-    if (!fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")) continue;
+    if (!fundRequestBelongsToApproverCutoff(row, cutoff, role)) continue;
     if (!isInRoleCutoffScope(row, role, ctx)) continue;
 
     const bucket = getFundRequestRoleCutoffBucket(row, role, ctx);

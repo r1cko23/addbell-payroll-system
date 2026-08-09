@@ -109,7 +109,8 @@ export function FundRequestAllRequests({
           history && cutoffs.length > 0
             ? loaded.filter((row) =>
                 cutoffs.some((cutoff) =>
-                  fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
+                  // Filing-week only — All Requests must not double-count UM carryover.
+                  fundRequestBelongsToApproverCutoff(row, cutoff, "admin")
                 )
               )
             : loaded;
@@ -137,7 +138,7 @@ export function FundRequestAllRequests({
   const cutoffRows = useMemo(() => {
     if (!selectedCutoff) return rows;
     return rows.filter((row) =>
-      fundRequestBelongsToApproverCutoff(row, selectedCutoff, "upper_management")
+      fundRequestBelongsToApproverCutoff(row, selectedCutoff, "admin")
     );
   }, [rows, selectedCutoff]);
 

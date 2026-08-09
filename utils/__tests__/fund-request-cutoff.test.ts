@@ -120,7 +120,7 @@ describe("fundRequestBelongsToApproverCutoff", () => {
     ).toBe(false);
   });
 
-  it("keeps UM-stage requests on the filing cutoff and the active cutoff", () => {
+  it("keeps UM-stage requests on the filing cutoff only (no active-week carryover)", () => {
     const request = baseRequest({
       status: "purchasing_officer_approved",
       management_approved_by: null,
@@ -131,9 +131,15 @@ describe("fundRequestBelongsToApproverCutoff", () => {
     const now = new Date(2026, 6, 8); // Jul 8 → active Jul 3 cutoff
     expect(
       fundRequestBelongsToApproverCutoff(request, jul3Cutoff, "upper_management", now)
-    ).toBe(true);
+    ).toBe(false);
     expect(
       fundRequestBelongsToApproverCutoff(request, jun26Cutoff, "upper_management", now)
+    ).toBe(true);
+    expect(
+      fundRequestBelongsToApproverCutoff(request, jul3Cutoff, "admin", now)
+    ).toBe(false);
+    expect(
+      fundRequestBelongsToApproverCutoff(request, jun26Cutoff, "admin", now)
     ).toBe(true);
   });
 });
@@ -151,6 +157,7 @@ describe("cutoff expiry for OM/PO", () => {
     expect(isFundRequestPastCutoffForOmPoExpiry(pending, now)).toBe(true);
     expect(buildFundRequestCutoffExpiryUpdates(pending)).toMatchObject({
       status: "rejected",
+      rejected_by: null,
     });
   });
 

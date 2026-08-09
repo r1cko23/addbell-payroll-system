@@ -344,6 +344,14 @@ export function isFundRequestCutoffExpirySystemActor(
   return userId === FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID;
 }
 
+/** True when a rejection was produced by weekly cutoff auto-cancel. */
+export function isFundRequestCutoffExpiryRejection(
+  request: Pick<FundRequestRow, "rejected_by" | "rejection_reason">
+): boolean {
+  if (isFundRequestCutoffExpirySystemActor(request.rejected_by)) return true;
+  return request.rejection_reason === FUND_REQUEST_CUTOFF_EXPIRY_REASON;
+}
+
 export function isPoFundRequestRejection(request: FundRequestRow): boolean {
   if (request.status !== "rejected" || !request.rejected_at) return false;
   if (request.purchasing_officer_approved_at) return false;
@@ -509,20 +517,17 @@ export function cutoffKeyForFundRequestDecision(
   return cutoffKeyForFundRequestFiledDate(request, cutoffs);
 }
 
+/**
+ * Whether a request belongs to a cutoff for inbox / All Requests bucketing.
+ * Always uses the filing cutoff only — requests stay in the week they were filed.
+ */
 export function fundRequestBelongsToApproverCutoff(
   request: FundRequestRow,
   cutoff: WeeklyCutoffPeriod,
-  _role: FundRequestApproverHistoryRole,
-  now: Date = new Date()
+  _role?: FundRequestApproverHistoryRole | string | null,
+  _now?: Date
 ): boolean {
-  const filingStart = getFundRequestFilingCutoffStartYmd(request);
-  if (request.status === "purchasing_officer_approved") {
-    // Stay on the filing week for audit/metrics, and also on the active week
-    // so Upper Management can keep acting after the cutoff rolls.
-    const activeStart = getActiveFundRequestCutoffStartYmd(now);
-    return cutoff.start_ymd === filingStart || cutoff.start_ymd === activeStart;
-  }
-  return filingStart === cutoff.start_ymd;
+  return getFundRequestFilingCutoffStartYmd(request) === cutoff.start_ymd;
 }
 
 /** @deprecated Use fundRequestBelongsToApproverCutoff */

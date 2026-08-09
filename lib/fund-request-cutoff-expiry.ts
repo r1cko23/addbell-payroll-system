@@ -12,17 +12,24 @@ export {
   FUND_REQUEST_CUTOFF_EXPIRY_REASON,
   FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID,
   isFundRequestCutoffExpirySystemActor,
+  isFundRequestCutoffExpiryRejection,
 } from "@/lib/fund-request-cutoff";
 
 export function buildFundRequestCutoffExpiryUpdates(
   request: FundRequestRow
 ): Record<string, unknown> | null {
   if (!isFundRequestPastCutoffForOmPoExpiry(request)) return null;
-  return buildFundRequestRejectUpdates(
+  const updates = buildFundRequestRejectUpdates(
     FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID,
     FUND_REQUEST_CUTOFF_EXPIRY_REASON,
     request
   );
+  // `rejected_by` FK → profiles. System actor is not a real profile, so store null
+  // on the row and keep the system id only inside rejection_history JSON.
+  return {
+    ...updates,
+    rejected_by: null,
+  };
 }
 
 /**

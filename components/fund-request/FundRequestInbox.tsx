@@ -324,7 +324,11 @@ export function FundRequestInbox({
     if (!selectedCutoff) return [];
     return allRows.filter(
       (row) =>
-        fundRequestBelongsToApproverCutoff(row, selectedCutoff, "upper_management") &&
+        fundRequestBelongsToApproverCutoff(
+          row,
+          selectedCutoff,
+          profile?.role
+        ) &&
         matchesFundRequestRoleCutoffFilter(row, "all", profile?.role, summaryContext)
     );
   }, [allRows, selectedCutoff, profile?.role, summaryContext]);
@@ -454,7 +458,7 @@ export function FundRequestInbox({
         (row) =>
           !history?.cutoffs.length ||
           history.cutoffs.some((cutoff) =>
-            fundRequestBelongsToApproverCutoff(row, cutoff, "upper_management")
+            fundRequestBelongsToApproverCutoff(row, cutoff, profile?.role)
           )
       );
 

@@ -6,6 +6,7 @@ import {
   type FundRequestClientGroup,
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
+import { formatPhpCheckAmountInWords } from "@/utils/php-check-amount-words";
 
 export const FUND_REQUEST_EXPORT_CAPTURE_WIDTH_PX = 600;
 
@@ -126,18 +127,31 @@ export const FundRequestApprovedExportPayeeSheet = forwardRef<
               {group.requests.length === 1 ? "" : "s"}
             </p>
           </div>
-          <p
-            style={{
-              margin: 0,
-              flexShrink: 0,
-              fontSize: "18px",
-              fontWeight: 700,
-              color: "#022c22",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {formatPhp(group.subtotalNet)}
-          </p>
+          <div style={{ flexShrink: 0, textAlign: "right" }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "#022c22",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatPhp(group.subtotalNet)}
+            </p>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "14px",
+                fontWeight: 700,
+                lineHeight: 1.35,
+                color: "#022c22",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {formatPhpCheckAmountInWords(group.subtotalNet)}
+            </p>
+          </div>
         </div>
 
         {group.requests.map((request, index) => {

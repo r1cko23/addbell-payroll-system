@@ -841,6 +841,11 @@ export function FundRequestApprovalDetail({
                 canUpload={canUploadPaymentCheck}
                 canDelete={canUploadPaymentCheck}
                 linkedRequestIds={linkedPaymentCheckRequestIds}
+                checkAmount={
+                  linkedPaymentCheckRequestIds.length > 1
+                    ? undefined
+                    : Number(request.total_requested_amount) || 0
+                }
                 onDocumentsChange={setDocuments}
               />
             ) : null}

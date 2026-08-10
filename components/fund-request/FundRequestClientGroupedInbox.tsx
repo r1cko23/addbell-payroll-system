@@ -26,6 +26,7 @@ import {
 import { FundRequestPaymentCheckSection } from "@/components/fund-request/FundRequestPaymentCheckSection";
 import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
 import type { FundRequestCutoffAdjustmentEntry } from "@/types/fund-request";
+import { formatPhpCheckAmountInWords } from "@/utils/php-check-amount-words";
 
 type PendingFundRequestDisposal = {
   id: string;
@@ -65,6 +66,25 @@ type FundRequestClientGroupedInboxProps = {
 
 function formatPhp(amount: number): string {
   return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+}
+
+function PayeeCheckAmountWords({
+  amount,
+  align = "left",
+}: {
+  amount: number;
+  align?: "left" | "right";
+}) {
+  return (
+    <p
+      className={cn(
+        "whitespace-nowrap text-sm font-bold leading-snug text-emerald-950",
+        align === "right" ? "text-right" : "text-left"
+      )}
+    >
+      {formatPhpCheckAmountInWords(amount)}
+    </p>
+  );
 }
 
 type GroupedInboxRequestActionsProps = {
@@ -285,6 +305,7 @@ function GroupedInboxPaymentCheck({
       canUpload={canUpload}
       canDelete={canDelete}
       linkedRequestIds={requestIds}
+      checkAmount={group.subtotalNet}
       compact
       onDocumentsChange={(documents) => {
         onPaymentCheckDocumentsChangeForGroup?.(requestIds, documents);
@@ -351,7 +372,7 @@ export function FundRequestClientGroupedInbox({
                   <tr className="border-y-2 border-emerald-700/70 bg-emerald-50/90">
                     <td
                       colSpan={3}
-                      className="border-l-4 border-emerald-700 px-4 py-3 text-sm font-bold uppercase tracking-wide text-emerald-950"
+                      className="border-l-4 border-emerald-700 px-4 py-3 text-sm font-bold uppercase tracking-wide text-emerald-950 align-top"
                     >
                       {group.clientName}
                       <span className="ml-2 text-xs font-semibold normal-case text-emerald-800/70">
@@ -359,8 +380,16 @@ export function FundRequestClientGroupedInbox({
                         {group.requests.length === 1 ? "" : "s"})
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-sm font-bold text-emerald-950">
-                      {formatPhp(group.subtotalNet)}
+                    <td className="px-4 py-3 text-right align-top">
+                      <div className="ml-auto flex w-max max-w-none flex-col items-end gap-1">
+                        <p className="text-sm font-bold text-emerald-950">
+                          {formatPhp(group.subtotalNet)}
+                        </p>
+                        <PayeeCheckAmountWords
+                          amount={group.subtotalNet}
+                          align="right"
+                        />
+                      </div>
                     </td>
                   </tr>
 
@@ -500,14 +529,22 @@ export function FundRequestClientGroupedInbox({
                 <p className="text-sm font-bold uppercase tracking-wide text-emerald-950">
                   {group.clientName}
                 </p>
-                <div className="mt-2 flex items-center justify-between gap-3">
+                <div className="mt-2 flex items-start justify-between gap-3">
                   <BodySmall className="text-emerald-800/80">
                     {group.requests.length} payable
                     {group.requests.length === 1 ? "" : "s"}
                   </BodySmall>
-                  <p className="text-sm font-bold text-emerald-950">
-                    {formatPhp(group.subtotalNet)}
-                  </p>
+                  <div className="min-w-0 max-w-[70%] overflow-x-auto text-right">
+                    <div className="ml-auto flex w-max max-w-none flex-col items-end gap-1">
+                      <p className="text-sm font-bold text-emerald-950">
+                        {formatPhp(group.subtotalNet)}
+                      </p>
+                      <PayeeCheckAmountWords
+                        amount={group.subtotalNet}
+                        align="right"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 

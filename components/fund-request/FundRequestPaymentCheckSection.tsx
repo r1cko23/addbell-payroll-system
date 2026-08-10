@@ -17,6 +17,7 @@ import {
 import { FundRequestSupportingDocuments } from "@/components/fund-request/FundRequestSupportingDocuments";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
 import { cn } from "@/lib/utils";
+import { formatPhpCheckAmountInWords } from "@/utils/php-check-amount-words";
 
 type FundRequestPaymentCheckSectionProps = {
   requestId: string;
@@ -24,6 +25,8 @@ type FundRequestPaymentCheckSectionProps = {
   canUpload: boolean;
   canDelete?: boolean;
   linkedRequestIds?: string[];
+  /** Payee subtotal — shown in Philippine check amount-in-words. */
+  checkAmount?: number;
   onDocumentsChange: (documents: FundRequestDocumentSummary[]) => void;
   className?: string;
   compact?: boolean;
@@ -35,6 +38,7 @@ export function FundRequestPaymentCheckSection({
   canUpload,
   canDelete = false,
   linkedRequestIds = [],
+  checkAmount,
   onDocumentsChange,
   className,
   compact = false,
@@ -148,6 +152,19 @@ export function FundRequestPaymentCheckSection({
           <p className="mt-1 text-xs text-muted-foreground">
             One check covers all {linkedRequestIds.length} requests for this payee.
           </p>
+        ) : null}
+        {typeof checkAmount === "number" && Number.isFinite(checkAmount) ? (
+          <div className="mt-2 space-y-1 rounded-md border border-primary/15 bg-background/60 px-3 py-2">
+            <p className="text-sm font-bold text-foreground">
+              ₱
+              {checkAmount.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+              })}
+            </p>
+            <p className="whitespace-nowrap overflow-x-auto text-sm font-bold leading-snug text-foreground">
+              {formatPhpCheckAmountInWords(checkAmount)}
+            </p>
+          </div>
         ) : null}
       </div>
 

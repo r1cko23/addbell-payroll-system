@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import { bustCache } from "@/lib/cache-client";
+import { FREE_TIER_POLL_EPOCH_MS } from "@/lib/cache-epoch-client";
 import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import {
   Card,
@@ -303,6 +304,7 @@ export default function FailureToLogApprovalPage() {
     refresh: refreshFtlList,
   } = useSessionQuery<FtlApprovalListResponse>(ftlListKey, ftlListUrl, {
     enabled: Boolean(ftlListKey),
+    pollEpochMs: FREE_TIER_POLL_EPOCH_MS,
   });
 
   const loading = ftlQueryLoading && !ftlListData;

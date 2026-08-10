@@ -2,15 +2,20 @@ import { getRedis } from "@/lib/redis";
 
 /**
  * Upstash free tier (as of 2025+): 500K commands / month, 256 MB, 10 GB bandwidth.
+ * Vercel Hobby: 1M function invocations / month.
+ * Supabase free: unlimited API requests; watch 5 GB egress + 500 MB DB.
  *
  * Budget for ~50–100 users (session-cache-first):
- * - Browser sessionStorage absorbs most back/forth (0 Redis).
+ * - Browser sessionStorage absorbs most back/forth (0 Redis / 0 Vercel).
  * - Redis is a short shared CDN for cold/stale API hits only.
  * - Shared keys (no per-userId) for admin list payloads that are identical after auth.
  * - Coalesced epoch bumps so bursts of approve/reject don't multiply INCR traffic.
+ * - Mid-session epoch probes are throttled client-side (≥30s) and polls ≥3 min
+ *   on hot queues only (see lib/cache-epoch-client.ts).
  *
  * Rough ceiling if every active user hits 30 cold API reads/day × ~2 cmds:
  * 100 users × 22 workdays × 30 × 2 ≈ 132K cmds/month — well under 500K.
+ * Plus ~35K epoch polls (10 open queues × 3min × 8h × 22d) still ≪ 500K / 1M.
  */
 const EPOCH_KEY = "addbell:cache:epoch";
 const INVALIDATE_LOCK_KEY = "addbell:cache:invalidate-lock";
@@ -45,6 +50,11 @@ async function currentEpoch(): Promise<number> {
   const epoch = Number.isFinite(n) ? n : 0;
   epochMemo = { value: epoch, at: Date.now() };
   return epoch;
+}
+
+/** Public read of the shared cache epoch (for client freshness checks). */
+export async function getCacheEpoch(): Promise<number> {
+  return currentEpoch();
 }
 
 export async function cacheKey(parts: Array<string | number>): Promise<string> {

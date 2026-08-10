@@ -1,4 +1,5 @@
 import { invalidateSessionCache } from "@/lib/session-cache";
+import { broadcastCacheBust } from "@/lib/cache-epoch-client";
 
 let invalidateInFlight: Promise<void> | null = null;
 let lastInvalidateStartedAt = 0;
@@ -7,9 +8,11 @@ const CLIENT_INVALIDATE_COALESCE_MS = 3_000;
 /**
  * Clear browser session cache and bump Upstash epoch (best-effort).
  * Coalesces rapid POST /api/cache/invalidate calls (approve bursts, multi-refresh).
+ * Also notifies other open tabs via BroadcastChannel.
  */
 export async function bustCache(): Promise<void> {
   invalidateSessionCache();
+  broadcastCacheBust();
 
   const now = Date.now();
   if (

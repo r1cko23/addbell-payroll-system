@@ -7,12 +7,27 @@ import {
   sessionCacheGet,
   sessionCacheSet,
 } from "@/lib/session-cache";
+import {
+  FREE_TIER_FOCUS_THROTTLE_MS,
+  subscribeCacheInvalidation,
+  syncCacheEpoch,
+} from "@/lib/cache-epoch-client";
 
 type Options = {
   enabled?: boolean;
   staleTime?: number;
   ttl?: number;
+  /** Refetch when tab becomes visible / window focused. Default true. */
+  refetchOnWindowFocus?: boolean;
+  /** Min ms between focus-triggered epoch checks. Default 15s. */
+  focusThrottleMs?: number;
+  /** Refetch when browser comes online. Default true. */
+  refetchOnReconnect?: boolean;
+  /** Poll shared cache epoch while enabled. Default false. */
+  pollEpochMs?: number | false;
 };
+
+const DEFAULT_FOCUS_THROTTLE_MS = FREE_TIER_FOCUS_THROTTLE_MS;
 
 /**
  * Hydration-safe session cache for client-side loaders (Supabase, etc.).
@@ -27,6 +42,10 @@ export function useSessionLoader<T>(
     enabled = true,
     staleTime = SESSION_STALE_MS,
     ttl = SESSION_TTL_MS,
+    refetchOnWindowFocus = true,
+    focusThrottleMs = DEFAULT_FOCUS_THROTTLE_MS,
+    refetchOnReconnect = true,
+    pollEpochMs = false,
   } = options;
 
   const enabledRef = useRef(enabled);
@@ -45,6 +64,7 @@ export function useSessionLoader<T>(
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gen = useRef(0);
+  const lastFocusForceAt = useRef(0);
 
   const refresh = useCallback(async (opts?: { force?: boolean }) => {
     const k = keyRef.current;
@@ -96,6 +116,56 @@ export function useSessionLoader<T>(
 
     void refresh();
   }, [enabled, key, ttl, refresh]);
+
+  useEffect(() => {
+    if (!enabled || !key) return;
+
+    const unsub = subscribeCacheInvalidation(() => {
+      void refresh({ force: true });
+    }, pollEpochMs);
+
+    const onFocusOrVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      if (!refetchOnWindowFocus) return;
+
+      const now = Date.now();
+      if (now - lastFocusForceAt.current < focusThrottleMs) return;
+      lastFocusForceAt.current = now;
+
+      void (async () => {
+        const result = await syncCacheEpoch();
+        if (result === "changed") return;
+        // Soft only — respects staleTime; no Upstash spam on alt-tab.
+        await refresh();
+      })();
+    };
+
+    const onOnline = () => {
+      if (!refetchOnReconnect) return;
+      void refresh();
+    };
+
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+    window.addEventListener("focus", onFocusOrVisible);
+    window.addEventListener("online", onOnline);
+
+    return () => {
+      unsub();
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+      window.removeEventListener("focus", onFocusOrVisible);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [
+    enabled,
+    key,
+    refresh,
+    refetchOnWindowFocus,
+    focusThrottleMs,
+    refetchOnReconnect,
+    pollEpochMs,
+  ]);
 
   return { data, loading, validating, error, refresh, setData };
 }

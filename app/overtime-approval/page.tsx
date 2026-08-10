@@ -24,6 +24,7 @@ import {
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import { bustCache } from "@/lib/cache-client";
+import { FREE_TIER_POLL_EPOCH_MS } from "@/lib/cache-epoch-client";
 import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { creditOvertimeHours } from "@/utils/overtime";
@@ -440,6 +441,7 @@ export default function OvertimeApprovalPage() {
     refresh: refreshOtList,
   } = useSessionQuery<OtApprovalListResponse>(otListKey, otListUrl, {
     enabled: Boolean(otListKey),
+    pollEpochMs: FREE_TIER_POLL_EPOCH_MS,
   });
 
   const loading = otQueryLoading && !otListData;

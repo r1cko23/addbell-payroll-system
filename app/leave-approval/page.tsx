@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useUserRole } from "@/lib/hooks/useUserRole";
 import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import { bustCache } from "@/lib/cache-client";
+import { FREE_TIER_POLL_EPOCH_MS } from "@/lib/cache-epoch-client";
 import { isOvertimeGroupQueueApproverRole } from "@/lib/user-roles";
 import {
   Card,
@@ -390,6 +391,7 @@ export default function LeaveApprovalPage() {
     refresh: refreshLeaveList,
   } = useSessionQuery<LeaveApprovalListResponse>(leaveListKey, leaveListUrl, {
     enabled: Boolean(leaveListKey),
+    pollEpochMs: FREE_TIER_POLL_EPOCH_MS,
   });
 
   const loading = leaveQueryLoading && !leaveListData;

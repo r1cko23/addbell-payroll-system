@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import { bustCache } from "@/lib/cache-client";
+import { FREE_TIER_POLL_EPOCH_MS } from "@/lib/cache-epoch-client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -321,7 +322,7 @@ export function FundRequestInbox({
   } = useSessionQuery<FundRequestListResponse>(
     listCache?.key ?? null,
     listCache?.url ?? null,
-    { enabled: !!listCache }
+    { enabled: !!listCache, pollEpochMs: FREE_TIER_POLL_EPOCH_MS }
   );
 
   const loading = listLoading && !listData;

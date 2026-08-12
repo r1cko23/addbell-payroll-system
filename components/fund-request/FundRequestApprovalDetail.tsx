@@ -89,6 +89,7 @@ import {
   getFundRequestPaymentCheckPeerIds,
   type FundRequestPaymentCheckPeerRow,
 } from "@/lib/fund-request-payment-check";
+import { getFundRequestPayeeAccountName } from "@/lib/fund-request-inbox-grouping";
 import { FundRequestApprovalHistory } from "@/components/fund-request/FundRequestApprovalHistory";
 import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
@@ -169,6 +170,9 @@ export function FundRequestApprovalDetail({
   const [linkedPaymentCheckRequestIds, setLinkedPaymentCheckRequestIds] = useState<
     string[]
   >([]);
+  const [linkedPaymentCheckAmount, setLinkedPaymentCheckAmount] = useState<
+    number | undefined
+  >(undefined);
 
   useEffect(() => {
     if (!profile?.id || normalizeUserRole(profile.role) !== "operations_manager") {
@@ -284,13 +288,25 @@ export function FundRequestApprovalDetail({
 
       const { data: paymentCheckPeers } = await supabase
         .from("fund_requests")
-        .select("id, supplier_bank_details, status, created_at, request_date")
+        .select(
+          "id, supplier_bank_details, status, created_at, request_date, total_requested_amount"
+        )
         .in("status", ["purchasing_officer_approved", "management_approved"]);
-      const paymentCheckGroupIds = getFundRequestPaymentCheckPeerIds(
-        row,
-        (paymentCheckPeers ?? []) as FundRequestPaymentCheckPeerRow[]
-      );
+      const peerRows = (paymentCheckPeers ?? []) as Array<
+        FundRequestPaymentCheckPeerRow & { total_requested_amount?: number | null }
+      >;
+      const paymentCheckGroupIds = getFundRequestPaymentCheckPeerIds(row, peerRows);
       setLinkedPaymentCheckRequestIds(paymentCheckGroupIds);
+      const linkedTotal = paymentCheckGroupIds.reduce((sum, peerId) => {
+        if (peerId === row.id) {
+          return sum + (Number(row.total_requested_amount) || 0);
+        }
+        const peer = peerRows.find((candidate) => candidate.id === peerId);
+        return sum + (Number(peer?.total_requested_amount) || 0);
+      }, 0);
+      setLinkedPaymentCheckAmount(
+        Math.round((linkedTotal + Number.EPSILON) * 100) / 100
+      );
 
       const { data: extendedDocs, error: extendedDocsError } = await supabase
         .from("fund_request_documents")
@@ -842,10 +858,11 @@ export function FundRequestApprovalDetail({
                 canDelete={canUploadPaymentCheck}
                 linkedRequestIds={linkedPaymentCheckRequestIds}
                 checkAmount={
-                  linkedPaymentCheckRequestIds.length > 1
-                    ? undefined
+                  linkedPaymentCheckAmount != null
+                    ? linkedPaymentCheckAmount
                     : Number(request.total_requested_amount) || 0
                 }
+                checkPayeeName={getFundRequestPayeeAccountName(request) ?? ""}
                 onDocumentsChange={setDocuments}
               />
             ) : null}

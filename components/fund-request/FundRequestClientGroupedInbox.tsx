@@ -306,6 +306,12 @@ function GroupedInboxPaymentCheck({
       canDelete={canDelete}
       linkedRequestIds={requestIds}
       checkAmount={group.subtotalNet}
+      checkPayeeName={
+        group.clientName === "Uncategorized" ||
+        group.clientName === "Office-Related Requests"
+          ? ""
+          : group.clientName
+      }
       compact
       onDocumentsChange={(documents) => {
         onPaymentCheckDocumentsChangeForGroup?.(requestIds, documents);

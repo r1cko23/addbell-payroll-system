@@ -60,7 +60,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       return NextResponse.json(
         {
           error:
-            "This request is not in the succeeding cutoff or cannot be moved to the current processing batch.",
+            "This request is not in the new cutoff week, so it cannot be moved into the previous (current review) batch.",
         },
         { status: 400 }
       );
@@ -93,6 +93,7 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
       record_id: requestId,
       old_data: {
         created_at: request.created_at,
+        request_date: request.request_date,
         cutoff_start_ymd: adjustment.from_cutoff_start_ymd,
       },
       new_data: {

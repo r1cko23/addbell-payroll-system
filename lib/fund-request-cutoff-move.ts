@@ -1,4 +1,4 @@
-import { addDays, format, parse } from "date-fns";
+import { format, parse } from "date-fns";
 import type { FundRequestCutoffAdjustmentEntry, FundRequestRow } from "@/types/fund-request";
 import {
   appendFundRequestCutoffAdjustmentHistory,
@@ -7,11 +7,11 @@ import {
 } from "@/lib/fund-request-cutoff-adjustment-history";
 import {
   formatFundRequestCutoffPeriod,
-  getFundRequestCalendarCutoffStartYmd,
+  getFundRequestCurrentProcessingCutoffStartYmd,
   getFundRequestCutoffPeriodEnd,
-  getFundRequestFilingCutoffStartYmd,
   getFundRequestFiledDateYmd,
-  isFundRequestInSucceedingCutoff,
+  getFundRequestFilingCutoffStartYmd,
+  isFundRequestInCurrentProcessingSucceedingCutoff,
 } from "@/lib/fund-request-cutoff";
 import { normalizeUserRole } from "@/lib/user-roles";
 
@@ -24,34 +24,48 @@ function parseYmd(ymd: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/** Timestamp on the filing Thursday (or request date) before the 10:00 AM Manila deadline. */
-export function buildFundRequestCreatedAtForCalendarCutoff(
-  request: Pick<FundRequestRow, "request_date" | "created_at">
-): string | null {
-  const calendarCutoffStartYmd = getFundRequestCalendarCutoffStartYmd(request);
-  if (!calendarCutoffStartYmd) return null;
+/**
+ * Place a request into a Fri–Thu cutoff: keep request_date when it already
+ * falls in that week; otherwise use that week's Thursday before 10:00 AM.
+ */
+export function buildFundRequestPlacementForCutoff(
+  request: Pick<FundRequestRow, "request_date" | "created_at">,
+  cutoffStartYmd: string
+): { requestDate: string; createdAt: string } | null {
+  const cutoffStart = parseYmd(cutoffStartYmd);
+  if (!cutoffStart) return null;
 
-  const calendarStart = parseYmd(calendarCutoffStartYmd);
-  if (!calendarStart) return null;
-
-  const cutoffEndYmd = format(getFundRequestCutoffPeriodEnd(calendarStart), "yyyy-MM-dd");
+  const cutoffEndYmd = format(getFundRequestCutoffPeriodEnd(cutoffStart), "yyyy-MM-dd");
   const requestDateYmd = getFundRequestFiledDateYmd(request);
   const filingYmd =
     requestDateYmd &&
-    requestDateYmd >= calendarCutoffStartYmd &&
+    requestDateYmd >= cutoffStartYmd &&
     requestDateYmd <= cutoffEndYmd
       ? requestDateYmd
       : cutoffEndYmd;
 
   const hour = String(CUTOFF_SAFE_FILING_UTC_HOUR).padStart(2, "0");
   const minute = String(CUTOFF_SAFE_FILING_UTC_MINUTE).padStart(2, "0");
-  return `${filingYmd}T${hour}:${minute}:00.000${CUTOFF_SAFE_FILING_UTC_OFFSET}`;
+  return {
+    requestDate: filingYmd,
+    createdAt: `${filingYmd}T${hour}:${minute}:00.000${CUTOFF_SAFE_FILING_UTC_OFFSET}`,
+  };
+}
+
+/** Timestamp on the filing Thursday (or request date) before the 10:00 AM Manila deadline. */
+export function buildFundRequestCreatedAtForCalendarCutoff(
+  request: Pick<FundRequestRow, "request_date" | "created_at">,
+  now: Date = new Date()
+): string | null {
+  const cutoffStartYmd = getFundRequestCurrentProcessingCutoffStartYmd(now);
+  return buildFundRequestPlacementForCutoff(request, cutoffStartYmd)?.createdAt ?? null;
 }
 
 export function getFundRequestProcessingCutoffStartYmd(
-  request: Pick<FundRequestRow, "request_date" | "created_at">
+  _request?: Pick<FundRequestRow, "request_date" | "created_at">,
+  now: Date = new Date()
 ): string | null {
-  return getFundRequestCalendarCutoffStartYmd(request);
+  return getFundRequestCurrentProcessingCutoffStartYmd(now);
 }
 
 export function formatFundRequestCutoffStartLabel(cutoffStartYmd: string): string {
@@ -68,12 +82,12 @@ function isFundRequestCutoffMoveEligibleStatus(
 
 export function canMoveFundRequestToCurrentCutoff(
   request: Pick<FundRequestRow, "request_date" | "created_at" | "status">,
-  role: string | null | undefined
+  role: string | null | undefined,
+  now: Date = new Date()
 ): boolean {
   if (normalizeUserRole(role) !== "upper_management") return false;
   if (!isFundRequestCutoffMoveEligibleStatus(request.status)) return false;
-  if (!isFundRequestInSucceedingCutoff(request)) return false;
-  return true;
+  return isFundRequestInCurrentProcessingSucceedingCutoff(request, now);
 }
 
 export function canUndoFundRequestCutoffMove(
@@ -91,17 +105,18 @@ export function canUndoFundRequestCutoffMove(
 export function buildFundRequestMoveToCurrentCutoffUpdates(
   request: FundRequestRow,
   actorUserId: string,
-  movedAt: string = new Date().toISOString()
+  movedAt: string = new Date().toISOString(),
+  now: Date = new Date()
 ): { updates: Record<string, unknown>; adjustment: FundRequestCutoffAdjustmentEntry } | null {
-  if (!canMoveFundRequestToCurrentCutoff(request, "upper_management")) {
+  if (!canMoveFundRequestToCurrentCutoff(request, "upper_management", now)) {
     return null;
   }
 
   const fromCutoffStartYmd = getFundRequestFilingCutoffStartYmd(request);
-  const toCutoffStartYmd = getFundRequestProcessingCutoffStartYmd(request);
-  const toCreatedAt = buildFundRequestCreatedAtForCalendarCutoff(request);
+  const toCutoffStartYmd = getFundRequestCurrentProcessingCutoffStartYmd(now);
+  const placement = buildFundRequestPlacementForCutoff(request, toCutoffStartYmd);
 
-  if (!fromCutoffStartYmd || !toCutoffStartYmd || !toCreatedAt) {
+  if (!fromCutoffStartYmd || !toCutoffStartYmd || !placement) {
     return null;
   }
 
@@ -111,20 +126,24 @@ export function buildFundRequestMoveToCurrentCutoffUpdates(
     from_cutoff_start_ymd: fromCutoffStartYmd,
     to_cutoff_start_ymd: toCutoffStartYmd,
     from_created_at: request.created_at,
-    to_created_at: toCreatedAt,
+    to_created_at: placement.createdAt,
+    from_request_date: request.request_date,
+    to_request_date: placement.requestDate,
   };
 
-  return {
-    adjustment,
-    updates: {
-      created_at: toCreatedAt,
-      updated_at: movedAt,
-      cutoff_adjustment_history: appendFundRequestCutoffAdjustmentHistory(
-        request.cutoff_adjustment_history,
-        adjustment
-      ),
-    },
+  const updates: Record<string, unknown> = {
+    created_at: placement.createdAt,
+    updated_at: movedAt,
+    cutoff_adjustment_history: appendFundRequestCutoffAdjustmentHistory(
+      request.cutoff_adjustment_history,
+      adjustment
+    ),
   };
+  if (placement.requestDate !== request.request_date) {
+    updates.request_date = placement.requestDate;
+  }
+
+  return { adjustment, updates };
 }
 
 export function buildFundRequestUndoCutoffMoveUpdates(
@@ -139,28 +158,29 @@ export function buildFundRequestUndoCutoffMoveUpdates(
   const adjustment = getActiveFundRequestCutoffAdjustment(request);
   if (!adjustment) return null;
 
+  const updates: Record<string, unknown> = {
+    created_at: adjustment.from_created_at,
+    updated_at: undoneAt,
+    cutoff_adjustment_history: markLatestFundRequestCutoffAdjustmentUndone(
+      request.cutoff_adjustment_history,
+      actorUserId,
+      undoneAt
+    ),
+  };
+  if (adjustment.from_request_date) {
+    updates.request_date = adjustment.from_request_date;
+  }
+
   return {
     adjustment,
-    updates: {
-      created_at: adjustment.from_created_at,
-      updated_at: undoneAt,
-      cutoff_adjustment_history: markLatestFundRequestCutoffAdjustmentUndone(
-        request.cutoff_adjustment_history,
-        actorUserId,
-        undoneAt
-      ),
-    },
+    updates,
   };
 }
 
 export function getFundRequestSucceedingCutoffStartYmd(
   request: Pick<FundRequestRow, "request_date" | "created_at">
 ): string | null {
-  const calendarCutoffStartYmd = getFundRequestCalendarCutoffStartYmd(request);
-  if (!calendarCutoffStartYmd) return null;
-  const calendarStart = parseYmd(calendarCutoffStartYmd);
-  if (!calendarStart) return null;
-  return format(addDays(calendarStart, 7), "yyyy-MM-dd");
+  return getFundRequestFilingCutoffStartYmd(request);
 }
 
 export function formatFundRequestCutoffAdjustmentEntry(

@@ -122,12 +122,12 @@ export function FundRequestMoveToCurrentCutoffButton({
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  This request is currently in the <strong>{fromLabel}</strong> batch
-                  because it was filed after the Thursday 10:00 AM deadline.
+                  This request is in the <strong>{fromLabel}</strong> batch (the new
+                  week). The current review batch is still the previous cutoff:{" "}
+                  <strong>{toLabel}</strong>.
                 </p>
                 <p>
-                  Move it back to the <strong>{toLabel}</strong> batch for upper
-                  management review? All other request details stay the same.
+                  Move it into that previous cutoff for upper management review?
                 </p>
               </div>
             </AlertDialogDescription>

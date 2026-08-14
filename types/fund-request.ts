@@ -156,6 +156,8 @@ export type FundRequestCutoffAdjustmentEntry = {
   to_cutoff_start_ymd: string;
   from_created_at: string;
   to_created_at: string;
+  from_request_date?: string | null;
+  to_request_date?: string | null;
   undone_at?: string | null;
   undone_by?: string | null;
 };

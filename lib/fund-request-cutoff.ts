@@ -271,6 +271,44 @@ export function isFundRequestInSucceedingCutoff(
 }
 
 /**
+ * Cutoff Upper Management is still reviewing: the Fri–Thu week whose Thursday
+ * 10:00 AM Manila deadline most recently passed. After that deadline, new
+ * filings go to the next week; "Move to Current Cutoff" pulls them back here.
+ */
+export function getFundRequestCurrentProcessingCutoffStartYmd(
+  now: Date = new Date()
+): string {
+  const nowYmd = getManilaDateKeyFromIso(now.toISOString());
+  const anchor = (nowYmd ? parseYmd(nowYmd) : null) ?? now;
+  const calendarStart = getFundRequestCutoffPeriodStart(anchor);
+  const thursdayYmd = format(
+    getFundRequestCutoffPeriodEnd(calendarStart),
+    "yyyy-MM-dd"
+  );
+  const pastDeadline =
+    Boolean(nowYmd) &&
+    (nowYmd > thursdayYmd ||
+      (nowYmd === thursdayYmd &&
+        isAfterFundRequestCutoffDeadline(nowYmd, now.toISOString())));
+  if (pastDeadline) {
+    return format(calendarStart, "yyyy-MM-dd");
+  }
+  return format(subDays(calendarStart, 7), "yyyy-MM-dd");
+}
+
+/** True when the request sits in the week after the current UM processing batch. */
+export function isFundRequestInCurrentProcessingSucceedingCutoff(
+  request: Pick<FundRequestRow, "request_date" | "created_at">,
+  now: Date = new Date()
+): boolean {
+  const filingStartYmd = getFundRequestFilingCutoffStartYmd(request);
+  if (!filingStartYmd) return false;
+  const currentStart = parseYmd(getFundRequestCurrentProcessingCutoffStartYmd(now));
+  if (!currentStart) return false;
+  return filingStartYmd === format(addDays(currentStart, 7), "yyyy-MM-dd");
+}
+
+/**
  * Fri–Thu cutoff for when the request was filed (created_at + request_date roll-forward).
  * Cutoff moves and “succeeding cutoff” checks use this.
  */

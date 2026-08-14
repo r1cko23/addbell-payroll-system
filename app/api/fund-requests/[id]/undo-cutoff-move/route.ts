@@ -10,6 +10,7 @@ import {
   canUndoFundRequestCutoffMove,
 } from "@/lib/fund-request-cutoff-move";
 import { normalizeUserRole } from "@/lib/user-roles";
+import { invalidateAppCache } from "@/lib/cache";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -103,6 +104,8 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     if (auditError) {
       console.error("Failed to write fund request cutoff undo audit log", auditError);
     }
+
+    await invalidateAppCache();
 
     return NextResponse.json({
       request: updated,

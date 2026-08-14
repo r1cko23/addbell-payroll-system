@@ -39,6 +39,7 @@ export async function moveFundRequestToCurrentCutoff(requestId: string): Promise
   | {
       request: FundRequestRow;
       adjustment: FundRequestCutoffAdjustmentEntry;
+      alreadyMoved?: boolean;
     }
   | { error: string }
 > {
@@ -50,6 +51,7 @@ export async function moveFundRequestToCurrentCutoff(requestId: string): Promise
     error?: string;
     request?: FundRequestRow;
     adjustment?: FundRequestCutoffAdjustmentEntry;
+    alreadyMoved?: boolean;
   };
 
   if (!response.ok || !payload.request || !payload.adjustment) {
@@ -59,6 +61,7 @@ export async function moveFundRequestToCurrentCutoff(requestId: string): Promise
   return {
     request: payload.request,
     adjustment: payload.adjustment,
+    alreadyMoved: payload.alreadyMoved,
   };
 }
 
@@ -93,11 +96,21 @@ export function FundRequestMoveToCurrentCutoffButton({
 
     if ("error" in result) {
       toast.error(result.error);
+      onMoved?.(request as FundRequestRow, {
+        moved_by: "",
+        moved_at: new Date().toISOString(),
+        from_cutoff_start_ymd: "",
+        to_cutoff_start_ymd: "",
+        from_created_at: request.created_at,
+        to_created_at: request.created_at,
+      });
       return;
     }
 
     setOpen(false);
-    toast.success(`Moved to ${toLabel}`);
+    toast.success(
+      result.alreadyMoved ? `Already in ${toLabel}` : `Moved to ${toLabel}`
+    );
     onMoved?.(result.request, result.adjustment);
   };
 

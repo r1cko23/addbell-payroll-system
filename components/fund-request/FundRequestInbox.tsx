@@ -322,7 +322,7 @@ export function FundRequestInbox({
   } = useSessionQuery<FundRequestListResponse>(
     listCache?.key ?? null,
     listCache?.url ?? null,
-    { enabled: !!listCache, pollEpochMs: FREE_TIER_POLL_EPOCH_MS }
+    { enabled: !!listCache, pollEpochMs: FREE_TIER_POLL_EPOCH_MS, staleTime: 0 }
   );
 
   const loading = listLoading && !listData;

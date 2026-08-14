@@ -8,8 +8,15 @@ import { getAdminClient } from "@/lib/fund-request-api";
 import {
   buildFundRequestMoveToCurrentCutoffUpdates,
   canMoveFundRequestToCurrentCutoff,
+  formatFundRequestCutoffStartLabel,
 } from "@/lib/fund-request-cutoff-move";
+import { getActiveFundRequestCutoffAdjustment } from "@/lib/fund-request-cutoff-adjustment-history";
+import {
+  getFundRequestCurrentProcessingCutoffStartYmd,
+  getFundRequestFilingCutoffStartYmd,
+} from "@/lib/fund-request-cutoff";
 import { normalizeUserRole } from "@/lib/user-roles";
+import { invalidateAppCache } from "@/lib/cache";
 
 export { dynamic } from "@/lib/api-route-segment";
 
@@ -56,11 +63,30 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     }
 
     const request = existing as FundRequestRow;
-    if (!canMoveFundRequestToCurrentCutoff(request, role)) {
+    const now = new Date();
+    if (!canMoveFundRequestToCurrentCutoff(request, role, now)) {
+      const filingStartYmd = getFundRequestFilingCutoffStartYmd(request);
+      const currentStartYmd = getFundRequestCurrentProcessingCutoffStartYmd(now);
+      const alreadyInCurrentBatch = filingStartYmd === currentStartYmd;
+      const existingAdjustment = alreadyInCurrentBatch
+        ? getActiveFundRequestCutoffAdjustment(request)
+        : null;
+      if (existingAdjustment) {
+        await invalidateAppCache();
+        return NextResponse.json({
+          request: existing,
+          adjustment: existingAdjustment,
+          alreadyMoved: true,
+        });
+      }
+      const currentLabel = currentStartYmd
+        ? formatFundRequestCutoffStartLabel(currentStartYmd)
+        : "the previous cutoff";
       return NextResponse.json(
         {
-          error:
-            "This request is not in the new cutoff week, so it cannot be moved into the previous (current review) batch.",
+          error: alreadyInCurrentBatch
+            ? `This request is already in the current review batch (${currentLabel}). Switch the cutoff tab to that week.`
+            : "This request is not in the new cutoff week, so it cannot be moved into the previous (current review) batch.",
         },
         { status: 400 }
       );
@@ -106,6 +132,8 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     if (auditError) {
       console.error("Failed to write fund request cutoff move audit log", auditError);
     }
+
+    await invalidateAppCache();
 
     return NextResponse.json({
       request: updated,

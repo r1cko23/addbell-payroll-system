@@ -108,7 +108,11 @@ export function useSessionQuery<T>(
     setError(null);
 
     try {
-      const fresh = await sessionFetchJson<T>(k, u);
+      const fresh = await sessionFetchJson<T>(
+        k,
+        u,
+        opts?.force ? { bypassCache: true } : undefined
+      );
       if (gen.current !== my) return;
       setData(fresh);
       for (const p of prefetchRef.current) prefetchSessionJson(p.key, p.url);

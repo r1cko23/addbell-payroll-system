@@ -23,8 +23,9 @@ const INVALIDATE_LOCK_KEY = "addbell:cache:invalidate-lock";
 /** Match session stale window so warm Redis usually serves revalidation. */
 const DEFAULT_TTL_SECONDS = 600;
 
-/** Skip repeated epoch GETs on a warm serverless instance. */
-const EPOCH_MEMO_MS = 60_000;
+/** Short memo only coalesces parallel reads on one warm instance.
+ * A 60s memo served pre-approve Redis keys after another instance bumped epoch. */
+const EPOCH_MEMO_MS = 2_000;
 
 /** At most one global epoch bump per this window (commands + correctness tradeoff). */
 const INVALIDATE_COALESCE_MS = 10_000;
@@ -65,6 +66,8 @@ export async function cacheKey(parts: Array<string | number>): Promise<string> {
 export type CachedJsonOptions = {
   /** When false, run loader only (session cache still applies client-side). Default true. */
   useRedis?: boolean;
+  /** Skip Redis GET, load fresh, then write. Used after mutations. */
+  revalidate?: boolean;
 };
 
 export async function cachedJson<T>(
@@ -74,6 +77,7 @@ export async function cachedJson<T>(
   options: CachedJsonOptions = {}
 ): Promise<{ data: T; cache: "HIT" | "MISS" | "BYPASS" }> {
   const useRedis = options.useRedis !== false;
+  const revalidate = options.revalidate === true;
   const redis = useRedis ? getRedis() : null;
   if (!redis) {
     return { data: await loader(), cache: "BYPASS" };
@@ -82,9 +86,11 @@ export async function cachedJson<T>(
   const ttl = configuredTtl(ttlSeconds);
   const key = await cacheKey(keyParts);
   try {
-    const hit = await redis.get<T>(key);
-    if (hit !== null && hit !== undefined) {
-      return { data: hit, cache: "HIT" };
+    if (!revalidate) {
+      const hit = await redis.get<T>(key);
+      if (hit !== null && hit !== undefined) {
+        return { data: hit, cache: "HIT" };
+      }
     }
     const data = await loader();
     await redis.set(key, data, { ex: ttl });

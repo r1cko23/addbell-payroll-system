@@ -85,9 +85,19 @@ export function invalidateSessionCache(): void {
 export async function sessionFetchJson<T>(
   key: string,
   url: string,
-  init?: RequestInit
+  init?: RequestInit & { bypassCache?: boolean }
 ): Promise<T> {
-  const res = await fetch(url, init);
+  const headers = new Headers(init?.headers);
+  if (init?.bypassCache) {
+    headers.set("x-cache-revalidate", "1");
+  }
+  const res = await fetch(url, {
+    method: init?.method,
+    body: init?.body,
+    credentials: init?.credentials,
+    headers,
+    cache: "no-store",
+  });
   const json = (await res.json()) as T & { error?: string };
   if (!res.ok) {
     throw new Error(json.error || `Request failed (${res.status})`);

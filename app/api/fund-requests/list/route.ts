@@ -70,8 +70,15 @@ export async function GET(req: NextRequest) {
         cutoff_start: cutoffStart,
       };
     },
-    CACHE_TTL.list
+    CACHE_TTL.list,
+    { revalidate: req.headers.get("x-cache-revalidate") === "1" }
   );
 
-  return NextResponse.json(data, { headers: { "X-Cache": cache } });
+  return NextResponse.json(data, {
+    headers: {
+      "X-Cache": cache,
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      Pragma: "no-cache",
+    },
+  });
 }

@@ -669,6 +669,7 @@ export function FundRequestApprovalDetail({
       ...updates,
       status: nextStatus,
     } as FundRequestRow);
+    await bustCache();
   };
 
   const handleSetSeparateCheque = async (enabled: boolean): Promise<boolean> => {
@@ -777,6 +778,7 @@ export function FundRequestApprovalDetail({
     setDisposalForm(null);
     setRejectReason("");
     setReturnCorrectionInput({ fields: [], otherReason: "" });
+    await bustCache();
   };
 
   const handleUndoManagementApproval = async () => {
@@ -805,6 +807,7 @@ export function FundRequestApprovalDetail({
       ...request,
       ...(updates as Partial<FundRequestRow>),
     });
+    await bustCache();
   };
 
   const handleUndoRejection = async () => {
@@ -835,6 +838,7 @@ export function FundRequestApprovalDetail({
     });
     setDisposalForm(null);
     setRejectReason("");
+    await bustCache();
   };
 
   const canEditPurchasingDetails = canPurchasingOfficerEditDetails(
@@ -863,6 +867,7 @@ export function FundRequestApprovalDetail({
       setEditableDetails(nextForm.items);
       setEditableDeductions(nextForm.deductions);
       toast.success("Line items updated.");
+      await bustCache();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to save line items."
@@ -1168,7 +1173,10 @@ export function FundRequestApprovalDetail({
             {request ? (
               <FundRequestCutoffAdjustmentActions
                 request={request}
-                onChanged={(updated) => setRequest(updated)}
+                onChanged={(updated) => {
+                  setRequest(updated);
+                  void bustCache();
+                }}
               />
             ) : null}
             {returnedToPurchasing && (request.return_reason || request.rejection_reason) ? (

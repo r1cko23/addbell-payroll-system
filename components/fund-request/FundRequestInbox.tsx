@@ -617,6 +617,7 @@ export function FundRequestInbox({
       } else if (currentStatus === "purchasing_officer_approved") {
         updates.management_approved_by = currentUserId;
         updates.management_approved_at = new Date().toISOString();
+        updates.return_correction = null;
       }
       if (nextStatus === "management_approved") {
         successMessage = "Fund request fully approved.";
@@ -650,6 +651,7 @@ export function FundRequestInbox({
             status: "management_approved",
             management_approved_by: currentUserId,
             management_approved_at: timestamp,
+            return_correction: null,
             updated_at: timestamp,
           } as never)
           .eq("id", request.id)

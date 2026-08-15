@@ -267,6 +267,8 @@ export function buildFundRequestApprovalUpdates(
   } else if (currentStatus === "purchasing_officer_approved") {
     updates.management_approved_by = currentUserId;
     updates.management_approved_at = actedAt;
+    // UM accepted the adjusted values — drop the red/green correction marks.
+    updates.return_correction = null;
   }
 
   return updates;

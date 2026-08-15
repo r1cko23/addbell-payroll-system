@@ -829,10 +829,12 @@ export function FundRequestApprovalDetail({
 
   const details = (request.details as FundRequestDetailItem[] | null) ?? [];
   const returnCorrection = parseFundRequestReturnCorrection(request.return_correction);
-  const showReturnChanges = Boolean(
-    returnCorrection?.corrections &&
-      Object.keys(returnCorrection.corrections).length > 0
-  );
+  const showReturnChanges =
+    request.status === "purchasing_officer_approved" &&
+    Boolean(
+      returnCorrection?.corrections &&
+        Object.keys(returnCorrection.corrections).length > 0
+    );
   const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
   const showProjectReferenceFields = shouldShowFundRequestProjectReferenceFields(
     request.reference_mode

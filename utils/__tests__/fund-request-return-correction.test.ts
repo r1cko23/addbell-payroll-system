@@ -179,4 +179,13 @@ describe("fund request return correction", () => {
       })
     );
   });
+
+  it("clears correction highlights when upper management accepts the adjusted values", () => {
+    const updates = buildFundRequestApprovalUpdates(
+      "purchasing_officer_approved",
+      "um-1"
+    );
+    expect(updates?.status).toBe("management_approved");
+    expect(updates?.return_correction).toBeNull();
+  });
 });

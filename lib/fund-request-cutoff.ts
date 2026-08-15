@@ -9,6 +9,7 @@ import {
 } from "@/utils/weekly";
 import type { FundRequestRow } from "@/types/fund-request";
 import { isFundRequestReturnedToPurchasing } from "@/lib/fund-request-approval";
+import { hasActiveFundRequestCutoffAdjustment } from "@/lib/fund-request-cutoff-adjustment-history";
 import { addDays, subDays, format } from "date-fns";
 
 const FUND_REQUEST_HISTORY_LOOKBACK_DAYS = 180;
@@ -386,12 +387,17 @@ export function getFundRequestPoExpiryInstant(
 export function isFundRequestPastOperationsManagerCutoff(
   request: Pick<
     FundRequestRow,
-    "request_date" | "created_at" | "status" | "returned_at"
+    | "request_date"
+    | "created_at"
+    | "status"
+    | "returned_at"
+    | "cutoff_adjustment_history"
   >,
   now: Date = new Date()
 ): boolean {
   if (request.status !== "pending") return false;
   if (request.returned_at) return false;
+  if (hasActiveFundRequestCutoffAdjustment(request)) return false;
   const filingStart = getFundRequestFilingCutoffStartYmd(request);
   if (!filingStart) return false;
   const thursdayYmd = getFundRequestCutoffThursdayYmd(filingStart);
@@ -402,12 +408,17 @@ export function isFundRequestPastOperationsManagerCutoff(
 export function isFundRequestPastPurchasingOfficerCutoff(
   request: Pick<
     FundRequestRow,
-    "request_date" | "created_at" | "status" | "returned_at"
+    | "request_date"
+    | "created_at"
+    | "status"
+    | "returned_at"
+    | "cutoff_adjustment_history"
   >,
   now: Date = new Date()
 ): boolean {
   if (request.status !== "project_manager_approved") return false;
   if (request.returned_at) return false;
+  if (hasActiveFundRequestCutoffAdjustment(request)) return false;
   const filingStart = getFundRequestFilingCutoffStartYmd(request);
   if (!filingStart) return false;
   const poExpiry = getFundRequestPoExpiryInstant(filingStart);
@@ -421,11 +432,17 @@ export function isFundRequestPastPurchasingOfficerCutoff(
  * - Purchasing (`project_manager_approved`): end of the Friday after that Thursday.
  * UM (`purchasing_officer_approved`) never expires.
  * Returned-to-purchasing (`returned_at`) also never expires.
+ * Requests moved into a cutoff also never expire, so a backdated
+ * revive is not immediately auto-cancelled.
  */
 export function isFundRequestPastCutoffForOmPoExpiry(
   request: Pick<
     FundRequestRow,
-    "request_date" | "created_at" | "status" | "returned_at"
+    | "request_date"
+    | "created_at"
+    | "status"
+    | "returned_at"
+    | "cutoff_adjustment_history"
   >,
   now: Date = new Date()
 ): boolean {

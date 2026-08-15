@@ -127,6 +127,8 @@ export type FundRequestRow = {
   return_reason: string | null;
   /** Structured UM return payload; parse with parseFundRequestReturnCorrection. */
   return_correction: unknown | null;
+  /** Printed on its own cheque; excluded from the combined payee cheque. */
+  separate_cheque?: boolean | null;
   rejection_undo_snapshot: FundRequestRejectionUndoSnapshot | null;
   rejection_history?: FundRequestActionHistoryEntry[] | null;
   cutoff_adjustment_history?: FundRequestCutoffAdjustmentEntry[] | null;

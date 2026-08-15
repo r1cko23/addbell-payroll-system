@@ -238,6 +238,27 @@ describe("cutoff expiry for OM/PO", () => {
     expect(isFundRequestPastCutoffForOmPoExpiry(poJul6(), now)).toBe(false);
   });
 
+  it("does not expire requests moved into a cutoff after the deadline", () => {
+    const moved = poJul6();
+    moved.cutoff_adjustment_history = [
+      {
+        moved_by: "um-1",
+        moved_at: "2026-07-11T02:00:00+08:00",
+        from_cutoff_start_ymd: "2026-07-10",
+        to_cutoff_start_ymd: "2026-07-03",
+        from_created_at: "2026-07-10T06:00:00+08:00",
+        to_created_at: moved.created_at,
+        from_request_date: "2026-07-10",
+        to_request_date: moved.request_date,
+        undone_at: null,
+        undone_by: null,
+      },
+    ];
+    const now = new Date("2026-07-11T00:00:00+08:00");
+    expect(isFundRequestPastCutoffForOmPoExpiry(moved, now)).toBe(false);
+    expect(buildFundRequestCutoffExpiryUpdates(moved, now)).toBeNull();
+  });
+
   it("does not expire requests returned to purchasing after UM review", () => {
     const returned = baseRequest({
       status: "project_manager_approved",

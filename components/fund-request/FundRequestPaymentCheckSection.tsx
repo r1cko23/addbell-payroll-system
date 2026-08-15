@@ -4,11 +4,23 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { epFileInput } from "@/lib/employee-portal-ui";
 import { dbHeaderButton } from "@/lib/dashboard-ui";
 import {
   dedupeFundRequestPaymentCheckDocuments,
   deleteFundRequestPaymentCheck,
+  formatFundRequestChequePhp,
+  getFundRequestSeparateChequePrompt,
   isFundRequestPaymentCheckDocument,
   preparePaymentCheckFile,
   uploadFundRequestPaymentCheck,
@@ -25,10 +37,19 @@ type FundRequestPaymentCheckSectionProps = {
   canUpload: boolean;
   canDelete?: boolean;
   linkedRequestIds?: string[];
-  /** Payee subtotal — shown in Philippine check amount-in-words. */
+  /** Amount printed on the cheque (this request, or remaining combined). */
   checkAmount?: number;
   /** Payee / account name printed on the check. */
   checkPayeeName?: string;
+  /** Full payee subtotal shown in the inbox header (unchanged when a request is split). */
+  payeeTotal?: number;
+  /** Combined cheque amount after this request is excluded. */
+  combinedChequeAfter?: number;
+  printMode?: "combined" | "separate";
+  isSeparateCheque?: boolean;
+  separateChequeCount?: number;
+  onMarkSeparateCheque?: () => Promise<boolean>;
+  onClearSeparateCheque?: () => Promise<boolean>;
   onDocumentsChange: (documents: FundRequestDocumentSummary[]) => void;
   className?: string;
   compact?: boolean;
@@ -42,6 +63,13 @@ export function FundRequestPaymentCheckSection({
   linkedRequestIds = [],
   checkAmount,
   checkPayeeName = "",
+  payeeTotal,
+  combinedChequeAfter,
+  printMode = "combined",
+  isSeparateCheque = false,
+  separateChequeCount = 0,
+  onMarkSeparateCheque,
+  onClearSeparateCheque,
   onDocumentsChange,
   className,
   compact = false,
@@ -53,6 +81,8 @@ export function FundRequestPaymentCheckSection({
   const [compressing, setCompressing] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [printOpen, setPrintOpen] = useState(false);
+  const [confirmSeparateOpen, setConfirmSeparateOpen] = useState(false);
+  const [markingSeparate, setMarkingSeparate] = useState(false);
 
   const paymentChecks = useMemo(
     () => dedupeFundRequestPaymentCheckDocuments(documents),
@@ -63,6 +93,24 @@ export function FundRequestPaymentCheckSection({
     typeof checkAmount === "number" &&
     Number.isFinite(checkAmount) &&
     checkAmount >= 0;
+  const isSeparatePrint = printMode === "separate";
+  const remainingCombined = typeof checkAmount === "number" ? checkAmount : 0;
+  const remainingRequestCount = Math.max(
+    0,
+    linkedRequestIds.length - separateChequeCount
+  );
+  const prompt = getFundRequestSeparateChequePrompt({
+    requestAmount: typeof checkAmount === "number" ? checkAmount : 0,
+    payeeName: checkPayeeName,
+    groupTotal: typeof payeeTotal === "number" ? payeeTotal : 0,
+    combinedAfter:
+      typeof combinedChequeAfter === "number"
+        ? combinedChequeAfter
+        : roundPromptAmount(
+            (typeof payeeTotal === "number" ? payeeTotal : 0) -
+              (typeof checkAmount === "number" ? checkAmount : 0)
+          ),
+  });
 
   function resetInput() {
     setSelectedFile(null);
@@ -70,6 +118,35 @@ export function FundRequestPaymentCheckSection({
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  }
+
+  function handlePrintClick() {
+    if (!canPrintCheck) return;
+    if (isSeparatePrint && !isSeparateCheque) {
+      setConfirmSeparateOpen(true);
+      return;
+    }
+    if (!isSeparatePrint && remainingCombined <= 0) {
+      toast.error("All requests for this payee already have separate cheques.");
+      return;
+    }
+    setPrintOpen(true);
+  }
+
+  async function confirmSeparateCheque() {
+    setMarkingSeparate(true);
+    const marked = onMarkSeparateCheque ? await onMarkSeparateCheque() : true;
+    setMarkingSeparate(false);
+    if (!marked) return;
+    setConfirmSeparateOpen(false);
+    setPrintOpen(true);
+  }
+
+  async function handleClearSeparateCheque() {
+    if (!onClearSeparateCheque) return;
+    const cleared = await onClearSeparateCheque();
+    if (!cleared) return;
+    toast.success("This request is included in the combined cheque again.");
   }
 
   async function handleUpload() {
@@ -156,21 +233,54 @@ export function FundRequestPaymentCheckSection({
         <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Payment check (optional audit)
         </h4>
-        {appliesToMultiple ? (
+        {isSeparatePrint ? (
           <p className="mt-1 text-xs text-muted-foreground">
-            One check covers all {linkedRequestIds.length} requests for this payee.
+            {isSeparateCheque
+              ? "This request prints on its own cheque and is excluded from the combined payee cheque."
+              : appliesToMultiple
+                ? `Print this request on its own cheque. It will be excluded from the combined cheque for all ${linkedRequestIds.length} requests.`
+                : "Print this request on its own cheque."}
+          </p>
+        ) : appliesToMultiple ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {separateChequeCount > 0
+              ? `One check covers the remaining ${remainingRequestCount} request${
+                  remainingRequestCount === 1 ? "" : "s"
+                } for this payee.`
+              : `One check covers all ${linkedRequestIds.length} requests for this payee.`}
           </p>
         ) : null}
         {canPrintCheck ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={cn(dbHeaderButton, "mt-2")}
-            onClick={() => setPrintOpen(true)}
-          >
-            Print check (BDO / BPI)
-          </Button>
+          <div className="mt-2 flex flex-col items-start gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(dbHeaderButton)}
+              onClick={handlePrintClick}
+            >
+              {isSeparatePrint ? "Print Separate cheque" : "Print check (BDO / BPI)"}
+            </Button>
+            {!isSeparatePrint &&
+            separateChequeCount > 0 &&
+            typeof payeeTotal === "number" ? (
+              <p className="text-xs text-sky-800">
+                Cheque prints {formatFundRequestChequePhp(remainingCombined)}{" "}
+                (excludes {separateChequeCount} separate cheque
+                {separateChequeCount === 1 ? "" : "s"}). Payee total stays{" "}
+                {formatFundRequestChequePhp(payeeTotal)}.
+              </p>
+            ) : null}
+            {isSeparatePrint && isSeparateCheque && onClearSeparateCheque ? (
+              <button
+                type="button"
+                className="text-xs font-medium text-sky-800 underline-offset-2 hover:underline"
+                onClick={() => void handleClearSeparateCheque()}
+              >
+                Include in combined cheque
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -180,6 +290,27 @@ export function FundRequestPaymentCheckSection({
         payeeName={checkPayeeName}
         amount={typeof checkAmount === "number" ? checkAmount : 0}
       />
+
+      <AlertDialog open={confirmSeparateOpen} onOpenChange={setConfirmSeparateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{prompt.title}</AlertDialogTitle>
+            <AlertDialogDescription>{prompt.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={markingSeparate}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={markingSeparate}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmSeparateCheque();
+              }}
+            >
+              {markingSeparate ? "Saving…" : "Print separate cheque"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <FundRequestSupportingDocuments
         documents={paymentChecks}
@@ -247,9 +378,30 @@ export function FundRequestPaymentCheckSection({
   );
 }
 
+function roundPromptAmount(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 export function splitFundRequestDocuments(documents: FundRequestDocumentSummary[]) {
   return {
     supportingDocuments: documents.filter((doc) => !isFundRequestPaymentCheckDocument(doc)),
     paymentCheckDocuments: documents.filter(isFundRequestPaymentCheckDocument),
   };
+}
+
+export function FundRequestSeparateChequeBadge({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border border-sky-300 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800",
+        className
+      )}
+    >
+      Separate cheque
+    </span>
+  );
 }

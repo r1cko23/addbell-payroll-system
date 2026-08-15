@@ -392,6 +392,7 @@ export function buildFundRequestUpperManagementReturnUpdates(
     returned_at: actedAt,
     return_reason: trimmedReason,
     return_correction: options?.returnCorrection ?? null,
+    separate_cheque: false,
     rejected_by: null,
     rejected_at: null,
     rejection_reason: null,
@@ -559,6 +560,7 @@ export function buildFundRequestUndoRejectionUpdates(
       returned_at: null,
       return_reason: null,
       return_correction: null,
+      separate_cheque: false,
       rejection_undo_snapshot: null,
       rejection_history: rejectionHistory,
       updated_at: undoneAt,
@@ -597,6 +599,7 @@ export function buildFundRequestRejectUpdates(
     returned_at: null,
     return_reason: null,
     return_correction: null,
+    separate_cheque: false,
     rejection_undo_snapshot: buildFundRequestRejectionUndoSnapshot(request),
     rejection_history: appendFundRequestRejectionHistory(request.rejection_history, {
       action: "reject",

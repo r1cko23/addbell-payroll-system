@@ -82,6 +82,58 @@ export function getFundRequestPaymentCheckPeerIds(
   return peerIds.length > 0 ? peerIds : [source.id];
 }
 
+function roundChequeAmount(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function isFundRequestSeparateCheque(
+  request: { separate_cheque?: boolean | null } | null | undefined
+): boolean {
+  return Boolean(request?.separate_cheque);
+}
+
+export type FundRequestChequeAmountRow = {
+  total_requested_amount?: number | null;
+  separate_cheque?: boolean | null;
+};
+
+export function getFundRequestCombinedChequeAmount(
+  requests: FundRequestChequeAmountRow[]
+): number {
+  return roundChequeAmount(
+    requests.reduce((sum, row) => {
+      if (isFundRequestSeparateCheque(row)) return sum;
+      return sum + (Number(row.total_requested_amount) || 0);
+    }, 0)
+  );
+}
+
+export function countFundRequestSeparateCheques(
+  requests: FundRequestChequeAmountRow[]
+): number {
+  return requests.filter(isFundRequestSeparateCheque).length;
+}
+
+export function formatFundRequestChequePhp(amount: number): string {
+  return `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function getFundRequestSeparateChequePrompt(input: {
+  requestAmount: number;
+  payeeName: string;
+  groupTotal: number;
+  combinedAfter: number;
+}): { title: string; description: string } {
+  const requestAmount = formatFundRequestChequePhp(input.requestAmount);
+  const groupTotal = formatFundRequestChequePhp(input.groupTotal);
+  const combinedAfter = formatFundRequestChequePhp(input.combinedAfter);
+  const payee = input.payeeName.trim() || "this payee";
+  return {
+    title: "Print a separate cheque?",
+    description: `${requestAmount} will be printed on its own cheque and excluded from ${payee}'s combined cheque. The combined cheque will print ${combinedAfter} instead of ${groupTotal}.`,
+  };
+}
+
 export type FundRequestPaymentCheckUploadResult = {
   documents: FundRequestDocumentSummary[];
   error?: string;

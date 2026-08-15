@@ -17,6 +17,11 @@ import {
   sumFundRequestNetAmount,
   type FundRequestInboxRow,
 } from "@/lib/fund-request-inbox-grouping";
+import {
+  countFundRequestSeparateCheques,
+  getFundRequestCombinedChequeAmount,
+  isFundRequestSeparateCheque,
+} from "@/lib/fund-request-payment-check";
 import type { FundRequestRow, FundRequestDocumentSummary } from "@/types/fund-request";
 import {
   getFundRequestDisposalReasonLabel,
@@ -25,7 +30,7 @@ import {
 } from "@/lib/fund-request-approval";
 import { FundRequestReturnCorrectionForm } from "@/components/fund-request/FundRequestReturnCorrectionForm";
 import type { FundRequestReturnCorrectionInput } from "@/lib/fund-request-return-correction";
-import { FundRequestPaymentCheckSection } from "@/components/fund-request/FundRequestPaymentCheckSection";
+import { FundRequestPaymentCheckSection, FundRequestSeparateChequeBadge } from "@/components/fund-request/FundRequestPaymentCheckSection";
 import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
 import type { FundRequestCutoffAdjustmentEntry } from "@/types/fund-request";
 import { formatPhpCheckAmountInWords } from "@/utils/php-check-amount-words";
@@ -307,6 +312,14 @@ function GroupedInboxPaymentCheck({
     () => requestIds.flatMap((requestId) => paymentCheckDocumentsByRequestId[requestId] ?? []),
     [paymentCheckDocumentsByRequestId, requestIds]
   );
+  const combinedChequeAmount = useMemo(
+    () => getFundRequestCombinedChequeAmount(group.requests),
+    [group.requests]
+  );
+  const separateChequeCount = useMemo(
+    () => countFundRequestSeparateCheques(group.requests),
+    [group.requests]
+  );
   const canUpload = Boolean(
     canUploadPaymentCheck?.(group.requests[0]!) &&
       group.requests.some((request) => canUploadPaymentCheck?.(request))
@@ -325,7 +338,10 @@ function GroupedInboxPaymentCheck({
       canUpload={canUpload}
       canDelete={canDelete}
       linkedRequestIds={requestIds}
-      checkAmount={group.subtotalNet}
+      printMode="combined"
+      checkAmount={combinedChequeAmount}
+      payeeTotal={group.subtotalNet}
+      separateChequeCount={separateChequeCount}
       checkPayeeName={
         group.clientName === "Uncategorized" ||
         group.clientName === "Office-Related Requests"
@@ -444,14 +460,25 @@ export function FundRequestClientGroupedInbox({
                     const showEwt = summary.ewtAmount > 0;
                     const showDeductions = summary.deductionsAmount > 0;
                     const isLastInGroup = index === group.requests.length - 1;
+                    const isSeparateCheque = isFundRequestSeparateCheque(request);
 
                     return (
                       <Fragment key={request.id}>
-                        <tr className="border-t border-dashed border-border/70 bg-background">
-                          <td className="w-8 px-3 py-1.5 align-top text-muted-foreground">
+                        <tr
+                          className={cn(
+                            "border-t border-dashed border-border/70",
+                            isSeparateCheque ? "bg-sky-50/80" : "bg-background"
+                          )}
+                        >
+                          <td
+                            className={cn(
+                              "w-8 px-3 py-1.5 align-top text-muted-foreground",
+                              isSeparateCheque && "border-l-2 border-sky-400"
+                            )}
+                          >
                             {index + 1}.
                           </td>
-                          <td className="min-w-[220px] px-3 py-1.5 align-top" colSpan={3}>
+                          <td className="min-w-[220px] px-3 py-1.5 align-top" colSpan={2}>
                             <Link
                               href={detailHref(request.id)}
                               className="group inline-flex items-start gap-1.5 font-medium uppercase leading-snug text-primary hover:underline"
@@ -462,6 +489,11 @@ export function FundRequestClientGroupedInbox({
                             <Caption className="mt-0.5 block text-muted-foreground">
                               {requesterName} · {formatFundRequestFiledAtCompact(request)}
                             </Caption>
+                          </td>
+                          <td className="px-3 py-1.5 text-right align-top">
+                            {isSeparateCheque ? (
+                              <FundRequestSeparateChequeBadge />
+                            ) : null}
                           </td>
                         </tr>
 
@@ -591,23 +623,35 @@ export function FundRequestClientGroupedInbox({
                 {group.requests.map((request, index) => {
                   const summary = summarizeFundRequestPayment(request);
                   const requesterName = getRequesterName(request);
+                  const isSeparateCheque = isFundRequestSeparateCheque(request);
 
                   return (
-                    <Card key={request.id} className="border-border/80">
+                    <Card
+                      key={request.id}
+                      className={cn(
+                        "border-border/80",
+                        isSeparateCheque && "border-sky-300 bg-sky-50/70"
+                      )}
+                    >
                       <CardContent className="space-y-3 p-4">
                         <div className="min-w-0">
                           <div className="flex items-start gap-2">
                             <span className="shrink-0 text-sm text-muted-foreground">
                               {index + 1}.
                             </span>
-                            <div className="min-w-0">
-                              <Link
-                                href={detailHref(request.id)}
-                                className="group inline-flex items-start gap-1.5 font-medium uppercase leading-snug text-primary hover:underline"
-                              >
-                                <span>{summary.label}</span>
-                                <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
-                              </Link>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <Link
+                                  href={detailHref(request.id)}
+                                  className="group inline-flex min-w-0 items-start gap-1.5 font-medium uppercase leading-snug text-primary hover:underline"
+                                >
+                                  <span>{summary.label}</span>
+                                  <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
+                                </Link>
+                                {isSeparateCheque ? (
+                                  <FundRequestSeparateChequeBadge className="shrink-0" />
+                                ) : null}
+                              </div>
                               <Caption className="mt-1 block text-muted-foreground">
                                 {requesterName} · {formatFundRequestFiledAtCompact(request)}
                               </Caption>

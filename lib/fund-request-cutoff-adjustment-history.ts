@@ -27,6 +27,14 @@ export function getFundRequestCutoffAdjustmentHistory(
   return parseCutoffAdjustmentHistory(request.cutoff_adjustment_history);
 }
 
+export function hasActiveFundRequestCutoffAdjustment(
+  request: Pick<FundRequestRow, "cutoff_adjustment_history">
+): boolean {
+  return getFundRequestCutoffAdjustmentHistory(request).some(
+    (entry) => !entry.undone_at
+  );
+}
+
 export function getActiveFundRequestCutoffAdjustment(
   request: Pick<FundRequestRow, "cutoff_adjustment_history" | "created_at">
 ): FundRequestCutoffAdjustmentEntry | null {

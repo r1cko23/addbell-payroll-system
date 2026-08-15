@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { bustCache } from "@/lib/cache-client";
 import { format } from "date-fns";
 import {
   formatFundRequestSubmittedAtLabel,
@@ -86,7 +87,9 @@ import {
 } from "@/components/fund-request/FundRequestPaymentCheckSection";
 import {
   canUploadFundRequestPaymentCheck,
+  getFundRequestCombinedChequeAmount,
   getFundRequestPaymentCheckPeerIds,
+  isFundRequestSeparateCheque,
   type FundRequestPaymentCheckPeerRow,
 } from "@/lib/fund-request-payment-check";
 import { getFundRequestPayeeAccountName } from "@/lib/fund-request-inbox-grouping";
@@ -195,6 +198,9 @@ export function FundRequestApprovalDetail({
   const [linkedPaymentCheckAmount, setLinkedPaymentCheckAmount] = useState<
     number | undefined
   >(undefined);
+  const [linkedPaymentCheckPeers, setLinkedPaymentCheckPeers] = useState<
+    Array<{ id: string; total_requested_amount: number; separate_cheque: boolean }>
+  >([]);
 
   useEffect(() => {
     if (!profile?.id || normalizeUserRole(profile.role) !== "operations_manager") {
@@ -326,24 +332,52 @@ export function FundRequestApprovalDetail({
       const extendedDocSelect =
         "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path";
 
-      const { data: paymentCheckPeers } = await supabase
+      let paymentCheckPeers: unknown[] | null = null;
+      const peerSelectWithSeparate =
+        "id, supplier_bank_details, status, created_at, request_date, total_requested_amount, separate_cheque";
+      const peerSelectBasic =
+        "id, supplier_bank_details, status, created_at, request_date, total_requested_amount";
+      const { data: paymentCheckPeersWithFlag, error: peerSelectError } = await supabase
         .from("fund_requests")
-        .select(
-          "id, supplier_bank_details, status, created_at, request_date, total_requested_amount"
-        )
+        .select(peerSelectWithSeparate)
         .in("status", ["purchasing_officer_approved", "management_approved"]);
+      if (peerSelectError) {
+        const { data: paymentCheckPeersBasic } = await supabase
+          .from("fund_requests")
+          .select(peerSelectBasic)
+          .in("status", ["purchasing_officer_approved", "management_approved"]);
+        paymentCheckPeers = paymentCheckPeersBasic;
+      } else {
+        paymentCheckPeers = paymentCheckPeersWithFlag;
+      }
       const peerRows = (paymentCheckPeers ?? []) as Array<
-        FundRequestPaymentCheckPeerRow & { total_requested_amount?: number | null }
+        FundRequestPaymentCheckPeerRow & {
+          total_requested_amount?: number | null;
+          separate_cheque?: boolean | null;
+        }
       >;
       const paymentCheckGroupIds = getFundRequestPaymentCheckPeerIds(row, peerRows);
       setLinkedPaymentCheckRequestIds(paymentCheckGroupIds);
-      const linkedTotal = paymentCheckGroupIds.reduce((sum, peerId) => {
+      const linkedPeers = paymentCheckGroupIds.map((peerId) => {
         if (peerId === row.id) {
-          return sum + (Number(row.total_requested_amount) || 0);
+          return {
+            id: row.id,
+            total_requested_amount: Number(row.total_requested_amount) || 0,
+            separate_cheque: isFundRequestSeparateCheque(row),
+          };
         }
         const peer = peerRows.find((candidate) => candidate.id === peerId);
-        return sum + (Number(peer?.total_requested_amount) || 0);
-      }, 0);
+        return {
+          id: peerId,
+          total_requested_amount: Number(peer?.total_requested_amount) || 0,
+          separate_cheque: isFundRequestSeparateCheque(peer),
+        };
+      });
+      setLinkedPaymentCheckPeers(linkedPeers);
+      const linkedTotal = linkedPeers.reduce(
+        (sum, peer) => sum + peer.total_requested_amount,
+        0
+      );
       setLinkedPaymentCheckAmount(
         Math.round((linkedTotal + Number.EPSILON) * 100) / 100
       );
@@ -635,6 +669,33 @@ export function FundRequestApprovalDetail({
       ...updates,
       status: nextStatus,
     } as FundRequestRow);
+  };
+
+  const handleSetSeparateCheque = async (enabled: boolean): Promise<boolean> => {
+    if (!request) return false;
+    const { error } = await supabase
+      .from("fund_requests")
+      .update({
+        separate_cheque: enabled,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq("id", request.id);
+    if (error) {
+      toast.error(
+        enabled
+          ? "Unable to mark this request for a separate cheque"
+          : "Unable to include this request in the combined cheque"
+      );
+      return false;
+    }
+    setRequest({ ...request, separate_cheque: enabled });
+    setLinkedPaymentCheckPeers((current) =>
+      current.map((peer) =>
+        peer.id === request.id ? { ...peer, separate_cheque: enabled } : peer
+      )
+    );
+    await bustCache();
+    return true;
   };
 
   const handleDisposal = async (action: FundRequestDisposalAction) => {
@@ -1078,12 +1139,22 @@ export function FundRequestApprovalDetail({
                 canUpload={canUploadPaymentCheck}
                 canDelete={canUploadPaymentCheck}
                 linkedRequestIds={linkedPaymentCheckRequestIds}
-                checkAmount={
-                  linkedPaymentCheckAmount != null
-                    ? linkedPaymentCheckAmount
-                    : Number(request.total_requested_amount) || 0
+                printMode={
+                  linkedPaymentCheckRequestIds.length > 1 ? "separate" : "combined"
                 }
+                isSeparateCheque={isFundRequestSeparateCheque(request)}
+                checkAmount={Number(request.total_requested_amount) || 0}
+                payeeTotal={linkedPaymentCheckAmount}
+                combinedChequeAfter={getFundRequestCombinedChequeAmount(
+                  linkedPaymentCheckPeers.map((peer) =>
+                    peer.id === request.id
+                      ? { ...peer, separate_cheque: true }
+                      : peer
+                  )
+                )}
                 checkPayeeName={getFundRequestPayeeAccountName(request) ?? ""}
+                onMarkSeparateCheque={() => handleSetSeparateCheque(true)}
+                onClearSeparateCheque={() => handleSetSeparateCheque(false)}
                 onDocumentsChange={setDocuments}
               />
             ) : null}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  countFundRequestSeparateCheques,
+  getFundRequestCombinedChequeAmount,
   getFundRequestPaymentCheckPeerIds,
+  getFundRequestSeparateChequePrompt,
   isFundRequestPaymentCheckPeer,
 } from "@/lib/fund-request-payment-check";
 import type { FundRequestPaymentCheckPeerRow } from "@/lib/fund-request-payment-check";
@@ -58,5 +61,38 @@ describe("fund request payment check peers", () => {
     expect(getFundRequestPaymentCheckPeerIds(current, [current, otherPayee])).toEqual([
       "current",
     ]);
+  });
+});
+
+describe("separate cheque amounts", () => {
+  it("keeps the payee total while excluding separate cheques from the combined print amount", () => {
+    const requests = [
+      { total_requested_amount: 494446.35, separate_cheque: false },
+      { total_requested_amount: 8839.29, separate_cheque: false },
+      { total_requested_amount: 20625, separate_cheque: true },
+      { total_requested_amount: 3437.5, separate_cheque: false },
+    ];
+    const payeeTotal = requests.reduce(
+      (sum, row) => sum + row.total_requested_amount,
+      0
+    );
+
+    expect(payeeTotal).toBeCloseTo(527348.14, 2);
+    expect(getFundRequestCombinedChequeAmount(requests)).toBeCloseTo(506723.14, 2);
+    expect(countFundRequestSeparateCheques(requests)).toBe(1);
+  });
+
+  it("explains the exclusion in the separate-cheque prompt", () => {
+    const prompt = getFundRequestSeparateChequePrompt({
+      requestAmount: 20625,
+      payeeName: "CONSTANTINO MILO JR.",
+      groupTotal: 527348.14,
+      combinedAfter: 506723.14,
+    });
+    expect(prompt.title).toBe("Print a separate cheque?");
+    expect(prompt.description).toContain("₱20,625.00");
+    expect(prompt.description).toContain("₱506,723.14");
+    expect(prompt.description).toContain("₱527,348.14");
+    expect(prompt.description).toContain("CONSTANTINO MILO JR.");
   });
 });

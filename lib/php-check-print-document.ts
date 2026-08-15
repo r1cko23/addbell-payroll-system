@@ -35,6 +35,7 @@ function fieldStyle(box: CheckFieldBox): string {
     "padding:0",
     `text-align:${box.textAlign ?? "left"}`,
     `white-space:${box.whiteSpace ?? "nowrap"}`,
+    "overflow:hidden",
     "box-sizing:border-box",
     "font-family:Arial,Helvetica,sans-serif",
     "font-weight:700",
@@ -169,6 +170,7 @@ export function buildPhpCheckPrintHtml(options: {
       page-break-after: avoid;
       page-break-inside: avoid;
     }
+    /* Flush to the rear clipper / left guide. ~13 mm slack stays empty on the right. */
     .check-sheet {
       position: absolute;
       left: 0;

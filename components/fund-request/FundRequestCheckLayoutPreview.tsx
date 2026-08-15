@@ -2,7 +2,6 @@
 
 import type { CSSProperties } from "react";
 import {
-  applyCheckPrintOffset,
   ADDBELL_CHECK_ACCOUNT_NAME,
   CHECK_DATE_DIGIT_LAYOUT,
   CHECK_TEMPLATES,
@@ -32,6 +31,12 @@ function pct(mm: number, totalMm: number): string {
   return `${(mm / totalMm) * 100}%`;
 }
 
+/** Scale print pt to the preview box so payee and pesos-in-words match. */
+function overlayFontCqw(fontSizePt: number, pageWidthMm: number): string {
+  const mm = fontSizePt * (25.4 / 72);
+  return `${(mm / pageWidthMm) * 100}cqw`;
+}
+
 function overlayFieldStyle(
   box: CheckFieldBox,
   pageWidthMm: number,
@@ -43,7 +48,7 @@ function overlayFieldStyle(
     top: pct(box.topMm, pageHeightMm),
     left: pct(box.leftMm, pageWidthMm),
     width: pct(box.widthMm, pageWidthMm),
-    fontSize: `${box.fontSizePt}pt`,
+    fontSize: overlayFontCqw(box.fontSizePt, pageWidthMm),
     lineHeight: 1,
     textAlign: box.textAlign ?? "left",
     whiteSpace: box.whiteSpace ?? "nowrap",
@@ -263,15 +268,12 @@ function BpiStockChrome() {
 
 function PrintFieldsOverlay({
   bank,
-  offset,
   content,
 }: {
   bank: CheckBank;
-  offset: CheckPrintOffset;
   content: CheckLayoutPreviewContent | null;
 }) {
-  const base = CHECK_TEMPLATES[bank];
-  const template = applyCheckPrintOffset(base, offset);
+  const template = CHECK_TEMPLATES[bank];
   const { pageWidthMm, pageHeightMm } = template;
   const dateText = content?.date ?? "08-10-2026";
   const payeeText = content?.payee || "PAYEE NAME";
@@ -279,9 +281,6 @@ function PrintFieldsOverlay({
   const amountWords = content?.amountWords ?? "ZERO PESOS ONLY";
   const digits = getCheckDateDigits(dateText);
   const dateLayout = CHECK_DATE_DIGIT_LAYOUT[bank];
-
-  const ox = (offset.offsetXMm / pageWidthMm) * 100;
-  const oy = (offset.offsetYMm / pageHeightMm) * 100;
 
   return (
     <>
@@ -292,11 +291,11 @@ function PrintFieldsOverlay({
             key={`d-${i}`}
             className="pointer-events-none absolute z-10 flex items-center justify-center font-bold tabular-nums text-black"
             style={{
-              top: `${dateLayout.topPct + oy}%`,
-              left: `${slot.left + ox}%`,
+              top: `${dateLayout.topPct}%`,
+              left: `${slot.left}%`,
               width: `${slot.width}%`,
               height: `${dateLayout.heightPct}%`,
-              fontSize: "clamp(8px, 1.35vw, 11px)",
+              fontSize: overlayFontCqw(9, pageWidthMm),
               fontFamily: "Arial, Helvetica, sans-serif",
               lineHeight: 1,
               textAlign: "center",
@@ -309,9 +308,7 @@ function PrintFieldsOverlay({
 
       <div
         className="pointer-events-none absolute z-10 truncate font-bold text-black"
-        style={overlayFieldStyle(template.payee, pageWidthMm, pageHeightMm, {
-          fontSize: "clamp(9px, 1.45vw, 11px)",
-        })}
+        style={overlayFieldStyle(template.payee, pageWidthMm, pageHeightMm)}
         title={payeeText}
       >
         {payeeText}
@@ -323,10 +320,7 @@ function PrintFieldsOverlay({
           template.amountFigures,
           pageWidthMm,
           pageHeightMm,
-          {
-            fontSize: "clamp(10px, 1.55vw, 12px)",
-            paddingLeft: "0.6%",
-          }
+          { paddingLeft: "0.6%" }
         )}
       >
         {amountFigures}
@@ -337,11 +331,7 @@ function PrintFieldsOverlay({
         style={overlayFieldStyle(
           template.amountWords,
           pageWidthMm,
-          pageHeightMm,
-          {
-            fontSize: "clamp(7px, 1.15vw, 9px)",
-            whiteSpace: "nowrap",
-          }
+          pageHeightMm
         )}
         title={amountWords}
       >
@@ -353,11 +343,9 @@ function PrintFieldsOverlay({
 
 function OfficialBlankOverlay({
   bank,
-  offset,
   content,
 }: {
   bank: CheckBank;
-  offset: CheckPrintOffset;
   content: CheckLayoutPreviewContent | null;
 }) {
   const template = CHECK_TEMPLATES[bank];
@@ -367,7 +355,10 @@ function OfficialBlankOverlay({
   return (
     <div
       className="relative w-full overflow-hidden rounded-[2px] border border-slate-300 bg-white shadow-sm"
-      style={{ aspectRatio: `${pageWidthMm} / ${pageHeightMm}` }}
+      style={{
+        aspectRatio: `${pageWidthMm} / ${pageHeightMm}`,
+        containerType: "size",
+      }}
       aria-label={`${template.label} print overlay`}
     >
       {bank === "bpi" ? (
@@ -381,14 +372,13 @@ function OfficialBlankOverlay({
         />
       ) : null}
 
-      <PrintFieldsOverlay bank={bank} offset={offset} content={content} />
+      <PrintFieldsOverlay bank={bank} content={content} />
     </div>
   );
 }
 
 export function FundRequestCheckLayoutPreview({
   bank,
-  offset,
   content,
   className,
 }: FundRequestCheckLayoutPreviewProps) {
@@ -410,12 +400,12 @@ export function FundRequestCheckLayoutPreview({
         </span>
       </div>
 
-      <OfficialBlankOverlay bank={bank} offset={offset} content={content} />
+      <OfficialBlankOverlay bank={bank} content={content} />
 
       <p className="text-[11px] text-muted-foreground">
-        Same PCHC field layout for BDO and BPI
-        {bank === "bpi" ? " (BPI colors + naming)" : ""} · date digits centered
-        · figures left near ₱ · Use ←→↑↓ if your printer drifts.
+        Overlay matches the cheque blank (payee and pesos in words share the
+        same left edge). ←→↑↓ only shift the physical Epson print, not this
+        preview.
       </p>
     </div>
   );

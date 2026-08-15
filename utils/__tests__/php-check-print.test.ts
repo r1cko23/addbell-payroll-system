@@ -4,7 +4,12 @@ import {
   applyCheckPrintOffset,
   buildCheckPrintContent,
   CHECK_DATE_DIGIT_LAYOUT,
+  CHECK_PRINT_PAGE_HEIGHT_MM,
+  CHECK_PRINT_PAGE_WIDTH_MM,
+  CHECK_PRINT_RIGHT_SLACK_MM,
+  CHECK_PRINT_STOCK_HEIGHT_MM,
   CHECK_TEMPLATES,
+  getDefaultCheckPrintOffset,
   formatCheckAmountFigures,
   formatCheckAmountInWordsPrint,
   formatCheckDate,
@@ -66,6 +71,16 @@ describe("getCheckDateDigits", () => {
   });
 });
 
+describe("CHECK_TEMPLATES payee line", () => {
+  it("starts on the left at the pesos-in-words size and stops before ₱", () => {
+    const { payee, amountWords, amountFigures } = CHECK_TEMPLATES.bdo;
+    expect(payee.textAlign).toBe("left");
+    expect(payee.fontSizePt).toBe(amountWords.fontSizePt);
+    expect(payee.leftMm).toBe(amountWords.leftMm);
+    expect(payee.leftMm + payee.widthMm).toBeLessThan(amountFigures.leftMm - 10);
+  });
+});
+
 describe("CHECK_DATE_DIGIT_LAYOUT", () => {
   it("uses eight centered digit slots for BDO and BPI", () => {
     expect(CHECK_DATE_DIGIT_LAYOUT.bdo.slots).toHaveLength(8);
@@ -92,6 +107,30 @@ describe("buildCheckPrintContent", () => {
     expect(content.payee).toBe("ALEJA BLOWER CORPORATION");
     expect(content.amountWords).toBe(
       "ONE HUNDRED THIRTY ONE THOUSAND TWO HUNDRED FORTY SEVEN PESOS & 59/100 CENTAVOS ONLY"
+    );
+  });
+});
+
+describe("getDefaultCheckPrintOffset", () => {
+  it("uses the measured Addbell Epson feed (X -1.5, Y 8.0)", () => {
+    expect(getDefaultCheckPrintOffset()).toEqual({
+      offsetXMm: -1.5,
+      offsetYMm: 8.0,
+    });
+  });
+});
+
+describe("CHECK_PRINT_PAGE size", () => {
+  it("matches cheque length × L565 9 cm minimum feed width", () => {
+    expect(CHECK_PRINT_PAGE_WIDTH_MM).toBe(203.2);
+    expect(CHECK_PRINT_PAGE_HEIGHT_MM).toBe(90);
+  });
+
+  it("leaves the 9 cm right-side slack unused (clipper-aligned, not centered)", () => {
+    expect(CHECK_PRINT_STOCK_HEIGHT_MM).toBe(76.8);
+    expect(CHECK_PRINT_RIGHT_SLACK_MM).toBeCloseTo(13.2, 1);
+    expect(CHECK_PRINT_STOCK_HEIGHT_MM + CHECK_PRINT_RIGHT_SLACK_MM).toBe(
+      CHECK_PRINT_PAGE_HEIGHT_MM
     );
   });
 });

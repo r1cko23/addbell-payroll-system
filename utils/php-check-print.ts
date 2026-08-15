@@ -56,13 +56,41 @@ export const CHECK_BANKS: { value: CheckBank; label: string }[] = [
 export const ADDBELL_CHECK_ACCOUNT_NAME = "ADD-BELL TECHNICAL SERVICES INC";
 
 /**
- * Print @page uses Epson-safe minimum height (127 mm).
- * Check fields stay in the top ~77 mm band; bottom of the page is blank.
+ * Epson L565 rear-feed minimum width is 9 cm. The cheque short edge (~77 mm)
+ * sits in that 90 mm slot when inserted vertically.
+ *
+ * Load flush to the rear clipper / left guide. Do not center the stock —
+ * the leftover ~13 mm stays empty on the right.
+ */
+export const CHECK_PRINT_FEED_WIDTH_MM = 90;
+export const CHECK_PRINT_STOCK_HEIGHT_MM = 76.8;
+export const CHECK_PRINT_RIGHT_SLACK_MM =
+  CHECK_PRINT_FEED_WIDTH_MM - CHECK_PRINT_STOCK_HEIGHT_MM;
+
+/**
+ * Print @page: cheque length × L565 9 cm slot (not 5×8 / 127 mm, which
+ * scales the layout and pushes payee into the pre-printed ₱).
+ * Check fields stay in the top ~77 mm band; the right-side slack in the
+ * 9 cm guides is unused (stock is clipper-aligned, not centered).
  */
 export const CHECK_PRINT_PAGE_WIDTH_MM = 203.2;
-export const CHECK_PRINT_PAGE_HEIGHT_MM = 127;
-/** Small top nudge so content isn't clipped by printer top margin. */
+export const CHECK_PRINT_PAGE_HEIGHT_MM = CHECK_PRINT_FEED_WIDTH_MM;
+/** Small extra top inset on the print page (separate from printer-feed offset). */
 export const CHECK_PRINT_TOP_INSET_MM = 0;
+/**
+ * Shared left edge for payee and pesos-in-words so both lines start together
+ * after the printed labels (ORDER OF / PESOS).
+ */
+export const CHECK_PRINT_TEXT_LEFT_MM = 27.5;
+
+/**
+ * Epson + Addbell cheque feed, measured on live BDO stock.
+ * Preview still shows field placement on the blank; print applies this offset.
+ */
+export const DEFAULT_CHECK_PRINT_OFFSET: CheckPrintOffset = {
+  offsetXMm: -1.5,
+  offsetYMm: 8.0,
+};
 
 /**
  * Layouts from official BDO new-check blank (PCHC).
@@ -71,7 +99,7 @@ export const CHECK_PRINT_TOP_INSET_MM = 0;
  */
 const SHARED_CHECK_LAYOUT = {
   pageWidthMm: 203.2,
-  pageHeightMm: 76.8, // 203.2 / 2.646
+  pageHeightMm: CHECK_PRINT_STOCK_HEIGHT_MM,
   date: {
     topMm: 14.8,
     leftMm: 148.5,
@@ -82,10 +110,11 @@ const SHARED_CHECK_LAYOUT = {
     whiteSpace: "nowrap" as const,
   },
   payee: {
-    topMm: 22.8,
-    leftMm: 42,
-    widthMm: 95,
-    fontSizePt: 10,
+    topMm: 22.5,
+    leftMm: CHECK_PRINT_TEXT_LEFT_MM,
+    // Stop short of the pre-printed ₱ (~67.8% / 138 mm).
+    widthMm: 109,
+    fontSizePt: 8,
     textAlign: "left" as const,
     whiteSpace: "nowrap" as const,
   },
@@ -99,7 +128,7 @@ const SHARED_CHECK_LAYOUT = {
   },
   amountWords: {
     topMm: 29.2,
-    leftMm: 34,
+    leftMm: CHECK_PRINT_TEXT_LEFT_MM,
     widthMm: 160,
     fontSizePt: 8,
     textAlign: "left" as const,
@@ -166,7 +195,7 @@ export function getCheckDateDigits(dateText: string): string[] {
   return digits;
 }
 
-const OFFSET_STORAGE_KEY = "addbell-check-print-offsets-v8";
+const OFFSET_STORAGE_KEY = "addbell-check-print-offsets-v9";
 
 /** Official corporate stock uses two signature boxes (BDO + BPI blanks). */
 export function getCheckSignatureBoxCount(_bank: CheckBank): 1 | 2 {
@@ -234,7 +263,7 @@ export function buildCheckPrintContent(fields: CheckPrintFields): {
 }
 
 export function getDefaultCheckPrintOffset(): CheckPrintOffset {
-  return { offsetXMm: 0, offsetYMm: 0 };
+  return { ...DEFAULT_CHECK_PRINT_OFFSET };
 }
 
 export function loadCheckPrintOffsets(): Record<CheckBank, CheckPrintOffset> {

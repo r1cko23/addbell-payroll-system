@@ -165,7 +165,7 @@ export function FundRequestCheckPrintDialog({
       return;
     }
     toast.success(
-      "Print opened. Pages: 1 · Margins None · Scale 100%. Insert cheque vertically."
+      "Print opened. Paper 8.0 × 3.5 in · Margins None · Scale 100%. Push cheque into the rear clipper; leave the small gap on the right."
     );
   }
 
@@ -175,8 +175,11 @@ export function FundRequestCheckPrintDialog({
         <DialogHeader>
           <DialogTitle>Print check</DialogTitle>
           <DialogDescription>
-            {template.label} format. Insert the cheque vertically (short edge
-            in the side guides). Pages 1 · Margins None · Scale 100%.
+            {template.label} format. In Chrome use paper{" "}
+            <strong>8.0 × 3.5 in</strong> (203 × 90 mm) — not 3.5 × 5 photo.
+            Margins None · Scale 100% (not Default). Push the cheque into the
+            rear clipper, flush left; leave the small gap on the right — do
+            not center it.
           </DialogDescription>
         </DialogHeader>
 
@@ -258,7 +261,8 @@ export function FundRequestCheckPrintDialog({
             </div>
             <p className="text-xs text-muted-foreground">
               Offset X {offset.offsetXMm.toFixed(1)} mm · Y{" "}
-              {offset.offsetYMm.toFixed(1)} mm (saved on this browser)
+              {offset.offsetYMm.toFixed(1)} mm (Addbell printer default X
+              -1.5 · Y 8.0, saved on this browser)
             </p>
             <div className="flex flex-wrap gap-2">
               <Button

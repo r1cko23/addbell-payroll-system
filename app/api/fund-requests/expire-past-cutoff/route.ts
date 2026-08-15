@@ -51,7 +51,8 @@ async function hasDashboardAccess(): Promise<boolean> {
 }
 
 /**
- * Auto-cancel OM/PO fund requests after their filing cutoff week ends.
+ * Auto-cancel OM/PO fund requests past their approval deadline.
+ * OM: Thursday 10:00 AM Manila. PO: end of the Friday after that Thursday.
  * Auth: Vercel cron (`Authorization: Bearer CRON_SECRET`) or logged-in dashboard user.
  */
 export async function POST(req: NextRequest) {

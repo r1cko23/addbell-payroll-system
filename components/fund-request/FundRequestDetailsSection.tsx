@@ -35,6 +35,7 @@ interface FundRequestDetailsSectionProps {
   onSave?: (form: EditableFundRequestDetailsForm) => void | Promise<void>;
   /** Override the default VAT/EWT hint under the totals. */
   adjustmentHint?: string;
+  className?: string;
 }
 
 function VatOptionCheckbox({
@@ -76,6 +77,7 @@ export function FundRequestDetailsSection({
   onEditableDeductionsChange,
   onSave,
   adjustmentHint,
+  className,
 }: FundRequestDetailsSectionProps) {
   const { items: readOnlyItems, deductions: readOnlyDeductions } =
     splitFundRequestDetails(details);
@@ -219,7 +221,7 @@ export function FundRequestDetailsSection({
     deductionsSubtotal > itemsSubtotal && deductionsSubtotal > 0;
 
   return (
-    <div>
+    <div className={className}>
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         Details of Request
       </h4>

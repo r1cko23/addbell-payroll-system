@@ -337,7 +337,7 @@ export function getFundRequestCutoffStartYmd(request: FundRequestRow): string | 
   return getFundRequestFilingCutoffStartYmd(request);
 }
 
-/** Statuses auto-cancelled when their filing cutoff week has ended. */
+/** Statuses auto-cancelled when their own approval deadline has passed. */
 export const FUND_REQUEST_CUTOFF_EXPIRABLE_STATUSES = [
   "pending",
   "project_manager_approved",
@@ -354,25 +354,96 @@ export function isFundRequestCutoffExpirableStatus(
   );
 }
 
+function manilaDateTime(ymd: string, hour: number, minute: number): Date {
+  const hh = String(hour).padStart(2, "0");
+  const mm = String(minute).padStart(2, "0");
+  return new Date(`${ymd}T${hh}:${mm}:00+08:00`);
+}
+
+/** Thursday YMD of a Fri-start cutoff week. */
+export function getFundRequestCutoffThursdayYmd(
+  cutoffStartFridayYmd: string
+): string | null {
+  const start = parseYmd(cutoffStartFridayYmd);
+  if (!start) return null;
+  return format(getFundRequestCutoffPeriodEnd(start), "yyyy-MM-dd");
+}
+
 /**
- * True when an OM/PO-stage request's filing cutoff is already over
- * (active Fri–Thu week is newer than the filing week).
- * UM-stage (`purchasing_officer_approved`) never expires this way.
+ * Saturday 00:00 Manila after the Friday that follows the filing week's Thursday.
+ * First instant Purchasing is past end-of-Friday.
  */
-export function isFundRequestPastCutoffForOmPoExpiry(
-  request: Pick<FundRequestRow, "request_date" | "created_at" | "status">,
+export function getFundRequestPoExpiryInstant(
+  cutoffStartFridayYmd: string
+): Date | null {
+  const thursdayYmd = getFundRequestCutoffThursdayYmd(cutoffStartFridayYmd);
+  const thursday = thursdayYmd ? parseYmd(thursdayYmd) : null;
+  if (!thursday) return null;
+  const saturdayYmd = format(addDays(thursday, 2), "yyyy-MM-dd");
+  return manilaDateTime(saturdayYmd, 0, 0);
+}
+
+export function isFundRequestPastOperationsManagerCutoff(
+  request: Pick<
+    FundRequestRow,
+    "request_date" | "created_at" | "status" | "returned_at"
+  >,
   now: Date = new Date()
 ): boolean {
-  if (!isFundRequestCutoffExpirableStatus(request.status)) return false;
+  if (request.status !== "pending") return false;
+  if (request.returned_at) return false;
   const filingStart = getFundRequestFilingCutoffStartYmd(request);
   if (!filingStart) return false;
-  return filingStart < getActiveFundRequestCutoffStartYmd(now);
+  const thursdayYmd = getFundRequestCutoffThursdayYmd(filingStart);
+  if (!thursdayYmd) return false;
+  return now.getTime() >= manilaDateTime(thursdayYmd, 10, 0).getTime();
+}
+
+export function isFundRequestPastPurchasingOfficerCutoff(
+  request: Pick<
+    FundRequestRow,
+    "request_date" | "created_at" | "status" | "returned_at"
+  >,
+  now: Date = new Date()
+): boolean {
+  if (request.status !== "project_manager_approved") return false;
+  if (request.returned_at) return false;
+  const filingStart = getFundRequestFilingCutoffStartYmd(request);
+  if (!filingStart) return false;
+  const poExpiry = getFundRequestPoExpiryInstant(filingStart);
+  if (!poExpiry) return false;
+  return now.getTime() >= poExpiry.getTime();
+}
+
+/**
+ * True when an OM- or PO-stage request missed its own deadline.
+ * - Operations (`pending`): Thursday 10:00 AM Manila of the filing week.
+ * - Purchasing (`project_manager_approved`): end of the Friday after that Thursday.
+ * UM (`purchasing_officer_approved`) never expires.
+ * Returned-to-purchasing (`returned_at`) also never expires.
+ */
+export function isFundRequestPastCutoffForOmPoExpiry(
+  request: Pick<
+    FundRequestRow,
+    "request_date" | "created_at" | "status" | "returned_at"
+  >,
+  now: Date = new Date()
+): boolean {
+  return (
+    isFundRequestPastOperationsManagerCutoff(request, now) ||
+    isFundRequestPastPurchasingOfficerCutoff(request, now)
+  );
 }
 
 /** Stable actor id for cutoff auto-cancellations (not a real auth user). */
 export const FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID =
   "00000000-0000-4000-8000-0000000000f1";
 
+export const FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM =
+  "Auto-cancelled: Operations Manager did not approve before Thursday 10:00 AM. Please file a new request.";
+export const FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO =
+  "Auto-cancelled: Purchasing Officer did not approve before the end of Friday. Please file a new request.";
+/** Historical expiry copy (pre OM/PO split). Still treated as cutoff auto-cancel. */
 export const FUND_REQUEST_CUTOFF_EXPIRY_REASON =
   "Auto-cancelled: the weekly cutoff ended before Operations/Purchasing approval. Please file a new request.";
 
@@ -382,12 +453,21 @@ export function isFundRequestCutoffExpirySystemActor(
   return userId === FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID;
 }
 
+const FUND_REQUEST_CUTOFF_EXPIRY_REASONS = new Set([
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON,
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM,
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO,
+]);
+
 /** True when a rejection was produced by weekly cutoff auto-cancel. */
 export function isFundRequestCutoffExpiryRejection(
   request: Pick<FundRequestRow, "rejected_by" | "rejection_reason">
 ): boolean {
   if (isFundRequestCutoffExpirySystemActor(request.rejected_by)) return true;
-  return request.rejection_reason === FUND_REQUEST_CUTOFF_EXPIRY_REASON;
+  return (
+    typeof request.rejection_reason === "string" &&
+    FUND_REQUEST_CUTOFF_EXPIRY_REASONS.has(request.rejection_reason)
+  );
 }
 
 export function isPoFundRequestRejection(request: FundRequestRow): boolean {

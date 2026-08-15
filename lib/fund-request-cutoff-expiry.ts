@@ -3,7 +3,8 @@ import type { FundRequestRow } from "@/types/fund-request";
 import { buildFundRequestRejectUpdates } from "@/lib/fund-request-approval";
 import {
   FUND_REQUEST_CUTOFF_EXPIRABLE_STATUSES,
-  FUND_REQUEST_CUTOFF_EXPIRY_REASON,
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM,
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO,
   FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID,
   isFundRequestPastCutoffForOmPoExpiry,
 } from "@/lib/fund-request-cutoff";
@@ -16,12 +17,17 @@ export {
 } from "@/lib/fund-request-cutoff";
 
 export function buildFundRequestCutoffExpiryUpdates(
-  request: FundRequestRow
+  request: FundRequestRow,
+  now: Date = new Date()
 ): Record<string, unknown> | null {
-  if (!isFundRequestPastCutoffForOmPoExpiry(request)) return null;
+  if (!isFundRequestPastCutoffForOmPoExpiry(request, now)) return null;
+  const reason =
+    request.status === "project_manager_approved"
+      ? FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO
+      : FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM;
   const updates = buildFundRequestRejectUpdates(
     FUND_REQUEST_CUTOFF_EXPIRY_SYSTEM_ACTOR_ID,
-    FUND_REQUEST_CUTOFF_EXPIRY_REASON,
+    reason,
     request
   );
   // `rejected_by` FK → profiles. System actor is not a real profile, so store null
@@ -33,7 +39,8 @@ export function buildFundRequestCutoffExpiryUpdates(
 }
 
 /**
- * Reject OM/PO-stage fund requests whose filing cutoff week has ended.
+ * Reject OM/PO-stage fund requests past their approval deadline.
+ * OM: Thursday 10:00 AM Manila. PO: end of the following Friday.
  * Leaves UM-stage (`purchasing_officer_approved`) untouched.
  */
 export async function expirePastCutoffFundRequests(
@@ -54,7 +61,7 @@ export async function expirePastCutoffFundRequests(
   const expiredIds: string[] = [];
 
   for (const row of toExpire) {
-    const updates = buildFundRequestCutoffExpiryUpdates(row);
+    const updates = buildFundRequestCutoffExpiryUpdates(row, now);
     if (!updates) continue;
 
     const { error: updateError } = await admin

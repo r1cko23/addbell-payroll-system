@@ -45,6 +45,7 @@ function baseRequest(overrides: Partial<FundRequestRow> = {}): FundRequestRow {
     returned_by: null,
     returned_at: null,
     return_reason: null,
+    return_correction: null,
     rejection_history: null,
     rejection_undo_snapshot: null,
     created_at: "2026-06-27T02:00:00+08:00",

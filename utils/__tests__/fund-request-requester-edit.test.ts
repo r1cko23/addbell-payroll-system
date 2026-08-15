@@ -45,6 +45,7 @@ function omRequestAfterPoApproval(): FundRequestRow {
     returned_by: null,
     returned_at: null,
     return_reason: null,
+    return_correction: null,
     rejection_undo_snapshot: null,
     rejection_history: [],
     created_at: "2026-07-01T00:00:00Z",

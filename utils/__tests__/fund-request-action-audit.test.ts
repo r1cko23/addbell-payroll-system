@@ -47,6 +47,7 @@ function baseRequest(
     returned_by: null,
     returned_at: null,
     return_reason: null,
+    return_correction: null,
     rejection_undo_snapshot: null,
     rejection_history: [],
     created_at: "2026-07-01T00:00:00Z",
@@ -101,6 +102,7 @@ describe("fund request action audit", () => {
     expect(updates.status).toBe("project_manager_approved");
     expect(updates.returned_by).toBe("um-user");
     expect(updates.return_reason).toBe("Fix subcontract P.O. amount");
+    expect(updates.return_correction).toBeNull();
     expect(updates.rejected_by).toBeNull();
     expect(updates.rejected_at).toBeNull();
     expect(updates.rejection_history).toEqual([

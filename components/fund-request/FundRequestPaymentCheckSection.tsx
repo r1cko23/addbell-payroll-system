@@ -18,7 +18,6 @@ import { FundRequestCheckPrintDialog } from "@/components/fund-request/FundReque
 import { FundRequestSupportingDocuments } from "@/components/fund-request/FundRequestSupportingDocuments";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
 import { cn } from "@/lib/utils";
-import { formatPhpCheckAmountInWords } from "@/utils/php-check-amount-words";
 
 type FundRequestPaymentCheckSectionProps = {
   requestId: string;
@@ -162,35 +161,16 @@ export function FundRequestPaymentCheckSection({
             One check covers all {linkedRequestIds.length} requests for this payee.
           </p>
         ) : null}
-        {typeof checkAmount === "number" && Number.isFinite(checkAmount) ? (
-          <div className="mt-2 space-y-2 rounded-md border border-primary/15 bg-background/60 px-3 py-2">
-            {checkPayeeName.trim() ? (
-              <p className="text-xs font-medium text-muted-foreground">
-                Payee:{" "}
-                <span className="text-foreground">{checkPayeeName.trim()}</span>
-              </p>
-            ) : null}
-            <p className="text-sm font-bold text-foreground">
-              ₱
-              {checkAmount.toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-              })}
-            </p>
-            <p className="whitespace-nowrap overflow-x-auto text-sm font-bold leading-snug text-foreground">
-              {formatPhpCheckAmountInWords(checkAmount)}
-            </p>
-            {canPrintCheck ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className={cn(dbHeaderButton, "mt-1")}
-                onClick={() => setPrintOpen(true)}
-              >
-                Print check (BDO / BPI)
-              </Button>
-            ) : null}
-          </div>
+        {canPrintCheck ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn(dbHeaderButton, "mt-2")}
+            onClick={() => setPrintOpen(true)}
+          >
+            Print check (BDO / BPI)
+          </Button>
         ) : null}
       </div>
 

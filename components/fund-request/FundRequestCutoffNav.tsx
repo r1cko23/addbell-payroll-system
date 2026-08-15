@@ -15,6 +15,7 @@ type FundRequestCutoffNavProps = {
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   loading?: boolean;
+  approvalDeadlineNote?: string | null;
 };
 
 export function FundRequestCutoffNav({
@@ -22,6 +23,7 @@ export function FundRequestCutoffNav({
   selectedIndex,
   onSelectedIndexChange,
   loading = false,
+  approvalDeadlineNote = null,
 }: FundRequestCutoffNavProps) {
   const selectedCutoff = cutoffs[selectedIndex] ?? null;
   if (cutoffs.length === 0 || !selectedCutoff) return null;
@@ -69,6 +71,11 @@ export function FundRequestCutoffNav({
           ? ", 10:00 AM Manila"
           : null}
       </p>
+      {approvalDeadlineNote ? (
+        <p className="text-center text-xs text-muted-foreground">
+          {approvalDeadlineNote}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -125,6 +125,8 @@ export type FundRequestRow = {
   returned_by: string | null;
   returned_at: string | null;
   return_reason: string | null;
+  /** Structured UM return payload; parse with parseFundRequestReturnCorrection. */
+  return_correction: unknown | null;
   rejection_undo_snapshot: FundRequestRejectionUndoSnapshot | null;
   rejection_history?: FundRequestActionHistoryEntry[] | null;
   cutoff_adjustment_history?: FundRequestCutoffAdjustmentEntry[] | null;

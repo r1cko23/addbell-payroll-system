@@ -23,6 +23,8 @@ import {
   getFundRequestDisposalReasonPlaceholder,
   type FundRequestDisposalAction,
 } from "@/lib/fund-request-approval";
+import { FundRequestReturnCorrectionForm } from "@/components/fund-request/FundRequestReturnCorrectionForm";
+import type { FundRequestReturnCorrectionInput } from "@/lib/fund-request-return-correction";
 import { FundRequestPaymentCheckSection } from "@/components/fund-request/FundRequestPaymentCheckSection";
 import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
 import type { FundRequestCutoffAdjustmentEntry } from "@/types/fund-request";
@@ -42,6 +44,8 @@ type FundRequestClientGroupedInboxProps = {
   pendingDisposal: PendingFundRequestDisposal | null;
   rejectReason: string;
   onRejectReasonChange: (value: string) => void;
+  returnCorrectionInput: FundRequestReturnCorrectionInput;
+  onReturnCorrectionInputChange: (value: FundRequestReturnCorrectionInput) => void;
   onStartReturn: (id: string) => void;
   onStartReject: (id: string) => void;
   onCancelDisposal: () => void;
@@ -93,6 +97,8 @@ type GroupedInboxRequestActionsProps = {
   actingId: string | null;
   pendingDisposal: PendingFundRequestDisposal | null;
   rejectReason: string;
+  returnCorrectionInput: FundRequestReturnCorrectionInput;
+  onReturnCorrectionInputChange: (value: FundRequestReturnCorrectionInput) => void;
   detailHref: (id: string) => string;
   onRejectReasonChange: (value: string) => void;
   onStartReturn: (id: string) => void;
@@ -115,6 +121,8 @@ function GroupedInboxRequestActions({
   actingId,
   pendingDisposal,
   rejectReason,
+  returnCorrectionInput,
+  onReturnCorrectionInputChange,
   detailHref,
   onRejectReasonChange,
   onStartReturn,
@@ -127,18 +135,30 @@ function GroupedInboxRequestActions({
     const isReturn = pendingDisposal.action === "return";
     return (
       <VStack gap="2" className="w-full max-w-md">
-        <Label className="text-xs">
-          {getFundRequestDisposalReasonLabel(request.status, pendingDisposal.action)}
-        </Label>
-        <Input
-          value={rejectReason}
-          onChange={(e) => onRejectReasonChange(e.target.value)}
-          placeholder={getFundRequestDisposalReasonPlaceholder(
-            request.status,
-            pendingDisposal.action
-          )}
-          className="h-9 text-sm"
-        />
+        {isReturn ? (
+          <FundRequestReturnCorrectionForm
+            value={returnCorrectionInput}
+            onChange={onReturnCorrectionInputChange}
+          />
+        ) : (
+          <>
+            <Label className="text-xs">
+              {getFundRequestDisposalReasonLabel(
+                request.status,
+                pendingDisposal.action
+              )}
+            </Label>
+            <Input
+              value={rejectReason}
+              onChange={(e) => onRejectReasonChange(e.target.value)}
+              placeholder={getFundRequestDisposalReasonPlaceholder(
+                request.status,
+                pendingDisposal.action
+              )}
+              className="h-9 text-sm"
+            />
+          </>
+        )}
         <HStack gap="2" className="flex-wrap">
           <Button
             type="button"
@@ -329,6 +349,8 @@ export function FundRequestClientGroupedInbox({
   pendingDisposal,
   rejectReason,
   onRejectReasonChange,
+  returnCorrectionInput,
+  onReturnCorrectionInputChange,
   onStartReturn,
   onStartReject,
   onCancelDisposal,
@@ -503,6 +525,8 @@ export function FundRequestClientGroupedInbox({
                               actingId={actingId}
                               pendingDisposal={pendingDisposal}
                               rejectReason={rejectReason}
+                              returnCorrectionInput={returnCorrectionInput}
+                              onReturnCorrectionInputChange={onReturnCorrectionInputChange}
                               detailHref={detailHref}
                               onRejectReasonChange={onRejectReasonChange}
                               onStartReturn={onStartReturn}
@@ -599,6 +623,8 @@ export function FundRequestClientGroupedInbox({
                           actingId={actingId}
                           pendingDisposal={pendingDisposal}
                           rejectReason={rejectReason}
+                          returnCorrectionInput={returnCorrectionInput}
+                          onReturnCorrectionInputChange={onReturnCorrectionInputChange}
                           detailHref={detailHref}
                           onRejectReasonChange={onRejectReasonChange}
                           onStartReturn={onStartReturn}

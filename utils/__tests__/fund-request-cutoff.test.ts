@@ -1,4 +1,7 @@
 import {
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON,
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM,
+  FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO,
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
@@ -7,7 +10,10 @@ import {
   getFundRequestCutoffStartYmdForFiling,
   getFundRequestFilingCutoffStartYmd,
   getFundRequestHistoryCutoffs,
+  isFundRequestCutoffExpiryRejection,
   isFundRequestPastCutoffForOmPoExpiry,
+  isFundRequestPastOperationsManagerCutoff,
+  isFundRequestPastPurchasingOfficerCutoff,
   shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
 import { buildFundRequestCutoffExpiryUpdates } from "@/lib/fund-request-cutoff-expiry";
@@ -52,6 +58,7 @@ function baseRequest(overrides: Partial<FundRequestRow> = {}): FundRequestRow {
     returned_by: null,
     returned_at: null,
     return_reason: null,
+    return_correction: null,
     rejection_history: null,
     rejection_undo_snapshot: null,
     created_at: "2026-07-01T06:00:00+08:00",
@@ -145,7 +152,59 @@ describe("fundRequestBelongsToApproverCutoff", () => {
 });
 
 describe("cutoff expiry for OM/PO", () => {
-  it("expires OM/PO requests after their filing week ends", () => {
+  const pendingJul6 = () =>
+    baseRequest({
+      status: "pending",
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      management_approved_by: null,
+      management_approved_at: null,
+      request_date: "2026-07-06",
+      created_at: "2026-07-06T06:00:00+08:00",
+    });
+
+  const poJul6 = () =>
+    baseRequest({
+      status: "project_manager_approved",
+      purchasing_officer_approved_by: null,
+      purchasing_officer_approved_at: null,
+      management_approved_by: null,
+      management_approved_at: null,
+      request_date: "2026-07-06",
+      created_at: "2026-07-06T06:00:00+08:00",
+    });
+
+  it("expires OM at Thursday 10:00 AM Manila of the filing week", () => {
+    const pending = pendingJul6();
+    const before = new Date("2026-07-09T09:59:00+08:00");
+    const atDeadline = new Date("2026-07-09T10:00:00+08:00");
+    expect(isFundRequestPastOperationsManagerCutoff(pending, before)).toBe(false);
+    expect(isFundRequestPastOperationsManagerCutoff(pending, atDeadline)).toBe(true);
+    expect(buildFundRequestCutoffExpiryUpdates(pending, atDeadline)).toMatchObject({
+      status: "rejected",
+      rejected_by: null,
+      rejection_reason: FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM,
+    });
+  });
+
+  it("gives Purchasing until the end of the Friday after that Thursday", () => {
+    const po = poJul6();
+    const thursdayDeadline = new Date("2026-07-09T10:00:00+08:00");
+    const fridayEvening = new Date("2026-07-10T23:59:59+08:00");
+    const saturdayStart = new Date("2026-07-11T00:00:00+08:00");
+    expect(isFundRequestPastPurchasingOfficerCutoff(po, thursdayDeadline)).toBe(
+      false
+    );
+    expect(isFundRequestPastPurchasingOfficerCutoff(po, fridayEvening)).toBe(false);
+    expect(isFundRequestPastPurchasingOfficerCutoff(po, saturdayStart)).toBe(true);
+    expect(buildFundRequestCutoffExpiryUpdates(po, saturdayStart)).toMatchObject({
+      status: "rejected",
+      rejected_by: null,
+      rejection_reason: FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO,
+    });
+  });
+
+  it("expires OM/PO requests after their own deadlines have passed", () => {
     const pending = baseRequest({
       status: "pending",
       purchasing_officer_approved_by: null,
@@ -153,11 +212,12 @@ describe("cutoff expiry for OM/PO", () => {
       management_approved_by: null,
       management_approved_at: null,
     });
-    const now = new Date(2026, 6, 8); // Jul 8 → Jul 3 active, Jun 26 filing is past
+    const now = new Date("2026-07-08T00:00:00+08:00");
     expect(isFundRequestPastCutoffForOmPoExpiry(pending, now)).toBe(true);
-    expect(buildFundRequestCutoffExpiryUpdates(pending)).toMatchObject({
+    expect(buildFundRequestCutoffExpiryUpdates(pending, now)).toMatchObject({
       status: "rejected",
       rejected_by: null,
+      rejection_reason: FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM,
     });
   });
 
@@ -167,23 +227,60 @@ describe("cutoff expiry for OM/PO", () => {
       management_approved_by: null,
       management_approved_at: null,
     });
-    const now = new Date(2026, 6, 8);
+    const now = new Date("2026-07-08T00:00:00+08:00");
     expect(isFundRequestPastCutoffForOmPoExpiry(umPending, now)).toBe(false);
-    expect(buildFundRequestCutoffExpiryUpdates(umPending)).toBeNull();
+    expect(buildFundRequestCutoffExpiryUpdates(umPending, now)).toBeNull();
   });
 
   it("does not expire OM/PO requests still inside their filing week", () => {
-    const pending = baseRequest({
-      status: "pending",
+    const now = new Date("2026-07-08T00:00:00+08:00");
+    expect(isFundRequestPastCutoffForOmPoExpiry(pendingJul6(), now)).toBe(false);
+    expect(isFundRequestPastCutoffForOmPoExpiry(poJul6(), now)).toBe(false);
+  });
+
+  it("does not expire requests returned to purchasing after UM review", () => {
+    const returned = baseRequest({
+      status: "project_manager_approved",
       purchasing_officer_approved_by: null,
       purchasing_officer_approved_at: null,
       management_approved_by: null,
       management_approved_at: null,
-      request_date: "2026-07-06",
-      created_at: "2026-07-06T06:00:00+08:00",
+      returned_at: "2026-07-08T02:00:00+08:00",
+      returned_by: "um-1",
+      return_reason: "Correct: Total Requested Amount",
+      rejection_undo_snapshot: {
+        status: "purchasing_officer_approved",
+        purchasing_officer_approved_by: "po-1",
+        purchasing_officer_approved_at: "2026-07-03T02:00:00+08:00",
+        supplier_bank_details: null,
+        management_approved_by: null,
+        management_approved_at: null,
+      },
     });
-    const now = new Date(2026, 6, 8); // still Jul 3 cutoff
-    expect(isFundRequestPastCutoffForOmPoExpiry(pending, now)).toBe(false);
+    const now = new Date("2026-07-11T00:00:00+08:00");
+    expect(isFundRequestPastCutoffForOmPoExpiry(returned, now)).toBe(false);
+    expect(buildFundRequestCutoffExpiryUpdates(returned, now)).toBeNull();
+  });
+
+  it("treats OM, PO, and historical cutoff reasons as auto-cancels", () => {
+    expect(
+      isFundRequestCutoffExpiryRejection({
+        rejected_by: null,
+        rejection_reason: FUND_REQUEST_CUTOFF_EXPIRY_REASON_OM,
+      })
+    ).toBe(true);
+    expect(
+      isFundRequestCutoffExpiryRejection({
+        rejected_by: null,
+        rejection_reason: FUND_REQUEST_CUTOFF_EXPIRY_REASON_PO,
+      })
+    ).toBe(true);
+    expect(
+      isFundRequestCutoffExpiryRejection({
+        rejected_by: null,
+        rejection_reason: FUND_REQUEST_CUTOFF_EXPIRY_REASON,
+      })
+    ).toBe(true);
   });
 });
 

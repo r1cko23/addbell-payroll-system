@@ -64,6 +64,13 @@ import {
   isPurchasingOfficerOwnFundRequest,
   validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
+import { FundRequestReturnCorrectionForm } from "@/components/fund-request/FundRequestReturnCorrectionForm";
+import {
+  buildFundRequestReturnCorrection,
+  formatFundRequestReturnReason,
+  validateFundRequestReturnCorrection,
+  type FundRequestReturnCorrectionInput,
+} from "@/lib/fund-request-return-correction";
 import { normalizeUserRole } from "@/lib/user-roles";
 import type {
   FundRequestCutoffAdjustmentEntry,
@@ -264,6 +271,11 @@ export function FundRequestInbox({
   const [actingId, setActingId] = useState<string | null>(null);
   const [bulkApproving, setBulkApproving] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [returnCorrectionInput, setReturnCorrectionInput] =
+    useState<FundRequestReturnCorrectionInput>({
+      fields: [],
+      otherReason: "",
+    });
   const [pendingDisposal, setPendingDisposal] = useState<{
     id: string;
     action: FundRequestDisposalAction;
@@ -671,14 +683,24 @@ export function FundRequestInbox({
     currentStatus: FundRequestRow["status"],
     action: FundRequestDisposalAction
   ) => {
-    const validation = validateFundRequestDisposalReason(
-      currentStatus,
-      action,
-      rejectReason
-    );
-    if (!validation.ok) {
-      toast.error(validation.message);
-      return;
+    if (action === "return") {
+      const correctionValidation = validateFundRequestReturnCorrection(
+        returnCorrectionInput
+      );
+      if (!correctionValidation.ok) {
+        toast.error(correctionValidation.message);
+        return;
+      }
+    } else {
+      const validation = validateFundRequestDisposalReason(
+        currentStatus,
+        action,
+        rejectReason
+      );
+      if (!validation.ok) {
+        toast.error(validation.message);
+        return;
+      }
     }
     if (!currentUserId) return;
     const row = allRows.find((item) => item.id === id);
@@ -693,14 +715,21 @@ export function FundRequestInbox({
           routing.requiresOperationsManagerApproval
         )
     );
+    const returnCorrection =
+      action === "return"
+        ? buildFundRequestReturnCorrection(returnCorrectionInput, {
+            ...requestRow,
+            vendorName: row?.vendors?.name,
+          })
+        : null;
     const updates =
       action === "return"
         ? buildFundRequestUpperManagementReturnUpdates(
             currentUserId,
-            rejectReason,
+            formatFundRequestReturnReason(returnCorrectionInput),
             undoSnapshot,
             requestRow,
-            { returnToOperationsManager }
+            { returnToOperationsManager, returnCorrection }
           )
         : buildFundRequestRejectUpdates(
             currentUserId,
@@ -716,6 +745,7 @@ export function FundRequestInbox({
     setActingId(null);
     setPendingDisposal(null);
     setRejectReason("");
+    setReturnCorrectionInput({ fields: [], otherReason: "" });
     if (error) {
       toast.error(
         action === "return"
@@ -756,8 +786,14 @@ export function FundRequestInbox({
   }
 
   const actionableStatuses = getActionableStatuses();
-  const isUpperManagement =
-    normalizeUserRole(profile?.role) === "upper_management";
+  const normalizedInboxRole = normalizeUserRole(profile?.role);
+  const isUpperManagement = normalizedInboxRole === "upper_management";
+  const approvalDeadlineNote =
+    normalizedInboxRole === "purchasing_officer"
+      ? "Purchasing has until the end of Friday to approve before auto-cancel."
+      : normalizedInboxRole === "operations_manager"
+        ? "Operations has until Thursday 10:00 AM Manila to approve before auto-cancel."
+        : null;
   const useClientGroupedView = isUpperManagement;
   const summaryLoadingLabel = loading ? "Loading..." : undefined;
   const metricLabels = getFundRequestRoleCutoffMetricLabels(profile?.role);
@@ -775,6 +811,7 @@ export function FundRequestInbox({
         selectedIndex={selectedCutoffIndex}
         onSelectedIndexChange={setSelectedCutoffIndex}
         loading={loading}
+        approvalDeadlineNote={approvalDeadlineNote}
       />
 
       <div className={cn("w-full", dbKpiGrid)}>
@@ -920,11 +957,17 @@ export function FundRequestInbox({
           pendingDisposal={pendingDisposal}
           rejectReason={rejectReason}
           onRejectReasonChange={setRejectReason}
-          onStartReturn={(id) => setPendingDisposal({ id, action: "return" })}
+          returnCorrectionInput={returnCorrectionInput}
+          onReturnCorrectionInputChange={setReturnCorrectionInput}
+          onStartReturn={(id) => {
+            setReturnCorrectionInput({ fields: [], otherReason: "" });
+            setPendingDisposal({ id, action: "return" });
+          }}
           onStartReject={(id) => setPendingDisposal({ id, action: "reject" })}
           onCancelDisposal={() => {
             setPendingDisposal(null);
             setRejectReason("");
+            setReturnCorrectionInput({ fields: [], otherReason: "" });
           }}
           onConfirmDisposal={handleDisposal}
           onRequestMovedToCurrentCutoff={handleRequestMovedToCurrentCutoff}
@@ -1082,20 +1125,29 @@ export function FundRequestInbox({
                   <div className="mt-auto space-y-2 border-t pt-2">
                     {pendingDisposal?.id === r.id ? (
                       <div className="w-full space-y-2">
-                        <Label className="text-xs">
-                          {getFundRequestDisposalReasonLabel(
-                            r.status,
-                            pendingDisposal.action
-                          )}
-                        </Label>
-                        <Input
-                          value={rejectReason}
-                          onChange={(e) => setRejectReason(e.target.value)}
-                          placeholder={getFundRequestDisposalReasonPlaceholder(
-                            r.status,
-                            pendingDisposal.action
-                          )}
-                        />
+                        {pendingDisposal.action === "return" ? (
+                          <FundRequestReturnCorrectionForm
+                            value={returnCorrectionInput}
+                            onChange={setReturnCorrectionInput}
+                          />
+                        ) : (
+                          <>
+                            <Label className="text-xs">
+                              {getFundRequestDisposalReasonLabel(
+                                r.status,
+                                pendingDisposal.action
+                              )}
+                            </Label>
+                            <Input
+                              value={rejectReason}
+                              onChange={(e) => setRejectReason(e.target.value)}
+                              placeholder={getFundRequestDisposalReasonPlaceholder(
+                                r.status,
+                                pendingDisposal.action
+                              )}
+                            />
+                          </>
+                        )}
                         <div className="flex flex-row flex-wrap items-center justify-end gap-2">
                           <Button
                             size="sm"
@@ -1125,6 +1177,7 @@ export function FundRequestInbox({
                             onClick={() => {
                               setPendingDisposal(null);
                               setRejectReason("");
+                              setReturnCorrectionInput({ fields: [], otherReason: "" });
                             }}
                           >
                             Cancel

@@ -94,6 +94,20 @@ import { FundRequestApprovalHistory } from "@/components/fund-request/FundReques
 import { FundRequestCutoffAdjustmentActions } from "@/components/fund-request/FundRequestCutoffAdjustmentActions";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestBankDetailsDisplay } from "@/components/fund-request/FundRequestBankDetailsDisplay";
+import { FundRequestReturnCorrectionForm } from "@/components/fund-request/FundRequestReturnCorrectionForm";
+import {
+  FundRequestCorrectionGroup,
+  FundRequestCorrectionMark,
+} from "@/components/fund-request/FundRequestCorrectionMark";
+import {
+  buildFundRequestCorrectionFieldColumnUpdates,
+  buildFundRequestReturnCorrection,
+  formatFundRequestReturnReason,
+  parseFundRequestReturnCorrection,
+  validateFundRequestReturnCorrection,
+  type FundRequestReturnCorrectionInput,
+  type FundRequestReturnFieldKey,
+} from "@/lib/fund-request-return-correction";
 import {
   emptyFundRequestBankDetails,
   hasFundRequestBankDetails,
@@ -152,6 +166,14 @@ export function FundRequestApprovalDetail({
   const [rejecting, setRejecting] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [returnCorrectionInput, setReturnCorrectionInput] =
+    useState<FundRequestReturnCorrectionInput>({
+      fields: [],
+      otherReason: "",
+    });
+  const [correctionEdits, setCorrectionEdits] = useState<
+    Partial<Record<FundRequestReturnFieldKey, string>>
+  >({});
   const [disposalForm, setDisposalForm] = useState<FundRequestDisposalAction | null>(
     null
   );
@@ -217,6 +239,24 @@ export function FundRequestApprovalDetail({
           ? String(row.subcontractor_po_amount)
           : ""
       );
+      setCorrectionEdits({
+        purpose: row.purpose ?? "",
+        poNumber: row.po_number ?? "",
+        projectTitle: row.project_title ?? "",
+        projectLocation: row.project_location ?? "",
+        poAmount: row.po_amount != null ? String(row.po_amount) : "",
+        projectCompletion:
+          row.current_project_percentage != null
+            ? String(row.current_project_percentage)
+            : "",
+        subcontractorProgress:
+          row.subcontractor_progress_completion_percentage != null
+            ? String(row.subcontractor_progress_completion_percentage)
+            : "",
+        remarks: row.remarks ?? "",
+        dateNeeded: row.date_needed ?? "",
+        urgentReason: row.urgent_reason ?? "",
+      });
       const approverIds = getFundRequestApprovalTrailApproverIds(row);
 
       const [requesterInfo, approverNameMap, routing] = await Promise.all([
@@ -442,6 +482,7 @@ export function FundRequestApprovalDetail({
       return;
     }
 
+    let latestTotal = request.total_requested_amount;
     try {
       if (canPurchasingOfficerEditDetails(profile.role, request.status)) {
         const cleaned = await saveFundRequestDetails(
@@ -450,6 +491,7 @@ export function FundRequestApprovalDetail({
           editableDetails,
           editableDeductions
         );
+        latestTotal = cleaned.total;
         setRequest({
           ...request,
           details: cleaned.details,
@@ -484,6 +526,66 @@ export function FundRequestApprovalDetail({
       parsedSubcontractorPoAmount = parseSubcontractorPoAmountInput(subcontractorPoAmount);
     }
 
+    const extraFieldUpdates = isFundRequestReturnedToPurchasing(request)
+      ? buildFundRequestCorrectionFieldColumnUpdates(correctionEdits)
+      : {};
+
+    const snapshotSource = {
+      ...request,
+      total_requested_amount: latestTotal,
+      purpose:
+        typeof extraFieldUpdates.purpose === "string"
+          ? extraFieldUpdates.purpose
+          : request.purpose,
+      po_number:
+        extraFieldUpdates.po_number === undefined
+          ? request.po_number
+          : (extraFieldUpdates.po_number as string | null),
+      project_title:
+        extraFieldUpdates.project_title === undefined
+          ? request.project_title
+          : (extraFieldUpdates.project_title as string | null),
+      project_location:
+        extraFieldUpdates.project_location === undefined
+          ? request.project_location
+          : (extraFieldUpdates.project_location as string | null),
+      po_amount:
+        extraFieldUpdates.po_amount === undefined
+          ? request.po_amount
+          : (extraFieldUpdates.po_amount as number | null),
+      current_project_percentage:
+        extraFieldUpdates.current_project_percentage === undefined
+          ? request.current_project_percentage
+          : (extraFieldUpdates.current_project_percentage as number | null),
+      subcontractor_progress_completion_percentage:
+        extraFieldUpdates.subcontractor_progress_completion_percentage ===
+        undefined
+          ? request.subcontractor_progress_completion_percentage
+          : (extraFieldUpdates.subcontractor_progress_completion_percentage as
+              | number
+              | null),
+      remarks:
+        extraFieldUpdates.remarks === undefined
+          ? request.remarks
+          : (extraFieldUpdates.remarks as string | null),
+      date_needed:
+        extraFieldUpdates.date_needed === undefined
+          ? request.date_needed
+          : (extraFieldUpdates.date_needed as string | null),
+      urgent_reason:
+        extraFieldUpdates.urgent_reason === undefined
+          ? request.urgent_reason
+          : (extraFieldUpdates.urgent_reason as string | null),
+      supplier_bank_details: showPurchasingBankField
+        ? serializeSupplierBankDetails(supplierBankDetails)
+        : request.supplier_bank_details,
+      subcontractor_po_amount:
+        parsedSubcontractorPoAmount !== undefined
+          ? parsedSubcontractorPoAmount
+          : request.subcontractor_po_amount,
+      vendorName,
+    };
+
     const updates =
       normalizeUserRole(profile.role) === "operations_manager" &&
       !request.project_manager_approved_by &&
@@ -499,6 +601,9 @@ export function FundRequestApprovalDetail({
               ? serializeSupplierBankDetails(supplierBankDetails)
               : null,
             subcontractorPoAmount: parsedSubcontractorPoAmount,
+            returnSnapshotSource: snapshotSource,
+            returnCorrection: request.return_correction,
+            extraFieldUpdates,
           });
     if (!updates) return;
 
@@ -535,14 +640,24 @@ export function FundRequestApprovalDetail({
   const handleDisposal = async (action: FundRequestDisposalAction) => {
     if (!request || !profile?.id) return;
 
-    const validation = validateFundRequestDisposalReason(
-      request.status,
-      action,
-      rejectReason
-    );
-    if (!validation.ok) {
-      toast.error(validation.message);
-      return;
+    if (action === "return") {
+      const correctionValidation = validateFundRequestReturnCorrection(
+        returnCorrectionInput
+      );
+      if (!correctionValidation.ok) {
+        toast.error(correctionValidation.message);
+        return;
+      }
+    } else {
+      const validation = validateFundRequestDisposalReason(
+        request.status,
+        action,
+        rejectReason
+      );
+      if (!validation.ok) {
+        toast.error(validation.message);
+        return;
+      }
     }
 
     setRejecting(true);
@@ -554,14 +669,21 @@ export function FundRequestApprovalDetail({
           requesterRouting.requiresOperationsManagerApproval
         )
     );
+    const returnCorrection =
+      action === "return"
+        ? buildFundRequestReturnCorrection(returnCorrectionInput, {
+            ...request,
+            vendorName,
+          })
+        : null;
     const updates =
       action === "return"
         ? buildFundRequestUpperManagementReturnUpdates(
             profile.id,
-            rejectReason,
+            formatFundRequestReturnReason(returnCorrectionInput),
             undoSnapshot,
             request,
-            { returnToOperationsManager }
+            { returnToOperationsManager, returnCorrection }
           )
         : buildFundRequestRejectUpdates(profile.id, rejectReason, request);
 
@@ -593,6 +715,7 @@ export function FundRequestApprovalDetail({
     });
     setDisposalForm(null);
     setRejectReason("");
+    setReturnCorrectionInput({ fields: [], otherReason: "" });
   };
 
   const handleUndoManagementApproval = async () => {
@@ -705,6 +828,11 @@ export function FundRequestApprovalDetail({
   }
 
   const details = (request.details as FundRequestDetailItem[] | null) ?? [];
+  const returnCorrection = parseFundRequestReturnCorrection(request.return_correction);
+  const showReturnChanges = Boolean(
+    returnCorrection?.corrections &&
+      Object.keys(returnCorrection.corrections).length > 0
+  );
   const referenceModeLabel = getFundRequestReferenceModeLabel(request.reference_mode);
   const showProjectReferenceFields = shouldShowFundRequestProjectReferenceFields(
     request.reference_mode
@@ -713,6 +841,8 @@ export function FundRequestApprovalDetail({
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
   const viewerRole = normalizeUserRole(profile?.role);
+  const canEditReturnedFields =
+    returnedToPurchasing && viewerRole === "purchasing_officer";
   const showSubcontractorInvoiceTracking = Boolean(
     showSubcontractorFields &&
       (viewerRole === "purchasing_officer" ||
@@ -756,14 +886,33 @@ export function FundRequestApprovalDetail({
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <FundRequestField
-            label={FUND_REQUEST_FIELD_LABELS.purpose}
-            value={request.purpose}
-          />
-          <FundRequestField
-            label={FUND_REQUEST_FIELD_LABELS.referenceBasis}
-            value={referenceModeLabel}
-          />
+          <FundRequestCorrectionMark
+            field="purpose"
+            correction={returnCorrection}
+            returned={returnedToPurchasing}
+            showChanges={showReturnChanges}
+            editable={canEditReturnedFields}
+            editValue={correctionEdits.purpose}
+            onEditValueChange={(value) =>
+              setCorrectionEdits((current) => ({ ...current, purpose: value }))
+            }
+          >
+            <FundRequestField
+              label={FUND_REQUEST_FIELD_LABELS.purpose}
+              value={request.purpose}
+            />
+          </FundRequestCorrectionMark>
+          <FundRequestCorrectionMark
+            field="referenceBasis"
+            correction={returnCorrection}
+            returned={returnedToPurchasing}
+            showChanges={showReturnChanges}
+          >
+            <FundRequestField
+              label={FUND_REQUEST_FIELD_LABELS.referenceBasis}
+              value={referenceModeLabel}
+            />
+          </FundRequestCorrectionMark>
 
             {projectInfo && showProjectReferenceFields && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
@@ -794,61 +943,131 @@ export function FundRequestApprovalDetail({
             )}
 
             {showProjectReferenceFields ? (
-              <FundRequestProjectDetailsDisplay
-                request={request}
-                vendorName={vendorName}
-                showSubcontractorFields={showSubcontractorFields}
-                showSubcontractorPoAmount={showSubcontractorPoAmountOnReview}
-                editableSubcontractorPoAmount={showPurchasingSubcontractorPoField}
-                subcontractorPoAmountInput={subcontractorPoAmount}
-                onSubcontractorPoAmountInputChange={setSubcontractorPoAmount}
-                showSubcontractorInvoiceTracking={showSubcontractorInvoiceTracking}
+              <FundRequestCorrectionGroup
+                fields={[
+                  "poNumber",
+                  "projectTitle",
+                  "projectLocation",
+                  "poAmount",
+                  "projectCompletion",
+                  "subcontractorName",
+                  "subcontractorProgress",
+                  "subcontractorPoAmount",
+                  "progressBillingMilestone",
+                  "billingInvoiceNumber",
+                ]}
+                correction={returnCorrection}
+                returned={returnedToPurchasing}
+                showChanges={showReturnChanges}
+              >
+                <FundRequestProjectDetailsDisplay
+                  request={request}
+                  vendorName={vendorName}
+                  showSubcontractorFields={showSubcontractorFields}
+                  showSubcontractorPoAmount={showSubcontractorPoAmountOnReview}
+                  editableSubcontractorPoAmount={showPurchasingSubcontractorPoField}
+                  subcontractorPoAmountInput={subcontractorPoAmount}
+                  onSubcontractorPoAmountInputChange={setSubcontractorPoAmount}
+                  showSubcontractorInvoiceTracking={showSubcontractorInvoiceTracking}
+                />
+              </FundRequestCorrectionGroup>
+            ) : null}
+            <FundRequestCorrectionMark
+              field="totalRequested"
+              correction={returnCorrection}
+              returned={returnedToPurchasing}
+              showChanges={showReturnChanges}
+            >
+              <FundRequestDetailsSection
+                details={details}
+                totalRequestedAmount={request.total_requested_amount}
+                editable={canEditPurchasingDetails}
+                saving={savingDetails}
+                editableDetails={editableDetails}
+                editableDeductions={editableDeductions}
+                onEditableDetailsChange={setEditableDetails}
+                onEditableDeductionsChange={setEditableDeductions}
+                onSave={handleSaveDetails}
               />
-            ) : null}
-            <FundRequestDetailsSection
-              details={details}
-              totalRequestedAmount={request.total_requested_amount}
-              editable={canEditPurchasingDetails}
-              saving={savingDetails}
-              editableDetails={editableDetails}
-              editableDeductions={editableDeductions}
-              onEditableDetailsChange={setEditableDetails}
-              onEditableDeductionsChange={setEditableDeductions}
-              onSave={handleSaveDetails}
-            />
+            </FundRequestCorrectionMark>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {request.remarks && (
-                <div className="sm:col-span-2">
+              <FundRequestCorrectionMark
+                field="remarks"
+                correction={returnCorrection}
+                returned={returnedToPurchasing}
+                showChanges={showReturnChanges}
+                editable={canEditReturnedFields}
+                editValue={correctionEdits.remarks}
+                onEditValueChange={(value) =>
+                  setCorrectionEdits((current) => ({ ...current, remarks: value }))
+                }
+                className="sm:col-span-2"
+              >
+                <div>
                   <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Remarks</h4>
-                  <p className="mt-1">{request.remarks}</p>
+                  <p className="mt-1">{request.remarks || "—"}</p>
                 </div>
-              )}
-              <div>
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Needed</h4>
-                <p className="mt-1">{request.date_needed ? format(new Date(request.date_needed), "MMM d, yyyy") : "—"}</p>
-              </div>
-              {request.urgent_reason && (
-                <div className="sm:col-span-2">
+              </FundRequestCorrectionMark>
+              <FundRequestCorrectionMark
+                field="dateNeeded"
+                correction={returnCorrection}
+                returned={returnedToPurchasing}
+                showChanges={showReturnChanges}
+                editable={canEditReturnedFields}
+                editType="date"
+                editValue={correctionEdits.dateNeeded}
+                onEditValueChange={(value) =>
+                  setCorrectionEdits((current) => ({ ...current, dateNeeded: value }))
+                }
+              >
+                <div>
+                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Date Needed</h4>
+                  <p className="mt-1">{request.date_needed ? format(new Date(request.date_needed), "MMM d, yyyy") : "—"}</p>
+                </div>
+              </FundRequestCorrectionMark>
+              <FundRequestCorrectionMark
+                field="urgentReason"
+                correction={returnCorrection}
+                returned={returnedToPurchasing}
+                showChanges={showReturnChanges}
+                editable={canEditReturnedFields}
+                editValue={correctionEdits.urgentReason}
+                onEditValueChange={(value) =>
+                  setCorrectionEdits((current) => ({
+                    ...current,
+                    urgentReason: value,
+                  }))
+                }
+                className="sm:col-span-2"
+              >
+                <div>
                   <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Reason for Urgency</h4>
-                  <p className="mt-1">{request.urgent_reason}</p>
+                  <p className="mt-1">{request.urgent_reason || "—"}</p>
                 </div>
-              )}
+              </FundRequestCorrectionMark>
             </div>
-            {showPurchasingBankField ? (
-              <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
-                <FundRequestBankDetailsFields
-                  value={supplierBankDetails}
-                  onChange={setSupplierBankDetails}
-                  idPrefix="supplier-bank"
-                />
-              </div>
-            ) : hasFundRequestBankDetails(request.supplier_bank_details) ? (
-              <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
-                <FundRequestBankDetailsDisplay
-                  value={request.supplier_bank_details}
-                />
-              </div>
-            ) : null}
+            <FundRequestCorrectionMark
+              field="supplierBankDetails"
+              correction={returnCorrection}
+              returned={returnedToPurchasing}
+              showChanges={showReturnChanges}
+            >
+              {showPurchasingBankField ? (
+                <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+                  <FundRequestBankDetailsFields
+                    value={supplierBankDetails}
+                    onChange={setSupplierBankDetails}
+                    idPrefix="supplier-bank"
+                  />
+                </div>
+              ) : hasFundRequestBankDetails(request.supplier_bank_details) ? (
+                <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
+                  <FundRequestBankDetailsDisplay
+                    value={request.supplier_bank_details}
+                  />
+                </div>
+              ) : null}
+            </FundRequestCorrectionMark>
             <FundRequestSupportingDocuments documents={supportingDocuments} />
             {showPaymentCheckSection ? (
               <FundRequestPaymentCheckSection
@@ -994,24 +1213,36 @@ export function FundRequestApprovalDetail({
 
                 {disposalForm ? (
                   <div className="space-y-2">
-                    <Label htmlFor="reject_reason">
-                      {request
-                        ? getFundRequestDisposalReasonLabel(request.status, disposalForm)
-                        : "Reason"}
-                    </Label>
-                    <Input
-                      id="reject_reason"
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      placeholder={
-                        request
-                          ? getFundRequestDisposalReasonPlaceholder(
-                              request.status,
-                              disposalForm
-                            )
-                          : "Reason"
-                      }
-                    />
+                    {disposalForm === "return" ? (
+                      <FundRequestReturnCorrectionForm
+                        value={returnCorrectionInput}
+                        onChange={setReturnCorrectionInput}
+                      />
+                    ) : (
+                      <>
+                        <Label htmlFor="reject_reason">
+                          {request
+                            ? getFundRequestDisposalReasonLabel(
+                                request.status,
+                                disposalForm
+                              )
+                            : "Reason"}
+                        </Label>
+                        <Input
+                          id="reject_reason"
+                          value={rejectReason}
+                          onChange={(e) => setRejectReason(e.target.value)}
+                          placeholder={
+                            request
+                              ? getFundRequestDisposalReasonPlaceholder(
+                                  request.status,
+                                  disposalForm
+                                )
+                              : "Reason"
+                          }
+                        />
+                      </>
+                    )}
                     <div className={dbToolbarActions}>
                       <Button
                         variant={disposalForm === "return" ? "default" : "destructive"}
@@ -1034,6 +1265,7 @@ export function FundRequestApprovalDetail({
                         onClick={() => {
                           setDisposalForm(null);
                           setRejectReason("");
+                          setReturnCorrectionInput({ fields: [], otherReason: "" });
                         }}
                       >
                         Cancel

@@ -5,6 +5,10 @@
   "crons": [
     {
       "path": "/api/fund-requests/expire-past-cutoff",
+      "schedule": "0 2 * * 4"
+    },
+    {
+      "path": "/api/fund-requests/expire-past-cutoff",
       "schedule": "10 16 * * *"
     }
   ]

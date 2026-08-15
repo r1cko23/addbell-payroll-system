@@ -11,13 +11,20 @@ import {
   markLatestFundRequestRejectionUndone,
 } from "@/lib/fund-request-rejection-history";
 import { normalizeUserRole } from "@/lib/user-roles";
+import {
+  applyFundRequestReturnResubmit,
+  parseFundRequestReturnCorrection,
+  type FundRequestReturnCorrection,
+  type FundRequestReturnSnapshotSource,
+} from "@/lib/fund-request-return-correction";
 
 /**
  * Fund request approval workflow:
  * 1. Requester → Operations Manager: approve → Purchasing Officer; reject (optional reason) → final for requester.
  * 2. Purchasing Officer: approve → Upper Management; reject (optional reason) → final for requester.
  * 3. Upper Management: approve → recorded in history; reject (optional reason) → recorded in history, final for requester;
- *    return to purchasing → back to PO for review (not final, not in history).
+ *    return to purchasing → back to PO for correction (not final, not cancelled). Returned requests are
+ *    exempt from weekly cutoff auto-cancel so Purchasing can edit and resubmit.
  * Rejected requests cannot be edited or resubmitted; requesters must file a new request.
  */
 export const FUND_REQUEST_NEXT_STATUS: Partial<
@@ -222,29 +229,44 @@ export function buildFundRequestApprovalUpdates(
   options?: {
     supplierBankDetails?: string | null;
     subcontractorPoAmount?: number | null;
+    returnSnapshotSource?: FundRequestReturnSnapshotSource;
+    returnCorrection?: unknown;
+    extraFieldUpdates?: Record<string, unknown>;
   }
 ): Record<string, unknown> | null {
   const nextStatus = FUND_REQUEST_NEXT_STATUS[currentStatus];
   if (!nextStatus) return null;
 
+  const actedAt = new Date().toISOString();
   const updates: Record<string, unknown> = {
     status: nextStatus,
-    updated_at: new Date().toISOString(),
+    updated_at: actedAt,
+    ...options?.extraFieldUpdates,
   };
 
   if (currentStatus === "pending") {
     updates.project_manager_approved_by = currentUserId;
-    updates.project_manager_approved_at = new Date().toISOString();
+    updates.project_manager_approved_at = actedAt;
   } else if (currentStatus === "project_manager_approved") {
     updates.purchasing_officer_approved_by = currentUserId;
-    updates.purchasing_officer_approved_at = new Date().toISOString();
+    updates.purchasing_officer_approved_at = actedAt;
     updates.supplier_bank_details = options?.supplierBankDetails?.trim() || null;
     if (options?.subcontractorPoAmount !== undefined) {
       updates.subcontractor_po_amount = options.subcontractorPoAmount;
     }
+    if (options?.returnSnapshotSource) {
+      const resubmitted = applyFundRequestReturnResubmit(
+        parseFundRequestReturnCorrection(options.returnCorrection),
+        options.returnSnapshotSource,
+        actedAt
+      );
+      if (resubmitted) {
+        updates.return_correction = resubmitted;
+      }
+    }
   } else if (currentStatus === "purchasing_officer_approved") {
     updates.management_approved_by = currentUserId;
-    updates.management_approved_at = new Date().toISOString();
+    updates.management_approved_at = actedAt;
   }
 
   return updates;
@@ -306,7 +328,7 @@ export function validateFundRequestDisposalReason(
       ok: false,
       message:
         action === "return"
-          ? "Please enter a reason for returning to purchasing."
+          ? "Select the form values to correct, or choose Others and type a reason."
           : "Please enter a rejection reason.",
     };
   }
@@ -345,7 +367,10 @@ export function buildFundRequestUpperManagementReturnUpdates(
   reason: string,
   undoSnapshot: FundRequestRejectionUndoSnapshot,
   request: Pick<FundRequestRow, "rejection_history">,
-  options?: { returnToOperationsManager?: boolean }
+  options?: {
+    returnToOperationsManager?: boolean;
+    returnCorrection?: FundRequestReturnCorrection | null;
+  }
 ): Record<string, unknown> {
   const actedAt = new Date().toISOString();
   const trimmedReason = reason.trim() || null;
@@ -364,6 +389,7 @@ export function buildFundRequestUpperManagementReturnUpdates(
     returned_by: currentUserId,
     returned_at: actedAt,
     return_reason: trimmedReason,
+    return_correction: options?.returnCorrection ?? null,
     rejected_by: null,
     rejected_at: null,
     rejection_reason: null,
@@ -530,6 +556,7 @@ export function buildFundRequestUndoRejectionUpdates(
       returned_by: null,
       returned_at: null,
       return_reason: null,
+      return_correction: null,
       rejection_undo_snapshot: null,
       rejection_history: rejectionHistory,
       updated_at: undoneAt,
@@ -546,6 +573,7 @@ export function buildFundRequestUndoRejectionUpdates(
     returned_by: null,
     returned_at: null,
     return_reason: null,
+    return_correction: null,
     rejection_undo_snapshot: null,
     rejection_history: rejectionHistory,
     updated_at: undoneAt,
@@ -566,6 +594,7 @@ export function buildFundRequestRejectUpdates(
     returned_by: null,
     returned_at: null,
     return_reason: null,
+    return_correction: null,
     rejection_undo_snapshot: buildFundRequestRejectionUndoSnapshot(request),
     rejection_history: appendFundRequestRejectionHistory(request.rejection_history, {
       action: "reject",

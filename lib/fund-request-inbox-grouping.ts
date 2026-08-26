@@ -4,8 +4,7 @@ import {
 } from "@/lib/fund-request-details";
 import { parseSupplierBankDetails } from "@/lib/fund-request-bank-details";
 import {
-  getFundRequestListProjectLabel,
-  getFundRequestListPurposeLabel,
+  formatFundRequestReferenceSummaryLabel,
 } from "@/lib/fund-request-project-details";
 import { isOfficeRelatedFundRequest } from "@/types/fund-request";
 import type { FundRequestRow } from "@/types/fund-request";
@@ -114,17 +113,13 @@ export function summarizeFundRequestPayment(
     grossAmount = netAmount;
   }
 
-  const parts: string[] = [];
-  const projectLabel = getFundRequestListProjectLabel(request);
-  if (projectLabel && projectLabel !== "—") parts.push(projectLabel);
-  if (request.po_number?.trim()) parts.push(request.po_number.trim());
-  const purposeLabel = getFundRequestListPurposeLabel(request);
-  if (purposeLabel && purposeLabel !== "—") parts.push(purposeLabel);
-
-  const label = parts.length > 0 ? parts.join(" · ") : "Fund request";
+  // UM / PM / payee view: PO number | Title | Location | Purpose
+  const label = formatFundRequestReferenceSummaryLabel(request);
+  const displayLabel =
+    !label || label === "—" ? "Fund request" : label;
 
   return {
-    label,
+    label: displayLabel,
     grossAmount,
     ewtAmount,
     deductionsAmount: deductionsTotal,
@@ -148,7 +143,7 @@ export function getFundRequestClientLabel(
   if (accountName) return accountName;
 
   if (isOfficeRelatedFundRequest(request.reference_mode ?? null)) {
-    return "Office-Related Requests";
+    return "Office-Related Request";
   }
 
   return "Uncategorized";
@@ -177,8 +172,8 @@ export function groupFundRequestsByClient(
   });
 
   return [...groups.values()].sort((a, b) => {
-    if (a.clientName === "Office-Related Requests") return 1;
-    if (b.clientName === "Office-Related Requests") return -1;
+    if (a.clientName === "Office-Related Request") return 1;
+    if (b.clientName === "Office-Related Request") return -1;
     if (a.clientName === "Uncategorized") return 1;
     if (b.clientName === "Uncategorized") return -1;
     return a.clientName.localeCompare(b.clientName, undefined, {

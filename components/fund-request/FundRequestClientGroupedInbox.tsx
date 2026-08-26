@@ -344,6 +344,7 @@ function GroupedInboxPaymentCheck({
       separateChequeCount={separateChequeCount}
       checkPayeeName={
         group.clientName === "Uncategorized" ||
+        group.clientName === "Office-Related Request" ||
         group.clientName === "Office-Related Requests"
           ? ""
           : group.clientName

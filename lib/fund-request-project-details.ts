@@ -230,7 +230,16 @@ export function normalizeFundRequestProjectRows(
     }));
 }
 
-export function getFundRequestPrimaryProjectLabel(
+export const FUND_REQUEST_REFERENCE_SEPARATOR = " | ";
+
+export type FundRequestReferenceParts = {
+  poNumber: string;
+  title: string;
+  location: string;
+  extraProjectCount: number;
+};
+
+export function getFundRequestReferenceParts(
   request: Pick<
     FundRequestRow,
     | "project_details"
@@ -240,20 +249,34 @@ export function getFundRequestPrimaryProjectLabel(
     | "po_number"
     | "po_amount"
   >
-): string {
+): FundRequestReferenceParts {
   const projects = parseFundRequestProjectDetails(request);
-  if (projects.length === 0) return "—";
-  const areaLabel = (project: FundRequestProjectDetail) =>
-    project.location?.trim() || project.title?.trim() || "";
-  if (projects.length === 1) return areaLabel(projects[0]) || "—";
-  const first = areaLabel(projects[0]) || "Project";
-  return `${first} (+${projects.length - 1} more)`;
+  const primary = projects[0];
+  return {
+    poNumber: primary?.po_number?.trim() || request.po_number?.trim() || "",
+    title: primary?.title?.trim() || "",
+    location: primary?.location?.trim() || "",
+    extraProjectCount: Math.max(0, projects.length - 1),
+  };
 }
 
-export function getFundRequestListProjectLabel(
+function joinFundRequestReferenceParts(
+  parts: string[],
+  extraProjectCount: number
+): string {
+  if (parts.length === 0) return "—";
+  const out = [...parts];
+  if (extraProjectCount > 0) {
+    const last = out.length - 1;
+    out[last] = `${out[last]} (+${extraProjectCount} more)`;
+  }
+  return out.join(FUND_REQUEST_REFERENCE_SEPARATOR);
+}
+
+/** PO | Title | Location (list / inbox project column). */
+export function formatFundRequestProjectReferenceLabel(
   request: Pick<
     FundRequestRow,
-    | "reference_mode"
     | "project_details"
     | "project_title"
     | "project_location"
@@ -262,10 +285,12 @@ export function getFundRequestListProjectLabel(
     | "po_amount"
   >
 ): string {
-  if (isOfficeRelatedFundRequest(request.reference_mode)) {
-    return "Office-Related Request";
-  }
-  return getFundRequestPrimaryProjectLabel(request);
+  const { poNumber, title, location, extraProjectCount } =
+    getFundRequestReferenceParts(request);
+  return joinFundRequestReferenceParts(
+    [poNumber, title, location].filter(Boolean),
+    extraProjectCount
+  );
 }
 
 export function getFundRequestListPurposeLabel(
@@ -278,6 +303,72 @@ export function getFundRequestListPurposeLabel(
     if (subcontractorName) return subcontractorName;
   }
   return (request.purpose || "").trim() || "—";
+}
+
+/** PO | Title | Location | Purpose (UM / payee / PM summary line). */
+export function formatFundRequestReferenceSummaryLabel(
+  request: Pick<
+    FundRequestRow,
+    | "purpose"
+    | "reference_mode"
+    | "project_details"
+    | "project_title"
+    | "project_location"
+    | "current_project_percentage"
+    | "po_number"
+    | "po_amount"
+  > & {
+    vendors?: { name?: string | null } | null;
+  }
+): string {
+  if (isOfficeRelatedFundRequest(request.reference_mode)) {
+    const purposeLabel = getFundRequestListPurposeLabel(request);
+    return purposeLabel && purposeLabel !== "—"
+      ? `Office-Related Request${FUND_REQUEST_REFERENCE_SEPARATOR}${purposeLabel}`
+      : "Office-Related Request";
+  }
+
+  const projectLabel = formatFundRequestProjectReferenceLabel(request);
+  const purposeLabel = getFundRequestListPurposeLabel(request);
+  if (projectLabel === "—" && (!purposeLabel || purposeLabel === "—")) {
+    return "—";
+  }
+  if (projectLabel === "—") return purposeLabel;
+  if (!purposeLabel || purposeLabel === "—") return projectLabel;
+  return `${projectLabel}${FUND_REQUEST_REFERENCE_SEPARATOR}${purposeLabel}`;
+}
+
+export function getFundRequestPrimaryProjectLabel(
+  request: Pick<
+    FundRequestRow,
+    | "project_details"
+    | "project_title"
+    | "project_location"
+    | "current_project_percentage"
+    | "po_number"
+    | "po_amount"
+  >
+): string {
+  return formatFundRequestProjectReferenceLabel(request);
+}
+
+export function getFundRequestListProjectLabel(
+  request: Pick<
+    FundRequestRow,
+    | "reference_mode"
+    | "project_details"
+    | "project_title"
+    | "project_location"
+    | "current_project_percentage"
+    | "po_number"
+    | "po_amount"
+  > &
+    Partial<Pick<FundRequestRow, "purpose">>
+): string {
+  if (isOfficeRelatedFundRequest(request.reference_mode)) {
+    return "Office-Related Request";
+  }
+  return formatFundRequestProjectReferenceLabel(request);
 }
 
 export function fundRequestUsesPerProjectPo(

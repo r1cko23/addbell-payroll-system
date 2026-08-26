@@ -198,7 +198,9 @@ export const FundRequestApprovedExportPayeeSheet = forwardRef<
                     }}
                   >
                     {getRequesterName(request)}
-                    {request.po_number?.trim() ? ` · ${request.po_number.trim()}` : ""}
+                    {request.po_number?.trim()
+                      ? ` | ${request.po_number.trim()}`
+                      : ""}
                   </p>
                 </div>
                 <p

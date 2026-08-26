@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatFundRequestReferenceSummaryLabel,
   getFundRequestListProjectLabel,
   getFundRequestListPurposeLabel,
 } from "@/lib/fund-request-project-details";
@@ -59,14 +60,39 @@ function baseRequest(
 }
 
 describe("getFundRequestListProjectLabel", () => {
-  it("prefers project location over title", () => {
-    expect(getFundRequestListProjectLabel(baseRequest())).toBe("BGC Site 2");
-  });
-
-  it("falls back to title when location is empty", () => {
+  it("formats as PO | Title | Location for all purposes", () => {
     expect(
       getFundRequestListProjectLabel(
-        baseRequest({ project_location: "", project_title: "Tower 3" })
+        baseRequest({
+          purpose: "Subcontractor Payment",
+          po_number: "PO-12345",
+        })
+      )
+    ).toBe("PO-12345 | Building A Fit-out | BGC Site 2");
+  });
+
+  it("formats material purchase the same way", () => {
+    expect(
+      getFundRequestListProjectLabel(
+        baseRequest({
+          purpose: "Material Purchase",
+          project_title: "MALATE FITOUT",
+          project_location: "MALATE MANILA",
+          po_number: "150006477",
+        })
+      )
+    ).toBe("150006477 | MALATE FITOUT | MALATE MANILA");
+  });
+
+  it("omits empty parts", () => {
+    expect(
+      getFundRequestListProjectLabel(
+        baseRequest({
+          purpose: "Material Purchase",
+          project_location: "",
+          project_title: "Tower 3",
+          po_number: null,
+        })
       )
     ).toBe("Tower 3");
   });
@@ -90,19 +116,45 @@ describe("getFundRequestListPurposeLabel", () => {
   });
 });
 
+describe("formatFundRequestReferenceSummaryLabel", () => {
+  it("formats as PO | Title | Location | Purpose (subcon name)", () => {
+    expect(
+      formatFundRequestReferenceSummaryLabel(
+        baseRequest({
+          po_number: "PO-999",
+          vendors: { name: "Acme Builders Inc" },
+        })
+      )
+    ).toBe("PO-999 | Building A Fit-out | BGC Site 2 | Acme Builders Inc");
+  });
+
+  it("formats material purchase as PO | Title | Location | Purpose", () => {
+    expect(
+      formatFundRequestReferenceSummaryLabel(
+        baseRequest({
+          purpose: "Material Purchase",
+          project_title: "MALATE FITOUT",
+          project_location: "MALATE MANILA",
+          po_number: "150006477",
+        })
+      )
+    ).toBe("150006477 | MALATE FITOUT | MALATE MANILA | Material Purchase");
+  });
+});
+
 describe("summarizeFundRequestPayment label", () => {
-  it("leads with area and subcontractor name", () => {
+  it("uses the shared reference summary with | separator", () => {
     const summary = summarizeFundRequestPayment({
       ...baseRequest({
+        po_number: "PO-999",
         vendors: { name: "Acme Builders Inc" },
       }),
       employees: null,
       vendors: { name: "Acme Builders Inc" },
       projects: null,
     });
-    expect(summary.label).toContain("BGC Site 2");
-    expect(summary.label).toContain("Acme Builders Inc");
-    expect(summary.label).not.toContain("Subcontractor Payment");
-    expect(summary.label).not.toContain("Building A Fit-out");
+    expect(summary.label).toBe(
+      "PO-999 | Building A Fit-out | BGC Site 2 | Acme Builders Inc"
+    );
   });
 });

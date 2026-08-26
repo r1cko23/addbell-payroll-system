@@ -3,7 +3,10 @@ import {
   type FundRequestDetailItem,
 } from "@/lib/fund-request-details";
 import { parseSupplierBankDetails } from "@/lib/fund-request-bank-details";
-import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
+import {
+  getFundRequestListProjectLabel,
+  getFundRequestListPurposeLabel,
+} from "@/lib/fund-request-project-details";
 import { isOfficeRelatedFundRequest } from "@/types/fund-request";
 import type { FundRequestRow } from "@/types/fund-request";
 
@@ -11,9 +14,21 @@ export type FundRequestPayeeGroupableRow = Pick<FundRequestRow, "supplier_bank_d
   Partial<
     Pick<
       FundRequestRow,
-      "reference_mode" | "total_requested_amount" | "id" | "purpose" | "po_number" | "details"
+      | "reference_mode"
+      | "total_requested_amount"
+      | "id"
+      | "purpose"
+      | "po_number"
+      | "details"
+      | "project_details"
+      | "project_title"
+      | "project_location"
+      | "current_project_percentage"
+      | "po_amount"
     >
-  >;
+  > & {
+    vendors?: { name?: string | null } | null;
+  };
 
 export type FundRequestInboxRow = FundRequestRow & {
   employees: {
@@ -103,7 +118,8 @@ export function summarizeFundRequestPayment(
   const projectLabel = getFundRequestListProjectLabel(request);
   if (projectLabel && projectLabel !== "—") parts.push(projectLabel);
   if (request.po_number?.trim()) parts.push(request.po_number.trim());
-  if (request.purpose?.trim()) parts.push(request.purpose.trim());
+  const purposeLabel = getFundRequestListPurposeLabel(request);
+  if (purposeLabel && purposeLabel !== "—") parts.push(purposeLabel);
 
   const label = parts.length > 0 ? parts.join(" · ") : "Fund request";
 

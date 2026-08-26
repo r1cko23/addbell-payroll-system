@@ -26,7 +26,10 @@ import {
   getFundRequestDispositionLabel,
   isLikelyMislabeledReturnAsRejection,
 } from "@/lib/fund-request-action-audit";
-import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
+import {
+  getFundRequestListProjectLabel,
+  getFundRequestListPurposeLabel,
+} from "@/lib/fund-request-project-details";
 import {
   canRequesterDeleteFundRequest,
   getFundRequestRequesterStatus,
@@ -37,6 +40,7 @@ import { canRequesterManageFundRequest } from "@/lib/fund-request-requester-edit
 
 export type FundRequestListRow = FundRequestRow & {
   projects: { name: string; code: string } | null;
+  vendors?: { name?: string | null } | null;
 };
 
 export function FundRequestAllList({
@@ -103,8 +107,10 @@ export function FundRequestAllList({
     }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      const matchPurpose = (r.purpose || "").toLowerCase().includes(term);
-      const matchProject = (r.project_title || r.projects?.name || "")
+      const matchPurpose = getFundRequestListPurposeLabel(r)
+        .toLowerCase()
+        .includes(term);
+      const matchProject = getFundRequestListProjectLabel(r)
         .toLowerCase()
         .includes(term);
       if (!matchPurpose && !matchProject) return false;
@@ -165,7 +171,9 @@ export function FundRequestAllList({
                 <td className="px-4 py-3 max-w-[180px] truncate">
                   {getFundRequestListProjectLabel(r)}
                 </td>
-                <td className="px-4 py-3 max-w-[200px] truncate">{r.purpose}</td>
+                <td className="px-4 py-3 max-w-[200px] truncate">
+                  {getFundRequestListPurposeLabel(r)}
+                </td>
                 <td className="px-4 py-3 font-medium text-right tabular-nums">
                   ₱{Number(r.total_requested_amount).toLocaleString()}
                 </td>
@@ -245,7 +253,7 @@ export function FundRequestAllList({
                     {getFundRequestListProjectLabel(r)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 truncate">
-                    {r.purpose}
+                    {getFundRequestListPurposeLabel(r)}
                   </div>
                 </div>
                 <Badge

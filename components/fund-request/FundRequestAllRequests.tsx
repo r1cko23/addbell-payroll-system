@@ -33,6 +33,7 @@ import { FundRequestAllList } from "@/components/fund-request/FundRequestAllList
 
 type FundRequestAllRequestRow = FundRequestRow & {
   projects: { name: string; code: string } | null;
+  vendors?: { name?: string | null } | null;
 };
 
 type FundRequestAllRequestsProps = {

@@ -23,7 +23,10 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { cn } from "@/lib/utils";
 import type { FundRequestRow } from "@/types/fund-request";
-import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
+import {
+  getFundRequestListProjectLabel,
+  getFundRequestListPurposeLabel,
+} from "@/lib/fund-request-project-details";
 import { groupFundRequestsByClient } from "@/lib/fund-request-inbox-grouping";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,6 +54,7 @@ import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 
 type FundRequestHistoryRow = FundRequestRow & {
   projects?: { name: string | null; code: string | null } | null;
+  vendors?: { name?: string | null } | null;
 };
 
 type FundRequestListResponse = {
@@ -380,7 +384,9 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
                         <td className="max-w-[180px] truncate px-4 py-3">
                           {getFundRequestListProjectLabel(row)}
                         </td>
-                        <td className="max-w-[200px] truncate px-4 py-3">{row.purpose}</td>
+                        <td className="max-w-[200px] truncate px-4 py-3">
+                          {getFundRequestListPurposeLabel(row)}
+                        </td>
                         <td className="px-4 py-3 text-right font-medium tabular-nums">
                           {formatPhp(Number(row.total_requested_amount) || 0)}
                         </td>
@@ -445,7 +451,7 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
                               {getFundRequestListProjectLabel(row)}
                             </div>
                             <div className="mt-1 truncate text-xs text-muted-foreground">
-                              {row.purpose}
+                              {getFundRequestListPurposeLabel(row)}
                             </div>
                           </div>
                           <Badge

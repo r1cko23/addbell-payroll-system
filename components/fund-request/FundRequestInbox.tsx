@@ -83,7 +83,7 @@ import {
   isOfficeRelatedFundRequest,
   isSubcontractorPaymentPurpose,
 } from "@/types/fund-request";
-import { getFundRequestListProjectLabel } from "@/lib/fund-request-project-details";
+import { getFundRequestListProjectLabel, getFundRequestListPurposeLabel } from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
 import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
 import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutoffNav";
@@ -221,10 +221,15 @@ function matchesFundRequestInboxSearch(
   const term = searchTerm.toLowerCase();
   const requesterInfo = requesterInfoById[row.requested_by];
   const name = getRequesterDisplayName(row, requesterInfo).toLowerCase();
-  const purpose = (row.purpose || "").toLowerCase();
+  const purpose = getFundRequestListPurposeLabel(row).toLowerCase();
   const projectTitle = (row.project_title || "").toLowerCase();
-  const projectLocation = (row.project_location || "").toLowerCase();
+  const projectLocation = (
+    getFundRequestListProjectLabel(row) ||
+    row.project_location ||
+    ""
+  ).toLowerCase();
   const clientName = (row.projects?.clients?.name || "").toLowerCase();
+  const vendorName = (row.vendors?.name || "").toLowerCase();
   const payeeAccountName = (getFundRequestPayeeAccountName(row) || "").toLowerCase();
 
   return (
@@ -233,6 +238,7 @@ function matchesFundRequestInboxSearch(
     projectTitle.includes(term) ||
     projectLocation.includes(term) ||
     clientName.includes(term) ||
+    vendorName.includes(term) ||
     payeeAccountName.includes(term)
   );
 }
@@ -998,7 +1004,7 @@ export function FundRequestInbox({
             const employeeIdLabel = formatEmployeeIdDisplay(emp?.employee_id);
             const projectTitle = getFundRequestListProjectLabel(r);
             const isOfficeRelated = isOfficeRelatedFundRequest(r.reference_mode);
-            const purpose = (r.purpose || "").trim() || "—";
+            const purpose = getFundRequestListPurposeLabel(r);
             const showSubcontractorFields = isSubcontractorPaymentPurpose(r.purpose);
             const canAct =
               isFundRequestInApproverInboxQueue(
@@ -1081,17 +1087,13 @@ export function FundRequestInbox({
                         projectTitle
                       ) : (
                         <>
-                          <strong>Project:</strong> {projectTitle}
+                          <strong>Area:</strong> {projectTitle}
                         </>
                       )}
                     </BodySmall>
-                    {!isOfficeRelated && r.project_location ? (
-                      <BodySmall className="mt-1 line-clamp-1 text-muted-foreground">
-                        <strong>Location:</strong>{" "}
-                        <span className="uppercase">{r.project_location}</span>
-                      </BodySmall>
-                    ) : null}
-                    {showSubcontractorFields && r.vendors?.name ? (
+                    {showSubcontractorFields &&
+                    r.vendors?.name &&
+                    purpose.toLowerCase() !== r.vendors.name.trim().toLowerCase() ? (
                       <BodySmall className="mt-1 line-clamp-1 text-muted-foreground">
                         <strong>Subcontractor:</strong> {r.vendors.name}
                       </BodySmall>

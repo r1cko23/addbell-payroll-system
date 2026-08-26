@@ -1,5 +1,8 @@
-import type { FundRequestRow } from "@/types/fund-request";
-import { isOfficeRelatedFundRequest } from "@/types/fund-request";
+import {
+  isOfficeRelatedFundRequest,
+  isSubcontractorPaymentPurpose,
+  type FundRequestRow,
+} from "@/types/fund-request";
 import type { ProgressBillingSelection } from "@/lib/subcontractor-progress-billing";
 
 export type FundRequestProjectDetail = {
@@ -240,8 +243,10 @@ export function getFundRequestPrimaryProjectLabel(
 ): string {
   const projects = parseFundRequestProjectDetails(request);
   if (projects.length === 0) return "—";
-  if (projects.length === 1) return projects[0].title || "—";
-  const first = projects[0].title || "Project";
+  const areaLabel = (project: FundRequestProjectDetail) =>
+    project.location?.trim() || project.title?.trim() || "";
+  if (projects.length === 1) return areaLabel(projects[0]) || "—";
+  const first = areaLabel(projects[0]) || "Project";
   return `${first} (+${projects.length - 1} more)`;
 }
 
@@ -261,6 +266,18 @@ export function getFundRequestListProjectLabel(
     return "Office-Related Request";
   }
   return getFundRequestPrimaryProjectLabel(request);
+}
+
+export function getFundRequestListPurposeLabel(
+  request: Pick<FundRequestRow, "purpose"> & {
+    vendors?: { name?: string | null } | null;
+  }
+): string {
+  if (isSubcontractorPaymentPurpose(request.purpose)) {
+    const subcontractorName = request.vendors?.name?.trim();
+    if (subcontractorName) return subcontractorName;
+  }
+  return (request.purpose || "").trim() || "—";
 }
 
 export function fundRequestUsesPerProjectPo(

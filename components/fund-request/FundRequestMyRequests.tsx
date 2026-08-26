@@ -33,6 +33,7 @@ import { FundRequestAllList } from "@/components/fund-request/FundRequestAllList
 
 type FundRequestMyRequestRow = FundRequestRow & {
   projects: { name: string; code: string } | null;
+  vendors?: { name?: string | null } | null;
 };
 
 type FundRequestMyRequestsProps = {
@@ -85,7 +86,7 @@ export function FundRequestMyRequests({
 
     let query = supabase
       .from("fund_requests")
-      .select("*, projects ( name, code )")
+      .select("*, projects ( name, code ), vendors ( name )")
       .eq("requested_by", requesterEmployeeId)
       .order("created_at", { ascending: false });
 

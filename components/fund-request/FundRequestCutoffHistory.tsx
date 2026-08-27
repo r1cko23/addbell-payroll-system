@@ -26,6 +26,7 @@ import type { FundRequestRow } from "@/types/fund-request";
 import {
   getFundRequestListProjectLabel,
   getFundRequestListPurposeLabel,
+  formatFundRequestReferenceSummaryLabel,
 } from "@/lib/fund-request-project-details";
 import { groupFundRequestsByClient } from "@/lib/fund-request-inbox-grouping";
 import { Loader2 } from "lucide-react";
@@ -38,12 +39,13 @@ import {
   canUndoFundRequestManagementApproval,
   canUndoFundRequestRejection,
 } from "@/lib/fund-request-approval";
+import { resolveFundRequestListCutoffIndex } from "@/lib/fund-request-list-return";
+import { useFundRequestListReturn } from "@/lib/hooks/useFundRequestListReturn";
 import {
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   fundRequestBelongsToApproverCutoff,
   fundRequestBelongsToHistoryCutoff,
   formatFundRequestCutoffPeriod,
-  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
   getFundRequestHistoryOutcome,
   isFundRequestFinalDecisionHistoryEntry,
@@ -108,7 +110,7 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
   const supabase = createClient();
   const userId = profile?.id ?? null;
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
-  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
+  const { cutoff, setCutoff, detailHrefFor } = useFundRequestListReturn();
   const [undoingId, setUndoingId] = useState<string | null>(null);
   const [pendingUndo, setPendingUndo] = useState<{
     row: FundRequestHistoryRow;
@@ -153,7 +155,6 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
     const cutoffs = listCache?.history.cutoffs ?? [];
     if (cutoffs.length === 0) return;
     setHistoryCutoffs(cutoffs);
-    setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
   }, [listCache?.history.cutoffs]);
 
   const rows = useMemo(() => {
@@ -167,6 +168,10 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
     });
   }, [listData?.rows, listCache?.history.cutoffs]);
 
+  const selectedCutoffIndex = resolveFundRequestListCutoffIndex(
+    historyCutoffs,
+    cutoff
+  );
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
   const cutoffNavLabel = useMemo(() => {
@@ -307,7 +312,10 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
       return (
         <div className="flex items-center gap-3">
           <Link
-            href={`${detailHrefBase}/${row.id}`}
+            href={detailHrefFor(detailHrefBase, row.id, {
+              tab: "history",
+              cutoff: selectedCutoff?.start_ymd ?? cutoff,
+            })}
             className="text-sm font-medium text-primary hover:underline"
           >
             View
@@ -381,7 +389,10 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
                         <td className="whitespace-nowrap px-4 py-3">
                           {formatFundRequestDecisionAtCompact(row)}
                         </td>
-                        <td className="max-w-[180px] truncate px-4 py-3">
+                        <td
+                          className="max-w-[320px] truncate px-4 py-3"
+                          title={getFundRequestListProjectLabel(row)}
+                        >
                           {getFundRequestListProjectLabel(row)}
                         </td>
                         <td className="max-w-[200px] truncate px-4 py-3">
@@ -447,11 +458,11 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
                             <div className="text-sm font-semibold">
                               {formatFundRequestDecisionAtCompact(row)}
                             </div>
-                            <div className="mt-1 truncate text-xs text-muted-foreground">
-                              {getFundRequestListProjectLabel(row)}
-                            </div>
-                            <div className="mt-1 truncate text-xs text-muted-foreground">
-                              {getFundRequestListPurposeLabel(row)}
+                            <div
+                              className="mt-1 line-clamp-2 text-xs text-muted-foreground"
+                              title={formatFundRequestReferenceSummaryLabel(row)}
+                            >
+                              {formatFundRequestReferenceSummaryLabel(row)}
                             </div>
                           </div>
                           <Badge
@@ -491,7 +502,11 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
             className="h-9 w-9 shrink-0 p-0"
             disabled={!canGoToOlderCutoff || loading}
             onClick={() =>
-              setSelectedCutoffIndex((index) => Math.min(index + 1, historyCutoffs.length - 1))
+              setCutoff(
+                historyCutoffs[
+                  Math.min(selectedCutoffIndex + 1, historyCutoffs.length - 1)
+                ]?.start_ymd ?? null
+              )
             }
             aria-label="Previous cutoff"
           >
@@ -506,7 +521,9 @@ export function FundRequestCutoffHistory({ detailHrefBase }: FundRequestCutoffHi
             size="sm"
             className="h-9 w-9 shrink-0 p-0"
             disabled={!canGoToNewerCutoff || loading}
-            onClick={() => setSelectedCutoffIndex((index) => Math.max(index - 1, 0))}
+            onClick={() =>
+              setCutoff(historyCutoffs[Math.max(selectedCutoffIndex - 1, 0)]?.start_ymd ?? null)
+            }
             aria-label="Next cutoff"
           >
             <Icon name="CaretRight" size={IconSizes.sm} />

@@ -70,11 +70,6 @@ const getNavGroups = (_isAccountSupervisor: boolean): NavGroup[] => [
     icon: User,
     defaultOpen: true,
     items: [
-      {
-        name: "Project Assignments",
-        href: "/employee-portal/project-time",
-        icon: Clock,
-      },
       { name: "My Information", href: "/employee-portal/info", icon: User },
       {
         name: "Payslips",

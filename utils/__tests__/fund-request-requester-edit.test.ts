@@ -1,8 +1,13 @@
 import {
   canRequesterAddDocumentToFundRequest,
   canRequesterEditFundRequest,
+  canRequesterUpdateFundRequestPoNumber,
   isPurchasingOfficerSelfSubmitAwaitingUpperManagement,
 } from "@/lib/fund-request-approval";
+import {
+  buildFundRequestPoNumberColumnUpdates,
+  canRequesterCorrectFundRequestPoNumber,
+} from "@/lib/fund-request-requester-edit";
 import { canPurchasingOfficerSetVatEwtOnRequesterForm } from "@/lib/fund-request-details";
 import type { FundRequestRow } from "@/types/fund-request";
 
@@ -10,7 +15,6 @@ function omRequestAfterPoApproval(): FundRequestRow {
   return {
     id: "test",
     company_id: "company",
-    project_id: null,
     requested_by: "joel-employee",
     request_date: "2026-07-01",
     purpose: "Pcash",
@@ -157,5 +161,49 @@ describe("canRequesterAddDocumentToFundRequest", () => {
         requesterIsOperationsManager: true,
       })
     ).toBe(false);
+  });
+});
+
+describe("canRequesterUpdateFundRequestPoNumber", () => {
+  test("allows PO correction after later approval (NTP until Projects masterlist)", () => {
+    const request = omRequestAfterPoApproval();
+    expect(canRequesterUpdateFundRequestPoNumber(request)).toBe(true);
+    expect(
+      canRequesterCorrectFundRequestPoNumber(request, "joel-employee")
+    ).toBe(true);
+  });
+
+  test("blocks PO correction on rejected requests", () => {
+    const request = {
+      ...omRequestAfterPoApproval(),
+      status: "rejected" as const,
+      rejected_at: "2026-07-02T00:00:00Z",
+    };
+    expect(canRequesterUpdateFundRequestPoNumber(request)).toBe(false);
+    expect(
+      canRequesterCorrectFundRequestPoNumber(request, "joel-employee")
+    ).toBe(false);
+  });
+
+  test("replaces NTP placeholder on primary project when correcting PO", () => {
+    const request = {
+      ...omRequestAfterPoApproval(),
+      po_number: "With NTP only",
+      project_details: {
+        v: 1 as const,
+        projects: [
+          {
+            po_number: "With NTP only",
+            title: "Civil works",
+            location: "Site",
+            po_amount: 1000,
+            completion_percentage: 10,
+          },
+        ],
+      },
+    };
+    const next = buildFundRequestPoNumberColumnUpdates(request, "PO-RE1350007690");
+    expect(next.po_number).toBe("PO-RE1350007690");
+    expect(next.project_details?.projects[0]?.po_number).toBe("PO-RE1350007690");
   });
 });

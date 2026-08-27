@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { useProfile } from "@/lib/hooks/useProfile";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
+import { isPurchasingOrAdminRole } from "@/lib/user-roles";
 
 interface PODetail {
   id: string;
@@ -33,11 +35,18 @@ interface PODetail {
   project_title: string | null;
   deliver_to: string | null;
   payment_terms: string[] | null;
+  parent_purchase_order_id: string | null;
   vendor_snapshot: Record<string, string> | null;
   company_snapshot: Record<string, string> | null;
   created_at: string;
   vendors: { name: string; contact_person: string | null; tin: string | null; address: string | null; phone: string | null; email: string | null } | null;
-  projects: { name: string; code: string; site_address: string | null } | null;
+  po_masterlist_jobs: {
+    id: string;
+    project_title: string | null;
+    po_number: string | null;
+    location: string | null;
+  } | null;
+  parent: { id: string; po_number: string } | null;
 }
 
 interface POItem {
@@ -51,6 +60,14 @@ interface POItem {
   line_total: number;
 }
 
+interface ChildPO {
+  id: string;
+  po_number: string;
+  status: string;
+  total_amount: number;
+  vendors: { name: string } | null;
+}
+
 const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive"> = {
   draft: "secondary", approved: "default", posted: "default", cancelled: "destructive",
 };
@@ -59,30 +76,49 @@ export default function PurchaseOrderDetailPage() {
   const params = useParams();
   const supabase = createClient();
   const { canRead, canUpdate, loading: permissionsLoading } = usePermissions();
+  const { profile } = useProfile();
   const [po, setPo] = useState<PODetail | null>(null);
   const [items, setItems] = useState<POItem[]>([]);
+  const [childPOs, setChildPOs] = useState<ChildPO[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const canReadPurchaseOrders = canRead("purchase_orders");
-  const canManageStatus = canUpdate("purchase_orders");
+  // Cost PO create/edit is purchasing officer + admin only (not project managers).
+  const canEditCostPo =
+    canUpdate("purchase_orders") && isPurchasingOrAdminRole(profile?.role);
+  const canManageStatus = canEditCostPo;
 
   useEffect(() => {
     const id = params?.id as string;
     if (!id) return;
     (async () => {
-      const [poRes, itemsRes] = await Promise.all([
-        supabase.from("purchase_orders").select("*, vendors ( name, contact_person, tin, address, phone, email ), projects ( name, code, site_address )").eq("id", id).single(),
+      const [poRes, itemsRes, childrenRes] = await Promise.all([
+        supabase
+          .from("purchase_orders")
+          .select(
+            "*, vendors ( name, contact_person, tin, address, phone, email ), po_masterlist_jobs:po_masterlist_job_id ( id, project_title, po_number, location ), parent:parent_purchase_order_id ( id, po_number )"
+          )
+          .eq("id", id)
+          .single(),
         supabase.from("purchase_order_items").select("*").eq("purchase_order_id", id).order("line_no"),
+        supabase
+          .from("purchase_orders")
+          .select("id, po_number, status, total_amount, vendors ( name )")
+          .eq("parent_purchase_order_id", id)
+          .order("created_at", { ascending: true }),
       ]);
-      if (!poRes.error && poRes.data) setPo(poRes.data as PODetail);
+      if (!poRes.error && poRes.data) setPo(poRes.data as unknown as PODetail);
       if (!itemsRes.error && itemsRes.data) setItems(itemsRes.data as POItem[]);
+      if (!childrenRes.error && childrenRes.data) setChildPOs(childrenRes.data as unknown as ChildPO[]);
       setLoading(false);
     })();
   }, [params?.id, supabase]);
 
+
+
   const handleStatusChange = async (newStatus: string) => {
     if (!canManageStatus) {
-      toast.error("You only have view access to purchase orders.");
+      toast.error("You only have view access to internal POs.");
       return;
     }
     if (!po) return;
@@ -95,12 +131,13 @@ export default function PurchaseOrderDetailPage() {
     setActing(false);
   };
 
+
   if (permissionsLoading || loading) return <DashboardLayout><div className="animate-pulse h-8 w-48 bg-slate-200 rounded" /></DashboardLayout>;
   if (!canReadPurchaseOrders) return (
     <DashboardLayout>
       <div className="space-y-4">
         <Link href="/purchase-order" className="text-muted-foreground hover:text-foreground text-sm">← Back</Link>
-        <p className="text-muted-foreground">You do not have access to view purchase orders.</p>
+        <p className="text-muted-foreground">You do not have access to view internal POs.</p>
       </div>
     </DashboardLayout>
   );
@@ -108,7 +145,7 @@ export default function PurchaseOrderDetailPage() {
     <DashboardLayout>
       <div className="space-y-4">
         <Link href="/purchase-order" className="text-muted-foreground hover:text-foreground text-sm">← Back</Link>
-        <p className="text-destructive">Purchase order not found.</p>
+        <p className="text-destructive">Internal PO not found.</p>
       </div>
     </DashboardLayout>
   );
@@ -118,13 +155,26 @@ export default function PurchaseOrderDetailPage() {
   return (
     <DashboardLayout>
       <div className={cn("w-full max-w-4xl", dbPageWrapper)}>
-        <Link href="/purchase-order" className="text-muted-foreground hover:text-foreground text-sm">← Back to Purchase Orders</Link>
+        <Link href="/purchase-order" className="text-muted-foreground hover:text-foreground text-sm">← Back to Internal POs</Link>
 
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight font-mono">{po.po_number}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight font-mono">{po.po_number}</h1>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                {po.parent_purchase_order_id ? "Sub-PO" : "Main PO"}
+              </Badge>
+            </div>
             <p className="text-sm text-muted-foreground mt-1">
               Created {format(new Date(po.created_at), "MMMM d, yyyy")}
+              {po.parent?.po_number ? (
+                <>
+                  {" · Under "}
+                  <Link href={`/purchase-order/${po.parent.id}`} className="font-mono text-primary hover:underline">
+                    {po.parent.po_number}
+                  </Link>
+                </>
+              ) : null}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -147,15 +197,41 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </div>
 
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
             <CardHeader><CardTitle className="text-base">Project & Delivery</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div>
                 <span className="text-muted-foreground text-xs uppercase">Project</span>
-                <p className="font-medium">{po.projects ? `${po.projects.code} — ${po.projects.name}` : po.project_title || "—"}</p>
-                {po.projects?.site_address && <p className="text-muted-foreground">{po.projects.site_address}</p>}
-              </div>
+                <p className="font-medium">
+                  {po.po_masterlist_jobs
+                    ? `${po.po_masterlist_jobs.po_number || "—"} — ${po.po_masterlist_jobs.project_title || "Untitled"}`
+                    : po.project_title || "—"}
+                </p>
+                {po.po_masterlist_jobs?.location && (
+                  <p className="text-muted-foreground">{po.po_masterlist_jobs.location}</p>
+                )}
+                {po.po_masterlist_jobs?.id ? (
+                  <p className="mt-1">
+                    <Link
+                      href={`/projects/${po.po_masterlist_jobs.id}`}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Open masterlist job
+                    </Link>
+                  </p>
+                ) : null}              </div>
+              {po.parent?.po_number ? (
+                <div>
+                  <span className="text-muted-foreground text-xs uppercase">Under main PO</span>
+                  <p>
+                    <Link href={`/purchase-order/${po.parent.id}`} className="font-mono text-primary hover:underline">
+                      {po.parent.po_number}
+                    </Link>
+                  </p>
+                </div>
+              ) : null}
               <div>
                 <span className="text-muted-foreground text-xs uppercase">Deliver To</span>
                 <p>{po.deliver_to || "—"}</p>
@@ -189,6 +265,37 @@ export default function PurchaseOrderDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {childPOs.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Sub-POs (extra works)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {childPOs.map((child) => (
+                <div
+                  key={child.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/70 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <Link href={`/purchase-order/${child.id}`} className="font-mono text-sm text-primary hover:underline">
+                      {child.po_number}
+                    </Link>
+                    <p className="text-xs text-muted-foreground">{child.vendors?.name ?? "—"}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium tabular-nums">
+                      ₱{Number(child.total_amount).toLocaleString()}
+                    </span>
+                    <Badge variant={STATUS_COLORS[child.status] ?? "secondary"} className="text-xs capitalize">
+                      {child.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardHeader><CardTitle className="text-base">Line Items</CardTitle></CardHeader>

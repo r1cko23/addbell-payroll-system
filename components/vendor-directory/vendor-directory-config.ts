@@ -3,6 +3,8 @@ import type { VendorType } from "@/types/vendor";
 export type VendorDirectoryConfig = {
   title: string;
   subtitle: string;
+  /** Optional purchasing-officer copy; falls back to subtitle when unset. */
+  purchasingSubtitle?: string;
   addButtonLabel: string;
   dialogAddTitle: string;
   dialogEditTitle: string;
@@ -31,7 +33,7 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
     namePlaceholder: "Vendor name",
     nameLabel: "Registered Name",
     nameRequired: "Registered name is required",
-    emptyState: "No vendors found. Add one to use in Purchase Orders.",
+    emptyState: "No vendors found. Add one to use in Internal POs.",
     loadError: "Failed to load vendors",
     saveError: "Failed to save vendor",
     deleteSuccess: "Vendor deleted successfully",
@@ -40,7 +42,11 @@ export const VENDOR_DIRECTORY_CONFIG: Record<VendorType, VendorDirectoryConfig> 
   },
   subcontractor: {
     title: "Subcontractors",
-    subtitle: "Manage subcontractors and their information.",
+    /** Project managers / capacity view */
+    subtitle:
+      "See each subcontractor’s active jobs so you can award new work without overloading them.",
+    /** Purchasing officer directory view (until ABAC owns page variants) */
+    purchasingSubtitle: "Manage subcontractors and their information.",
     addButtonLabel: "Add Subcontractor",
     dialogAddTitle: "Add Subcontractor",
     dialogEditTitle: "Edit Subcontractor",

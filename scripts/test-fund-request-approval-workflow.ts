@@ -118,7 +118,6 @@ async function createTestRequest(
     .from("fund_requests")
     .insert({
       company_id: null,
-      project_id: null,
       requested_by: requestedBy,
       request_date: today,
       purpose: "Material Purchase",

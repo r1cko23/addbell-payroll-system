@@ -16,6 +16,7 @@ import {
   type ActionName,
   type UserPermissions,
 } from "@/lib/permissions";
+import { grantsToUserPermissions } from "@/lib/access";
 
 export * from "@/lib/permissions";
 
@@ -70,21 +71,39 @@ export function usePermissions(): UsePermissionsReturn {
       setError(null);
 
       const supabase = createClient();
-      const { data: profileData, error: profileError } = await supabase
+      const profileResult = await supabase
         .from("profiles")
         .select("role, permissions")
         .eq("id", user.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileResult.error) throw profileResult.error;
+      const profileData = profileResult.data;
+
+      const grantsResult = await supabase
+        .from("addbell_user_grants")
+        .select("capability_key")
+        .eq("user_id", user.id);
+
+      const grantKeys = (grantsResult.data ?? [])
+        .map((row) => row.capability_key as string)
+        .filter(Boolean);
 
       const resolvedRole =
         (profileData?.role as string | undefined) || user.role || "viewer";
       const normalizedRole = resolvedRole.trim().toLowerCase().replace(/\s+/g, "_");
-      const mergedPermissions = mergePermissions(
-        normalizedRole,
-        (profileData?.permissions as Partial<UserPermissions> | null | undefined) ?? null
-      );
+
+      // Grants are source of truth when present; otherwise fall back to role + jsonb.
+      const mergedPermissions =
+        !grantsResult.error && grantKeys.length > 0
+          ? grantsToUserPermissions(grantKeys)
+          : mergePermissions(
+              normalizedRole,
+              (profileData?.permissions as
+                | Partial<UserPermissions>
+                | null
+                | undefined) ?? null
+            );
 
       setPermissions(mergedPermissions);
       setError(null);

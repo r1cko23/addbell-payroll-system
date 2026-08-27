@@ -8,9 +8,13 @@ const metrics = {
   googleSpreadsheetMetadataCalls: 0,
   googleSpreadsheetBatchGetCalls: 0,
   googleSpreadsheetRangesRead: 0,
+  googleSpreadsheetValuesUpdateCalls: 0,
   billingLookupRequests: 0,
   fundRequestDirectUploads: 0,
   fundRequestDirectUploadBytes: 0,
+  poMasterlistSheetWritebackEnqueued: 0,
+  poMasterlistSheetWritebackSuccess: 0,
+  poMasterlistSheetWritebackFailure: 0,
 };
 
 export type PlatformRuntimeMetrics = typeof metrics & {
@@ -53,4 +57,20 @@ export function recordBillingLookupRequest(): void {
 export function recordFundRequestDirectUpload(fileSize: number): void {
   metrics.fundRequestDirectUploads += 1;
   metrics.fundRequestDirectUploadBytes += Math.max(0, fileSize);
+}
+
+export function recordGoogleSpreadsheetValuesUpdateCall(): void {
+  metrics.googleSpreadsheetValuesUpdateCalls += 1;
+}
+
+export function recordPoMasterlistSheetWritebackEnqueued(): void {
+  metrics.poMasterlistSheetWritebackEnqueued += 1;
+}
+
+export function recordPoMasterlistSheetWritebackSuccess(): void {
+  metrics.poMasterlistSheetWritebackSuccess += 1;
+}
+
+export function recordPoMasterlistSheetWritebackFailure(): void {
+  metrics.poMasterlistSheetWritebackFailure += 1;
 }

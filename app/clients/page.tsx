@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useClients } from "@/lib/hooks/useClients";
 import { bustCache } from "@/lib/cache-client";
 import { formatTinWithDashes, TIN_PLACEHOLDER } from "@/lib/tin-format";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -40,11 +39,24 @@ import {
 } from "@/components/ui/select";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { usePermissions } from "@/lib/hooks/usePermissions";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, ListOrdered } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { dbDialogContent, dbDialogFooter, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
+import {
+  ClientMasterlistJobsDialog,
+} from "@/components/clients/ClientMasterlistJobsDialog";
+import {
+  DashboardTablePagination,
+  DASHBOARD_TABLE_PAGE_SIZE,
+  paginateItems,
+} from "@/components/dashboard/DashboardTablePagination";
+import { dbDialogFooter, dbDialogFormControl, dbDialogFormField, dbDialogFormGrid, dbDialogWideForm, dbDialogWideFormBody, dbDialogWideFormFooter, dbDialogWideFormHeader, dbDialogWideFormStyle, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShellFit } from "@/lib/dashboard-ui";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { fetchPoMasterlistJobsForClients } from "@/lib/queries/fetchers";
+import {
+  summarizeClientMasterlistJobs,
+  type ClientMasterlistJobSummary,
+} from "@/lib/client-masterlist-job-stats";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -75,8 +87,14 @@ export default function ClientsPage() {
   } = useClients();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [jobsByClient, setJobsByClient] = useState<
+    Record<string, ClientMasterlistJobSummary[]>
+  >({});
+  const [jobsLoading, setJobsLoading] = useState(false);
+  const [jobsClient, setJobsClient] = useState<Client | null>(null);
 
   // Form state
   const [clientCode, setClientCode] = useState("");
@@ -89,11 +107,36 @@ export default function ClientsPage() {
   const [tin, setTin] = useState("");
   const [isActive, setIsActive] = useState(true);
 
+  const loadClientJobs = useCallback(async () => {
+    setJobsLoading(true);
+    try {
+      const rows = (await fetchPoMasterlistJobsForClients()) as ClientMasterlistJobSummary[];
+      const next: Record<string, ClientMasterlistJobSummary[]> = {};
+      for (const row of rows) {
+        if (!row.client_id) continue;
+        const list = next[row.client_id] ?? [];
+        list.push(row);
+        next[row.client_id] = list;
+      }
+      setJobsByClient(next);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load client P.O. / jobs");
+      setJobsByClient({});
+    } finally {
+      setJobsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isError) {
       toast.error("Failed to load clients");
     }
   }, [isError]);
+
+  useEffect(() => {
+    void loadClientJobs();
+  }, [loadClientJobs]);
 
   const handleOpenDialog = (client?: Client) => {
     if (client) {
@@ -176,6 +219,7 @@ export default function ClientsPage() {
       handleCloseDialog();
       await bustCache();
       await refresh({ force: true });
+      await loadClientJobs();
     } catch (error: any) {
       toast.error(error.message || "Failed to save client");
       console.error(error);
@@ -197,32 +241,55 @@ export default function ClientsPage() {
       toast.success("Client deleted successfully");
       await bustCache();
       await refresh({ force: true });
+      await loadClientJobs();
     } catch (error: any) {
       toast.error(error.message || "Failed to delete client");
       console.error(error);
     }
   };
 
-  const filteredClients = clients.filter((client) => {
-    if (statusFilter === "active" && !client.is_active) return false;
-    if (statusFilter === "inactive" && client.is_active) return false;
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      (client.client_code && client.client_code.toLowerCase().includes(search)) ||
-      client.name.toLowerCase().includes(search) ||
-      (client.contact_person && client.contact_person.toLowerCase().includes(search)) ||
-      (client.contact_email && client.contact_email.toLowerCase().includes(search)) ||
-      (client.business_unit_sub_company &&
-        client.business_unit_sub_company.toLowerCase().includes(search))
-    );
-  });
+  const filteredClients = useMemo(
+    () =>
+      clients.filter((client) => {
+        if (statusFilter === "active" && !client.is_active) return false;
+        if (statusFilter === "inactive" && client.is_active) return false;
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        const clientJobs = jobsByClient[client.id] ?? [];
+        const matchesJob = clientJobs.some(
+          (job) =>
+            job.po_number.toLowerCase().includes(search) ||
+            (job.project_title || "").toLowerCase().includes(search)
+        );
+        return (
+          matchesJob ||
+          (client.client_code && client.client_code.toLowerCase().includes(search)) ||
+          client.name.toLowerCase().includes(search) ||
+          (client.contact_person && client.contact_person.toLowerCase().includes(search)) ||
+          (client.contact_email && client.contact_email.toLowerCase().includes(search)) ||
+          (client.business_unit_sub_company &&
+            client.business_unit_sub_company.toLowerCase().includes(search))
+        );
+      }),
+    [clients, searchTerm, statusFilter, jobsByClient]
+  );
+
+  const { pageItems: pagedClients, pageCount, safePage } = useMemo(
+    () => paginateItems(filteredClients, page, DASHBOARD_TABLE_PAGE_SIZE),
+    [filteredClients, page]
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
 
   const canCreateClients = canCreate("clients");
   const canUpdateClients = canUpdate("clients");
   const canDeleteClients = canDelete("clients");
-  const canManageClients =
-    canCreateClients || canUpdateClients || canDeleteClients;
 
   if (profileLoading) {
     return (
@@ -239,138 +306,17 @@ export default function ClientsPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
           <PageSubtitle>
-            Manage clients and their information.
+            Manage clients and browse their ADD-BELL P.O. / jobs from the masterlist.
           </PageSubtitle>
         </div>
-        {canCreateClients && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <div className={dbHeaderActions}>
-                <Button onClick={() => handleOpenDialog()} className={dbHeaderButton}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Client
-                </Button>
-              </div>
-            </DialogTrigger>
-            <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
-              <DialogHeader>
-                <DialogTitle>
-                  {editingClient ? "Edit Client" : "Add Client"}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingClient
-                    ? "Update client information"
-                    : "Add a new client to the system."}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="client_code">Client Code *</Label>
-                    <Input
-                      id="client_code"
-                      value={clientCode}
-                      onChange={(e) => setClientCode(e.target.value)}
-                      required
-                      disabled={!!editingClient}
-                      placeholder="e.g. PUC, SMC"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="client_name">Registered Name *</Label>
-                    <Input
-                      id="client_name"
-                      value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      placeholder="Client name"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="business_unit_sub_company">Business Unit / Sub Company</Label>
-                  <Input
-                    id="business_unit_sub_company"
-                    value={businessUnitSubCompany}
-                    onChange={(e) => setBusinessUnitSubCompany(e.target.value)}
-                    placeholder="Business unit or sub company"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">Business Address *</Label>
-                  <Textarea
-                    id="address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="Street, Barangay, City, Province"
-                    rows={2}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="tin">TIN *</Label>
-                  <Input
-                    id="tin"
-                    value={tin}
-                    onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
-                    placeholder={TIN_PLACEHOLDER}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="contact_person">Contact Person</Label>
-                  <Input
-                    id="contact_person"
-                    value={contactPerson}
-                    onChange={(e) => setContactPerson(e.target.value)}
-                    placeholder="Primary contact person"
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="contact_email">Email</Label>
-                    <Input
-                      id="contact_email"
-                      type="email"
-                      value={contactEmail}
-                      onChange={(e) => setContactEmail(e.target.value)}
-                      placeholder="client@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="contact_phone">Phone</Label>
-                    <Input
-                      id="contact_phone"
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                      placeholder="Phone number"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="client_status"
-                    checked={isActive}
-                    onCheckedChange={(checked) => setIsActive(checked === true)}
-                  />
-                  <Label htmlFor="client_status" className="font-normal">
-                    Active
-                  </Label>
-                </div>
-                <DialogFooter className={dbDialogFooter}>
-                  <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">
-                    {editingClient ? "Update" : "Create"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
+        {canCreateClients ? (
+          <div className={dbHeaderActions}>
+            <Button onClick={() => handleOpenDialog()} className={dbHeaderButton}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Client
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <Card>
@@ -379,7 +325,7 @@ export default function ClientsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by code, name, contact, or email..."
+                placeholder="Search by code, name, contact, P.O., or project…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
@@ -396,6 +342,9 @@ export default function ClientsPage() {
               </SelectContent>
             </Select>
           </div>
+          {jobsLoading ? (
+            <p className="mt-2 text-xs text-muted-foreground">Loading P.O. / jobs…</p>
+          ) : null}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -408,7 +357,11 @@ export default function ClientsPage() {
             <>
               <DbMobileBlock>
                 <div className="space-y-2 p-3">
-                  {filteredClients.map((client) => (
+                  {pagedClients.map((client) => {
+                    const stats = summarizeClientMasterlistJobs(
+                      jobsByClient[client.id] ?? []
+                    );
+                    return (
                     <div key={client.id} className={dbMobileListCard}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -425,90 +378,318 @@ export default function ClientsPage() {
                           value={client.business_unit_sub_company || "—"}
                         />
                         <DashboardMobileField label="Contact person" value={client.contact_person || "—"} />
-                        <DashboardMobileField label="email" value={client.contact_email || "—"} />
-                        <DashboardMobileField label="phone" value={client.contact_phone || "—"} />
+                        <DashboardMobileField
+                          label="Active jobs"
+                          value={jobsLoading ? "…" : String(stats.active)}
+                        />
+                        <DashboardMobileField
+                          label="Completed"
+                          value={jobsLoading ? "…" : String(stats.completed)}
+                        />
+                        <DashboardMobileField
+                          label="Paid"
+                          value={jobsLoading ? "…" : String(stats.paid)}
+                        />
+                        <DashboardMobileField
+                          label="Total jobs"
+                          value={jobsLoading ? "…" : String(stats.total)}
+                        />
                       </div>
-                      {canManageClients ? (
-                        <div className="mt-3 flex justify-end gap-2">
-                          {canUpdateClients ? (
+                      <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setJobsClient(client)}
+                          disabled={jobsLoading}
+                        >
+                          <ListOrdered className="mr-1 h-4 w-4" />
+                          View jobs
+                        </Button>
+                        {canUpdateClients ? (
                           <Button variant="outline" size="sm" onClick={() => handleOpenDialog(client)}>
                             <Pencil className="mr-1 h-4 w-4" />
                             Edit
                           </Button>
-                          ) : null}
-                          {canDeleteClients ? (
+                        ) : null}
+                        {canDeleteClients ? (
                           <Button variant="outline" size="sm" onClick={() => handleDelete(client)}>
                             <Trash2 className="mr-1 h-4 w-4" />
                             Delete
                           </Button>
-                          ) : null}
-                        </div>
-                      ) : null}
+                        ) : null}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </DbMobileBlock>
-              <DbDesktopBlock className={dbTableShell}>
-                <Table className="w-full min-w-[960px]">
+              <DbDesktopBlock className={dbTableShellFit}>
+                <Table className="w-full table-fixed" containerClassName="overflow-x-hidden">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Client Name</TableHead>
-                      <TableHead>BU/Sub</TableHead>
-                      <TableHead>Contact person</TableHead>
-                      <TableHead>email</TableHead>
-                      <TableHead>phone</TableHead>
-                      <TableHead>Status</TableHead>
-                      {canManageClients && <TableHead className="text-right">Actions</TableHead>}
+                      <TableHead className="w-[10%]">Code</TableHead>
+                      <TableHead className="w-[22%]">Client Name</TableHead>
+                      <TableHead className="hidden w-[12%] 2xl:table-cell">BU/Sub</TableHead>
+                      <TableHead className="w-[10%] text-right">Active</TableHead>
+                      <TableHead className="w-[12%] text-right">Completed</TableHead>
+                      <TableHead className="w-[10%] text-right">Paid</TableHead>
+                      <TableHead className="hidden w-[8%] text-right xl:table-cell">Total</TableHead>
+                      <TableHead className="w-[10%]">Status</TableHead>
+                      <TableHead className="sticky right-0 z-20 w-[16%] bg-muted text-right shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)]">
+                        Actions
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredClients.map((client) => (
-                      <TableRow key={client.id}>
-                        <TableCell className="font-medium">{client.client_code || "—"}</TableCell>
-                        <TableCell>{client.name}</TableCell>
-                        <TableCell>{client.business_unit_sub_company || "—"}</TableCell>
-                        <TableCell>{client.contact_person || "—"}</TableCell>
-                        <TableCell>{client.contact_email || "—"}</TableCell>
-                        <TableCell>{client.contact_phone || "—"}</TableCell>
+                    {pagedClients.map((client) => {
+                      const stats = summarizeClientMasterlistJobs(
+                        jobsByClient[client.id] ?? []
+                      );
+                      return (
+                      <TableRow key={client.id} className="group">
+                        <TableCell
+                          className="truncate font-medium"
+                          title={client.client_code || undefined}
+                        >
+                          {client.client_code || "—"}
+                        </TableCell>
+                        <TableCell className="min-w-0 truncate" title={client.name}>
+                          {client.name}
+                        </TableCell>
+                        <TableCell
+                          className="hidden truncate 2xl:table-cell"
+                          title={client.business_unit_sub_company || undefined}
+                        >
+                          {client.business_unit_sub_company || "—"}
+                        </TableCell>
+                        <TableCell
+                          className="text-right tabular-nums"
+                          title="ON-GOING + PENDING jobs"
+                        >
+                          {jobsLoading ? "…" : stats.active}
+                        </TableCell>
+                        <TableCell
+                          className="text-right tabular-nums"
+                          title="COMPLETED jobs"
+                        >
+                          {jobsLoading ? "…" : stats.completed}
+                        </TableCell>
+                        <TableCell
+                          className="text-right tabular-nums"
+                          title="PAID payment status"
+                        >
+                          {jobsLoading ? "…" : stats.paid}
+                        </TableCell>
+                        <TableCell className="hidden text-right tabular-nums text-muted-foreground xl:table-cell">
+                          {jobsLoading ? "…" : stats.total}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={client.is_active ? "default" : "secondary"}>
                             {client.is_active ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
-                        {canManageClients && (
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              {canUpdateClients ? (
+                        <TableCell className="sticky right-0 z-10 bg-background text-right shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)] group-hover:bg-muted/50">
+                          <div className="flex justify-end gap-1 whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2"
+                              onClick={() => setJobsClient(client)}
+                              disabled={jobsLoading}
+                              aria-label={`View jobs for ${client.name}`}
+                            >
+                              <ListOrdered className="mr-1 h-4 w-4" />
+                              Jobs
+                            </Button>
+                            {canUpdateClients ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="h-8 w-8 p-0"
                                 onClick={() => handleOpenDialog(client)}
+                                aria-label={`Edit ${client.name}`}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              ) : null}
-                              {canDeleteClients ? (
+                            ) : null}
+                            {canDeleteClients ? (
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                className="h-8 w-8 p-0"
                                 onClick={() => handleDelete(client)}
+                                aria-label={`Delete ${client.name}`}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
-                              ) : null}
-                            </div>
-                          </TableCell>
-                        )}
+                            ) : null}
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </DbDesktopBlock>
+              <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+                <DashboardTablePagination
+                  page={safePage}
+                  pageCount={pageCount}
+                  total={filteredClients.length}
+                  onPageChange={setPage}
+                />
+              </div>
             </>
           )}
         </CardContent>
       </Card>
+
+      <ClientMasterlistJobsDialog
+        open={Boolean(jobsClient)}
+        onOpenChange={(open) => {
+          if (!open) setJobsClient(null);
+        }}
+        clientName={jobsClient?.name ?? ""}
+        jobs={jobsClient ? jobsByClient[jobsClient.id] ?? [] : []}
+      />
+
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCloseDialog();
+          else setIsDialogOpen(true);
+        }}
+      >
+        <DialogContent className={dbDialogWideForm} style={dbDialogWideFormStyle}>
+          <DialogHeader className={dbDialogWideFormHeader}>
+            <DialogTitle>
+              {editingClient ? "Edit Client" : "Add Client"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingClient
+                ? "Update client information"
+                : "Add a new client to the system."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className={dbDialogWideFormBody}>
+              <div className={dbDialogFormGrid}>
+                <div className={dbDialogFormField}>
+                  <Label htmlFor="client_code">Client Code *</Label>
+                  <Input
+                    id="client_code"
+                    className={dbDialogFormControl}
+                    value={clientCode}
+                    onChange={(e) => setClientCode(e.target.value)}
+                    required
+                    disabled={!!editingClient}
+                    placeholder="e.g. PUC, SMC"
+                  />
+                </div>
+                <div className={cn(dbDialogFormField, "sm:col-span-2")}>
+                  <Label htmlFor="client_name">Registered Name *</Label>
+                  <Input
+                    id="client_name"
+                    className={dbDialogFormControl}
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    placeholder="Client name"
+                    required
+                  />
+                </div>
+                <div className={cn(dbDialogFormField, "sm:col-span-2")}>
+                  <Label htmlFor="business_unit_sub_company">
+                    Business Unit / Sub Company
+                  </Label>
+                  <Input
+                    id="business_unit_sub_company"
+                    className={dbDialogFormControl}
+                    value={businessUnitSubCompany}
+                    onChange={(e) => setBusinessUnitSubCompany(e.target.value)}
+                    placeholder="Business unit or sub company"
+                  />
+                </div>
+                <div className={dbDialogFormField}>
+                  <Label htmlFor="tin">TIN *</Label>
+                  <Input
+                    id="tin"
+                    className={dbDialogFormControl}
+                    value={tin}
+                    onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
+                    placeholder={TIN_PLACEHOLDER}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+                <div className={cn(dbDialogFormField, "sm:col-span-2 lg:col-span-3")}>
+                  <Label htmlFor="address">Business Address *</Label>
+                  <Textarea
+                    id="address"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Street, Barangay, City, Province"
+                    rows={3}
+                    className="min-h-[5.5rem]"
+                    required
+                  />
+                </div>
+                <div className={dbDialogFormField}>
+                  <Label htmlFor="contact_person">Contact Person</Label>
+                  <Input
+                    id="contact_person"
+                    className={dbDialogFormControl}
+                    value={contactPerson}
+                    onChange={(e) => setContactPerson(e.target.value)}
+                    placeholder="Primary contact person"
+                  />
+                </div>
+                <div className={dbDialogFormField}>
+                  <Label htmlFor="contact_email">Email</Label>
+                  <Input
+                    id="contact_email"
+                    className={dbDialogFormControl}
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="client@example.com"
+                  />
+                </div>
+                <div className={dbDialogFormField}>
+                  <Label htmlFor="contact_phone">Phone</Label>
+                  <Input
+                    id="contact_phone"
+                    className={dbDialogFormControl}
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="Phone number"
+                  />
+                </div>
+                <div className={cn(dbDialogFormField, "flex items-end")}>
+                  <div className="flex min-h-10 items-center gap-2">
+                    <Checkbox
+                      id="client_status"
+                      checked={isActive}
+                      onCheckedChange={(checked) => setIsActive(checked === true)}
+                    />
+                    <Label htmlFor="client_status" className="font-normal">
+                      Active
+                    </Label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter className={cn(dbDialogWideFormFooter, dbDialogFooter)}>
+              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {editingClient ? "Update" : "Create"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       </div>
     </DashboardLayout>
   );

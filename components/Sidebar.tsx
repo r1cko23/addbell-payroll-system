@@ -70,7 +70,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Projects",
+    label: "Operations",
     icon: MapPin,
     items: [
       { name: "Clients", href: "/clients", icon: Users, permissionModule: "clients" },
@@ -128,7 +128,7 @@ const navGroups: NavGroup[] = [
         permissionModule: "fund_requests",
       },
       {
-        name: "Purchase Order",
+        name: "Internal PO",
         href: "/purchase-order",
         icon: FileText,
         permissionModule: "purchase_orders",
@@ -221,7 +221,7 @@ function SidebarInner({ className, onClose }: SidebarProps) {
 
     return navGroups
       .map((group) => {
-        if (isHR && group.label === "Projects") return null;
+        if (isHR && group.label === "Operations") return null;
         // Ops managers: approvals + projects only (no payroll / employee directory).
         if (isOperationsManager && group.label === "People") return null;
 

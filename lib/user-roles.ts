@@ -7,12 +7,6 @@ export function isOperationsManagerRole(role: string | null | undefined): boolea
   return normalizeUserRole(role) === "operations_manager";
 }
 
-/** Purchasing officer or admin — admin always retains access when a feature is “purchasing only”. */
-export function isPurchasingOrAdminRole(role: string | null | undefined): boolean {
-  const normalized = normalizeUserRole(role);
-  return normalized === "purchasing_officer" || normalized === "admin";
-}
-
 /** First-approver OT/leave/FTL queues (scoped by overtime group). */
 export function isOvertimeGroupQueueApproverRole(
   role: string | null | undefined

@@ -1,8 +1,8 @@
 export type FundRequestReferenceMode = "client_linked" | "internal_stock";
 
 export const FUND_REQUEST_REFERENCE_MODE_LABELS: Record<FundRequestReferenceMode, string> = {
-  client_linked: "Client / Project Request",
-  internal_stock: "Office-Related Request",
+  client_linked: "Client-Linked Requests",
+  internal_stock: "Office-Related Requests",
 };
 
 export function getFundRequestReferenceModeLabel(
@@ -44,7 +44,7 @@ export function isSubcontractorPaymentPurpose(
 }
 
 export const FUND_REQUEST_FIELD_LABELS = {
-  poNumber: "Client P.O. Number",
+  poNumber: "P.O. Number",
   projectTitle: "Project Title",
   projectLocation: "Project Location",
   subcontractorName: "Subcontractor Name",
@@ -54,7 +54,7 @@ export const FUND_REQUEST_FIELD_LABELS = {
   billingInvoiceNumber: "Invoice Number",
   billingInvoiceStatus: "Invoice Status",
   projectCompletion: "Current Project Completion Percentage",
-  poAmount: "Client P.O. Amount",
+  poAmount: "P.O. Amount",
   supplierBankDetails: "Bank Details",
   referenceBasis: "Reference Basis",
   purpose: "Purpose",
@@ -90,6 +90,7 @@ export type FundRequestDocumentSummary = {
 export type FundRequestRow = {
   id: string;
   company_id: string;
+  project_id: string | null;
   requested_by: string;
   request_date: string;
   purpose: string;

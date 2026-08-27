@@ -19,7 +19,8 @@ const INBOX_SELECT = `
     profile_picture_url,
     user_id
   ),
-  vendors ( id, name, type )
+  vendors ( id, name, type ),
+  projects ( id, name, clients ( id, name ) )
 `;
 
 export async function GET(req: NextRequest) {

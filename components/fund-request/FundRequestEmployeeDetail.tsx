@@ -13,7 +13,6 @@ import {
   FUND_REQUEST_FIELD_LABELS,
   FUND_REQUEST_STATUS_LABELS,
   getFundRequestReferenceModeLabel,
-  isOfficeRelatedFundRequest,
   isSubcontractorPaymentPurpose,
   shouldShowFundRequestProjectReferenceFields,
 } from '@/types/fund-request';
@@ -24,8 +23,6 @@ import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
 import { FundRequestAddDocument } from '@/components/fund-request/FundRequestAddDocument';
 import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterAddDocumentToFundRequest, canRequesterEditFundRequest, getFundRequestRequesterStatus, isFundRequestRejected } from '@/lib/fund-request-approval';
-import { canRequesterCorrectFundRequestPoNumber } from '@/lib/fund-request-requester-edit';
-import { FundRequestUpdatePoNumber } from '@/components/fund-request/FundRequestUpdatePoNumber';
 import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { Button } from '@/components/ui/button';
@@ -33,35 +30,25 @@ import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { isFundRequestPaymentCheckDocument } from '@/lib/fund-request-payment-check';
 import { epPageWrapper, epSubmitRequestButton } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';
-import { normalizeUserRole } from '@/lib/user-roles';
 import type { FundRequestDetailItem } from '@/lib/fund-request-details';
-import { matchMasterlistJobForFundRequestPo } from '@/lib/fund-request-client-po-masterlist';
 
 const STATUS_LABELS = FUND_REQUEST_STATUS_LABELS;
 
-type MasterlistBudgetInfo = {
-  jobId: string;
-  poNumber: string;
-  title: string;
-  location: string | null;
-};
+type ProjectInfo = { name: string; code: string; site_address: string | null };
 
 export function FundRequestEmployeeDetail({
   fundRequestId,
   base,
-  backHref,
 }: {
   fundRequestId: string;
   base: string;
-  backHref?: string;
 }) {
-  const { profile, loading: profileLoading } = useProfile();
+  const { loading: profileLoading } = useProfile();
   const session = useOptionalEmployeeSession();
   const supabase = createClient();
   const [request, setRequest] = useState<FundRequestRow | null>(null);
   const [requesterName, setRequesterName] = useState<string>('');
-  const [masterlistBudget, setMasterlistBudget] =
-    useState<MasterlistBudgetInfo | null>(null);
+  const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
   const [vendorName, setVendorName] = useState<string>('');
   const [documents, setDocuments] = useState<FundRequestDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,26 +75,13 @@ export function FundRequestEmployeeDetail({
       );
       setRequesterName(requesterInfo.name);
 
-      if (
-        !isOfficeRelatedFundRequest(row.reference_mode) &&
-        shouldShowFundRequestProjectReferenceFields(row.reference_mode)
-      ) {
-        const { data: jobs } = await supabase
-          .from('po_masterlist_jobs')
-          .select('id, po_number, project_title, location, po_amount');
-        const match = matchMasterlistJobForFundRequestPo(row, jobs ?? []);
-        setMasterlistBudget(
-          match
-            ? {
-                jobId: match.jobId,
-                poNumber: match.poNumber,
-                title: match.title,
-                location: match.location,
-              }
-            : null
-        );
-      } else {
-        setMasterlistBudget(null);
+      if (row.project_id) {
+        const { data: proj } = await supabase
+          .from('projects')
+          .select('name, code, site_address')
+          .eq('id', row.project_id)
+          .single();
+        if (proj) setProjectInfo(proj as ProjectInfo);
       }
 
       if (row.vendor_id) {
@@ -147,7 +121,7 @@ export function FundRequestEmployeeDetail({
   if (!request) {
     return (
       <div className="space-y-4">
-        <Link href={backHref ?? base} className="text-muted-foreground hover:text-foreground text-sm">
+        <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">
           ← Back
         </Link>
         <p className="text-destructive">Fund request not found.</p>
@@ -164,27 +138,16 @@ export function FundRequestEmployeeDetail({
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
   const canEdit =
-    canRequesterEditFundRequest(request, {
-      requesterUserId: profile?.id ?? null,
-      requesterIsOperationsManager:
-        normalizeUserRole(profile?.role) === 'operations_manager',
-    }) &&
+    canRequesterEditFundRequest(request) &&
     request.requested_by === session?.employee?.id;
-  const canUpdatePo =
-    canRequesterCorrectFundRequestPoNumber(request, session?.employee?.id) &&
-    !isOfficeRelatedFundRequest(request.reference_mode);
   const canAddDocument =
-    canRequesterAddDocumentToFundRequest(request, {
-      requesterUserId: profile?.id ?? null,
-      requesterIsOperationsManager:
-        normalizeUserRole(profile?.role) === 'operations_manager',
-    }) &&
+    canRequesterAddDocumentToFundRequest(request) &&
     request.requested_by === session?.employee?.id;
   const requesterStatus = getFundRequestRequesterStatus(request);
 
   return (
     <div className={cn('w-full max-w-3xl', epPageWrapper)}>
-      <Link href={backHref ?? base} className="text-muted-foreground hover:text-foreground text-sm">
+      <Link href={base} className="text-muted-foreground hover:text-foreground text-sm">
         ← Back to Fund Requests
       </Link>
       <Card className="border-border/80 bg-card/95">
@@ -219,23 +182,16 @@ export function FundRequestEmployeeDetail({
             value={referenceModeLabel}
           />
 
-          {masterlistBudget && showProjectReferenceFields && (
+          {projectInfo && showProjectReferenceFields && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <h4 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Projects masterlist
+                Linked Project
               </h4>
               <p className="font-medium uppercase">
-                <Link
-                  href={`/projects/${masterlistBudget.jobId}`}
-                  className="text-primary hover:underline"
-                >
-                  {masterlistBudget.poNumber} — {masterlistBudget.title}
-                </Link>
+                {projectInfo.code} — {projectInfo.name}
               </p>
-              {masterlistBudget.location && (
-                <p className="text-sm uppercase text-muted-foreground">
-                  {masterlistBudget.location}
-                </p>
+              {projectInfo.site_address && (
+                <p className="text-sm uppercase text-muted-foreground">{projectInfo.site_address}</p>
               )}
             </div>
           )}
@@ -245,23 +201,6 @@ export function FundRequestEmployeeDetail({
               request={request}
               vendorName={vendorName}
               showSubcontractorFields={showSubcontractorFields}
-            />
-          ) : null}
-
-          {canUpdatePo ? (
-            <FundRequestUpdatePoNumber
-              request={request}
-              onUpdated={(next) =>
-                setRequest((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        po_number: next.po_number,
-                        project_details: next.project_details,
-                      }
-                    : prev
-                )
-              }
             />
           ) : null}
 

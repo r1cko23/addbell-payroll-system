@@ -191,6 +191,35 @@ export async function POST(request: NextRequest) {
       clockEntriesByEmployee.get(eid)!.push(entry);
     });
 
+    const { data: projectRowsForBundy } = await supabase
+      .from("project_time_entries")
+      .select("id, project_id, employee_id, clock_in, clock_out, regular_hours, total_hours")
+      .in("employee_id", employeeIds)
+      .gte("clock_in", periodStartISO)
+      .lte("clock_in", periodEndISO)
+      .not("clock_out", "is", null)
+      .order("clock_in", { ascending: true });
+
+    (projectRowsForBundy || []).forEach((r: any) => {
+      const eid = r.employee_id as string | undefined;
+      if (!eid || !r.clock_in || !r.clock_out) return;
+      const hours = r.regular_hours ?? r.total_hours ?? 0;
+      if (!clockEntriesByEmployee.has(eid)) {
+        clockEntriesByEmployee.set(eid, []);
+      }
+      clockEntriesByEmployee.get(eid)!.push({
+        id: r.id,
+        clock_in_time: r.clock_in,
+        clock_out_time: r.clock_out,
+        clock_in_date_ph: getDateInManilaDefault(r.clock_in),
+        status: "clocked_out",
+        total_hours: r.total_hours ?? hours,
+        regular_hours: hours,
+        total_night_diff_hours: null,
+        employee_id: eid,
+      });
+    });
+
     // Merge approved FTL rows as synthetic complete sessions (pairing IN+OUT by employee/date).
     const ftlPairMap = new Map<
       string,

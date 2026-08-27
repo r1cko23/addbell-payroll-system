@@ -34,17 +34,6 @@ export type AdminDashboardPayload = {
   pendingFailureToLogApprovals: number;
 };
 
-function isActiveMasterlistStatus(status: string | null | undefined): boolean {
-  const normalized = (status ?? "").trim().toUpperCase();
-  return (
-    normalized === "ON-GOING" ||
-    normalized === "ONGOING" ||
-    normalized === "PENDING" ||
-    normalized === "ACTIVE" ||
-    normalized === ""
-  );
-}
-
 export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload> {
   const supabase = getAdminClient();
 
@@ -52,6 +41,7 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
     { count: totalEmp },
     { count: activeEmp },
     { count: totalProj },
+    { count: activeProj },
     { count: pendingFR },
     { count: pendingPO },
     { count: pendingLeave },
@@ -60,16 +50,18 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
     projData,
     frData,
     poData,
-    amountData,
+    contractData,
   ] = await Promise.all([
     supabase.from("employees").select("*", { count: "exact", head: true }),
     supabase
       .from("employees")
       .select("*", { count: "exact", head: true })
       .eq("employment_status", "active"),
+    supabase.from("projects").select("*", { count: "exact", head: true }),
     supabase
-      .from("po_masterlist_jobs")
-      .select("*", { count: "exact", head: true }),
+      .from("projects")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "active"),
     supabase
       .from("fund_requests")
       .select("*", { count: "exact", head: true })
@@ -91,56 +83,31 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
       .select("*", { count: "exact", head: true })
       .eq("status", "pending"),
     supabase
-      .from("po_masterlist_jobs")
-      .select(
-        "id, po_number, project_title, project_status, po_amount, created_at"
-      )
+      .from("projects")
+      .select("id, code, name, status, contract_value, progress_percentage")
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
       .from("fund_requests")
       .select(
-        "id, purpose, total_requested_amount, status, request_date, po_number, project_title"
+        "id, purpose, total_requested_amount, status, request_date, projects:project_id ( name )"
       )
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
       .from("purchase_orders")
       .select(
-        "id, po_number, total_amount, status, created_at, project_title, vendors:vendor_id ( name ), po_masterlist_jobs:po_masterlist_job_id ( project_title )"
+        "id, po_number, total_amount, status, created_at, vendors:vendor_id ( name ), projects:project_id ( name )"
       )
       .order("created_at", { ascending: false })
       .limit(5),
-    supabase.from("po_masterlist_jobs").select("po_amount, project_status"),
+    supabase.from("projects").select("contract_value"),
   ]);
 
-  const amountRows = amountData.data || [];
-  const totalProjectValue = amountRows.reduce(
-    (s: number, p: { po_amount?: number | null }) =>
-      s + (Number(p.po_amount) || 0),
+  const totalProjectValue = (contractData.data || []).reduce(
+    (s: number, p: { contract_value?: number | null }) =>
+      s + (Number(p.contract_value) || 0),
     0
-  );
-  const activeProjects = amountRows.filter((row) =>
-    isActiveMasterlistStatus(
-      (row as { project_status?: string | null }).project_status
-    )
-  ).length;
-
-  const projects = (projData.data || []).map(
-    (row: {
-      id: string;
-      po_number: string | null;
-      project_title: string | null;
-      project_status: string | null;
-      po_amount: number | null;
-    }) => ({
-      id: row.id,
-      code: row.po_number || "—",
-      name: row.project_title || "Untitled job",
-      status: row.project_status || "—",
-      contract_value: row.po_amount,
-      progress_percentage: null as number | null,
-    })
   );
 
   return {
@@ -148,60 +115,14 @@ export async function loadAdminDashboardPayload(): Promise<AdminDashboardPayload
       totalEmployees: totalEmp || 0,
       activeEmployees: activeEmp || 0,
       totalProjects: totalProj || 0,
-      activeProjects,
+      activeProjects: activeProj || 0,
       pendingFundRequests: pendingFR || 0,
       pendingPOs: pendingPO || 0,
       totalProjectValue,
     },
-    projects,
-    recentFR: (frData.data || []).map(
-      (row: {
-        id: string;
-        purpose: string;
-        total_requested_amount: number;
-        status: string;
-        request_date: string;
-        po_number: string | null;
-        project_title: string | null;
-      }) => ({
-        ...row,
-        projects: {
-          name: row.project_title || row.po_number || null,
-        },
-      })
-    ),
-    recentPO: ((poData.data || []) as Array<{
-      id: string;
-      po_number: string;
-      total_amount: number;
-      status: string;
-      created_at: string;
-      project_title: string | null;
-      vendors: { name: string } | { name: string }[] | null;
-      po_masterlist_jobs:
-        | { project_title: string | null }
-        | { project_title: string | null }[]
-        | null;
-    }>).map((row) => {
-        const jobJoin = Array.isArray(row.po_masterlist_jobs)
-          ? row.po_masterlist_jobs[0]
-          : row.po_masterlist_jobs;
-        const vendorJoin = Array.isArray(row.vendors)
-          ? row.vendors[0]
-          : row.vendors;
-        return {
-          id: row.id,
-          po_number: row.po_number,
-          total_amount: row.total_amount,
-          status: row.status,
-          created_at: row.created_at,
-          vendors: vendorJoin,
-          projects: {
-            name:
-              jobJoin?.project_title || row.project_title || null,
-          },
-        };
-      }),
+    projects: (projData.data || []) as AdminDashboardPayload["projects"],
+    recentFR: frData.data || [],
+    recentPO: poData.data || [],
     pendingLeaveApprovals: pendingLeave || 0,
     pendingOvertimeApprovals: pendingOT || 0,
     pendingFailureToLogApprovals: pendingFTL || 0,

@@ -82,24 +82,6 @@ export function invalidateSessionCache(): void {
   }
 }
 
-/** Drop matching session-cache entries without bumping the global version. */
-export function sessionCacheRemoveByPrefix(prefix: string): void {
-  if (typeof window === "undefined") return;
-  for (const key of Array.from(memory.keys())) {
-    if (key.startsWith(prefix)) memory.delete(key);
-  }
-  try {
-    const toRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i += 1) {
-      const k = sessionStorage.key(i);
-      if (k?.startsWith(STORAGE_PREFIX + prefix)) toRemove.push(k);
-    }
-    for (const k of toRemove) sessionStorage.removeItem(k);
-  } catch {
-    /* ignore */
-  }
-}
-
 export async function sessionFetchJson<T>(
   key: string,
   url: string,

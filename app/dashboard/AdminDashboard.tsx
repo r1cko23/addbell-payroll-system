@@ -25,7 +25,6 @@ import { usePermissions } from "@/lib/hooks/usePermissions";
 import { useProfile } from "@/lib/hooks/useProfile";
 import { useSessionQuery } from "@/lib/hooks/useSessionQuery";
 import { bustCache } from "@/lib/cache-client";
-import { isPurchasingOrAdminRole } from "@/lib/user-roles";
 import type { AdminDashboardPayload } from "@/lib/fetch-admin-dashboard";
 import {
   approvalApprovedStatusBadgeClass,
@@ -106,8 +105,7 @@ export default function AdminDashboard() {
   const refreshing = validating;
   const lastUpdatedAt = data ? new Date() : null;
   const canReadPurchaseOrders = canRead("purchase_orders");
-  const canCreatePurchaseOrders =
-    canCreate("purchase_orders") && isPurchasingOrAdminRole(profile?.role);
+  const canCreatePurchaseOrders = canCreate("purchase_orders");
   const canReadPayslips = canRead("payslips");
   const canReadEmployees = canRead("employees");
   const showFundRequestActions = Boolean(profile);
@@ -141,7 +139,7 @@ export default function AdminDashboard() {
             ) : null}
             <Link href="/purchase-order">
               <Button variant="outline" className={dbHeaderButton}>
-                Internal POs
+                Purchase orders
               </Button>
             </Link>
             <Button
@@ -180,7 +178,7 @@ export default function AdminDashboard() {
               </Link>
               <Link href="/purchase-order">
                 <Button variant="outline" className={cn(dbHeaderButton, "w-full justify-start")}>
-                  Internal POs ({stats?.pendingPOs ?? 0})
+                  Purchase orders ({stats?.pendingPOs ?? 0})
                 </Button>
               </Link>
               <Link href="/projects">
@@ -274,7 +272,7 @@ export default function AdminDashboard() {
         <MetricCard
           label="Pending actions"
           value={(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0)}
-          meta={`${stats?.pendingFundRequests ?? 0} fund requests · ${stats?.pendingPOs ?? 0} internal POs`}
+          meta={`${stats?.pendingFundRequests ?? 0} fund requests · ${stats?.pendingPOs ?? 0} purchase orders`}
           icon={<Icon name="ClipboardText" size={IconSizes.sm} />}
         />
       </div>
@@ -401,9 +399,9 @@ export default function AdminDashboard() {
           </div>
         </CardSection>
 
-        <CardSection title="Recent internal POs" description="Latest PO status.">
+        <CardSection title="Recent purchase orders" description="Latest PO status.">
           {recentPO.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">No internal POs.</p>
+            <p className="text-muted-foreground text-center py-6">No purchase orders.</p>
           ) : (
             <div className="space-y-3">
               {recentPO.map((po) => (
@@ -445,7 +443,7 @@ export default function AdminDashboard() {
               <Link href="/purchase-order">
                 <Button variant="outline" className={dbHeaderButton}>
                   <Icon name={canCreatePurchaseOrders ? "Plus" : "FileText"} size={IconSizes.sm} className="mr-2" />
-                  {canCreatePurchaseOrders ? "New Internal PO" : "View Internal POs"}
+                  {canCreatePurchaseOrders ? "New Purchase Order" : "View Purchase Orders"}
                 </Button>
               </Link>
             ) : null}

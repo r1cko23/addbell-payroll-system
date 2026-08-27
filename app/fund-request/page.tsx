@@ -149,8 +149,6 @@ function FundRequestListPageContent() {
             : 'my-requests';
     setActiveTab(tab);
     const params = new URLSearchParams(searchParams.toString());
-    params.delete('q');
-    params.delete('status');
     if (tab === 'inbox') {
       params.set('tab', 'inbox');
     } else if (tab === 'history') {

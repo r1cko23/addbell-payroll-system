@@ -3,6 +3,7 @@ export const EMPLOYEE_PORTAL_MORE_PATHS = [
   "/employee-portal/failure-to-log",
   "/employee-portal/fund-request",
   "/employee-portal/payslips",
+  "/employee-portal/project-time",
   "/employee-portal/info",
 ] as const;
 

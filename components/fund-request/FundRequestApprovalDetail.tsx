@@ -31,7 +31,6 @@ import {
   FUND_REQUEST_FIELD_LABELS,
   FUND_REQUEST_STATUS_LABELS,
   getFundRequestReferenceModeLabel,
-  isOfficeRelatedFundRequest,
   isSubcontractorPaymentPurpose,
   shouldShowFundRequestProjectReferenceFields,
 } from "@/types/fund-request";
@@ -60,11 +59,6 @@ import {
   isFundRequestReturnedToPurchasing,
   validateFundRequestDisposalReason,
 } from "@/lib/fund-request-approval";
-import {
-  canRequesterCorrectFundRequestPoNumber,
-  canRequesterManageFundRequest,
-} from "@/lib/fund-request-requester-edit";
-import { FundRequestUpdatePoNumber } from "@/components/fund-request/FundRequestUpdatePoNumber";
 import {
   canPurchasingOfficerEditDetails,
   createEmptyFundRequestDetail,
@@ -126,7 +120,6 @@ import {
   type FundRequestBankDetailsForm,
 } from "@/lib/fund-request-bank-details";
 import { applySubcontractorAccountNameToBankDetails } from "@/lib/vendor-subcontractor-account";
-import { matchMasterlistJobForFundRequestPo } from "@/lib/fund-request-client-po-masterlist";
 import { resolveFundRequestRequesterInfo } from "@/lib/fund-request-requester";
 import { fetchApproverNameMap } from "@/lib/load-approver-names";
 import { fetchManagedEmployeeIdsForApprover } from "@/lib/manager-approval-queue";
@@ -142,13 +135,7 @@ import { cn } from "@/lib/utils";
 
 const STATUS_LABELS = FUND_REQUEST_STATUS_LABELS;
 
-type MasterlistBudgetInfo = {
-  jobId: string;
-  poNumber: string;
-  title: string;
-  location: string | null;
-  poAmount: number | null;
-};
+type ProjectInfo = { name: string; code: string; site_address: string | null; contract_value: number | null };
 
 export function FundRequestApprovalDetail({
   fundRequestId,
@@ -166,9 +153,7 @@ export function FundRequestApprovalDetail({
   const [requesterUserId, setRequesterUserId] = useState<string | null>(null);
   const [requesterIsOperationsManager, setRequesterIsOperationsManager] =
     useState(false);
-  const [viewerEmployeeId, setViewerEmployeeId] = useState<string | null>(null);
-  const [masterlistBudget, setMasterlistBudget] =
-    useState<MasterlistBudgetInfo | null>(null);
+  const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
   const [vendorName, setVendorName] = useState<string>("");
   const [approverNames, setApproverNames] = useState<Record<string, string>>({});
   const [editableDetails, setEditableDetails] = useState<EditableFundRequestDetail[]>([
@@ -230,26 +215,6 @@ export function FundRequestApprovalDetail({
       active = false;
     };
   }, [profile?.id, profile?.role, supabase]);
-
-  useEffect(() => {
-    if (!profile?.id) {
-      setViewerEmployeeId(null);
-      return;
-    }
-    let active = true;
-    supabase
-      .from("employees")
-      .select("id")
-      .eq("user_id", profile.id)
-      .eq("is_active", true)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active) setViewerEmployeeId(data?.id ?? null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [profile?.id, supabase]);
 
   useEffect(() => {
     const id = fundRequestId;
@@ -334,18 +299,9 @@ export function FundRequestApprovalDetail({
 
       setApproverNames(approverNameMap);
 
-      if (
-        !isOfficeRelatedFundRequest(row.reference_mode) &&
-        shouldShowFundRequestProjectReferenceFields(row.reference_mode)
-      ) {
-        const { data: jobs } = await supabase
-          .from("po_masterlist_jobs")
-          .select("id, po_number, project_title, location, po_amount");
-        setMasterlistBudget(
-          matchMasterlistJobForFundRequestPo(row, jobs ?? [])
-        );
-      } else {
-        setMasterlistBudget(null);
+      if (row.project_id) {
+        const { data: proj } = await supabase.from("projects").select("name, code, site_address, contract_value").eq("id", row.project_id).single();
+        if (proj) setProjectInfo(proj as ProjectInfo);
       }
 
       if (row.vendor_id) {
@@ -953,17 +909,6 @@ export function FundRequestApprovalDetail({
     showProjectReferenceFields &&
     isSubcontractorPaymentPurpose(request.purpose);
   const viewerRole = normalizeUserRole(profile?.role);
-  const canEditOwnRequest = canRequesterManageFundRequest(
-    request,
-    viewerEmployeeId,
-    {
-      requesterUserId: profile?.id ?? null,
-      requesterIsOperationsManager: viewerRole === "operations_manager",
-    }
-  );
-  const canUpdateOwnPo =
-    canRequesterCorrectFundRequestPoNumber(request, viewerEmployeeId) &&
-    !isOfficeRelatedFundRequest(request.reference_mode);
   const canEditReturnedFields =
     returnedToPurchasing && viewerRole === "purchasing_officer";
   const showSubcontractorInvoiceTracking = Boolean(
@@ -994,27 +939,18 @@ export function FundRequestApprovalDetail({
       </Link>
       <Card className={cn("w-full", dbFormCard)}>
         <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-2">
-              <CardTitle>Fund request</CardTitle>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Requested by {requesterName} on{" "}
-                  {formatFundRequestSubmittedAtLabel(request)}
-                </p>
-                <Badge
-                  variant={getFundRequestStatusBadgeVariant(request.status)}
-                  className={cn("w-fit", getFundRequestStatusBadgeClass(request.status))}
-                >
-                  {STATUS_LABELS[request.status] ?? request.status}
-                </Badge>
-              </div>
-            </div>
-            {canEditOwnRequest ? (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/fund-request/${request.id}/edit`}>Edit request</Link>
-              </Button>
-            ) : null}
+          <CardTitle>Fund request</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              Requested by {requesterName} on{" "}
+              {formatFundRequestSubmittedAtLabel(request)}
+            </p>
+            <Badge
+              variant={getFundRequestStatusBadgeVariant(request.status)}
+              className={cn("w-fit", getFundRequestStatusBadgeClass(request.status))}
+            >
+              {STATUS_LABELS[request.status] ?? request.status}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -1046,35 +982,24 @@ export function FundRequestApprovalDetail({
             />
           </FundRequestCorrectionMark>
 
-            {masterlistBudget && showProjectReferenceFields && (
+            {projectInfo && showProjectReferenceFields && (
               <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-4">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                  Project budget context
-                </h4>
+                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Linked Project — Budget Context</h4>
                 <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <span className="text-muted-foreground">Masterlist job:</span>
-                    <p className="font-medium uppercase">
-                      <Link
-                        href={`/projects/${masterlistBudget.jobId}`}
-                        className="text-primary hover:underline"
-                      >
-                        {masterlistBudget.poNumber} — {masterlistBudget.title}
-                      </Link>
-                    </p>
+                    <span className="text-muted-foreground">Project:</span>
+                    <p className="font-medium uppercase">{projectInfo.code} — {projectInfo.name}</p>
                   </div>
-                  {masterlistBudget.location && (
+                  {projectInfo.site_address && (
                     <div>
                       <span className="text-muted-foreground">Location:</span>
-                      <p className="uppercase">{masterlistBudget.location}</p>
+                      <p className="uppercase">{projectInfo.site_address}</p>
                     </div>
                   )}
-                  {masterlistBudget.poAmount != null && (
+                  {projectInfo.contract_value != null && (
                     <div>
                       <span className="text-muted-foreground">Contract Value:</span>
-                      <p className="font-medium">
-                        ₱{Number(masterlistBudget.poAmount).toLocaleString()}
-                      </p>
+                      <p className="font-medium">₱{Number(projectInfo.contract_value).toLocaleString()}</p>
                     </div>
                   )}
                   <div>
@@ -1114,23 +1039,6 @@ export function FundRequestApprovalDetail({
                   showSubcontractorInvoiceTracking={showSubcontractorInvoiceTracking}
                 />
               </FundRequestCorrectionGroup>
-            ) : null}
-
-            {canUpdateOwnPo ? (
-              <FundRequestUpdatePoNumber
-                request={request}
-                onUpdated={(next) =>
-                  setRequest((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          po_number: next.po_number,
-                          project_details: next.project_details,
-                        }
-                      : prev
-                  )
-                }
-              />
             ) : null}
             <FundRequestCorrectionMark
               field="totalRequested"

@@ -2,7 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 import {
   canRequesterAddDocumentToFundRequest,
   canRequesterEditFundRequest,
-  canRequesterUpdateFundRequestPoNumber,
   isFundRequestRejected,
 } from "@/lib/fund-request-approval";
 
@@ -83,54 +82,6 @@ export async function assertRequesterCanManageFundRequest(
         "This request can no longer be changed because it was approved by the next approver.",
       status: 403 as const,
     };
-  }
-
-  return { existing };
-}
-
-/** PO# correction after NTP / to-follow — once client PO is on Projects masterlist. */
-export async function assertRequesterCanUpdateFundRequestPoNumber(
-  admin: ReturnType<typeof getAdminClient>,
-  authUserId: string | null,
-  requestId: string,
-  requesterEmployeeId: string
-) {
-  const { data: existing, error: loadError } = await admin
-    .from("fund_requests")
-    .select(
-      "id, requested_by, status, rejected_at, purchasing_officer_approved_at, rejection_undo_snapshot, po_number, project_details, project_title, project_location, current_project_percentage, po_amount"
-    )
-    .eq("id", requestId)
-    .maybeSingle();
-
-  if (loadError) {
-    return { error: loadError.message, status: 500 as const };
-  }
-  if (!existing || existing.requested_by !== requesterEmployeeId) {
-    return { error: "Request not found", status: 404 as const };
-  }
-  if (!canRequesterUpdateFundRequestPoNumber(existing)) {
-    return {
-      error: "This request was rejected and can no longer be changed.",
-      status: 403 as const,
-    };
-  }
-
-  const { data: employee, error: employeeError } = await admin
-    .from("employees")
-    .select("id, user_id, is_active")
-    .eq("id", requesterEmployeeId)
-    .maybeSingle();
-
-  if (employeeError) {
-    return { error: employeeError.message, status: 500 as const };
-  }
-  if (!employee?.is_active) {
-    return { error: "Request not found", status: 404 as const };
-  }
-
-  if (authUserId && employee.user_id !== authUserId) {
-    return { error: "You can only change your own fund requests.", status: 403 as const };
   }
 
   return { existing };

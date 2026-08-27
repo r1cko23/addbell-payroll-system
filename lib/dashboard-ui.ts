@@ -36,10 +36,6 @@ export const dbKpiGrid =
 /** Two-column section grid on laptop+ */
 export const dbSectionGrid = "grid w-full grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6";
 
-/** Fit-to-width tables — no horizontal scroll; clip overflow instead */
-export const dbTableShellFit =
-  "w-full min-w-0 overflow-x-hidden rounded-lg border";
-
 /** Horizontal scroll fallback for wide tables */
 export const dbTableShell =
   "w-full min-w-0 overflow-x-auto rounded-lg border";
@@ -52,60 +48,24 @@ export const dbFilterSelect = "w-full min-w-0 sm:w-[180px]";
 
 /** Standard dialog — near full-width on mobile, scrollable */
 export const dbDialogContent =
-  "max-h-[min(90dvh,90vh)] w-[calc(100vw-2rem)] max-w-none gap-4 overflow-y-auto overscroll-contain p-5 sm:max-w-3xl sm:w-full sm:gap-5 sm:p-7";
+  "max-h-[min(90dvh,90vh)] w-[calc(100vw-2rem)] max-w-none gap-3 overflow-y-auto overscroll-contain p-4 sm:max-w-2xl sm:w-full sm:p-6";
 
-/** Wider dialog for multi-field forms (vendors, subcontractors, clients). */
+/** Wider dialog for multi-field forms (vendors, subcontractors). */
 export const dbDialogContentWide =
-  "max-h-[min(90dvh,90vh)] w-[min(100vw-2rem,56rem)] max-w-4xl gap-5 overflow-y-auto overscroll-contain p-5 sm:w-full sm:p-7";
-
-/**
- * Wide masterlist / entity edit dialog — viewport-centered, fixed header/footer, scrollable body.
- * Nearly full-width; height capped so Cancel/Update stay on screen.
- */
-export const dbDialogWideForm =
-  "!flex max-h-[min(90dvh,calc(100vh-2rem))] !w-auto !max-w-none flex-col gap-0 overflow-hidden p-0";
-
-/** Inline style for dbDialogWideForm — keeps dialogs centered and horizontally spacious. */
-export const dbDialogWideFormStyle = {
-  top: "50%",
-  left: "50%",
-  right: "auto",
-  bottom: "auto",
-  width: "min(100vw - 2rem, 64rem)",
-  maxWidth: "none",
-  maxHeight: "min(90dvh, calc(100vh - 2rem))",
-  transform: "translate(-50%, -50%)",
-} as const;
-
-export const dbDialogWideFormHeader =
-  "shrink-0 space-y-1.5 border-b px-6 pb-4 pt-6 pr-14 text-left sm:px-8 sm:pb-5 sm:pt-7";
-
-export const dbDialogWideFormBody =
-  "min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-5 sm:px-8 sm:py-6";
-
-export const dbDialogWideFormFooter =
-  "shrink-0 border-t bg-background px-6 py-4 sm:px-8 sm:py-5";
-
-/** Multi-column field grid for create/update entity dialogs */
-export const dbDialogFormGrid =
-  "grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2 lg:grid-cols-3";
-
-export const dbDialogFormField = "space-y-2 min-w-0";
-
-export const dbDialogFormControl = "h-10";
+  "max-h-[min(90dvh,90vh)] w-[min(100vw-2rem,48rem)] max-w-3xl gap-3 overflow-y-auto overscroll-contain p-4 sm:w-full sm:p-6";
 
 /**
  * Tall form dialog — top-anchored, capped height, fixed header/footer, scrollable body.
  * Overrides centered translate so the modal fits at 100% browser zoom.
  */
 export const dbDialogTallForm =
-  "!top-[max(0.75rem,1.5dvh)] left-[50%] flex max-h-[min(85dvh,calc(100vh-1.5rem))] w-[calc(100vw-2rem)] max-w-3xl -translate-x-1/2 !translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:w-full";
+  "!top-[max(0.75rem,1.5dvh)] left-[50%] flex max-h-[min(85dvh,calc(100vh-1.5rem))] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 !translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:w-full";
 
 export const dbDialogTallFormHeader =
   "shrink-0 space-y-1.5 border-b px-6 pb-4 pt-6 pr-12 text-left";
 
 export const dbDialogTallFormBody =
-  "max-h-[calc(100dvh-12.5rem)] space-y-5 overflow-y-auto overscroll-contain px-6 py-5 pr-4";
+  "max-h-[calc(100dvh-12.5rem)] space-y-4 overflow-y-auto overscroll-contain px-6 py-4 pr-4";
 
 export const dbDialogTallFormFooter =
   "shrink-0 border-t bg-background px-6 py-4";
@@ -113,14 +73,6 @@ export const dbDialogTallFormFooter =
 /** Dialog footer — stacked full-width actions on mobile */
 export const dbDialogFooter =
   "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-2 [&>button]:w-full sm:[&>button]:w-auto";
-
-/** Status / payment pills in tables — never truncate label text */
-export const dbStatusBadge = "shrink-0 whitespace-nowrap";
-
-/** Table cell that hosts status pills */
-export const dbStatusBadgeCell = "min-w-0 overflow-visible py-3 align-middle";
-
-
 
 /** Mobile list card inside dashboard sections */
 export const dbMobileListCard =

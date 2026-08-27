@@ -59,7 +59,6 @@ import {
   type FundRequestProjectDetailRow,
 } from "@/lib/fund-request-project-details";
 import { FundRequestProjectDetailsFields } from "@/components/fund-request/FundRequestProjectDetailsFields";
-import { FundRequestMasterlistPoField } from "@/components/fund-request/FundRequestMasterlistPoField";
 import { FundRequestBankDetailsFields } from "@/components/fund-request/FundRequestBankDetailsFields";
 import { FundRequestDetailsSection } from "@/components/fund-request/FundRequestDetailsSection";
 import { SubcontractorProgressBillingSection } from "@/components/fund-request/SubcontractorProgressBillingSection";
@@ -717,7 +716,7 @@ export default function NewFundRequestPage() {
     }
     const trimmedPoNumber = poNumber.trim();
     if (showClientPOField && !poPerProject && !trimmedPoNumber) {
-      toast.error("Client P.O. Number is required in client-linked mode.");
+      toast.error("P.O. Number is required in client-linked mode.");
       return;
     }
     let parsedSubcontractorProgressCompletion: number | null = null;
@@ -887,6 +886,7 @@ export default function NewFundRequestPage() {
 
       const payload = {
         company_id: companyId,
+        project_id: null,
         requested_by: employeeId,
         ...contentPayload,
         status: workflow.status,
@@ -1082,9 +1082,9 @@ export default function NewFundRequestPage() {
                   </Select>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Choose{" "}
-                    <span className="font-medium">Client / Project Request</span> when tied to a
-                    client P.O. on Operations → Projects. Choose{" "}
-                    <span className="font-medium">Office-Related Request</span> if no client or
+                    <span className="font-medium">Client-Linked Requests</span> when tied to a
+                    client Purchase Order. Choose{" "}
+                    <span className="font-medium">Office-Related Requests</span> if no client or
                     project reference.
                   </p>
                 </div>
@@ -1098,40 +1098,18 @@ export default function NewFundRequestPage() {
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     {showClientPOField && !poPerProject ? (
-                      <FundRequestMasterlistPoField
-                        id="po_number"
-                        label="Client P.O. Number"
-                        value={poNumber}
-                        required
-                        onChange={(next) => {
-                          setPoNumber(next.poNumber);
-                          if (
-                            next.projectTitle ||
-                            next.location ||
-                            next.poAmount
-                          ) {
-                            setProjectRows((rows) => {
-                              if (rows.length === 0) return rows;
-                              const [first, ...rest] = rows;
-                              return [
-                                {
-                                  ...first,
-                                  title: next.projectTitle?.trim()
-                                    ? next.projectTitle
-                                    : first.title,
-                                  location: next.location?.trim()
-                                    ? next.location
-                                    : first.location,
-                                  poAmount: next.poAmount?.trim()
-                                    ? next.poAmount
-                                    : first.poAmount,
-                                },
-                                ...rest,
-                              ];
-                            });
-                          }
-                        }}
-                      />
+                      <div>
+                        <Label htmlFor="po_number" required>
+                          P.O. Number
+                        </Label>
+                        <Input
+                          id="po_number"
+                          value={poNumber}
+                          onChange={(e) => setPoNumber(e.target.value)}
+                          placeholder="Enter P.O. number"
+                          required
+                        />
+                      </div>
                     ) : null}
                     <FundRequestProjectDetailsFields
                       rows={projectRows}

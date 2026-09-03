@@ -22,6 +22,10 @@ import {
   recordGoogleSpreadsheetBatchGetCall,
   recordGoogleSpreadsheetMetadataCall,
 } from "@/lib/platform-runtime-metrics";
+import {
+  parseBillingSheetClientRows,
+  type BillingSheetClientPoRow,
+} from "@/lib/billing-sheet-clients";
 
 /** Non-invoice reference tabs — never searched for P.O. rows */
 const EXCLUDED_BILLING_SHEET_TITLES = new Set([
@@ -89,6 +93,8 @@ function getSheetsClient() {
   const auth = new google.auth.JWT({
     email: clientEmail,
     key: privateKey,
+    // Billing invoice lookup only — never widen to write. Masterlist writeback
+    // uses a separate client in lib/google-sheets-po-masterlist.ts.
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
   });
 
@@ -370,6 +376,41 @@ export async function lookupBillingInvoiceStatus(
   };
   setCachedBillingPoLookup(poNumberTrimmed, notFound);
   return notFound;
+}
+
+const BILLING_CLIENT_SHEET_RANGE = "A:N";
+const BILLING_CLIENT_BATCH_SIZE = 15;
+
+function quoteClientSheetRange(sheetName: string): string {
+  return `'${sheetName.replace(/'/g, "''")}'!${BILLING_CLIENT_SHEET_RANGE}`;
+}
+
+export async function collectBillingSheetClientPoRows(): Promise<BillingSheetClientPoRow[]> {
+  const spreadsheetId = process.env.GOOGLE_SHEETS_BILLING_SPREADSHEET_ID?.trim();
+  if (!spreadsheetId) {
+    throw new Error(
+      "Google Sheets billing spreadsheet is not configured. Set GOOGLE_SHEETS_BILLING_SPREADSHEET_ID."
+    );
+  }
+
+  const sheets = getSheetsClient();
+  const billingSheetTitles = await getBillingSheetTitles(sheets, spreadsheetId);
+  const collected: BillingSheetClientPoRow[] = [];
+
+  for (let i = 0; i < billingSheetTitles.length; i += BILLING_CLIENT_BATCH_SIZE) {
+    const chunk = billingSheetTitles.slice(i, i + BILLING_CLIENT_BATCH_SIZE);
+    recordGoogleSpreadsheetBatchGetCall(chunk.length);
+    const batch = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId,
+      ranges: chunk.map(quoteClientSheetRange),
+    });
+    for (const valueRange of batch.data.valueRanges ?? []) {
+      const rows = (valueRange.values ?? []) as string[][];
+      collected.push(...parseBillingSheetClientRows(rows));
+    }
+  }
+
+  return collected;
 }
 
 export function isGoogleSheetsBillingConfigured(): boolean {

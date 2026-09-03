@@ -872,11 +872,11 @@ export default function SettingsPage() {
           </CardSection>
         )}
 
-        {/* Permissions / CRUD Matrix (system admin only) */}
+        {/* Access Control — ABAC Pages + Functions (system admin only) */}
         {canManageAccessControl && (
           <CardSection
-            title="Access Control (CRUD Matrix)"
-            description="Configure create, read, update, and delete per page for each user with dashboard access."
+            title="Access Control (ABAC)"
+            description="Assign pages this user can open and functions they can run. Role is a starter pack only."
           >
             <PermissionsManager
               users={users}

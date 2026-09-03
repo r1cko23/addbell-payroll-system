@@ -8,7 +8,7 @@ import { useProfile } from "@/lib/hooks/useProfile";
 export function useProjects() {
   const { profile, loading: profileLoading } = useProfile();
   const userId = profile?.id ?? null;
-  const cacheKey = userId ? `projects:${userId}` : null;
+  const cacheKey = userId ? `projects:${userId}:catalog-v1` : null;
   const loader = useCallback(async () => {
     const projects = await fetchProjectsList();
     return { projects };

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { format, parse, addDays } from "date-fns";
 import { Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
 import { bustCache } from "@/lib/cache-client";
@@ -24,15 +25,22 @@ import {
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   formatFundRequestCutoffPeriod,
   fundRequestBelongsToApproverCutoff,
-  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
   shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 import { FundRequestAllList } from "@/components/fund-request/FundRequestAllList";
+import { useFundRequestListReturn } from "@/lib/hooks/useFundRequestListReturn";
+import { resolveFundRequestListCutoffIndex } from "@/lib/fund-request-list-return";
+import {
+  buildMasterlistPoKeySet,
+  buildUniqueMasterlistTitleKeySet,
+  evaluateFundRequestClientPoMasterlist,
+} from "@/lib/fund-request-client-po-masterlist";
+import { fetchPoMasterlistPoLookup } from "@/lib/queries/fetchers";
+import { queryKeys } from "@/lib/queries/query-keys";
 
 type FundRequestMyRequestRow = FundRequestRow & {
-  projects: { name: string; code: string } | null;
   vendors?: { name?: string | null } | null;
 };
 
@@ -59,9 +67,17 @@ export function FundRequestMyRequests({
   requesterIsOperationsManager = false,
 }: FundRequestMyRequestsProps) {
   const supabase = createClient();
-  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const {
+    q,
+    status,
+    cutoff,
+    clientPo,
+    setQ,
+    setStatus,
+    setCutoff,
+    setClientPo,
+    listQueryFor,
+  } = useFundRequestListReturn();
 
   const listCacheKey = useMemo(() => {
     if (!requesterEmployeeId) return null;
@@ -86,7 +102,7 @@ export function FundRequestMyRequests({
 
     let query = supabase
       .from("fund_requests")
-      .select("*, projects ( name, code ), vendors ( name )")
+      .select("*, vendors ( name )")
       .eq("requested_by", requesterEmployeeId)
       .order("created_at", { ascending: false });
 
@@ -111,8 +127,8 @@ export function FundRequestMyRequests({
     const filtered =
       history && cutoffs.length > 0
         ? loaded.filter((row) =>
-            cutoffs.some((cutoff) =>
-              fundRequestBelongsToApproverCutoff(row, cutoff, "admin")
+            cutoffs.some((period) =>
+              fundRequestBelongsToApproverCutoff(row, period, "admin")
             )
           )
         : loaded;
@@ -131,13 +147,72 @@ export function FundRequestMyRequests({
 
   const rows = loadResult?.rows ?? [];
   const historyCutoffs = loadResult?.cutoffs ?? [];
-
-  useEffect(() => {
-    if (historyCutoffs.length === 0) return;
-    setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(historyCutoffs));
-  }, [historyCutoffs]);
+  const selectedCutoffIndex = resolveFundRequestListCutoffIndex(
+    historyCutoffs,
+    cutoff
+  );
 
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
+  const filterNeedsClientPo = clientPo === "needs_update";
+
+  const {
+    data: masterlistLookup = [],
+    isFetched: masterlistFetched,
+  } = useQuery({
+    queryKey: queryKeys.poMasterlistJobs.poLookup(),
+    queryFn: fetchPoMasterlistPoLookup,
+    staleTime: 60_000,
+  });
+
+  const masterlistPoKeys = useMemo(
+    () => buildMasterlistPoKeySet(masterlistLookup.map((row) => row.po_number)),
+    [masterlistLookup]
+  );
+  const uniqueMasterlistTitleKeys = useMemo(
+    () =>
+      buildUniqueMasterlistTitleKeySet(
+        masterlistLookup.map((row) => row.project_title)
+      ),
+    [masterlistLookup]
+  );
+
+  const clientPoStatusById = useMemo(() => {
+    const map = new Map<
+      string,
+      ReturnType<typeof evaluateFundRequestClientPoMasterlist>
+    >();
+    for (const row of rows) {
+      map.set(
+        row.id,
+        evaluateFundRequestClientPoMasterlist(
+          row,
+          masterlistPoKeys,
+          uniqueMasterlistTitleKeys,
+          { masterlistLoaded: masterlistFetched }
+        )
+      );
+    }
+    return map;
+  }, [rows, masterlistPoKeys, uniqueMasterlistTitleKeys, masterlistFetched]);
+
+  const needsClientPoUpdateIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [id, poStatus] of clientPoStatusById) {
+      if (poStatus.needsUpdate) ids.add(id);
+    }
+    return ids;
+  }, [clientPoStatusById]);
+
+  const readyClientPoUpdateIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [id, poStatus] of clientPoStatusById) {
+      if (poStatus.readyOnMasterlist) ids.add(id);
+    }
+    return ids;
+  }, [clientPoStatusById]);
+
+  const needsClientPoUpdateCount = needsClientPoUpdateIds.size;
+  const readyClientPoUpdateCount = readyClientPoUpdateIds.size;
 
   const cutoffNavLabel = useMemo(() => {
     if (!selectedCutoff) return "";
@@ -152,6 +227,12 @@ export function FundRequestMyRequests({
       fundRequestBelongsToApproverCutoff(row, selectedCutoff, "admin")
     );
   }, [rows, selectedCutoff]);
+
+  const listRows = useMemo(() => {
+    if (!filterNeedsClientPo) return cutoffRows;
+    // Show every own request that still needs a client PO, across cutoffs.
+    return rows.filter((row) => needsClientPoUpdateIds.has(row.id));
+  }, [filterNeedsClientPo, cutoffRows, rows, needsClientPoUpdateIds]);
 
   const pendingCount = useMemo(
     () =>
@@ -188,7 +269,7 @@ export function FundRequestMyRequests({
 
   return (
     <div className="space-y-4">
-      {historyCutoffs.length > 0 ? (
+      {historyCutoffs.length > 0 && !filterNeedsClientPo ? (
         <div className="space-y-1">
           <div className="flex items-center gap-2 rounded-lg border bg-card px-2 py-2 sm:px-3">
             <Button
@@ -198,8 +279,10 @@ export function FundRequestMyRequests({
               className={epPeriodNavButton}
               disabled={!canGoToOlderCutoff || loading}
               onClick={() =>
-                setSelectedCutoffIndex((index) =>
-                  Math.min(index + 1, historyCutoffs.length - 1)
+                setCutoff(
+                  historyCutoffs[
+                    Math.min(selectedCutoffIndex + 1, historyCutoffs.length - 1)
+                  ]?.start_ymd ?? null
                 )
               }
               aria-label="Previous cutoff"
@@ -215,7 +298,9 @@ export function FundRequestMyRequests({
               size="sm"
               className={epPeriodNavButton}
               disabled={!canGoToNewerCutoff || loading}
-              onClick={() => setSelectedCutoffIndex((index) => Math.max(index - 1, 0))}
+              onClick={() =>
+                setCutoff(historyCutoffs[Math.max(selectedCutoffIndex - 1, 0)]?.start_ymd ?? null)
+              }
               aria-label="Next cutoff"
             >
               <Icon name="CaretRight" size={IconSizes.sm} />
@@ -231,24 +316,64 @@ export function FundRequestMyRequests({
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <MetricCard
-          label="Requests this cutoff"
-          value={loading ? "—" : String(cutoffRows.length)}
-          meta={loading ? "Loading..." : `₱${sumAmount(cutoffRows).toLocaleString()} total`}
-        />
-        <MetricCard
-          label="Pending approval"
-          value={loading ? "—" : String(pendingCount)}
-          meta={
-            loading
-              ? "Loading..."
-              : pendingCount === 1
-                ? "1 request in progress"
-                : `${pendingCount} requests in progress`
-          }
-        />
-      </div>
+      {needsClientPoUpdateCount > 0 ? (
+        <div className="rounded-lg border border-amber-300/80 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">
+            {needsClientPoUpdateCount} fund request
+            {needsClientPoUpdateCount === 1 ? "" : "s"} need a client P.O. update
+          </p>
+          <p className="mt-1 text-amber-900/90">
+            {readyClientPoUpdateCount > 0
+              ? `${readyClientPoUpdateCount} now match a job on Operations → Projects — open Update PO and pick the client P.O. from the masterlist. `
+              : null}
+            If you filed with NTP / PO to follow (or a PO not yet on Projects), update the Fund
+            Request once that client PO is live — even if it is already approved. This keeps
+            project tracking accurate. Internal POs (purchasing) are separate.
+          </p>
+          {!filterNeedsClientPo ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 border-amber-400 bg-white hover:bg-amber-100"
+              onClick={() => setClientPo("needs_update")}
+            >
+              Show requests needing update
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 border-amber-400 bg-white hover:bg-amber-100"
+              onClick={() => setClientPo(null)}
+            >
+              Clear client P.O. filter
+            </Button>
+          )}
+        </div>
+      ) : null}
+
+      {!filterNeedsClientPo ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MetricCard
+            label="Requests this cutoff"
+            value={loading ? "—" : String(cutoffRows.length)}
+            meta={loading ? "Loading..." : `₱${sumAmount(cutoffRows).toLocaleString()} total`}
+          />
+          <MetricCard
+            label="Pending approval"
+            value={loading ? "—" : String(pendingCount)}
+            meta={
+              loading
+                ? "Loading..."
+                : pendingCount === 1
+                  ? "1 request in progress"
+                  : `${pendingCount} requests in progress`
+            }
+          />
+        </div>
+      ) : null}
 
       <Card className="border-border/80 bg-card/95">
         <div className="flex flex-col gap-4 border-b px-4 py-4 sm:flex-row">
@@ -256,13 +381,13 @@ export function FundRequestMyRequests({
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by purpose or project..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
               className="pl-9"
               aria-label="Search my fund requests"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="min-h-11 w-full sm:min-h-9 sm:w-[220px]">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -282,17 +407,26 @@ export function FundRequestMyRequests({
         </div>
         <CardContent className="p-0">
           <FundRequestAllList
-            rows={cutoffRows}
+            rows={listRows}
             loading={loading}
-            searchTerm={searchTerm}
-            statusFilter={statusFilter}
+            searchTerm={q}
+            statusFilter={status}
             base={detailHrefBase}
             requesterEmployeeId={requesterEmployeeId}
             requesterUserId={requesterUserId}
             requesterIsOperationsManager={requesterIsOperationsManager}
             onRequestDeleted={handleRequestDeleted}
-            emptyLabel="No fund requests filed in this cutoff."
+            emptyLabel={
+              filterNeedsClientPo
+                ? "No fund requests need a client P.O. update."
+                : "No fund requests filed in this cutoff."
+            }
             filteredEmptyLabel="No fund requests match your filters for this cutoff."
+            listQuery={listQueryFor(
+              filterNeedsClientPo ? null : selectedCutoff?.start_ymd
+            )}
+            needsClientPoUpdateIds={needsClientPoUpdateIds}
+            readyClientPoUpdateIds={readyClientPoUpdateIds}
           />
         </CardContent>
       </Card>

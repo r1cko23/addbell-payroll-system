@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { FundRequestProjectDetailRow } from "@/lib/fund-request-project-details";
+import { FundRequestMasterlistPoField } from "@/components/fund-request/FundRequestMasterlistPoField";
 import { cn } from "@/lib/utils";
 
 type FundRequestProjectDetailsFieldsProps = {
@@ -57,6 +58,12 @@ export function FundRequestProjectDetailsFields({
 
   return (
     <div className="space-y-2">
+      {poPerProject ? (
+        <p className="text-xs text-muted-foreground">
+          Client P.O. numbers come from Operations → Projects. Search the masterlist, or type
+          NTP / PO to follow until the client PO is live.
+        </p>
+      ) : null}
       <div
         className={cn(
           "hidden gap-2 px-2 sm:grid sm:items-end",
@@ -65,7 +72,7 @@ export function FundRequestProjectDetailsFields({
       >
         {poPerProject ? (
           <Label className={fieldLabelClass} required>
-            P.O. Number
+            Client P.O. Number
           </Label>
         ) : null}
         <Label className={fieldLabelClass} required>
@@ -92,16 +99,35 @@ export function FundRequestProjectDetailsFields({
           )}
         >
           {poPerProject ? (
-            <div className="space-y-1 sm:space-y-0">
-              <Label className={cn(fieldLabelClass, "sm:sr-only")} required>
-                P.O. Number
-              </Label>
-              <Input
+            <div className="space-y-1 sm:space-y-0 sm:col-span-1">
+              <FundRequestMasterlistPoField
+                id={`project-po-${index}`}
+                label="Client P.O. Number"
                 value={row.poNumber}
-                onChange={(event) => updateRow(index, "poNumber", event.target.value)}
-                placeholder={`P.O. ${index + 1}`}
-                className="h-9"
                 required
+                compact
+                inputClassName="h-9"
+                onChange={(next) => {
+                  onChange(
+                    rows.map((r, rowIndex) =>
+                      rowIndex === index
+                        ? {
+                            ...r,
+                            poNumber: next.poNumber,
+                            title: next.projectTitle?.trim()
+                              ? next.projectTitle
+                              : r.title,
+                            location: next.location?.trim()
+                              ? next.location
+                              : r.location,
+                            poAmount: next.poAmount?.trim()
+                              ? next.poAmount
+                              : r.poAmount,
+                          }
+                        : r
+                    )
+                  );
+                }}
               />
             </div>
           ) : null}

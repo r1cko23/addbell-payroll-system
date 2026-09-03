@@ -646,37 +646,13 @@ export async function fetchProjectTimeSessionsForEmployee(
   endIso: string,
   getDateInManila: (iso: string) => string = getDateInManilaDefault
 ): Promise<TimeEntrySession[]> {
-  const { data: rows } = await supabase
-    .from("project_time_entries")
-    .select("id, project_id, employee_id, clock_in, clock_out, regular_hours, total_hours")
-    .eq("employee_id", employeeId)
-    .gte("clock_in", startIso)
-    .lte("clock_in", endIso)
-    .not("clock_out", "is", null)
-    .order("clock_in", { ascending: true });
-  const list = (rows || []) as Array<{
-    id: string;
-    project_id: string;
-    employee_id: string;
-    clock_in: string;
-    clock_out: string | null;
-    regular_hours: number | null;
-    total_hours: number | null;
-  }>;
-  return list.map((r) => {
-    const hours = r.regular_hours ?? r.total_hours ?? 0;
-    return {
-      id: r.id,
-      clock_in_time: r.clock_in,
-      clock_out_time: r.clock_out,
-      clock_in_date_ph: getDateInManila(r.clock_in),
-      status: "clocked_out",
-      total_hours: r.total_hours ?? hours,
-      regular_hours: hours,
-      total_night_diff_hours: null,
-      employee_id: r.employee_id,
-    } as TimeEntrySession;
-  });
+  // project_time_entries retired with projects catalog
+  void supabase;
+  void employeeId;
+  void startIso;
+  void endIso;
+  void getDateInManila;
+  return [];
 }
 
 /**

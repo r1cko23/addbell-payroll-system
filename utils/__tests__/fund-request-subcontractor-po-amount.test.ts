@@ -8,7 +8,7 @@ describe("shouldShowSubcontractorPoAmountToPurchasingOfficer", () => {
     expect(
       shouldShowSubcontractorPoAmountToPurchasingOfficer(
         "purchasing_officer",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "project_manager_approved",
         null
       )
@@ -19,7 +19,7 @@ describe("shouldShowSubcontractorPoAmountToPurchasingOfficer", () => {
     expect(
       shouldShowSubcontractorPoAmountToPurchasingOfficer(
         "upper_management",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "project_manager_approved",
         1000
       )
@@ -32,7 +32,7 @@ describe("shouldShowSubcontractorPoAmountOnReview", () => {
     expect(
       shouldShowSubcontractorPoAmountOnReview(
         "upper_management",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "purchasing_officer_approved",
         25000
       )
@@ -43,7 +43,7 @@ describe("shouldShowSubcontractorPoAmountOnReview", () => {
     expect(
       shouldShowSubcontractorPoAmountOnReview(
         "upper_management",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "purchasing_officer_approved",
         null
       )
@@ -54,20 +54,42 @@ describe("shouldShowSubcontractorPoAmountOnReview", () => {
     expect(
       shouldShowSubcontractorPoAmountOnReview(
         "admin",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "purchasing_officer_approved",
         5000
       )
     ).toBe(true);
   });
 
-  it("hides the PO amount field from upper management before UM review", () => {
+  it("shows the saved PO amount to upper management after return to purchasing", () => {
     expect(
       shouldShowSubcontractorPoAmountOnReview(
         "upper_management",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "project_manager_approved",
-        5000
+        2550000
+      )
+    ).toBe(true);
+  });
+
+  it("shows the saved PO amount to admin after return to purchasing", () => {
+    expect(
+      shouldShowSubcontractorPoAmountOnReview(
+        "admin",
+        "Subcontractor Payment",
+        "project_manager_approved",
+        2550000
+      )
+    ).toBe(true);
+  });
+
+  it("hides the empty PO amount field from upper management before purchasing has entered it", () => {
+    expect(
+      shouldShowSubcontractorPoAmountOnReview(
+        "upper_management",
+        "Subcontractor Payment",
+        "project_manager_approved",
+        null
       )
     ).toBe(false);
   });
@@ -76,9 +98,20 @@ describe("shouldShowSubcontractorPoAmountOnReview", () => {
     expect(
       shouldShowSubcontractorPoAmountOnReview(
         "purchasing_officer",
-        "subcontractor_payment",
+        "Subcontractor Payment",
         "project_manager_approved",
         null
+      )
+    ).toBe(true);
+  });
+
+  it("shows the saved PO amount after final approval", () => {
+    expect(
+      shouldShowSubcontractorPoAmountOnReview(
+        "upper_management",
+        "Subcontractor Payment",
+        "management_approved",
+        42000
       )
     ).toBe(true);
   });

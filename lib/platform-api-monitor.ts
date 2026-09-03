@@ -2,12 +2,15 @@ import {
   getBillingInvoiceLookupCacheStats,
 } from "@/lib/billing-invoice-lookup-cache";
 import { isGoogleSheetsBillingConfigured } from "@/lib/google-sheets-billing-invoice";
+import { isPoMasterlistSheetWritebackConfigured } from "@/lib/google-sheets-po-masterlist";
 import { getPlatformRuntimeMetrics } from "@/lib/platform-runtime-metrics";
 import { formatStorageBytes } from "@/lib/platform-storage-monitor";
 
 export const GOOGLE_SHEETS_FREE_TIER_LIMITS = {
   readRequestsPerMinute: 300,
   readRequestsPerMinutePerUser: 60,
+  writeRequestsPerMinute: 300,
+  writeRequestsPerMinutePerUser: 60,
 } as const;
 
 export const VERCEL_HOBBY_LIMITS = {
@@ -22,12 +25,19 @@ export type GooglePlatformMonitorSnapshot = {
   configured: boolean;
   spreadsheetIdMasked: string | null;
   serviceAccountEmail: string | null;
+  poMasterlistWritebackConfigured: boolean;
+  poMasterlistSpreadsheetIdMasked: string | null;
   limits: typeof GOOGLE_SHEETS_FREE_TIER_LIMITS;
   cache: ReturnType<typeof getBillingInvoiceLookupCacheStats>;
   runtime: ReturnType<typeof getPlatformRuntimeMetrics>;
   estimatedApiCallsSaved: number;
   notes: string[];
 };
+
+function maskSpreadsheetId(id: string): string {
+  if (id.length <= 8) return "****";
+  return `${id.slice(0, 4)}…${id.slice(-4)}`;
+}
 
 export type VercelPlatformMonitorSnapshot = {
   runningOnVercel: boolean;
@@ -41,14 +51,12 @@ export type VercelPlatformMonitorSnapshot = {
   notes: string[];
 };
 
-function maskSpreadsheetId(id: string): string {
-  if (id.length <= 8) return "****";
-  return `${id.slice(0, 4)}…${id.slice(-4)}`;
-}
-
 export function getGooglePlatformMonitorSnapshot(): GooglePlatformMonitorSnapshot {
   const configured = isGoogleSheetsBillingConfigured();
   const spreadsheetId = process.env.GOOGLE_SHEETS_BILLING_SPREADSHEET_ID?.trim() ?? null;
+  const poMasterlistWritebackConfigured = isPoMasterlistSheetWritebackConfigured();
+  const poMasterlistSpreadsheetId =
+    process.env.GOOGLE_SHEETS_PO_MASTERLIST_SPREADSHEET_ID?.trim() ?? null;
   const runtime = getPlatformRuntimeMetrics();
   const cache = getBillingInvoiceLookupCacheStats();
 
@@ -59,7 +67,8 @@ export function getGooglePlatformMonitorSnapshot(): GooglePlatformMonitorSnapsho
 
   const notes: string[] = [
     "Counters reset when the server redeploys or cold-starts (Vercel serverless).",
-    `Google Cloud free quota: ~${GOOGLE_SHEETS_FREE_TIER_LIMITS.readRequestsPerMinute} read requests/min per project.`,
+    `Google Cloud free quota: ~${GOOGLE_SHEETS_FREE_TIER_LIMITS.readRequestsPerMinute} read / ~${GOOGLE_SHEETS_FREE_TIER_LIMITS.writeRequestsPerMinute} write requests/min per project (60/min per service account).`,
+    "Billing invoice lookup stays read-only and cached. P.O. masterlist writeback is a separate async one-way mirror.",
     "Each uncached P.O. lookup uses 1 metadata call plus 1–2 batch reads across invoice tabs.",
   ];
 
@@ -68,6 +77,16 @@ export function getGooglePlatformMonitorSnapshot(): GooglePlatformMonitorSnapsho
   } else if (cache.poCacheEntries > 0) {
     notes.unshift(
       `${cache.poCacheEntries} P.O. result(s) cached for up to ${cache.poCacheTtlMinutes} minutes.`
+    );
+  }
+
+  if (!poMasterlistWritebackConfigured) {
+    notes.unshift(
+      "P.O. masterlist sheet writeback is not configured. Set GOOGLE_SHEETS_PO_MASTERLIST_SPREADSHEET_ID."
+    );
+  } else {
+    notes.unshift(
+      `Masterlist writeback this instance: ${runtime.poMasterlistSheetWritebackSuccess} ok / ${runtime.poMasterlistSheetWritebackFailure} failed / ${runtime.poMasterlistSheetWritebackEnqueued} enqueued.`
     );
   }
 
@@ -86,6 +105,10 @@ export function getGooglePlatformMonitorSnapshot(): GooglePlatformMonitorSnapsho
     configured,
     spreadsheetIdMasked: spreadsheetId ? maskSpreadsheetId(spreadsheetId) : null,
     serviceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() ?? null,
+    poMasterlistWritebackConfigured,
+    poMasterlistSpreadsheetIdMasked: poMasterlistSpreadsheetId
+      ? maskSpreadsheetId(poMasterlistSpreadsheetId)
+      : null,
     limits: GOOGLE_SHEETS_FREE_TIER_LIMITS,
     cache,
     runtime,

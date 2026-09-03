@@ -5,6 +5,11 @@ import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { FundRequestApprovalDetail } from '@/components/fund-request/FundRequestApprovalDetail';
 import { FundRequestEmployeeDetail } from '@/components/fund-request/FundRequestEmployeeDetail';
+import {
+  buildFundRequestListHref,
+  fundRequestListBackLabel,
+  parseFundRequestListReturnState,
+} from '@/lib/fund-request-list-return';
 
 function FundRequestDetailPageContent() {
   const params = useParams();
@@ -18,7 +23,10 @@ function FundRequestDetailPageContent() {
       ? '/app/fund-request'
       : '/fund-request';
   const fundRequestId = params?.id as string;
-  const fromInbox = searchParams.get('tab') === 'inbox';
+  const returnState = parseFundRequestListReturnState(searchParams);
+  const defaultStatus = returnState.tab === 'inbox' ? 'pending' : 'all';
+  const backHref = buildFundRequestListHref(base, returnState, { defaultStatus });
+  const backLabel = fundRequestListBackLabel(returnState);
 
   if (!fundRequestId) {
     const notFound = <p className="text-destructive">Fund request not found.</p>;
@@ -26,15 +34,15 @@ function FundRequestDetailPageContent() {
   }
 
   if (isPortal) {
-    return <FundRequestEmployeeDetail fundRequestId={fundRequestId} base={base} />;
+    return <FundRequestEmployeeDetail fundRequestId={fundRequestId} base={base} backHref={backHref} />;
   }
 
   return (
     <DashboardLayout>
       <FundRequestApprovalDetail
         fundRequestId={fundRequestId}
-        backHref={fromInbox ? `${base}?tab=inbox` : base}
-        backLabel={fromInbox ? '← Back to For Approval' : '← Back to Fund Requests'}
+        backHref={backHref}
+        backLabel={backLabel}
       />
     </DashboardLayout>
   );

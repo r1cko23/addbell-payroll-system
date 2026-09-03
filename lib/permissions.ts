@@ -91,8 +91,8 @@ export const MODULE_INFO: ModuleInfo[] = [
   },
   {
     key: "purchase_orders",
-    label: "Purchase Orders",
-    description: "Purchase order viewing and processing",
+    label: "Internal POs",
+    description: "Internal PO viewing and processing",
     category: "admin",
   },
   {
@@ -170,7 +170,7 @@ export const MODULE_INFO: ModuleInfo[] = [
   {
     key: "vendors",
     label: "Vendors",
-    description: "Suppliers for purchase orders",
+    description: "Suppliers for internal POs",
     category: "admin",
   },
 ];
@@ -189,26 +189,31 @@ const ADMIN_PERMISSIONS = Object.fromEntries(
   Object.values(MODULES).map((module) => [module, { ...FULL_MODULE_PERMISSIONS }])
 ) as UserPermissions;
 
-// Upper management: same as admin except user_management and project-directory writes
+// Upper management: same as admin except user_management / directory create-delete.
+// projects.update is true so billing columns on the masterlist grid can be edited;
+// field-level ACL in lib/po-masterlist-column-acl.ts is the real gate.
 const UPPER_MANAGEMENT_PERMISSIONS: UserPermissions = {
   ...ADMIN_PERMISSIONS,
   user_management: { create: false, read: false, update: false, delete: false },
   clients: { create: false, read: true, update: false, delete: false },
-  projects: { create: false, read: true, update: false, delete: false },
+  projects: { create: false, read: true, update: true, delete: false },
   vendors: { create: false, read: true, update: false, delete: false },
 };
 
 // Default permissions by role
 export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
   admin: ADMIN_PERMISSIONS,
-  upper_management: UPPER_MANAGEMENT_PERMISSIONS,
+  upper_management: {
+    ...UPPER_MANAGEMENT_PERMISSIONS,
+    purchase_orders: { create: false, read: true, update: true, delete: false },
+  },
   hr: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: true, read: true, update: true, delete: false },
     loans: { create: true, read: true, update: true, delete: false },
     payslips: { create: true, read: true, update: true, delete: false },
     fund_requests: { create: true, read: true, update: true, delete: false },
-    purchase_orders: { create: true, read: true, update: true, delete: false },
+    purchase_orders: { create: false, read: true, update: true, delete: false },
     timesheet: { create: false, read: true, update: true, delete: false },
     time_entries: { create: true, read: true, update: false, delete: true },
     leave_approval: { create: false, read: true, update: true, delete: false },
@@ -224,12 +229,13 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     vendors: { create: false, read: true, update: false, delete: false },
   },
   // Addbell: Operations Manager - project oversight, approvals, fund requests
+  // Cost POs are purchasing+admin only; OMs update fund requests + Projects masterlist.
   operations_manager: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: false, read: false, update: false, delete: false },
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: false, update: false, delete: false },
-    fund_requests: { create: true, read: true, update: false, delete: false },
+    fund_requests: { create: true, read: true, update: true, delete: false },
     purchase_orders: { create: false, read: true, update: false, delete: false },
     timesheet: { create: false, read: false, update: false, delete: false },
     time_entries: { create: false, read: false, update: false, delete: false },
@@ -245,7 +251,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     projects: { create: true, read: true, update: true, delete: true },
     vendors: { create: false, read: true, update: false, delete: false },
   },
-  // Addbell: Purchasing Officer - fund request approval, limited dashboard
+  // Addbell: Purchasing Officer — only role that creates cost POs by default
   purchasing_officer: {
     dashboard: { create: false, read: true, update: false, delete: false },
     employees: { create: false, read: false, update: false, delete: false },
@@ -264,7 +270,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
     clients: { create: false, read: true, update: false, delete: false },
-    projects: { create: false, read: true, update: false, delete: false },
+    projects: { create: true, read: true, update: true, delete: false },
     vendors: { create: true, read: true, update: true, delete: true },
   },
   approver: {
@@ -315,7 +321,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     loans: { create: false, read: false, update: false, delete: false },
     payslips: { create: false, read: true, update: false, delete: false },
     fund_requests: { create: true, read: true, update: true, delete: false },
-    purchase_orders: { create: true, read: true, update: true, delete: false },
+    purchase_orders: { create: false, read: true, update: false, delete: false },
     timesheet: { create: false, read: true, update: true, delete: false },
     time_entries: { create: true, read: true, update: true, delete: true },
     leave_approval: { create: false, read: true, update: true, delete: false },
@@ -327,7 +333,7 @@ export const DEFAULT_PERMISSIONS: Record<string, UserPermissions> = {
     settings: { create: false, read: false, update: false, delete: false },
     user_management: { create: false, read: false, update: false, delete: false },
     clients: { create: false, read: true, update: false, delete: false },
-    projects: { create: false, read: true, update: false, delete: false },
+    projects: { create: false, read: true, update: true, delete: false },
     vendors: { create: false, read: true, update: false, delete: false },
   },
 };

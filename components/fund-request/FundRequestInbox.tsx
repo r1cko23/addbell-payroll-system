@@ -80,18 +80,22 @@ import type {
 import {
   FUND_REQUEST_STATUS_LABELS,
   formatFundRequestPercentage,
-  isOfficeRelatedFundRequest,
   isSubcontractorPaymentPurpose,
 } from "@/types/fund-request";
-import { getFundRequestListProjectLabel, getFundRequestListPurposeLabel } from "@/lib/fund-request-project-details";
+import {
+  formatFundRequestReferenceSummaryLabel,
+  getFundRequestListProjectLabel,
+  getFundRequestListPurposeLabel,
+} from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
 import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
 import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutoffNav";
+import { useFundRequestListReturn } from "@/lib/hooks/useFundRequestListReturn";
+import { resolveFundRequestListCutoffIndex } from "@/lib/fund-request-list-return";
 import {
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   fundRequestBelongsToApproverCutoff,
   formatFundRequestCutoffPeriod,
-  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
 } from "@/lib/fund-request-cutoff";
 import { FundRequestApprovedExportDialog } from "@/components/fund-request/FundRequestApprovedExportDialog";
@@ -228,7 +232,8 @@ function matchesFundRequestInboxSearch(
     row.project_location ||
     ""
   ).toLowerCase();
-  const clientName = (row.projects?.clients?.name || "").toLowerCase();
+  const referenceSummary = formatFundRequestReferenceSummaryLabel(row).toLowerCase();
+  const poNumber = (row.po_number || "").toLowerCase();
   const vendorName = (row.vendors?.name || "").toLowerCase();
   const payeeAccountName = (getFundRequestPayeeAccountName(row) || "").toLowerCase();
 
@@ -237,7 +242,8 @@ function matchesFundRequestInboxSearch(
     purpose.includes(term) ||
     projectTitle.includes(term) ||
     projectLocation.includes(term) ||
-    clientName.includes(term) ||
+    referenceSummary.includes(term) ||
+    poNumber.includes(term) ||
     vendorName.includes(term) ||
     payeeAccountName.includes(term)
   );
@@ -259,10 +265,6 @@ function getInitialFundRequestCutoffs(): WeeklyCutoffPeriod[] {
     forwardWeeks: FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   });
   return history?.cutoffs ?? [];
-}
-
-function getInitialFundRequestCutoffIndex(cutoffs: WeeklyCutoffPeriod[]): number {
-  return getActiveFundRequestCutoffIndex(cutoffs);
 }
 
 export function FundRequestInbox({
@@ -291,9 +293,23 @@ export function FundRequestInbox({
     | { kind: "all"; requests: FundRequestInboxRow[] }
     | null
   >(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [outcomeFilter, setOutcomeFilter] =
-    useState<FundRequestRoleCutoffOutcomeFilter>("pending");
+  const {
+    q: searchTerm,
+    status,
+    cutoff,
+    setQ,
+    setStatus,
+    setCutoff,
+    detailHrefFor,
+    state,
+  } = useFundRequestListReturn({ defaultStatus: "pending" });
+  const outcomeFilter: FundRequestRoleCutoffOutcomeFilter =
+    status === "all" ||
+    status === "approved" ||
+    status === "rejected" ||
+    status === "pending"
+      ? status
+      : "pending";
   const [requesterInfoById, setRequesterInfoById] = useState<
     Record<string, FundRequestRequesterInfo>
   >({});
@@ -305,9 +321,6 @@ export function FundRequestInbox({
   );
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>(
     getInitialFundRequestCutoffs
-  );
-  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(() =>
-    getInitialFundRequestCutoffIndex(getInitialFundRequestCutoffs())
   );
   const [paymentCheckDocumentsByRequestId, setPaymentCheckDocumentsByRequestId] =
     useState<Record<string, FundRequestDocumentSummary[]>>({});
@@ -349,12 +362,6 @@ export function FundRequestInbox({
     const history = listCache?.history;
     if (history?.cutoffs.length) {
       setHistoryCutoffs(history.cutoffs);
-      setSelectedCutoffIndex((current) => {
-        if (current >= history.cutoffs.length) {
-          return getActiveFundRequestCutoffIndex(history.cutoffs);
-        }
-        return current;
-      });
     }
   }, [listCache?.history]);
 
@@ -422,6 +429,10 @@ export function FundRequestInbox({
     [refreshList]
   );
 
+  const selectedCutoffIndex = resolveFundRequestListCutoffIndex(
+    historyCutoffs,
+    cutoff
+  );
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
   const requesterUserIdByEmployeeId = useMemo(() => {
     const map: Record<string, string | null | undefined> = {};
@@ -810,14 +821,19 @@ export function FundRequestInbox({
     filterOptions.find((option) => option.value === outcomeFilter)?.label ?? "All";
 
   const detailHref = (id: string) =>
-    `${detailHrefBase}/${id}${detailHrefBase === "/fund-request" ? "?tab=inbox" : ""}`;
+    detailHrefFor(detailHrefBase, id, {
+      tab: detailHrefBase === "/fund-request" ? state.tab || "inbox" : state.tab,
+      cutoff: selectedCutoff?.start_ymd ?? cutoff,
+    });
 
   return (
     <div className="space-y-4">
       <FundRequestCutoffNav
         cutoffs={historyCutoffs}
         selectedIndex={selectedCutoffIndex}
-        onSelectedIndexChange={setSelectedCutoffIndex}
+        onSelectedIndexChange={(index) =>
+          setCutoff(historyCutoffs[index]?.start_ymd ?? null)
+        }
         loading={loading}
         approvalDeadlineNote={approvalDeadlineNote}
       />
@@ -830,7 +846,7 @@ export function FundRequestInbox({
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.total)
           }
-          onClick={() => setOutcomeFilter("all")}
+          onClick={() => setStatus("all")}
           active={outcomeFilter === "all"}
         />
         <MetricCard
@@ -840,7 +856,7 @@ export function FundRequestInbox({
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.approved)
           }
-          onClick={() => setOutcomeFilter("approved")}
+          onClick={() => setStatus("approved")}
           active={outcomeFilter === "approved"}
         />
         <MetricCard
@@ -850,7 +866,7 @@ export function FundRequestInbox({
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.rejected)
           }
-          onClick={() => setOutcomeFilter("rejected")}
+          onClick={() => setStatus("rejected")}
           active={outcomeFilter === "rejected"}
         />
         <MetricCard
@@ -860,7 +876,7 @@ export function FundRequestInbox({
             summaryLoadingLabel ??
             formatCutoffMetricAmount(cutoffSummary.amounts.pending)
           }
-          onClick={() => setOutcomeFilter("pending")}
+          onClick={() => setStatus("pending")}
           active={outcomeFilter === "pending"}
         />
       </div>
@@ -876,7 +892,7 @@ export function FundRequestInbox({
             <Input
               placeholder="Search by name, account name, purpose, or project..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setQ(e.target.value)}
               className="pl-9"
               aria-label="Search fund requests for approval"
             />
@@ -885,7 +901,7 @@ export function FundRequestInbox({
             <Select
               value={outcomeFilter}
               onValueChange={(value) =>
-                setOutcomeFilter(value as FundRequestRoleCutoffOutcomeFilter)
+                setStatus(value as FundRequestRoleCutoffOutcomeFilter)
               }
             >
               <SelectTrigger
@@ -1002,8 +1018,7 @@ export function FundRequestInbox({
             const name = getRequesterDisplayName(r, requesterInfo);
             const emp = r.employees;
             const employeeIdLabel = formatEmployeeIdDisplay(emp?.employee_id);
-            const projectTitle = getFundRequestListProjectLabel(r);
-            const isOfficeRelated = isOfficeRelatedFundRequest(r.reference_mode);
+            const referenceSummary = formatFundRequestReferenceSummaryLabel(r);
             const purpose = getFundRequestListPurposeLabel(r);
             const showSubcontractorFields = isSubcontractorPaymentPurpose(r.purpose);
             const canAct =
@@ -1082,14 +1097,8 @@ export function FundRequestInbox({
                         )}
                       </span>
                     </HStack>
-                    <BodySmall className="line-clamp-2">
-                      {isOfficeRelated ? (
-                        projectTitle
-                      ) : (
-                        <>
-                          <strong>Area:</strong> {projectTitle}
-                        </>
-                      )}
+                    <BodySmall className="line-clamp-2" title={referenceSummary}>
+                      {referenceSummary}
                     </BodySmall>
                     {showSubcontractorFields &&
                     r.vendors?.name &&

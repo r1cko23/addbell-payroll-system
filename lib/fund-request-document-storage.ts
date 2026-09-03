@@ -91,6 +91,30 @@ export async function createFundRequestDocumentUploadSession(
   };
 }
 
+export function isPostgresUniqueViolation(error: {
+  code?: string | null;
+  message?: string | null;
+} | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "23505") return true;
+  return /duplicate key/i.test(error.message ?? "");
+}
+
+async function loadFundRequestDocument(
+  admin: SupabaseClient,
+  params: { documentId?: string; fundRequestId?: string; storagePath?: string }
+): Promise<Record<string, unknown> | null> {
+  let query = admin.from("fund_request_documents").select(FUND_REQUEST_DOCUMENT_SELECT);
+  if (params.documentId) {
+    query = query.eq("id", params.documentId);
+  } else {
+    if (params.fundRequestId) query = query.eq("fund_request_id", params.fundRequestId);
+    if (params.storagePath) query = query.eq("storage_path", params.storagePath);
+  }
+  const { data } = await query.maybeSingle();
+  return (data as Record<string, unknown> | null) ?? null;
+}
+
 export async function registerFundRequestDocument(
   admin: SupabaseClient,
   params: {
@@ -126,6 +150,17 @@ export async function registerFundRequestDocument(
     .single();
 
   if (docInsert.error) {
+    if (isPostgresUniqueViolation(docInsert.error)) {
+      const existing =
+        (await loadFundRequestDocument(admin, { documentId: params.documentId })) ??
+        (await loadFundRequestDocument(admin, {
+          fundRequestId: params.fundRequestId,
+          storagePath: params.storagePath,
+        }));
+      if (existing) {
+        return { document: existing };
+      }
+    }
     await removeStoredFundRequestDocument(admin, params.storagePath);
     return { error: docInsert.error.message, status: 500 };
   }
@@ -286,6 +321,19 @@ export async function linkFundRequestDocumentToRequests(
     .select(FUND_REQUEST_DOCUMENT_SELECT);
 
   if (error) {
+    if (isPostgresUniqueViolation(error)) {
+      const { data: existing } = await admin
+        .from("fund_request_documents")
+        .select(FUND_REQUEST_DOCUMENT_SELECT)
+        .eq("storage_path", params.storagePath)
+        .in(
+          "fund_request_id",
+          params.linkedRequests.map((linked) => linked.fundRequestId)
+        );
+      if (existing && existing.length > 0) {
+        return { documents: existing as Record<string, unknown>[] };
+      }
+    }
     return { error: error.message, status: 500 };
   }
 

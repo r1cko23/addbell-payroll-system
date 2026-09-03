@@ -13,13 +13,21 @@ import {
   parseSupplierBankDetails,
   validateFundRequestBankDetails,
 } from "@/lib/fund-request-bank-details";
-import { assertRequesterCanManageFundRequest, getAdminClient } from "@/lib/fund-request-api";
+import { assertRequesterCanManageFundRequest, assertRequesterCanUpdateFundRequestPoNumber, getAdminClient } from "@/lib/fund-request-api";
+import { buildFundRequestPoNumberColumnUpdates } from "@/lib/fund-request-requester-edit";
 import { normalizeUserRole } from "@/lib/user-roles";
 import { isSubcontractorPaymentPurpose } from "@/types/fund-request";
 import { validateSubcontractorPoAmountInput } from "@/lib/fund-request-subcontractor-po-amount";
 import { insertFundRequestDocument } from "@/lib/fund-request-document-storage";
 
 export { dynamic } from "@/lib/api-route-segment";
+
+type PoNumberOnlyUpdatePayload = {
+  update_mode: "po_number";
+  request_id: string;
+  requested_by: string;
+  po_number: string | null;
+};
 
 type FundRequestContentPayload = {
   reference_mode: FundRequestReferenceMode;
@@ -59,7 +67,6 @@ type FundRequestContentPayload = {
 
 type CreateFundRequestPayload = FundRequestContentPayload & {
   company_id: string | null;
-  project_id: string | null;
   requested_by: string;
   status: string;
   project_manager_approved_by: string | null;
@@ -159,19 +166,13 @@ function buildFundRequestContentUpdate(body: FundRequestContentPayload) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const body = (await req.json()) as UpdateFundRequestPayload;
+    const body = (await req.json()) as UpdateFundRequestPayload | PoNumberOnlyUpdatePayload;
 
     if (!body?.request_id?.trim() || !body?.requested_by?.trim()) {
       return NextResponse.json(
         { error: "request_id and requested_by are required" },
         { status: 400 }
       );
-    }
-    if (!body?.purpose?.trim()) {
-      return NextResponse.json({ error: "purpose is required" }, { status: 400 });
-    }
-    if (!Array.isArray(body.details) || body.details.length === 0) {
-      return NextResponse.json({ error: "At least one detail item is required" }, { status: 400 });
     }
 
     const admin = getAdminClient();
@@ -180,11 +181,63 @@ export async function PATCH(req: NextRequest) {
       data: { user: authUser },
     } = await cookieSupabase.auth.getUser();
 
+    // NTP / PO-to-follow correction — PO# only once client PO is on Projects.
+    if ("update_mode" in body && body.update_mode === "po_number") {
+      const poBody = body as PoNumberOnlyUpdatePayload;
+      const access = await assertRequesterCanUpdateFundRequestPoNumber(
+        admin,
+        authUser?.id ?? null,
+        poBody.request_id.trim(),
+        poBody.requested_by.trim()
+      );
+      if ("error" in access) {
+        return NextResponse.json({ error: access.error }, { status: access.status });
+      }
+
+      const nextPo =
+        typeof poBody.po_number === "string" ? poBody.po_number.trim() : "";
+      if (!nextPo) {
+        return NextResponse.json(
+          { error: "Enter the client PO number from Operations → Projects." },
+          { status: 400 }
+        );
+      }
+
+      const columns = buildFundRequestPoNumberColumnUpdates(access.existing, nextPo);
+      const { error } = await admin
+        .from("fund_requests")
+        .update({
+          po_number: columns.po_number,
+          project_details: columns.project_details,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", poBody.request_id.trim())
+        .eq("requested_by", poBody.requested_by.trim());
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        id: poBody.request_id.trim(),
+        po_number: columns.po_number,
+      });
+    }
+
+    const fullBody = body as UpdateFundRequestPayload;
+
+    if (!fullBody?.purpose?.trim()) {
+      return NextResponse.json({ error: "purpose is required" }, { status: 400 });
+    }
+    if (!Array.isArray(fullBody.details) || fullBody.details.length === 0) {
+      return NextResponse.json({ error: "At least one detail item is required" }, { status: 400 });
+    }
+
     const access = await assertRequesterCanManageFundRequest(
       admin,
       authUser?.id ?? null,
-      body.request_id.trim(),
-      body.requested_by.trim()
+      fullBody.request_id.trim(),
+      fullBody.requested_by.trim()
     );
     if ("error" in access) {
       return NextResponse.json({ error: access.error }, { status: access.status });
@@ -209,7 +262,7 @@ export async function PATCH(req: NextRequest) {
       })
     ) {
       const bankValidationError = validateSupplierBankDetailsPayload(
-        body.supplier_bank_details
+        fullBody.supplier_bank_details
       );
       if (bankValidationError) {
         return NextResponse.json({ error: bankValidationError }, { status: 400 });
@@ -222,11 +275,11 @@ export async function PATCH(req: NextRequest) {
         isPortal: false,
         submitterUserId: authUser?.id ?? null,
         requestStatus: access.existing.status,
-        purpose: body.purpose,
+        purpose: fullBody.purpose,
       })
     ) {
       const subconPoError = validateSubcontractorPoAmountPayload(
-        body.subcontractor_po_amount
+        fullBody.subcontractor_po_amount
       );
       if (subconPoError) {
         return NextResponse.json({ error: subconPoError }, { status: 400 });
@@ -235,33 +288,33 @@ export async function PATCH(req: NextRequest) {
 
     const { error } = await admin
       .from("fund_requests")
-      .update(buildFundRequestContentUpdate(body))
-      .eq("id", body.request_id.trim())
-      .eq("requested_by", body.requested_by.trim());
+      .update(buildFundRequestContentUpdate(fullBody))
+      .eq("id", fullBody.request_id.trim())
+      .eq("requested_by", fullBody.requested_by.trim());
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (body.document?.file_base64) {
+    if (fullBody.document?.file_base64) {
       const docResult = await insertFundRequestDocument(admin, {
-        fundRequestId: body.request_id.trim(),
-        employeeId: body.requested_by.trim(),
-        fileName: body.document.file_name,
-        fileType: body.document.file_type,
-        fileBase64: body.document.file_base64,
+        fundRequestId: fullBody.request_id.trim(),
+        employeeId: fullBody.requested_by.trim(),
+        fileName: fullBody.document.file_name,
+        fileType: fullBody.document.file_type,
+        fileBase64: fullBody.document.file_base64,
         documentType: "supporting",
       });
 
       if ("error" in docResult && !isSchemaMissingTableOrRelationError({ message: docResult.error })) {
         return NextResponse.json({
-          id: body.request_id.trim(),
+          id: fullBody.request_id.trim(),
           warning: `Fund request updated but document upload failed: ${docResult.error}`,
         });
       }
     }
 
-    return NextResponse.json({ id: body.request_id.trim() });
+    return NextResponse.json({ id: fullBody.request_id.trim() });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },
@@ -378,7 +431,6 @@ export async function POST(req: NextRequest) {
       .insert({
         company_id: body.company_id,
         reference_mode: body.reference_mode,
-        project_id: body.project_id,
         requested_by: body.requested_by,
         request_date: body.request_date,
         purpose: body.purpose,

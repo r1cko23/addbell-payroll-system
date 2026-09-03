@@ -75,7 +75,7 @@ export function fundRequestListBackLabel(state: FundRequestListReturnState): str
 }
 
 export function replaceFundRequestListSearchParams(
-  searchParams: URLSearchParams,
+  searchParams: Pick<URLSearchParams, "toString">,
   patch: Partial<FundRequestListReturnState>,
   options?: { defaultStatus?: string }
 ): URLSearchParams {

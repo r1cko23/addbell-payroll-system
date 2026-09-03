@@ -29,6 +29,7 @@ export async function uploadFundRequestDocumentFile(
   document?: FundRequestDocumentSummary;
   linkedDocuments?: FundRequestDocumentSummary[];
   error?: string;
+  warning?: string;
 }> {
   if (file.size > MAX_REQUEST_DOCUMENT_SIZE) {
     return { error: "File too large. Max size is 5MB." };
@@ -83,6 +84,7 @@ export async function uploadFundRequestDocumentFile(
 
   const confirmPayload = (await confirmResponse.json()) as {
     error?: string;
+    warning?: string;
     document?: FundRequestDocumentSummary;
     linked_documents?: FundRequestDocumentSummary[];
   };
@@ -97,5 +99,6 @@ export async function uploadFundRequestDocumentFile(
   return {
     document: confirmPayload.document,
     linkedDocuments: confirmPayload.linked_documents ?? [],
+    warning: confirmPayload.warning,
   };
 }

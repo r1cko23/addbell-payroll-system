@@ -816,7 +816,9 @@ export default function NewFundRequestPage() {
           showVendorPaymentSection ? progressBillingSelection : null
         ),
         subcontractor_progress_completion_percentage: parsedSubcontractorProgressCompletion,
-        subcontractor_po_amount: parsedSubcontractorPoAmount,
+        ...(showPurchasingOfficerSubcontractorPoAmount
+          ? { subcontractor_po_amount: parsedSubcontractorPoAmount }
+          : {}),
         details: detailsPayload,
         total_requested_amount: resolvedTotal,
         date_needed: dateNeeded || null,

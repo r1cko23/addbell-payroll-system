@@ -154,56 +154,101 @@ function MultiProjectFields({
   perProjectPo: boolean;
   showTopLevelPo: boolean;
 }) {
+  const rows = projects.map((project, index) => ({
+    project,
+    poNumber: resolveDisplayPoNumber(
+      request,
+      project,
+      perProjectPo,
+      showTopLevelPo
+    ),
+    index,
+  }));
+
   return (
     <div className="space-y-2">
       <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Project Details
       </h4>
-      <div className="space-y-2">
-        {projects.map((project, index) => {
-          const poNumber = resolveDisplayPoNumber(
-            request,
-            project,
-            perProjectPo,
-            showTopLevelPo
-          );
-
-          return (
-            <div
-              key={`${project.title}-${index}`}
-              className="grid grid-cols-1 gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2 lg:grid-cols-4"
-            >
-              {poNumber ? (
-                <FundRequestField
-                  label={multiProjectFieldLabel(FUND_REQUEST_FIELD_LABELS.poNumber, index)}
-                  value={poNumber}
-                />
-              ) : null}
+      <div className="hidden md:block">
+        <div className={tableShellClass}>
+          <table className={tableClass}>
+            <thead>
+              <tr>
+                <th className={headCellClass}>{FUND_REQUEST_FIELD_LABELS.poNumber}</th>
+                <th className={headCellClass}>{FUND_REQUEST_FIELD_LABELS.projectTitle}</th>
+                <th className={headCellClass}>{FUND_REQUEST_FIELD_LABELS.projectLocation}</th>
+                <th className={cn(headCellClass, "whitespace-nowrap")}>
+                  {FUND_REQUEST_FIELD_LABELS.poAmount}
+                </th>
+                <th className={cn(headCellClass, "whitespace-nowrap")}>
+                  {FUND_REQUEST_FIELD_LABELS.projectCompletion}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ project, poNumber, index }) => (
+                <tr key={`${project.title}-${index}`}>
+                  <td className={cn(bodyCellClass, "uppercase")}>{poNumber || "—"}</td>
+                  <td className={cn(bodyCellClass, "uppercase")}>
+                    {project.title || "—"}
+                  </td>
+                  <td className={cn(bodyCellClass, "uppercase")}>
+                    {project.location || "—"}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {formatFundRequestPoAmount(project.po_amount)}
+                  </td>
+                  <td className={bodyCellClass}>
+                    {formatFundRequestPercentage(project.completion_percentage)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div className="space-y-2 md:hidden">
+        {rows.map(({ project, poNumber, index }) => (
+          <div
+            key={`${project.title}-${index}`}
+            className="grid grid-cols-1 gap-3 rounded-md border border-dashed p-3 sm:grid-cols-2"
+          >
+            {poNumber ? (
               <FundRequestField
-                label={multiProjectFieldLabel(
-                  FUND_REQUEST_FIELD_LABELS.projectTitle,
-                  index
-                )}
-                value={project.title || "—"}
+                label={multiProjectFieldLabel(FUND_REQUEST_FIELD_LABELS.poNumber, index)}
+                value={poNumber}
               />
-              <FundRequestField
-                label={multiProjectFieldLabel(
-                  FUND_REQUEST_FIELD_LABELS.projectLocation,
-                  index
-                )}
-                value={project.location || "—"}
-              />
-              <FundRequestField
-                label={multiProjectFieldLabel(
-                  FUND_REQUEST_FIELD_LABELS.projectCompletion,
-                  index
-                )}
-                value={formatFundRequestPercentage(project.completion_percentage)}
-                uppercaseValue={false}
-              />
-            </div>
-          );
-        })}
+            ) : null}
+            <FundRequestField
+              label={multiProjectFieldLabel(
+                FUND_REQUEST_FIELD_LABELS.projectTitle,
+                index
+              )}
+              value={project.title || "—"}
+            />
+            <FundRequestField
+              label={multiProjectFieldLabel(
+                FUND_REQUEST_FIELD_LABELS.projectLocation,
+                index
+              )}
+              value={project.location || "—"}
+            />
+            <FundRequestField
+              label={multiProjectFieldLabel(FUND_REQUEST_FIELD_LABELS.poAmount, index)}
+              value={formatFundRequestPoAmount(project.po_amount)}
+              uppercaseValue={false}
+            />
+            <FundRequestField
+              label={multiProjectFieldLabel(
+                FUND_REQUEST_FIELD_LABELS.projectCompletion,
+                index
+              )}
+              value={formatFundRequestPercentage(project.completion_percentage)}
+              uppercaseValue={false}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );

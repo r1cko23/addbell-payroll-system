@@ -24,15 +24,15 @@ import {
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
   formatFundRequestCutoffPeriod,
   fundRequestBelongsToApproverCutoff,
+  getActiveFundRequestCutoffIndex,
   getFundRequestHistoryCutoffs,
   shouldShowFundRequestCutoffDeadlineTimeForPeriod,
 } from "@/lib/fund-request-cutoff";
 import type { WeeklyCutoffPeriod } from "@/utils/weekly";
 import { FundRequestAllList } from "@/components/fund-request/FundRequestAllList";
-import { useFundRequestListReturn } from "@/lib/hooks/useFundRequestListReturn";
-import { resolveFundRequestListCutoffIndex } from "@/lib/fund-request-list-return";
 
 type FundRequestAllRequestRow = FundRequestRow & {
+  projects: { name: string; code: string } | null;
   vendors?: { name?: string | null } | null;
 };
 
@@ -69,8 +69,9 @@ export function FundRequestAllRequests({
   const { profile } = useProfile();
   const userId = profile?.id ?? null;
   const [historyCutoffs, setHistoryCutoffs] = useState<WeeklyCutoffPeriod[]>([]);
-  const { q, status, cutoff, setQ, setStatus, setCutoff, listQueryFor } =
-    useFundRequestListReturn();
+  const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const listCache = useMemo(() => {
     if (!userId) return null;
@@ -107,6 +108,7 @@ export function FundRequestAllRequests({
     const cutoffs = listCache?.history.cutoffs ?? [];
     if (cutoffs.length === 0) return;
     setHistoryCutoffs(cutoffs);
+    setSelectedCutoffIndex(getActiveFundRequestCutoffIndex(cutoffs));
   }, [listCache?.history.cutoffs]);
 
   const rows = useMemo(() => {
@@ -120,10 +122,6 @@ export function FundRequestAllRequests({
     );
   }, [listData?.rows, listCache?.history.cutoffs]);
 
-  const selectedCutoffIndex = resolveFundRequestListCutoffIndex(
-    historyCutoffs,
-    cutoff
-  );
   const selectedCutoff = historyCutoffs[selectedCutoffIndex] ?? null;
 
   const cutoffNavLabel = useMemo(() => {
@@ -169,10 +167,8 @@ export function FundRequestAllRequests({
               className={epPeriodNavButton}
               disabled={!canGoToOlderCutoff || loading}
               onClick={() =>
-                setCutoff(
-                  historyCutoffs[
-                    Math.min(selectedCutoffIndex + 1, historyCutoffs.length - 1)
-                  ]?.start_ymd ?? null
+                setSelectedCutoffIndex((index) =>
+                  Math.min(index + 1, historyCutoffs.length - 1)
                 )
               }
               aria-label="Previous cutoff"
@@ -188,9 +184,7 @@ export function FundRequestAllRequests({
               size="sm"
               className={epPeriodNavButton}
               disabled={!canGoToNewerCutoff || loading}
-              onClick={() =>
-                setCutoff(historyCutoffs[Math.max(selectedCutoffIndex - 1, 0)]?.start_ymd ?? null)
-              }
+              onClick={() => setSelectedCutoffIndex((index) => Math.max(index - 1, 0))}
               aria-label="Next cutoff"
             >
               <Icon name="CaretRight" size={IconSizes.sm} />
@@ -226,13 +220,13 @@ export function FundRequestAllRequests({
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search by purpose or project..."
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
               aria-label="Search all fund requests"
             />
           </div>
-          <Select value={status} onValueChange={setStatus}>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="min-h-11 w-full sm:min-h-9 sm:w-[220px]">
               <SelectValue placeholder="All statuses" />
             </SelectTrigger>
@@ -254,8 +248,8 @@ export function FundRequestAllRequests({
           <FundRequestAllList
             rows={cutoffRows}
             loading={loading}
-            searchTerm={q}
-            statusFilter={status}
+            searchTerm={searchTerm}
+            statusFilter={statusFilter}
             base={detailHrefBase}
             requesterEmployeeId={requesterEmployeeId}
             requesterUserId={requesterUserId}
@@ -263,7 +257,6 @@ export function FundRequestAllRequests({
             onRequestDeleted={handleRequestDeleted}
             emptyLabel="No fund requests filed in this cutoff."
             filteredEmptyLabel="No fund requests match your filters for this cutoff."
-            listQuery={listQueryFor(selectedCutoff?.start_ymd)}
           />
         </CardContent>
       </Card>

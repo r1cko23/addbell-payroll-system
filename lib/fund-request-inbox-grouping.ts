@@ -41,6 +41,11 @@ export type FundRequestInboxRow = FundRequestRow & {
   vendors: {
     name: string;
   } | null;
+  projects: {
+    name: string | null;
+    code: string | null;
+    clients: { name: string | null } | null;
+  } | null;
 };
 
 export type FundRequestClientGroup = {

@@ -15,6 +15,7 @@ function baseRequest(
   return {
     id: "req-1",
     company_id: "company",
+    project_id: null,
     requested_by: "employee",
     request_date: "2026-07-01",
     purpose: "Materials",

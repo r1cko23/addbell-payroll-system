@@ -799,20 +799,3 @@ export function canRequesterAddDocumentToFundRequest(
   if (isFundRequestReturnedToPurchasing(request as FundRequestRow)) return false;
   return canOperationsManagerManageAtPurchasingQueue(request, options);
 }
-
-/**
- * Requesters may correct client PO# after filing (NTP / PO to follow / typo)
- * once the client PO is live on Operations → Projects — even after later approvals.
- * Rejected requests stay locked.
- */
-export function canRequesterUpdateFundRequestPoNumber(
-  request:
-    | (FundRequestRequesterAccessFields & Pick<FundRequestRow, "status">)
-    | FundRequestRow["status"]
-    | string
-): boolean {
-  if (typeof request === "object" && request !== null) {
-    return !isFundRequestRejected(request);
-  }
-  return request !== "rejected";
-}

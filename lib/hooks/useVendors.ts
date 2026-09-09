@@ -10,8 +10,6 @@ import type { VendorType } from "@/types/vendor";
 import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
 import { useProfile } from "@/lib/hooks/useProfile";
 
-const EMPTY_VENDORS: Awaited<ReturnType<typeof fetchVendorsByType>> = [];
-
 export function useVendors(type: VendorType) {
   const { profile, loading: profileLoading } = useProfile();
   const userId = profile?.id ?? null;
@@ -27,7 +25,7 @@ export function useVendors(type: VendorType) {
   );
 
   return {
-    data: data?.vendors ?? EMPTY_VENDORS,
+    data: data?.vendors ?? [],
     isLoading: profileLoading || loading,
     isError: !!error,
     error,

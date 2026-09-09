@@ -8,7 +8,7 @@ import { useProfile } from "@/lib/hooks/useProfile";
 export function useClients() {
   const { profile, loading: profileLoading } = useProfile();
   const userId = profile?.id ?? null;
-  const cacheKey = userId ? `clients:${userId}:catalog-v1` : null;
+  const cacheKey = userId ? `clients:${userId}` : null;
   const loader = useCallback(async () => {
     const clients = await fetchClientsList();
     return { clients };

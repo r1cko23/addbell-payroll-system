@@ -17,8 +17,8 @@ test.describe("Purchase Order PDF vs Print", () => {
 
   async function goToCreatePO(page: any) {
     await page.goto("/purchase-order");
-    await expect(page.getByRole("button", { name: /New Internal PO/i })).toBeVisible();
-    await page.getByRole("button", { name: /New Internal PO/i }).click();
+    await expect(page.getByRole("button", { name: /New PO/i })).toBeVisible();
+    await page.getByRole("button", { name: /New PO/i }).click();
     // Generate a PO number so the template has a stable header number
     const generateBtn = page.getByRole("button", { name: /Generate/i });
     if (await generateBtn.count()) await generateBtn.click();

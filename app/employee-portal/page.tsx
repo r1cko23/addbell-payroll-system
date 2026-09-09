@@ -65,6 +65,12 @@ const QUICK_LINKS: QuickLink[] = [
     icon: "FileText",
   },
   {
+    href: "/employee-portal/project-time",
+    title: "Project Assignments",
+    description: "View assigned projects and time.",
+    icon: "Buildings",
+  },
+  {
     href: "/employee-portal/info",
     title: "My Information",
     description: "Profile and employment details.",

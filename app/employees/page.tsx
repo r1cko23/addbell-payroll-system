@@ -5,11 +5,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import {
-  DashboardTablePagination,
-  DASHBOARD_TABLE_PAGE_SIZE,
-  paginateItems,
-} from "@/components/dashboard/DashboardTablePagination";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -45,7 +40,7 @@ import { cn } from "@/lib/utils";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
-import { dbHeaderActions, dbHeaderButton, dbDialogFooter, dbDialogWideForm, dbDialogWideFormBody, dbDialogWideFormFooter, dbDialogWideFormHeader, dbDialogWideFormStyle, dbPageWrapper, dbTableShellFit } from "@/lib/dashboard-ui";
+import { dbHeaderActions, dbHeaderButton, dbDialogContent, dbDialogFooter, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { EmployeeFormSection } from "@/components/employees/EmployeeFormSection";
 
 interface Employee {
@@ -215,7 +210,6 @@ export default function EmployeesPage() {
   const [overtimeGroups, setOvertimeGroups] = useState<OvertimeGroup[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({ ...emptyForm });
@@ -583,48 +577,31 @@ export default function EmployeesPage() {
     }
   }
 
-  const filteredEmployees = useMemo(
-    () =>
-      employees
-        .filter((emp) => {
-          const name = fullName(emp).toLowerCase();
-          const term = searchTerm.toLowerCase();
-          const matchesSearch =
-            name.includes(term) ||
-            emp.company_id_no.toLowerCase().includes(term) ||
-            emp.employee_code.toLowerCase().includes(term) ||
-            (emp.email || "").toLowerCase().includes(term);
-          const matchesStatus =
-            statusFilter === "all" || emp.employment_status === statusFilter;
-          return matchesSearch && matchesStatus;
-        })
-        .sort((a, b) => {
-          const lastNameCompare = (a.last_name || "").localeCompare(
-            b.last_name || "",
-            undefined,
-            { sensitivity: "base" }
-          );
-          if (lastNameCompare !== 0) return lastNameCompare;
+  const filteredEmployees = employees
+    .filter((emp) => {
+      const name = fullName(emp).toLowerCase();
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        name.includes(term) ||
+        emp.company_id_no.toLowerCase().includes(term) ||
+        emp.employee_code.toLowerCase().includes(term) ||
+        (emp.email || "").toLowerCase().includes(term);
+      const matchesStatus =
+        statusFilter === "all" || emp.employment_status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const lastNameCompare = (a.last_name || "").localeCompare(
+        b.last_name || "",
+        undefined,
+        { sensitivity: "base" }
+      );
+      if (lastNameCompare !== 0) return lastNameCompare;
 
-          return fullName(a).localeCompare(fullName(b), undefined, {
-            sensitivity: "base",
-          });
-        }),
-    [employees, searchTerm, statusFilter]
-  );
-
-  const { pageItems: pagedEmployees, pageCount, safePage } = useMemo(
-    () => paginateItems(filteredEmployees, page, DASHBOARD_TABLE_PAGE_SIZE),
-    [filteredEmployees, page]
-  );
-
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, statusFilter]);
-
-  useEffect(() => {
-    if (page !== safePage) setPage(safePage);
-  }, [page, safePage]);
+      return fullName(a).localeCompare(fullName(b), undefined, {
+        sensitivity: "base",
+      });
+    });
 
   async function exportEmployeeMasterlistToPDF() {
     setGeneratingPDF(true);
@@ -779,7 +756,7 @@ export default function EmployeesPage() {
               <>
               <DbMobileBlock>
                 <div className="space-y-2">
-                  {pagedEmployees.map((employee) => (
+                  {filteredEmployees.map((employee) => (
                     <div
                       key={employee.id}
                       className="rounded-lg border border-border/80 bg-card p-3"
@@ -881,116 +858,63 @@ export default function EmployeesPage() {
                   ))}
                 </div>
               </DbMobileBlock>
-              <DbDesktopBlock className={dbTableShellFit}>
-                <Table className="w-full table-fixed" containerClassName="overflow-x-hidden">
+              <DbDesktopBlock className={dbTableShell}>
+                <Table className="w-full min-w-[820px] 2xl:min-w-full">
                   <TableHeader>
                     <TableRow className="h-10">
-                      <TableHead className="w-[11%] py-2 text-xs font-semibold">
-                        Company ID
-                      </TableHead>
-                      <TableHead className="w-[9%] py-2 text-xs font-semibold">
-                        Time clock
-                      </TableHead>
-                      <TableHead className="w-[22%] py-2 text-xs font-semibold">
-                        Employee
-                      </TableHead>
-                      <TableHead className="hidden w-[12%] py-2 text-xs font-semibold xl:table-cell">
-                        Department
-                      </TableHead>
-                      <TableHead className="w-[14%] py-2 text-xs font-semibold">
-                        Position
-                      </TableHead>
-                      <TableHead className="hidden w-[12%] py-2 text-xs font-semibold 2xl:table-cell">
-                        Approval Group
-                      </TableHead>
-                      <TableHead className="w-[10%] py-2 text-xs font-semibold">
-                        Type
-                      </TableHead>
-                      <TableHead className="hidden w-[10%] py-2 text-xs font-semibold 2xl:table-cell">
-                        Shift
-                      </TableHead>
-                      <TableHead className="w-[10%] py-2 text-xs font-semibold">
-                        Status
-                      </TableHead>
-                      <TableHead className="sticky right-0 z-20 w-[12%] bg-muted py-2 text-right text-xs font-semibold shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)]">
-                        Actions
-                      </TableHead>
+                      <TableHead className="w-[120px] py-2 text-xs font-semibold">Company ID</TableHead>
+                      <TableHead className="w-[78px] py-2 text-xs font-semibold">Time clock</TableHead>
+                      <TableHead className="min-w-[160px] py-2 text-xs font-semibold">Employee</TableHead>
+                      <TableHead className="hidden min-w-[110px] py-2 text-xs font-semibold lg:table-cell">Department</TableHead>
+                      <TableHead className="min-w-[110px] py-2 text-xs font-semibold">Position</TableHead>
+                      <TableHead className="hidden min-w-[110px] py-2 text-xs font-semibold 2xl:table-cell">Approval Group</TableHead>
+                      <TableHead className="min-w-[90px] py-2 text-xs font-semibold">Type</TableHead>
+                      <TableHead className="hidden min-w-[100px] py-2 text-xs font-semibold 2xl:table-cell">Shift</TableHead>
+                      <TableHead className="w-[82px] py-2 text-xs font-semibold">Status</TableHead>
+                      <TableHead className="w-[130px] py-2 text-right text-xs font-semibold">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                      {pagedEmployees.map((employee) => (
-                        <TableRow key={employee.id} className="group h-auto hover:bg-muted/50">
-                          <TableCell
-                            className="truncate py-2 font-mono text-sm font-semibold"
-                            title={employee.company_id_no}
-                          >
+                      {filteredEmployees.map((employee) => (
+                        <TableRow key={employee.id} className="h-auto hover:bg-muted/50">
+                          <TableCell className="whitespace-nowrap py-2 font-mono text-sm font-semibold">
                             {employee.company_id_no}
                           </TableCell>
-                          <TableCell
-                            className="truncate py-2 font-mono text-sm text-muted-foreground"
-                            title={employee.employee_code}
-                          >
+                          <TableCell className="py-2 font-mono text-sm text-muted-foreground">
                             {employee.employee_code}
                           </TableCell>
-                          <TableCell className="min-w-0 py-2">
-                            <Link
-                              href={`/employees/${employee.id}`}
-                              className="block truncate text-sm font-medium text-primary hover:underline"
-                              title={fullName(employee)}
-                            >
+                          <TableCell className="min-w-[160px] py-2">
+                            <Link href={`/employees/${employee.id}`} className="hover:underline text-primary font-medium text-sm">
                               {fullName(employee)}
                             </Link>
-                            {employee.email ? (
-                              <p
-                                className="mt-0.5 truncate text-xs text-muted-foreground"
-                                title={employee.email}
-                              >
-                                {employee.email}
-                              </p>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="hidden truncate py-2 text-sm xl:table-cell">
-                            {employee.departments?.name ? (
-                              <span title={toUpperDisplay(employee.departments.name)}>
-                                {toUpperDisplay(employee.departments.name)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
+                            {employee.email && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{employee.email}</p>
                             )}
                           </TableCell>
-                          <TableCell className="min-w-0 py-2 text-sm">
+                          <TableCell className="hidden py-2 text-sm lg:table-cell">
+                            {employee.departments?.name ? toUpperDisplay(employee.departments.name) : <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="py-2 text-sm">
                             {employee.positions ? (
-                              <div className="min-w-0">
-                                <span
-                                  className="block truncate"
-                                  title={toUpperDisplay(employee.positions.name)}
-                                >
-                                  {toUpperDisplay(employee.positions.name)}
-                                </span>
-                                {employee.positions.job_grade ? (
-                                  <Badge
-                                    variant="outline"
-                                    className="mt-0.5 text-[10px]"
-                                  >
-                                    {toUpperDisplay(employee.positions.job_grade)}
-                                  </Badge>
-                                ) : null}
+                              <div>
+                                <span className="break-words">{toUpperDisplay(employee.positions.name)}</span>
+                                {employee.positions.job_grade && (
+                                  <Badge variant="outline" className="ml-2 text-[10px]">{toUpperDisplay(employee.positions.job_grade)}</Badge>
+                                )}
                               </div>
                             ) : (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="hidden truncate py-2 text-sm 2xl:table-cell">
+                          <TableCell className="hidden py-2 text-sm 2xl:table-cell">
                             {(employee.overtime_group_id
                               ? overtimeGroupNameById[employee.overtime_group_id]
                               : null) || (
                               <span className="text-muted-foreground">—</span>
                             )}
                           </TableCell>
-                          <TableCell className="truncate py-2 text-sm uppercase">
-                            {formatTypeDisplay(employee.employment_type)}
-                          </TableCell>
-                          <TableCell className="hidden truncate py-2 text-sm 2xl:table-cell">
+                          <TableCell className="py-2 text-sm uppercase">{formatTypeDisplay(employee.employment_type)}</TableCell>
+                          <TableCell className="hidden py-2 text-sm 2xl:table-cell">
                             {employee.shift_start_time && employee.shift_end_time ? (
                               `${String(employee.shift_start_time).slice(0, 5)} - ${String(
                                 employee.shift_end_time
@@ -1013,7 +937,7 @@ export default function EmployeesPage() {
                               {employee.employment_status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="sticky right-0 z-10 bg-background py-2 text-right shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)] group-hover:bg-muted/50">
+                          <TableCell className="w-[130px] py-2 text-right">
                             <HStack gap="2" justify="end" className="whitespace-nowrap">
                               <Link href={`/employees/${employee.id}`}>
                                 <Button
@@ -1053,14 +977,6 @@ export default function EmployeesPage() {
                   </TableBody>
                 </Table>
               </DbDesktopBlock>
-              <div className="px-1 pb-1 sm:px-0">
-                <DashboardTablePagination
-                  page={safePage}
-                  pageCount={pageCount}
-                  total={filteredEmployees.length}
-                  onPageChange={setPage}
-                />
-              </div>
               </>
             )}
           </CardSection>
@@ -1080,8 +996,8 @@ export default function EmployeesPage() {
           }
         }}
       >
-        <DialogContent className={dbDialogWideForm} style={dbDialogWideFormStyle}>
-          <DialogHeader className={dbDialogWideFormHeader}>
+        <DialogContent className={cn(dbDialogContent, "max-w-4xl flex flex-col p-0")}>
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4">
             <DialogTitle>{editingEmployee ? "Edit employee" : "New employee"}</DialogTitle>
             <DialogDescription>
               {editingEmployee
@@ -1089,8 +1005,8 @@ export default function EmployeesPage() {
                 : "Create an employee record and set initial access."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className={cn(dbDialogWideFormBody, "space-y-5")}>
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-3 overflow-y-auto flex-1 px-6 pr-4 pb-2">
               {modalLoading ? (
                 <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
                   <Icon name="ArrowsClockwise" size={IconSizes.sm} className="animate-spin" />
@@ -1104,12 +1020,11 @@ export default function EmployeesPage() {
                 defaultOpen={!editingEmployee}
                 sectionKey={`${modalFormKey}-work`}
               >
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="company-id-no">Company ID no. *</Label>
                   <Input
                     id="company-id-no"
-                    className="h-10"
                     required
                     value={formData.company_id_no}
                     onChange={(e) => setUpperField("company_id_no", e.target.value)}
@@ -1177,7 +1092,7 @@ export default function EmployeesPage() {
                 description="Legal name, demographics, and contact details."
                 sectionKey={`${modalFormKey}-personal`}
               >
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-4">
                 <div className="space-y-2">
                   <Label htmlFor="first-name">First Name *</Label>
                   <Input id="first-name" required value={formData.first_name}
@@ -1200,7 +1115,7 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="date-of-birth">Date of Birth</Label>
                   <Input id="date-of-birth" type="date" value={formData.date_of_birth}
@@ -1230,7 +1145,7 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="mobile">Mobile</Label>
                   <Input id="mobile" value={formData.mobile}
@@ -1260,7 +1175,7 @@ export default function EmployeesPage() {
                 description="Department, position, approval group, and employment status."
                 sectionKey={`${modalFormKey}-team`}
               >
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Department</Label>
                   <Select value={formData.department_id || "none"} onValueChange={(v) => setFormData({ ...formData, department_id: v === "none" ? "" : v })}>
@@ -1310,7 +1225,7 @@ export default function EmployeesPage() {
                 </div>
               </div>
 
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Employment Status</Label>
                   <Select value={formData.employment_status} onValueChange={(v) => setFormData({ ...formData, employment_status: v })}>
@@ -1340,7 +1255,7 @@ export default function EmployeesPage() {
                 description="SSS, PhilHealth, Pag-IBIG, TIN, and NBI clearance."
                 sectionKey={`${modalFormKey}-government`}
               >
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="sss">SSS #</Label>
                   <Input id="sss" value={formData.sss_number} onChange={(e) => setUpperField("sss_number", e.target.value)} />
@@ -1371,7 +1286,7 @@ export default function EmployeesPage() {
                   description="Salary basis and base rate."
                   sectionKey={`${modalFormKey}-pay`}
                 >
-                  <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Salary Basis</Label>
                       <Select value={formData.salary_basis} onValueChange={(v) => setFormData({ ...formData, salary_basis: v })}>
@@ -1396,7 +1311,7 @@ export default function EmployeesPage() {
                 description="Payroll disbursement account details."
                 sectionKey={`${modalFormKey}-banking`}
               >
-              <div className="grid gap-x-5 gap-y-5 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="bank-name">Bank Name</Label>
                   <Input id="bank-name" value={formData.bank_name} onChange={(e) => setUpperField("bank_name", e.target.value)} />
@@ -1519,7 +1434,7 @@ export default function EmployeesPage() {
               )}
             </div>
 
-            <DialogFooter className={cn(dbDialogWideFormFooter, dbDialogFooter)}>
+            <DialogFooter className={cn(dbDialogFooter, "flex-shrink-0 border-t bg-background px-4 py-4 sm:px-6")}>
               <Button type="button" variant="outline" className={dbHeaderButton} onClick={() => setShowModal(false)}>Cancel</Button>
               <Button type="submit" className={dbHeaderButton} disabled={submitting || modalLoading}>
                 {submitting ? "Saving..." : editingEmployee ? "Save Changes" : "Create Employee"}

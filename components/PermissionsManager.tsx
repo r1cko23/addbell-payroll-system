@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -18,20 +20,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BodySmall, Caption } from "@/components/ui/typography";
-import { VStack } from "@/components/ui/stack";
+import { H4, BodySmall, Caption } from "@/components/ui/typography";
+import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { GrantPicker } from "@/components/GrantPicker";
 import {
-  grantsMatchPack,
-  packGrantKeys,
-  STARTER_PACK_IDS,
-  starterPackLabel,
-} from "@/lib/access";
-import { clearPermissionsCache } from "@/lib/hooks/usePermissions";
-import type { UserPermissions } from "@/lib/permissions";
+  MODULE_INFO,
+  DEFAULT_PERMISSIONS,
+  MODULES,
+  ACTIONS,
+  clearPermissionsCache,
+  type ModuleName,
+  type ActionName,
+  type UserPermissions,
+  type ModulePermissions,
+} from "@/lib/hooks/usePermissions";
 
 interface User {
   id: string;
@@ -47,250 +52,289 @@ interface PermissionsManagerProps {
   onPermissionsUpdate: () => void;
 }
 
-type GrantsByUser = Record<string, string[]>;
+// Group modules by category
+const CATEGORY_LABELS: Record<string, string> = {
+  overview: "Overview",
+  people: "People Management",
+  time: "Time & Attendance",
+  admin: "Administration",
+  settings: "Settings",
+};
 
-function formatPackLabel(role: string): string {
-  return starterPackLabel(role).replace(/_/g, " ").toUpperCase();
-}
+const CATEGORY_ORDER = ["overview", "people", "time", "admin", "settings"];
 
-export function PermissionsManager({
-  users,
-  onPermissionsUpdate,
-}: PermissionsManagerProps) {
+export function PermissionsManager({ users, onPermissionsUpdate }: PermissionsManagerProps) {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [editingKeys, setEditingKeys] = useState<string[]>([]);
-  const [editingPack, setEditingPack] = useState<string>("viewer");
-  const [grantsByUser, setGrantsByUser] = useState<GrantsByUser>({});
-  const [loadingGrants, setLoadingGrants] = useState(true);
+  const [editingPermissions, setEditingPermissions] = useState<UserPermissions | null>(null);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
+  const supabase = createClient();
+
+  // Group modules by category
+  const modulesByCategory = useMemo(() => {
+    const grouped: Record<string, typeof MODULE_INFO> = {};
+    for (const module of MODULE_INFO) {
+      if (!grouped[module.category]) {
+        grouped[module.category] = [];
+      }
+      grouped[module.category].push(module);
+    }
+    return grouped;
+  }, []);
+
+  // Users that can be edited (admin and upper_management always have full access)
   const editableUsers = useMemo(() => {
     return users.filter(
       (user) => user.role !== "admin" && user.role !== "upper_management"
     );
   }, [users]);
 
-  const loadAllGrants = useCallback(async () => {
-    setLoadingGrants(true);
-    const next: GrantsByUser = {};
-    try {
-      await Promise.all(
-        editableUsers.map(async (user) => {
-          const res = await fetch(
-            `/api/access/grants?userId=${encodeURIComponent(user.id)}`
-          );
-          if (!res.ok) {
-            const body = (await res.json().catch(() => null)) as {
-              error?: string;
-            } | null;
-            throw new Error(body?.error || `Failed to load grants for ${user.email}`);
-          }
-          const data = (await res.json()) as { keys: string[] };
-          next[user.id] = data.keys ?? [];
-        })
-      );
-      setGrantsByUser(next);
-    } catch (err: unknown) {
-      console.error(err);
-      toast.error("Failed to load access grants", {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    } finally {
-      setLoadingGrants(false);
-    }
-  }, [editableUsers]);
+  const [viewMode, setViewMode] = useState<"category" | "matrix">("matrix");
 
-  useEffect(() => {
-    void loadAllGrants();
-  }, [loadAllGrants]);
-
-  const handleEdit = async (user: User) => {
-    setSelectedUser(user);
-    setEditingPack(starterPackLabel(user.role));
-    setHasChanges(false);
-    setShowModal(true);
-
-    let keys = grantsByUser[user.id];
-    if (!keys) {
-      try {
-        const res = await fetch(
-          `/api/access/grants?userId=${encodeURIComponent(user.id)}`
-        );
-        if (!res.ok) throw new Error("Failed to load grants");
-        const data = (await res.json()) as { keys: string[] };
-        keys = data.keys ?? [];
-        setGrantsByUser((prev) => ({ ...prev, [user.id]: keys! }));
-      } catch {
-        keys = packGrantKeys(user.role);
+  // Get effective permissions for a user (custom or role defaults)
+  const getEffectivePermissions = (user: User): UserPermissions => {
+    if (user.permissions) {
+      // Merge custom with defaults
+      const defaults = DEFAULT_PERMISSIONS[user.role] || DEFAULT_PERMISSIONS.viewer;
+      const merged = { ...defaults };
+      for (const [module, perms] of Object.entries(user.permissions)) {
+        if (merged[module as ModuleName]) {
+          merged[module as ModuleName] = {
+            ...merged[module as ModuleName],
+            ...(perms as ModulePermissions),
+          };
+        }
       }
+      return merged;
     }
-    setEditingKeys(keys);
+    return DEFAULT_PERMISSIONS[user.role] || DEFAULT_PERMISSIONS.viewer;
   };
 
-  const handleApplyPack = (packId: string) => {
-    setEditingPack(packId);
-    setEditingKeys(packGrantKeys(packId));
+  // Open modal to edit user permissions
+  const handleEditPermissions = (user: User) => {
+    setSelectedUser(user);
+    setEditingPermissions(getEffectivePermissions(user));
+    setHasChanges(false);
+    setShowModal(true);
+  };
+
+  // Toggle a single permission
+  const handleTogglePermission = (module: ModuleName, action: ActionName) => {
+    if (!editingPermissions) return;
+
+    setEditingPermissions({
+      ...editingPermissions,
+      [module]: {
+        ...editingPermissions[module],
+        [action]: !editingPermissions[module][action],
+      },
+    });
     setHasChanges(true);
   };
 
-  const handleSave = async () => {
+  // Toggle all permissions for a module
+  const handleToggleModuleAll = (module: ModuleName, enabled: boolean) => {
+    if (!editingPermissions) return;
+
+    setEditingPermissions({
+      ...editingPermissions,
+      [module]: {
+        create: enabled,
+        read: enabled,
+        update: enabled,
+        delete: enabled,
+      },
+    });
+    setHasChanges(true);
+  };
+
+  // Reset to role defaults
+  const handleResetToDefaults = () => {
     if (!selectedUser) return;
+    setEditingPermissions(DEFAULT_PERMISSIONS[selectedUser.role] || DEFAULT_PERMISSIONS.viewer);
+    setHasChanges(true);
+  };
+
+  // Save permissions
+  const handleSavePermissions = async () => {
+    if (!selectedUser || !editingPermissions) return;
+
     setSaving(true);
     try {
-      const res = await fetch("/api/access/grants", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: selectedUser.id,
-          keys: editingKeys,
-          role: editingPack,
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(body?.error || "Failed to save grants");
+      // Calculate the diff from role defaults to only store customizations
+      const defaults = DEFAULT_PERMISSIONS[selectedUser.role] || DEFAULT_PERMISSIONS.viewer;
+      const customPerms: Partial<UserPermissions> = {};
+      let hasCustomizations = false;
+
+      for (const [module, perms] of Object.entries(editingPermissions)) {
+        const defaultPerms = defaults[module as ModuleName];
+        if (defaultPerms) {
+          const moduleCustom: Partial<ModulePermissions> = {};
+          let moduleHasCustom = false;
+
+          for (const action of Object.values(ACTIONS)) {
+            if ((perms as ModulePermissions)[action] !== defaultPerms[action]) {
+              moduleCustom[action] = (perms as ModulePermissions)[action];
+              moduleHasCustom = true;
+              hasCustomizations = true;
+            }
+          }
+
+          if (moduleHasCustom) {
+            customPerms[module as ModuleName] = {
+              ...defaultPerms,
+              ...moduleCustom,
+            };
+          }
+        }
       }
-      const data = (await res.json()) as { keys: string[] };
-      setGrantsByUser((prev) => ({
-        ...prev,
-        [selectedUser.id]: data.keys,
-      }));
+
+      // Save to database - only store customizations, or null if using defaults
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          permissions: hasCustomizations ? customPerms : null,
+        })
+        .eq("id", selectedUser.id);
+
+      if (error) throw error;
+
+      // Clear permissions cache
       clearPermissionsCache();
-      toast.success("Access grants updated", {
-        description: `Updated grants for ${selectedUser.full_name}`,
+
+      toast.success("Permissions updated successfully", {
+        description: `Updated permissions for ${selectedUser.full_name}`,
       });
+
       setShowModal(false);
       setSelectedUser(null);
+      setEditingPermissions(null);
       setHasChanges(false);
       onPermissionsUpdate();
-    } catch (err: unknown) {
-      console.error(err);
-      toast.error("Failed to save grants", {
-        description: err instanceof Error ? err.message : undefined,
+    } catch (error: any) {
+      console.error("Error saving permissions:", error);
+      toast.error("Failed to save permissions", {
+        description: error.message,
       });
     } finally {
       setSaving(false);
     }
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setSelectedUser(null);
-    setHasChanges(false);
+  // Count permissions for display
+  const getPermissionSummary = (user: User): { total: number; enabled: number } => {
+    const perms = getEffectivePermissions(user);
+    let total = 0;
+    let enabled = 0;
+
+    for (const module of Object.values(perms)) {
+      for (const action of Object.values(module)) {
+        total++;
+        if (action) enabled++;
+      }
+    }
+
+    return { total, enabled };
+  };
+
+  // Check if all actions for a module are enabled
+  const isModuleFullyEnabled = (module: ModuleName): boolean => {
+    if (!editingPermissions) return false;
+    const perms = editingPermissions[module];
+    return perms.create && perms.read && perms.update && perms.delete;
+  };
+
+  // Check if module has mixed permissions
+  const isModulePartiallyEnabled = (module: ModuleName): boolean => {
+    if (!editingPermissions) return false;
+    const perms = editingPermissions[module];
+    const enabled = [perms.create, perms.read, perms.update, perms.delete].filter(Boolean).length;
+    return enabled > 0 && enabled < 4;
   };
 
   return (
     <VStack gap="4" className="w-full">
-      <Caption className="text-muted-foreground">
-        Assign pages this user can open and functions they can run. Role is a
-        starter pack only.
-      </Caption>
-
+      {/* User Permissions List */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                 User
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                Starter pack
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                Role
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                Grants
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                Permissions
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium uppercase text-muted-foreground">
-                Status
+              <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                Custom
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase text-muted-foreground">
+              <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-card">
+          <tbody className="bg-card divide-y divide-gray-200">
             {editableUsers.length === 0 ? (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-6 py-8 text-center text-sm text-muted-foreground"
-                >
-                  <Icon
-                    name="ShieldCheck"
-                    size={IconSizes.md}
-                    className="mx-auto mb-2 opacity-50"
-                  />
-                  <p>No users to configure grants for.</p>
-                  <Caption>
-                    Admin and Upper Management always have full access and are
-                    not listed.
-                  </Caption>
+                <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                  <Icon name="ShieldCheck" size={IconSizes.md} className="mx-auto mb-2 opacity-50" />
+                  <p>No users to configure permissions for.</p>
+                  <Caption>Admin and Upper Management always have full access and are not listed.</Caption>
                 </td>
               </tr>
             ) : (
               editableUsers.map((user) => {
-                const keys = grantsByUser[user.id] ?? [];
-                const isCustom = keys.length
-                  ? !grantsMatchPack(keys, user.role)
-                  : user.permissions !== null;
-                const grantCount = loadingGrants && !grantsByUser[user.id]
-                  ? "…"
-                  : String(keys.length);
+                const summary = getPermissionSummary(user);
+                const hasCustom = user.permissions !== null;
 
                 return (
                   <tr key={user.id}>
-                    <td className="whitespace-nowrap px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <VStack gap="1" align="start">
-                        <BodySmall className="font-medium">
-                          {user.full_name}
-                        </BodySmall>
-                        <Caption className="text-muted-foreground">
-                          {user.email}
-                        </Caption>
+                        <BodySmall className="font-medium">{user.full_name}</BodySmall>
+                        <Caption className="text-muted-foreground">{user.email}</Caption>
                       </VStack>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <Badge variant="secondary">
-                        {formatPackLabel(user.role)}
-                      </Badge>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Badge variant="secondary">{user.role.toUpperCase()}</Badge>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <Caption className="text-muted-foreground">
-                        {grantCount} grants
-                      </Caption>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <HStack gap="2" align="center">
+                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full transition-all"
+                            style={{ width: `${(summary.enabled / summary.total) * 100}%` }}
+                          />
+                        </div>
+                        <Caption className="text-muted-foreground">
+                          {summary.enabled}/{summary.total}
+                        </Caption>
+                      </HStack>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4">
-                      {isCustom ? (
-                        <Badge
-                          variant="outline"
-                          className="border-yellow-200 bg-yellow-50 text-yellow-700"
-                        >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {hasCustom ? (
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
                           Custom
                         </Badge>
                       ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-muted-foreground"
-                        >
+                        <Badge variant="outline" className="text-muted-foreground">
                           Default
                         </Badge>
                       )}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => void handleEdit(user)}
-                        disabled={!user.is_active || loadingGrants}
+                        onClick={() => handleEditPermissions(user)}
+                        disabled={!user.is_active}
                       >
-                        <Icon
-                          name="Sliders"
-                          size={IconSizes.sm}
-                          className="mr-2"
-                        />
+                        <Icon name="Sliders" size={IconSizes.sm} className="mr-2" />
                         Configure
                       </Button>
                     </td>
@@ -302,129 +346,284 @@ export function PermissionsManager({
         </table>
       </div>
 
+      {/* Edit Permissions Modal */}
       <Dialog
         open={showModal}
         onOpenChange={(open) => {
           if (!open && hasChanges) {
-            if (
-              window.confirm(
-                "You have unsaved changes. Are you sure you want to close?"
-              )
-            ) {
-              closeModal();
+            // Confirm before closing with unsaved changes
+            if (window.confirm("You have unsaved changes. Are you sure you want to close?")) {
+              setShowModal(false);
+              setSelectedUser(null);
+              setEditingPermissions(null);
+              setHasChanges(false);
             }
-          } else if (!open) {
-            closeModal();
           } else {
-            setShowModal(true);
+            setShowModal(open);
+            if (!open) {
+              setSelectedUser(null);
+              setEditingPermissions(null);
+              setHasChanges(false);
+            }
           }
         }}
       >
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Icon name="ShieldCheck" size={IconSizes.md} />
-              Configure Access Grants
+              Configure Permissions
             </DialogTitle>
             <DialogDescription>
-              {selectedUser ? (
+              {selectedUser && (
                 <>
-                  Pages and functions for{" "}
-                  <strong>{selectedUser.full_name}</strong>. Role is a starter
-                  pack only.
+                  Managing permissions for{" "}
+                  <strong>{selectedUser.full_name}</strong> ({selectedUser.role.toUpperCase()})
                 </>
-              ) : null}
+              )}
             </DialogDescription>
           </DialogHeader>
 
-          <VStack gap="4" className="mt-2">
-            <div className="flex flex-wrap items-end gap-3 border-b pb-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="starter-pack">Starter pack</Label>
-                <Select
-                  value={editingPack}
-                  onValueChange={handleApplyPack}
-                  disabled={saving}
-                >
-                  <SelectTrigger id="starter-pack" className="w-[220px]">
-                    <SelectValue placeholder="Select pack" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STARTER_PACK_IDS.map((id) => (
-                      <SelectItem key={id} value={id}>
-                        {formatPackLabel(id)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={saving}
-                onClick={() => handleApplyPack(editingPack)}
-              >
-                <Icon
-                  name="ArrowCounterClockwise"
-                  size={IconSizes.sm}
-                  className="mr-2"
-                />
-                Apply pack
-              </Button>
-              {hasChanges ? (
-                <Badge
-                  variant="outline"
-                  className="bg-yellow-50 text-yellow-700"
-                >
-                  Unsaved changes
-                </Badge>
-              ) : null}
-            </div>
+          {editingPermissions && (
+            <VStack gap="6" className="mt-4">
+              {/* Quick Actions + View Toggle */}
+              <HStack justify="between" align="center" className="border-b pb-4 flex-wrap gap-2">
+                <HStack gap="2" className="flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetToDefaults}
+                    disabled={saving}
+                  >
+                    <Icon name="ArrowCounterClockwise" size={IconSizes.sm} className="mr-2" />
+                    Reset to Defaults
+                  </Button>
+                  <HStack gap="1" className="border rounded-md p-0.5">
+                    <Button
+                      variant={viewMode === "matrix" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setViewMode("matrix")}
+                    >
+                      CRUD Matrix
+                    </Button>
+                    <Button
+                      variant={viewMode === "category" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => setViewMode("category")}
+                    >
+                      By Category
+                    </Button>
+                  </HStack>
+                </HStack>
+                {hasChanges && (
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+                    Unsaved changes
+                  </Badge>
+                )}
+              </HStack>
 
-            <GrantPicker
-              selectedKeys={editingKeys}
-              disabled={saving}
-              onChange={(keys) => {
-                setEditingKeys(keys);
-                setHasChanges(true);
-              }}
-            />
-          </VStack>
+              {/* CRUD Matrix: single table, one row per page */}
+              {viewMode === "matrix" && (
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm font-medium">
+                      CRUD Matrix — tick Create, Read, Update, Delete per page
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Rows = pages/functions; columns = actions. Only users with dashboard access are listed above.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="overflow-x-auto border rounded-md">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 border-b">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-medium">Page / Function</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Create</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Read</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Update</th>
+                            <th className="px-3 py-2 text-center font-medium w-20">Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {MODULE_INFO.map((moduleInfo) => {
+                            const moduleKey = moduleInfo.key;
+                            const perms = editingPermissions[moduleKey];
+                            if (!perms) return null;
+                            const isFullyEnabled = isModuleFullyEnabled(moduleKey);
+                            const isPartial = isModulePartiallyEnabled(moduleKey);
+                            return (
+                              <tr
+                                key={moduleKey}
+                                className="hover:bg-muted/30"
+                              >
+                                <td className="px-4 py-2">
+                                  <HStack gap="2" align="center">
+                                    <Checkbox
+                                      id={`m-${moduleKey}-all`}
+                                      checked={isFullyEnabled}
+                                      ref={(ref) => {
+                                        if (ref) (ref as any).indeterminate = isPartial;
+                                      }}
+                                      onCheckedChange={(checked) =>
+                                        handleToggleModuleAll(moduleKey, checked === true)
+                                      }
+                                      disabled={saving}
+                                    />
+                                    <Label
+                                      htmlFor={`m-${moduleKey}-all`}
+                                      className="font-medium cursor-pointer"
+                                    >
+                                      {moduleInfo.label}
+                                    </Label>
+                                  </HStack>
+                                </td>
+                                {(["create", "read", "update", "delete"] as ActionName[]).map(
+                                  (action) => (
+                                    <td key={action} className="px-3 py-2 text-center">
+                                      <Checkbox
+                                        id={`m-${moduleKey}-${action}`}
+                                        checked={perms[action]}
+                                        onCheckedChange={() =>
+                                          handleTogglePermission(moduleKey, action)
+                                        }
+                                        disabled={saving}
+                                      />
+                                    </td>
+                                  )
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Permissions Grid by Category */}
+              {viewMode === "category" && CATEGORY_ORDER.map((category) => {
+                const modules = modulesByCategory[category];
+                if (!modules || modules.length === 0) return null;
+
+                return (
+                  <Card key={category}>
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-sm font-medium">
+                        {CATEGORY_LABELS[category] || category}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-4">
+                        {/* Header row */}
+                        <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground border-b pb-2">
+                          <div className="col-span-2">Module</div>
+                          <div className="text-center">Create</div>
+                          <div className="text-center">Read</div>
+                          <div className="text-center">Update</div>
+                          <div className="text-center">Delete</div>
+                        </div>
+
+                        {/* Module rows */}
+                        {modules.map((moduleInfo) => {
+                          const moduleKey = moduleInfo.key;
+                          const perms = editingPermissions[moduleKey];
+                          const isFullyEnabled = isModuleFullyEnabled(moduleKey);
+                          const isPartial = isModulePartiallyEnabled(moduleKey);
+
+                          return (
+                            <div
+                              key={moduleKey}
+                              className="grid grid-cols-6 gap-2 items-center py-2 hover:bg-accent/50 rounded px-2 -mx-2"
+                            >
+                              <div className="col-span-2">
+                                <HStack gap="3" align="center">
+                                  <Checkbox
+                                    id={`${moduleKey}-all`}
+                                    checked={isFullyEnabled}
+                                    ref={(ref) => {
+                                      if (ref) {
+                                        (ref as any).indeterminate = isPartial;
+                                      }
+                                    }}
+                                    onCheckedChange={(checked) => {
+                                      handleToggleModuleAll(moduleKey, checked === true);
+                                    }}
+                                    disabled={saving}
+                                  />
+                                  <VStack gap="0" align="start">
+                                    <Label
+                                      htmlFor={`${moduleKey}-all`}
+                                      className="text-sm font-medium cursor-pointer"
+                                    >
+                                      {moduleInfo.label}
+                                    </Label>
+                                    <Caption className="text-muted-foreground text-xs">
+                                      {moduleInfo.description}
+                                    </Caption>
+                                  </VStack>
+                                </HStack>
+                              </div>
+
+                              {/* CRUD Checkboxes */}
+                              {(["create", "read", "update", "delete"] as ActionName[]).map(
+                                (action) => (
+                                  <div key={action} className="flex justify-center">
+                                    <Checkbox
+                                      id={`${moduleKey}-${action}`}
+                                      checked={perms[action]}
+                                      onCheckedChange={() =>
+                                        handleTogglePermission(moduleKey, action)
+                                      }
+                                      disabled={saving}
+                                    />
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </VStack>
+          )}
 
           <DialogFooter className="mt-6">
             <Button
               variant="outline"
-              disabled={saving}
               onClick={() => {
                 if (hasChanges) {
-                  if (
-                    window.confirm(
-                      "You have unsaved changes. Are you sure you want to close?"
-                    )
-                  ) {
-                    closeModal();
+                  if (window.confirm("You have unsaved changes. Are you sure you want to close?")) {
+                    setShowModal(false);
                   }
                 } else {
-                  closeModal();
+                  setShowModal(false);
                 }
               }}
+              disabled={saving}
             >
               Cancel
             </Button>
-            <Button onClick={() => void handleSave()} disabled={saving || !hasChanges}>
+            <Button onClick={handleSavePermissions} disabled={saving || !hasChanges}>
               {saving ? (
                 <>
                   <Icon
                     name="ArrowsClockwise"
                     size={IconSizes.sm}
-                    className="mr-2 animate-spin"
+                    className="animate-spin mr-2"
                   />
                   Saving...
                 </>
               ) : (
                 <>
                   <Icon name="Check" size={IconSizes.sm} className="mr-2" />
-                  Save Grants
+                  Save Permissions
                 </>
               )}
             </Button>

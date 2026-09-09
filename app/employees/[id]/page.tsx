@@ -164,12 +164,17 @@ export default function EmployeeDetailPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [empRes, attendRes] = await Promise.all([
+    const [empRes, assignRes, attendRes] = await Promise.all([
       supabase
         .from("employees")
         .select("*, departments:department_id ( name ), positions:position_id ( name, job_grade )")
         .eq("id", employeeId)
         .single(),
+      supabase
+        .from("project_assignments")
+        .select("id, role, start_date, is_active, projects:project_id ( name, code )")
+        .eq("employee_id", employeeId)
+        .order("start_date", { ascending: false }),
       supabase
         .from("attendance_records")
         .select("id, work_date, total_hours, regular_hours, overtime_hours, night_diff_hours, status")
@@ -182,7 +187,7 @@ export default function EmployeeDetailPage() {
       setEmployee(row);
       setClockRequiresOtPunch(row.requires_ot_punch === true);
     }
-    setAssignments([]);
+    setAssignments((assignRes.data as unknown as ProjectAssignment[]) ?? []);
     setAttendance((attendRes.data as unknown as AttendanceRecord[]) ?? []);
     setLoading(false);
   };

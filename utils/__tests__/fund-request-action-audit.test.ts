@@ -12,6 +12,7 @@ function baseRequest(
   return {
     id: "test-id",
     company_id: "company",
+    project_id: null,
     requested_by: "employee",
     request_date: "2026-07-01",
     purpose: "Subcontractor Payment",

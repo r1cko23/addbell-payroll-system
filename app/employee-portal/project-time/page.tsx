@@ -1,25 +1,147 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { epPageWrapper } from "@/lib/employee-portal-ui";
+import { Badge } from "@/components/ui/badge";
+import { useEmployeeSession } from "@/contexts/EmployeeSessionContext";
+import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
+import { Clock, MapPin } from "lucide-react";
+import { PortalPageHeader } from "@/components/portal/PortalPageHeader";
+import { epCardInteractive, epPageWrapper, epTouchButton } from "@/lib/employee-portal-ui";
+import { cn } from "@/lib/utils";
 
-/** Project time tracking retired with the projects catalog. */
-export default function ProjectTimeRetiredPage() {
+interface Assignment {
+  id: string;
+  project_id: string;
+  role: string | null;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+  projects: { id: string; code: string; name: string; status: string } | null;
+}
+
+export default function EmployeePortalProjectTimePage() {
+  const supabase = createClient();
+  const session = useEmployeeSession();
+  const employeeId = session?.employee?.id ?? null;
+  const assignmentsCacheKey = employeeId
+    ? `project-assignments:${employeeId}`
+    : null;
+
+  const loadAssignments = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("project_assignments")
+      .select("id, project_id, role, start_date, end_date, is_active, projects:project_id ( id, code, name, status )")
+      .eq("employee_id", employeeId)
+      .eq("is_active", true)
+      .order("start_date", { ascending: false });
+
+    if (error) throw error;
+    const rows = data ?? [];
+    return rows.map((row) => {
+      const p = row.projects;
+      const project = Array.isArray(p) ? p[0] ?? null : p;
+      return { ...row, projects: project } as Assignment;
+    });
+  }, [employeeId, supabase]);
+
+  const {
+    data: assignmentsData,
+    loading,
+    error: assignmentsError,
+  } = useSessionLoader(assignmentsCacheKey, loadAssignments, {
+    enabled: !!assignmentsCacheKey,
+  });
+  const assignments = assignmentsData ?? [];
+
+  useEffect(() => {
+    if (assignmentsError) {
+      toast.error("Failed to load projects");
+      console.error(assignmentsError);
+    }
+  }, [assignmentsError]);
+
+  if (!employeeId) {
+    return (
+      <div className={cn("w-full", epPageWrapper)}>
+        <PortalPageHeader title="Project Assignments" />
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            Employee session not found. Please log in again.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className={epPageWrapper}>
-      <Card>
-        <CardContent className="space-y-3 p-6 text-center">
-          <h1 className="text-lg font-semibold">Project time retired</h1>
-          <p className="text-sm text-muted-foreground">
-            Project clock-in is no longer available. Use Bundy for timekeeping.
-          </p>
-          <Button asChild>
-            <Link href="/employee-portal">Back to portal</Link>
-          </Button>
-        </CardContent>
-      </Card>
+    <div className={cn("w-full", epPageWrapper)}>
+      <PortalPageHeader title="Project Assignments" />
+
+      {loading ? (
+        <div className="animate-pulse h-32 bg-muted rounded-lg" />
+      ) : assignments.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            <MapPin className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p>No project assignments yet.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4">
+          {assignments.map((a) => {
+            const project = a.projects;
+            if (!project) return null;
+            const isActive = project.status === "active";
+            return (
+              <Card
+                key={a.id}
+                className={cn(
+                  "border-border/80 bg-card/95",
+                  epCardInteractive
+                )}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <CardTitle>{project.name}</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-0.5">{project.code}</p>
+                    </div>
+                    <Badge variant={isActive ? "default" : "secondary"} className="capitalize">
+                      {project.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex flex-wrap items-center justify-between gap-4">
+                  {a.role ? (
+                    <p className="text-sm text-muted-foreground">
+                      Role: {a.role}
+                    </p>
+                  ) : null}
+                  <div className="flex w-full flex-col items-stretch gap-2 sm:items-end">
+                    <p className="text-xs text-muted-foreground">
+                      Time in and out is based on your location, not per project.
+                    </p>
+                    <Link href="/employee-portal/bundy" className="w-full md:w-auto">
+                      <Button
+                        variant="outline"
+                        className={epTouchButton}
+                      >
+                        <Clock className="h-4 w-4 mr-2" />
+                        Open Time Clock
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

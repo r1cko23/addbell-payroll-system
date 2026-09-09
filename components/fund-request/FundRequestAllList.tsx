@@ -27,7 +27,6 @@ import {
   isLikelyMislabeledReturnAsRejection,
 } from "@/lib/fund-request-action-audit";
 import {
-  formatFundRequestReferenceSummaryLabel,
   getFundRequestListProjectLabel,
   getFundRequestListPurposeLabel,
 } from "@/lib/fund-request-project-details";
@@ -37,10 +36,10 @@ import {
   getFundRequestStatusBadgeClass,
   getFundRequestStatusBadgeVariant,
 } from "@/lib/fund-request-approval";
-import { canRequesterManageFundRequest, canRequesterCorrectFundRequestPoNumber } from "@/lib/fund-request-requester-edit";
-import { isOfficeRelatedFundRequest } from "@/types/fund-request";
+import { canRequesterManageFundRequest } from "@/lib/fund-request-requester-edit";
 
 export type FundRequestListRow = FundRequestRow & {
+  projects: { name: string; code: string } | null;
   vendors?: { name?: string | null } | null;
 };
 
@@ -56,9 +55,6 @@ export function FundRequestAllList({
   onRequestDeleted,
   emptyLabel = "No fund requests yet.",
   filteredEmptyLabel = "No fund requests match your filters.",
-  listQuery,
-  needsClientPoUpdateIds,
-  readyClientPoUpdateIds,
 }: {
   rows: FundRequestListRow[];
   loading: boolean;
@@ -71,17 +67,9 @@ export function FundRequestAllList({
   onRequestDeleted: (requestId: string) => void;
   emptyLabel?: string;
   filteredEmptyLabel?: string;
-  listQuery?: string;
-  needsClientPoUpdateIds?: Set<string>;
-  readyClientPoUpdateIds?: Set<string>;
 }) {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  const requestHref = (id: string) =>
-    listQuery ? `${base}/${id}?${listQuery}` : `${base}/${id}`;
-  const editHref = (id: string) =>
-    listQuery ? `${base}/${id}/edit?${listQuery}` : `${base}/${id}/edit`;
 
   const handleDelete = async () => {
     if (!deleteId || !requesterEmployeeId) return;
@@ -122,7 +110,7 @@ export function FundRequestAllList({
       const matchPurpose = getFundRequestListPurposeLabel(r)
         .toLowerCase()
         .includes(term);
-      const matchProject = formatFundRequestReferenceSummaryLabel(r)
+      const matchProject = getFundRequestListProjectLabel(r)
         .toLowerCase()
         .includes(term);
       if (!matchPurpose && !matchProject) return false;
@@ -142,16 +130,6 @@ export function FundRequestAllList({
 
   const canEditRequest = (request: FundRequestListRow) =>
     canRequesterManageFundRequest(request, requesterEmployeeId, manageOptions);
-
-  const canUpdatePoRequest = (request: FundRequestListRow) =>
-    canRequesterCorrectFundRequestPoNumber(request, requesterEmployeeId);
-
-  const showUpdatePoLink = (request: FundRequestListRow) => {
-    if (isOfficeRelatedFundRequest(request.reference_mode)) return false;
-    if (!canUpdatePoRequest(request)) return false;
-    if (needsClientPoUpdateIds?.has(request.id)) return true;
-    return !canEditRequest(request);
-  };
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
@@ -185,33 +163,16 @@ export function FundRequestAllList({
               const requesterStatus = getFundRequestRequesterStatus(r);
               const dispositionLabel = getFundRequestDispositionLabel(r);
               const mislabeledReturn = isLikelyMislabeledReturnAsRejection(r);
-              const projectLabel = getFundRequestListProjectLabel(r);
-              const purposeLabel = getFundRequestListPurposeLabel(r);
-              const needsClientPo = needsClientPoUpdateIds?.has(r.id) ?? false;
-              const readyOnMasterlist = readyClientPoUpdateIds?.has(r.id) ?? false;
               return (
               <tr key={r.id} className="border-b last:border-0 hover:bg-primary/5">
                 <td className="px-4 py-3 whitespace-nowrap">
                   {format(new Date(r.request_date), "MMM d, yyyy")}
                 </td>
-                <td
-                  className="px-4 py-3 max-w-[320px]"
-                  title={projectLabel}
-                >
-                  <div className="truncate">{projectLabel}</div>
-                  {needsClientPo ? (
-                    <Badge
-                      variant="outline"
-                      className="mt-1 border-amber-400 bg-amber-50 text-[10px] font-medium text-amber-950"
-                    >
-                      {readyOnMasterlist
-                        ? "Client PO ready on Projects"
-                        : "Needs client P.O. update"}
-                    </Badge>
-                  ) : null}
+                <td className="px-4 py-3 max-w-[180px] truncate">
+                  {getFundRequestListProjectLabel(r)}
                 </td>
-                <td className="px-4 py-3 max-w-[200px] truncate" title={purposeLabel}>
-                  {purposeLabel}
+                <td className="px-4 py-3 max-w-[200px] truncate">
+                  {getFundRequestListPurposeLabel(r)}
                 </td>
                 <td className="px-4 py-3 font-medium text-right tabular-nums">
                   ₱{Number(r.total_requested_amount).toLocaleString()}
@@ -244,25 +205,17 @@ export function FundRequestAllList({
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Link
-                      href={requestHref(r.id)}
+                      href={`${base}/${r.id}`}
                       className="text-primary font-medium hover:underline text-sm"
                     >
                       View
                     </Link>
                     {canEditRequest(r) ? (
                       <Link
-                        href={editHref(r.id)}
+                        href={`${base}/${r.id}/edit`}
                         className="text-primary font-medium hover:underline text-sm"
                       >
                         Edit
-                      </Link>
-                    ) : null}
-                    {showUpdatePoLink(r) ? (
-                      <Link
-                        href={requestHref(r.id)}
-                        className="text-amber-800 font-medium hover:underline text-sm"
-                      >
-                        Update PO
                       </Link>
                     ) : null}
                     {canDeleteRequest(r) ? (
@@ -288,8 +241,6 @@ export function FundRequestAllList({
         {filteredRows.map((r) => {
           const requesterStatus = getFundRequestRequesterStatus(r);
           const mislabeledReturn = isLikelyMislabeledReturnAsRejection(r);
-          const needsClientPo = needsClientPoUpdateIds?.has(r.id) ?? false;
-          const readyOnMasterlist = readyClientPoUpdateIds?.has(r.id) ?? false;
           return (
           <Card key={r.id}>
             <CardContent className="p-4">
@@ -298,22 +249,12 @@ export function FundRequestAllList({
                   <div className="text-sm font-semibold">
                     {format(new Date(r.request_date), "MMM d, yyyy")}
                   </div>
-                  <div
-                    className="text-xs text-muted-foreground mt-1 line-clamp-2"
-                    title={formatFundRequestReferenceSummaryLabel(r)}
-                  >
-                    {formatFundRequestReferenceSummaryLabel(r)}
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {getFundRequestListProjectLabel(r)}
                   </div>
-                  {needsClientPo ? (
-                    <Badge
-                      variant="outline"
-                      className="mt-2 border-amber-400 bg-amber-50 text-[10px] font-medium text-amber-950"
-                    >
-                      {readyOnMasterlist
-                        ? "Client PO ready on Projects"
-                        : "Needs client P.O. update"}
-                    </Badge>
-                  ) : null}
+                  <div className="text-xs text-muted-foreground mt-1 truncate">
+                    {getFundRequestListPurposeLabel(r)}
+                  </div>
                 </div>
                 <Badge
                   variant={getFundRequestStatusBadgeVariant(requesterStatus)}
@@ -335,25 +276,17 @@ export function FundRequestAllList({
                 </div>
                 <div className="flex items-center gap-3">
                   <Link
-                    href={requestHref(r.id)}
+                    href={`${base}/${r.id}`}
                     className="text-primary font-medium hover:underline text-sm"
                   >
                     View
                   </Link>
                   {canEditRequest(r) ? (
                     <Link
-                      href={editHref(r.id)}
+                      href={`${base}/${r.id}/edit`}
                       className="text-primary font-medium hover:underline text-sm"
                     >
                       Edit
-                    </Link>
-                  ) : null}
-                  {showUpdatePoLink(r) ? (
-                    <Link
-                      href={requestHref(r.id)}
-                      className="text-amber-800 font-medium hover:underline text-sm"
-                    >
-                      Update PO
                     </Link>
                   ) : null}
                   {canDeleteRequest(r) ? (

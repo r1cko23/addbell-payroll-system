@@ -12,32 +12,6 @@ export async function fetchClientsList() {
   return data ?? [];
 }
 
-/** Lightweight masterlist rows for Fund Request client-PO prompts + suggestions. */
-export async function fetchPoMasterlistPoLookup() {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("po_masterlist_jobs")
-    .select("id, po_number, project_title, location, po_amount, client_name");
-
-  if (error) throw error;
-  return data ?? [];
-}
-
-/** Lightweight masterlist jobs for grouping under Clients. */
-export async function fetchPoMasterlistJobsForClients() {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("po_masterlist_jobs")
-    .select(
-      "id, client_id, po_number, project_title, location, po_amount, project_status, payment_status, po_date"
-    )
-    .not("client_id", "is", null)
-    .order("po_date", { ascending: false });
-
-  if (error) throw error;
-  return data ?? [];
-}
-
 export async function fetchActiveClientOptions() {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -53,32 +27,23 @@ export async function fetchActiveClientOptions() {
 export async function fetchProjectsList() {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("po_masterlist_jobs")
-    .select("*")
+    .from("projects")
+    .select("*, clients:client_id ( name )")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
   return data ?? [];
 }
 
-/** Masterlist jobs for the Internal PO project picker. */
 export async function fetchProjectsForPO() {
   const supabase = createClient();
   const { data, error } = await supabase
-    .from("po_masterlist_jobs")
-    .select("id, po_number, project_title, location, client_name, po_amount")
-    .order("project_title", { ascending: true });
+    .from("projects")
+    .select("id, name, code, site_address")
+    .order("name");
 
   if (error) throw error;
-
-  return (data ?? []).map((row) => ({
-    id: row.id as string,
-    name: (row.project_title as string | null) || "Untitled job",
-    code: (row.po_number as string | null) || "—",
-    site_address: (row.location as string | null) ?? null,
-    client_name: (row.client_name as string | null) ?? null,
-    po_amount: row.po_amount == null ? null : Number(row.po_amount),
-  }));
+  return data ?? [];
 }
 
 export async function fetchActiveSuppliersForPO() {
@@ -86,20 +51,14 @@ export async function fetchActiveSuppliersForPO() {
   const { data, error } = await supabase
     .from("vendors")
     .select(
-      "id, name, contact_person, tin, address, phone, email, phones, emails, type"
+      "id, name, contact_person, tin, address, phone, email, phones, emails"
     )
     .eq("is_active", true)
-    .in("type", ["supplier", "subcontractor"])
+    .eq("type", "supplier")
     .order("name");
 
   if (error) throw error;
-  return (data ?? []).map((record) => ({
-    ...record,
-    type:
-      record.type === "subcontractor"
-        ? ("subcontractor" as const)
-        : ("supplier" as const),
-  }));
+  return data ?? [];
 }
 
 export async function fetchActiveSubcontractorOptions() {

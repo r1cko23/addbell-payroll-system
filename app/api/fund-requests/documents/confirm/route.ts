@@ -207,13 +207,10 @@ export async function POST(req: NextRequest) {
       });
 
       if ("error" in linkResult) {
-        // The source request already has the file. Return it so the UI updates
-        // instead of showing a duplicate-key error that forces a refresh.
-        return NextResponse.json({
-          document: result.document,
-          linked_documents: [],
-          warning: linkResult.error,
-        });
+        return NextResponse.json(
+          { error: linkResult.error },
+          { status: linkResult.status }
+        );
       }
       linkedDocuments = linkResult.documents;
     }

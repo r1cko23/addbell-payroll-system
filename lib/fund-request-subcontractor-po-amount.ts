@@ -71,9 +71,7 @@ export function shouldShowSubcontractorPoAmountOnReview(
 
   if (normalizedRole === "upper_management" || normalizedRole === "admin") {
     if (status === "purchasing_officer_approved") return true;
-    // Returned to purchasing (status rolls back) and later statuses still
-    // need the saved amount on the review screen.
-    if (currentAmount != null) return true;
+    if (status === "management_approved" && currentAmount != null) return true;
   }
 
   return false;

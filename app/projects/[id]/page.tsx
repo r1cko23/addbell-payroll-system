@@ -40,6 +40,7 @@ import {
   getProjectStatusColor,
   getProjectStatusLabel,
 } from "@/types/project";
+import { projectDetailPoReference } from "@/lib/po-masterlist-project-code";
 
 interface Project {
   id: string; code: string; name: string; client_id: string | null; site_address: string | null;
@@ -81,6 +82,7 @@ export default function ProjectDetailPage() {
   const { isHR, loading: roleLoading } = useUserRole();
 
   const [project, setProject] = useState<Project | null>(null);
+  const [linkedPoReference, setLinkedPoReference] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
   const [progressHistory, setProgressHistory] = useState<ProjectProgressEntry[]>([]);
   const [fundRequests, setFundRequests] = useState<FundRequestBrief[]>([]);
@@ -143,16 +145,25 @@ export default function ProjectDetailPage() {
   const fetchProjectData = async () => {
     try {
       setLoading(true);
-      const [projRes, assignRes, progRes, frRes, poRes] = await Promise.all([
+      const [projRes, assignRes, progRes, frRes, poRes, jobsRes] = await Promise.all([
         supabase.from("projects").select("*, clients:client_id ( name )").eq("id", projectId).single(),
         supabase.from("project_assignments").select("*, employees:employee_id ( company_id_no, first_name, last_name )").eq("project_id", projectId).order("start_date", { ascending: false }),
         supabase.from("project_progress").select("*").eq("project_id", projectId).order("progress_date", { ascending: false }),
         supabase.from("fund_requests").select("id, purpose, total_requested_amount, status, request_date").eq("project_id", projectId).order("created_at", { ascending: false }),
         supabase.from("purchase_orders").select("id, po_number, total_amount, status, po_date, vendors ( name )").eq("project_id", projectId).order("created_at", { ascending: false }),
+        supabase
+          .from("po_masterlist_jobs" as never)
+          .select("po_number")
+          .eq("project_id", projectId),
       ]);
 
       if (projRes.error) throw projRes.error;
       setProject(projRes.data as Project);
+      setLinkedPoReference(
+        projectDetailPoReference(
+          (jobsRes.data as { po_number: string | null }[] | null) ?? []
+        )
+      );
       setAssignments(assignRes.data ?? []);
       setProgressHistory(progRes.data ?? []);
       setFundRequests((frRes.data as unknown as FundRequestBrief[]) ?? []);
@@ -262,7 +273,12 @@ export default function ProjectDetailPage() {
             <Link href="/projects"><Button variant="ghost" className={dbHeaderButton}><ArrowLeft className="h-4 w-4 mr-2" />Back</Button></Link>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-              <p className="text-muted-foreground text-sm">{project.code} {project.clients?.name ? `· ${project.clients.name}` : ""}</p>
+              <p className="text-muted-foreground text-sm">
+                {linkedPoReference
+                  ? `P.O. ${linkedPoReference}`
+                  : project.code}
+                {project.clients?.name ? ` · ${project.clients.name}` : ""}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

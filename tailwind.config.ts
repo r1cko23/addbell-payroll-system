@@ -6,6 +6,7 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     container: {
@@ -146,6 +147,12 @@ const config: Config = {
         "16": "var(--spacing-16)",
         "20": "var(--spacing-20)",
         "24": "var(--spacing-24)",
+      },
+      transitionDuration: {
+        press: "var(--duration-press)",
+      },
+      transitionTimingFunction: {
+        "out-ui": "var(--ease-out)",
       },
       keyframes: {
         "accordion-down": {

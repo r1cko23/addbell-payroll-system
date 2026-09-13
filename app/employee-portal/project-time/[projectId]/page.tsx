@@ -144,7 +144,7 @@ export default function EmployeePortalProjectClockPage() {
           <span className="pulse-dot" />
           Project details
         </div>
-        <PageTitle>Project Details</PageTitle>
+        <PageTitle>Project details</PageTitle>
       </div>
 
       <Card className="border-border/80 bg-card/95">

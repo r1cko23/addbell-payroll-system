@@ -30,31 +30,31 @@ type QuickLink = {
 const QUICK_LINKS: QuickLink[] = [
   {
     href: "/employee-portal/bundy",
-    title: "Bundy Clock",
+    title: "Bundy clock",
     description: "Clock in and out, view your times.",
     icon: "Clock",
   },
   {
     href: "/employee-portal/leave-request",
-    title: "Leave Request",
+    title: "Leave request",
     description: "Request and track leave.",
     icon: "CalendarBlank",
   },
   {
     href: "/employee-portal/overtime",
-    title: "OT Filing",
+    title: "OT filing",
     description: "File OT for approval.",
     icon: "ClockClockwise",
   },
   {
     href: "/employee-portal/failure-to-log",
-    title: "Failure To Log",
+    title: "Failure to log",
     description: "Submit missed punch requests.",
     icon: "WarningCircle",
   },
   {
     href: "/employee-portal/fund-request",
-    title: "Fund Request",
+    title: "Fund request",
     description: "Submit and track fund requests.",
     icon: "Receipt",
   },
@@ -66,13 +66,13 @@ const QUICK_LINKS: QuickLink[] = [
   },
   {
     href: "/employee-portal/project-time",
-    title: "Project Assignments",
+    title: "Project assignments",
     description: "View assigned projects and time.",
     icon: "Buildings",
   },
   {
     href: "/employee-portal/info",
-    title: "My Information",
+    title: "My information",
     description: "Profile and employment details.",
     icon: "User",
   },

@@ -27,7 +27,7 @@ test.describe("Fund Request Approval Flow", () => {
     await page.goto("/fund-request?tab=inbox");
     await expect(page).toHaveURL(/\/fund-request\/?\?tab=inbox/);
 
-    const listHeading = page.locator('h1:has-text("Fund Requests")');
+    const listHeading = page.locator('h1:has-text("Fund requests")');
     await expect(listHeading).toHaveCount(1);
 
     // Open the user dropdown and ensure logout only exists once.

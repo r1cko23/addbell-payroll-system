@@ -1214,7 +1214,7 @@ export default function LoansPage() {
           <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
             <DialogHeader>
               <DialogTitle>
-                {editingLoan ? "Edit Loan" : "Add New Loan"}
+                {editingLoan ? "Edit loan" : "Add new loan"}
               </DialogTitle>
               <DialogDescription>
                 {editingLoan
@@ -1591,7 +1591,7 @@ export default function LoansPage() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Critical Changes</AlertDialogTitle>
+              <AlertDialogTitle>Confirm critical changes</AlertDialogTitle>
               <AlertDialogDescription>
                 You are about to make critical changes to this loan. This action
                 will be logged in the audit trail.
@@ -1636,7 +1636,7 @@ export default function LoansPage() {
           <DialogContent className={cn(dbDialogContent, "max-w-4xl")}>
             <DialogHeader>
               <DialogTitle>
-                Audit History - {selectedLoanForAudit?.employee?.full_name}
+                Audit history - {selectedLoanForAudit?.employee?.full_name}
               </DialogTitle>
             </DialogHeader>
             {loadingAudit ? (
@@ -1740,7 +1740,7 @@ export default function LoansPage() {
           <DialogContent className={cn(dbDialogContent, "max-w-4xl")}>
             <DialogHeader>
               <DialogTitle>
-                Payment History - {selectedLoanForHistory?.employee?.full_name}
+                Payment history - {selectedLoanForHistory?.employee?.full_name}
               </DialogTitle>
             </DialogHeader>
             {selectedLoanForHistory && (

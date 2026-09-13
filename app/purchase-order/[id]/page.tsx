@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { usePermissions } from "@/lib/hooks/usePermissions";
+import { FOR_COMPLETION_OF_DETAILS, internalPoLinkLabel } from "@/lib/purchase-order-job-fill";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,8 @@ interface PODetail {
   created_at: string;
   vendors: { name: string; contact_person: string | null; tin: string | null; address: string | null; phone: string | null; email: string | null } | null;
   projects: { name: string; code: string; site_address: string | null } | null;
+  masterlist_link_status: "linked" | "needs_review" | null;
+  masterlist_link_note: string | null;
 }
 
 interface POItem {
@@ -129,6 +132,14 @@ export default function PurchaseOrderDetailPage() {
           </div>
           <div className="flex items-center gap-3">
             <Badge variant={STATUS_COLORS[po.status] ?? "secondary"} className="text-sm capitalize">{po.status}</Badge>
+            {internalPoLinkLabel({
+              masterlist_link_status: po.masterlist_link_status,
+              masterlist_link_note: po.masterlist_link_note,
+            }) === FOR_COMPLETION_OF_DETAILS ? (
+              <Badge variant="outline" className="text-sm">
+                {FOR_COMPLETION_OF_DETAILS}
+              </Badge>
+            ) : null}
             {canManageStatus && po.status === "draft" && (
               <Button size="sm" onClick={() => handleStatusChange("approved")} disabled={acting}>
                 {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve"}
@@ -152,20 +163,28 @@ export default function PurchaseOrderDetailPage() {
             <CardHeader><CardTitle className="text-base">Project & Delivery</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div>
-                <span className="text-muted-foreground text-xs uppercase">Project</span>
+                <span className="text-muted-foreground text-xs">Project</span>
                 <p className="font-medium">{po.projects ? `${po.projects.code} — ${po.projects.name}` : po.project_title || "—"}</p>
                 {po.projects?.site_address && <p className="text-muted-foreground">{po.projects.site_address}</p>}
+                {internalPoLinkLabel({
+                  masterlist_link_status: po.masterlist_link_status,
+                  masterlist_link_note: po.masterlist_link_note,
+                }) === FOR_COMPLETION_OF_DETAILS ? (
+                  <p className="text-muted-foreground mt-1">
+                    No client P.O. linked yet. When the project exists on Projects, this PO can be linked.
+                  </p>
+                ) : null}
               </div>
               <div>
-                <span className="text-muted-foreground text-xs uppercase">Deliver To</span>
+                <span className="text-muted-foreground text-xs">Deliver to</span>
                 <p>{po.deliver_to || "—"}</p>
               </div>
               <div>
-                <span className="text-muted-foreground text-xs uppercase">PO Date</span>
+                <span className="text-muted-foreground text-xs">PO date</span>
                 <p>{po.po_date_text || format(new Date(po.po_date), "MMM d, yyyy")}</p>
               </div>
               <div>
-                <span className="text-muted-foreground text-xs uppercase">Requisitioner</span>
+                <span className="text-muted-foreground text-xs">Requisitioner</span>
                 <p>{po.requisitioner || "—"}</p>
               </div>
             </CardContent>
@@ -251,10 +270,10 @@ export default function PurchaseOrderDetailPage() {
           <CardHeader><CardTitle className="text-base">Signatories</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div><span className="text-muted-foreground text-xs uppercase">Requested By</span><p className="font-medium mt-1">{po.requested_by || po.requisitioner || "—"}</p></div>
-              <div><span className="text-muted-foreground text-xs uppercase">Prepared By</span><p className="font-medium mt-1">{po.prepared_by || "—"}</p></div>
-              <div><span className="text-muted-foreground text-xs uppercase">Reviewed By</span><p className="font-medium mt-1">{po.reviewed_by || "—"}</p></div>
-              <div><span className="text-muted-foreground text-xs uppercase">Approved By</span><p className="font-medium mt-1">{po.approved_by || "—"}</p>{po.approved_by_title && <p className="text-muted-foreground text-xs">{po.approved_by_title}</p>}</div>
+              <div><span className="text-muted-foreground text-xs">Requested by</span><p className="font-medium mt-1">{po.requested_by || po.requisitioner || "—"}</p></div>
+              <div><span className="text-muted-foreground text-xs">Prepared by</span><p className="font-medium mt-1">{po.prepared_by || "—"}</p></div>
+              <div><span className="text-muted-foreground text-xs">Reviewed by</span><p className="font-medium mt-1">{po.reviewed_by || "—"}</p></div>
+              <div><span className="text-muted-foreground text-xs">Approved by</span><p className="font-medium mt-1">{po.approved_by || "—"}</p>{po.approved_by_title && <p className="text-muted-foreground text-xs">{po.approved_by_title}</p>}</div>
             </div>
           </CardContent>
         </Card>

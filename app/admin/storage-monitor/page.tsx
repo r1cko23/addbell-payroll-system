@@ -135,7 +135,7 @@ export default function AdminStorageMonitorPage() {
     <DashboardLayout>
       <div className={dbPageWrapper}>
         <DashboardPageHeader
-          title="Storage Monitor"
+          title="Storage monitor"
           description="Supabase file usage plus Google Sheets API and Vercel free-tier signals for fund requests, OT, and leave uploads."
           actions={
             <Button

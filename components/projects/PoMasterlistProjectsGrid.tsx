@@ -78,6 +78,7 @@ import {
   editorSeedValue,
 } from "@/lib/po-masterlist-cell-edit";
 import { poMasterlistStatusBadgeClass } from "@/lib/po-masterlist-status-badge";
+import { withCurrentStatusOption } from "@/lib/po-masterlist-status-options";
 import { shouldMountDashboardViewportTree } from "@/lib/dashboard-viewport";
 import { useDashboardViewportTier } from "@/lib/hooks/useDashboardViewport";
 
@@ -255,13 +256,7 @@ function FieldControl({
   const controlClass = "h-11 min-h-11 rounded-full";
 
   if (field === "project_status") {
-    const options = PROJECT_STATUS_OPTIONS.includes(
-      value.toUpperCase() as (typeof PROJECT_STATUS_OPTIONS)[number]
-    )
-      ? PROJECT_STATUS_OPTIONS
-      : ([value.toUpperCase(), ...PROJECT_STATUS_OPTIONS].filter(
-          (item, index, all) => item && all.indexOf(item) === index
-        ) as string[]);
+    const options = withCurrentStatusOption(PROJECT_STATUS_OPTIONS, value);
     return (
       <div className={fieldWrap}>
         <Label htmlFor={id} className="text-xs font-medium tracking-wide">
@@ -285,13 +280,7 @@ function FieldControl({
   }
 
   if (field === "payment_status") {
-    const options = PAYMENT_STATUS_OPTIONS.includes(
-      value.toUpperCase() as (typeof PAYMENT_STATUS_OPTIONS)[number]
-    )
-      ? PAYMENT_STATUS_OPTIONS
-      : ([value.toUpperCase(), ...PAYMENT_STATUS_OPTIONS].filter(
-          (item, index, all) => item && all.indexOf(item) === index
-        ) as string[]);
+    const options = withCurrentStatusOption(PAYMENT_STATUS_OPTIONS, value);
     return (
       <div className={fieldWrap}>
         <Label htmlFor={id} className="text-xs font-medium tracking-wide">
@@ -452,13 +441,7 @@ function InlineCellEditor({
   if (field === "project_status" || field === "payment_status") {
     const catalog =
       field === "project_status" ? PROJECT_STATUS_OPTIONS : PAYMENT_STATUS_OPTIONS;
-    const options = catalog.includes(
-      value.toUpperCase() as (typeof catalog)[number]
-    )
-      ? catalog
-      : ([value.toUpperCase(), ...catalog].filter(
-          (item, index, all) => item && all.indexOf(item) === index
-        ) as string[]);
+    const options = withCurrentStatusOption(catalog, value);
     return (
       <Select
         defaultOpen
@@ -846,7 +829,7 @@ export function PoMasterlistProjectsGrid() {
             </DialogTrigger>
             <DialogContent className={dbDialogWideForm} style={dbDialogWideFormStyle}>
               <DialogHeader className={dbDialogWideFormHeader}>
-                <DialogTitle>New Job</DialogTitle>
+                <DialogTitle>New job</DialogTitle>
                 <DialogDescription>
                   Fill the visible job columns. Required: P.O. NUMBER, PROJECT
                   TITLE, and CLIENT.

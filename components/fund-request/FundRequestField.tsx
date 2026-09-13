@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { toSentenceCase } from "@/lib/to-sentence-case";
 
 export function FundRequestFieldLabel({
   children,
@@ -10,7 +11,7 @@ export function FundRequestFieldLabel({
   return (
     <h4
       className={cn(
-        "text-xs font-semibold text-muted-foreground uppercase tracking-wide",
+        "text-xs font-semibold text-muted-foreground tracking-wide",
         className
       )}
     >
@@ -32,7 +33,9 @@ export function FundRequestField({
 }) {
   return (
     <div className={className}>
-      <FundRequestFieldLabel>{label}</FundRequestFieldLabel>
+      <FundRequestFieldLabel>
+        {toSentenceCase(label)}
+      </FundRequestFieldLabel>
       <p className={cn("mt-1", uppercaseValue && "uppercase")}>{value}</p>
     </div>
   );

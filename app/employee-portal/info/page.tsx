@@ -143,13 +143,13 @@ export default function EmployeeInfoPage() {
 
   const rows = [
     { label: "Employee ID", value: info.employee_id },
-    { label: "Full Name", value: info.full_name },
-    { label: "First Name", value: info.first_name || "—" },
-    { label: "Last Name", value: info.last_name || "—" },
-    { label: "Middle Initial", value: info.middle_initial || "—" },
+    { label: "Full name", value: info.full_name },
+    { label: "First name", value: info.first_name || "—" },
+    { label: "Last name", value: info.last_name || "—" },
+    { label: "Middle initial", value: info.middle_initial || "—" },
     { label: "Address", value: info.address || "—" },
     {
-      label: "Birth Date",
+      label: "Birth date",
       value: info.birth_date
         ? format(new Date(info.birth_date), "MMMM d, yyyy")
         : "—",
@@ -160,14 +160,14 @@ export default function EmployeeInfoPage() {
     { label: "Pag-IBIG #", value: info.pagibig_number || "—" },
     { label: "HMO", value: info.hmo_provider || "—" },
     {
-      label: "Assigned Locations",
+      label: "Assigned locations",
       value: info.assigned_locations.length
         ? info.assigned_locations.join(", ")
         : "—",
     },
     { label: "Status", value: info.is_active ? "Active" : "Inactive" },
     {
-      label: "Date Added",
+      label: "Date added",
       value: format(new Date(info.created_at), "MMMM d, yyyy"),
     },
   ];
@@ -175,7 +175,7 @@ export default function EmployeeInfoPage() {
   return (
     <div className={cn("w-full", epPageWrapper)}>
       <PortalPageHeader
-        title="My Information"
+        title="My information"
         description="Your profile and government IDs on file."
       />
       <CardSection>

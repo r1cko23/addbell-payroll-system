@@ -7,7 +7,6 @@ import {
   CardDescription,
 } from "./card";
 import { cn } from "@/lib/utils";
-import { toTitleCase } from "@/lib/to-title-case";
 
 interface CardSectionProps {
   title?: string | ReactNode;
@@ -30,12 +29,12 @@ export function CardSection({
         <CardHeader className={cn("px-3 pb-2 pt-3 sm:px-6 sm:pb-4 sm:pt-6", headerClassName)}>
           {title && (
             <CardTitle>
-              {typeof title === "string" ? toTitleCase(title) : title}
+              {title}
             </CardTitle>
           )}
           {description && (
             <CardDescription>
-              {typeof description === "string" ? toTitleCase(description) : description}
+              {description}
             </CardDescription>
           )}
         </CardHeader>

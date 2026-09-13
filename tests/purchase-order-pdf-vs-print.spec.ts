@@ -39,6 +39,13 @@ test.describe("Purchase Order PDF vs Print", () => {
     ).toBeVisible({ timeout: 5000 });
   }
 
+  async function printIframeTitle(page: any): Promise<string> {
+    return page.evaluate(() => {
+      const iframe = [...document.querySelectorAll("iframe")].at(-1);
+      return iframe?.contentDocument?.title ?? "";
+    });
+  }
+
   test("PDF uses the same template as Print", async ({ page }) => {
     await goToCreatePO(page);
 
@@ -51,6 +58,21 @@ test.describe("Purchase Order PDF vs Print", () => {
     // Then click PDF (now reuses print template too).
     await page.getByRole("button", { name: /^PDF$/i }).click();
     await assertPrintTemplateCreated(page);
+  });
+
+  test("Save as PDF file name is the PO number and vendor", async ({ page }) => {
+    await goToCreatePO(page);
+    await page.locator("#poNumber").fill("ADDPO-2609-TCP01");
+
+    const vendorTrigger = page.getByRole("combobox").filter({ hasText: /Select vendor/i });
+    await vendorTrigger.click();
+    const firstVendor = page.getByRole("option").first();
+    await expect(firstVendor).toBeVisible();
+    await firstVendor.click();
+
+    await page.getByRole("button", { name: /^Print$/i }).click();
+    await assertPrintTemplateCreated(page);
+    await expect.poll(() => printIframeTitle(page)).toMatch(/^ADDPO-2609-TCP01 - .+/);
   });
 });
 

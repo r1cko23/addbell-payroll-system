@@ -705,7 +705,7 @@ export default function EmployeeDetailPage() {
                           <SelectItem value="regular">Regular</SelectItem>
                           <SelectItem value="probationary">Probationary</SelectItem>
                           <SelectItem value="contractual">Contractual</SelectItem>
-                          <SelectItem value="project_based">Project Based</SelectItem>
+                          <SelectItem value="project_based">Project based</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

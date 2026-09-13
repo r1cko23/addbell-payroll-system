@@ -2,6 +2,7 @@ import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
+import { toSentenceCase } from "@/lib/to-sentence-case"
 
 const labelVariants = cva(
   "text-sm font-medium leading-normal text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
@@ -27,7 +28,7 @@ const Label = React.forwardRef<
     className={cn(labelVariants(), className)}
     {...props}
   >
-    {children}
+    {typeof children === "string" ? toSentenceCase(children) : children}
     {required ? <RequiredMark className="ml-0.5" /> : null}
   </LabelPrimitive.Root>
 ))

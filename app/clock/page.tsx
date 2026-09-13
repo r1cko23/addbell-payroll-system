@@ -455,7 +455,7 @@ export default function ClockPage() {
           <Card>
             <CardContent className="text-center py-6">
               <VStack gap="2" align="center">
-                <H1 className="md:text-4xl tracking-wider">Bundy Clock</H1>
+                <H1 className="md:text-4xl tracking-wider">Bundy clock</H1>
                 <BodySmall>
                   {currentTime.toLocaleDateString("en-US", {
                     weekday: "long",

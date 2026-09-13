@@ -296,7 +296,7 @@ export default function FailureToLogPage() {
     <>
       <div className={cn("w-full", epPageWrapper)}>
         <PortalPageHeader
-          title="Failure To Log"
+          title="Failure to log"
           description="File missed clock in and out for a shift."
         />
 

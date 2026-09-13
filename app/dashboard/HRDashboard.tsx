@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
-import { toTitleCase } from "@/lib/to-title-case";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
@@ -305,13 +304,11 @@ export default function HRDashboard() {
         <Card className="border-primary/20 bg-gradient-to-r from-primary/10 to-background">
           <CardHeader className="pb-2">
             <CardDescription>
-              {toTitleCase(
-                showAllCompanyPending
-                  ? "All pending approvals — click a request to review."
-                  : isHR
-                    ? "Pending HR approvals — click a request to review."
-                    : "Your approval groups — click a request to review."
-              )}
+              {showAllCompanyPending
+                ? "All pending approvals — click a request to review."
+                : isHR
+                  ? "Pending HR approvals — click a request to review."
+                  : "Your approval groups — click a request to review."}
             </CardDescription>
             <CardTitle>
               {queueItems.length === 0
@@ -349,7 +346,7 @@ export default function HRDashboard() {
         <div className="space-y-1">
           <SectionHeading>Workforce Health</SectionHeading>
           <PageSubtitle>
-            {toTitleCase("Staffing metrics at a glance.")}
+            Staffing metrics at a glance.
           </PageSubtitle>
         </div>
       </HStack>
@@ -377,7 +374,7 @@ export default function HRDashboard() {
         <Card className="rounded-2xl border bg-card/90 shadow-sm xl:col-span-6">
           <CardHeader className="pb-3">
             <CardDescription>
-              {toTitleCase("Active employees by employment type.")}
+              Active employees by employment type.
             </CardDescription>
           </CardHeader>
           <CardContent>

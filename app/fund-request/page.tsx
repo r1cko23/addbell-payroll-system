@@ -174,7 +174,7 @@ function FundRequestListPageContent() {
     <Button asChild className={isPortal ? 'min-h-11 w-full sm:min-h-9 sm:w-auto' : cn(dbHeaderButton)}>
       <Link href={`${base}/new`}>
         <Plus className="h-4 w-4 mr-2" />
-        New Request
+        New request
       </Link>
     </Button>
   ) : null;
@@ -183,12 +183,12 @@ function FundRequestListPageContent() {
     <div className={cn('w-full', isPortal ? epPageWrapper : dbPageWrapper)}>
       {isPortal ? (
         <div className={epPageHeaderRow}>
-          <PageTitle>Fund Requests</PageTitle>
+          <PageTitle>Fund requests</PageTitle>
           {newRequestButton}
         </div>
       ) : (
         <DashboardPageHeader
-          title="Fund Requests"
+          title="Fund requests"
           description={fundRequestSubtitle}
           actions={
             newRequestButton ? (
@@ -203,7 +203,7 @@ function FundRequestListPageContent() {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col gap-4">
           <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <TabsTrigger value="inbox" className="min-h-10 shrink-0 px-3">
-              For Approval
+              For approval
             </TabsTrigger>
             {showHistoryTab ? (
               <TabsTrigger value="history" className="min-h-10 shrink-0 px-3">
@@ -212,11 +212,11 @@ function FundRequestListPageContent() {
             ) : null}
             {showAllRequestsTab ? (
               <TabsTrigger value="all-requests" className="min-h-10 shrink-0 px-3">
-                All Requests
+                All requests
               </TabsTrigger>
             ) : null}
             <TabsTrigger value="my-requests" className="min-h-10 shrink-0 px-3">
-              My Requests
+              My requests
             </TabsTrigger>
           </TabsList>
           <TabsContent value="inbox" className="mt-0">
@@ -250,7 +250,7 @@ function FundRequestListPageContent() {
           <Tabs value={activeTab} onValueChange={handleTabChange} className="flex w-full flex-col gap-4">
             <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <TabsTrigger value="inbox" className="min-h-10 shrink-0 px-3">
-                For Approval
+                For approval
               </TabsTrigger>
               <TabsTrigger value="history" className="min-h-10 shrink-0 px-3">
                 History

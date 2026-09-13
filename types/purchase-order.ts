@@ -35,6 +35,8 @@ export interface PurchaseOrder {
   company: PurchaseOrderCompany;
   projectTitle: string;
   deliverTo: string;
+  /** Shown when purchasing created the PO without a client P.O. yet. */
+  basisNote?: string;
   items: PurchaseOrderLineItem[];
   paymentTerms: string[];
   requestedBy: string;
@@ -55,10 +57,5 @@ export const DEFAULT_COMPANY: PurchaseOrderCompany = {
   email: "admin@addbell.com / phen.conte@addbell.com",
 };
 
-/** Default payment terms - from sample PO */
-export const DEFAULT_PAYMENT_TERMS = [
-  "30% Down Payment",
-  "30% Progress Billing (after 7 days)",
-  "30% Progress Billing (after 7 days)",
-  "10% Retention (7 to 15 days after COC)",
-];
+/** Default payment terms — empty until a preset or manual term is chosen. */
+export const DEFAULT_PAYMENT_TERMS: string[] = [];

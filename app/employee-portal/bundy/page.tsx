@@ -1989,7 +1989,7 @@ export default function BundyClockPage() {
   return (
     <div className={cn("w-full", epPageWrapper)}>
       <PortalPageHeader
-        title="Bundy Clock"
+        title="Bundy clock"
         description="Clock in and out for your assigned location."
       />
       <Card className={cn(epFormCard, "border-primary/20 bg-card p-4 sm:p-6")}>

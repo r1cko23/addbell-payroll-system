@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/table";
 import { MetricCard } from "@/components/ui/metric-card";
 import { PageSubtitle, SectionHeading, KpiValue } from "@/components/ui/typography";
-import { toTitleCase } from "@/lib/to-title-case";
 import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { dbHeaderActions, dbHeaderButton, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
@@ -162,7 +161,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
         <Card className="border-primary/20 bg-primary/10 xl:col-span-6">
           <CardHeader className="pb-2">
-            <CardDescription>{toTitleCase("Today's operating focus.")}</CardDescription>
+            <CardDescription>Today's operating focus.</CardDescription>
             <CardTitle>
               {(stats?.pendingFundRequests ?? 0) + (stats?.pendingPOs ?? 0) === 0
                 ? "No Finance Approvals Pending"
@@ -191,7 +190,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>{toTitleCase("Pending leave approvals.")}</CardDescription>
+            <CardDescription>Pending leave approvals.</CardDescription>
             <KpiValue>{pendingLeaveApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
@@ -202,7 +201,7 @@ export default function AdminDashboard() {
         </Card>
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
-            <CardDescription>{toTitleCase("Pending OT approvals.")}</CardDescription>
+            <CardDescription>Pending OT approvals.</CardDescription>
             <KpiValue>{pendingOvertimeApprovals}</KpiValue>
           </CardHeader>
           <CardContent>
@@ -214,7 +213,7 @@ export default function AdminDashboard() {
         <Card className="border-primary/20 bg-primary/10 xl:col-span-2">
           <CardHeader className="pb-2">
             <CardDescription>
-              {toTitleCase("Pending failure to log requests.")}
+              Pending failure to log requests.
             </CardDescription>
             <KpiValue>{pendingFailureToLogApprovals}</KpiValue>
           </CardHeader>
@@ -230,7 +229,7 @@ export default function AdminDashboard() {
         <div className="space-y-1">
           <SectionHeading>Performance Snapshot</SectionHeading>
           <PageSubtitle>
-            {toTitleCase("Key metrics and pending actions.")}
+            Key metrics and pending actions.
           </PageSubtitle>
         </div>
         <HStack gap="2" className={cn(dbHeaderActions, "sm:flex-wrap")}>

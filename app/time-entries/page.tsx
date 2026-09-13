@@ -1342,7 +1342,7 @@ export default function TimeEntriesPage() {
       <div className={cn("w-full max-w-full min-w-0", dbPageWrapper)}>
         <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <VStack gap="2" align="start">
-            <H1>Time Entries</H1>
+            <H1>Time entries</H1>
             <PageSubtitle>View punches and export logs.</PageSubtitle>
           </VStack>
           <div className={dbHeaderActions}>
@@ -1979,7 +1979,7 @@ export default function TimeEntriesPage() {
             {selectedEntry && (
               <>
                 <DialogHeader>
-                  <DialogTitle>Time Entry Details</DialogTitle>
+                  <DialogTitle>Time entry details</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -2311,7 +2311,7 @@ export default function TimeEntriesPage() {
         >
           <DialogContent className={dbDialogContent}>
             <DialogHeader>
-              <DialogTitle>Add New Time Entry</DialogTitle>
+              <DialogTitle>Add new time entry</DialogTitle>
               <DialogDescription>
                 {isManagement
                   ? "Manually create a time entry for any employee. This entry will be marked as manually created."
@@ -2454,7 +2454,7 @@ export default function TimeEntriesPage() {
         >
           <DialogContent className={cn(dbDialogContent, "max-w-4xl")}>
             <DialogHeader>
-              <DialogTitle>Bulk Add Time Entries</DialogTitle>
+              <DialogTitle>Bulk add time entries</DialogTitle>
               <DialogDescription>
                 Add multiple time entries for one employee at once. Each row represents one day's entry.
               </DialogDescription>

@@ -267,7 +267,7 @@ export default function ProjectClockPage() {
             </Button>
           </Link>
           <h1 className="text-2xl font-bold tracking-tight mt-2">
-            Project Time Clock
+            Project time clock
           </h1>
           <p className="text-muted-foreground text-sm">
             {project.name} ({project.code})

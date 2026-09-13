@@ -969,7 +969,7 @@ export default function SettingsPage() {
       >
         <DialogContent className={dbDialogContent}>
           <DialogHeader>
-            <DialogTitle>{editingUser ? "Edit User" : "Add New User"}</DialogTitle>
+            <DialogTitle>{editingUser ? "Edit user" : "Add new user"}</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={async (e) => {
@@ -1199,7 +1199,7 @@ export default function SettingsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate User</AlertDialogTitle>
+            <AlertDialogTitle>Deactivate user</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to deactivate{" "}
               <strong>{userToDeactivate?.full_name}</strong>? They will not be
@@ -1242,7 +1242,7 @@ export default function SettingsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Activate User</AlertDialogTitle>
+            <AlertDialogTitle>Activate user</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to activate{" "}
               <strong>{userToActivate?.full_name}</strong>? They will be able to
@@ -1289,7 +1289,7 @@ export default function SettingsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogTitle>Delete user</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete{" "}
               <strong>{userToDelete?.full_name}</strong> and remove all their
@@ -1354,7 +1354,7 @@ export default function SettingsPage() {
         <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
           <DialogHeader>
             <DialogTitle>
-              OT Assignments for {editingUser?.full_name}
+              OT assignments for {editingUser?.full_name}
             </DialogTitle>
           </DialogHeader>
 

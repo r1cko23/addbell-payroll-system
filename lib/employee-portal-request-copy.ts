@@ -3,7 +3,7 @@
 export const requestReasonLabel = "Reason";
 
 export const requestSupportingDocLabel =
-  "Supporting Document (PDF/DOC/DOCX)";
+  "Supporting document (PDF/DOC/DOCX)";
 
 export const requestFormCopy = {
   overtime: {

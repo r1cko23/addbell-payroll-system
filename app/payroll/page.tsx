@@ -1203,7 +1203,7 @@ export default function PayrollPage() {
       >
         <DialogContent className={cn(dbDialogContent, "max-w-xl sm:max-w-2xl")}>
           <DialogHeader>
-            <DialogTitle>New Payroll Run</DialogTitle>
+            <DialogTitle>New payroll run</DialogTitle>
             <DialogDescription>
               Weekly cutoff Wed–Tue. Dates are prefilled — adjust if needed.
             </DialogDescription>

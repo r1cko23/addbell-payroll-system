@@ -352,6 +352,17 @@ export const PurchaseOrderPrint = forwardRef<
           >
             {data.projectTitle}
           </p>
+          {data.basisNote ? (
+            <p
+              style={{
+                margin: "6px 0 0",
+                fontSize: "10px",
+                color: COLORS.muted,
+              }}
+            >
+              {data.basisNote}
+            </p>
+          ) : null}
         </div>
         <div>
           <span

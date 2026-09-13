@@ -1320,7 +1320,7 @@ export default function OvertimeApprovalPage() {
         >
           <DialogContent className={dbDialogContent}>
             <DialogHeader>
-              <DialogTitle>OT Request Details</DialogTitle>
+              <DialogTitle>OT request details</DialogTitle>
             </DialogHeader>
             {selected && (
               <div className="space-y-4">

@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import { PageTitle, PageSubtitle } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
-import { toTitleCase } from "@/lib/to-title-case";
 
 export type PortalPageHeaderProps = {
   title: string;
@@ -23,7 +22,7 @@ export function PortalPageHeader({
         className
       )}
     >
-      <PageTitle>{toTitleCase(title)}</PageTitle>
+      <PageTitle>{title}</PageTitle>
       {description != null && description !== "" ? (
         typeof description === "string" ? (
           <PageSubtitle className="max-w-2xl text-pretty">{description}</PageSubtitle>

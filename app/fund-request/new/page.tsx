@@ -716,7 +716,7 @@ export default function NewFundRequestPage() {
     }
     const trimmedPoNumber = poNumber.trim();
     if (showClientPOField && !poPerProject && !trimmedPoNumber) {
-      toast.error("P.O. Number is required in client-linked mode.");
+      toast.error("P.O. number is required in client-linked mode.");
       return;
     }
     let parsedSubcontractorProgressCompletion: number | null = null;
@@ -987,7 +987,7 @@ export default function NewFundRequestPage() {
       </Link>
       <Card className={cn(epFormCard, "w-full flex flex-col border-primary/20 bg-card/95")}>
         <CardHeader className="pb-4 shrink-0">
-          <CardTitle>{isEditMode ? "Edit Fund Request" : "New Fund Request"}</CardTitle>
+          <CardTitle>{isEditMode ? "Edit fund request" : "New fund request"}</CardTitle>
           {!isEditMode ? (
             <div>
               <p className="text-pretty text-sm text-muted-foreground">
@@ -1084,19 +1084,19 @@ export default function NewFundRequestPage() {
                   </Select>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Choose{" "}
-                    <span className="font-medium">Client-Linked Requests</span> when tied to a
-                    client Purchase Order. Choose{" "}
-                    <span className="font-medium">Office-Related Requests</span> if no client or
+                    <span className="font-medium">Client-linked requests</span> when tied to a
+                    client purchase order. Choose{" "}
+                    <span className="font-medium">Office-related requests</span> if no client or
                     project reference.
                   </p>
                 </div>
                 {showProjectReferenceFields ? (
                 <details open>
                   <summary className="cursor-pointer lg:hidden text-sm font-semibold border-b pb-2 mb-3">
-                    PROJECT REFERENCE DETAILS
+                    Project reference details
                   </summary>
                   <h3 className="hidden lg:block text-sm font-semibold border-b pb-2 mb-3">
-                    PROJECT REFERENCE DETAILS
+                    Project reference details
                   </h3>
                   <div className="grid grid-cols-1 gap-3">
                     {showClientPOField && !poPerProject ? (
@@ -1123,7 +1123,7 @@ export default function NewFundRequestPage() {
                     {showVendorPaymentSection ? (
                       <Card>
                         <CardHeader className="pb-3">
-                          <CardTitle>SUBCONTRACTOR DETAILS</CardTitle>
+                          <CardTitle>Subcontractor details</CardTitle>
                         </CardHeader>
                         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                           <div className="sm:col-span-3">

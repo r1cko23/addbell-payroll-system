@@ -1302,7 +1302,7 @@ export default function LeaveApprovalPage() {
             {selectedRequest && (
               <>
                 <DialogHeader className="space-y-1 pb-0">
-                  <DialogTitle>Leave Request Details</DialogTitle>
+                  <DialogTitle>Leave request details</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">

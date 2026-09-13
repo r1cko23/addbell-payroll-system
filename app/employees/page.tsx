@@ -1051,10 +1051,10 @@ export default function EmployeesPage() {
                   <Select value={formData.employment_type} onValueChange={(v) => setFormData({ ...formData, employment_type: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="regular">REGULAR</SelectItem>
-                      <SelectItem value="probationary">PROBATIONARY</SelectItem>
-                      <SelectItem value="contractual">CONTRACTUAL</SelectItem>
-                      <SelectItem value="project_based">PROJECT BASED</SelectItem>
+                      <SelectItem value="regular">Regular</SelectItem>
+                      <SelectItem value="probationary">Probationary</SelectItem>
+                      <SelectItem value="contractual">Contractual</SelectItem>
+                      <SelectItem value="project_based">Project based</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

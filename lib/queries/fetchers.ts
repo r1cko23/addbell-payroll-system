@@ -16,7 +16,7 @@ export async function fetchActiveClientOptions() {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("clients")
-    .select("id, name")
+    .select("id, name, client_code")
     .eq("is_active", true)
     .order("name");
 

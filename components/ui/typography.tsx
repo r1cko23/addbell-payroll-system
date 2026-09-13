@@ -1,6 +1,6 @@
 import { ReactNode, CSSProperties, HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-import { toTitleCase } from "@/lib/to-title-case";
+import { toSentenceCase } from "@/lib/to-sentence-case";
 
 interface TypographyProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
@@ -31,7 +31,7 @@ export function PageTitle({ children, className, style, ...props }: TypographyPr
       style={style}
       {...props}
     >
-      {typeof children === "string" ? toTitleCase(children) : children}
+      {typeof children === "string" ? toSentenceCase(children) : children}
     </h1>
   );
 }
@@ -136,7 +136,7 @@ export function Label({
       style={style}
       {...props}
     >
-      {children}
+      {typeof children === "string" ? toSentenceCase(children) : children}
     </label>
   );
 }
@@ -174,7 +174,7 @@ export function SectionHeading({
       style={style}
       {...props}
     >
-      {typeof children === "string" ? toTitleCase(children) : children}
+      {typeof children === "string" ? toSentenceCase(children) : children}
     </h2>
   );
 }

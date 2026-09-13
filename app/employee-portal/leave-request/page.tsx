@@ -668,7 +668,7 @@ export default function LeaveRequestPage() {
     <>
       <div className={cn("w-full", epPageWrapper)}>
         <PortalPageHeader
-          title="Leave Request"
+          title="Leave request"
           description="Submit and track your leave requests."
         />
 

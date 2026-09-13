@@ -4,16 +4,13 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useVendors } from "@/lib/hooks/useVendors";
 import { bustCache } from "@/lib/cache-client";
-import { formatTinWithDashes, stripTinDigits, TIN_PLACEHOLDER } from "@/lib/tin-format";
+import { formatTinWithDashes, stripTinDigits } from "@/lib/tin-format";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { PageSubtitle } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -21,14 +18,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -40,8 +29,6 @@ import {
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import {
-  dbDialogContentWide,
-  dbDialogFooter,
   dbHeaderActions,
   dbHeaderButton,
   dbMobileListCard,
@@ -58,18 +45,14 @@ import {
   VENDOR_DIRECTORY_CONFIG,
   type VendorRecord,
 } from "@/components/vendor-directory/vendor-directory-config";
+import { VendorFormDialog } from "@/components/vendor-directory/VendorFormDialog";
 import {
   canonicalizePhilippinePhoneDigits,
   formatPhilippinePhoneDisplay,
   getPhilippinePhoneLabel,
-  isAcceptableVendorPhoneEntry,
-  normalizePhoneEntryForStorage,
-  formatPhilippinePhoneForInput,
-  primaryStoredPhone,
 } from "@/lib/philippine-phone";
 
 import {
-  isValidEmailAddress,
   partitionVendorContactDisplay,
   recordMatchesContactSearch,
 } from "@/lib/vendor-contacts";
@@ -129,53 +112,6 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<VendorRecord | null>(null);
 
-  const [name, setName] = useState("");
-  const [contactPerson, setContactPerson] = useState("");
-  const [tin, setTin] = useState("");
-  const [address, setAddress] = useState("");
-  const [phones, setPhones] = useState<string[]>([]);
-  const [emails, setEmails] = useState<string[]>([]);
-  const [accountName, setAccountName] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  const resetContactFields = () => {
-    setPhones([]);
-    setEmails([]);
-  };
-
-  const addPhone = () => setPhones((current) => [...current, ""]);
-  const updatePhone = (index: number, value: string) => {
-    setPhones((current) =>
-      current.map((entry, entryIndex) =>
-        entryIndex === index ? formatPhilippinePhoneForInput(value) : entry
-      )
-    );
-  };
-  const handlePhonePaste = (
-    index: number,
-    event: React.ClipboardEvent<HTMLInputElement>
-  ) => {
-    event.preventDefault();
-    const pasted = event.clipboardData.getData("text");
-    if (pasted) updatePhone(index, pasted);
-  };
-  const removePhone = (index: number) => {
-    setPhones((current) => current.filter((_, entryIndex) => entryIndex !== index));
-  };
-
-  const addEmail = () => setEmails((current) => [...current, ""]);
-  const updateEmail = (index: number, value: string) => {
-    setEmails((current) =>
-      current.map((entry, entryIndex) =>
-        entryIndex === index ? value : entry
-      )
-    );
-  };
-  const removeEmail = (index: number) => {
-    setEmails((current) => current.filter((_, entryIndex) => entryIndex !== index));
-  };
-
   useEffect(() => {
     if (isError) {
       toast.error(config.loadError);
@@ -183,127 +119,13 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
   }, [config.loadError, isError]);
 
   const handleOpenDialog = (record?: VendorRecord) => {
-    if (record) {
-      setEditingRecord(record);
-      setName(record.name);
-      setContactPerson(record.contact_person || "");
-      setTin(formatTinWithDashes(record.tin || ""));
-      setAddress(record.address || "");
-      const { phones: existingPhones, emails: existingEmails } =
-        partitionVendorContactDisplay(record);
-      setPhones(existingPhones);
-      setEmails(existingEmails);
-      setAccountName(record.account_name?.trim() ?? "");
-      setIsActive(record.is_active);
-    } else {
-      setEditingRecord(null);
-      setName("");
-      setContactPerson("");
-      setTin("");
-      setAddress("");
-      resetContactFields();
-      setAccountName("");
-      setIsActive(true);
-    }
+    setEditingRecord(record ?? null);
     setIsDialogOpen(true);
   };
 
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingRecord(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (saving) return;
-
-    if (!name.trim()) {
-      toast.error(config.nameRequired);
-      return;
-    }
-    if (!contactPerson.trim()) {
-      toast.error("Contact person is required.");
-      return;
-    }
-    if (!tin.trim()) {
-      toast.error("TIN is required.");
-      return;
-    }
-    if (!address.trim()) {
-      toast.error("Business address is required.");
-      return;
-    }
-    const normalizedPhones = phones
-      .map((entry) => normalizePhoneEntryForStorage(entry))
-      .filter(Boolean);
-    const invalidPhone = normalizedPhones.find(
-      (entry) => !isAcceptableVendorPhoneEntry(entry)
-    );
-    if (invalidPhone) {
-      toast.error(
-        "Each phone must be a valid Philippine mobile, landline, or international (+...) number."
-      );
-      return;
-    }
-    const normalizedEmails = emails
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean);
-    const invalidEmail = normalizedEmails.find((entry) => !isValidEmailAddress(entry));
-    if (invalidEmail) {
-      toast.error("Enter a valid email address or remove the invalid email.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const payload = {
-        name: name.trim(),
-        contact_person: contactPerson.trim(),
-        tin: formatTinWithDashes(tin),
-        address: address.trim(),
-        phones: normalizedPhones,
-        emails: normalizedEmails,
-        phone: primaryStoredPhone(normalizedPhones[0] ?? ""),
-        email: normalizedEmails[0] ?? "",
-        ...(vendorType === "subcontractor"
-          ? { account_name: accountName.trim() || null }
-          : {}),
-        type: vendorType,
-        is_active: isActive,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (editingRecord) {
-        const { error } = await supabase
-          .from("vendors")
-          .update(payload)
-          .eq("id", editingRecord.id);
-
-        if (error) throw error;
-        toast.success(config.updateSuccess);
-      } else {
-        const { error } = await supabase.from("vendors").insert(payload);
-
-        if (error) throw error;
-        toast.success(config.createSuccess);
-      }
-
-      handleCloseDialog();
-      await bustCache();
-      await refresh({ force: true });
-    } catch (error: unknown) {
-      const message = (error as Error).message || config.saveError;
-      if (message.includes("account_name")) {
-        toast.error(
-          "Account name column is missing. Run the vendors account_name migration in Supabase, then try again."
-        );
-      } else {
-        toast.error(message);
-      }
-      console.error(error);
-    } finally {
-      setSaving(false);
-    }
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) setEditingRecord(null);
   };
 
   const handleDelete = async (record: VendorRecord) => {
@@ -545,179 +367,15 @@ export function VendorDirectoryPage({ vendorType }: VendorDirectoryPageProps) {
         </Card>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className={dbDialogContentWide}>
-          <DialogHeader>
-            <DialogTitle>
-              {editingRecord ? config.dialogEditTitle : config.dialogAddTitle}
-            </DialogTitle>
-            <DialogDescription>
-              {editingRecord
-                ? config.dialogEditDescription
-                : config.dialogAddDescription}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="name">{config.nameLabel} *</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={config.namePlaceholder}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="address">Business Address *</Label>
-              <Textarea
-                id="address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="Street, Barangay, City, Province"
-                rows={2}
-                required
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="tin">TIN *</Label>
-                <Input
-                  id="tin"
-                  value={tin}
-                  onChange={(e) => setTin(formatTinWithDashes(e.target.value))}
-                  placeholder={TIN_PLACEHOLDER}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="contact_person">Contact Person *</Label>
-                <Input
-                  id="contact_person"
-                  value={contactPerson}
-                  onChange={(e) => setContactPerson(e.target.value)}
-                  placeholder="Primary contact person"
-                  required
-                />
-              </div>
-            </div>
-            {vendorType === "subcontractor" ? (
-              <div>
-                <Label htmlFor="account_name">Account Name</Label>
-                <Input
-                  id="account_name"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                  placeholder="Bank account name for payments"
-                />
-              </div>
-            ) : null}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <Label>Phone</Label>
-                {phones.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {phones.map((entry, index) => (
-                      <div key={`phone-${index}`} className="flex gap-2">
-                        <Input
-                          value={entry}
-                          onChange={(e) => updatePhone(index, e.target.value)}
-                          onPaste={(e) => handlePhonePaste(index, e)}
-                          placeholder="09XXXXXXXXX or 02XXXXXXXX"
-                          inputMode="tel"
-                          autoComplete="tel"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removePhone(index)}
-                          aria-label="Remove phone"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">No phone added yet.</p>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={cn(dbHeaderButton, "mt-2")}
-                  onClick={addPhone}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add phone
-                </Button>
-              </div>
-              <div>
-                <Label>Email</Label>
-                {emails.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {emails.map((entry, index) => (
-                      <div key={`email-${index}`} className="flex gap-2">
-                        <Input
-                          type="email"
-                          value={entry}
-                          onChange={(e) => updateEmail(index, e.target.value)}
-                          placeholder="vendor@example.com"
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => removeEmail(index)}
-                          aria-label="Remove email"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-muted-foreground">No email added yet.</p>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={cn(dbHeaderButton, "mt-2")}
-                  onClick={addEmail}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add email
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="record_status"
-                checked={isActive}
-                onCheckedChange={(checked) => setIsActive(checked === true)}
-              />
-              <Label htmlFor="record_status" className="font-normal">
-                Active
-              </Label>
-            </div>
-            <DialogFooter className={dbDialogFooter}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCloseDialog}
-                disabled={saving}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : editingRecord ? "Update" : "Create"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <VendorFormDialog
+        vendorType={vendorType}
+        open={isDialogOpen}
+        onOpenChange={handleDialogOpenChange}
+        editingRecord={editingRecord}
+        onSaved={async () => {
+          await refresh({ force: true });
+        }}
+      />
     </DashboardLayout>
   );
 }

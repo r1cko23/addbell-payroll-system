@@ -97,7 +97,7 @@ describe("fund request return correction", () => {
         fields: ["totalRequested", "poAmount"],
         otherReason: "",
       })
-    ).toBe("Correct: Total Requested Amount, P.O. Amount");
+    ).toBe("Correct: Total requested amount, P.O. amount");
     expect(
       formatFundRequestReturnReason({
         fields: ["others"],

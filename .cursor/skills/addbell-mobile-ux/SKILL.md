@@ -55,7 +55,7 @@ Test at **~390px** (iPhone), **~412px** (Android), **768px** (tablet), and **128
 7. **Dialogs** — portal: `epDialogContent` / `epDialogContentWide`; dashboard: `dbDialogFooter` for stacked mobile actions.
 8. **Tabs** — `TabsList` with `overflow-x-auto` when many tabs (fund request page pattern).
 9. **Motion** — no hover-only affordances on touch; use `motion-safe:md:hover:…` or `epCardInteractive`.
-10. **Copy** — dashboard page titles and subtitles use **title case** via `toTitleCase` (`DashboardPageHeader`, `CardSection` descriptions, dashboard home `CardDescription`). Employee portal body copy stays **sentence case** with a period.
+10. **Copy** — page headers, form labels, and card titles use **sentence case** (`toSentenceCase` on `PageTitle`, `Label`, `CardTitle`). Subtitles stay sentence case and end with a period. Do not wrap UI chrome in `toTitleCase`.
 
 ## Pre-ship checklist
 
@@ -74,7 +74,7 @@ Test at **~390px** (iPhone), **~412px** (Android), **768px** (tablet), and **128
 | Table-only layout on mobile | Add `DbMobileBlock` card list |
 | `setShowRejectForm`-style dead state | Match existing disposal/action patterns |
 | Raw `grid-cols-3` on form rows without mobile collapse | `grid-cols-1 sm:grid-cols-3` or side-by-side only from `sm:` |
-| Title case on employee portal body subtitles | Dashboard titles/subtitles use `toTitleCase`; portal subtitles stay sentence case |
+| Title case on page headers or form labels | Use sentence case (`toSentenceCase`); keep `toTitleCase` for names only |
 | Loading 5MB images to DB | Use `compressImageForUpload` + Storage (fund request docs) |
 
 ## Audit output format

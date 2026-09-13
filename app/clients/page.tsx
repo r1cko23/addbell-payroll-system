@@ -45,6 +45,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { dbDialogContent, dbDialogFooter, dbHeaderActions, dbHeaderButton, dbMobileListCard, dbPageHeaderRow, dbPageWrapper, dbTableShell } from "@/lib/dashboard-ui";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
+import { nextClientPoCode } from "@/lib/client-po-code";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -109,7 +110,12 @@ export default function ClientsPage() {
       setIsActive(client.is_active);
     } else {
       setEditingClient(null);
-      setClientCode("");
+      const usedCodes = new Set(
+        clients
+          .map((client) => client.client_code?.trim())
+          .filter((code): code is string => Boolean(code))
+      );
+      setClientCode(nextClientPoCode(usedCodes));
       setClientName("");
       setContactPerson("");
       setContactEmail("");
@@ -131,7 +137,7 @@ export default function ClientsPage() {
     e.preventDefault();
 
     if (!clientCode.trim() || !clientName.trim()) {
-      toast.error("Client code and name are required");
+      toast.error("PO code and name are required");
       return;
     }
     if (!address.trim()) {
@@ -248,14 +254,14 @@ export default function ClientsPage() {
               <div className={dbHeaderActions}>
                 <Button onClick={() => handleOpenDialog()} className={dbHeaderButton}>
                   <Plus className="h-4 w-4 mr-2" />
-                  New Client
+                  New client
                 </Button>
               </div>
             </DialogTrigger>
             <DialogContent className={cn(dbDialogContent, "max-w-2xl")}>
               <DialogHeader>
                 <DialogTitle>
-                  {editingClient ? "Edit Client" : "Add Client"}
+                  {editingClient ? "Edit client" : "Add client"}
                 </DialogTitle>
                 <DialogDescription>
                   {editingClient
@@ -266,14 +272,14 @@ export default function ClientsPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="client_code">Client Code *</Label>
+                    <Label htmlFor="client_code">PO Code *</Label>
                     <Input
                       id="client_code"
                       value={clientCode}
                       onChange={(e) => setClientCode(e.target.value)}
                       required
                       disabled={!!editingClient}
-                      placeholder="e.g. PUC, SMC"
+                      placeholder="e.g. 01"
                     />
                   </div>
                   <div>
@@ -452,7 +458,7 @@ export default function ClientsPage() {
                 <Table className="w-full min-w-[960px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Code</TableHead>
+                      <TableHead>PO Code</TableHead>
                       <TableHead>Client Name</TableHead>
                       <TableHead>BU/Sub</TableHead>
                       <TableHead>Contact person</TableHead>

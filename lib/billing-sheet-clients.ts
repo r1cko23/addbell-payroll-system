@@ -1,3 +1,5 @@
+import { nextClientPoCode } from "@/lib/client-po-code";
+
 const PO_HEADER_CANDIDATES = [
   "P.O. NO.",
   "P.O. NO",
@@ -29,20 +31,6 @@ const REJECTED_CLIENT_NAMES = new Set([
   "na",
   "-",
   "—",
-]);
-
-const CODE_STOP_WORDS = new Set([
-  "INC",
-  "LLC",
-  "CORP",
-  "CORPORATION",
-  "CO",
-  "COMPANY",
-  "THE",
-  "AND",
-  "OF",
-  "PHILIPPINES",
-  "PHIL",
 ]);
 
 export type BillingSheetClientPoRow = {
@@ -116,32 +104,8 @@ export function splitClientBusinessUnit(name: string): {
   };
 }
 
-export function deriveClientCode(name: string, used: Set<string>): string {
-  const words = name
-    .replace(/[^A-Za-z0-9]+/g, " ")
-    .trim()
-    .split(/\s+/)
-    .filter((word) => word && !CODE_STOP_WORDS.has(word.toUpperCase()));
-  let base =
-    words.length === 0
-      ? "CL"
-      : words.length === 1
-        ? words[0].slice(0, 6).toUpperCase()
-        : words
-            .map((word) => word[0])
-            .join("")
-            .slice(0, 8)
-            .toUpperCase();
-  if (!base) base = "CL";
-  if (!used.has(base)) {
-    used.add(base);
-    return base;
-  }
-  let suffix = 2;
-  while (used.has(`${base}${suffix}`)) suffix += 1;
-  const code = `${base}${suffix}`;
-  used.add(code);
-  return code;
+export function deriveClientCode(_name: string, used: Set<string>): string {
+  return nextClientPoCode(used);
 }
 
 export function parseBillingSheetClientRows(rows: string[][]): BillingSheetClientPoRow[] {

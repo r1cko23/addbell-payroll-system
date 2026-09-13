@@ -498,7 +498,7 @@ export default function OvertimePage() {
 
   return (
     <div className={cn("w-full", epPageWrapper)}>
-      <PortalPageHeader title="OT Filing" />
+      <PortalPageHeader title="OT filing" />
       <Card className={epFormCard}>
         <CardHeader className="px-3 pb-3 pt-4 md:px-6 md:pb-4 md:pt-6">
           <CardTitle>

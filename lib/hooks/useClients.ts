@@ -29,9 +29,10 @@ export function useClients() {
   };
 }
 
-export function useActiveClients() {
+export function useActiveClients(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.clients.activeOptions(),
     queryFn: fetchActiveClientOptions,
+    enabled: options?.enabled ?? true,
   });
 }

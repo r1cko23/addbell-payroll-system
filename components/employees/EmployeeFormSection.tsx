@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { CaretDown } from "phosphor-react";
 import { cn } from "@/lib/utils";
-import { toTitleCase } from "@/lib/to-title-case";
+import { toSentenceCase } from "@/lib/to-sentence-case";
 
 type EmployeeFormSectionProps = {
   title: string;
@@ -36,9 +36,9 @@ export function EmployeeFormSection({
         aria-expanded={open}
       >
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{toTitleCase(title)}</p>
+          <p className="text-sm font-semibold text-foreground">{toSentenceCase(title)}</p>
           {description ? (
-            <p className="text-xs text-muted-foreground mt-0.5">{toTitleCase(description)}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
           ) : null}
         </div>
         <CaretDown

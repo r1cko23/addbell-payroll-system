@@ -336,7 +336,7 @@ export default function AttlogImportPage() {
       <div className={cn("w-full", dbPageWrapper)}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">AttLog Import</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">AttLog import</h1>
             <p className="text-sm text-muted-foreground">
               Upload a ZKTeco LX50 `AttLog` file, review the preview, then import it into
               `time_entries`.

@@ -109,7 +109,7 @@ export default function EmployeeMyTimesheetPage() {
       <div className={cn("mx-auto w-full max-w-6xl", epPageWrapper)}>
         <div className={epPageHeaderRow}>
           <PortalPageHeader
-            title="My Timesheet"
+            title="My timesheet"
             description="Weekly attendance summary by cutoff period."
             className="min-w-0 flex-1 border-0 pb-0 sm:pb-0 md:pb-0 lg:pb-0"
           />

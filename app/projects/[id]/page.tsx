@@ -520,7 +520,7 @@ export default function ProjectDetailPage() {
                     <Button onClick={openAssignDialog}><Plus className="h-4 w-4 mr-2" />Assign Employee</Button>
                   </DialogTrigger>
                   <DialogContent className={dbDialogContent}>
-                    <DialogHeader><DialogTitle>Assign Employee to Project</DialogTitle><DialogDescription>Add an employee to this project&apos;s team.</DialogDescription></DialogHeader>
+                    <DialogHeader><DialogTitle>Assign employee to project</DialogTitle><DialogDescription>Add an employee to this project's team.</DialogDescription></DialogHeader>
                     <form onSubmit={handleAssignEmployee} className="space-y-4">
                       <div>
                         <Label>Employee *</Label>
@@ -605,7 +605,7 @@ export default function ProjectDetailPage() {
                 <Dialog open={isProgressDialogOpen} onOpenChange={setIsProgressDialogOpen}>
                   <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" />Update Progress</Button></DialogTrigger>
                   <DialogContent className={dbDialogContent}>
-                    <DialogHeader><DialogTitle>Update Project Progress</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Update project progress</DialogTitle></DialogHeader>
                     <form onSubmit={handleUpdateProgress} className="space-y-4">
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div><Label>Date *</Label><Input type="date" value={progressDate} onChange={(e) => setProgressDate(e.target.value)} required /></div>

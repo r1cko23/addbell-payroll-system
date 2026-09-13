@@ -282,7 +282,7 @@ export default function EmployeePayslipsPage() {
       <div className={cn("mx-auto w-full max-w-6xl", epPageWrapper)}>
         <div className={epPageHeaderRow}>
           <PortalPageHeader
-            title="My Payslips"
+            title="My payslips"
             description="View and download your payslip records."
             className="min-w-0 flex-1 border-0 pb-0 sm:pb-0 md:pb-0 lg:pb-0"
           />

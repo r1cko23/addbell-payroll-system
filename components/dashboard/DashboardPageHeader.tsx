@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import { H1, PageSubtitle } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
-import { toTitleCase } from "@/lib/to-title-case";
 import { dbPageHeaderRow } from "@/lib/dashboard-ui";
 
 export type DashboardPageHeaderProps = {
@@ -40,12 +39,12 @@ export function DashboardPageHeader({
             titleClassName
           )}
         >
-          {toTitleCase(title)}
+          {title}
         </H1>
         {description != null && description !== "" ? (
           typeof description === "string" ? (
             <PageSubtitle className="max-w-2xl text-pretty">
-              {toTitleCase(description)}
+              {description}
             </PageSubtitle>
           ) : (
             <div className="max-w-2xl text-sm leading-relaxed text-muted-foreground">

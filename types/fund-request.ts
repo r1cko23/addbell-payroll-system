@@ -1,8 +1,8 @@
 export type FundRequestReferenceMode = "client_linked" | "internal_stock";
 
 export const FUND_REQUEST_REFERENCE_MODE_LABELS: Record<FundRequestReferenceMode, string> = {
-  client_linked: "Client-Linked Requests",
-  internal_stock: "Office-Related Requests",
+  client_linked: "Client-linked requests",
+  internal_stock: "Office-related requests",
 };
 
 export function getFundRequestReferenceModeLabel(
@@ -44,24 +44,24 @@ export function isSubcontractorPaymentPurpose(
 }
 
 export const FUND_REQUEST_FIELD_LABELS = {
-  poNumber: "P.O. Number",
-  projectTitle: "Project Title",
-  projectLocation: "Project Location",
-  subcontractorName: "Subcontractor Name",
-  subcontractorProgress: "Subcontractor Current Progress Percentage",
-  subcontractorPoAmount: "Subcontractor P.O. Amount",
-  progressBillingMilestone: "Progress Billing Milestone",
-  billingInvoiceNumber: "Invoice Number",
-  billingInvoiceStatus: "Invoice Status",
-  projectCompletion: "Current Project Completion Percentage",
-  poAmount: "P.O. Amount",
-  supplierBankDetails: "Bank Details",
-  referenceBasis: "Reference Basis",
+  poNumber: "P.O. number",
+  projectTitle: "Project title",
+  projectLocation: "Project location",
+  subcontractorName: "Subcontractor name",
+  subcontractorProgress: "Subcontractor current progress percentage",
+  subcontractorPoAmount: "Subcontractor P.O. amount",
+  progressBillingMilestone: "Progress billing milestone",
+  billingInvoiceNumber: "Invoice number",
+  billingInvoiceStatus: "Invoice status",
+  projectCompletion: "Current project completion percentage",
+  poAmount: "P.O. amount",
+  supplierBankDetails: "Bank details",
+  referenceBasis: "Reference basis",
   purpose: "Purpose",
   remarks: "Remarks",
-  dateNeeded: "Date Needed",
-  urgentReason: "Reason for Urgency",
-  totalRequested: "Total Requested Amount",
+  dateNeeded: "Date needed",
+  urgentReason: "Reason for urgency",
+  totalRequested: "Total requested amount",
 } as const;
 
 export const FUND_REQUEST_STATUS_LABELS: Record<string, string> = {

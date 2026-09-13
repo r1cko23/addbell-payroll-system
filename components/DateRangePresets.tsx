@@ -625,7 +625,7 @@ export function DateRangePresets({
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Select Date Range</DialogTitle>
+                  <DialogTitle>Select date range</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   {/* Calendar Navigation */}

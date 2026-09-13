@@ -4018,7 +4018,7 @@ export default function PayslipsPage() {
               {selectedEmployee && attendanceForPrint && (
                 <>
                   <DialogHeader>
-                    <DialogTitle>Payslip Preview</DialogTitle>
+                    <DialogTitle>Payslip preview</DialogTitle>
                   </DialogHeader>
                   <VStack gap="4">
                     <PayslipPrint

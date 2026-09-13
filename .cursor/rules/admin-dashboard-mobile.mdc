@@ -38,8 +38,8 @@ Use `DbMobileBlock` / `DbDesktopBlock` when mobile needs card stacks and desktop
 
 - **Sentence case** — capitalize only the first word (and proper nouns/acronyms).
 - **End with a period.**
-- Use `PageSubtitle` or `CardDescription` — do **not** rely on `toTitleCase` for descriptions.
-- Titles/headings may still use `toTitleCase` via `PageTitle`, `CardTitle`, `SectionHeading`.
+- Use `PageSubtitle` or `CardDescription` — do **not** title-case descriptions.
+- Page headers, form labels, and card titles use **sentence case** via `toSentenceCase` (`PageTitle`, `CardTitle`, `SectionHeading`, `Label`). Do not wrap them in `toTitleCase`.
 
 ## Page headers
 

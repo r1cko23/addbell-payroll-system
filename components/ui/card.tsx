@@ -1,7 +1,7 @@
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
-import { toTitleCase } from "@/lib/to-title-case";
+import { toSentenceCase } from "@/lib/to-sentence-case";
 
 const Card = React.forwardRef<
   HTMLDivElement,
@@ -42,7 +42,7 @@ const CardTitle = React.forwardRef<
     )}
     {...props}
   >
-    {typeof children === "string" ? toTitleCase(children) : children}
+    {typeof children === "string" ? toSentenceCase(children) : children}
   </div>
 ));
 CardTitle.displayName = "CardTitle";

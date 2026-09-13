@@ -93,11 +93,17 @@ async function fetchPoMasterlistJobs(
   };
 }
 
-export function usePoMasterlistJobs(filters: PoMasterlistJobFilters = {}) {
+export const PO_MASTERLIST_PICKER_PAGE_SIZE = 20;
+
+export function usePoMasterlistJobs(
+  filters: PoMasterlistJobFilters = {},
+  options?: { enabled?: boolean }
+) {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: queryKeys.poMasterlistJobs.list(filters),
     queryFn: () => fetchPoMasterlistJobs(filters),
+    enabled: options?.enabled ?? true,
   });
 
   const invalidate = useCallback(() => {

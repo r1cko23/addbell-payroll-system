@@ -68,7 +68,7 @@ export default function EmployeePortalProjectTimePage() {
   if (!employeeId) {
     return (
       <div className={cn("w-full", epPageWrapper)}>
-        <PortalPageHeader title="Project Assignments" />
+        <PortalPageHeader title="Project assignments" />
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             Employee session not found. Please log in again.
@@ -80,7 +80,7 @@ export default function EmployeePortalProjectTimePage() {
 
   return (
     <div className={cn("w-full", epPageWrapper)}>
-      <PortalPageHeader title="Project Assignments" />
+      <PortalPageHeader title="Project assignments" />
 
       {loading ? (
         <div className="animate-pulse h-32 bg-muted rounded-lg" />

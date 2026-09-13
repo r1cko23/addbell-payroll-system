@@ -13,7 +13,7 @@
     },
     {
       "path": "/api/po-masterlist/sheet-pull",
-      "schedule": "0 * * * *"
+      "schedule": "0 17 * * *"
     }
   ]
 }

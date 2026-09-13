@@ -169,7 +169,7 @@ export async function verifyHrDashboardAccess(): Promise<{
 
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
-    .select("role, permissions")
+    .select("role, permissions, employee_id")
     .eq("id", user.id)
     .eq("is_active", true)
     .single();
@@ -180,7 +180,12 @@ export async function verifyHrDashboardAccess(): Promise<{
 
   const permissions = mergePermissions(
     profileData.role,
-    profileData.permissions as Parameters<typeof mergePermissions>[1]
+    profileData.permissions as Parameters<typeof mergePermissions>[1],
+    {
+      userId: user.id,
+      employeeId:
+        (profileData as { employee_id?: string | null }).employee_id ?? null,
+    }
   );
 
   if (!permissions.dashboard.read) {
@@ -207,7 +212,7 @@ export async function verifyProjectDeleteAccess(): Promise<{
 
   const { data: profileData, error: profileError } = await supabase
     .from("profiles")
-    .select("role, permissions")
+    .select("role, permissions, employee_id")
     .eq("id", user.id)
     .eq("is_active", true)
     .single();
@@ -218,7 +223,12 @@ export async function verifyProjectDeleteAccess(): Promise<{
 
   const permissions = mergePermissions(
     profileData.role,
-    profileData.permissions as Parameters<typeof mergePermissions>[1]
+    profileData.permissions as Parameters<typeof mergePermissions>[1],
+    {
+      userId: user.id,
+      employeeId:
+        (profileData as { employee_id?: string | null }).employee_id ?? null,
+    }
   );
 
   if (!permissions.projects.delete) {

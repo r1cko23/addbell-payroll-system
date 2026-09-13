@@ -3,6 +3,13 @@
  * Used by middleware, API routes, and the usePermissions hook.
  */
 
+import {
+  applyNamedPurchaseOrderGrants,
+  type PermissionActor,
+} from "@/lib/purchase-order-access";
+
+export type { PermissionActor };
+
 // Define all available modules in the system
 export const MODULES = {
   dashboard: "dashboard",
@@ -347,23 +354,32 @@ export function getDefaultPermissionsForRole(role: string): UserPermissions {
   return DEFAULT_PERMISSIONS[role] || EMPTY_PERMISSIONS;
 }
 
+function clonePermissions(source: UserPermissions): UserPermissions {
+  const cloned = { ...source };
+  for (const module of Object.keys(cloned) as ModuleName[]) {
+    cloned[module] = { ...cloned[module] };
+  }
+  return cloned;
+}
+
 /**
- * Merge custom permissions with role defaults
+ * Merge custom permissions with role defaults.
+ * Optional `actor` applies named-person overlays (does not change role).
  */
 export function mergePermissions(
   role: string,
-  customPermissions: Partial<UserPermissions> | null
+  customPermissions: Partial<UserPermissions> | null,
+  actor?: PermissionActor | null
 ): UserPermissions {
-  const defaults = getDefaultPermissionsForRole(role);
-  if (!customPermissions) return defaults;
-
-  const merged = { ...defaults };
-  for (const [module, perms] of Object.entries(customPermissions)) {
-    if (merged[module as ModuleName]) {
-      merged[module as ModuleName] = {
-        ...merged[module as ModuleName],
-        ...perms,
-      };
+  const merged = clonePermissions(getDefaultPermissionsForRole(role));
+  if (customPermissions) {
+    for (const [module, perms] of Object.entries(customPermissions)) {
+      if (merged[module as ModuleName]) {
+        merged[module as ModuleName] = {
+          ...merged[module as ModuleName],
+          ...perms,
+        };
+      }
     }
   }
 
@@ -385,5 +401,5 @@ export function mergePermissions(
     }
   }
 
-  return merged;
+  return applyNamedPurchaseOrderGrants(merged, actor);
 }

@@ -28,7 +28,7 @@ async function hasPullAccess(): Promise<boolean> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, permissions, is_active")
+    .select("role, permissions, is_active, employee_id")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.is_active) return false;
@@ -38,7 +38,11 @@ async function hasPullAccess(): Promise<boolean> {
 
   const permissions = mergePermissions(
     profile.role,
-    profile.permissions as Parameters<typeof mergePermissions>[1]
+    profile.permissions as Parameters<typeof mergePermissions>[1],
+    {
+      userId: user.id,
+      employeeId: (profile as { employee_id?: string | null }).employee_id ?? null,
+    }
   );
   return permissions.projects.read;
 }

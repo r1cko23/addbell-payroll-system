@@ -106,7 +106,7 @@ export async function middleware(req: NextRequest) {
       if (user) {
         const { data: userData } = await supabase
           .from("profiles")
-          .select("role, permissions")
+          .select("role, permissions, employee_id")
           .eq("id", user.id)
           .eq("is_active", true)
           .single();
@@ -115,11 +115,13 @@ export async function middleware(req: NextRequest) {
           const userRecord = userData as {
             role: string;
             permissions?: Partial<UserPermissions> | null;
+            employee_id?: string | null;
           };
 
           const mergedPermissions = mergePermissions(
             userRecord.role,
-            userRecord.permissions ?? null
+            userRecord.permissions ?? null,
+            { userId: user.id, employeeId: userRecord.employee_id ?? null }
           );
 
           // Redirect approvers/viewers to allowed pages only
@@ -175,14 +177,15 @@ export async function middleware(req: NextRequest) {
       if (user) {
         const { data: profileData } = await supabase
           .from("profiles")
-          .select("role, permissions")
+          .select("role, permissions, employee_id")
           .eq("id", user.id)
           .eq("is_active", true)
           .single();
         if (profileData) {
           landingPath = getDefaultLandingRoute(
             profileData.role,
-            profileData.permissions as Partial<UserPermissions> | null
+            profileData.permissions as Partial<UserPermissions> | null,
+            { userId: user.id, employeeId: profileData.employee_id ?? null }
           );
         }
       }

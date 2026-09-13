@@ -1,6 +1,7 @@
 import {
   mergePermissions,
   type ModuleName,
+  type PermissionActor,
   type UserPermissions,
 } from "@/lib/permissions";
 import { normalizeUserRole } from "@/lib/user-roles";
@@ -56,9 +57,14 @@ export function resolveDefaultLandingRoute(
 
 export function getDefaultLandingRoute(
   role: string,
-  customPermissions: Partial<UserPermissions> | null | undefined
+  customPermissions: Partial<UserPermissions> | null | undefined,
+  actor?: PermissionActor | null
 ): string {
   const normalizedRole = normalizeUserRole(role) ?? role.trim().toLowerCase();
-  const merged = mergePermissions(normalizedRole, customPermissions ?? null);
+  const merged = mergePermissions(
+    normalizedRole,
+    customPermissions ?? null,
+    actor
+  );
   return resolveDefaultLandingRoute(normalizedRole, merged);
 }

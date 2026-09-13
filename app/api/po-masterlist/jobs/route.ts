@@ -8,6 +8,7 @@ import {
   canCreatePoMasterlistJob,
   getEditablePoMasterlistColumnsForRole,
 } from "@/lib/po-masterlist-column-acl";
+import { canReadPurchaseOrderJobCatalog } from "@/lib/purchase-order-access";
 import { schedulePoMasterlistSheetWriteback } from "@/lib/po-masterlist-sheet-writeback";
 import {
   nextAddBellSheetRow,
@@ -51,7 +52,7 @@ async function getProjectsAccess(): Promise<{
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, permissions, is_active")
+    .select("role, permissions, is_active, employee_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -59,13 +60,17 @@ async function getProjectsAccess(): Promise<{
 
   const permissions = mergePermissions(
     profile.role,
-    profile.permissions as Parameters<typeof mergePermissions>[1]
+    profile.permissions as Parameters<typeof mergePermissions>[1],
+    {
+      userId: user.id,
+      employeeId: (profile as { employee_id?: string | null }).employee_id ?? null,
+    }
   );
 
   return {
     userId: user.id,
     role: profile.role,
-    canRead: permissions.projects.read,
+    canRead: canReadPurchaseOrderJobCatalog(permissions),
     canUpdate: permissions.projects.update,
     canCreate: permissions.projects.create || canCreatePoMasterlistJob(profile.role),
   };

@@ -10,8 +10,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useCurrentUser } from "./useCurrentUser";
 import {
   mergePermissions,
-  DEFAULT_PERMISSIONS,
-  EMPTY_PERMISSIONS,
   type ModuleName,
   type ActionName,
   type UserPermissions,
@@ -72,7 +70,7 @@ export function usePermissions(): UsePermissionsReturn {
       const supabase = createClient();
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("role, permissions")
+        .select("role, permissions, employee_id")
         .eq("id", user.id)
         .single();
 
@@ -81,9 +79,14 @@ export function usePermissions(): UsePermissionsReturn {
       const resolvedRole =
         (profileData?.role as string | undefined) || user.role || "viewer";
       const normalizedRole = resolvedRole.trim().toLowerCase().replace(/\s+/g, "_");
+      const actor = {
+        userId: user.id,
+        employeeId: (profileData?.employee_id as string | null | undefined) ?? null,
+      };
       const mergedPermissions = mergePermissions(
         normalizedRole,
-        (profileData?.permissions as Partial<UserPermissions> | null | undefined) ?? null
+        (profileData?.permissions as Partial<UserPermissions> | null | undefined) ?? null,
+        actor
       );
 
       setPermissions(mergedPermissions);
@@ -96,7 +99,7 @@ export function usePermissions(): UsePermissionsReturn {
     } catch (err: unknown) {
       console.error("Error fetching permissions:", err);
       const normalizedRole = (user.role || "viewer").trim().toLowerCase().replace(/\s+/g, "_");
-      const defaultPerms = DEFAULT_PERMISSIONS[normalizedRole] || EMPTY_PERMISSIONS;
+      const defaultPerms = mergePermissions(normalizedRole, null, { userId: user.id });
       setPermissions(defaultPerms);
       setError(err instanceof Error ? err.message : "Failed to load permissions");
     } finally {

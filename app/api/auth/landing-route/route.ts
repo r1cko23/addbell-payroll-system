@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest) {
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("role, permissions")
+      .select("role, permissions, employee_id")
       .eq("id", authUser.id)
       .eq("is_active", true)
       .single();
@@ -38,7 +38,8 @@ export async function GET(_request: NextRequest) {
 
     const route = getDefaultLandingRoute(
       profileData.role,
-      profileData.permissions as Partial<UserPermissions> | null
+      profileData.permissions as Partial<UserPermissions> | null,
+      { userId: authUser.id, employeeId: profileData.employee_id ?? null }
     );
 
     return successResponse({ route });

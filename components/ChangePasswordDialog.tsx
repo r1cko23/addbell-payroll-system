@@ -38,8 +38,8 @@ export function ChangePasswordDialog({
 }: ChangePasswordDialogProps) {
   const compactClass =
     compactBelow === "md"
-      ? "h-9 w-9 px-0 md:h-9 md:w-auto md:px-3"
-      : "h-9 w-9 px-0 sm:h-9 sm:w-auto sm:px-3";
+      ? "h-11 w-11 min-h-11 px-0 md:h-11 md:min-h-11 md:w-auto md:px-3"
+      : "h-11 w-11 min-h-11 px-0 sm:h-11 sm:min-h-11 sm:w-auto sm:px-3";
   const labelHiddenClass =
     compactBelow === "md" ? "hidden md:inline" : "hidden sm:inline";
   const [open, setOpen] = useState(false);
@@ -145,13 +145,13 @@ export function ChangePasswordDialog({
           variant="outline"
           size="sm"
           className={cn(
-            "inline-flex items-center justify-center gap-1.5 rounded-xl text-sm font-medium",
-            compactClass,
-            className
+            "inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-medium",
+            className,
+            compactClass
           )}
           aria-label="Change password"
         >
-          <Key className="h-4 w-4 shrink-0" weight="bold" />
+          <Key className="h-4 w-4 shrink-0" weight="bold" aria-hidden />
           <span className={labelHiddenClass}>Change password</span>
         </Button>
       </DialogTrigger>

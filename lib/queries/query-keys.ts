@@ -9,6 +9,18 @@ export const queryKeys = {
     list: () => [...queryKeys.projects.all, "list"] as const,
     poPicker: () => [...queryKeys.projects.all, "po-picker"] as const,
   },
+  poMasterlistJobs: {
+    all: ["po-masterlist-jobs"] as const,
+    list: (filters: {
+      q?: string;
+      project_statuses?: string[];
+      payment_statuses?: string[];
+      clients?: string[];
+      years?: string[];
+      page?: number;
+      pageSize?: number;
+    }) => [...queryKeys.poMasterlistJobs.all, "list", filters] as const,
+  },
   vendors: {
     all: ["vendors"] as const,
     byType: (type: "supplier" | "subcontractor") =>

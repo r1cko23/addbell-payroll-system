@@ -1,11 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { List, CaretDown } from "phosphor-react";
 import { Button } from "@/components/ui/button";
+import { DashboardTopNav } from "@/components/DashboardTopNav";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +22,13 @@ import { formatRoleName } from "@/lib/formatRoleName";
 import { formatProfileDisplayName } from "@/lib/format-profile-display-name";
 import { Badge } from "@/components/ui/badge";
 import { ChangePasswordDialog } from "@/components/ChangePasswordDialog";
+import {
+  dbAppBar,
+  dbAppBarAvatarFallback,
+  dbAppBarGhostButton,
+  dbAppBarOutlineButton,
+} from "@/lib/dashboard-ui";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -193,40 +202,52 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="app-shell-header sticky top-0 z-30 flex items-center border-b border-border bg-card px-4 sm:px-6 xl:px-8">
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {onMenuClick ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 lg:hidden"
-              onClick={onMenuClick}
-              aria-label="Open navigation"
-            >
-              <List className="h-5 w-5" weight="bold" />
-            </Button>
-          ) : null}
-        </div>
+    <header className={cn(dbAppBar, "bg-sidebar text-sidebar-foreground")}>
+      <div className="flex w-full items-center gap-2 sm:gap-3">
+        {onMenuClick ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn("shrink-0 md:hidden", dbAppBarGhostButton)}
+            onClick={onMenuClick}
+            aria-label="Open navigation"
+          >
+            <List className="h-5 w-5" weight="bold" aria-hidden />
+          </Button>
+        ) : null}
+        <Link href="/dashboard" className="flex shrink-0 items-center">
+          <img
+            src="/add-bell-logo-on-dark.png?v=9"
+            alt="Add-bell Technical Services, Inc."
+            className="h-9 w-auto max-w-[9rem] object-contain"
+          />
+        </Link>
+        <DashboardTopNav className="hidden min-w-0 flex-1 md:flex" />
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          <ChangePasswordDialog variant="dashboard" />
+          <ChangePasswordDialog
+            variant="dashboard"
+            className={dbAppBarOutlineButton}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-auto rounded-md border border-transparent px-2 py-1.5 hover:bg-muted sm:px-3"
+                className={cn(
+                  dbAppBarGhostButton,
+                  "h-auto min-h-11 border border-transparent px-2 py-1.5 sm:px-3"
+                )}
               >
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarImage
                     src={profilePictureUrl || undefined}
                     alt={displayName || user?.email || "User"}
                   />
-                  <AvatarFallback className="bg-primary text-xs font-medium text-primary-foreground">
+                  <AvatarFallback className={dbAppBarAvatarFallback}>
                     {getInitials()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="hidden flex-col items-start sm:flex">
-                  <span className="text-sm font-medium text-foreground">
+                  <span className="text-sm font-medium text-sidebar-foreground">
                     {displayName || user?.email}
                   </span>
                   {userRole ? (
@@ -238,7 +259,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                     </Badge>
                   ) : null}
                 </div>
-                <CaretDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <CaretDown className="h-4 w-4 shrink-0 text-sidebar-muted" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

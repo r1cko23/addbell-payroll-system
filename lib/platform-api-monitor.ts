@@ -15,7 +15,7 @@ export const VERCEL_HOBBY_LIMITS = {
   serverlessExecutionHours: 100,
   serverlessMaxDurationSeconds: 10,
   maxRequestBodyBytes: 4.5 * 1024 * 1024,
-  cronJobs: 2,
+  cronJobs: 3,
 } as const;
 
 export type GooglePlatformMonitorSnapshot = {

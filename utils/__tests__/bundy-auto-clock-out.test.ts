@@ -42,7 +42,7 @@ describe("findStaleOpenSessionsForAutoClose", () => {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:48:00+00",
+        punched_at: "2026-06-10T22:48:00+00:00",
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
@@ -69,7 +69,7 @@ describe("findStaleOpenSessionsForAutoClose", () => {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:48:00+00",
+        punched_at: "2026-06-10T22:48:00+00:00",
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
@@ -101,13 +101,14 @@ describe("findStaleOpenSessionsForAutoClose", () => {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:48:00+00",
+        punched_at: "2026-06-10T22:48:00+00:00",
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
     ];
 
-    const now = new Date("2026-06-12T04:48:00+08:00");
+    // 23h after 2026-06-10T22:48:00Z is 2026-06-11T21:48:00Z (Jun 12 05:48 PHT).
+    const now = new Date("2026-06-11T21:48:00.000Z");
     const stale = findStaleOpenSessionsForAutoClose(punches, now);
     expect(stale).toHaveLength(1);
     expect(stale[0].id).toBe("admin-in");
@@ -119,13 +120,13 @@ describe("findStaleOpenSessionsForAutoClose", () => {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:48:00+00",
+        punched_at: "2026-06-10T22:48:00+00:00",
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
     ];
 
-    const now = new Date("2026-06-11T16:44:00+00");
+    const now = new Date("2026-06-11T16:44:00+00:00");
     expect(findStaleOpenSessionsForAutoClose(punches, now)).toHaveLength(0);
   });
 });

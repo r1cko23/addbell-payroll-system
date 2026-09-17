@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
     creditedHours = creditOvertimeHours(body.total_hours);
 
     if (bundyInId && bundyOutId) {
-      // device_info/source required so 23h auto clock-outs pair (MAX_PAIR_GAP is 20h otherwise).
+      // device_info/source required so auto clock-outs just past 23h still pair (24h auto window).
       const { data: punchesDesc } = await admin
         .from("time_entries")
         .select(

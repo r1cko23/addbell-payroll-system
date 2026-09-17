@@ -6,6 +6,7 @@
 import {
   assignBundyBusinessDayKeysFromPunches,
   BUNDY_AUTO_CLOCK_OUT_DEVICE_INFO,
+  BUNDY_MAX_OPEN_SESSION_MS,
   extendCutoffPeriodEndForPunchFetch,
   getBundyBusinessDayKey,
   getBundyBusinessDayKeyForClockIn,
@@ -116,8 +117,11 @@ function calculateNightDiffHours(
   return Math.round(total * 100) / 100;
 }
 
-/** Do not pair an OUT to an IN if the gap exceeds this (avoids binding to a distant OUT). */
-const MAX_PAIR_GAP_MS = 20 * 60 * 60 * 1000;
+/**
+ * Do not pair an OUT to an IN if the gap exceeds this (avoids binding to a distant OUT).
+ * Must match the 23h open-session window so overnight Time Out still closes the shift.
+ */
+const MAX_PAIR_GAP_MS = BUNDY_MAX_OPEN_SESSION_MS;
 
 /** Pair auto-outs up to 23h + buffer (matches BUNDY_MAX_OPEN_SESSION_HOURS). */
 const MAX_BUNDY_AUTO_PAIR_MS = 24 * 60 * 60 * 1000;
@@ -235,7 +239,7 @@ export function isSupersededInPunch(
  * Converts punch rows (ordered by punched_at asc) into sessions.
  * Pairs each IN with the first OUT that is strictly after the IN (skips orphan OUTs and
  * mistaken OUT-before-IN on the same wall-clock narrative). Caps pair duration at MAX_PAIR_GAP_MS
- * (except business-day auto clock-out punches, which may land just after 24h).
+ * (23h open-session window; auto clock-out punches may land just after 23h, up to 24h).
  * A second employee IN before any OUT supersedes the earlier IN (no open session).
  * Admin 7 AM pre-open rows are skipped when an early-bird IN already started the day.
  * Trailing IN without a valid OUT becomes one session with clock_out_time null.

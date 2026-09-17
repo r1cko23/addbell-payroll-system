@@ -110,17 +110,17 @@ describe("bundy open session / superseded IN", () => {
   });
 
   test("same-day admin manual time in stays open for bundy clock out", () => {
+    const now = new Date();
     const punches: TimeEntryPunch[] = [
       {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:30:00+00",
+        punched_at: now.toISOString(),
         source: "admin_correction",
         device_info: "admin:manual time in — forgot to clock in",
       },
     ];
-    const now = new Date("2026-06-10T10:00:00+08:00");
     expect(isAdminManualBackfillPunch(punches[0])).toBe(true);
     expect(isStaleAdminManualOpenIn(punches[0], now)).toBe(false);
     const open = getOpenEntryFromPunches(punches, getDateInManilaDefault);
@@ -140,7 +140,7 @@ describe("bundy open session / superseded IN", () => {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:48:00+00",
+        punched_at: "2026-06-10T22:48:00+00:00",
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
@@ -160,7 +160,7 @@ describe("bundy open session / superseded IN", () => {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-08T23:00:00+00",
+        punched_at: "2026-06-08T23:00:00+00:00",
         source: "admin_correction",
         device_info: "admin:manual time in — forgot to clock in",
       },
@@ -172,17 +172,17 @@ describe("bundy open session / superseded IN", () => {
   });
 
   test("admin manual time in stays open after midnight until 23h", () => {
+    const now = new Date();
     const punches: TimeEntryPunch[] = [
       {
         id: "admin-in",
         employee_id: "x",
         punch_type: "in",
-        punched_at: "2026-06-10T22:48:00+00",
+        punched_at: new Date(now.getTime() - 22 * 60 * 60 * 1000).toISOString(),
         source: "admin_correction",
         device_info: "admin:manual time in",
       },
     ];
-    const now = new Date("2026-06-11T16:44:00+00");
     expect(isStaleAdminManualOpenIn(punches[0], now)).toBe(false);
     const open = getOpenEntryFromPunches(punches, getDateInManilaDefault);
     expect(open?.id).toBe("admin-in");
@@ -205,5 +205,99 @@ describe("bundy open session / superseded IN", () => {
     );
     expect(open).not.toBeNull();
     expect(open?.id).toBe("in1");
+  });
+
+  // Carizza Leonardo, Sep 16–17 2026: Time In 06:00 PHT, Time Out 04:53 PHT next day (~22h53m).
+  // Toast said clocked out, but Time Out stayed enabled because pairing capped at 20h.
+  test("employee Time Out within 23h closes overnight session (Carizza 22h53m)", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "1a613a33",
+        employee_id: "carizza",
+        punch_type: "in",
+        punched_at: "2026-09-15T22:00:42.400Z",
+        source: "web",
+      },
+      {
+        id: "c74501a4",
+        employee_id: "carizza",
+        punch_type: "out",
+        punched_at: "2026-09-16T20:53:32.483Z",
+        source: "web",
+      },
+    ];
+    const sessions = punchesToSessions(punches, getDateInManilaDefault);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].clock_out_time).toBe("2026-09-16T20:53:32.483Z");
+    expect(getOpenEntryFromPunches(punches, getDateInManilaDefault)).toBeNull();
+  });
+
+  test("retry Time Outs after a 22h53m clock-out stay closed", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "1a613a33",
+        employee_id: "carizza",
+        punch_type: "in",
+        punched_at: "2026-09-15T22:00:42.400Z",
+        source: "web",
+      },
+      {
+        id: "c74501a4",
+        employee_id: "carizza",
+        punch_type: "out",
+        punched_at: "2026-09-16T20:53:32.483Z",
+        source: "web",
+      },
+      {
+        id: "6c29ba31",
+        employee_id: "carizza",
+        punch_type: "out",
+        punched_at: "2026-09-16T20:53:43.239Z",
+        source: "web",
+      },
+      {
+        id: "be5c970e",
+        employee_id: "carizza",
+        punch_type: "out",
+        punched_at: "2026-09-16T20:54:00.421Z",
+        source: "web",
+      },
+      {
+        id: "a9b97ac1",
+        employee_id: "carizza",
+        punch_type: "out",
+        punched_at: "2026-09-16T20:54:17.116Z",
+        source: "web",
+      },
+    ];
+    expect(getOpenEntryFromPunches(punches, getDateInManilaDefault)).toBeNull();
+    const sessions = punchesToSessions(punches, getDateInManilaDefault);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].out_punch_id).toBe("c74501a4");
+  });
+
+  test("employee Time Out after 23h does not pair (auto-close window)", () => {
+    const punches: TimeEntryPunch[] = [
+      {
+        id: "in1",
+        employee_id: "x",
+        punch_type: "in",
+        punched_at: "2026-09-16T06:00:00+08:00",
+        source: "web",
+      },
+      {
+        id: "out1",
+        employee_id: "x",
+        punch_type: "out",
+        punched_at: "2026-09-17T05:01:00+08:00",
+        source: "web",
+      },
+    ];
+    const sessions = punchesToSessions(punches, getDateInManilaDefault);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].clock_out_time).toBeNull();
+    expect(getOpenEntryFromPunches(punches, getDateInManilaDefault)?.id).toBe(
+      "in1"
+    );
   });
 });

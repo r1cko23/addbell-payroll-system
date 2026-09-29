@@ -77,6 +77,16 @@ import {
   shouldShowSubcontractorPoAmountOnReview,
   validateSubcontractorPoAmountInput,
 } from "@/lib/fund-request-subcontractor-po-amount";
+import {
+  buildFundRequestUmProjectDetailsUpdates,
+  canUpperManagementEditProjectDetails,
+} from "@/lib/fund-request-um-project-details";
+import {
+  createEmptyFundRequestProjectRow,
+  type FundRequestProjectDetailRow,
+  validateFundRequestProjectRows,
+} from "@/lib/fund-request-project-details";
+import { fundRequestProjectsToFormRows } from "@/lib/fund-request-requester-edit";
 import { normalizeUserRole } from "@/lib/user-roles";
 import { Label } from "@/components/ui/label";
 import type { FundRequestDocumentSummary } from "@/types/fund-request";
@@ -187,6 +197,9 @@ export function FundRequestApprovalDetail({
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails());
   const [subcontractorPoAmount, setSubcontractorPoAmount] = useState("");
+  const [editableProjectRows, setEditableProjectRows] = useState<
+    FundRequestProjectDetailRow[]
+  >([createEmptyFundRequestProjectRow()]);
   const [managedRequesterIds, setManagedRequesterIds] = useState<Set<string>>(
     new Set()
   );
@@ -244,6 +257,15 @@ export function FundRequestApprovalDetail({
         row.subcontractor_po_amount != null
           ? String(row.subcontractor_po_amount)
           : ""
+      );
+      setEditableProjectRows(
+        fundRequestProjectsToFormRows(row).map((projectRow, index) => {
+          if (projectRow.poNumber.trim()) return projectRow;
+          if (index === 0 && row.po_number?.trim()) {
+            return { ...projectRow, poNumber: row.po_number };
+          }
+          return projectRow;
+        })
       );
       setCorrectionEdits({
         purpose: row.purpose ?? "",
@@ -560,9 +582,36 @@ export function FundRequestApprovalDetail({
       parsedSubcontractorPoAmount = parseSubcontractorPoAmountInput(subcontractorPoAmount);
     }
 
-    const extraFieldUpdates = isFundRequestReturnedToPurchasing(request)
-      ? buildFundRequestCorrectionFieldColumnUpdates(correctionEdits)
-      : {};
+    const canEditUmProjectDetails =
+      canUpperManagementEditProjectDetails(profile.role, request.status) &&
+      shouldShowFundRequestProjectReferenceFields(request.reference_mode);
+    let umProjectDetailsUpdates: Record<string, unknown> = {};
+    if (canEditUmProjectDetails) {
+      const projectValidationError = validateFundRequestProjectRows(
+        editableProjectRows,
+        { required: true, requirePoPerProject: true }
+      );
+      if (projectValidationError) {
+        toast.error(projectValidationError);
+        return;
+      }
+      const built = buildFundRequestUmProjectDetailsUpdates(
+        editableProjectRows,
+        request.project_details
+      );
+      if (!built) {
+        toast.error("Unable to save project details.");
+        return;
+      }
+      umProjectDetailsUpdates = built;
+    }
+
+    const extraFieldUpdates = {
+      ...(isFundRequestReturnedToPurchasing(request)
+        ? buildFundRequestCorrectionFieldColumnUpdates(correctionEdits)
+        : {}),
+      ...umProjectDetailsUpdates,
+    };
 
     const snapshotSource = {
       ...request,
@@ -591,6 +640,10 @@ export function FundRequestApprovalDetail({
         extraFieldUpdates.current_project_percentage === undefined
           ? request.current_project_percentage
           : (extraFieldUpdates.current_project_percentage as number | null),
+      project_details:
+        extraFieldUpdates.project_details === undefined
+          ? request.project_details
+          : extraFieldUpdates.project_details,
       subcontractor_progress_completion_percentage:
         extraFieldUpdates.subcontractor_progress_completion_percentage ===
         undefined
@@ -845,6 +898,10 @@ export function FundRequestApprovalDetail({
     profile?.role,
     request?.status
   );
+  const canEditUmProjectDetails =
+    Boolean(request) &&
+    canUpperManagementEditProjectDetails(profile?.role, request?.status) &&
+    shouldShowFundRequestProjectReferenceFields(request?.reference_mode);
 
   const handleSaveDetails = async (form: EditableFundRequestDetailsForm) => {
     if (!request) return;
@@ -1037,6 +1094,9 @@ export function FundRequestApprovalDetail({
                   subcontractorPoAmountInput={subcontractorPoAmount}
                   onSubcontractorPoAmountInputChange={setSubcontractorPoAmount}
                   showSubcontractorInvoiceTracking={showSubcontractorInvoiceTracking}
+                  editableProjectDetails={canEditUmProjectDetails}
+                  projectDetailRows={editableProjectRows}
+                  onProjectDetailRowsChange={setEditableProjectRows}
                 />
               </FundRequestCorrectionGroup>
             ) : null}

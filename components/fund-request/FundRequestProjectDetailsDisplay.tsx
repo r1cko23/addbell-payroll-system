@@ -7,9 +7,11 @@ import {
   fundRequestUsesPerProjectPo,
   parseFundRequestProjectDetails,
   type FundRequestProjectDetail,
+  type FundRequestProjectDetailRow,
 } from "@/lib/fund-request-project-details";
 import type { FundRequestRow } from "@/types/fund-request";
 import { FundRequestField } from "@/components/fund-request/FundRequestField";
+import { FundRequestProjectDetailsFields } from "@/components/fund-request/FundRequestProjectDetailsFields";
 import { SubcontractorInvoiceTrackingDisplay } from "@/components/fund-request/SubcontractorInvoiceTrackingDisplay";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +37,10 @@ type FundRequestProjectDetailsDisplayProps = {
   subcontractorPoAmountInput?: string;
   onSubcontractorPoAmountInputChange?: (value: string) => void;
   showSubcontractorInvoiceTracking?: boolean;
+  /** Upper management final review: edit P.O. / title / location / amount / %. */
+  editableProjectDetails?: boolean;
+  projectDetailRows?: FundRequestProjectDetailRow[];
+  onProjectDetailRowsChange?: (rows: FundRequestProjectDetailRow[]) => void;
 };
 
 const tableShellClass = "overflow-x-auto rounded-md border border-border/80";
@@ -402,9 +408,61 @@ export function FundRequestProjectDetailsDisplay({
   subcontractorPoAmountInput = "",
   onSubcontractorPoAmountInputChange,
   showSubcontractorInvoiceTracking = false,
+  editableProjectDetails = false,
+  projectDetailRows,
+  onProjectDetailRowsChange,
 }: FundRequestProjectDetailsDisplayProps) {
   const projects = parseFundRequestProjectDetails(request);
   const perProjectPo = fundRequestUsesPerProjectPo(request);
+
+  if (editableProjectDetails && projectDetailRows && onProjectDetailRowsChange) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Project Details
+          </h4>
+          <FundRequestProjectDetailsFields
+            rows={projectDetailRows}
+            allowMultiple={false}
+            poPerProject
+            onChange={onProjectDetailRowsChange}
+          />
+        </div>
+        {showSubcontractorFields ? (
+          <>
+            <div className="hidden md:block">
+              <SubcontractorReferenceTable
+                vendorName={vendorName}
+                subcontractorProgress={request.subcontractor_progress_completion_percentage}
+                subcontractorPoAmount={request.subcontractor_po_amount}
+                showSubcontractorPoAmount={showSubcontractorPoAmount}
+                editableSubcontractorPoAmount={editableSubcontractorPoAmount}
+                subcontractorPoAmountInput={subcontractorPoAmountInput}
+                onSubcontractorPoAmountInputChange={onSubcontractorPoAmountInputChange}
+              />
+            </div>
+            <div className="md:hidden">
+              <SubcontractorReferenceCard
+                vendorName={vendorName}
+                subcontractorProgress={request.subcontractor_progress_completion_percentage}
+                subcontractorPoAmount={request.subcontractor_po_amount}
+                showSubcontractorPoAmount={showSubcontractorPoAmount}
+                editableSubcontractorPoAmount={editableSubcontractorPoAmount}
+                subcontractorPoAmountInput={subcontractorPoAmountInput}
+                onSubcontractorPoAmountInputChange={onSubcontractorPoAmountInputChange}
+              />
+            </div>
+          </>
+        ) : null}
+        {showSubcontractorInvoiceTracking ? (
+          <SubcontractorInvoiceTrackingDisplay
+            projectDetails={request.project_details}
+          />
+        ) : null}
+      </div>
+    );
+  }
 
   if (projects.length === 0) {
     return null;

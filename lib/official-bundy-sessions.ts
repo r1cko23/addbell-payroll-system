@@ -6,27 +6,42 @@ type SessionLike = {
   clock_out_time?: string | null;
 };
 
+function completeDurationMs(s: SessionLike): number {
+  if (!s.clock_out_time) return 0;
+  const start = new Date(s.clock_in_time).getTime();
+  const end = new Date(s.clock_out_time).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  return end - start;
+}
+
+function isLongerOfficialComplete(candidate: SessionLike, current: SessionLike): boolean {
+  const candidateMs = completeDurationMs(candidate);
+  const currentMs = completeDurationMs(current);
+  if (candidateMs !== currentMs) return candidateMs > currentMs;
+  return (
+    new Date(candidate.clock_in_time).getTime() <
+    new Date(current.clock_in_time).getTime()
+  );
+}
+
 /**
- * Keeps only the first official Time In/Out pair per Bundy business day.
- * Extra pairs (without OT/FTL filing) are excluded from attendance and payroll.
+ * Keeps one official Time In/Out pair per Bundy business day: the longest complete
+ * session. Accidental ~1-minute in/out must not hide a real overnight shift.
+ * Extra shorter pairs (without OT/FTL filing) are excluded from attendance and payroll.
  */
 export function filterOfficialBundySessions<T extends SessionLike>(
   sessions: T[],
   getBizKey: (session: T) => string = (s) => getBundyBusinessDayKey(s.clock_in_time)
 ): T[] {
-  const earliestCompleteByBizDay = new Map<string, T>();
+  const officialCompleteByBizDay = new Map<string, T>();
   const earliestIncompleteByBizDay = new Map<string, T>();
 
   for (const s of sessions) {
     const bizKey = getBizKey(s);
     if (s.clock_out_time) {
-      const existing = earliestCompleteByBizDay.get(bizKey);
-      if (
-        !existing ||
-        new Date(s.clock_in_time).getTime() <
-          new Date(existing.clock_in_time).getTime()
-      ) {
-        earliestCompleteByBizDay.set(bizKey, s);
+      const existing = officialCompleteByBizDay.get(bizKey);
+      if (!existing || isLongerOfficialComplete(s, existing)) {
+        officialCompleteByBizDay.set(bizKey, s);
       }
     } else {
       const existing = earliestIncompleteByBizDay.get(bizKey);
@@ -41,7 +56,7 @@ export function filterOfficialBundySessions<T extends SessionLike>(
   }
 
   const officialCompleteIds = new Set(
-    [...earliestCompleteByBizDay.values()].map((s) => s.id)
+    [...officialCompleteByBizDay.values()].map((s) => s.id)
   );
 
   return sessions.filter((s) => {
@@ -49,7 +64,7 @@ export function filterOfficialBundySessions<T extends SessionLike>(
       return officialCompleteIds.has(s.id);
     }
     const bizKey = getBizKey(s);
-    if (earliestCompleteByBizDay.has(bizKey)) return false;
+    if (officialCompleteByBizDay.has(bizKey)) return false;
     return earliestIncompleteByBizDay.get(bizKey)?.id === s.id;
   });
 }

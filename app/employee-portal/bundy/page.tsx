@@ -1218,7 +1218,7 @@ export default function BundyClockPage() {
           });
         }
 
-        // Show only the official first Time In / Time Out pair for the day.
+        // Show only the official (longest complete) Time In / Time Out pair for the day.
         const officialDayEntries = dayEntries.slice(0, 1);
         const allDayEntries = [...officialDayEntries, ...incompleteDayEntries].sort(
           (a, b) =>

@@ -50,6 +50,8 @@ export interface TimeEntrySession {
   clock_out_location?: string | null;
   clock_in_device?: string | null;
   clock_out_device?: string | null;
+  /** Punch source of the clock-in: web, biometric, admin_correction. */
+  source?: string | null;
   employee_id?: string;
 }
 
@@ -330,6 +332,7 @@ export function punchesToSessions(
         clock_out_location: formatLocation(pairedOut),
         clock_in_device: p.device_info ?? null,
         clock_out_device: pairedOut.device_info ?? null,
+        source: p.source ?? null,
       });
       i = j + 1;
     } else {
@@ -347,6 +350,7 @@ export function punchesToSessions(
         clock_out_location: null,
         clock_in_device: p.device_info ?? null,
         clock_out_device: null,
+        source: p.source ?? null,
       });
       i += 1;
     }

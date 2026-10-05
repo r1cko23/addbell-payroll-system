@@ -54,6 +54,38 @@ export function resolveEmployeePosition(emp: {
   return legacy || null;
 }
 
+export type PayslipRateFields = {
+  salaryBasis?: string | null;
+  baseRate?: number | null;
+  monthlyRate?: number | null;
+  perDay?: number | null;
+  ratePerDay?: number | null;
+  ratePerHour?: number | null;
+};
+
+function positive(value: number | null | undefined): boolean {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) && n > 0;
+}
+
+/** Hours from time entries still render when the employee has no pay rate. */
+export function shouldShowPayslipEarningsBreakdown(input: {
+  attendanceDayCount: number;
+  perDay?: number | null;
+  ratePerDay?: number | null;
+  ratePerHour?: number | null;
+}): boolean {
+  return input.attendanceDayCount > 0;
+}
+
+export function employeeHasPayableRate(input: PayslipRateFields): boolean {
+  if (positive(input.baseRate) || positive(input.monthlyRate)) return true;
+  if (positive(input.perDay) || positive(input.ratePerDay) || positive(input.ratePerHour)) {
+    return true;
+  }
+  return false;
+}
+
 export function ratePerDayAndHourFromProfile(profile: EmployeeProfileForPayslip): {
   perDay: number;
   perHour: number;

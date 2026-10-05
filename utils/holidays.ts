@@ -285,11 +285,72 @@ export type HolidayPayAttendanceDay = {
   regularHours?: number;
 };
 
+const UNPAID_LEAVE_TYPES = new Set([
+  "lwop",
+  "leave without pay",
+  "unpaid leave",
+  "leave_without_pay",
+]);
+
+/** Full-day paid leave counts as presence on the workday before a holiday. */
+export const HOLIDAY_PRECEDING_PRESENT_HOURS = 8;
+
+export function isUnpaidLeaveType(leaveType: string | null | undefined): boolean {
+  if (!leaveType) return false;
+  return UNPAID_LEAVE_TYPES.has(leaveType.trim().toLowerCase());
+}
+
 /**
- * Holiday daily-rate eligibility:
- * - Substantive work on the holiday (>= HOLIDAY_DE_MINIMIS_HOURS), or
- * - Last regular working day before the holiday with 8+ hours, or
- * - Consecutive holiday after an eligible holiday (prior day credited >= HOLIDAY_UNWORKED_CREDIT_HOURS).
+ * Hours that count as reporting for work or leave with pay.
+ * Unpaid leave contributes nothing. A full paid leave day is 8 hours.
+ */
+export function holidayPresenceHours(input: {
+  workedHours: number;
+  leaveType?: string | null;
+  halfDay?: boolean;
+}): number {
+  const worked = Number(input.workedHours) || 0;
+  if (!input.leaveType || isUnpaidLeaveType(input.leaveType)) return worked;
+  const leaveHours = input.halfDay ? 4 : HOLIDAY_PRECEDING_PRESENT_HOURS;
+  return Math.max(worked, leaveHours);
+}
+
+function shiftDateKey(dateStr: string, deltaDays: number): string {
+  const date = parseISO(dateStr.slice(0, 10));
+  date.setDate(date.getDate() + deltaDays);
+  return format(date, "yyyy-MM-dd");
+}
+
+function isHolidayAttendanceType(dayType?: string): boolean {
+  return (
+    dayType === "regular-holiday" ||
+    dayType === "non-working-holiday" ||
+    dayType === "sunday-regular-holiday" ||
+    dayType === "sunday-special-holiday"
+  );
+}
+
+/**
+ * Rest days and days the establishment does not require office
+ * (Saturday, and Sunday unless it is an actual scheduled workday)
+ * are not the "workday immediately preceding" a holiday.
+ */
+function skipAsNonWorkDay(dateStr: string, dayType?: string): boolean {
+  if (isHolidayAttendanceType(dayType)) return false;
+  if (dayType === "sunday") return true;
+  const dow = getDay(parseISO(dateStr));
+  if (dow === 6) return true;
+  if (dow === 0 && dayType !== "regular") return true;
+  return false;
+}
+
+/**
+ * Unworked holiday pay (DOLE):
+ * - Substantive work on the holiday itself, or
+ * - Present or on full paid leave (8+ hours) on the workday immediately
+ *   before the holiday. Rest days and non-office days are skipped.
+ *   Absence or unpaid leave on that workday stops the search.
+ * - A prior holiday in a successive run counts when it was worked or credited.
  */
 export function isEligibleForHolidayPayRule(
   currentDate: string,
@@ -300,40 +361,32 @@ export function isEligibleForHolidayPayRule(
     return true;
   }
 
-  const currentDateObj = new Date(currentDate);
-  const prevDateObj = new Date(currentDateObj);
-  prevDateObj.setDate(prevDateObj.getDate() - 1);
-  const prevDateStr = prevDateObj.toISOString().split("T")[0];
+  const byDate = new Map(
+    attendanceData.map((day) => [day.date.slice(0, 10), day])
+  );
 
-  const prevDay = attendanceData.find((day) => day.date === prevDateStr);
-  const isPrevDayHoliday =
-    prevDay &&
-    (prevDay.dayType === "regular-holiday" ||
-      prevDay.dayType === "non-working-holiday");
+  for (let i = 1; i <= HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS; i++) {
+    const checkDateStr = shiftDateKey(currentDate, -i);
+    const checkDay = byDate.get(checkDateStr);
 
-  if (
-    isPrevDayHoliday &&
-    prevDay &&
-    (prevDay.regularHours || 0) >= HOLIDAY_UNWORKED_CREDIT_HOURS
-  ) {
-    return true;
-  }
+    if (!checkDay) continue;
 
-  for (let i = 1; i <= 7; i++) {
-    const checkDateObj = new Date(currentDateObj);
-    checkDateObj.setDate(checkDateObj.getDate() - i);
-    const checkDateStr = checkDateObj.toISOString().split("T")[0];
+    const dayType = checkDay.dayType;
+    const hours = Number(checkDay.regularHours) || 0;
 
-    const checkDay = attendanceData.find((day) => day.date === checkDateStr);
-
-    if (checkDay) {
+    if (isHolidayAttendanceType(dayType)) {
       if (
-        checkDay.dayType === "regular" &&
-        (checkDay.regularHours || 0) >= 8
+        hours >= HOLIDAY_UNWORKED_CREDIT_HOURS ||
+        isSubstantiveHolidayWork(hours)
       ) {
         return true;
       }
+      continue;
     }
+
+    if (skipAsNonWorkDay(checkDateStr, dayType)) continue;
+
+    return hours >= HOLIDAY_PRECEDING_PRESENT_HOURS;
   }
 
   return false;

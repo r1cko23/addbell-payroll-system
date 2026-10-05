@@ -59,7 +59,8 @@ export function generateTimesheetFromClockEntries(
   isClientBasedAccountSupervisor: boolean = false, // Whether employee is client-based Account Supervisor (for rest day logic)
   approvedOTByDate?: Map<string, number>, // Map of date string to approved OT hours (for dates without clock entries)
   approvedNDByDate?: Map<string, number>, // Map of date string to approved ND hours (for dates without clock entries)
-  isClientBased: boolean = false // Whether employee is client-based (for Saturday/Sunday logic)
+  isClientBased: boolean = false, // Whether employee is client-based (for Saturday/Sunday logic)
+  paidLeaveHoursByDate?: Map<string, number> // Full paid-leave hours by date (DOLE presence)
 ): {
   attendance_data: DailyAttendance[];
   total_regular_hours: number;
@@ -242,6 +243,14 @@ export function generateTimesheetFromClockEntries(
 
     // Note: Employees do NOT get automatic regularHours for Saturday or Sunday.
     // They must log time on scheduled workdays or be marked as ABSENT in the timesheet display.
+
+    // Leave with pay is presence on a required workday, even with no bundy punch.
+    if (!isSaturday && dayType === "regular") {
+      const paidLeaveHours = paidLeaveHoursByDate?.get(dateStr) ?? 0;
+      if (paidLeaveHours > regularHours) {
+        regularHours = paidLeaveHours;
+      }
+    }
 
     // Client-based Account Supervisor Rest Day Logic:
     // They can mark rest days as Monday, Tuesday, or Wednesday only (enforced in schedule validation)

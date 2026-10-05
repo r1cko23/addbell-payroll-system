@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import {
   buildCutoffAttendance,
+  buildLeaveDatesMap,
   getRatePerHour,
   resolveCutoffGrossPay,
 } from "@/lib/ph-payroll";
@@ -271,6 +272,28 @@ export async function POST(req: NextRequest) {
       approvedNdRawByEmployeeDate.set(employeeId, ndRawByDate);
     });
 
+    const leaveLookback = new Date(`${cutoffStart}T12:00:00+08:00`);
+    leaveLookback.setDate(
+      leaveLookback.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+    );
+    const leaveLookbackStr = format(leaveLookback, "yyyy-MM-dd");
+    const { data: approvedLeaveRows } = await admin
+      .from("leave_requests")
+      .select(
+        "employee_id, leave_type, start_date, end_date, status, half_day_dates"
+      )
+      .in("employee_id", employeeIds)
+      .lte("start_date", cutoffEnd)
+      .gte("end_date", leaveLookbackStr)
+      .in("status", ["approved_by_manager", "approved_by_hr"]);
+    const leaveRowsByEmployee = new Map<string, any[]>();
+    (approvedLeaveRows || []).forEach((row: any) => {
+      if (!row.employee_id) return;
+      const list = leaveRowsByEmployee.get(row.employee_id) || [];
+      list.push(row);
+      leaveRowsByEmployee.set(row.employee_id, list);
+    });
+
     const approvedNdByEmployeeDate = new Map<string, Map<string, number>>();
     approvedNdRawByEmployeeDate.forEach((ndRawMap, employeeId) => {
       const ndMap = new Map<string, number>();
@@ -396,6 +419,11 @@ export async function POST(req: NextRequest) {
         periodStart: periodStartDate,
         periodEnd: periodEndDate,
         holidays,
+        leaveDatesMap: buildLeaveDatesMap(
+          leaveRowsByEmployee.get(e.id) || [],
+          leaveLookbackStr,
+          cutoffEnd
+        ),
         approvedOTByDate: approvedOtByEmployeeDate.get(e.id),
         approvedNDByDate: approvedNdByEmployeeDate.get(e.id),
         isClientBased,

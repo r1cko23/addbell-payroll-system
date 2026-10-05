@@ -10,7 +10,8 @@ import { useSessionLoader } from "@/lib/hooks/useSessionLoader";
 import { bustCache } from "@/lib/cache-client";
 import { useAssignedGroups } from "@/lib/hooks/useAssignedGroups";
 import { CardSection } from "@/components/ui/card-section";
-import { H1, BodySmall, PageSubtitle } from "@/components/ui/typography";
+import { BodySmall } from "@/components/ui/typography";
+import { DashboardPageHeader } from "@/components/dashboard/DashboardPageHeader";
 import { DbDesktopBlock, DbMobileBlock } from "@/components/dashboard/DashboardViewport";
 import { DashboardMobileField } from "@/components/dashboard/DashboardMobileField";
 import { dbPageWrapper } from "@/lib/dashboard-ui";
@@ -18,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { HStack, VStack } from "@/components/ui/stack";
 import { Icon, IconSizes } from "@/components/ui/phosphor-icon";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { AttendanceDayEntries, type AttendanceDayPunch } from "@/components/time/AttendanceDayEntries";
+import type { OfficeLocation } from "@/lib/location";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -32,8 +35,11 @@ import {
   determineDayType,
   formatDateShort,
   getDayName,
+  holidayPresenceHours,
   HOLIDAY_DE_MINIMIS_HOURS,
+  HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
   HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
   normalizeHolidays,
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
@@ -93,6 +99,10 @@ interface ClockEntry {
   total_hours: number | null;
   total_night_diff_hours: number | null;
   status: string;
+  clock_in_location?: string | null;
+  clock_out_location?: string | null;
+  clock_in_device?: string | null;
+  source?: string | null;
 }
 
 function clockEntryFromSession(s: TimeEntrySession): ClockEntry {
@@ -104,6 +114,10 @@ function clockEntryFromSession(s: TimeEntrySession): ClockEntry {
     total_hours: s.total_hours ?? null,
     total_night_diff_hours: s.total_night_diff_hours ?? null,
     status: s.status,
+    clock_in_location: s.clock_in_location ?? null,
+    clock_out_location: s.clock_out_location ?? null,
+    clock_in_device: s.clock_in_device ?? null,
+    source: s.source ?? null,
   };
 }
 
@@ -248,6 +262,7 @@ interface AttendanceDay {
   ut: number; // Undertime (hours; based on required business hours)
   nd: number; // Night Differential
   clockEntryIds?: string[]; // ids from time_entries (in + out punch ids for this day, for admin/HR remove)
+  punches?: AttendanceDayPunch[];
 }
 
 type TimesheetAttendanceCachePayload = {
@@ -265,6 +280,7 @@ type TimesheetAttendanceCachePayload = {
 
 export default function TimesheetPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
     null
   );
@@ -476,6 +492,11 @@ export default function TimesheetPage() {
         employee_type: e.employment_type ?? null,
       }));
       setEmployees(mapped);
+
+      const { data: locationData } = await supabase
+        .from("office_locations")
+        .select("id, name, address, latitude, longitude, radius_meters");
+      setOfficeLocations((locationData || []) as OfficeLocation[]);
 
       // Load holidays for the selected month
       // Schema does not include holidays table — use empty list
@@ -710,12 +731,17 @@ export default function TimesheetPage() {
       }
       // Load leave requests for the period
       // Leave requests overlap if: start_date <= periodEnd AND end_date >= periodStart
+      const leaveLookbackStart = new Date(periodStart);
+      leaveLookbackStart.setDate(
+        leaveLookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+      );
+      const leaveLookbackStartStr = format(leaveLookbackStart, "yyyy-MM-dd");
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
         .select("id, leave_type, start_date, end_date, status, half_day_dates")
         .eq("employee_id", selectedEmployee.id)
         .lte("start_date", periodEndStr)
-        .gte("end_date", periodStartStr)
+        .gte("end_date", leaveLookbackStartStr)
         .in("status", ["approved_by_manager", "approved_by_hr"]);
 
       if (leaveError) {
@@ -976,9 +1002,13 @@ export default function TimesheetPage() {
       if (schedule.day_off) restDaysMap.set(dateStr, true);
     });
 
+    const leaveLookbackStart = new Date(periodStart);
+    leaveLookbackStart.setDate(
+      leaveLookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+    );
     const leaveDatesMap = buildLeaveDatesMap(
       leaveRequests,
-      periodStartStr,
+      format(leaveLookbackStart, "yyyy-MM-dd"),
       periodEndStr
     );
     const { approvedOTByDate, approvedNDByDate } =
@@ -1090,54 +1120,76 @@ export default function TimesheetPage() {
                                  dayType === "regular-holiday" ||
                                  dayType === "sunday-regular-holiday";
         status = isRegularHoliday ? "RH" : "SH";
-        // Check if employee is eligible for holiday pay (worked day before)
-        // Search up to 7 days back to find the last regular working day
-        let eligibleForHoliday = false;
-        for (let i = 1; i <= 7; i++) {
+        const priorDays = [];
+        for (let i = 1; i <= HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS; i++) {
           const checkDate = new Date(date);
           checkDate.setDate(checkDate.getDate() - i);
           const checkDateStr = format(checkDate, "yyyy-MM-dd");
-          const checkDayEntries = entriesByDate.get(checkDateStr) || [];
-          const isClientBased = employeeType === "client-based";
-          const checkDayType = determineDayType(checkDateStr, holidayList, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
-
-          // Only check regular working days (skip holidays and rest days)
-          if (checkDayType === "regular" && checkDayEntries.length > 0) {
-            // Check if employee worked 8+ hours on this regular working day (main + project time)
-            const workedHours = checkDayEntries.reduce((sum, e) => {
-              if (e.clock_in_time && e.clock_out_time) {
+          const checkDayType = determineDayType(
+            checkDateStr,
+            holidayList,
+            scheduleMap.get(checkDateStr)?.day_off === true,
+            isClientBased
+          );
+          const checkLeave = (leavesByDate.get(checkDateStr) || [])[0];
+          const checkEntries = entriesByDate.get(checkDateStr) || [];
+          let workedHours = 0;
+          if (getDay(checkDate) !== 6) {
+            workedHours = checkEntries.reduce((sum, entry) => {
+              if (entry.clock_in_time && entry.clock_out_time) {
                 try {
                   return (
                     sum +
                     regularHoursFromBundyClockPair(
-                      e.clock_in_time,
-                      e.clock_out_time
+                      entry.clock_in_time,
+                      entry.clock_out_time
                     )
                   );
                 } catch {
                   /* fall through */
                 }
               }
-              return sum + (e.regular_hours ?? e.total_hours ?? 0);
+              return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
             }, 0);
-            if (workedHours >= 8) {
-              eligibleForHoliday = true;
-              break;
+          }
+          const built = days.find((day) => day.date === checkDateStr);
+          if (built && (built.status === "RH" || built.status === "SH")) {
+            workedHours = Math.max(workedHours, built.bh);
+          }
+          priorDays.push({
+            date: checkDateStr,
+            dayType: checkDayType,
+            regularHours: holidayPresenceHours({
+              workedHours,
+              leaveType: checkLeave?.leave_type,
+              halfDay:
+                !!checkLeave &&
+                Array.isArray(checkLeave.half_day_dates) &&
+                checkLeave.half_day_dates.includes(checkDateStr),
+            }),
+          });
+        }
+        const holidayWorkedHours = dayEntries.reduce((sum, entry) => {
+          if (entry.clock_in_time && entry.clock_out_time) {
+            try {
+              return (
+                sum +
+                regularHoursFromBundyClockPair(
+                  entry.clock_in_time,
+                  entry.clock_out_time
+                )
+              );
+            } catch {
+              /* fall through */
             }
           }
-        }
-        // BH will be set based on eligibility (8 if eligible, 0 if not)
-        // For consecutive holidays, if previous holiday was eligible, this one is too
-        if (!eligibleForHoliday && days.length > 0) {
-          const prevDay = days[days.length - 1];
-          if (
-            (prevDay.status === "RH" || prevDay.status === "SH") &&
-            prevDay.bh >= HOLIDAY_UNWORKED_CREDIT_HOURS
-          ) {
-            eligibleForHoliday = true;
-          }
-        }
-        eligibleForHolidayCredit = eligibleForHoliday;
+          return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+        }, 0);
+        eligibleForHolidayCredit = isEligibleForHolidayPayRule(
+          dateStr,
+          holidayWorkedHours,
+          priorDays
+        );
         bh = 0;
       } else if (dayLeaves.length > 0) {
         // Check leave requests (but holidays take priority)
@@ -1581,6 +1633,18 @@ export default function TimesheetPage() {
         ut,
         nd: Math.round(ndHours * 100) / 100,
         clockEntryIds: dayEntries.flatMap((e: any) => (e.out_punch_id ? [e.id, e.out_punch_id] : [e.id])),
+        punches: [...dayEntries, ...incompleteDayEntries].map((entry) => ({
+          id: entry.id,
+          clockInTime: entry.clock_in_time,
+          clockOutTime: entry.clock_out_time,
+          status: entry.status,
+          regularHours: entry.regular_hours,
+          totalHours: entry.total_hours,
+          clockInDevice: entry.clock_in_device ?? null,
+          clockInLocation: entry.clock_in_location ?? null,
+          clockOutLocation: entry.clock_out_location ?? null,
+          source: entry.source ?? null,
+        })),
       });
     });
 
@@ -1766,11 +1830,11 @@ export default function TimesheetPage() {
   return (
     <DashboardLayout>
       <div className={cn("w-full", dbPageWrapper)}>
-        <div className="flex items-start justify-between w-full flex-col gap-4 md:flex-row">
-          <VStack gap="2" align="start">
-            <H1>Timesheet</H1>
-            <PageSubtitle>Attendance by cutoff week.</PageSubtitle>
-          </VStack>
+        <DashboardPageHeader
+          title="Attendance"
+          description="Hours from time entries for the cutoff week. Payroll uses this same grid."
+        />
+        <div className="flex w-full justify-end">
           <HStack gap="3" align="center" className="flex-wrap justify-end">
             {/* Year Selector */}
             <Select
@@ -1983,22 +2047,32 @@ export default function TimesheetPage() {
                           {day.status}
                         </span>
                       </div>
-                      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
+                      <div className="mt-3">
+                        <AttendanceDayEntries
+                          punches={day.punches ?? []}
+                          officeLocations={officeLocations}
+                        />
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1 text-xs sm:grid-cols-5">
                         <div>
                           <p className="text-muted-foreground">BH</p>
                           <p className="font-medium">{bhDisplay}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Late</p>
+                          <p className="font-medium">{day.lt > 0 ? day.lt.toFixed(2) : "—"}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">OT</p>
                           <p className="font-medium">{day.ot > 0 ? day.ot.toFixed(2) : "—"}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">LT</p>
-                          <p className="font-medium">{day.lt > 0 ? day.lt.toFixed(0) : "0"}</p>
+                          <p className="text-muted-foreground">UT</p>
+                          <p className="font-medium">{day.ut > 0 ? day.ut.toFixed(2) : "—"}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">UT</p>
-                          <p className="font-medium">{day.ut > 0 ? day.ut.toFixed(1) : "0"}</p>
+                          <p className="text-muted-foreground">ND</p>
+                          <p className="font-medium">{day.nd > 0 ? day.nd.toFixed(2) : "—"}</p>
                         </div>
                       </div>
                       {isAdmin && day.clockEntryIds && day.clockEntryIds.length > 0 ? (
@@ -2029,8 +2103,8 @@ export default function TimesheetPage() {
                   </p>
                   <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-5">
                     <DashboardMobileField label="BH total" value={totalBH > 0 ? totalBH.toFixed(1) : "0"} />
+                    <DashboardMobileField label="Late total" value={totalLTHours > 0 ? totalLTHours.toFixed(2) : "0"} />
                     <DashboardMobileField label="OT total" value={totalOT > 0 ? totalOT.toFixed(2) : "0"} />
-                    <DashboardMobileField label="LT total" value={totalLTHours > 0 ? totalLTHours.toFixed(0) : "0"} />
                     <DashboardMobileField label="UT total" value={totalUTHours > 0 ? totalUTHours.toFixed(2) : "0"} />
                     <DashboardMobileField label="ND total" value={totalND > 0 ? totalND.toFixed(2) : "0"} />
                   </div>
@@ -2041,28 +2115,31 @@ export default function TimesheetPage() {
               <table className="min-w-full border-collapse">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
-                      DATE
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-muted-foreground">
+                      Date
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
-                      DAY
+                    <th className="min-w-[18rem] px-3 py-2.5 text-left text-xs font-medium text-muted-foreground">
+                      Entries
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide">
-                      STATUS
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-muted-foreground">
+                      Day
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-medium text-muted-foreground">
                       BH
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-medium text-muted-foreground">
+                      Late
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-medium text-muted-foreground">
                       OT
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
-                      LT (hrs)
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-medium text-muted-foreground">
+                      UT
                     </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
-                      UT (hrs)
-                    </th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide">
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-xs font-medium text-muted-foreground">
                       ND
                     </th>
                     {isAdmin && (
@@ -2106,39 +2183,47 @@ export default function TimesheetPage() {
                         key={day.date}
                         className={`border-b border-border/70 ${isWeekend ? "bg-primary/5" : ""}`}
                       >
-                        <td className="px-4 py-2 text-sm">
-                          {format(parseISO(day.date), "MMM dd")}
+                        <td className="whitespace-nowrap px-3 py-3 align-top text-center text-sm font-medium tabular-nums">
+                          {format(parseISO(day.date), "MMM d")}
                         </td>
-                        <td className="px-4 py-2 text-sm">{day.dayName}</td>
-                        <td className="px-4 py-2">
+                        <td className="px-3 py-3 align-top text-left">
+                          <AttendanceDayEntries
+                            punches={day.punches ?? []}
+                            officeLocations={officeLocations}
+                          />
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-3 align-top text-center text-sm text-muted-foreground">
+                          {day.dayName}
+                        </td>
+                        <td className="px-3 py-3 align-top text-center">
                           <span
-                            className={`inline-block px-2 py-1 rounded text-xs font-semibold border ${getStatusColor(
+                            className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${getStatusColor(
                               day.status
                             )}`}
                           >
                             {day.status}
                           </span>
                         </td>
-                        <td className="px-4 py-2 text-sm text-right">
+                        <td className="px-3 py-3 align-top text-right text-sm tabular-nums">
                           {day.status === "LWOP" && !day.isHalfDayLeave
-                            ? "-"
+                            ? "—"
                             : day.status === "LEAVE"
                             ? "8.0"
                             : day.bh > 0
                             ? day.bh.toFixed(1)
-                            : "-"}
+                            : "—"}
                         </td>
-                        <td className="px-4 py-2 text-sm text-right">
-                          {day.ot > 0 ? day.ot.toFixed(2) : "-"}
+                        <td className="px-3 py-3 align-top text-right text-sm tabular-nums text-muted-foreground">
+                          {day.lt > 0 ? day.lt.toFixed(2) : "—"}
                         </td>
-                        <td className="px-4 py-2 text-sm text-right">
-                          {day.lt > 0 ? day.lt.toFixed(0) : "0"}
+                        <td className="px-3 py-3 align-top text-right text-sm tabular-nums text-muted-foreground">
+                          {day.ot > 0 ? day.ot.toFixed(2) : "—"}
                         </td>
-                        <td className="px-4 py-2 text-sm text-right">
-                          {day.ut > 0 ? day.ut.toFixed(1) : "0"}
+                        <td className="px-3 py-3 align-top text-right text-sm tabular-nums text-muted-foreground">
+                          {day.ut > 0 ? day.ut.toFixed(2) : "—"}
                         </td>
-                        <td className="px-4 py-2 text-sm text-right">
-                          {day.nd > 0 ? day.nd.toFixed(2) : "0"}
+                        <td className="px-3 py-3 align-top text-right text-sm tabular-nums text-muted-foreground">
+                          {day.nd > 0 ? day.nd.toFixed(2) : "—"}
                         </td>
                         {isAdmin && (
                           <td className="px-4 py-2 text-sm">
@@ -2168,7 +2253,7 @@ export default function TimesheetPage() {
                   })}
                   {/* Summary Row */}
                   <tr className="border-t-2 border-primary/30 bg-primary/5 font-semibold">
-                    <td colSpan={3} className="px-4 py-2 text-sm">
+                    <td colSpan={4} className="px-3 py-3 text-sm">
                       <span
                         title={`Payroll Days Work (${daysWorkTotals.totalBHForDaysWork.toFixed(1)}h from scheduled slots + attendance); BH column sums daily rows`}
                       >
@@ -2176,16 +2261,16 @@ export default function TimesheetPage() {
                       </span>
                     </td>
                     <td
-                      className="px-4 py-2 text-sm text-right"
+                      className="px-3 py-3 text-right text-sm tabular-nums"
                       title="Total BH = sum of daily BH (compressed Mon–Fri); Saturday shows in OT column"
                     >
                       {totalBH > 0 ? totalBH.toFixed(1) : "0"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-right">
-                      {totalOT > 0 ? totalOT.toFixed(2) : "0"}
+                    <td className="px-3 py-3 text-right text-sm tabular-nums">
+                      {totalLTHours > 0 ? totalLTHours.toFixed(2) : "0"}
                     </td>
-                    <td className="px-4 py-2 text-sm text-right">
-                      {totalLTHours > 0 ? totalLTHours.toFixed(0) : "0"}
+                    <td className="px-3 py-3 text-right text-sm tabular-nums">
+                      {totalOT > 0 ? totalOT.toFixed(2) : "0"}
                     </td>
                     <td className="px-4 py-2 text-sm text-right">
                       {totalUTHours > 0 ? totalUTHours.toFixed(2) : "0"}

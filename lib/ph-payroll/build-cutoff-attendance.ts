@@ -16,6 +16,7 @@ import {
 import type { DailyAttendance } from "@/utils/payroll-calculator";
 import {
   applyLeaveOverlayToAttendance,
+  paidLeaveCreditHours,
   type LeaveDayInfo,
 } from "./leave-overlay";
 import { sumAttendanceRegularHours } from "./attendance-cutoff";
@@ -99,6 +100,11 @@ export function buildCutoffAttendance(
   } = input;
 
   const preparedEntries = prepareClockEntriesForGenerator(clockEntries);
+  const paidLeaveHoursByDate = new Map<string, number>();
+  leaveDatesMap?.forEach((info, dateStr) => {
+    const hours = paidLeaveCreditHours(info);
+    if (hours > 0) paidLeaveHoursByDate.set(dateStr, hours);
+  });
 
   const timesheetData = generateTimesheetFromClockEntries(
     preparedEntries,
@@ -111,7 +117,8 @@ export function buildCutoffAttendance(
     isClientBasedAccountSupervisor,
     approvedOTByDate,
     approvedNDByDate,
-    isClientBased
+    isClientBased,
+    paidLeaveHoursByDate
   );
 
   let generatorDays = timesheetData.attendance_data as DailyAttendance[];

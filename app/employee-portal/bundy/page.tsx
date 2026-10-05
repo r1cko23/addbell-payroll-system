@@ -118,8 +118,11 @@ function formatTime12h(value?: string | null): string {
 import {
   determineDayType,
   getDayName,
+  holidayPresenceHours,
   HOLIDAY_DE_MINIMIS_HOURS,
+  HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
   HOLIDAY_UNWORKED_CREDIT_HOURS,
+  isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
 import type { Holiday } from "@/utils/holidays";
 import { useEmployeeLeaveCredits } from "@/lib/hooks/useEmployeeData";
@@ -1059,52 +1062,76 @@ export default function BundyClockPage() {
                                    dayType === "regular-holiday" ||
                                    dayType === "sunday-regular-holiday";
           status = isRegularHoliday ? "RH" : "SH";
-          // Check if employee is eligible for holiday pay (worked day before)
-          // Search up to 7 days back to find the last regular working day
-          let eligibleForHoliday = false;
-          for (let i = 1; i <= 7; i++) {
+          const priorDays = [];
+          for (let i = 1; i <= HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS; i++) {
             const checkDate = new Date(date);
             checkDate.setDate(checkDate.getDate() - i);
             const checkDateStr = getManilaDateStringFromLocalDate(checkDate);
-            const checkDayEntries = entriesByDate.get(checkDateStr) || [];
-            const checkDayType = determineDayType(checkDateStr, holidays, scheduleMap.get(checkDateStr)?.day_off === true, isClientBased);
-
-            // Only check regular working days (skip holidays and rest days)
-            if (checkDayType === "regular" && checkDayEntries.length > 0) {
-              const workedHours = checkDayEntries.reduce((sum, e) => {
-                if (e.clock_in_time && e.clock_out_time) {
+            const checkDayType = determineDayType(
+              checkDateStr,
+              holidays,
+              scheduleMap.get(checkDateStr)?.day_off === true,
+              isClientBased
+            );
+            const checkLeave = (leavesByDate.get(checkDateStr) || [])[0];
+            const checkEntries = entriesByDate.get(checkDateStr) || [];
+            let workedHours = 0;
+            if (getDay(checkDate) !== 6) {
+              workedHours = checkEntries.reduce((sum, entry) => {
+                if (entry.clock_in_time && entry.clock_out_time) {
                   try {
                     return (
                       sum +
                       regularHoursFromBundyClockPair(
-                        e.clock_in_time,
-                        e.clock_out_time
+                        entry.clock_in_time,
+                        entry.clock_out_time
                       )
                     );
                   } catch {
                     /* fall through */
                   }
                 }
-                return sum + (e.regular_hours ?? e.total_hours ?? 0);
+                return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
               }, 0);
-              if (workedHours >= 8) {
-                eligibleForHoliday = true;
-                break;
+            }
+            const built = days.find((day) => day.date === checkDateStr);
+            if (built && (built.status === "RH" || built.status === "SH")) {
+              workedHours = Math.max(workedHours, built.bh);
+            }
+            priorDays.push({
+              date: checkDateStr,
+              dayType: checkDayType,
+              regularHours: holidayPresenceHours({
+                workedHours,
+                leaveType: checkLeave?.leave_type,
+                halfDay:
+                  !!checkLeave &&
+                  Array.isArray(checkLeave.half_day_dates) &&
+                  checkLeave.half_day_dates.includes(checkDateStr),
+              }),
+            });
+          }
+          const holidayWorkedHours = dayEntries.reduce((sum, entry) => {
+            if (entry.clock_in_time && entry.clock_out_time) {
+              try {
+                return (
+                  sum +
+                  regularHoursFromBundyClockPair(
+                    entry.clock_in_time,
+                    entry.clock_out_time
+                  )
+                );
+              } catch {
+                /* fall through */
               }
             }
-          }
-          // BH will be set based on eligibility (8 if eligible, 0 if not)
-          // For consecutive holidays, if previous holiday was eligible, this one is too
-          if (!eligibleForHoliday && days.length > 0) {
-            const prevDay = days[days.length - 1];
-            if (
-              (prevDay.status === "RH" || prevDay.status === "SH") &&
-              prevDay.bh >= HOLIDAY_UNWORKED_CREDIT_HOURS
-            ) {
-              eligibleForHoliday = true;
-            }
-          }
-          eligibleForHolidayCredit = eligibleForHoliday;
+            return sum + (entry.regular_hours ?? entry.total_hours ?? 0);
+          }, 0);
+          eligibleForHolidayCredit = isEligibleForHolidayPayRule(
+            dateStr,
+            holidayWorkedHours,
+            priorDays
+          );
           bh = 0;
         } else if (dayLeaves.length > 0) {
           // Check leave requests (but holidays take priority)
@@ -1529,9 +1556,23 @@ export default function BundyClockPage() {
     }
 
     try {
-      const year = new Date(periodStartStr).getFullYear();
-      const holidaysData = (PHILIPPINE_HOLIDAYS[year] || []).filter(
-        (h) => h.date >= periodStartStr && h.date <= periodEndStr
+      const lookbackStartDate = new Date(periodStart);
+      lookbackStartDate.setDate(
+        lookbackStartDate.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+      );
+      const lookbackStartStr = getManilaDateStringFromLocalDate(lookbackStartDate);
+      const holidayYears = [
+        lookbackStartDate.getFullYear(),
+        new Date(periodEndStr).getFullYear(),
+      ];
+      const holidayPool = holidayYears.flatMap(
+        (year, index) =>
+          index > 0 && year === holidayYears[0]
+            ? []
+            : PHILIPPINE_HOLIDAYS[year] || []
+      );
+      const holidaysData = holidayPool.filter(
+        (h) => h.date >= lookbackStartStr && h.date <= periodEndStr
       ).map((h) => ({
         holiday_date: h.date,
         name: h.name,
@@ -1547,7 +1588,7 @@ export default function BundyClockPage() {
         (r) =>
           ["approved_by_manager", "approved_by_hr"].includes(r.status) &&
           r.start_date <= periodEndStr &&
-          r.end_date >= periodStartStr
+          r.end_date >= lookbackStartStr
       );
       const otData = (otQueryData?.requests || []).filter(
         (r) =>

@@ -4,6 +4,7 @@
  */
 
 import { format, addDays, parseISO } from "date-fns";
+import { holidayPresenceHours } from "@/utils/holidays";
 
 export interface LeaveDayInfo {
   leaveType: string;
@@ -58,6 +59,15 @@ export function buildLeaveDatesMap(
   }
 
   return leaveDatesMap;
+}
+
+/** Hours of leave with pay. Unpaid leave is 0. Half-day paid leave is 4. */
+export function paidLeaveCreditHours(info: LeaveDayInfo): number {
+  return holidayPresenceHours({
+    workedHours: 0,
+    leaveType: info.leaveType,
+    halfDay: info.isHalfDay,
+  });
 }
 
 /** SIL dates that should count as present for base-pay absence detection. */

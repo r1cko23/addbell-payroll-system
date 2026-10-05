@@ -35,7 +35,11 @@ import {
 } from "@/components/ui/select";
 import { PayslipPrint } from "@/components/PayslipPrint";
 import { PayslipDetailedBreakdown } from "@/components/PayslipDetailedBreakdown";
-import { resolveEmployeePosition } from "@/lib/payslip-display";
+import {
+  employeeHasPayableRate,
+  resolveEmployeePosition,
+  shouldShowPayslipEarningsBreakdown,
+} from "@/lib/payslip-display";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { calculateBasePay } from "@/utils/base-pay-calculator";
 import {
@@ -121,6 +125,8 @@ interface Employee {
   full_name: string;
   last_name?: string | null;
   first_name?: string | null;
+  salary_basis?: string | null;
+  base_rate?: number | null;
   monthly_rate?: number | null;
   per_day?: number | null;
   position?: string | null;
@@ -922,12 +928,17 @@ export default function PayslipsPage() {
       let attData = null as any;
 
       // Load leave requests for the period (needed for both existing and new attendance)
+      const leaveLookbackStart = new Date(periodStart);
+      leaveLookbackStart.setDate(
+        leaveLookbackStart.getDate() - HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS
+      );
+      const leaveLookbackStartStr = format(leaveLookbackStart, "yyyy-MM-dd");
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
         .select("id, leave_type, start_date, end_date, status, half_day_dates")
         .eq("employee_id", selectedEmployeeId)
         .lte("start_date", periodEndStr)
-        .gte("end_date", periodStartStr)
+        .gte("end_date", leaveLookbackStartStr)
         .in("status", ["approved_by_manager", "approved_by_hr"]);
 
       if (leaveError) {
@@ -936,7 +947,7 @@ export default function PayslipsPage() {
 
       const leaveDatesMap = buildLeaveDatesMap(
         leaveData || [],
-        periodStartStr,
+        leaveLookbackStartStr,
         periodEndStr
       );
 
@@ -3263,12 +3274,27 @@ export default function PayslipsPage() {
                     className="compact md:col-span-2 lg:col-span-3"
                   >
                     <VStack gap="4" align="stretch">
-                      {attendance &&
-                        Array.isArray(attendance.attendance_data) &&
-                        attendance.attendance_data.length > 0 &&
-                        (selectedEmployee.per_day || selectedEmployee.rate_per_day) &&
-                        (selectedEmployee.rate_per_hour || selectedEmployee.per_day) && (
+                      {shouldShowPayslipEarningsBreakdown({
+                        attendanceDayCount: Array.isArray(attendance?.attendance_data)
+                          ? attendance.attendance_data.length
+                          : 0,
+                        perDay: selectedEmployee.per_day,
+                        ratePerDay: selectedEmployee.rate_per_day,
+                        ratePerHour: selectedEmployee.rate_per_hour,
+                      }) && (
                           <div className="max-h-[500px] md:max-h-[600px] lg:max-h-[700px] overflow-y-auto">
+                            {!employeeHasPayableRate({
+                              salaryBasis: selectedEmployee.salary_basis,
+                              baseRate: selectedEmployee.base_rate,
+                              monthlyRate: selectedEmployee.monthly_rate,
+                              perDay: selectedEmployee.per_day,
+                              ratePerDay: selectedEmployee.rate_per_day,
+                              ratePerHour: selectedEmployee.rate_per_hour,
+                            }) && (
+                              <BodySmall className="text-xs text-amber-800">
+                                Hours are from time entries. Pay stays at ₱0 until a base rate is set on this employee.
+                              </BodySmall>
+                            )}
                             <PayslipDetailedBreakdown
                               employee={{
                                 employee_id: selectedEmployee.employee_id,
@@ -3408,7 +3434,11 @@ export default function PayslipsPage() {
                                 />
                               </HStack>
                             </>
-                          ) : null}
+                          ) : (
+                            <BodySmall className="text-xs text-muted-foreground">
+                              SSS, PhilHealth, and Pag-IBIG stay at zero until a monthly rate is set.
+                            </BodySmall>
+                          )}
 
                           {(() => {
                             const adj = adjustment;

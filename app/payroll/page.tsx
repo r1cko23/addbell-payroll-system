@@ -54,6 +54,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { generatePayrollRunTemplatePDF } from "@/utils/payroll-run-pdf";
 import type { PayrollEntrySummary } from "@/lib/ph-payroll/payroll-entry-validation";
+import { deriveAddbellCutoffHub } from "@/lib/payroll/addbell-cutoff-hub";
+import { CutoffStepper } from "@/components/payroll/CutoffStepper";
+import { CutoffGuide } from "@/components/payroll/CutoffGuide";
+import { MetricCard } from "@/components/ui/metric-card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface PayrollRun {
   id: string;
@@ -190,6 +195,40 @@ export default function PayrollPage() {
   const [payrollValidation, setPayrollValidation] =
     useState<PayrollEntrySummary | null>(null);
   const [loadingValidation, setLoadingValidation] = useState(false);
+  const [hubTab, setHubTab] = useState<"hours" | "register" | "downloads">("hours");
+  const [hoursIssue, setHoursIssue] = useState<"" | "missing_rate" | "zero_hours">("");
+  const cutoffHub = useMemo(() => {
+    const rows = payrollValidation?.rows ?? [];
+    return deriveAddbellCutoffHub({
+      runStatus: selectedRun?.status ?? "draft",
+      scopedEmployees: rows.length,
+      employeesWithClock: rows.filter((row) => row.clockEntryCount > 0).length,
+      missingRate: rows.filter((row) => !row.hasRate).length,
+      zeroHours: rows.filter((row) => row.clockEntryCount === 0).length,
+      payslipCount: payslips.length,
+    });
+  }, [payrollValidation, payslips.length, selectedRun?.status]);
+
+  function jumpToCutoffSection(sectionId: string) {
+    if (sectionId === "cutoff-downloads") setHubTab("downloads");
+    else if (sectionId === "payroll-register") setHubTab("register");
+    else setHubTab("hours");
+  }
+
+  function runCutoffPrimary() {
+    if (cutoffHub.primary.id === "build") {
+      setHubTab("register");
+      void generatePayslips();
+      return;
+    }
+    if (cutoffHub.primary.id === "finalize") {
+      setHubTab("register");
+      void finalizeRun();
+      return;
+    }
+    jumpToCutoffSection(cutoffHub.primary.sectionId);
+  }
+
   const [printPayslip, setPrintPayslip] = useState<Payslip | null>(null);
   const [printPayload, setPrintPayload] = useState<{
     employee: any;
@@ -757,7 +796,7 @@ export default function PayrollPage() {
             <VStack gap="1" align="start">
               <Button variant="ghost" size="sm" onClick={() => setSelectedRun(null)} className="mb-1">
                 <Icon name="ArrowLeft" size={IconSizes.sm} className="mr-2" />
-                Back to Payroll Runs
+                Back to cutoffs
               </Button>
               <H1>
                 Payroll: {format(new Date(selectedRun.cutoff_start), "MMM d")} – {format(new Date(selectedRun.cutoff_end), "MMM d, yyyy")}
@@ -775,52 +814,136 @@ export default function PayrollPage() {
                 </Caption>
               </HStack>
             </VStack>
-            <HStack gap="2" className="w-full flex-wrap sm:ml-auto sm:w-auto sm:justify-end">
-              {selectedRun.status === "draft" && (
-                <>
-                  <Button onClick={() => generatePayslips()} disabled={processing}>
-                  <Icon name="ArrowsClockwise" size={IconSizes.sm} className={processing ? "animate-spin mr-2" : "mr-2"} />
-                  {processing ? "Generating..." : "Generate Payslips"}
-                </Button>
-                </>
-              )}
-              {selectedRun.status === "processing" && (
-                <>
-                  <Button onClick={() => generatePayslips()} variant="outline" disabled={processing}>
-                    <Icon name="ArrowsClockwise" size={IconSizes.sm} className="mr-2" />
-                    Regenerate
-                  </Button>
-                  <Button onClick={finalizeRun}>
-                    <Icon name="Check" size={IconSizes.sm} className="mr-2" />
-                    Finalize
-                  </Button>
-                </>
-              )}
-              {(selectedRun.status === "draft" || selectedRun.status === "processing") && (
-                <Button variant="destructive" onClick={cancelRun}>Cancel Run</Button>
-              )}
-              {selectedRun.status === "finalized" && (
-                <>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline">
-                        <Icon name="Download" size={IconSizes.sm} className="mr-2" />
-                        Export Payroll
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={exportPayrollPdf}>Download PDF</DropdownMenuItem>
-                      <DropdownMenuItem onClick={exportPayrollExcel}>Download Excel</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button variant="outline" onClick={exportBankPayrollFile}>
-                    <Icon name="Download" size={IconSizes.sm} className="mr-2" />
-                    Export Bank File
-                  </Button>
-                </>
-              )}
-            </HStack>
+            {(selectedRun.status === "draft" || selectedRun.status === "processing") && (
+              <Button variant="destructive" onClick={cancelRun}>
+                Cancel cutoff
+              </Button>
+            )}
           </HStack>
+
+          <CardSection title="Workflow" className="shadow-sm">
+            <CutoffStepper
+              steps={cutoffHub.steps}
+              onStepSelect={jumpToCutoffSection}
+            />
+          </CardSection>
+          <CutoffGuide
+            primaryAction={cutoffHub.primary}
+            checklist={cutoffHub.checklist}
+            busy={processing || loadingValidation}
+            onPrimaryAction={runCutoffPrimary}
+            onJumpToSection={jumpToCutoffSection}
+          />
+
+          <Tabs
+            value={hubTab}
+            onValueChange={(value) =>
+              setHubTab(value as "hours" | "register" | "downloads")
+            }
+          >
+            <TabsList aria-label="Cutoff sections">
+              <TabsTrigger value="hours">Hours</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+              <TabsTrigger value="downloads">Downloads</TabsTrigger>
+            </TabsList>
+            <TabsContent value="hours" id="cutoff-hours" className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <MetricCard
+                  label="In scope"
+                  value={payrollValidation?.total ?? runScopeCount(selectedRun) ?? 0}
+                  meta="Employees on this cutoff"
+                  active={hoursIssue === ""}
+                  onClick={() => setHoursIssue("")}
+                />
+                <MetricCard
+                  label="With time entries"
+                  value={
+                    payrollValidation?.rows.filter((row) => row.clockEntryCount > 0)
+                      .length ?? 0
+                  }
+                  meta="Attendance from Bundy"
+                />
+                <MetricCard
+                  label="Missing rate"
+                  value={
+                    payrollValidation?.rows.filter((row) => !row.hasRate).length ?? 0
+                  }
+                  meta="Pay stays at zero"
+                  active={hoursIssue === "missing_rate"}
+                  onClick={() => setHoursIssue("missing_rate")}
+                />
+                <MetricCard
+                  label="Zero hours"
+                  value={
+                    payrollValidation?.rows.filter((row) => row.clockEntryCount === 0)
+                      .length ?? 0
+                  }
+                  meta="No punches this week"
+                  active={hoursIssue === "zero_hours"}
+                  onClick={() => setHoursIssue("zero_hours")}
+                />
+              </div>
+              {loadingValidation ? (
+                <div className="flex justify-center py-10">
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                </div>
+              ) : (
+                <div className={dbTableShell}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead className="text-center">Sessions</TableHead>
+                        <TableHead>Rate</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(payrollValidation?.rows ?? [])
+                        .filter((row) => {
+                          if (hoursIssue === "missing_rate") return !row.hasRate;
+                          if (hoursIssue === "zero_hours") return row.clockEntryCount === 0;
+                          return true;
+                        })
+                        .map((row) => (
+                          <TableRow key={row.employeeId}>
+                            <TableCell>
+                              <div className="text-sm font-medium">{row.fullName}</div>
+                              <Caption>{row.employeeCode}</Caption>
+                            </TableCell>
+                            <TableCell className="text-center tabular-nums">
+                              {row.clockEntryCount}
+                            </TableCell>
+                            <TableCell>
+                              {row.hasRate ? "Set" : "Missing"}
+                            </TableCell>
+                            <TableCell className="max-w-md text-xs text-muted-foreground">
+                              {[...row.issues, ...row.warnings].join(" · ") || "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="register" id="payroll-register" className="space-y-4">
+          {(selectedRun.status === "draft" || selectedRun.status === "processing") && (
+            <HStack justify="end">
+              <Button onClick={() => generatePayslips()} disabled={processing}>
+                <Icon
+                  name="ArrowsClockwise"
+                  size={IconSizes.sm}
+                  className={processing ? "mr-2 animate-spin" : "mr-2"}
+                />
+                {processing
+                  ? "Building…"
+                  : payslips.length > 0
+                    ? "Rebuild register"
+                    : "Build payroll register"}
+              </Button>
+            </HStack>
+          )}
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -863,7 +986,7 @@ export default function PayrollPage() {
             ) : payslips.length === 0 ? (
               <div className="text-center py-10 text-muted-foreground">
                 {selectedRun.status === "draft"
-                  ? "Click \"Generate Payslips\" to compute payroll for all active employees."
+                  ? "Build the register to turn these hours into payslips."
                   : "No payslips found for this run."}
               </div>
             ) : (
@@ -1011,6 +1134,35 @@ export default function PayrollPage() {
               </>
             )}
           </CardSection>
+            </TabsContent>
+            <TabsContent value="downloads" id="cutoff-downloads" className="space-y-3">
+              <CardSection title="Downloads" description="Available after this cutoff is finalized.">
+                <HStack gap="2" className="flex-wrap">
+                  <Button
+                    variant="outline"
+                    disabled={selectedRun.status !== "finalized"}
+                    onClick={exportPayrollPdf}
+                  >
+                    Payroll PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={selectedRun.status !== "finalized"}
+                    onClick={exportPayrollExcel}
+                  >
+                    Payroll Excel
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={selectedRun.status !== "finalized"}
+                    onClick={exportBankPayrollFile}
+                  >
+                    Bank file
+                  </Button>
+                </HStack>
+              </CardSection>
+            </TabsContent>
+          </Tabs>
 
           {printPayslip && printPayload && (
             <div className="hidden">
@@ -1063,20 +1215,20 @@ export default function PayrollPage() {
       <div className={cn("mx-auto w-full max-w-6xl", dbPageWrapper)}>
         <DashboardPageHeader
           title="Payroll"
-          description="Create and review payroll runs."
+          description="Cutoff payroll: hours from time entries, register, and downloads."
           actions={
             (isManagement || isHR) ? (
               <div className={dbHeaderActions}>
                 <Button onClick={openNewRunDialog} className={dbHeaderButton}>
                   <Icon name="Plus" size={IconSizes.sm} />
-                  New payroll run
+                  New cutoff
                 </Button>
               </div>
             ) : undefined
           }
         />
 
-        <CardSection title="Payroll runs" description="Most recent first.">
+        <CardSection title="Cutoff periods" description="Most recent first.">
           {loading ? (
             <div className="flex items-center justify-center py-10">
               <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />

@@ -36,6 +36,7 @@ export {
   buildLeaveDatesMap,
   applyLeaveOverlayToAttendance,
   getSilCreditedDates,
+  paidLeaveCreditHours,
   type LeaveDayInfo,
   type LeaveRequestRow,
 } from "./leave-overlay";

@@ -7,6 +7,7 @@ import {
 import {
   formatFundRequestPoAmount,
   parseFundRequestProjectDetails,
+  stripWrappingQuotes,
   type StoredFundRequestProjectDetails,
 } from "@/lib/fund-request-project-details";
 import { parseSupplierBankDetails } from "@/lib/fund-request-bank-details";
@@ -244,7 +245,9 @@ export function snapshotFundRequestReturnValues(
     purpose: formatText(request.purpose),
     referenceBasis: getFundRequestReferenceModeLabel(request.reference_mode),
     poNumber: formatText(request.po_number || firstProject?.po_number),
-    projectTitle: formatText(request.project_title || firstProject?.title),
+    projectTitle: formatText(
+      stripWrappingQuotes(request.project_title || firstProject?.title || "")
+    ),
     projectLocation: formatText(
       request.project_location || firstProject?.location
     ),

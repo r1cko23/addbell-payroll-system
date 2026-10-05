@@ -83,6 +83,7 @@ import {
 } from "@/lib/fund-request-um-project-details";
 import {
   createEmptyFundRequestProjectRow,
+  stripWrappingQuotes,
   type FundRequestProjectDetailRow,
   validateFundRequestProjectRows,
 } from "@/lib/fund-request-project-details";
@@ -270,7 +271,7 @@ export function FundRequestApprovalDetail({
       setCorrectionEdits({
         purpose: row.purpose ?? "",
         poNumber: row.po_number ?? "",
-        projectTitle: row.project_title ?? "",
+        projectTitle: stripWrappingQuotes(row.project_title ?? ""),
         projectLocation: row.project_location ?? "",
         poAmount: row.po_amount != null ? String(row.po_amount) : "",
         projectCompletion:

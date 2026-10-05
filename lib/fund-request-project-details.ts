@@ -55,6 +55,34 @@ export function usesFundRequestPerProjectPo(purposeOption: string): boolean {
   );
 }
 
+const WRAPPING_QUOTE_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['"', '"'],
+  ["“", "”"],
+  ["‘", "’"],
+  ["«", "»"],
+];
+
+/** Sheet cells sometimes store the project title inside a pair of quotation marks. */
+export function stripWrappingQuotes(value: string): string {
+  let text = value.trim();
+  let changed = true;
+  while (changed && text.length >= 2) {
+    changed = false;
+    for (const [open, close] of WRAPPING_QUOTE_PAIRS) {
+      if (
+        text.startsWith(open) &&
+        text.endsWith(close) &&
+        text.length >= open.length + close.length
+      ) {
+        text = text.slice(open.length, text.length - close.length).trim();
+        changed = true;
+        break;
+      }
+    }
+  }
+  return text;
+}
+
 function normalizePoNumber(value: string): string {
   const trimmed = value.trim();
   return trimmed.toUpperCase() === "N/A" ? "N/A" : trimmed;
@@ -116,7 +144,7 @@ export function parseFundRequestProjectDetails(
       )
       .map((project) => ({
         po_number: project.po_number?.trim() || null,
-        title: project.title?.trim() ?? "",
+        title: stripWrappingQuotes(project.title ?? ""),
         location: project.location?.trim() ?? "",
         po_amount:
           project.po_amount == null ? null : Number(project.po_amount),
@@ -131,7 +159,7 @@ export function parseFundRequestProjectDetails(
     return [
       {
         po_number: request.po_number?.trim() || null,
-        title: request.project_title?.trim() ?? "",
+        title: stripWrappingQuotes(request.project_title ?? ""),
         location: request.project_location?.trim() ?? "",
         po_amount: request.po_amount,
         completion_percentage: request.current_project_percentage,
@@ -221,7 +249,7 @@ export function normalizeFundRequestProjectRows(
       po_number: options?.includePoNumber
         ? normalizePoNumber(row.poNumber) || null
         : null,
-      title: row.title.trim(),
+      title: stripWrappingQuotes(row.title),
       location: row.location.trim(),
       po_amount: parsePoAmount(row.poAmount),
       completion_percentage: Number(

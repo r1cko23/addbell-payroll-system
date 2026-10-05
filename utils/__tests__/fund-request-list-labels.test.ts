@@ -96,6 +96,62 @@ describe("getFundRequestListProjectLabel", () => {
       )
     ).toBe("Tower 3");
   });
+
+  it("drops wrapping quotation marks from the project title", () => {
+    expect(
+      getFundRequestListProjectLabel(
+        baseRequest({
+          purpose: "PERMITTING",
+          po_number: "PO-RE1350002071",
+          project_title:
+            '"CIVIL WORKS/ SPECS: SUPPLY OF LABOR, TOOLS, MATERIALS, EQUIPMENT AND NECESSARY "',
+          project_location: "RE HAWTHORNE HEIGHTS QC",
+        })
+      )
+    ).toBe(
+      "PO-RE1350002071 | CIVIL WORKS/ SPECS: SUPPLY OF LABOR, TOOLS, MATERIALS, EQUIPMENT AND NECESSARY | RE HAWTHORNE HEIGHTS QC"
+    );
+  });
+
+  it("drops wrapping quotes stored on the project details row", () => {
+    expect(
+      formatFundRequestReferenceSummaryLabel(
+        baseRequest({
+          purpose: "PERMITTING",
+          po_number: "PO-RE1350002071",
+          project_title: "ignored when project details exist",
+          project_location: "ignored",
+          project_details: {
+            v: 1,
+            projects: [
+              {
+                po_number: "PO-RE1350002071",
+                title:
+                  "“CIVIL WORKS/ SPECS: SUPPLY OF LABOR, TOOLS, MATERIALS, EQUIPMENT AND NECESSARY”",
+                location: "RE HAWTHORNE HEIGHTS QC",
+                po_amount: null,
+                completion_percentage: null,
+              },
+            ],
+          },
+        })
+      )
+    ).toBe(
+      "PO-RE1350002071 | CIVIL WORKS/ SPECS: SUPPLY OF LABOR, TOOLS, MATERIALS, EQUIPMENT AND NECESSARY | RE HAWTHORNE HEIGHTS QC | PERMITTING"
+    );
+  });
+
+  it("keeps an apostrophe that is part of the title", () => {
+    expect(
+      getFundRequestListProjectLabel(
+        baseRequest({
+          project_title: "JAN '25 TECH LABOR",
+          project_location: "SITE",
+          po_number: "PO-1",
+        })
+      )
+    ).toBe("PO-1 | JAN '25 TECH LABOR | SITE");
+  });
 });
 
 describe("getFundRequestListPurposeLabel", () => {
@@ -126,6 +182,22 @@ describe("formatFundRequestReferenceSummaryLabel", () => {
         })
       )
     ).toBe("PO-999 | Building A Fit-out | BGC Site 2 | Acme Builders Inc");
+  });
+
+  it("drops wrapping quotation marks on the inbox summary line", () => {
+    expect(
+      formatFundRequestReferenceSummaryLabel(
+        baseRequest({
+          purpose: "PERMITTING",
+          po_number: "PO-RE1350002071",
+          project_title:
+            '"CIVIL WORKS/ SPECS: SUPPLY OF LABOR, TOOLS, MATERIALS, EQUIPMENT AND NECESSARY "',
+          project_location: "RE HAWTHORNE HEIGHTS QC",
+        })
+      )
+    ).toBe(
+      "PO-RE1350002071 | CIVIL WORKS/ SPECS: SUPPLY OF LABOR, TOOLS, MATERIALS, EQUIPMENT AND NECESSARY | RE HAWTHORNE HEIGHTS QC | PERMITTING"
+    );
   });
 
   it("formats material purchase as PO | Title | Location | Purpose", () => {

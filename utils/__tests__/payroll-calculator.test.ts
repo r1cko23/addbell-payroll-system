@@ -207,10 +207,10 @@ describe("Payroll Calculator - Weekly Payroll Calculation", () => {
     const result = calculateWeeklyPayroll(attendance, ratePerHour);
 
     expect(result.breakdown).toHaveLength(4);
-    expect(result.totals.regularPay).toBe(4480); // 800 + 1040 + 1600 + 800
+    expect(result.totals.regularPay).toBe(4240); // 800 + 1040 + 1600 + 800
     expect(result.totals.overtimePay).toBe(770); // 250 + 0 + 520 + 0
     expect(result.totals.nightDiffPay).toBe(20); // 10 + 0 + 10 + 0
-    expect(result.grossPay).toBe(5270);
+    expect(result.grossPay).toBe(5030);
   });
 
   test("should handle empty attendance", () => {

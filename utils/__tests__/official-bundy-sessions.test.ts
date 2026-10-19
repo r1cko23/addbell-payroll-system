@@ -61,6 +61,26 @@ describe("filterOfficialBundySessions — longest complete pair per day", () => 
     expect(official[0].clock_out_time).toBe("2026-09-12T02:20:35.751+08:00");
   });
 
+  test("Rechel Oct 8: double tap after Time Out does not replace the real workday", () => {
+    const punches = [
+      punch("in-real", "in", "2026-10-08T06:53:37.891+08:00"),
+      punch("out-real", "out", "2026-10-08T18:21:46.449+08:00"),
+      punch("in-tap", "in", "2026-10-08T18:21:58.671+08:00"),
+      punch("out-morning", "out", "2026-10-09T06:52:37.026+08:00"),
+    ];
+    const official = officialFromPunches(punches);
+    expect(official.map((s) => s.id)).toEqual(["in-real"]);
+    expect(official[0].clock_out_time).toBe("2026-10-08T18:21:46.449+08:00");
+  });
+
+  test("Sunday pairs have no business hours, so the longest still wins", () => {
+    const official = officialOnDay([
+      session("short", "2026-10-11T08:00:00+08:00", "2026-10-11T09:00:00+08:00"),
+      session("long", "2026-10-11T10:00:00+08:00", "2026-10-11T15:00:00+08:00"),
+    ]);
+    expect(official.map((s) => s.id)).toEqual(["long"]);
+  });
+
   test("zero sessions stay empty", () => {
     expect(officialOnDay([])).toEqual([]);
   });

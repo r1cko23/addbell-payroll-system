@@ -21,6 +21,10 @@ export type LeaveRequestRow = {
   half_day_dates?: string[] | null;
 };
 
+/** leave_requests columns every payroll surface must select before calling buildLeaveDatesMap. */
+export const APPROVED_LEAVE_COLUMNS =
+  "employee_id, leave_type, start_date, end_date, status, selected_dates, half_day_dates";
+
 export function buildLeaveDatesMap(
   leaveData: LeaveRequestRow[],
   periodStartStr: string,
@@ -68,17 +72,6 @@ export function paidLeaveCreditHours(info: LeaveDayInfo): number {
     leaveType: info.leaveType,
     halfDay: info.isHalfDay,
   });
-}
-
-/** SIL dates that should count as present for base-pay absence detection. */
-export function getSilCreditedDates(
-  leaveDatesMap: Map<string, LeaveDayInfo>
-): Set<string> {
-  const credited = new Set<string>();
-  leaveDatesMap.forEach((info, dateStr) => {
-    if (info.leaveType === "SIL") credited.add(dateStr);
-  });
-  return credited;
 }
 
 export function applyLeaveOverlayToAttendance<

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdminOrHrAccess } from "@/lib/api-helpers";
 import {
+  APPROVED_LEAVE_COLUMNS,
   buildCutoffAttendance,
   buildLeaveDatesMap,
   getRatePerHour,
@@ -279,9 +280,7 @@ export async function POST(req: NextRequest) {
     const leaveLookbackStr = format(leaveLookback, "yyyy-MM-dd");
     const { data: approvedLeaveRows } = await admin
       .from("leave_requests")
-      .select(
-        "employee_id, leave_type, start_date, end_date, status, half_day_dates"
-      )
+      .select(APPROVED_LEAVE_COLUMNS)
       .in("employee_id", employeeIds)
       .lte("start_date", cutoffEnd)
       .gte("end_date", leaveLookbackStr)

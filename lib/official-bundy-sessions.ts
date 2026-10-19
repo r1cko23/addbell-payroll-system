@@ -1,4 +1,5 @@
 import { getBundyBusinessDayKey } from "@/lib/bundy-business-day";
+import { regularHoursFromBundyClockPair } from "@/utils/business-hours";
 
 type SessionLike = {
   id: string;
@@ -14,7 +15,14 @@ function completeDurationMs(s: SessionLike): number {
   return end - start;
 }
 
+function businessHours(s: SessionLike): number {
+  return s.clock_out_time ? regularHoursFromBundyClockPair(s.clock_in_time, s.clock_out_time) : 0;
+}
+
 function isLongerOfficialComplete(candidate: SessionLike, current: SessionLike): boolean {
+  const candidateBh = businessHours(candidate);
+  const currentBh = businessHours(current);
+  if (candidateBh !== currentBh) return candidateBh > currentBh;
   const candidateMs = completeDurationMs(candidate);
   const currentMs = completeDurationMs(current);
   if (candidateMs !== currentMs) return candidateMs > currentMs;
@@ -25,8 +33,9 @@ function isLongerOfficialComplete(candidate: SessionLike, current: SessionLike):
 }
 
 /**
- * Keeps one official Time In/Out pair per Bundy business day: the longest complete
- * session. Accidental ~1-minute in/out must not hide a real overnight shift.
+ * Keeps one official Time In/Out pair per Bundy business day: the complete session with
+ * the most business-window hours, then the longest. Accidental ~1-minute in/out must not
+ * hide a real overnight shift, and a double tap after Time Out must not hide the workday.
  * Extra shorter pairs (without OT/FTL filing) are excluded from attendance and payroll.
  */
 export function filterOfficialBundySessions<T extends SessionLike>(

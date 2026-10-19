@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { format, parseISO, getDay } from "date-fns";
+import { addDays, format, parseISO, getDay } from "date-fns";
 import {
   determineDayType,
   formatDateShort,
@@ -65,6 +65,7 @@ import {
   normalizeApprovedFtlClockPair,
 } from "@/lib/ftl-ot-synthesis";
 import {
+  APPROVED_LEAVE_COLUMNS,
   buildCutoffAttendance,
   buildLeaveDatesMap,
   buildApprovedOvertimeMaps,
@@ -738,7 +739,7 @@ export default function TimesheetPage() {
       const leaveLookbackStartStr = format(leaveLookbackStart, "yyyy-MM-dd");
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("id, leave_type, start_date, end_date, status, half_day_dates")
+        .select(`id, ${APPROVED_LEAVE_COLUMNS}`)
         .eq("employee_id", selectedEmployee.id)
         .lte("start_date", periodEndStr)
         .gte("end_date", leaveLookbackStartStr)
@@ -938,19 +939,23 @@ export default function TimesheetPage() {
     // Group leave requests by date
     const leavesByDate = new Map<string, LeaveRequest[]>();
     leaveRequests.forEach((leave) => {
-      const startDate = new Date(leave.start_date);
-      const endDate = new Date(leave.end_date);
-      let currentDate = new Date(startDate);
-
-      // Schema has no selected_dates — use start_date/end_date only
-      while (currentDate <= endDate) {
-        const dateStr = format(currentDate, "yyyy-MM-dd");
+      const addLeaveDate = (dateStr: string) => {
         if (!leavesByDate.has(dateStr)) {
           leavesByDate.set(dateStr, []);
         }
         leavesByDate.get(dateStr)!.push(leave);
-        currentDate = new Date(currentDate);
-        currentDate.setDate(currentDate.getDate() + 1);
+      };
+
+      if (Array.isArray(leave.selected_dates)) {
+        leave.selected_dates.forEach(addLeaveDate);
+        return;
+      }
+
+      let currentDate = parseISO(leave.start_date);
+      const endDate = parseISO(leave.end_date);
+      while (currentDate <= endDate) {
+        addLeaveDate(format(currentDate, "yyyy-MM-dd"));
+        currentDate = addDays(currentDate, 1);
       }
     });
 

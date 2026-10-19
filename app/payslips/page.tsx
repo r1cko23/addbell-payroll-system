@@ -104,6 +104,7 @@ import {
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 // Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
 import {
+  APPROVED_LEAVE_COLUMNS,
   buildCutoffAttendance,
   buildLeaveDatesMap,
   getRatePerHour,
@@ -935,7 +936,7 @@ export default function PayslipsPage() {
       const leaveLookbackStartStr = format(leaveLookbackStart, "yyyy-MM-dd");
       const { data: leaveData, error: leaveError } = await supabase
         .from("leave_requests")
-        .select("id, leave_type, start_date, end_date, status, half_day_dates")
+        .select(`id, ${APPROVED_LEAVE_COLUMNS}`)
         .eq("employee_id", selectedEmployeeId)
         .lte("start_date", periodEndStr)
         .gte("end_date", leaveLookbackStartStr)

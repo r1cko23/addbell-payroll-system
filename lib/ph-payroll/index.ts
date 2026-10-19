@@ -33,9 +33,9 @@ export {
 } from "./employee-rates";
 
 export {
+  APPROVED_LEAVE_COLUMNS,
   buildLeaveDatesMap,
   applyLeaveOverlayToAttendance,
-  getSilCreditedDates,
   paidLeaveCreditHours,
   type LeaveDayInfo,
   type LeaveRequestRow,

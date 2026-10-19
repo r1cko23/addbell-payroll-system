@@ -30,7 +30,7 @@ describe("calculateUndertimeHoursForAttendanceDay", () => {
     expect(
       calculateUndertimeHoursForAttendanceDay(
         "2026-06-05",
-        "2026-06-05T06:00:00+08:00", // 2 PM Manila, Friday end 4 PM
+        "2026-06-05T14:00:00+08:00", // 2 PM Manila, Friday end 4 PM
         16 * 60
       )
     ).toBe(2);

@@ -185,6 +185,37 @@ export function canUploadFundRequestPaymentCheck(
   return status === "purchasing_officer_approved" || status === "management_approved";
 }
 
+/** Roles that see uploaded cheques in the approval inbox (same roles that can upload them). */
+export function canViewFundRequestPaymentChecksInInbox(role: string | null | undefined): boolean {
+  const normalizedRole = normalizeUserRole(role);
+  return normalizedRole === "upper_management" || normalizedRole === "admin";
+}
+
+// One GET with ~650 UUIDs in `in.(...)` exceeds the Supabase gateway URL limit (400).
+const PAYMENT_CHECK_ID_BATCH_SIZE = 100;
+
+export async function loadFundRequestPaymentCheckDocumentsByRequestId(
+  requestIds: string[],
+  fetchBatch: (
+    ids: string[]
+  ) => PromiseLike<{ data: FundRequestDocumentSummary[] | null; error: { message: string } | null }>
+): Promise<{ documents: Record<string, FundRequestDocumentSummary[]>; error?: string }> {
+  const batches: string[][] = [];
+  for (let i = 0; i < requestIds.length; i += PAYMENT_CHECK_ID_BATCH_SIZE) {
+    batches.push(requestIds.slice(i, i + PAYMENT_CHECK_ID_BATCH_SIZE));
+  }
+
+  const results = await Promise.all(batches.map((batch) => fetchBatch(batch)));
+  const failed = results.find((result) => result.error);
+  if (failed?.error) return { documents: {}, error: failed.error.message };
+
+  const documents: Record<string, FundRequestDocumentSummary[]> = {};
+  for (const row of results.flatMap((result) => result.data ?? [])) {
+    (documents[row.fund_request_id] ??= []).push(row);
+  }
+  return { documents };
+}
+
 export function isFundRequestPaymentCheckDocument(
   document: Pick<FundRequestDocumentSummary, "document_type">
 ): boolean {

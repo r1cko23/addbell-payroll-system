@@ -85,7 +85,11 @@ import {
 } from "@/types/fund-request";
 import { getFundRequestListProjectLabel, getFundRequestListPurposeLabel } from "@/lib/fund-request-project-details";
 import { FundRequestClientGroupedInbox } from "@/components/fund-request/FundRequestClientGroupedInbox";
-import { canUploadFundRequestPaymentCheck } from "@/lib/fund-request-payment-check";
+import {
+  canUploadFundRequestPaymentCheck,
+  canViewFundRequestPaymentChecksInInbox,
+  loadFundRequestPaymentCheckDocumentsByRequestId,
+} from "@/lib/fund-request-payment-check";
 import { FundRequestCutoffNav } from "@/components/fund-request/FundRequestCutoffNav";
 import {
   FUND_REQUEST_FORWARD_CUTOFF_WEEKS,
@@ -534,11 +538,10 @@ export function FundRequestInbox({
   const getActionableStatuses = (): FundRequestRow["status"][] =>
     getActionableFundRequestStatuses(profile?.role);
 
-  const isUpperManagementRole =
-    normalizeUserRole(profile?.role) === "upper_management";
+  const canViewPaymentChecks = canViewFundRequestPaymentChecksInInbox(profile?.role);
 
   useEffect(() => {
-    if (!isUpperManagementRole || allRows.length === 0) {
+    if (!canViewPaymentChecks || allRows.length === 0) {
       setPaymentCheckDocumentsByRequestId({});
       return;
     }
@@ -547,35 +550,36 @@ export function FundRequestInbox({
     let cancelled = false;
 
     (async () => {
-      const { data, error } = await supabase
-        .from("fund_request_documents")
-        .select(
-          "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path"
-        )
-        .in("fund_request_id", requestIds)
-        .eq("document_type", "payment_check")
-        .order("created_at", { ascending: true });
+      const result = await loadFundRequestPaymentCheckDocumentsByRequestId(
+        requestIds,
+        async (batch) => {
+          const { data, error } = await supabase
+            .from("fund_request_documents")
+            .select(
+              "id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type, uploaded_by, storage_path"
+            )
+            .in("fund_request_id", batch)
+            .eq("document_type", "payment_check")
+            .order("created_at", { ascending: true });
+          return { data: data as FundRequestDocumentSummary[] | null, error };
+        }
+      );
 
       if (cancelled) return;
 
-      if (error) {
-        setPaymentCheckDocumentsByRequestId({});
+      if (result.error) {
+        // Keep what is on screen; an empty list reads as "cheques deleted".
+        toast.error("Couldn't load uploaded payment checks. Refresh to try again.");
         return;
       }
 
-      const grouped: Record<string, FundRequestDocumentSummary[]> = {};
-      for (const row of (data as FundRequestDocumentSummary[]) ?? []) {
-        const bucket = grouped[row.fund_request_id] ?? [];
-        bucket.push(row);
-        grouped[row.fund_request_id] = bucket;
-      }
-      setPaymentCheckDocumentsByRequestId(grouped);
+      setPaymentCheckDocumentsByRequestId(result.documents);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [allRows, isUpperManagementRole, supabase]);
+  }, [allRows, canViewPaymentChecks, supabase]);
 
   const currentUserId = profile?.id ?? null;
 

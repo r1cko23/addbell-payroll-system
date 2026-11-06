@@ -41,6 +41,8 @@ type FundRequestMyRequestsProps = {
   requesterEmployeeId: string | null;
   requesterUserId?: string | null;
   requesterIsOperationsManager?: boolean;
+  /** Employee portal: load through the session-guarded portal API (no Supabase JWT there). */
+  portal?: boolean;
 };
 
 function sumAmount(rows: FundRequestMyRequestRow[]): number {
@@ -57,6 +59,7 @@ export function FundRequestMyRequests({
   requesterEmployeeId,
   requesterUserId,
   requesterIsOperationsManager = false,
+  portal = false,
 }: FundRequestMyRequestsProps) {
   const supabase = createClient();
   const [selectedCutoffIndex, setSelectedCutoffIndex] = useState(0);
@@ -84,6 +87,27 @@ export function FundRequestMyRequests({
     });
     const cutoffs = history?.cutoffs ?? [];
 
+    let fetchedRows: FundRequestMyRequestRow[] | null = null;
+    if (portal) {
+      const params = new URLSearchParams();
+      if (history) {
+        params.set("from", history.fetch_from);
+        params.set(
+          "to",
+          format(addDays(parse(history.fetch_to, "yyyy-MM-dd", new Date()), 7), "yyyy-MM-dd")
+        );
+      }
+      const res = await fetch(`/api/employee-portal/fund-requests?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        rows?: FundRequestMyRequestRow[];
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error || "Could not load your fund requests");
+      fetchedRows = json.rows ?? [];
+    }
+
     let query = supabase
       .from("fund_requests")
       .select("*, projects ( name, code ), vendors ( name )")
@@ -100,7 +124,7 @@ export function FundRequestMyRequests({
         .lte("created_at", `${fetchToExtended}T23:59:59+08:00`);
     }
 
-    const { data, error } = await query;
+    const { data, error } = fetchedRows ? { data: fetchedRows, error: null } : await query;
 
     if (error) {
       console.error("Failed to load my fund requests", error);
@@ -118,7 +142,7 @@ export function FundRequestMyRequests({
         : loaded;
 
     return { rows: filtered, cutoffs };
-  }, [requesterEmployeeId, supabase]);
+  }, [portal, requesterEmployeeId, supabase]);
 
   const {
     data: loadResult,

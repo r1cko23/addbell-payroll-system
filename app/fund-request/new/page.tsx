@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { useSubcontractorOptions } from "@/lib/hooks/useVendors";
 import { useCurrentUser } from "@/lib/hooks/useCurrentUser";
 import { useOptionalEmployeeSession } from "@/contexts/EmployeeSessionContext";
@@ -334,7 +335,24 @@ export default function NewFundRequestPage() {
   const [editStatus, setEditStatus] = useState<FundRequestRow["status"] | null>(null);
   const [supplierBankDetails, setSupplierBankDetails] =
     useState<FundRequestBankDetailsForm>(emptyFundRequestBankDetails);
-  const { data: subcontractors = [] } = useSubcontractorOptions();
+  const { data: staffSubcontractors = [] } = useSubcontractorOptions({ enabled: !isPortal });
+  // Portal users have no Supabase JWT, so the portal API serves the subcontractor list.
+  const { data: portalSubcontractors = [] } = useQuery({
+    queryKey: ["portal", "fund-request", "subcontractors"],
+    enabled: isPortal,
+    queryFn: async () => {
+      const res = await fetch("/api/employee-portal/fund-requests?options=subcontractors", {
+        cache: "no-store",
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        subcontractors?: typeof staffSubcontractors;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error || "Could not load subcontractors");
+      return json.subcontractors ?? [];
+    },
+  });
+  const subcontractors = isPortal ? portalSubcontractors : staffSubcontractors;
   const purposeConfig = useMemo(
     () => getPurposeFieldConfig(purposeOption),
     [purposeOption]
@@ -448,11 +466,16 @@ export default function NewFundRequestPage() {
     setEditForbidden(false);
 
     void (async () => {
-      const { data, error } = await supabase
-        .from("fund_requests")
-        .select("*")
-        .eq("id", editId)
-        .maybeSingle();
+      const { data, error } = isPortal
+        ? await fetch(`/api/employee-portal/fund-requests?id=${encodeURIComponent(editId)}`, {
+            cache: "no-store",
+          })
+            .then(async (res) => {
+              const json = (await res.json().catch(() => ({}))) as { request?: FundRequestRow };
+              return { data: res.ok ? json.request ?? null : null, error: null };
+            })
+            .catch((err: unknown) => ({ data: null, error: err }))
+        : await supabase.from("fund_requests").select("*").eq("id", editId).maybeSingle();
 
       if (!active) return;
 
@@ -518,7 +541,7 @@ export default function NewFundRequestPage() {
     return () => {
       active = false;
     };
-  }, [editId, supabase]);
+  }, [editId, isPortal, supabase]);
 
   useEffect(() => {
     if (isPortal || session?.employee?.id || linkedEmployeeId) return;
@@ -776,10 +799,13 @@ export default function NewFundRequestPage() {
         setLinkedEmployeeId(selectedRequesterEmployeeId);
       }
 
+      // Portal browsers cannot read employees or companies; the API fills company_id instead.
       let companyId: string | null = null;
-      const { data: emp } = await supabase.from("employees").select("company_id").eq("id", employeeId).single();
-      companyId = emp?.company_id ?? null;
-      if (!companyId) {
+      if (!isPortal) {
+        const { data: emp } = await supabase.from("employees").select("company_id").eq("id", employeeId).single();
+        companyId = emp?.company_id ?? null;
+      }
+      if (!companyId && !isPortal) {
         const { data: companies } = await supabase.from("companies").select("id").limit(1).single();
         companyId = companies?.id ?? null;
       }

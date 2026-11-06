@@ -272,6 +272,7 @@ function FundRequestListPageContent() {
           requesterEmployeeId={employeeId}
           requesterUserId={profile?.id ?? null}
           requesterIsOperationsManager={requesterIsOperationsManager}
+          portal={isPortal}
         />
       )}
     </div>

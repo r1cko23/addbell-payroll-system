@@ -381,10 +381,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Portal browsers cannot read employees/companies, so fill company_id here when missing.
+    let companyId = body.company_id ?? null;
+    if (!companyId) {
+      const { data: requesterCompany } = await admin
+        .from("employees")
+        .select("company_id")
+        .eq("id", body.requested_by.trim())
+        .maybeSingle();
+      companyId = (requesterCompany as { company_id?: string | null } | null)?.company_id ?? null;
+    }
+    if (!companyId) {
+      const { data: firstCompany } = await admin.from("companies").select("id").limit(1).maybeSingle();
+      companyId = (firstCompany as { id?: string } | null)?.id ?? null;
+    }
+
     const { data: inserted, error } = await admin
       .from("fund_requests")
       .insert({
-        company_id: body.company_id,
+        company_id: companyId,
         reference_mode: body.reference_mode,
         project_id: body.project_id,
         requested_by: body.requested_by,

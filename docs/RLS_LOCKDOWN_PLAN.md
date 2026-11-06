@@ -1,6 +1,6 @@
 # RLS lockdown plan
 
-Status: step 1 applied to production 2026-11-06 and verified (anon reads 0 rows from the 18 closed tables; staff unchanged; the `rls_disabled_in_public` advisor is clear). Step 1b applied 2026-11-06 and verified (the 8 functions are executable by `service_role` only; the anon-callable definer list dropped from 22 to 14, all kept on purpose). Steps 2 and 3 not started.
+Status: step 1 applied to production 2026-11-06 and verified (anon reads 0 rows from the 18 closed tables; staff unchanged; the `rls_disabled_in_public` advisor is clear). Step 1b applied 2026-11-06 and verified (the 8 functions are executable by `service_role` only; the anon-callable definer list dropped from 22 to 14, all kept on purpose). Step 2 code written (portal reads moved to `/api/employee-portal/fund-requests` and `/api/employee-portal/holidays`); its migration `20261106220000_drop_portal_anon_reads.sql` must be applied only after that code is deployed. Step 3 not started.
 
 ## Step 1b: revoke public access to unused definer functions
 

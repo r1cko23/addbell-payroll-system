@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
 import { useProfile } from '@/lib/hooks/useProfile';
 import { format } from 'date-fns';
 import { formatFundRequestSubmittedAtLabel } from '@/lib/fund-request-history';
@@ -23,10 +22,8 @@ import type { FundRequestDocumentSummary } from '@/types/fund-request';
 import { FundRequestSupportingDocuments } from '@/components/fund-request/FundRequestSupportingDocuments';
 import { FundRequestAddDocument } from '@/components/fund-request/FundRequestAddDocument';
 import { getFundRequestStatusBadgeClass, getFundRequestStatusBadgeVariant, canRequesterAddDocumentToFundRequest, canRequesterEditFundRequest, getFundRequestRequesterStatus, isFundRequestRejected } from '@/lib/fund-request-approval';
-import { resolveFundRequestRequesterInfo } from '@/lib/fund-request-requester';
 import { useOptionalEmployeeSession } from '@/contexts/EmployeeSessionContext';
 import { Button } from '@/components/ui/button';
-import { isSchemaMissingTableOrRelationError } from '@/lib/postgrestSchema';
 import { isFundRequestPaymentCheckDocument } from '@/lib/fund-request-payment-check';
 import { epPageWrapper, epSubmitRequestButton } from '@/lib/employee-portal-ui';
 import { cn } from '@/lib/utils';
@@ -45,7 +42,6 @@ export function FundRequestEmployeeDetail({
 }) {
   const { loading: profileLoading } = useProfile();
   const session = useOptionalEmployeeSession();
-  const supabase = createClient();
   const [request, setRequest] = useState<FundRequestRow | null>(null);
   const [requesterName, setRequesterName] = useState<string>('');
   const [projectInfo, setProjectInfo] = useState<ProjectInfo | null>(null);
@@ -54,65 +50,37 @@ export function FundRequestEmployeeDetail({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     (async () => {
-      const { data: req, error } = await supabase
-        .from('fund_requests')
-        .select('*')
-        .eq('id', fundRequestId)
-        .single();
-      if (error || !req) {
+      // Portal users have no Supabase JWT; the portal API scopes this to the signed-in employee.
+      const res = await fetch(
+        `/api/employee-portal/fund-requests?id=${encodeURIComponent(fundRequestId)}`,
+        { cache: 'no-store' }
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        request?: FundRequestRow;
+        requesterName?: string;
+        project?: ProjectInfo | null;
+        vendorName?: string;
+        documents?: FundRequestDocumentSummary[];
+      };
+      if (!active) return;
+      if (!res.ok || !json.request) {
         setRequest(null);
         setLoading(false);
         return;
       }
-      const row = req as FundRequestRow;
-      setRequest(row);
-      setVendorName('');
-
-      const requesterInfo = await resolveFundRequestRequesterInfo(
-        supabase,
-        row.requested_by
-      );
-      setRequesterName(requesterInfo.name);
-
-      if (row.project_id) {
-        const { data: proj } = await supabase
-          .from('projects')
-          .select('name, code, site_address')
-          .eq('id', row.project_id)
-          .single();
-        if (proj) setProjectInfo(proj as ProjectInfo);
-      }
-
-      if (row.vendor_id) {
-        const { data: vendor } = await supabase
-          .from('vendors')
-          .select('name')
-          .eq('id', row.vendor_id)
-          .single();
-        setVendorName((vendor as { name?: string } | null)?.name ?? '');
-      }
-
-      const { data: docRows, error: docsError } = await supabase
-        .from('fund_request_documents')
-        .select('id, fund_request_id, employee_id, file_name, file_type, file_size, created_at, document_type')
-        .eq('fund_request_id', row.id)
-        .order('created_at', { ascending: true });
-      if (docsError) {
-        if (!isSchemaMissingTableOrRelationError(docsError)) {
-          console.error('fund_request_documents load:', docsError);
-        }
-      } else {
-        setDocuments(
-          ((docRows as FundRequestDocumentSummary[]) ?? []).filter(
-            (doc) => !isFundRequestPaymentCheckDocument(doc)
-          )
-        );
-      }
-
+      setRequest(json.request);
+      setRequesterName(json.requesterName ?? '');
+      setProjectInfo(json.project ?? null);
+      setVendorName(json.vendorName ?? '');
+      setDocuments((json.documents ?? []).filter((doc) => !isFundRequestPaymentCheckDocument(doc)));
       setLoading(false);
     })();
-  }, [fundRequestId, supabase]);
+    return () => {
+      active = false;
+    };
+  }, [fundRequestId]);
 
   if (profileLoading || loading) {
     return <div className="h-8 w-48 animate-pulse rounded bg-muted" />;

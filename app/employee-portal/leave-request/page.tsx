@@ -208,14 +208,17 @@ export default function LeaveRequestPage() {
     const start = `${holidayYear}-01-01`;
     const end = `${holidayYear}-12-31`;
 
-    const { data, error } = await supabase
-      .from("holidays")
-      .select("holiday_date")
-      .gte("holiday_date", start)
-      .lte("holiday_date", end);
+    // Portal users have no Supabase JWT; holidays come from the portal API.
+    const res = await fetch(
+      `/api/employee-portal/holidays?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+      { cache: "no-store" }
+    ).catch(() => null);
+    const json = res ? ((await res.json().catch(() => ({}))) as { holidays?: Array<{ holiday_date: string }> }) : {};
+    const error = !res?.ok;
+    const data = json.holidays ?? [];
 
     if (error) {
-      console.warn("Error loading holidays for leave request:", error);
+      console.warn("Error loading holidays for leave request");
       return [];
     }
 

@@ -10,7 +10,7 @@ import {
   determineDayType,
   HOLIDAY_DE_MINIMIS_HOURS,
   HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
-  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  unworkedHolidayCreditHours,
   isEligibleForHolidayPayRule,
   normalizeHolidays,
 } from "@/utils/holidays";
@@ -281,7 +281,7 @@ export function generateTimesheetFromClockEntries(
           regularHours < HOLIDAY_DE_MINIMIS_HOURS &&
           isEligibleForHolidayPayRule(dateStr, regularHours, eligibilityContext)
         ) {
-          regularHours = HOLIDAY_UNWORKED_CREDIT_HOURS;
+          regularHours = unworkedHolidayCreditHours(dayType);
         }
       }
     }

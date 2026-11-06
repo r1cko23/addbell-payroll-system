@@ -267,6 +267,13 @@ export function isDateInWeek(
 /** Paid BH/regular hours when eligible for a holiday but absent (or de minimis clock only). */
 export const HOLIDAY_UNWORKED_CREDIT_HOURS = 4;
 
+/** DOLE, daily-paid staff: only regular holidays pay when unworked. Special (non-working) holidays are no work, no pay. */
+export function unworkedHolidayCreditHours(dayType: string | null | undefined): number {
+  return dayType === "regular-holiday" || dayType === "sunday-regular-holiday"
+    ? HOLIDAY_UNWORKED_CREDIT_HOURS
+    : 0;
+}
+
 /** Days before period start to load clock entries for holiday pay eligibility. */
 export const HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS = 7;
 

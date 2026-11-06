@@ -5,7 +5,7 @@ import {
   regularHoursBasicGross,
 } from "@/lib/payroll-earnings-breakdown";
 import {
-  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  unworkedHolidayCreditHours,
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
 import {
@@ -153,7 +153,7 @@ function aggregateHolidayAndOtFromAttendance(
         const hasCompleteLog = Boolean(day?.clockInTime && day?.clockOutTime);
         const paidH = hasCompleteLog
           ? regularHours
-          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          : unworkedHolidayCreditHours(dayType);
         totals.regHolHours += paidH;
         totals.regHolPay += calc.regularPay;
       }
@@ -176,7 +176,7 @@ function aggregateHolidayAndOtFromAttendance(
         const hasCompleteLog = Boolean(day?.clockInTime && day?.clockOutTime);
         const paidH = hasCompleteLog
           ? regularHours
-          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          : unworkedHolidayCreditHours(dayType);
         totals.nwhHours += paidH;
         totals.nwhPay += calc.regularPay;
       }

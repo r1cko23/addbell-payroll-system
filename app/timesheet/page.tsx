@@ -1528,7 +1528,8 @@ export default function TimesheetPage() {
         dayEntries.some((e) => e.clock_in_time && e.clock_out_time) ||
         incompleteDayEntries.some((e) => e.clock_in_time && e.clock_out_time);
 
-      if (eligibleForHolidayCredit && !hasCompleteTimeLog && bh < HOLIDAY_DE_MINIMIS_HOURS) {
+      // Special (non-working) holidays: no work, no pay (DOLE, daily-paid).
+      if (status === "RH" && eligibleForHolidayCredit && !hasCompleteTimeLog && bh < HOLIDAY_DE_MINIMIS_HOURS) {
         bh = HOLIDAY_UNWORKED_CREDIT_HOURS;
       }
 

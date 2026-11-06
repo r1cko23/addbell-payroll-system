@@ -18,7 +18,7 @@ import {
 } from "@/utils/payroll-calculator";
 import { creditNightDiffHours, creditWorkHoursHalfHour } from "@/utils/overtime";
 import {
-  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  unworkedHolidayCreditHours,
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
 
@@ -276,7 +276,7 @@ export function buildPayslipPrintSyncFromStoredPayslip(
         const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
         const paidH = hasCompleteLog
           ? regularHours
-          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          : unworkedHolidayCreditHours(dayType);
         if (paidH > 0) {
           breakdown.legalHoliday.hours += paidH;
           breakdown.legalHoliday.amount += calculateRegularHoliday(
@@ -297,7 +297,7 @@ export function buildPayslipPrintSyncFromStoredPayslip(
         const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
         const paidH = hasCompleteLog
           ? regularHours
-          : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          : unworkedHolidayCreditHours(dayType);
         if (paidH > 0) {
           breakdown.specialHoliday.hours += paidH;
           breakdown.specialHoliday.amount += calculateNonWorkingHoliday(

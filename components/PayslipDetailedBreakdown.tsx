@@ -29,7 +29,7 @@ import {
   creditWorkHoursHalfHour,
 } from "@/utils/overtime";
 import {
-  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  unworkedHolidayCreditHours,
   isEligibleForHolidayPayRule,
 } from "@/utils/holidays";
 import {
@@ -485,7 +485,7 @@ function PayslipDetailedBreakdownComponent({
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const paidH = hasCompleteLog
             ? finalRegularHours
-            : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            : unworkedHolidayCreditHours(dayType);
 
           hoursToCount = paidH;
           breakdown.legalHoliday.hours += paidH;
@@ -507,7 +507,7 @@ function PayslipDetailedBreakdownComponent({
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const paidH = hasCompleteLog
             ? finalRegularHours
-            : HOLIDAY_UNWORKED_CREDIT_HOURS;
+            : unworkedHolidayCreditHours(dayType);
 
           hoursToCount = paidH;
           breakdown.specialHoliday.hours += paidH;
@@ -771,7 +771,7 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const paidH = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
           breakdown.specialHoliday.hours += paidH;
           // Policy: eligible Sunday+Special always uses 1.5x, even for credited hours.
           breakdown.specialHoliday.amount += paidH * ratePerHour * 1.5;
@@ -825,7 +825,7 @@ function PayslipDetailedBreakdownComponent({
 
         if (eligibleForHolidayPay) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
-          const paidH = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+          const paidH = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
           breakdown.legalHoliday.hours += paidH;
           // Policy: eligible Sunday+Regular always uses 2.6x, even for credited hours.
           breakdown.legalHoliday.amount += paidH * ratePerHour * 2.6;

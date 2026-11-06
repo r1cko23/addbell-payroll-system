@@ -99,7 +99,7 @@ import {
   isEligibleForHolidayPayRule,
   isSubstantiveHolidayWork,
   HOLIDAY_ELIGIBILITY_LOOKBACK_DAYS,
-  HOLIDAY_UNWORKED_CREDIT_HOURS,
+  unworkedHolidayCreditHours,
 } from "@/utils/holidays";
 import { fetchHolidaysRange } from "@/lib/holidays/fetchHolidays";
 // Bi-monthly helpers are no longer used; payslips now align with weekly (Wed–Tue) cutoffs.
@@ -2803,7 +2803,7 @@ export default function PayslipsPage() {
 
                 if (eligibleForHolidayPay) {
                   const hasCompleteLog = Boolean(day.clockInTime && day.clockOutTime);
-                  const hoursToPay = hasCompleteLog ? regularHours : HOLIDAY_UNWORKED_CREDIT_HOURS;
+                  const hoursToPay = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
                   // Policy: eligible holiday pay always uses statutory multipliers,
                   // even if credited hours (no complete log).
                   holidayRestDayPay +=

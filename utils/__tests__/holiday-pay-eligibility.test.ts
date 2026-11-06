@@ -170,3 +170,33 @@ describe("holiday recording for 31 August 2026", () => {
     expect(hoursOn(result, "2026-08-31")).toBe(0);
   });
 });
+
+describe("special non-working holiday is no work, no pay", () => {
+  const periodStart = new Date(2026, 7, 24, 12, 0, 0);
+  const periodEnd = new Date(2026, 7, 31, 12, 0, 0);
+  const holidays = [{ holiday_date: "2026-08-31", holiday_type: "non-working" }];
+  const hoursOn = (
+    result: ReturnType<typeof generateTimesheetFromClockEntries>,
+    date: string
+  ) => result.attendance_data.find((day) => day.date === date)?.regularHours;
+
+  test("unworked special holiday gets no credit even when Friday was a full workday", () => {
+    const result = generateTimesheetFromClockEntries(
+      [punch("2026-08-28", "07:00:00", "16:00:00")],
+      periodStart,
+      periodEnd,
+      holidays
+    );
+    expect(hoursOn(result, "2026-08-31")).toBe(0);
+  });
+
+  test("worked special holiday still records the hours worked", () => {
+    const result = generateTimesheetFromClockEntries(
+      [punch("2026-08-28", "07:00:00", "16:00:00"), punch("2026-08-31", "07:00:00", "16:00:00")],
+      periodStart,
+      periodEnd,
+      holidays
+    );
+    expect(hoursOn(result, "2026-08-31")).toBeGreaterThan(0);
+  });
+});

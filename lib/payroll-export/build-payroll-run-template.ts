@@ -134,6 +134,8 @@ function aggregateHolidayAndOtFromAttendance(
       nightDiffHours,
       perHour
     );
+    // Worked only through an approved OT request: calc already splits the day rate and OT (see calculateDailyPay).
+    const workedViaOt = regularHours <= 0 && overtimeHours > 0;
 
     if (dayType === "regular") {
       totals.regOtHours += overtimeHours;
@@ -150,7 +152,10 @@ function aggregateHolidayAndOtFromAttendance(
         regularHours,
         attendance
       );
-      if (eligible) {
+      if (workedViaOt) {
+        totals.regHolHours += Math.min(8, overtimeHours);
+        totals.regHolPay += calc.regularPay;
+      } else if (eligible) {
         const hasCompleteLog = Boolean(day?.clockInTime && day?.clockOutTime);
         const paidH = hasCompleteLog
           ? regularHours
@@ -173,7 +178,10 @@ function aggregateHolidayAndOtFromAttendance(
         regularHours,
         attendance
       );
-      if (eligible) {
+      if (workedViaOt) {
+        totals.nwhHours += Math.min(8, overtimeHours);
+        totals.nwhPay += calc.regularPay;
+      } else if (eligible) {
         const hasCompleteLog = Boolean(day?.clockInTime && day?.clockOutTime);
         const paidH = hasCompleteLog
           ? regularHours

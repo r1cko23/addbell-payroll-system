@@ -264,6 +264,20 @@ export function calculateDailyPay(
   nightDiffHours: number,
   ratePerHour: number
 ): PayCalculation {
+  // Rest day/holiday worked only via an approved OT request: DOLE prices the first 8h at the day rate, only the rest as OT.
+  if (dayType !== "regular" && regularHours <= 0 && overtimeHours > 0) {
+    const firstEight = Math.min(8, overtimeHours);
+    const past = overtimeHours - firstEight;
+    const split = calculateDailyPay(dayType, firstEight, past, 0, ratePerHour);
+    // shortcut: assumes night hours fall at the end of the shift (true for evening OT); needs punch times to place them exactly.
+    const ndPast = Math.min(nightDiffHours, past);
+    const dayRate = ratePerHour * split.multiplier;
+    const nightDiffPay =
+      calculateNightDiff(nightDiffHours - ndPast, dayRate) +
+      calculateNightDiff(ndPast, dayRate * PAYROLL_MULTIPLIERS.OT_PREMIUM);
+    return { ...split, nightDiffPay, total: split.regularPay + split.overtimePay + nightDiffPay };
+  }
+
   let regularPay = 0;
   let overtimePay = 0;
   let description = "";
@@ -323,6 +337,22 @@ export function calculateDailyPay(
     total,
     description,
     multiplier,
+  };
+}
+
+/** OT and ND pay for one day exactly as calculateDailyPay prices them, for screens that show the day-rate hours on their own line. */
+export function overtimeAndNightDiffPay(
+  dayType: DayType,
+  regularHours: number,
+  overtimeHours: number,
+  nightDiffHours: number,
+  ratePerHour: number
+): { overtimePay: number; nightDiffPay: number } {
+  const day = calculateDailyPay(dayType, regularHours, overtimeHours, nightDiffHours, ratePerHour);
+  const base = calculateDailyPay(dayType, regularHours, 0, 0, ratePerHour);
+  return {
+    overtimePay: day.regularPay - base.regularPay + day.overtimePay,
+    nightDiffPay: day.nightDiffPay,
   };
 }
 

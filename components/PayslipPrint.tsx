@@ -6,6 +6,7 @@ import { formatCurrency } from "@/utils/format";
 import {
   calculateRegularOT,
   calculateNightDiff,
+  overtimeAndNightDiffPay,
   calculateRegularHoliday,
   calculateRegularHolidayOT,
   calculateNonWorkingHoliday,
@@ -294,6 +295,16 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         Math.round((Number(nightDiffHours) || 0) * 100) / 100
       );
 
+      // Rest day/holiday worked only via an approved OT request: no absence credit; first 8h at the day rate (calculateDailyPay).
+      const workedViaOt = dayType !== "regular" && regularHours <= 0 && overtimeHours > 0;
+      const premiumOt = overtimeAndNightDiffPay(
+        dayType as DayType,
+        regularHours,
+        overtimeHours,
+        creditedNightDiffHours,
+        ratePerHour
+      );
+
       // Basic salary (regular working days — Mon–Sat; Sunday rest for office-based)
       // IMPORTANT:
       // - Rest days (sunday) should NOT be included in basic salary (paid separately)
@@ -338,10 +349,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       // but it's displayed under the single "Night Differential" line.
       if (dayType === "regular" && creditedNightDiffHours > 0) {
         earningsBreakdown.nightDiff.hours += creditedNightDiffHours;
-        earningsBreakdown.nightDiff.amount += calculateNightDiff(
-          creditedNightDiffHours,
-          ratePerHour
-        );
+        earningsBreakdown.nightDiff.amount += premiumOt.nightDiffPay;
       }
 
       // Removed: NDOT line item. ND is already represented in Night Differential above.
@@ -355,7 +363,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           attendanceData
         );
 
-        if (eligibleForHolidayPay) {
+        if (eligibleForHolidayPay && !workedViaOt) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
@@ -382,17 +390,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         // If not eligible, don't add daily rate (but OT allowance still applies if they worked OT)
         if (overtimeHours > 0) {
           earningsBreakdown.legalHDOT.hours += overtimeHours;
-          earningsBreakdown.legalHDOT.amount += calculateRegularHolidayOT(
-            overtimeHours,
-            ratePerHour
-          );
+          earningsBreakdown.legalHDOT.amount += premiumOt.overtimePay;
         }
         if (creditedNightDiffHours > 0) {
           earningsBreakdown.legalHDND.hours += creditedNightDiffHours;
-          earningsBreakdown.legalHDND.amount += calculateNightDiff(
-            creditedNightDiffHours,
-            ratePerHour
-          );
+          earningsBreakdown.legalHDND.amount += premiumOt.nightDiffPay;
         }
       }
 
@@ -405,7 +407,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
           attendanceData
         );
 
-        if (eligibleForHolidayPay) {
+        if (eligibleForHolidayPay && !workedViaOt) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
@@ -431,17 +433,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         // If not eligible, don't add daily rate (but OT allowance still applies if they worked OT)
         if (overtimeHours > 0) {
           earningsBreakdown.SHOT.hours += overtimeHours;
-          earningsBreakdown.SHOT.amount += calculateNonWorkingHolidayOT(
-            overtimeHours,
-            ratePerHour
-          );
+          earningsBreakdown.SHOT.amount += premiumOt.overtimePay;
         }
         if (creditedNightDiffHours > 0) {
           earningsBreakdown.SHND.hours += creditedNightDiffHours;
-          earningsBreakdown.SHND.amount += calculateNightDiff(
-            creditedNightDiffHours,
-            ratePerHour
-          );
+          earningsBreakdown.SHND.amount += premiumOt.nightDiffPay;
         }
       }
 
@@ -485,18 +481,12 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
 
         if (overtimeHours > 0) {
           earningsBreakdown.restDayOT.hours += overtimeHours;
-          earningsBreakdown.restDayOT.amount += calculateSundayRestDayOT(
-            overtimeHours,
-            ratePerHour
-          );
+          earningsBreakdown.restDayOT.amount += premiumOt.overtimePay;
         }
 
         if (creditedNightDiffHours > 0) {
           earningsBreakdown.restDayND.hours += creditedNightDiffHours;
-          earningsBreakdown.restDayND.amount += calculateNightDiff(
-            creditedNightDiffHours,
-            ratePerHour
-          );
+          earningsBreakdown.restDayND.amount += premiumOt.nightDiffPay;
         }
       }
 
@@ -504,7 +494,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       // Everyone receives the same Sunday+Special Holiday multiplier when worked.
       if (dayType === "sunday-special-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
-        if (eligible) {
+        if (eligible && !workedViaOt) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
           earningsBreakdown.spHoliday.days += hoursPaid / 8;
@@ -514,14 +504,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         if (overtimeHours > 0) {
           earningsBreakdown.SHonRDOT.hours += overtimeHours;
           earningsBreakdown.SHonRDOT.amount +=
-            calculateSundaySpecialHolidayOT(overtimeHours, ratePerHour);
+            premiumOt.overtimePay;
         }
         if (creditedNightDiffHours > 0) {
           earningsBreakdown.SHND.hours += creditedNightDiffHours;
-          earningsBreakdown.SHND.amount += calculateNightDiff(
-            creditedNightDiffHours,
-            ratePerHour
-          );
+          earningsBreakdown.SHND.amount += premiumOt.nightDiffPay;
         }
       }
 
@@ -529,7 +516,7 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
       // Everyone receives the same Sunday+Regular Holiday multiplier when worked.
       if (dayType === "sunday-regular-holiday") {
         const eligible = isEligibleForHolidayPay(date, regularHours, attendanceData);
-        if (eligible) {
+        if (eligible && !workedViaOt) {
           const hasCompleteLog = Boolean(clockInTime && clockOutTime);
           const hoursPaid = hasCompleteLog ? regularHours : unworkedHolidayCreditHours(dayType);
           earningsBreakdown.legalHoliday.days += hoursPaid / 8;
@@ -539,14 +526,11 @@ function PayslipPrintComponent(props: PayslipPrintProps) {
         if (overtimeHours > 0) {
           earningsBreakdown.LHonRDOT.hours += overtimeHours;
           earningsBreakdown.LHonRDOT.amount +=
-            calculateSundayRegularHolidayOT(overtimeHours, ratePerHour);
+            premiumOt.overtimePay;
         }
         if (creditedNightDiffHours > 0) {
           earningsBreakdown.legalHDND.hours += creditedNightDiffHours;
-          earningsBreakdown.legalHDND.amount += calculateNightDiff(
-            creditedNightDiffHours,
-            ratePerHour
-          );
+          earningsBreakdown.legalHDND.amount += premiumOt.nightDiffPay;
         }
       }
     });

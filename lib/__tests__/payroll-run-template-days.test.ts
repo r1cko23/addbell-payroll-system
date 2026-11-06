@@ -14,6 +14,7 @@ const RATE_DAY = 800; // 100/hr
 const run = { cutoff_start: "2026-10-28", cutoff_end: "2026-11-03", company_name: "X" };
 
 type Day = {
+  overtimeHours?: number;
   date: string;
   dayType: string;
   regularHours: number;
@@ -105,6 +106,23 @@ describe("payroll Excel no. of days", () => {
     expect(r[AMOUNT]).toBe(4 * RATE_DAY);
     expect(r[REST_HR]).toBe(8);
     expect(r[REST_AMT]).toBeCloseTo(8 * 100 * 1.3);
+  });
+
+  test("special day worked only through an OT request: first 8h at day rate, rest at OT rate", () => {
+    const r = row([...weekdays8, { ...absent("2026-11-02", "non-working-holiday"), overtimeHours: 9 } as Day]);
+    expect(r[DAYS]).toBe(4);
+    expect(r[NWH_AMT]).toBeCloseTo(8 * 100 * 1.3 + 1 * 100 * 1.3 * 1.3);
+  });
+
+  test("regular holiday worked only through an OT request is paid for the work, not the absence credit", () => {
+    const r = row([...weekdays8, { ...absent("2026-11-02", "regular-holiday"), overtimeHours: 10 } as Day]);
+    expect(r[REG_HOL_AMT]).toBeCloseTo(8 * 200 + 2 * 260);
+  });
+
+  test("rest day worked only through an OT request", () => {
+    const r = row([...weekdays8, { ...absent("2026-11-01", "sunday"), overtimeHours: 10 } as Day]);
+    expect(r[REST_HR]).toBe(10);
+    expect(r[REST_AMT]).toBeCloseTo(8 * 130 + 2 * 169);
   });
 
   test("rest day not worked adds nothing", () => {
